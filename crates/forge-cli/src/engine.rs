@@ -38,7 +38,7 @@ impl Engine {
         loop {
             println!("│");
 
-            let message = format!("{}", "API Request");
+            let message = "API Request".to_string();
             let mut sp = Spinner::new(Spinners::Dots, format!(" {}", message));
 
             let response = self.provider.chat(request.clone()).await?;
