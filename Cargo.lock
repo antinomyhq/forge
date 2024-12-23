@@ -629,7 +629,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74fef4569247a5f429d9156b9d0a2599914385dd189c539334c625d8099d90ab"
 dependencies = [
  "futures-core",
- "nom",
+ "nom 7.1.3",
  "pin-project-lite",
 ]
 
@@ -704,7 +704,7 @@ dependencies = [
  "futures",
  "ignore",
  "inquire",
- "nom",
+ "nom 7.1.3",
  "pretty_assertions",
  "serde",
  "tokio",
@@ -743,6 +743,7 @@ dependencies = [
  "glob",
  "ignore",
  "insta",
+ "nom 8.0.0-beta.1",
  "regex",
  "schemars",
  "serde",
@@ -1601,6 +1602,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nom"
+version = "8.0.0-beta.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "842c447b3ca1221b1c26a101f24c092320f8014f40729356fbcba967afb0c1f2"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2012,7 +2022,7 @@ dependencies = [
  "futures-core",
  "futures-timer",
  "mime",
- "nom",
+ "nom 7.1.3",
  "pin-project-lite",
  "reqwest 0.11.27",
  "thiserror 1.0.69",
