@@ -14,7 +14,6 @@ tracing = "0.1"
 colorize = "0.1.0"
 Inflector = "0.11.4"
 forge-tool-macros = { path = "../forge-tool-macros" }
-forge-prompt = { path = "../forge-prompt" }
 schemars = "0.8.21"
 ignore = "0.4"
 regex = "1.10.2"

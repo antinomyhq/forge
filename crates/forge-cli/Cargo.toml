@@ -17,7 +17,6 @@ colorize = "0.1.0"
 async-trait = "0.1.83"
 ignore = "0.4"
 forge-tool = { path = "../forge-tool" }
-forge-prompt = { path = "../forge-prompt" }
 forge-provider = { path = "../forge-provider" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.133"

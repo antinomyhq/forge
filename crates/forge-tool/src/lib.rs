@@ -1,4 +1,3 @@
-mod console;
 pub mod fs;
 #[allow(unused)]
 mod mcp;

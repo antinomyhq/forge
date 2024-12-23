@@ -6,7 +6,6 @@ use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
 use tracing::debug;
 
-use crate::console::{ReadLine, WriteLine};
 use crate::fs::file_info::FSFileInfo;
 use crate::fs::list::FSList;
 use crate::fs::read::FSRead;
@@ -116,8 +115,6 @@ impl Default for Router {
             Router::import(FSReplace),
             Router::import(Outline),
             Router::import(Think::default()),
-            Router::import(ReadLine::default()),
-            Router::import(WriteLine),
             Router::import(Shell::default()),
         ]);
 

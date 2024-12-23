@@ -683,7 +683,6 @@ dependencies = [
  "colorize",
  "derive_more",
  "derive_setters",
- "forge-prompt",
  "forge-provider",
  "forge-tool",
  "futures",
@@ -699,21 +698,6 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "forge-prompt"
-version = "0.1.0"
-dependencies = [
- "colorize",
- "derive_more",
- "futures",
- "ignore",
- "inquire",
- "nom 7.1.3",
- "pretty_assertions",
- "serde",
- "tokio",
 ]
 
 [[package]]
@@ -745,7 +729,6 @@ dependencies = [
  "async-trait",
  "colorize",
  "difference",
- "forge-prompt",
  "forge-tool-macros",
  "glob",
  "ignore",

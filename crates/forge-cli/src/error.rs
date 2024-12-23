@@ -10,7 +10,6 @@ pub enum Error {
     Custom(String),
     Provider(forge_provider::Error),
     IO(std::io::Error),
-    Prompt(forge_prompt::Error),
     SendError(tokio::sync::broadcast::error::SendError<std::string::String>),
     Serde(serde_json::Error),
 }
@@ -61,7 +60,6 @@ impl From<&Error> for Errata {
             Error::Custom(error) => Errata::new(error.to_string()),
             Error::Provider(error) => Errata::new(format!("{}", error)),
             Error::IO(error) => Errata::new(format!("{}", error)),
-            Error::Prompt(error) => Errata::new(format!("{}", error)),
             Error::SendError(send_error) => Errata::new(format!("{}", send_error)),
             Error::Serde(error) => Errata::new(format!("{}", error)),
         }
