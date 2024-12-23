@@ -9,12 +9,12 @@ use axum::response::sse::{Event, Sse};
 use axum::routing::get;
 use axum::Router;
 use completion::{get_completions, Completion};
+use forge_cli::cli::Cli;
 use forge_cli::Result;
 use futures::stream::Stream;
 use tailcall_valid::Validator;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
-use forge_cli::cli::Cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {

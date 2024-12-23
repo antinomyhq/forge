@@ -2,8 +2,8 @@ use std::env::VarError;
 
 use tailcall_valid::{Valid, Validator};
 
-use crate::Error;
 use crate::log::LogLevel;
+use crate::Error;
 
 #[derive(Clone, Debug)]
 pub struct Cli {
@@ -22,18 +22,35 @@ pub struct Cli {
 
 impl Cli {
     pub fn new() -> Valid<Cli, Error, Error> {
-        Valid::from_option(std::env::var("API_KEY").ok(), Error::Env(VarError::NotPresent))
-            .zip(Valid::from_option(std::env::var("MODEL").ok(), Error::Env(VarError::NotPresent)))
-            .zip(Valid::from_option(std::env::var("BASE_URL").ok(), Error::Env(VarError::NotPresent)))
-            .zip(
-                Valid::from_option(std::env::var("LOG_LEVEL").ok(), Error::Env(VarError::NotPresent))
-                    .and_then(|v| Valid::from_option(LogLevel::from_str(&v), Error::Custom("Invalid log level".to_string()))),
+        Valid::from_option(
+            std::env::var("API_KEY").ok(),
+            Error::Env(VarError::NotPresent),
+        )
+        .zip(Valid::from_option(
+            std::env::var("MODEL").ok(),
+            Error::Env(VarError::NotPresent),
+        ))
+        .zip(Valid::from_option(
+            std::env::var("BASE_URL").ok(),
+            Error::Env(VarError::NotPresent),
+        ))
+        .zip(
+            Valid::from_option(
+                std::env::var("LOG_LEVEL").ok(),
+                Error::Env(VarError::NotPresent),
             )
-            .map(|(((key, model), base_url), log_level)| Cli {
-                key,
-                model: Some(model),
-                base_url: Some(base_url),
-                log_level: Some(log_level),
-            })
+            .and_then(|v| {
+                Valid::from_option(
+                    LogLevel::from_str(&v),
+                    Error::Custom("Invalid log level".to_string()),
+                )
+            }),
+        )
+        .map(|(((key, model), base_url), log_level)| Cli {
+            key,
+            model: Some(model),
+            base_url: Some(base_url),
+            log_level: Some(log_level),
+        })
     }
 }
