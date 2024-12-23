@@ -19,10 +19,10 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new(cli: Cli, cwd: PathBuf, tx: broadcast::Sender<String>) -> Self {
+    pub fn new(cli: Cli, key: String, cwd: PathBuf, tx: broadcast::Sender<String>) -> Self {
         Self {
             tool_engine: Router::default(),
-            provider: Provider::open_router(cli.key, cli.model, cli.base_url),
+            provider: Provider::open_router(key, cli.model, cli.base_url),
             tui: Tui::new(cwd),
             tx,
         }
@@ -84,7 +84,7 @@ impl Engine {
                 tool.tool_id.as_str(),
                 result.content.to_string().as_str()
             )
-            .as_str(),
+                .as_str(),
         );
 
         result

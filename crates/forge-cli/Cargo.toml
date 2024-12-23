@@ -24,6 +24,7 @@ serde_json = "1.0.133"
 derive_setters = "0.1.6"
 spinners = "4.1.1"
 termsize = "0.1.9"
+dotenv = "0.15.0"
 
 [dev-dependencies]
 indoc = "2.0.5"

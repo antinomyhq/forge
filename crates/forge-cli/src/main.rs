@@ -19,6 +19,11 @@ use tracing::info;
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Ok(_) = dotenv::dotenv() {
+        info!("Loaded .env file");
+    }
+
+    let _key = std::env::var("FORGE_API_KEY").map_err(|_| "FORGE_API_KEY not set".to_string())?;
 
     // Initialize logging with level from CLI
     tracing_subscriber::fmt()

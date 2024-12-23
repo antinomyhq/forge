@@ -5,10 +5,6 @@ use crate::log::LogLevel;
 #[derive(Clone, Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    /// API Key to be used
-    #[arg(short, long)]
-    pub key: String,
-
     /// Model to be used
     #[arg(short, long)]
     pub model: Option<String>,
