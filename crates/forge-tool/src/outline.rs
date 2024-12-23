@@ -43,7 +43,6 @@ fn parse_file(_file: &Path, content: &str, parser: &mut Parser, query: &Query) -
         .filter_map(|capture| {
             let node = capture.node;
             let start_line = node.start_position().row;
-            let end_line = node.end_position().row;
             // Get the full text of the node instead of just the first line
             let text = node.utf8_text(content.as_bytes()).ok()?;
             // Get the first line of the definition which contains the signature

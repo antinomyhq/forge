@@ -37,7 +37,7 @@ impl ToolTrait for FSList {
 
         let mut paths = Vec::new();
         let recursive = input.recursive.unwrap_or(false);
-        let max_depth = if recursive { std::usize::MAX } else { 1 };
+        let max_depth = if recursive { usize::MAX } else { 1 };
 
         let walker = WalkDir::new(dir)
             .min_depth(0)
