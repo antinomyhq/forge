@@ -73,6 +73,7 @@ impl ToolTrait for FSSearch {
 
             let name = entry.file_name().to_string_lossy();
             let is_file = entry.file_type().is_file();
+            // let is_dir = entry.file_type().is_dir();
 
             // For empty pattern, only match files
             if input.regex.is_empty() {

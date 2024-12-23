@@ -1,8 +1,9 @@
 use std::convert::Infallible;
-use std::path::Path;
 use std::sync::Arc;
 
 use axum::extract::State;
+
+mod app;
 mod completion;
 use axum::response::sse::{Event, Sse};
 use axum::routing::get;
@@ -10,48 +11,10 @@ use axum::Router;
 use clap::Parser;
 use completion::{get_completions, Completion};
 use forge_cli::cli::Cli;
-use forge_cli::{Engine, Result};
-use futures::stream::{self, Stream};
-use futures::StreamExt;
-use tokio::sync::broadcast;
+use forge_cli::Result;
+use futures::stream::Stream;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
-
-// Shared state between HTTP server and CLI
-#[derive(Clone)]
-struct AppState {
-    tx: broadcast::Sender<String>,
-}
-
-async fn conversation_handler(
-    State(state): State<Arc<AppState>>,
-) -> Sse<impl Stream<Item = std::result::Result<Event, Infallible>>> {
-    let rx = state.tx.subscribe();
-
-    // Create a stream that emits incrementing numbers every second
-    let counter_stream = stream::unfold(0u64, |counter| async move {
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        Some((counter, counter + 1))
-    });
-
-    // Merge the counter stream with the broadcast receiver
-    let combined_stream = stream::select(
-        // Convert counter to events
-        counter_stream.map(|n| Ok(Event::default().data(n.to_string()))),
-        // Original broadcast receiver stream
-        stream::unfold(rx, |mut rx| async move {
-            match rx.recv().await {
-                Ok(msg) => {
-                    let event = Event::default().data(msg);
-                    Some((Ok(event), rx))
-                }
-                Err(_) => None,
-            }
-        }),
-    );
-
-    Sse::new(combined_stream)
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -63,8 +26,8 @@ async fn main() -> Result<()> {
         .init();
 
     // Create broadcast channel for SSE
-    let (tx, _) = broadcast::channel::<String>(100);
-    let state = Arc::new(AppState { tx: tx.clone() });
+
+    let state = Arc::new(app::AppState::<String>::default());
 
     // Setup HTTP server
     let app = Router::new()
@@ -82,10 +45,6 @@ async fn main() -> Result<()> {
         axum::serve(listener, app).await.unwrap();
     });
 
-    // Run CLI engine
-    let engine = Engine::new(cli, Path::new(".").to_path_buf(), tx.clone());
-    engine.launch().await?;
-
     // Wait for server to complete (though it runs indefinitely)
     let _ = server.await;
 
@@ -93,6 +52,11 @@ async fn main() -> Result<()> {
 }
 
 async fn completions_handler() -> axum::Json<Vec<Completion>> {
-    let completions = get_completions().await;
-    axum::Json(completions)
+    axum::Json(get_completions().await)
+}
+
+async fn conversation_handler(
+    State(state): State<Arc<app::AppState<String>>>,
+) -> Sse<impl Stream<Item = std::result::Result<Event, Infallible>>> {
+    Sse::new(state.as_stream().await)
 }

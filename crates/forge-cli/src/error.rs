@@ -11,6 +11,8 @@ pub enum Error {
     Provider(forge_provider::Error),
     IO(std::io::Error),
     Prompt(forge_prompt::Error),
+    SendError(tokio::sync::broadcast::error::SendError<std::string::String>),
+    Serde(serde_json::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -60,6 +62,8 @@ impl From<&Error> for Errata {
             Error::Provider(error) => Errata::new(format!("{}", error)),
             Error::IO(error) => Errata::new(format!("{}", error)),
             Error::Prompt(error) => Errata::new(format!("{}", error)),
+            Error::SendError(send_error) => Errata::new(format!("{}", send_error)),
+            Error::Serde(error) => Errata::new(format!("{}", error)),
         }
     }
 }
