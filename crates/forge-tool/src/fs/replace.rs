@@ -1,3 +1,8 @@
+use nom::bytes::complete::{tag, take_until};
+use nom::character::complete::multispace0;
+use nom::IResult;
+use nom::multi::many0;
+use nom::Parser;
 use forge_tool_macros::Description as DescriptionDerive;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -16,6 +21,21 @@ pub struct FSReplaceInput {
 #[derive(DescriptionDerive)]
 pub struct FSReplace;
 
+fn parse_block(input: &str) -> IResult<&str, (&str, &str)> {
+    let (input, _) = multispace0(input)?;
+    let (input, _) = tag("<<<<<<< SEARCH")(input)?;
+    let (input, search) = take_until("=======")(input)?;
+    let (input, _) = tag("=======")(input)?;
+    let (input, replace) = take_until(">>>>>>> REPLACE")(input)?;
+    let (input, _) = tag(">>>>>>> REPLACE")(input)?;
+    let search = search.trim();
+    let replace = replace.trim();
+    Ok((input, (search, replace)))
+}
+
+fn parse_diff(input: &str) -> IResult<&str, Vec<(&str, &str)>> {
+    many0(parse_block).parse(input)
+}
 #[async_trait::async_trait]
 impl ToolTrait for FSReplace {
     type Input = FSReplaceInput;
@@ -26,58 +46,40 @@ impl ToolTrait for FSReplace {
             .await
             .map_err(|e| e.to_string())?;
 
-        let mut result = content;
+        let (_, blocks) = parse_diff(&input.diff).map_err(|e| e.to_string())?;
+        let mut result = Vec::new();
+        let mut lines = content.lines().collect::<Vec<_>>();
 
-        // Process each block
-        for block in input
-            .diff
-            .split(">>>>>>> REPLACE")
-            .filter(|b| !b.trim().is_empty())
-        {
-            let parts: Vec<&str> = block.split("=======").collect();
-            if parts.len() != 2 {
-                continue;
-            }
+        for (search, replace) in blocks {
+            let search_lines = search.lines().collect::<Vec<_>>();
+            let replace_lines = replace.lines().collect::<Vec<_>>();
 
-            let search = parts[0].trim_start_matches("<<<<<<< SEARCH").trim();
-            let replace = parts[1].trim();
-
-            // Convert search and replace content to lines
-            let search_lines: Vec<&str> = search.lines().collect();
-            let replace_lines: Vec<&str> = replace.lines().collect();
-
-            // Convert current content to lines
-            let lines: Vec<String> = result.lines().map(|s| s.to_string()).collect();
-            let mut new_lines = Vec::new();
             let mut i = 0;
 
             while i < lines.len() {
-                if i + search_lines.len() <= lines.len() {
-                    let mut matches = true;
-                    for (j, search_line) in search_lines.iter().enumerate() {
-                        if lines[i + j] != *search_line {
-                            matches = false;
-                            break;
-                        }
+                // Check if the current segment matches the search block
+                if i + search_lines.len() <= lines.len()
+                    && lines[i..i + search_lines.len()] == *search_lines.as_slice()
+                {
+                    // Replace the matched lines
+                    if !replace_lines.is_empty() {
+                        result.extend_from_slice(&replace_lines);
                     }
-                    if matches {
-                        new_lines.extend(replace_lines.iter().map(|s| s.to_string()));
-                        i += search_lines.len();
-                        continue;
-                    }
+                    i += search_lines.len(); // Skip the matched lines
+                } else {
+                    result.push(lines[i]);
+                    i += 1;
                 }
-                new_lines.push(lines[i].clone());
-                i += 1;
             }
 
-            // Update result with new content
-            result = if new_lines.is_empty() {
-                String::new()
-            } else {
-                new_lines.join("\n")
-            };
+            // Prepare lines for next block
+            lines = result.clone();
+            result.clear();
         }
-        tokio::fs::write(&input.path, &result)
+
+        let new_content = lines.join("\n");
+
+        tokio::fs::write(&input.path, &new_content)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -105,6 +107,16 @@ mod test {
             .call(FSReplaceInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: "<<<<<<< SEARCH\nHello World\n=======\nHi World\n>>>>>>> REPLACE".to_string(),
+            })
+            .await
+            .unwrap();
+
+        assert!(result.contains("Successfully replaced"));
+
+        let result = fs_replace
+            .call(FSReplaceInput {
+                path: file_path.to_string_lossy().to_string(),
+                diff: "<<<<<<< SEARCH\nGoodbye=======\nBye\n>>>>>>> REPLACE".to_string(),
             })
             .await
             .unwrap();
@@ -180,6 +192,6 @@ mod test {
         assert!(result.contains("Successfully replaced"));
 
         let new_content = fs::read_to_string(&file_path).await.unwrap();
-        assert_eq!(new_content, "Hello World\n\nGoodbye World");
+        assert_eq!(new_content, "Hello World\nGoodbye World");
     }
 }
