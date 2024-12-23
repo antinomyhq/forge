@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use schemars::JsonSchema;
@@ -35,7 +35,7 @@ fn parse_file(_file: &Path, content: &str, parser: &mut Parser, query: &Query) -
     let mut cursor = QueryCursor::new();
     let mut formatted_output = String::new();
     let mut last_line = -1;
-    let mut seen_lines = HashSet::new();
+    let mut seen_lines = BTreeSet::new();
 
     let mut captures: Vec<_> = cursor
         .matches(query, tree.root_node(), content.as_bytes())
