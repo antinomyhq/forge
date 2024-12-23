@@ -20,6 +20,7 @@ forge-provider = { path = "../forge-provider" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.133"
 derive_setters = "0.1.6"
+dotenv = "0.15.0"
 
 [dev-dependencies]
 indoc = "2.0.5"
