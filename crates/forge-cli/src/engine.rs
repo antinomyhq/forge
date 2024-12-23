@@ -84,7 +84,7 @@ impl Engine {
                 tool.tool_id.as_str(),
                 result.content.to_string().as_str()
             )
-                .as_str(),
+            .as_str(),
         );
 
         result

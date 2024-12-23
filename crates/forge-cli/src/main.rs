@@ -19,7 +19,7 @@ use tracing::info;
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    if let Ok(_) = dotenv::dotenv() {
+    if dotenv::dotenv().is_ok() {
         info!("Loaded .env file");
     }
 
