@@ -18,7 +18,7 @@ impl Error {
     pub fn empty_response(provider: impl Into<String>) -> Self {
         Error::Provider {
             provider: provider.into(),
-            error: ProviderError::EmptyResponse,
+            error: ProviderError::EmptyContent,
         }
     }
 }
@@ -29,10 +29,12 @@ pub enum ProviderError {
     OpenAI(OpenAIError),
 
     // Custom display message for EmptyResponse
-    EmptyResponse,
+    EmptyContent,
+    ToolUseEmptyName,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+pub type ResultStream<T> = Box<dyn futures::Stream<Item = Result<T>>>;
 
 impl From<OpenAIError> for Error {
     fn from(error: OpenAIError) -> Self {

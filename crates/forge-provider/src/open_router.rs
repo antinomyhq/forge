@@ -1,9 +1,11 @@
+use reqwest_eventsource::{Event, EventSource, RequestBuilderExt};
 use std::collections::HashMap;
+use std::pin::Pin;
 
 use forge_tool::{Tool, ToolId};
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use http::{HeaderMap, HeaderValue};
-use reqwest_middleware::reqwest::Client;
+use reqwest_middleware::reqwest::{Client, RequestBuilder};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -12,6 +14,7 @@ use super::error::Result;
 use super::provider::{InnerProvider, Provider};
 use crate::log::LoggingMiddleware;
 use crate::model::{AnyMessage, Assistant, Role, System, ToolUse, UseId, User};
+use crate::ResultStream;
 
 const DEFAULT_MODEL: &str = "google/gemini-flash-1.5-8b-exp";
 
@@ -230,7 +233,7 @@ struct ResponseMessage {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct ToolCall {
-    id: String,
+    id: Option<String>,
     r#type: String,
     function: FunctionCall,
 }
@@ -336,7 +339,7 @@ impl TryFrom<Response> for crate::model::Response {
                     if let Some(tool_calls) = &message.tool_calls {
                         for tool_call in tool_calls {
                             resp = resp.add_call(ToolUse {
-                                tool_use_id: UseId(tool_call.id.clone()),
+                                tool_use_id: tool_call.id.clone().map(UseId),
                                 tool_id: ToolId::new(&tool_call.function.name),
                                 input: serde_json::from_str(&tool_call.function.arguments)?,
                             });
@@ -350,7 +353,7 @@ impl TryFrom<Response> for crate::model::Response {
                     if let Some(tool_calls) = &delta.tool_calls {
                         for tool_call in tool_calls {
                             resp = resp.add_call(ToolUse {
-                                tool_use_id: UseId(tool_call.id.clone()),
+                                tool_use_id: tool_call.id.clone().map(UseId),
                                 tool_id: ToolId::new(&tool_call.function.name),
                                 input: serde_json::from_str(&tool_call.function.arguments)?,
                             });
@@ -410,6 +413,7 @@ struct OpenRouter {
 impl OpenRouter {
     fn new(api_key: String, model: Option<String>, base_url: Option<String>) -> Self {
         let config = Config { api_key, base_url };
+
         let reqwest_client = Client::builder().build().unwrap();
         let http_client = ClientBuilder::new(reqwest_client)
             .with(LoggingMiddleware)
@@ -425,30 +429,11 @@ impl OpenRouter {
 
 #[async_trait::async_trait]
 impl InnerProvider for OpenRouter {
-    async fn chat(&self, request: crate::model::Request) -> Result<crate::model::Response> {
-        let mut new_request = Request::from(request);
-
-        // Set the configured model
-        new_request.model = self.model.clone();
-
-        let body = serde_json::to_string(&new_request)?;
-
-        debug!("Request Body: {}", body);
-
-        let body = self
-            .http_client
-            .post(self.config.url("/chat/completions"))
-            .headers(self.config.headers())
-            .body(body)
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        debug!("Response Body: {}", body);
-        let response = serde_json::from_str::<Response>(&body)?;
-
-        Ok(response.try_into()?)
+    async fn chat(
+        &self,
+        request: crate::model::Request,
+    ) -> Result<Pin<ResultStream<crate::model::Response>>> {
+        todo!()
     }
 
     async fn models(&self) -> Result<Vec<String>> {

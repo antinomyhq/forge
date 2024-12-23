@@ -148,9 +148,12 @@ pub struct UseId(pub(crate) String);
 
 #[derive(Setters, Debug, Clone)]
 pub struct ToolUse {
-    pub tool_use_id: UseId,
+    /// Optional unique identifier that represents a single call to the tool use. NOTE: Not all models support a call ID for using a tool
+    pub tool_use_id: Option<UseId>,
     pub tool_id: ToolId,
-    pub input: Value,
+
+    /// Arguments that need to be passed to the tool. NOTE: Not all tools require input
+    pub input: Option<Value>,
 }
 
 #[derive(Setters, Debug, Clone)]

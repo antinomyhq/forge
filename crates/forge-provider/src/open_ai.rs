@@ -1,12 +1,21 @@
+use std::pin::Pin;
+
+use async_openai::error::OpenAIError;
 use async_openai::types::*;
 use async_openai::{config, Client};
+use forge_tool::{Tool, ToolId};
 use futures::StreamExt;
+use http::response;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::error::Result;
 use super::provider::{InnerProvider, Provider};
-use crate::model::{Request, Response};
+use crate::model::{Message, Request, Response, ToolUse};
+use crate::{Error, ProviderError, ResultStream};
+
+const PROVIDER_NAME: &str = "openai";
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -120,12 +129,62 @@ impl OpenRouter {
     }
 }
 
+impl TryFrom<FunctionCallStream> for ToolUse {
+    type Error = Error;
+    fn try_from(value: FunctionCallStream) -> Result<Self> {
+        Ok(ToolUse {
+            tool_use_id: None,
+            tool_id: ToolId::new(&value.name.ok_or(Error::Provider {
+                provider: PROVIDER_NAME.to_string(),
+                error: ProviderError::ToolUseEmptyName,
+            })?),
+            input: match value.arguments {
+                Some(args) => Some(serde_json::from_str(&args)?),
+                None => None,
+            },
+        })
+    }
+}
+
+fn get_message(
+    mut response: std::result::Result<CreateChatCompletionStreamResponse, OpenAIError>,
+) -> Result<Response> {
+    match response {
+        Ok(mut response) => {
+            if let Some(choice) = response.choices.pop() {
+                if let Some(content) = choice.delta.content {
+                    Ok(Response {
+                        message: Message::assistant(content),
+                        tool_use: match choice.delta.function_call {
+                            Some(call) => vec![call.try_into()?],
+                            None => vec![],
+                        },
+                    })
+                } else {
+                    Err(Error::Provider {
+                        provider: PROVIDER_NAME.to_string(),
+                        error: ProviderError::EmptyContent,
+                    })
+                }
+            } else {
+                Err(Error::Provider {
+                    provider: PROVIDER_NAME.to_string(),
+                    error: ProviderError::EmptyContent,
+                })
+            }
+        }
+        Err(err) => Err(err.into()),
+    }
+}
+
 #[async_trait::async_trait]
 impl InnerProvider for OpenRouter {
-    async fn chat(&self, request: Request) -> Result<Response> {
+    async fn chat(&self, request: Request) -> Result<Pin<ResultStream<Response>>> {
         let client = self.client.clone();
-        let response = client.chat().create(request.into()).await?;
-        Ok(response.into())
+        let chat = client.chat();
+        let response = chat.create_stream(request.into()).await?;
+
+        Ok(response.map(get_message).boxed())
     }
 
     async fn models(&self) -> Result<Vec<String>> {
