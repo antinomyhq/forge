@@ -2,11 +2,11 @@
 source: crates/forge-tool/src/outline.rs
 expression: result
 ---
+app.py
+│def start(): print('Starting')
+|----
 main.rs
 │fn main() { println!("Hello"); }
 |----
 script.js
 │function init() { console.log('Ready'); }
-|----
-app.py
-│def start(): print('Starting')
