@@ -1,9 +1,8 @@
+use forge_tool_macros::Description as DescriptionDerive;
 use nom::bytes::complete::{tag, take_until};
 use nom::character::complete::multispace0;
-use nom::IResult;
 use nom::multi::many0;
-use nom::Parser;
-use forge_tool_macros::Description as DescriptionDerive;
+use nom::{IResult, Parser};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
