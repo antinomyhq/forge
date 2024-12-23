@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
 use schemars::JsonSchema;
@@ -22,8 +22,8 @@ fn load_language_parser(language_name: &str) -> Result<Language, String> {
     }
 }
 
-fn load_queries() -> HashMap<&'static str, &'static str> {
-    let mut queries = HashMap::new();
+fn load_queries() -> BTreeMap<&'static str, &'static str> {
+    let mut queries = BTreeMap::new();
     queries.insert("rust", RUST);
     queries.insert("javascript", JAVASCRIPT);
     queries.insert("python", PYTHON);
@@ -96,10 +96,10 @@ impl ToolTrait for Outline {
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, String> {
         let extensions_to_languages =
-            HashMap::from([("rs", "rust"), ("js", "javascript"), ("py", "python")]);
+            BTreeMap::from([("rs", "rust"), ("js", "javascript"), ("py", "python")]);
 
         let queries = load_queries();
-        let mut parsers: HashMap<&str, (Parser, Query)> = HashMap::new();
+        let mut parsers: BTreeMap<&str, (Parser, Query)> = BTreeMap::new();
         let mut result = String::new();
 
         let entries = WalkDir::new(&input.path)
