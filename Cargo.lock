@@ -749,6 +749,7 @@ dependencies = [
  "forge-tool-macros",
  "glob",
  "ignore",
+ "indexmap",
  "insta",
  "nom 8.0.0-beta.1",
  "regex",

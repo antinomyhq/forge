@@ -26,6 +26,7 @@ tree-sitter-javascript = "0.20.1"
 tree-sitter-python = "0.20.4"
 nom = "8.0.0-beta.1"
 difference = "2.0.0"
+indexmap = "2.7.0"
 
 [dev-dependencies]
 tempfile = "3.8.1"

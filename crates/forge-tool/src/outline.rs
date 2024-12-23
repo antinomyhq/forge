@@ -1,6 +1,6 @@
-use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use indexmap::{IndexMap, IndexSet};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use tokio::fs;
@@ -22,8 +22,8 @@ fn load_language_parser(language_name: &str) -> Result<Language, String> {
     }
 }
 
-fn load_queries() -> BTreeMap<&'static str, &'static str> {
-    let mut queries = BTreeMap::new();
+fn load_queries() -> IndexMap<&'static str, &'static str> {
+    let mut queries = IndexMap::new();
     queries.insert("rust", RUST);
     queries.insert("javascript", JAVASCRIPT);
     queries.insert("python", PYTHON);
@@ -35,7 +35,7 @@ fn parse_file(_file: &Path, content: &str, parser: &mut Parser, query: &Query) -
     let mut cursor = QueryCursor::new();
     let mut formatted_output = String::new();
     let mut last_line = -1;
-    let mut seen_lines = BTreeSet::new();
+    let mut seen_lines = IndexSet::new();
 
     let mut captures: Vec<_> = cursor
         .matches(query, tree.root_node(), content.as_bytes())
@@ -96,10 +96,10 @@ impl ToolTrait for Outline {
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, String> {
         let extensions_to_languages =
-            BTreeMap::from([("rs", "rust"), ("js", "javascript"), ("py", "python")]);
+            IndexMap::from([("rs", "rust"), ("js", "javascript"), ("py", "python")]);
 
         let queries = load_queries();
-        let mut parsers: BTreeMap<&str, (Parser, Query)> = BTreeMap::new();
+        let mut parsers: IndexMap<&str, (Parser, Query)> = IndexMap::new();
         let mut result = String::new();
 
         let entries = WalkDir::new(&input.path)
