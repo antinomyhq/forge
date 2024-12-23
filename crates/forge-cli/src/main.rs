@@ -18,7 +18,7 @@ use tracing::info;
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
 
-    if let Ok(_) = dotenv::dotenv() {
+    if dotenv::dotenv().is_ok() {
         info!("Loaded .env file");
     }
 
