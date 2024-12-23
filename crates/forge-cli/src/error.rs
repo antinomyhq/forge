@@ -5,11 +5,11 @@ use derive_setters::Setters;
 
 #[derive(Display, From)]
 pub enum Error {
-    Inquire(inquire::InquireError),
     // TODO: drop `Custom` because its too generic
     Custom(String),
     Provider(forge_provider::Error),
     IO(std::io::Error),
+    Env(std::env::VarError),
     SendError(tokio::sync::broadcast::error::SendError<std::string::String>),
     Serde(serde_json::Error),
 }
@@ -56,12 +56,12 @@ impl Debug for Errata {
 impl From<&Error> for Errata {
     fn from(error: &Error) -> Self {
         match error {
-            Error::Inquire(error) => Errata::new(format!("{}", error)),
             Error::Custom(error) => Errata::new(error.to_string()),
             Error::Provider(error) => Errata::new(format!("{}", error)),
             Error::IO(error) => Errata::new(format!("{}", error)),
             Error::SendError(send_error) => Errata::new(format!("{}", send_error)),
             Error::Serde(error) => Errata::new(format!("{}", error)),
+            Error::Env(error) => Errata::new(format!("{}", error)),
         }
     }
 }

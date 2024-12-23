@@ -657,6 +657,7 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde_json",
+ "tailcall-valid",
  "tokio",
  "tower-http",
  "tracing",
@@ -2430,6 +2431,22 @@ checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "tailcall-valid"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8071b2b6ff5cd941f96c743f1cd95043f76381e591d26f4858b5693bca604cee"
+dependencies = [
+ "derive_setters",
+ "http 1.2.0",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "thiserror 2.0.9",
+ "wasm-bindgen",
 ]
 
 [[package]]

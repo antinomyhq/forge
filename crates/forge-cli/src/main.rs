@@ -11,8 +11,10 @@ use axum::Router;
 use completion::{get_completions, Completion};
 use forge_cli::Result;
 use futures::stream::Stream;
+use tailcall_valid::Validator;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
+use forge_cli::cli::Cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -21,6 +23,8 @@ async fn main() -> Result<()> {
     if dotenv::dotenv().is_ok() {
         info!("Loaded .env file");
     }
+
+    let _cli = Cli::new().to_result();
 
     // Create broadcast channel for SSE
 
