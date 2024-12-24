@@ -1,7 +1,6 @@
 mod error;
 mod log;
 mod model;
-mod ollama;
 #[allow(unused)]
 mod open_ai;
 mod open_router;

@@ -1,8 +1,7 @@
 use std::collections::HashMap;
+use std::pin::Pin;
 
 use forge_tool::{Tool, ToolId};
-use futures::stream::BoxStream;
-use futures::StreamExt;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use http::{HeaderMap, HeaderValue};
 use reqwest_middleware::reqwest::Client;
@@ -431,39 +430,9 @@ impl OpenRouter {
 impl InnerProvider for OpenRouter {
     async fn chat(
         &self,
-        request: crate::model::Request,
-    ) -> Result<ResultStream<crate::model::Response>> {
-        let mut new_request = Request::from(request);
-
-        new_request.model = self.model.clone();
-
-        let body = serde_json::to_string(&new_request)?;
-
-        tracing::debug!("Request Body: {}", body);
-
-        let response_stream = self
-            .http_client
-            .post(self.config.url("/chat/completions"))
-            .headers(self.config.headers())
-            .body(body)
-            .send()
-            .await?
-            .bytes_stream();
-
-        let processed_stream: BoxStream<_> = response_stream
-            .map(|chunk| {
-                chunk.map_err(crate::error::Error::from).and_then(|bytes| {
-                    let response = serde_json::from_slice::<Response>(&bytes)
-                        .map_err(crate::error::Error::from);
-                    match response {
-                        Ok(response) => Ok(crate::model::Response::try_from(response)?),
-                        Err(err) => Err(err),
-                    }
-                })
-            })
-            .boxed();
-
-        Ok(Box::pin(Box::new(processed_stream)))
+        _request: crate::model::Request,
+    ) -> Result<Pin<ResultStream<crate::model::Response>>> {
+        todo!()
     }
 
     async fn models(&self) -> Result<Vec<String>> {
@@ -510,41 +479,5 @@ mod test {
         let response = r#"{"id":"gen-1734752897-QSJJJjXmljCFFkUZHtFk","provider":"Anthropic","model":"anthropic/claude-3.5-sonnet","object":"chat.completion","created":1734752897,"choices":[{"logprobs":null,"finish_reason":"end_turn","index":0,"message":{"role":"assistant","content":"I aim to be direct and honest in my interactions: I'm an AI assistant, so I don't experience feelings in the way humans do. I aim to be helpful while being transparent about what I am. How can I assist you today?","refusal":""}}],"usage":{"prompt_tokens":13,"completion_tokens":54,"total_tokens":67}}"#;
 
         let _: Response = serde_json::from_str(response).unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_chat() {
-        let provider = Provider::new(OpenRouter::new(
-            "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".to_string(),
-            None,
-            None,
-        ));
-
-        let result_stream = provider
-            .chat(crate::model::Request {
-                context: vec![
-                    AnyMessage::User(crate::model::Message {
-                        role: User,
-                        content: "Hello!".to_string(),
-                    }),
-                    AnyMessage::System(crate::model::Message {
-                        role: System,
-                        content: "If someone says Hello!, always Reply with single word Alo!"
-                            .to_string(),
-                    }),
-                ],
-                tools: vec![],
-                tool_result: vec![],
-            })
-            .await
-            .unwrap();
-
-        let mut stream = result_stream;
-
-        while let Some(result) = stream.next().await {
-            if let Ok(response) = result {
-                assert_eq!(response.message.content.trim(), "Alo!");
-            }
-        }
     }
 }

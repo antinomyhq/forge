@@ -179,12 +179,12 @@ fn get_message(
 
 #[async_trait::async_trait]
 impl InnerProvider for OpenRouter {
-    async fn chat(&self, request: Request) -> Result<ResultStream<Response>> {
+    async fn chat(&self, request: Request) -> Result<Pin<ResultStream<Response>>> {
         let client = self.client.clone();
         let chat = client.chat();
         let response = chat.create_stream(request.into()).await?;
 
-        Ok(Box::pin(response.map(get_message).boxed()))
+        Ok(response.map(get_message).boxed())
     }
 
     async fn models(&self) -> Result<Vec<String>> {
