@@ -8,6 +8,7 @@ pub struct Conversation;
 #[derive(Debug, serde::Serialize)]
 pub enum Action {}
 
+#[allow(unused)]
 #[derive(serde::Deserialize)]
 pub struct Request {
     // Add fields as needed, for example:
