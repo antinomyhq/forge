@@ -431,6 +431,8 @@ impl Provider {
 #[cfg(test)]
 mod test {
     use tokio_stream::StreamExt;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     use super::*;
 
@@ -471,8 +473,39 @@ mod test {
 
     #[tokio::test]
     async fn test_chat() {
-        let provider = Provider::new(OllamaProvider::new(None, None));
+        // Start a Wiremock server
+        let mock_server = MockServer::start().await;
 
+        // Define the streaming response chunks
+        let streaming_chunks = [
+            r#"{"model":"llama3","created_at":"2024-12-24T03:24:43.041107573Z","message":{"role":"assistant","content":"Alo!"},"done":false}"#,
+        ];
+
+        // Create a streaming response template
+        let response_template =
+            ResponseTemplate::new(200).set_body_bytes(streaming_chunks[0].to_string().as_bytes());
+
+        // Mock the streaming response for the `/api/chat` endpoint
+        Mock::given(method("POST"))
+            .and(path("/api/chat"))
+            .respond_with(response_template)
+            .mount(&mock_server)
+            .await;
+
+        // Use the Wiremock server's URL as the base URL for the provider
+        let base_url = mock_server.uri();
+
+        // Create the actual HTTP client with middleware
+        let reqwest_client = Client::builder().build().unwrap();
+        let http_client = ClientBuilder::new(reqwest_client).build();
+
+        let provider = OllamaProvider {
+            http_client,
+            base_url: base_url.clone(),
+            model: DEFAULT_MODEL.to_string(),
+        };
+
+        // Make the chat request and handle the streaming response
         let result_stream = provider
             .chat(crate::model::Request {
                 context: vec![
@@ -492,9 +525,7 @@ mod test {
             .await
             .unwrap();
 
-        let stream = result_stream;
-
-        let messages = stream.collect::<Vec<_>>().await;
+        let messages = result_stream.collect::<Vec<_>>().await;
         let message = messages
             .into_iter()
             .filter_map(|v| v.ok())
