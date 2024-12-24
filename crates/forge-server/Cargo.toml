@@ -4,10 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = { version = "^0.7" }
+axum = { version = "^0.7" , features = ["macros"]}
 tower-http = { version = "0.6", features = ["cors"] }
 tokio = { version = "1", features = ["full"] }
-futures = "0.3"
 derive_more = { version = "1.0.0", features = ["full"] }
 clap = { version = "4.5.23", features = ["derive"] }
 tracing = "0.1.41"
@@ -23,6 +22,7 @@ serde_json = "1.0.133"
 derive_setters = "0.1.6"
 dotenv = "0.15.0"
 tailcall-valid = "0.1.3"
+tokio-stream = "0.1.17"
 
 [dev-dependencies]
 indoc = "2.0.5"

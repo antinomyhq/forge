@@ -1,12 +1,15 @@
 use crate::completion::Completion;
+use crate::conversation::Conversation;
 
 // Shared state between each request to the server
 pub struct App {
-    completion: Completion,
+    pub completion: Completion,
+    pub engine: Conversation,
 }
 
 impl App {
-    pub fn new(path: impl Into<String>) -> Self {
-        Self { completion: Completion::new(path) }
+    pub fn new(working_dir: impl Into<String>) -> Self {
+        let engine = Conversation;
+        Self { completion: Completion::new(working_dir), engine }
     }
 }

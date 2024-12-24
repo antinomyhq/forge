@@ -4,11 +4,11 @@ use async_openai::error::OpenAIError;
 use async_openai::types::*;
 use async_openai::{config, Client};
 use forge_tool::{Tool, ToolId};
-use futures::StreamExt;
 use http::response;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio_stream::StreamExt;
 
 use super::error::Result;
 use super::provider::{InnerProvider, Provider};
@@ -184,7 +184,7 @@ impl InnerProvider for OpenRouter {
         let chat = client.chat();
         let response = chat.create_stream(request.into()).await?;
 
-        Ok(Box::pin(response.map(get_message).boxed()))
+        Ok(Box::pin(response.map(get_message)))
     }
 
     async fn models(&self) -> Result<Vec<String>> {

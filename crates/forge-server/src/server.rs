@@ -1,25 +1,25 @@
-use std::convert::Infallible;
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{Json, State};
 use axum::response::sse::{Event, Sse};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
-use futures::stream::Stream;
+use tokio_stream::StreamExt;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
 use crate::app::App;
-use crate::completion::{Completion, File};
-use crate::Result;
+use crate::completion::File;
+use crate::conversation::{self};
+use crate::{EventStream, Result};
 
 pub struct Server {
-    state: Arc<App<String>>,
+    state: Arc<App>,
 }
 
 impl Default for Server {
     fn default() -> Self {
-        Self { state: Arc::new(App::<String>::default()) }
+        Self { state: Arc::new(App::new(".")) }
     }
 }
 
@@ -33,7 +33,7 @@ impl Server {
 
         // Setup HTTP server
         let app = Router::new()
-            .route("/conversation", get(conversation_handler))
+            .route("/conversation", post(conversation_handler))
             .route("/completions", get(completions_handler))
             .route("/health", get(health_handler))
             .layer(CorsLayer::new().allow_origin(Any))
@@ -55,15 +55,23 @@ impl Server {
     }
 }
 
-async fn completions_handler() -> axum::Json<Vec<File>> {
-    let completions = Completion::new(".").list().await;
+async fn completions_handler(State(state): State<Arc<App>>) -> axum::Json<Vec<File>> {
+    let completions = state.completion.list().await;
     axum::Json(completions)
 }
 
+#[axum::debug_handler]
 async fn conversation_handler(
-    State(state): State<Arc<App<String>>>,
-) -> Sse<impl Stream<Item = std::result::Result<Event, Infallible>>> {
-    Sse::new(state.as_stream().await)
+    State(state): State<Arc<App>>,
+    Json(request): Json<conversation::Request>,
+) -> Sse<EventStream> {
+    // Use payload.message or other fields as needed
+    Sse::new(Box::new(Box::pin(state.engine.chat(request).await.map(
+        |action| {
+            let data = serde_json::to_string(&action).expect("Failed to serialize action");
+            Ok(Event::default().data(data))
+        },
+    ))))
 }
 
 async fn health_handler() -> axum::response::Response {

@@ -2,7 +2,7 @@ use super::error::Result;
 use crate::model::{Request, Response};
 use crate::ResultStream;
 
-pub type MessageStream<A> = Box<dyn futures::Stream<Item = Result<A>>>;
+pub type MessageStream<A> = Box<dyn tokio_stream::Stream<Item = Result<A>>>;
 
 #[async_trait::async_trait]
 pub(crate) trait InnerProvider {

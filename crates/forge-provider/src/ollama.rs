@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use forge_tool::Tool;
-use futures::stream::BoxStream;
-use futures::StreamExt;
 use reqwest_middleware::reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::{Deserialize, Serialize};
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::StreamExt;
 
 use super::error::Result;
 use super::provider::{InnerProvider, Provider};
@@ -388,18 +388,30 @@ impl InnerProvider for OllamaProvider {
             .await?
             .bytes_stream();
 
-        let processed_stream: BoxStream<_> = response_stream
-            .map(|chunk| {
-                chunk.map_err(crate::error::Error::from).and_then(|bytes| {
-                    let response = serde_json::from_slice::<Response>(&bytes)
-                        .map_err(crate::error::Error::from);
-                    match response {
-                        Ok(response) => Ok(crate::model::Response::try_from(response)?),
-                        Err(err) => Err(err),
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
+
+        tokio::spawn(async move {
+            let mut response_stream = response_stream;
+            while let Some(chunk_result) = response_stream.next().await {
+                match chunk_result {
+                    Ok(chunk) => {
+                        if let Ok(response) = serde_json::from_slice::<Response>(&chunk) {
+                            if let Ok(model_response) = crate::model::Response::try_from(response) {
+                                if tx.send(Ok(model_response)).await.is_err() {
+                                    break;
+                                }
+                            }
+                        }
                     }
-                })
-            })
-            .boxed();
+                    Err(err) => {
+                        let _ = tx.send(Err(crate::error::Error::from(err))).await;
+                        break;
+                    }
+                }
+            }
+        });
+
+        let processed_stream = ReceiverStream::new(rx);
 
         Ok(Box::pin(Box::new(processed_stream)))
     }

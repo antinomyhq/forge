@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
+use axum::response::sse::Event;
 use derive_more::derive::{Display, From};
 use derive_setters::Setters;
 
@@ -10,7 +11,7 @@ pub enum Error {
     Provider(forge_provider::Error),
     IO(std::io::Error),
     Env(std::env::VarError),
-    SendError(tokio::sync::broadcast::error::SendError<std::string::String>),
+    SendError(tokio::sync::broadcast::error::SendError<Event>),
     Serde(serde_json::Error),
 }
 
