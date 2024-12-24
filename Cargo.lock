@@ -694,7 +694,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more 0.99.18",
  "ignore",
- "thiserror 1.0.69",
+ "thiserror 2.0.9",
  "tokio",
 ]
 
