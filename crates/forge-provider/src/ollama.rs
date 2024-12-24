@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 
 use forge_tool::Tool;
-use reqwest_middleware::reqwest::Client;
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
 use super::error::Result;
 use super::provider::{InnerProvider, Provider};
-use crate::log::LoggingMiddleware;
 use crate::model::{AnyMessage, Assistant, Role, System, User};
 use crate::ResultStream;
 
@@ -341,22 +339,17 @@ struct ProviderPreferences {
 
 #[derive(Clone)]
 struct OllamaProvider {
-    http_client: ClientWithMiddleware,
-
+    client: Client,
     base_url: String,
     model: String,
 }
 
 impl OllamaProvider {
     fn new(model: Option<String>, base_url: Option<String>) -> Self {
-        let reqwest_client = Client::builder().build().unwrap();
-        let http_client = ClientBuilder::new(reqwest_client)
-            .with(LoggingMiddleware)
-            .build();
+        let client = Client::builder().build().unwrap();
 
         Self {
-            http_client,
-
+            client,
             base_url: base_url.unwrap_or("http://localhost:11434".to_string()),
             model: model.unwrap_or(DEFAULT_MODEL.to_string()),
         }
@@ -383,7 +376,7 @@ impl InnerProvider for OllamaProvider {
         tracing::debug!("Ollama Request Body: {}", body);
 
         let response_stream = self
-            .http_client
+            .client
             .post(self.url("/api/chat"))
             .body(body)
             .send()
@@ -420,7 +413,7 @@ impl InnerProvider for OllamaProvider {
 
     async fn models(&self) -> Result<Vec<String>> {
         let text = self
-            .http_client
+            .client
             .get(self.url("/models"))
             .send()
             .await?
@@ -447,6 +440,41 @@ impl Provider {
 mod test {
     use super::*;
     use crate::test_server::server::TestServer;
+
+    fn models() -> &'static str {
+        include_str!("./models.json")
+    }
+
+    #[test]
+    fn test_de_ser_of_models() {
+        let _: ListModelResponse = serde_json::from_str(models()).unwrap();
+    }
+
+    #[test]
+    fn test_de_ser_of_response() {
+        let response = r#"{
+            "id": "ollama-12345",
+            "provider": "Ollama",
+            "model": "ollama/gpt-4-stream",
+            "object": "chat.completion",
+            "created": 1700000000,
+            "choices": [{
+                "delta": {
+                    "content": "Hello! How can I assist you today?"
+                },
+                "finish_reason": "end_turn",
+                "index": 0,
+                "error": null
+            }],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            }
+        }"#;
+
+        let _: Response = serde_json::from_str(response).unwrap();
+    }
 
     #[tokio::test]
     async fn test_chat() {

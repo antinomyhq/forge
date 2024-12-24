@@ -14,6 +14,7 @@ pub enum Error {
     Env(std::env::VarError),
     SendError(tokio::sync::mpsc::error::SendError<ChatEvent>),
     Serde(serde_json::Error),
+    EmptyResponse,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -64,6 +65,7 @@ impl From<&Error> for Errata {
             Error::SendError(send_error) => Errata::new(format!("{}", send_error)),
             Error::Serde(error) => Errata::new(format!("{}", error)),
             Error::Env(error) => Errata::new(format!("{}", error)),
+            Error::EmptyResponse => Errata::new("Empty response"),
         }
     }
 }

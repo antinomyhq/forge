@@ -9,7 +9,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};
 
 use crate::template::PromptTemplate;
-use crate::Result;
+use crate::{Error, Result};
 
 #[derive(Debug, serde::Serialize)]
 pub enum ChatEvent {
@@ -60,7 +60,7 @@ impl Conversation {
         let provider = self.provider.clone();
         let tool_engine = self.tool_engine.clone();
 
-        tokio::task::spawn_local(async move {
+        tokio::task::spawn(async move {
             match Self::run_forever(provider, tool_engine, &tx, request).await {
                 Ok(_) => {}
                 Err(e) => tx.send(ChatEvent::Fail(e.to_string())).await.unwrap(),
@@ -77,19 +77,32 @@ impl Conversation {
         mut request: Request,
     ) -> Result<()> {
         loop {
+            let mut pending_request = false;
+            let mut empty_response = true;
             let mut response = provider.chat(request.clone()).await?;
 
             while let Some(message) = response.next().await {
+                empty_response = false;
                 let message = message?;
-                tx.send(ChatEvent::Text(message.message.content)).await?;
-                if !message.tool_use.is_empty() {
+                if message.tool_use.is_empty() {
+                    tx.send(ChatEvent::Text(message.message.content))
+                        .await
+                        .unwrap();
+                } else {
                     for tool in message.tool_use.into_iter() {
                         let tool_result = Self::use_tool(&tool_engine, tool.clone(), tx).await?;
                         request = request.add_tool_result(tool_result);
+                        pending_request = true
                     }
-                } else {
-                    tx.send(ChatEvent::Complete).await?;
                 }
+            }
+
+            if empty_response {
+                return Err(Error::EmptyResponse);
+            }
+
+            if !pending_request {
+                return Ok(());
             }
         }
     }

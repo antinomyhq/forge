@@ -4,7 +4,6 @@ use async_openai::error::OpenAIError;
 use async_openai::types::*;
 use async_openai::{config, Client};
 use forge_tool::{Tool, ToolId};
-use http::response;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
