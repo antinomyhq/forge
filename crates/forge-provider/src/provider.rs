@@ -5,7 +5,7 @@ use crate::ResultStream;
 pub type MessageStream<A> = Box<dyn tokio_stream::Stream<Item = Result<A>>>;
 
 #[async_trait::async_trait]
-pub(crate) trait InnerProvider {
+pub(crate) trait InnerProvider: Send + Sync + 'static {
     async fn chat(&self, request: Request) -> Result<ResultStream<Response>>;
     async fn models(&self) -> Result<Vec<String>>;
 }

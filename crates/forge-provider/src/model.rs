@@ -160,6 +160,6 @@ pub struct ToolUse {
 
 #[derive(Setters, Debug, Clone)]
 pub struct ToolResult {
-    pub tool_use_id: UseId,
+    pub tool_use_id: Option<UseId>,
     pub content: Value,
 }

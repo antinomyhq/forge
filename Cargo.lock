@@ -752,6 +752,7 @@ dependencies = [
  "derive_more 1.0.0",
  "derive_setters",
  "dotenv",
+ "forge-prompt",
  "forge-provider",
  "forge-tool",
  "forge-walker",

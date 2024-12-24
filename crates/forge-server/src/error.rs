@@ -1,8 +1,9 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use axum::response::sse::Event;
 use derive_more::derive::{Display, From};
 use derive_setters::Setters;
+
+use crate::conversation::ChatEvent;
 
 #[derive(Display, From)]
 pub enum Error {
@@ -11,7 +12,7 @@ pub enum Error {
     Provider(forge_provider::Error),
     IO(std::io::Error),
     Env(std::env::VarError),
-    SendError(tokio::sync::broadcast::error::SendError<Event>),
+    SendError(tokio::sync::mpsc::error::SendError<ChatEvent>),
     Serde(serde_json::Error),
 }
 

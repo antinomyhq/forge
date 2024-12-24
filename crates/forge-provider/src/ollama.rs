@@ -281,13 +281,15 @@ impl From<crate::model::Request> for Request {
                     .tool_result
                     .into_iter()
                     .map(|tool_result| {
-                        let id = tool_result.tool_use_id.0;
                         let value = tool_result.content;
 
                         let mut content = HashMap::new();
                         content.insert("content", value.to_string());
                         content.insert("role", "tool".to_string());
-                        content.insert("tool_use_id", id);
+
+                        if let Some(id) = tool_result.tool_use_id {
+                            content.insert("tool_use_id", id.0);
+                        }
                         Message {
                             role: User::name(),
                             content: serde_json::to_string(&content).unwrap(),

@@ -31,7 +31,7 @@ where
 }
 
 struct ToolDefinition {
-    executable: Box<dyn ToolTrait<Input = Value, Output = Value>>,
+    executable: Box<dyn ToolTrait<Input = Value, Output = Value> + Send + Sync + 'static>,
     tool: Tool,
 }
 

@@ -12,6 +12,7 @@ use nom::IResult;
 pub struct Prompt {
     tokens: Vec<Token>,
 }
+
 impl fmt::Display for Prompt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut first = true;
@@ -31,6 +32,9 @@ impl fmt::Display for Prompt {
 }
 
 impl Prompt {
+    pub fn new(message: impl Into<String>) -> Prompt {
+        Prompt { tokens: vec![Token::Literal(message.into())] }
+    }
     pub fn files(&self) -> Vec<String> {
         let mut seen = std::collections::HashSet::new();
         self.tokens
@@ -50,12 +54,13 @@ impl Prompt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Token {
+pub enum Token {
     Literal(String),
     File(String),
 }
 
 impl Prompt {
+    // TODO: make `parse` pub(crate)
     pub fn parse(message: String) -> Result<Prompt, String> {
         let tokens = match Self::parse_tokens(&message) {
             Ok((_, tokens)) => tokens,
