@@ -9,19 +9,19 @@ use crate::Result;
 
 // Shared state between HTTP server and CLI
 #[derive(Clone)]
-pub struct AppState<T> {
+pub struct App<T> {
     tx: broadcast::Sender<String>,
     _t: std::marker::PhantomData<T>,
 }
 
-impl<T> Default for AppState<T> {
+impl<T> Default for App<T> {
     fn default() -> Self {
         let (tx, _) = broadcast::channel::<String>(100);
         Self { tx, _t: Default::default() }
     }
 }
 
-impl<T: Serialize> AppState<T> {
+impl<T: Serialize> App<T> {
     #[allow(unused)]
     pub fn dispatch(&self, event: T) -> Result<usize> {
         let json = serde_json::to_string(&event)?;

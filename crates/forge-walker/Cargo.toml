@@ -1,0 +1,10 @@
+[package]
+name = "forge-walker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ignore = "0.4.23"
+tokio = { version = "1.42.0", features = ["fs"] }
+derive_more = "0.99.17"
+thiserror = "1.0.40"

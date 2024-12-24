@@ -1,39 +1,33 @@
+use std::path::PathBuf;
+
+use forge_walker::Walker;
 use serde::Serialize;
 
 #[derive(Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum CompletionType {
-    Command,
-    File,
-    Directory,
-    Variable,
+pub struct File {
+    pub path: String,
+    pub is_dir: bool,
 }
 
-#[derive(Serialize)]
 pub struct Completion {
-    pub text: String,
-    pub completion_type: CompletionType,
+    path: String,
 }
 
-pub async fn get_completions() -> Vec<Completion> {
-    // For now returning sample completions
-    // This can be expanded to fetch from actual completion source
-    vec![
-        Completion {
-            text: "git status".to_string(),
-            completion_type: CompletionType::Command,
-        },
-        Completion {
-            text: "README.md".to_string(),
-            completion_type: CompletionType::File,
-        },
-        Completion {
-            text: "src/".to_string(),
-            completion_type: CompletionType::Directory,
-        },
-        Completion {
-            text: "$HOME".to_string(),
-            completion_type: CompletionType::Variable,
-        },
-    ]
+impl Completion {
+    pub fn new(path: impl Into<String>) -> Self {
+        Self { path: path.into() }
+    }
+
+    pub async fn list(&self) -> Vec<File> {
+        let cwd = PathBuf::from(self.path.clone()); // Use the current working directory
+        let walker = Walker::new(cwd);
+
+        match walker.get().await {
+            Ok(files) => files
+                .into_iter()
+                .map(|file| File { path: file.path, is_dir: file.is_dir })
+                .collect(),
+            Err(_) => Vec::new(), // Return an empty vector if there's an error
+        }
+    }
 }
