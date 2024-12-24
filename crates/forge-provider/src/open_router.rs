@@ -515,7 +515,7 @@ mod test {
     #[tokio::test]
     async fn test_chat() {
         let provider = Provider::new(OpenRouter::new(
-            "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".to_string(),
+            std::env::var("OPEN_ROUTER_API_KEY").unwrap(),
             None,
             None,
         ));

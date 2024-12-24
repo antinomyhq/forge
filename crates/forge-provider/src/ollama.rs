@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use forge_tool::{Tool, ToolId};
+use forge_tool::Tool;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use reqwest_middleware::reqwest::Client;
@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 use super::error::Result;
 use super::provider::{InnerProvider, Provider};
 use crate::log::LoggingMiddleware;
-use crate::model::{AnyMessage, Assistant, Role, System, ToolUse, UseId, User};
+use crate::model::{AnyMessage, Assistant, Role, System, User};
 use crate::ResultStream;
 
-const DEFAULT_MODEL: &str = "ollama/default-model";
+const DEFAULT_MODEL: &str = "llama3";
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 struct Model {
@@ -133,13 +133,6 @@ enum ContentPart {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-struct Message {
-    role: String,
-    content: String,
-    name: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
 struct FunctionDescription {
     description: Option<String>,
     name: String,
@@ -170,18 +163,33 @@ struct Prediction {
     content: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct Response {
-    id: String,
-    provider: String,
-    model: String,
-    choices: Vec<Choice>,
-    created: u64,
-    object: String,
-    system_fingerprint: Option<String>,
-    usage: Option<ResponseUsage>,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Response {
+    pub model: String,
+    pub created_at: String,
+    pub message: Message,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub done_reason: Option<String>,
+    pub done: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_duration: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub load_duration: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_eval_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_eval_duration: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eval_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eval_duration: Option<u64>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct Message {
+    pub role: String,
+    pub content: String,
+}
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct ResponseUsage {
     prompt_tokens: u64,
@@ -255,17 +263,11 @@ impl From<Tool> for OllamaTool {
 impl From<AnyMessage> for Message {
     fn from(value: AnyMessage) -> Self {
         match value {
-            AnyMessage::Assistant(assistant) => Message {
-                role: Assistant::name(),
-                content: assistant.content,
-                name: None,
-            },
-            AnyMessage::System(sys) => {
-                Message { role: System::name(), content: sys.content, name: None }
+            AnyMessage::Assistant(assistant) => {
+                Message { role: Assistant::name(), content: assistant.content }
             }
-            AnyMessage::User(usr) => {
-                Message { role: User::name(), content: usr.content, name: None }
-            }
+            AnyMessage::System(sys) => Message { role: System::name(), content: sys.content },
+            AnyMessage::User(usr) => Message { role: User::name(), content: usr.content },
         }
     }
 }
@@ -288,7 +290,6 @@ impl From<crate::model::Request> for Request {
                         Message {
                             role: User::name(),
                             content: serde_json::to_string(&content).unwrap(),
-                            name: None,
                         }
                     })
                     .collect::<Vec<_>>();
@@ -324,42 +325,9 @@ impl TryFrom<Response> for crate::model::Response {
     type Error = crate::error::Error;
 
     fn try_from(res: Response) -> Result<Self> {
-        if let Some(choice) = res.choices.first() {
-            let response = match choice {
-                Choice::NonChat { text, .. } => crate::model::Response::new(text.clone()),
-                Choice::NonStreaming { message, .. } => {
-                    let mut resp =
-                        crate::model::Response::new(message.content.clone().unwrap_or_default());
-                    if let Some(tool_calls) = &message.tool_calls {
-                        for tool_call in tool_calls {
-                            resp = resp.add_call(ToolUse {
-                                tool_use_id: tool_call.id.clone().map(UseId),
-                                tool_id: ToolId::new(&tool_call.function.name),
-                                input: serde_json::from_str(&tool_call.function.arguments)?,
-                            });
-                        }
-                    }
-                    resp
-                }
-                Choice::Streaming { delta, .. } => {
-                    let mut resp =
-                        crate::model::Response::new(delta.content.clone().unwrap_or_default());
-                    if let Some(tool_calls) = &delta.tool_calls {
-                        for tool_call in tool_calls {
-                            resp = resp.add_call(ToolUse {
-                                tool_use_id: tool_call.id.clone().map(UseId),
-                                tool_id: ToolId::new(&tool_call.function.name),
-                                input: serde_json::from_str(&tool_call.function.arguments)?,
-                            });
-                        }
-                    }
-                    resp
-                }
-            };
-            Ok(response)
-        } else {
-            Err(crate::error::Error::empty_response("Ollama"))
-        }
+        let message = crate::model::Message::assistant(res.message.content);
+
+        Ok(crate::model::Response { message, tool_use: vec![] })
     }
 }
 
@@ -386,7 +354,7 @@ impl OllamaProvider {
         Self {
             http_client,
 
-            base_url: base_url.unwrap_or("https://localhost:1134".to_string()),
+            base_url: base_url.unwrap_or("http://localhost:11434".to_string()),
             model: model.unwrap_or(DEFAULT_MODEL.to_string()),
         }
     }
@@ -413,7 +381,7 @@ impl InnerProvider for OllamaProvider {
 
         let response_stream = self
             .http_client
-            .post(self.url("/chat/completions"))
+            .post(self.url("/api/chat"))
             .body(body)
             .send()
             .await?
@@ -462,6 +430,8 @@ impl Provider {
 
 #[cfg(test)]
 mod test {
+    use tokio_stream::StreamExt;
+
     use super::*;
 
     fn models() -> &'static str {
@@ -504,26 +474,34 @@ mod test {
         let provider = Provider::new(OllamaProvider::new(None, None));
 
         let result_stream = provider
-            .chat(
-                crate::model::Request::default()
-                    .add_message(crate::model::Message::user("Hello Forge!")),
-            )
+            .chat(crate::model::Request {
+                context: vec![
+                    AnyMessage::System(crate::model::Message {
+                        content: "If someone says Hello!, always Reply with single word Alo!"
+                            .to_string(),
+                        role: System,
+                    }),
+                    AnyMessage::User(crate::model::Message {
+                        role: User,
+                        content: "Hello!".to_string(),
+                    }),
+                ],
+                tools: vec![],
+                tool_result: vec![],
+            })
             .await
             .unwrap();
 
-        let mut stream = result_stream;
+        let stream = result_stream;
 
-        println!("Streaming Ollama response:");
+        let messages = stream.collect::<Vec<_>>().await;
+        let message = messages
+            .into_iter()
+            .filter_map(|v| v.ok())
+            .map(|v| v.message.content.trim().to_string())
+            .collect::<Vec<_>>()
+            .join("");
 
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(response) => {
-                    println!("{:#?}", response);
-                }
-                Err(err) => {
-                    eprintln!("Error: {:#?}", err);
-                }
-            }
-        }
+        assert_eq!(message, "Alo!");
     }
 }
