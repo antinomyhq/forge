@@ -1,3 +1,5 @@
+use std::fmt;
+
 use nom::branch::alt;
 use nom::bytes::complete::take_while1;
 use nom::character::complete::{char, space0, space1};
@@ -5,7 +7,6 @@ use nom::combinator::{map, opt, recognize};
 use nom::multi::many0;
 use nom::sequence::{pair, preceded};
 use nom::IResult;
-use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct Prompt {
