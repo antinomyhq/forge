@@ -7,4 +7,4 @@ edition = "2021"
 ignore = "0.4.23"
 tokio = { version = "1.42.0", features = ["fs"] }
 derive_more = "0.99.17"
-thiserror = "1.0.40"
+thiserror = "2.0.0"
