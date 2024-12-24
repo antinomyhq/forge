@@ -713,6 +713,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge-prompt"
+version = "0.1.0"
+dependencies = [
+ "nom 7.1.3",
+]
+
+[[package]]
 name = "forge-provider"
 version = "0.1.0"
 dependencies = [
