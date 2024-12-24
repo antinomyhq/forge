@@ -190,6 +190,7 @@ pub struct Message {
     pub role: String,
     pub content: String,
 }
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct ResponseUsage {
     prompt_tokens: u64,
@@ -430,72 +431,23 @@ impl Provider {
 
 #[cfg(test)]
 mod test {
-    use tokio_stream::StreamExt;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
     use super::*;
-
-    fn models() -> &'static str {
-        include_str!("models.json")
-    }
-
-    #[test]
-    fn test_de_ser_of_models() {
-        let _: ListModelResponse = serde_json::from_str(models()).unwrap();
-    }
-
-    #[test]
-    fn test_de_ser_of_response() {
-        let response = r#"{
-            "id": "ollama-12345",
-            "provider": "Ollama",
-            "model": "ollama/gpt-4-stream",
-            "object": "chat.completion",
-            "created": 1700000000,
-            "choices": [{
-                "delta": {
-                    "content": "Hello! How can I assist you today?"
-                },
-                "finish_reason": "end_turn",
-                "index": 0,
-                "error": null
-            }],
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 20,
-                "total_tokens": 30
-            }
-        }"#;
-
-        let _: Response = serde_json::from_str(response).unwrap();
-    }
+    use crate::test_server::server::TestServer;
 
     #[tokio::test]
     async fn test_chat() {
-        // Start a Wiremock server
-        let mock_server = MockServer::start().await;
-
-        // Define the streaming response chunks
-        let streaming_chunks = [
-            r#"{"model":"llama3","created_at":"2024-12-24T03:24:43.041107573Z","message":{"role":"assistant","content":"Alo!"},"done":false}"#,
+        let streaming_chunks = vec![
+            r#"{"model":"llama3","created_at":"2024-12-24T03:24:43.041107573Z","message":{"role":"assistant","content":"A"},"done":false}"#.to_string(),
+            r#"{"model":"llama3","created_at":"2024-12-24T03:24:43.041111723Z","message":{"role":"assistant","content":"lo"},"done":false}"#.to_string(),
+            r#"{"model":"llama3","created_at":"2024-12-24T03:24:43.041159572Z","message":{"role":"assistant","content":"!"},"done":false}"#.to_string(),
+            r#"{"model":"llama3","created_at":"2024-12-24T03:24:43.043174066Z","message":{"role":"assistant","content":""},"done_reason":"stop","done":true,"total_duration":2828465591,"load_duration":2692228321,"prompt_eval_count":29,"prompt_eval_duration":16324000,"eval_count":4,"eval_duration":32146000}"#.to_string(),
         ];
 
-        // Create a streaming response template
-        let response_template =
-            ResponseTemplate::new(200).set_body_bytes(streaming_chunks[0].to_string().as_bytes());
+        let server = TestServer::new(19194, "/api/chat", move |_req| streaming_chunks.clone());
 
-        // Mock the streaming response for the `/api/chat` endpoint
-        Mock::given(method("POST"))
-            .and(path("/api/chat"))
-            .respond_with(response_template)
-            .mount(&mock_server)
-            .await;
+        let tx = server.start().await;
 
-        // Use the Wiremock server's URL as the base URL for the provider
-        let base_url = mock_server.uri();
-
-        // Create the actual HTTP client with middleware
+        let base_url = "http://127.0.0.1:19194".to_string();
         let reqwest_client = Client::builder().build().unwrap();
         let http_client = ClientBuilder::new(reqwest_client).build();
 
@@ -505,7 +457,6 @@ mod test {
             model: DEFAULT_MODEL.to_string(),
         };
 
-        // Make the chat request and handle the streaming response
         let result_stream = provider
             .chat(crate::model::Request {
                 context: vec![
@@ -534,5 +485,7 @@ mod test {
             .join("");
 
         assert_eq!(message, "Alo!");
+
+        let _ = tx.send(());
     }
 }

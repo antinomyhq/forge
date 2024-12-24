@@ -494,7 +494,10 @@ impl Provider {
 
 #[cfg(test)]
 mod test {
+    use tokio_stream::StreamExt;
+
     use super::*;
+    use crate::test_server::server::TestServer;
 
     fn models() -> &'static str {
         include_str!("models.json")
@@ -514,11 +517,20 @@ mod test {
 
     #[tokio::test]
     async fn test_chat() {
-        let provider = Provider::new(OpenRouter::new(
-            std::env::var("OPEN_ROUTER_API_KEY").unwrap(),
-            None,
-            None,
-        ));
+        let stream = vec![
+            "{\"id\":\"gen-1735016712-w3fWt8KAO98cThvdOpI7\",\"provider\":\"Google AI Studio\",\"model\":\"google/gemini-flash-1.5-8b-exp\",\"object\":\"chat.completion\",\"created\":1735016712,\"choices\":[{\"logprobs\":null,\"finish_reason\":\"STOP\",\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"A\\n\",\"refusal\":\"\"}}],\"usage\":{\"prompt_tokens\":16,\"completion_tokens\":2,\"total_tokens\":15}}".to_string(),
+            "{\"id\":\"gen-1735016712-w3fWt8KAO98cThvdOpI7\",\"provider\":\"Google AI Studio\",\"model\":\"google/gemini-flash-1.5-8b-exp\",\"object\":\"chat.completion\",\"created\":1735016712,\"choices\":[{\"logprobs\":null,\"finish_reason\":\"STOP\",\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"lo!\\n\",\"refusal\":\"\"}}],\"usage\":{\"prompt_tokens\":16,\"completion_tokens\":2,\"total_tokens\":17}}".to_string(),
+        ];
+
+        let server = TestServer::new(19195, "/chat/completions", move |_req| stream.clone());
+        let tx = server.start().await;
+
+        let base_url = "http://127.0.0.1:19195".to_string();
+
+        let mut router = OpenRouter::new("BLAH".to_string(), None, None);
+        router.config.base_url = Some(base_url);
+
+        let provider = Provider::new(router);
 
         let result_stream = provider
             .chat(crate::model::Request {
@@ -539,12 +551,15 @@ mod test {
             .await
             .unwrap();
 
-        let mut stream = result_stream;
+        let stream = result_stream.collect::<Vec<_>>().await;
+        let resp = stream
+            .into_iter()
+            .filter_map(Result::ok)
+            .map(|v| v.message.content.trim().trim().to_string())
+            .collect::<Vec<_>>()
+            .join("");
 
-        while let Some(result) = stream.next().await {
-            if let Ok(response) = result {
-                assert_eq!(response.message.content.trim(), "Alo!");
-            }
-        }
+        assert_eq!(resp, "Alo!");
+        let _ = tx.send(());
     }
 }
