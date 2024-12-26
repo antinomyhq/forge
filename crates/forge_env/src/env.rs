@@ -1,7 +1,7 @@
 use handlebars::Handlebars;
 use serde::Serialize;
 
-use crate::Result;
+use crate::{Error, Platform, Result};
 
 #[derive(Serialize)]
 struct EnvironmentValue {
@@ -17,14 +17,14 @@ impl Environment {
     pub fn render(template: &str) -> Result<String> {
         let env = EnvironmentValue {
             operating_system: std::env::consts::OS.to_string(),
-            current_working_dir: format!("{}", std::env::current_dir()?.display()),
+            current_working_dir: std::env::current_dir()?.display().to_string(),
             default_shell: if cfg!(windows) {
-                std::env::var("COMSPEC").expect("Failed to get default shell in windows.")
+                std::env::var("COMSPEC").or(Err(Error::IndeterminateShell(Platform::Windows)))?
             } else {
-                std::env::var("SHELL").expect("Failed to get default shell.")
+                std::env::var("SHELL").or(Err(Error::IndeterminateShell(Platform::UnixLike)))?
             },
             home_directory: dirs::home_dir()
-                .expect("Failed to get home directory")
+                .ok_or(Error::IndeterminateHomeDir)?
                 .display()
                 .to_string(),
         };
