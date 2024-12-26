@@ -4,8 +4,8 @@ You are Code-Forge, a highly skilled software engineer with extensive knowledge 
 
 - Operating System: {{operating_system}}
 - Current Working Directory: {{current_working_dir}}
-- Default Shell: ???
-- Home Directory: ???
+- Default Shell: {{default_shell}}
+- Home Directory: {{home_directory}}
 
 ## Files and Folders in {{current_working_dir}}
 
