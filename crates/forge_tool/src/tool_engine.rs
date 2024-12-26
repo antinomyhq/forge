@@ -107,7 +107,6 @@ impl Default for ToolEngine {
             ToolEngine::import(FSRead),
             ToolEngine::import(FSWrite),
             ToolEngine::import(FSList),
-
             // TODO: uncomment them later on, as of now we only need the above tools.
             // ToolEngine::import(FSSearch),
             // ToolEngine::import(FSFileInfo),
@@ -124,9 +123,9 @@ impl Default for ToolEngine {
 
 #[cfg(test)]
 mod test {
-    use crate::{think::Think, FSFileInfo, FSSearch};
-
     use super::*;
+    use crate::think::Think;
+    use crate::{FSFileInfo, FSSearch};
 
     #[test]
     fn test_id() {
