@@ -83,8 +83,10 @@ impl Request {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct System;
+
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct User;
+
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Assistant;
 
@@ -168,6 +170,7 @@ impl AnyMessage {
 }
 
 #[derive(Default, Setters, Debug, Clone)]
+#[setters(into)]
 pub struct Response {
     pub message: Message<Assistant>,
     pub tool_use: Vec<ToolUsePart>,
@@ -225,7 +228,7 @@ impl<A: ToString> From<A> for UseId {
 /// Contains a part message for using a tool. This is received as a part of the
 /// response from the model only when streaming is enabled.
 #[derive(Default, Setters, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[setters(into)]
+#[setters(strip_option, into)]
 pub struct ToolUsePart {
     /// Optional unique identifier that represents a single call to the tool
     /// use. NOTE: Not all models support a call ID for using a tool

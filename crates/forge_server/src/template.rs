@@ -1,9 +1,11 @@
 use std::fmt::Display;
 
+use derive_setters::Setters;
 use forge_provider::{AnyMessage, Message};
 use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Setters)]
+#[setters(into)]
 pub struct Tag {
     // TODO: move to enum type
     pub name: String,
@@ -27,19 +29,19 @@ impl MessageTemplate {
         Self::Tagged { tag, content }
     }
 
-    pub fn task(content: String) -> Self {
+    pub fn task<T: ToString>(content: T) -> Self {
         let tag = Tag { name: "task".to_string(), attributes: vec![] };
 
-        Self::new(tag, content)
+        Self::new(tag, content.to_string())
     }
 
-    pub fn file(path: String, content: String) -> Self {
+    pub fn file<S: ToString, T: ToString>(path: S, content: T) -> Self {
         let tag = Tag {
             name: "file_content".to_string(),
-            attributes: vec![("path".to_string(), path)],
+            attributes: vec![("path".to_string(), path.to_string())],
         };
 
-        Self::new(tag, content)
+        Self::new(tag, content.to_string())
     }
 
     pub fn append(self, other: Self) -> Self {
