@@ -81,11 +81,11 @@ impl Request {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct System;
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct User;
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Assistant;
 
 pub trait Role {
@@ -110,7 +110,7 @@ impl Role for Assistant {
     }
 }
 
-#[derive(Setters, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Setters, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Message<R: Role> {
     pub content: String,
     #[serde(skip)]
@@ -167,7 +167,7 @@ impl AnyMessage {
     }
 }
 
-#[derive(Setters, Debug, Clone)]
+#[derive(Default, Setters, Debug, Clone)]
 pub struct Response {
     pub message: Message<Assistant>,
     pub tool_use: Vec<ToolUsePart>,
@@ -224,7 +224,8 @@ impl<A: ToString> From<A> for UseId {
 
 /// Contains a part message for using a tool. This is received as a part of the
 /// response from the model only when streaming is enabled.
-#[derive(Setters, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Setters, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[setters(into)]
 pub struct ToolUsePart {
     /// Optional unique identifier that represents a single call to the tool
     /// use. NOTE: Not all models support a call ID for using a tool
@@ -238,7 +239,7 @@ pub struct ToolUsePart {
 
 /// Contains the full information about using a tool. This is received as a part
 /// of the response from the model when streaming is disabled.
-#[derive(Setters, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Setters, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ToolUse {
     pub name: ToolName,
     pub use_id: Option<UseId>,
@@ -275,7 +276,7 @@ impl ToolUse {
     }
 }
 
-#[derive(Setters, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default, Setters, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ToolResult {
     pub tool_name: ToolName,
     pub tool_use_id: Option<UseId>,

@@ -50,7 +50,7 @@ pub struct Tool {
     pub output_schema: Option<RootSchema>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ToolName(String);
 
