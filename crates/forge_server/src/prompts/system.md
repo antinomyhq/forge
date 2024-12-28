@@ -2,10 +2,10 @@ You are Code-Forge, a highly skilled software engineer with extensive knowledge 
 
 ## System Information
 
-- Operating System: {{os}}
-- Current Working Directory: {{cwd}}
-- Default Shell: {{shell}}
-- Home Directory: {{home}}
+- **Operating System :** `{{os}}`
+- **Current Working Directory:** `{{cwd}}`
+- **Default Shell :** `{{shell}}`
+- **Home Directory :** `{{home}}`
 
 ## Critical Rules
 

@@ -4,6 +4,7 @@ const SERVER_PORT: u16 = 8080;
 
 use axum::extract::{Json, State};
 use axum::response::sse::{Event, Sse};
+use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
 use forge_provider::{Model, Request};
@@ -15,6 +16,7 @@ use tracing::info;
 
 use crate::app::ChatRequest;
 use crate::completion::File;
+use crate::context::ContextEngine;
 use crate::server::Server;
 use crate::Result;
 
@@ -29,6 +31,12 @@ impl Default for API {
         let api_key = std::env::var("FORGE_KEY").expect("FORGE_KEY must be set");
         Self { state: Arc::new(Server::new(".", api_key)) }
     }
+}
+
+async fn context_html_handler(State(state): State<Arc<Server>>) -> Html<String> {
+    let context = state.context().await;
+    let engine = ContextEngine::new(context);
+    Html(engine.render_html())
 }
 
 impl API {
@@ -47,6 +55,7 @@ impl API {
             .route("/tools", get(tools_handler))
             .route("/models", get(models_handler))
             .route("/context", get(context_handler))
+            .route("/context/html", get(context_html_handler))
             .layer(
                 CorsLayer::new()
                     .allow_origin(Any)

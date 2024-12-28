@@ -167,6 +167,14 @@ impl AnyMessage {
             AnyMessage::Assistant(msg) => msg.content.as_str(),
         }
     }
+
+    pub fn role(&self) -> String {
+        match self {
+            AnyMessage::System(_) => System::name(),
+            AnyMessage::User(_) => User::name(),
+            AnyMessage::Assistant(_) => Assistant::name(),
+        }
+    }
 }
 
 #[derive(Default, Setters, Debug, Clone)]
