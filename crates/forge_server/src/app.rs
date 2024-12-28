@@ -364,7 +364,8 @@ mod tests {
     }
     #[test]
     fn test_should_not_set_user_objective_if_already_set() {
-        let app = App::default().user_objective(MessageTemplate::task("Initial Objective".to_string()));
+        let app =
+            App::default().user_objective(MessageTemplate::task("Initial Objective".to_string()));
         let request = ChatRequest::default().message("New Objective");
 
         let (app, _) = app.update(Action::UserMessage(request)).unwrap();
@@ -451,8 +452,6 @@ mod tests {
         );
 
         assert!(command.contains(&Command::AssistantMessage(app.context.clone())));
-        assert!(command.contains(&Command::UserMessage(
-            ChatResponse::ToolUseEnd(tool_result)
-        )));
+        assert!(command.contains(&Command::UserMessage(ChatResponse::ToolUseEnd(tool_result))));
     }
 }
