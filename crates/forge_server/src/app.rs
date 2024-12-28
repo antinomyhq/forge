@@ -211,16 +211,16 @@ mod tests {
             .path("test_path.txt")
             .content("Test content")];
 
-        let (updated_app, command) = app.update(files.clone()).unwrap();
+        let (app, command) = app.update(files.clone()).unwrap();
 
-        assert!(updated_app.context.messages[0]
+        assert!(app.context.messages[0]
             .content()
             .contains(&files[0].path));
-        assert!(updated_app.context.messages[0]
+        assert!(app.context.messages[0]
             .content()
             .contains(&files[0].content));
 
-        assert!(command.contains(&Command::AssistantMessage(updated_app.context.clone())));
+        assert!(command.contains(&Command::AssistantMessage(app.context.clone())));
     }
 
     #[test]
@@ -365,22 +365,22 @@ mod tests {
                 .content("Content 2"),
         ];
 
-        let (updated_app, command) = app.update(files.clone()).unwrap();
+        let (app, command) = app.update(files.clone()).unwrap();
 
-        assert!(updated_app.context.messages[0]
+        assert!(app.context.messages[0]
             .content()
             .contains(&files[0].path));
-        assert!(updated_app.context.messages[0]
+        assert!(app.context.messages[0]
             .content()
             .contains(&files[0].content));
-        assert!(updated_app.context.messages[1]
+        assert!(app.context.messages[1]
             .content()
             .contains(&files[1].path));
-        assert!(updated_app.context.messages[1]
+        assert!(app.context.messages[1]
             .content()
             .contains(&files[1].content));
 
-        assert!(command.contains(&Command::AssistantMessage(updated_app.context.clone())));
+        assert!(command.contains(&Command::AssistantMessage(app.context.clone())));
     }
 
     #[test]
