@@ -25,8 +25,8 @@ pub enum MessageTemplate {
 }
 
 impl MessageTemplate {
-    pub fn new(tag: Tag, content: String) -> Self {
-        Self::Tagged { tag, content }
+    pub fn new(tag: Tag, content: impl ToString) -> Self {
+        Self::Tagged { tag, content: content.to_string() }
     }
 
     pub fn task<T: ToString>(content: T) -> Self {

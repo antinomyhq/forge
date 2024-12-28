@@ -95,7 +95,7 @@ impl Application for App {
                 self.context = self.context.model(chat.model.clone());
 
                 if self.user_objective.is_none() {
-                    self.user_objective = Some(MessageTemplate::task(prompt.to_string()));
+                    self.user_objective = Some(MessageTemplate::task(prompt.clone()));
                 }
 
                 if prompt.files().is_empty() {
@@ -197,14 +197,14 @@ mod tests {
         let (app, command) = app.update(chat_request.clone()).unwrap();
 
         assert_eq!(&app.context.model, &ModelId::default());
-        assert!(command.contains(&Command::AssistantMessage(app.context.clone())));
+        assert!(command.has(app.context.clone()));
     }
 
     #[test]
     fn test_file_load_response_action() {
         let app = App::default().user_objective(MessageTemplate::new(
             Tag::default().name("test"),
-            "Test message".to_string(),
+            "Test message",
         ));
 
         let files = vec![FileResponse::default()
@@ -218,7 +218,7 @@ mod tests {
             .content()
             .contains(&files[0].content));
 
-        assert!(command.contains(&Command::AssistantMessage(app.context.clone())));
+        assert!(command.has(app.context.clone()));
     }
 
     #[test]
@@ -230,19 +230,17 @@ mod tests {
             .tool_use(vec![ToolUsePart::default()
                 .name(ToolName::from("test_tool"))
                 .argument_part(r#"{"key": "value"}"#)])
-            .finish_reason(Some(FinishReason::ToolUse));
+            .finish_reason(FinishReason::ToolUse);
 
         let (_, command) = app.update(response).unwrap();
 
-        assert!(command.contains(&Command::UserMessage(ChatResponse::Text(
-            "Tool response".to_string()
-        ))));
+        assert!(command.has(ChatResponse::Text("Tool response".to_string())));
 
-        assert!(command.contains(&Command::ToolUse(
+        assert!(command.has(
             ToolUse::default()
                 .name(ToolName::from("test_tool"))
                 .arguments(json!({"key": "value"}))
-        )));
+        ));
     }
 
     #[test]
@@ -269,10 +267,8 @@ mod tests {
             )
         );
 
-        assert!(command.contains(&Command::AssistantMessage(app.context.clone())));
-        assert!(command.contains(&Command::UserMessage(
-            ChatResponse::ToolUseEnd(tool_result,)
-        )));
+        assert!(command.has(app.context.clone()));
+        assert!(command.has(ChatResponse::ToolUseEnd(tool_result,)));
     }
 
     #[test]
@@ -290,16 +286,14 @@ mod tests {
 
         assert!(app.tool_use_part.is_empty());
 
-        assert!(command.contains(&Command::ToolUse(
+        assert!(command.has(
             ToolUse::default()
-                .use_id(Some(UseId::from("test_use_id")))
+                .use_id(UseId::from("test_use_id"))
                 .name(ToolName::from("fs_list"))
                 .arguments(json!({"path": "."}))
-        )));
+        ));
 
-        assert!(command.contains(&Command::UserMessage(ChatResponse::Text(
-            "Tool response".to_string()
-        ))));
+        assert!(command.has(ChatResponse::Text("Tool response".to_string())));
     }
 
     #[test]
@@ -314,9 +308,7 @@ mod tests {
         let (app, command) = app.update(resp).unwrap();
 
         assert!(!app.tool_use_part.is_empty());
-        assert!(command.contains(&Command::UserMessage(ChatResponse::Text(
-            "Tool response".to_string()
-        ))));
+        assert!(command.has(ChatResponse::Text("Tool response".to_string())));
     }
 
     #[test]
@@ -328,10 +320,7 @@ mod tests {
         let (app, _) = app.update(request_0).unwrap();
         let (app, _) = app.update(request_1).unwrap();
 
-        assert_eq!(
-            app.user_objective,
-            Some(MessageTemplate::task("Hello".to_string()))
-        );
+        assert_eq!(app.user_objective, Some(MessageTemplate::task("Hello")));
     }
 
     #[test]
@@ -343,7 +332,7 @@ mod tests {
 
         assert_eq!(
             app.user_objective,
-            Some(MessageTemplate::task("Initial Objective".to_string()))
+            Some(MessageTemplate::task("Initial Objective"))
         );
     }
 
@@ -351,7 +340,7 @@ mod tests {
     fn test_should_handle_file_read_response_with_multiple_files() {
         let app = App::default().user_objective(MessageTemplate::new(
             Tag::default().name("test"),
-            "Test message".to_string(),
+            "Test message",
         ));
 
         let files = vec![
@@ -374,7 +363,7 @@ mod tests {
             .content()
             .contains(&files[1].content));
 
-        assert!(command.contains(&Command::AssistantMessage(app.context.clone())));
+        assert!(command.has(app.context.clone()));
     }
 
     #[test]
@@ -384,14 +373,12 @@ mod tests {
         let response = Response::default()
             .message(Message::assistant("Assistant response"))
             .tool_use(vec![])
-            .finish_reason(Some(FinishReason::EndTurn));
+            .finish_reason(FinishReason::EndTurn);
 
         let (app, command) = app.update(response).unwrap();
 
         assert!(app.tool_use_part.is_empty());
-        assert!(command.contains(&Command::UserMessage(ChatResponse::Text(
-            "Assistant response".to_string()
-        ))));
+        assert!(command.has(ChatResponse::Text("Assistant response".to_string())));
     }
 
     #[test]
@@ -410,7 +397,20 @@ mod tests {
             "An error occurred while processing the tool, test_tool"
         );
 
-        assert!(command.contains(&Command::AssistantMessage(app.context.clone())));
-        assert!(command.contains(&Command::UserMessage(ChatResponse::ToolUseEnd(tool_result))));
+        assert!(command.has(app.context.clone()));
+        assert!(command.has(ChatResponse::ToolUseEnd(tool_result)));
+    }
+
+    trait Has: Sized {
+        type Item;
+        fn has(&self, other: impl Into<Self::Item>) -> bool;
+    }
+
+    impl Has for Vec<Command> {
+        type Item = Command;
+        fn has(&self, other: impl Into<Self::Item>) -> bool {
+            let other: Self::Item = other.into();
+            self.contains(&other)
+        }
     }
 }

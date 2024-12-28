@@ -178,11 +178,18 @@ impl AnyMessage {
 }
 
 #[derive(Default, Setters, Debug, Clone)]
-#[setters(into)]
+#[setters(into, strip_option)]
 pub struct Response {
     pub message: Message<Assistant>,
     pub tool_use: Vec<ToolUsePart>,
     pub finish_reason: Option<FinishReason>,
+}
+
+impl Response {
+    pub fn finish_reason_opt(mut self, reason: Option<FinishReason>) -> Self {
+        self.finish_reason = reason;
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -251,6 +258,7 @@ pub struct ToolUsePart {
 /// Contains the full information about using a tool. This is received as a part
 /// of the response from the model when streaming is disabled.
 #[derive(Default, Setters, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[setters(strip_option, into)]
 pub struct ToolUse {
     pub name: ToolName,
     pub use_id: Option<UseId>,
