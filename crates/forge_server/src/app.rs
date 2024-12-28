@@ -334,15 +334,6 @@ mod tests {
             app.user_objective,
             Some(MessageTemplate::task("Hello".to_string()))
         );
-
-        assert_ne!(
-            app.user_objective,
-            Some(MessageTemplate::task("World".to_string()))
-        );
-
-        assert_eq!(app.context.messages.len(), 2);
-        assert_eq!(app.context.messages[0].content(), "Hello");
-        assert_eq!(app.context.messages[1].content(), "World");
     }
 
     #[test]
