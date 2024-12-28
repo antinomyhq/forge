@@ -213,9 +213,7 @@ mod tests {
 
         let (app, command) = app.update(files.clone()).unwrap();
 
-        assert!(app.context.messages[0]
-            .content()
-            .contains(&files[0].path));
+        assert!(app.context.messages[0].content().contains(&files[0].path));
         assert!(app.context.messages[0]
             .content()
             .contains(&files[0].content));
@@ -367,15 +365,11 @@ mod tests {
 
         let (app, command) = app.update(files.clone()).unwrap();
 
-        assert!(app.context.messages[0]
-            .content()
-            .contains(&files[0].path));
+        assert!(app.context.messages[0].content().contains(&files[0].path));
         assert!(app.context.messages[0]
             .content()
             .contains(&files[0].content));
-        assert!(app.context.messages[1]
-            .content()
-            .contains(&files[1].path));
+        assert!(app.context.messages[1].content().contains(&files[1].path));
         assert!(app.context.messages[1]
             .content()
             .contains(&files[1].content));
