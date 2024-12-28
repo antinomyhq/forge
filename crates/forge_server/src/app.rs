@@ -344,12 +344,115 @@ mod tests {
         let app = App::default();
         let request_0 = ChatRequest::default().message("Hello");
         let request_1 = ChatRequest::default().message("World");
-        let (app, _) = app.update(request_0).unwrap();
-        let (app, _) = app.update(request_1).unwrap();
+
+        let (app, _) = app.update(Action::UserMessage(request_0)).unwrap();
+        let (app, _) = app.update(Action::UserMessage(request_1)).unwrap();
 
         assert_eq!(
             app.user_objective,
             Some(MessageTemplate::task("Hello".to_string()))
         );
+
+        assert_ne!(
+            app.user_objective,
+            Some(MessageTemplate::task("World".to_string()))
+        );
+
+        assert_eq!(app.context.messages.len(), 2);
+        assert_eq!(app.context.messages[0].content(), "Hello");
+        assert_eq!(app.context.messages[1].content(), "World");
+    }
+    #[test]
+    fn test_should_not_set_user_objective_if_already_set() {
+        let app = App::default().user_objective(MessageTemplate::task("Initial Objective".to_string()));
+        let request = ChatRequest::default().message("New Objective");
+
+        let (app, _) = app.update(Action::UserMessage(request)).unwrap();
+
+        assert_eq!(
+            app.user_objective,
+            Some(MessageTemplate::task("Initial Objective".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_should_handle_file_read_response_with_multiple_files() {
+        let app = App::default().user_objective(MessageTemplate::new(
+            Tag { name: "test".to_string(), attributes: vec![] },
+            "Test message".to_string(),
+        ));
+
+        let files = vec![
+            FileResponse {
+                path: "file1.txt".to_string(),
+                content: "Content 1".to_string(),
+            },
+            FileResponse {
+                path: "file2.txt".to_string(),
+                content: "Content 2".to_string(),
+            },
+        ];
+
+        let action = Action::FileReadResponse(files.clone());
+        let (updated_app, command) = app.update(action).unwrap();
+
+        assert!(updated_app.context.messages[0]
+            .content()
+            .contains(&files[0].path));
+        assert!(updated_app.context.messages[0]
+            .content()
+            .contains(&files[0].content));
+        assert!(updated_app.context.messages[1]
+            .content()
+            .contains(&files[1].path));
+        assert!(updated_app.context.messages[1]
+            .content()
+            .contains(&files[1].content));
+
+        assert!(command.contains(&Command::AssistantMessage(updated_app.context.clone())));
+    }
+
+    #[test]
+    fn test_should_handle_assistant_response_with_no_tool_use() {
+        let app = App::default();
+
+        let response = Response {
+            message: Message::assistant("Assistant response"),
+            tool_use: vec![],
+            finish_reason: Some(FinishReason::EndTurn),
+        };
+
+        let action = Action::AssistantResponse(response);
+        let (app, command) = app.update(action).unwrap();
+
+        assert!(app.tool_use_part.is_empty());
+        assert!(command.contains(&Command::UserMessage(ChatResponse::Text(
+            "Assistant response".to_string()
+        ))));
+    }
+
+    #[test]
+    fn test_should_handle_tool_response_with_error() {
+        let app = App::default();
+
+        let tool_result = ToolResult {
+            tool_use_id: None,
+            tool_name: ToolName::from("test_tool"),
+            content: json!({"error": "Something went wrong"}),
+            is_error: true,
+        };
+        let action = Action::ToolResponse(tool_result.clone());
+
+        let (app, command) = app.update(action).unwrap();
+
+        assert_eq!(
+            app.context.messages[0].content(),
+            "An error occurred while processing the tool, test_tool"
+        );
+
+        assert!(command.contains(&Command::AssistantMessage(app.context.clone())));
+        assert!(command.contains(&Command::UserMessage(
+            ChatResponse::ToolUseEnd(tool_result)
+        )));
     }
 }
