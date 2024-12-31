@@ -35,11 +35,21 @@ impl ToolTrait for FSWrite {
     type Output = FSWriteOutput;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, String> {
-        tokio::fs::write(&input.path, &input.content)
+        let content = try_normalizing_nested_escapes(input.content);
+
+        tokio::fs::write(&input.path, &content)
             .await
             .map_err(|e| e.to_string())?;
-        Ok(FSWriteOutput { path: input.path, content: input.content })
+        Ok(FSWriteOutput { path: input.path, content })
     }
+}
+
+// Some models (like Gemini) have nested escapes in their content.
+// This function tries to normalize the content.
+fn try_normalizing_nested_escapes(content: String) -> String {
+    let new_content = format!("\"{}\"", content);
+
+    serde_json::from_str::<String>(&new_content).unwrap_or(content)
 }
 
 #[derive(Serialize, JsonSchema)]
