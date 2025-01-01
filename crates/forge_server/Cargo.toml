@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = { version = "^0.7", features = ["macros"] }
+axum = { version = "^0.8.0", features = ["macros"] }
 tower-http = { version = "0.6", features = ["cors"] }
 tokio = { version = "1", features = ["full"] }
 derive_more = { version = "1.0.0", features = ["full"] }
