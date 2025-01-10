@@ -12,7 +12,7 @@ tokio = { version = "1.0", features = ["full"] }
 tokio-stream = "0.1.17"
 colored = "3.0.0"
 inquire = "0.7.5"
-unicode-width = "0.1.11"
+unicode-width = "0.2.0"
 regex = "1.10.2"
 strum = "0.26.3"
 strum_macros = "0.26.4"
