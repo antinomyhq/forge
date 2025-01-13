@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("Failed to initialize API: {}", e))?;
 
-    let mut content = initial_content;
+    let mut content = initial_content.clone(); // Clone here to keep original
 
     loop {
         let model = ModelId::from_env(api.env());
@@ -109,6 +109,11 @@ async fn main() -> Result<()> {
                 CONSOLE.writeln("Starting fresh conversation...")?;
                 current_conversation_id = None;
                 content = UserInput::prompt_initial()?;
+            }
+            UserInput::Reload => {
+                CONSOLE.writeln("Reloading conversation with original prompt...")?;
+                current_conversation_id = None;
+                content = initial_content.clone();
             }
             UserInput::Message(msg) => {
                 content = msg;
