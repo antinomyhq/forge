@@ -842,6 +842,7 @@ name = "forge_domain"
 version = "0.1.0"
 dependencies = [
  "Inflector",
+ "anyhow",
  "async-trait",
  "chrono",
  "derive_more",
@@ -859,6 +860,24 @@ dependencies = [
  "strum_macros",
  "tokio",
  "tokio-stream",
+ "uuid",
+]
+
+[[package]]
+name = "forge_infra"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "diesel",
+ "forge_domain",
+ "pretty_assertions",
+ "r2d2",
+ "serde",
+ "tempfile",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 

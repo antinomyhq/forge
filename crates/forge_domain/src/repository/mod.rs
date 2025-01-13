@@ -2,7 +2,6 @@ mod configuration;
 mod context;
 mod conversation;
 mod environment;
-mod system_io;
 mod user_interaction;
 
 pub use configuration::ConfigurationRepository;
