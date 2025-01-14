@@ -222,12 +222,17 @@ impl UserInput {
 
             let text = text.prompt()?;
 
-            match InputKind::parse(&text)? {
-                InputKind::Help => {
-                    CONSOLE.writeln(format!("\n{}\n", InputKind::get_help_text()))?;
-                    continue;
+            match InputKind::parse(&text) {
+                Ok(input_kind) => match input_kind {
+                    InputKind::Help => {
+                        CONSOLE.writeln(format!("\n{}\n", InputKind::get_help_text()))?;
+                        continue;
+                    }
+                    InputKind::User(input) => return Ok(input),
+                },
+                Err(e) => {
+                    eprintln!("Error: {}", e);
                 }
-                InputKind::User(input) => return Ok(input),
             }
         }
     }
