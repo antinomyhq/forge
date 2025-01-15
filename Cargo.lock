@@ -851,7 +851,7 @@ dependencies = [
  "forge_walker",
  "handlebars",
  "insta",
- "moka2 0.12.9",
+ "moka2",
  "pretty_assertions",
  "pulldown-cmark",
  "r2d2",
@@ -945,7 +945,7 @@ dependencies = [
  "derive_setters",
  "forge_domain",
  "insta",
- "moka2 0.13.0",
+ "moka2",
  "pretty_assertions",
  "reqwest",
  "reqwest-eventsource",
@@ -1836,29 +1836,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "moka2"
-version = "0.12.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc277a6c1d4239b9c644c7b7f8eb87bd1262ce3f1193a7f4873932647d399387"
-dependencies = [
- "async-lock",
- "crossbeam-channel",
- "crossbeam-epoch",
- "crossbeam-utils",
- "event-listener",
- "futures-util",
- "parking_lot",
- "portable-atomic",
- "quanta",
- "rustc_version",
- "smallvec",
- "tagptr",
- "thiserror 1.0.69",
- "triomphe",
- "uuid",
 ]
 
 [[package]]
