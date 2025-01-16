@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-handlebars = "4.5.0"
+handlebars = "6.0.0"
 Inflector = "0.11.4"
 anyhow = "1.0"
 async-trait = "0.1.84"
