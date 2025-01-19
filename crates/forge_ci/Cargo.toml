@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dev-dependencies]
-gh-workflow-tailcall = "0.4.0"
+gh-workflow-tailcall = "0.5.0"
 pretty_assertions = "1.4.1"
