@@ -1,3 +1,5 @@
+use std::ops::Bound::{Excluded, Included};
+use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
 
 use dissimilar::Chunk;
@@ -101,7 +103,17 @@ async fn apply_patches(content: String, blocks: Vec<PatchBlock>) -> Result<Strin
         let normalized_result = result.replace("\r\n", "\n").replace('\r', "\n");
 
         if let Some(start_idx) = normalized_result.find(&normalized_search) {
-            result.replace_range(start_idx..start_idx + block.search.len(), &block.replace);
+            safe_replace_range(
+                &mut result,
+                start_idx..start_idx + block.search.len(),
+                &block.replace,
+            )
+            .ok_or_else(|| {
+                Error::FileOperation(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Invalid character boundaries",
+                ))
+            })?;
             continue;
         }
 
@@ -129,12 +141,70 @@ async fn apply_patches(content: String, blocks: Vec<PatchBlock>) -> Result<Strin
         if let Some((start_idx, len)) = best_match {
             if best_score > 0.7 {
                 // Threshold for fuzzy matching
-                result.replace_range(start_idx..start_idx + len, &block.replace);
+                safe_replace_range(&mut result, start_idx..start_idx + len, &block.replace)
+                    .ok_or_else(|| {
+                        Error::FileOperation(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Invalid character boundaries",
+                        ))
+                    })?;
             }
         }
     }
 
     Ok(result)
+}
+
+pub fn safe_replace_range<R>(string: &mut String, range: R, replace_with: &str) -> Option<()>
+where
+    R: RangeBounds<usize>,
+{
+    let len = string.len();
+
+    // Check if the range is valid
+    let start = match range.start_bound() {
+        Included(&n) => {
+            if n > len {
+                return None;
+            }
+            n
+        }
+        Excluded(&n) => {
+            if n >= len {
+                return None;
+            }
+            n
+        }
+        _ => 0,
+    };
+
+    let end = match range.end_bound() {
+        Included(&n) => {
+            if n > len {
+                return None;
+            }
+            n
+        }
+        Excluded(&n) => {
+            if n > len {
+                return None;
+            }
+            n
+        }
+        _ => len,
+    };
+
+    // Check character boundaries
+    if !string.is_char_boundary(start) {
+        return None;
+    }
+    if !string.is_char_boundary(end) {
+        return None;
+    }
+
+    string.replace_range(range, replace_with);
+
+    Some(())
 }
 
 #[async_trait::async_trait]
@@ -491,5 +561,14 @@ mod test {
 
         assert!(result.contains("Successfully applied"));
         assert!(result.contains(&file_path.display().to_string()));
+    }
+
+    #[test]
+    fn test_safe_replace_range() {
+        let mut string = "Hello, world!".to_string();
+
+        assert!(safe_replace_range(&mut string, 7..12, "earth").is_some());
+        assert_eq!(string, "Hello, earth!");
+        assert!(safe_replace_range(&mut string, 7..14, "earth").is_none());
     }
 }
