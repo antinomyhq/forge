@@ -451,16 +451,16 @@ dependencies = [
 
 [[package]]
 name = "crossterm"
-version = "0.27.0"
+version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f476fe445d41c9e991fd07515a6f463074b782242ccf4a5b7b1d1012e70824df"
+checksum = "829d955a0bb380ef178a640b91779e3987da38c9aea133b20614cfed8cdea9c6"
 dependencies = [
  "bitflags 2.8.0",
  "crossterm_winapi",
  "futures-core",
- "libc",
- "mio 0.8.11",
+ "mio 1.0.3",
  "parking_lot",
+ "rustix",
  "signal-hook",
  "signal-hook-mio",
  "winapi",
@@ -899,7 +899,7 @@ dependencies = [
  "chrono",
  "clap",
  "colored 3.0.0",
- "crossterm 0.27.0",
+ "crossterm 0.28.1",
  "derive_setters",
  "forge_app",
  "forge_domain",
@@ -1913,6 +1913,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2886843bf800fba2e3377cff24abf6379b4c4d5c6681eaf9ea5b0d15090450bd"
 dependencies = [
  "libc",
+ "log",
  "wasi",
  "windows-sys 0.52.0",
 ]
@@ -2939,6 +2940,7 @@ checksum = "34db1a06d485c9142248b7a054f034b349b212551f3dfd19c94d45a754a217cd"
 dependencies = [
  "libc",
  "mio 0.8.11",
+ "mio 1.0.3",
  "signal-hook",
 ]
 

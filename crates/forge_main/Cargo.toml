@@ -11,7 +11,7 @@ forge_domain = { path = "../forge_domain" }
 tokio = { version = "1.0", features = ["full"] }
 tokio-stream = "0.1.17"
 colored = "3.0.0"
-crossterm = { version = "0.27", features = ["event-stream"] }
+crossterm = { version = "0.28", features = ["event-stream"] }
 async-trait = "0.1"
 inquire = "0.7.5"
 regex = "1.10.2"
