@@ -3,12 +3,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use forge_domain::{
-    ChatRequest, ChatResponse, Config, ConfigRepository, Context, Conversation, ConversationId,
-    ConversationRepository, Environment, Model, ProviderService, ResultStream, ToolDefinition,
-    ToolService,
+    ChatRequest, ChatResponse, Config, ConfigRepository, Context, Conversation,
+    ConversationHistory, ConversationId, ConversationRepository, Environment, Model,
+    ProviderService, ResultStream, ToolDefinition, ToolService,
 };
 
-use super::chat::ConversationHistory;
 use super::env::EnvironmentService;
 use super::suggestion::{File, SuggestionService};
 use super::ui::UIService;

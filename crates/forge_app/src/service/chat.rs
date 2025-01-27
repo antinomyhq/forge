@@ -3,9 +3,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_domain::{
     ChatRequest, ChatResponse, Context, ContextMessage, FinishReason, ProviderService,
-    ResultStream, Role, ToolCall, ToolCallFull, ToolResult, ToolService,
+    ResultStream, ToolCall, ToolCallFull, ToolResult, ToolService,
 };
-use serde::Serialize;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
@@ -209,39 +208,6 @@ impl ChatService for Live {
         });
 
         Ok(Box::pin(ReceiverStream::new(rx)))
-    }
-}
-
-#[derive(Default, Debug, Clone, Serialize)]
-pub struct ConversationHistory {
-    pub messages: Vec<ChatResponse>,
-}
-
-impl From<Context> for ConversationHistory {
-    fn from(request: Context) -> Self {
-        let messages = request
-            .messages
-            .iter()
-            .filter(|message| match message {
-                ContextMessage::ContentMessage(content) => content.role != Role::System,
-                ContextMessage::ToolMessage(_) => true,
-            })
-            .flat_map(|message| match message {
-                ContextMessage::ContentMessage(content) => {
-                    let mut messages = vec![ChatResponse::Text(content.content.clone())];
-                    if let Some(tool_calls) = &content.tool_calls {
-                        for tool_call in tool_calls {
-                            messages.push(ChatResponse::ToolCallStart(tool_call.clone()));
-                        }
-                    }
-                    messages
-                }
-                ContextMessage::ToolMessage(result) => {
-                    vec![ChatResponse::ToolCallEnd(result.clone())]
-                }
-            })
-            .collect();
-        Self { messages }
     }
 }
 
