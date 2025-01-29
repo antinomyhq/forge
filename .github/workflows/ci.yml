@@ -101,7 +101,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ matrix.target }}
-    - uses: ClementTsang/cargo-action@v0.0.3
+    - uses: ClementTsang/cargo-action@v0.0.6
       with:
         command: build --release
         args: --target ${{ matrix.target }}
