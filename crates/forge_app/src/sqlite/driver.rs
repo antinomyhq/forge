@@ -20,8 +20,8 @@ pub(crate) struct Driver {
 }
 
 impl Driver {
-    pub fn new(forge_config_dir: &str) -> Result<Self> {
-        let db_path = format!("{}/{}", forge_config_dir, DB_NAME);
+    pub fn new(db_path: &str) -> Result<Self> {
+        let db_path = format!("{}/{}", db_path, DB_NAME);
 
         // Run migrations first
         let mut conn = SqliteConnection::establish(&db_path)
