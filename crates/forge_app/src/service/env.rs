@@ -70,7 +70,10 @@ impl Live {
 }
 
 async fn global_config_dir() -> Result<String> {
-    let global_config = dirs::home_dir().ok_or(anyhow::anyhow!("Unable to get home dir."))?.join(".forge").join("globalConfig");
+    let global_config = dirs::home_dir()
+        .ok_or(anyhow::anyhow!("Unable to get home dir."))?
+        .join(".forge")
+        .join("globalConfig");
     tokio::fs::create_dir_all(&global_config).await?;
     Ok(global_config.display().to_string())
 }
