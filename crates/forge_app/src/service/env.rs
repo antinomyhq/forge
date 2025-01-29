@@ -72,8 +72,7 @@ impl Live {
 async fn db_path() -> Result<String> {
     let db_path = dirs::home_dir()
         .ok_or(anyhow::anyhow!("Unable to get home dir."))?
-        .join(".forge")
-        .join("globalConfig");
+        .join(".forge");
     tokio::fs::create_dir_all(&db_path).await?;
     Ok(db_path.display().to_string())
 }
