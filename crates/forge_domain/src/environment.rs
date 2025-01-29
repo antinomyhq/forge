@@ -24,7 +24,7 @@ pub struct Environment {
     /// The small model ID.
     pub small_model_id: String,
     /// Config dir for Forge.
-    pub db_dir: String,
+    pub db_path: String,
 }
 
 /// Repository for accessing system environment information

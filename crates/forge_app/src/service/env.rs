@@ -64,18 +64,18 @@ impl Live {
             api_key,
             large_model_id,
             small_model_id,
-            db_dir: db_dir().await?,
+            db_path: db_path().await?,
         })
     }
 }
 
-async fn db_dir() -> Result<String> {
-    let db_dir = dirs::home_dir()
+async fn db_path() -> Result<String> {
+    let db_path = dirs::home_dir()
         .ok_or(anyhow::anyhow!("Unable to get home dir."))?
         .join(".forge")
         .join("globalConfig");
-    tokio::fs::create_dir_all(&db_dir).await?;
-    Ok(db_dir.display().to_string())
+    tokio::fs::create_dir_all(&db_path).await?;
+    Ok(db_path.display().to_string())
 }
 
 #[async_trait::async_trait]

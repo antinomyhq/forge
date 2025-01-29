@@ -99,7 +99,7 @@ mod tests {
             api_key: "test".to_string(),
             large_model_id: "open-ai/gpt-4o".to_string(),
             small_model_id: "open-ai/gpt-4o-mini".to_string(),
-            db_dir: "/home/user/.forge/globalConfig".to_string(),
+            db_path: "/home/user/.forge/globalConfig".to_string(),
         }
     }
 
