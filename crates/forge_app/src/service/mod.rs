@@ -1,5 +1,6 @@
 mod api;
 mod chat;
+mod chat_stream;
 mod env;
 mod file_read;
 mod provider;

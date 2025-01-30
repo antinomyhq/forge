@@ -7,9 +7,9 @@ use forge_domain::{
 };
 use schemars::{schema_for, JsonSchema};
 use serde::Deserialize;
-use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
+use super::chat_stream::ChatReceiverStream;
 use super::Service;
 
 impl Service {
@@ -60,11 +60,6 @@ impl Live {
 
         while let Some(chunk) = response.next().await {
             let message = chunk?;
-            if tx.is_closed() {
-                // If the receiver is closed, we should stop processing messages.
-                drop(response);
-                break;
-            }
             if let Some(ToolCall::Part(args)) = message.tool_call.first() {
                 parts.push(args.clone());
             }
@@ -118,13 +113,15 @@ impl TitleService for Live {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
 
         let that = self.clone();
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             if let Err(e) = that.execute(request, tx.clone(), chat.clone()).await {
                 tx.send(Err(e)).await.unwrap();
             }
             drop(tx);
         });
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(Box::pin(ChatReceiverStream::new(rx).on_close(move || {
+            task.abort();
+        })))
     }
 }
 

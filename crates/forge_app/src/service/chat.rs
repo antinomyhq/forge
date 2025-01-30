@@ -5,9 +5,9 @@ use forge_domain::{
     ChatRequest, ChatResponse, Context, ContextMessage, FinishReason, ProviderService,
     ResultStream, ToolCall, ToolCallFull, ToolResult, ToolService,
 };
-use tokio_stream::wrappers::ReceiverStream;
-use tokio_stream::StreamExt;
+use futures::StreamExt;
 
+use super::chat_stream::ChatReceiverStream;
 use super::{PromptService, Service};
 
 #[async_trait::async_trait]
@@ -71,12 +71,6 @@ impl Live {
 
             while let Some(chunk) = response.next().await {
                 let message = chunk?;
-
-                if tx.is_closed() {
-                    // If the receiver is closed, we should stop processing messages.
-                    drop(response);
-                    break;
-                }
 
                 if let Some(ref content) = message.content {
                     if !content.is_empty() {
@@ -192,8 +186,7 @@ impl ChatService for Live {
             .tools(self.tool.list());
 
         let that = self.clone();
-
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             // TODO: simplify this match.
             match that.chat_workflow(request, tx.clone(), chat.clone()).await {
                 Ok(_) => {}
@@ -207,7 +200,10 @@ impl ChatService for Live {
             drop(tx);
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(Box::pin(ChatReceiverStream::new(rx).on_close(move || {
+            // abort the task as soon as stream is dropped.
+            task.abort();
+        })))
     }
 }
 
