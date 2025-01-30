@@ -958,6 +958,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_shell"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "derive_setters",
+ "regex",
+ "serde_json",
+ "strum",
+ "strum_macros",
+ "thiserror 2.0.11",
+]
+
+[[package]]
 name = "forge_tool"
 version = "0.1.0"
 dependencies = [
@@ -966,6 +980,7 @@ dependencies = [
  "async-trait",
  "dissimilar",
  "forge_domain",
+ "forge_shell",
  "forge_tool_macros",
  "forge_walker",
  "glob",

@@ -134,27 +134,30 @@ impl ToolCallService for Shell {
 
     async fn call(&self, input: Self::Input) -> Result<String, String> {
         self.validate_command(&input.command)?;
+        let _ = forge_shell::shell(&input.command).map_err(|e| e.to_string())?;
 
-        let mut cmd = if cfg!(target_os = "windows") {
-            let mut c = Command::new("cmd");
-            c.args(["/C", &input.command]);
-            c
-        } else {
-            let mut c = Command::new("sh");
-            c.args(["-c", &input.command]);
-            c
-        };
+        /*        let mut cmd = if cfg!(target_os = "windows") {
+                    let mut c = Command::new("cmd");
+                    c.args(["/C", &input.command]);
+                    c
+                } else {
+                    let mut c = Command::new("sh");
+                    c.args(["-c", &input.command]);
+                    c
+                };
+        
+                cmd.current_dir(input.cwd);
+        
+                let output = cmd
+                    .output()
+                    .await
+                    .map_err(|e| format!("Failed to execute command '{}': {}", input.command, e))?;
+                            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                format_output(&stdout, &stderr, output.status.success())
+                    */
 
-        cmd.current_dir(input.cwd);
-
-        let output = cmd
-            .output()
-            .await
-            .map_err(|e| format!("Failed to execute command '{}': {}", input.command, e))?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        format_output(&stdout, &stderr, output.status.success())
+        Ok("output".to_string())
     }
 }
 

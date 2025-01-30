@@ -1,0 +1,14 @@
+[package]
+name = "forge_shell"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.68"
+bytes = "1.3.0"
+thiserror = "2.0.11"
+strum_macros = "0.26.4"
+strum = "0.26.3"
+serde_json = "1.0.134"
+regex = "1.11.1"
+derive_setters = "0.1.6"
