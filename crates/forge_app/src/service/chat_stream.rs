@@ -17,7 +17,7 @@ impl<T> Drop for ChatReceiverStream<T> {
         if let Some(f) = self.on_close.take() {
             f();
         }
-        // Close the receiver first to prevent any new messages
+        // Close the receiver to prevent any new messages
         self.receiver.close();
     }
 }
