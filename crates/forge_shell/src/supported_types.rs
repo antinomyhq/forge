@@ -1,7 +1,11 @@
+use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::Command;
+use std::str::FromStr;
+
 use crate::return_ty::{ExprTy, ReturnTy};
-use std::{
-    collections::HashMap, fs::OpenOptions, io::Write, path::PathBuf, process::Command, str::FromStr,
-};
 
 /// Here we can define all the supported commands
 #[derive(Default, strum_macros::EnumString)]
@@ -82,11 +86,7 @@ impl Seperators {
                     current_expr.clear();
                 }
                 if let Some(target) = iter.next() {
-                    seps.push(Seperator::Redirect {
-                        fd: None,
-                        operator: token,
-                        target,
-                    });
+                    seps.push(Seperator::Redirect { fd: None, operator: token, target });
                 }
                 continue;
             }
@@ -143,11 +143,7 @@ impl SupportedTypes {
                     let ret = self.eval_single(expr, vars);
                     final_ret = ret;
                 }
-                Seperator::Redirect {
-                    fd,
-                    operator,
-                    target,
-                } => {
+                Seperator::Redirect { fd, operator, target } => {
                     let path = PathBuf::from(target.clone());
                     let _ = std::fs::create_dir_all(
                         path.parent()

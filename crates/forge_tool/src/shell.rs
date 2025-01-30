@@ -6,7 +6,6 @@ use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tokio::process::Command;
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ShellInput {
@@ -137,25 +136,25 @@ impl ToolCallService for Shell {
         let _ = forge_shell::shell(&input.command).map_err(|e| e.to_string())?;
 
         /*        let mut cmd = if cfg!(target_os = "windows") {
-                    let mut c = Command::new("cmd");
-                    c.args(["/C", &input.command]);
-                    c
-                } else {
-                    let mut c = Command::new("sh");
-                    c.args(["-c", &input.command]);
-                    c
-                };
-        
-                cmd.current_dir(input.cwd);
-        
-                let output = cmd
-                    .output()
-                    .await
-                    .map_err(|e| format!("Failed to execute command '{}': {}", input.command, e))?;
-                            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                format_output(&stdout, &stderr, output.status.success())
-                    */
+            let mut c = Command::new("cmd");
+            c.args(["/C", &input.command]);
+            c
+        } else {
+            let mut c = Command::new("sh");
+            c.args(["-c", &input.command]);
+            c
+        };
+
+        cmd.current_dir(input.cwd);
+
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| format!("Failed to execute command '{}': {}", input.command, e))?;
+                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        format_output(&stdout, &stderr, output.status.success())
+            */
 
         Ok("output".to_string())
     }

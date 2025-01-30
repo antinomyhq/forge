@@ -2,9 +2,10 @@ mod return_ty;
 mod supported_types;
 
 use std::collections::HashMap;
-use std::io::{self, Write, BufRead};
+use std::io::{self, BufRead, Write};
 
-use crate::{return_ty::ReturnTy, supported_types::SupportedTypes};
+use crate::return_ty::ReturnTy;
+use crate::supported_types::SupportedTypes;
 
 pub fn shell(cmd: &str) -> anyhow::Result<()> {
     let vars = load_vars();
@@ -44,7 +45,7 @@ fn exec(input: &str, vars: &HashMap<String, String>) -> bool {
     if !split.is_empty() {
         let supported_types = SupportedTypes::from(split[0]);
 
-        let return_ty = supported_types.eval(input, &vars);
+        let return_ty = supported_types.eval(input, vars);
 
         match return_ty {
             ReturnTy::Break => return false,
