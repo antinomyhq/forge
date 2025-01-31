@@ -41,7 +41,12 @@ impl<T> Drop for MpscStream<T> {
 
 #[cfg(test)]
 mod test {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
     use futures::StreamExt;
+    use tokio::time::pause;
 
     use super::*;
 
@@ -53,5 +58,44 @@ mod test {
 
         let result = stream.next().await;
         assert_eq!(result, Some("test message"));
+    }
+
+    #[tokio::test]
+    async fn test_drop_aborts_task() {
+        // Pause time to control it manually
+        pause();
+
+        let completed = Arc::new(AtomicBool::new(false));
+        let completed_clone = completed.clone();
+
+        let stream = MpscStream::spawn(|tx| async move {
+            // Try to send a message
+            let send_result = tx.send(1).await;
+            assert!(send_result.is_ok(), "First send should succeed");
+
+            // Simulate long running task with virtual time
+            tokio::time::sleep(Duration::from_secs(1)).await;
+
+            // This should never execute because we'll drop the stream
+            completed_clone.store(true, Ordering::SeqCst);
+
+            // This send should fail since receiver is dropped
+            let _ = tx.send(2).await;
+        });
+
+        // Advance time a small amount to allow first message to be processed
+        tokio::time::advance(Duration::from_millis(10)).await;
+
+        // Drop the stream - this should abort the task
+        drop(stream);
+
+        // Advance time past when the task would have completed
+        tokio::time::advance(Duration::from_secs(2)).await;
+
+        // Verify the task was aborted and didn't complete
+        assert!(
+            !completed.load(Ordering::SeqCst),
+            "Task should have been aborted"
+        );
     }
 }
