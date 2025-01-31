@@ -1,3 +1,4 @@
+mod mpsc_stream;
 mod repo;
 mod schema;
 mod service;

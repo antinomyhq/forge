@@ -2,7 +2,6 @@ mod api;
 mod chat;
 mod env;
 mod file_read;
-mod mpsc_stream;
 mod provider;
 mod suggestion;
 mod system_prompt;

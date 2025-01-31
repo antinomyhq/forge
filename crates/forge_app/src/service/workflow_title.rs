@@ -9,8 +9,8 @@ use schemars::{schema_for, JsonSchema};
 use serde::Deserialize;
 use tokio_stream::StreamExt;
 
-use super::mpsc_stream::MpscStream;
 use super::Service;
+use crate::mpsc_stream::MpscStream;
 
 impl Service {
     /// Creates a new title service with the specified provider

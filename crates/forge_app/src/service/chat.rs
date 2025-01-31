@@ -7,8 +7,8 @@ use forge_domain::{
 };
 use futures::StreamExt;
 
-use super::mpsc_stream::MpscStream;
 use super::{PromptService, Service};
+use crate::mpsc_stream::MpscStream;
 
 #[async_trait::async_trait]
 pub trait ChatService: Send + Sync {
