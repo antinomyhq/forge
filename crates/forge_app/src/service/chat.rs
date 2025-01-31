@@ -7,7 +7,7 @@ use forge_domain::{
 };
 use futures::StreamExt;
 
-use super::chat_stream::ChatReceiverStream;
+use super::mpsc_stream::MpscStream;
 use super::{PromptService, Service};
 
 #[async_trait::async_trait]
@@ -178,7 +178,6 @@ impl ChatService for Live {
     ) -> ResultStream<ChatResponse, anyhow::Error> {
         let system_prompt = self.system_prompt.get(&chat).await?;
         let user_prompt = self.user_prompt.get(&chat).await?;
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
 
         let request = request
             .set_system_message(system_prompt)
@@ -186,7 +185,8 @@ impl ChatService for Live {
             .tools(self.tool.list());
 
         let that = self.clone();
-        let task = tokio::spawn(async move {
+
+        Ok(Box::pin(MpscStream::spawn(move |tx| async move {
             // TODO: simplify this match.
             match that.chat_workflow(request, tx.clone(), chat.clone()).await {
                 Ok(_) => {}
@@ -196,13 +196,6 @@ impl ChatService for Live {
             };
 
             tx.send(Ok(ChatResponse::Complete)).await.unwrap();
-
-            drop(tx);
-        });
-
-        Ok(Box::pin(ChatReceiverStream::new(rx).on_close(move || {
-            // abort the task as soon as stream is dropped.
-            task.abort();
         })))
     }
 }

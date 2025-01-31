@@ -9,7 +9,7 @@ use schemars::{schema_for, JsonSchema};
 use serde::Deserialize;
 use tokio_stream::StreamExt;
 
-use super::chat_stream::ChatReceiverStream;
+use super::mpsc_stream::MpscStream;
 use super::Service;
 
 impl Service {
@@ -110,17 +110,12 @@ impl TitleService for Live {
             .add_tool(tool.clone())
             .tool_choice(ToolChoice::Call(tool.name));
 
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
-
         let that = self.clone();
-        let task = tokio::spawn(async move {
+
+        Ok(Box::pin(MpscStream::spawn(move |tx| async move {
             if let Err(e) = that.execute(request, tx.clone(), chat.clone()).await {
                 tx.send(Err(e)).await.unwrap();
             }
-            drop(tx);
-        });
-        Ok(Box::pin(ChatReceiverStream::new(rx).on_close(move || {
-            task.abort();
         })))
     }
 }
