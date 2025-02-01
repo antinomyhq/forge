@@ -2956,6 +2956,7 @@ version = "1.0.138"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d434192e7da787e94a6ea7e9670b26a036d0ca41e0b7efb2676dd32bae872949"
 dependencies = [
+ "indexmap",
  "itoa",
  "memchr",
  "ryu",
@@ -3577,13 +3578,14 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.24.7"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5387dffa7ffc7d2dae12b50c6f7aab8ff79d6210147c6613561fc3d474c6f75"
+checksum = "19bcada1000487b94b3858dbcf935f039dc898ed82fe7aa9ef9db01aa423af6e"
 dependencies = [
  "cc",
  "regex",
  "regex-syntax 0.8.5",
+ "serde_json",
  "streaming-iterator",
  "tree-sitter-language",
 ]
