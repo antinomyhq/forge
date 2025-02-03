@@ -169,7 +169,7 @@ pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, String> {
     }
 
     if tool_calls.is_empty() {
-        Err("No valid tool calls found in input".to_string())
+        Ok(Vec::new())
     } else {
         Ok(tool_calls)
     }

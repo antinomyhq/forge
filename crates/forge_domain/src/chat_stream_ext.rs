@@ -1,10 +1,25 @@
 use anyhow::Result;
-use futures::Stream;
+use futures::{Stream, StreamExt as _};
 
 use super::stream_ext::StreamExt;
 use super::{ChatCompletionMessage, FinishReason, ToolCall, ToolCallFull, ToolCallPart};
+use crate::Content;
 
 pub trait BoxStreamExt: Stream<Item = Result<ChatCompletionMessage>> + Sized {
+    fn collect_content(self) -> impl Stream<Item = Result<ChatCompletionMessage>> {
+        self.try_collect(String::new(), |parts, message| {
+            if let Some(content) = &message.content {
+                parts.push_str(content.as_str());
+            }
+
+            if message.finish_reason.is_some() {
+                return Ok(Some(ChatCompletionMessage::default().content_full(parts)));
+            }
+
+            Ok(None)
+        })
+    }
+
     fn collect_tool_call_parts(self) -> impl Stream<Item = Result<ChatCompletionMessage>> {
         self.try_collect(Vec::<ToolCallPart>::new(), |parts, message| {
             if let Some(ToolCall::Part(tool_call)) = &message.tool_call.first() {
@@ -22,21 +37,17 @@ pub trait BoxStreamExt: Stream<Item = Result<ChatCompletionMessage>> + Sized {
     }
 
     fn collect_tool_call_xml_content(self) -> impl Stream<Item = Result<ChatCompletionMessage>> {
-        self.try_collect(String::new(), |parts, message| {
-            if let Some(content) = &message.content {
-                parts.push_str(content.as_str());
-            }
-            if message.finish_reason.is_some() {
-                if let Ok(tool_calls) = ToolCallFull::try_from_xml(parts) {
-                    let mut message = ChatCompletionMessage::default();
-                    for tool_call in tool_calls {
-                        message = message.add_tool_call(tool_call);
-                    }
-                    return Ok(Some(message));
+        self.map(|message| {
+            let mut message = message?;
+            if let Some(content @ Content::Full(_)) = message.content.as_ref() {
+                let tool_calls = ToolCallFull::try_from_xml(content.as_str())
+                    .map_err(crate::Error::ToolCallParse)?;
+                for tool_call in tool_calls {
+                    message = message.add_tool_call(tool_call);
                 }
+                return Ok(message);
             }
-
-            Ok(None)
+            Ok(message)
         })
     }
 }
@@ -198,6 +209,7 @@ mod tests {
         // Execute collection
         let actual = stream::iter(messages.into_iter().map(Ok))
             .boxed()
+            .collect_content()
             .collect_tool_call_xml_content()
             .map(Result::unwrap)
             .collect::<Vec<_>>()
@@ -230,6 +242,7 @@ mod tests {
         // Execute collection
         let actual = stream::iter(messages)
             .boxed()
+            .collect_content()
             .collect_tool_call_xml_content()
             .collect::<Vec<_>>()
             .await;
@@ -253,13 +266,14 @@ mod tests {
         // Execute collection
         let actual = stream::iter(messages.into_iter().map(Ok))
             .boxed()
+            .collect_content()
             .collect_tool_call_xml_content()
             .map(Result::unwrap)
             .collect::<Vec<_>>()
             .await;
 
         // Verify empty message is returned for invalid XML
-        assert_eq!(actual.len(), 2);
+        assert_eq!(actual.len(), 3);
         assert_eq!(actual.last().unwrap().tool_call.len(), 0);
     }
 
@@ -275,6 +289,7 @@ mod tests {
         // Execute collection
         let actual = stream::iter(messages.clone().into_iter().map(Ok))
             .boxed()
+            .collect_content()
             .collect_tool_call_xml_content()
             .map(Result::unwrap)
             .collect::<Vec<_>>()
@@ -306,6 +321,7 @@ mod tests {
         // Execute collection
         let actual = stream::iter(messages.into_iter().map(Ok))
             .boxed()
+            .collect_content()
             .collect_tool_call_xml_content()
             .map(Result::unwrap)
             .collect::<Vec<_>>()
@@ -316,7 +332,9 @@ mod tests {
         let final_message = actual.last().unwrap();
         assert_eq!(final_message.tool_call.len(), 3);
 
-        let expected_final = ChatCompletionMessage::default()
+        let expected_final = ChatCompletionMessage::default().content_full(
+            "<tool_call><execute_command><command>ls</command><requires_approval>false</requires_approval></execute_command></tool_call><tool_call><execute_command><command>echo \"HELLO WORLD\"</command><requires_approval>false</requires_approval></execute_command></tool_call><tool_call><read_file><path>test.txt</path></read_file></tool_call>"
+        )
             .add_tool_call(
                 ToolCallFull::new(ToolName::new("execute_command"))
                     .arguments(json!({"command": "ls", "requires_approval": false})),

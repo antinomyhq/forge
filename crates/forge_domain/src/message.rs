@@ -50,6 +50,10 @@ impl Content {
     pub fn is_empty(&self) -> bool {
         self.as_str().is_empty()
     }
+
+    pub fn is_part(&self) -> bool {
+        matches!(self, Content::Part(_))
+    }
 }
 
 /// Used typically when streaming is enabled

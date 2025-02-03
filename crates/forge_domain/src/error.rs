@@ -14,6 +14,9 @@ pub enum Error {
     #[error("Invalid tool call arguments: {0}")]
     ToolCallArgument(serde_json::Error),
 
+    #[error("Invalid tool call XML: {0}")]
+    ToolCallParse(String),
+
     #[error("Invalid conversation id: {0}")]
     ConversationId(uuid::Error),
 

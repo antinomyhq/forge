@@ -62,18 +62,24 @@ impl Live {
             let mut full_tool_call_results: Vec<ToolResult> = Vec::new();
 
             let mut response = self.provider.chat(&chat.model, context.clone()).await?;
+
             let tool_supported = self.provider.parameters(&chat.model).await?.tool_supported;
+
             response = if !tool_supported {
-                Box::pin(response.collect_tool_call_xml_content())
+                response
+                    .collect_content()
+                    .boxed()
+                    .collect_tool_call_xml_content()
+                    .boxed()
             } else {
-                Box::pin(response.collect_tool_call_parts())
+                response.collect_tool_call_parts().boxed()
             };
             let mut is_first_tool_part = true;
             while let Some(chunk) = response.next().await {
                 let message = chunk?;
 
                 if let Some(ref content) = message.content {
-                    if !content.is_empty() {
+                    if !content.is_empty() && content.is_part() {
                         assistant_message_content.push_str(content.as_str());
                         tx.send(Ok(ChatResponse::Text(content.as_str().to_string())))
                             .await
@@ -335,7 +341,7 @@ mod tests {
     #[tokio::test]
     async fn test_messages() {
         let actual = Fixture::default()
-            .assistant_responses(vec![vec![ChatCompletionMessage::assistant(Content::full(
+            .assistant_responses(vec![vec![ChatCompletionMessage::assistant(Content::part(
                 "Yes sure, tell me what you need.",
             ))]])
             .run(
