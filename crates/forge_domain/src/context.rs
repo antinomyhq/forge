@@ -139,6 +139,11 @@ impl Context {
             self
         }
     }
+
+    #[allow(dead_code)]
+    pub(crate) fn insert_summary(&self, _summary: &str) -> Context {
+        todo!()
+    }
 }
 
 #[async_trait]

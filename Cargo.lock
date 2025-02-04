@@ -129,6 +129,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-recursion"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.98",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -806,6 +817,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixedbitset"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -877,6 +894,7 @@ version = "0.1.0"
 dependencies = [
  "Inflector",
  "anyhow",
+ "async-recursion",
  "async-trait",
  "chrono",
  "derive_more",
@@ -886,6 +904,7 @@ dependencies = [
  "html-escape",
  "insta",
  "nom 8.0.0",
+ "petgraph",
  "pretty_assertions",
  "quick-xml",
  "schemars",
@@ -896,6 +915,7 @@ dependencies = [
  "thiserror 2.0.11",
  "tokio",
  "tokio-stream",
+ "url",
  "uuid",
 ]
 
@@ -2258,6 +2278,16 @@ dependencies = [
  "once_cell",
  "pest",
  "sha2",
+]
+
+[[package]]
+name = "petgraph"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772"
+dependencies = [
+ "fixedbitset",
+ "indexmap",
 ]
 
 [[package]]

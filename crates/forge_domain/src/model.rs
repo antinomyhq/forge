@@ -9,6 +9,7 @@ pub struct Model {
     pub id: ModelId,
     pub name: String,
     pub description: Option<String>,
+    // TODO: add provider information to the model
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
