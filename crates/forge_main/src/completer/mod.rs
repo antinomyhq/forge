@@ -1,6 +1,6 @@
 mod command;
-mod file;
+mod input_completer;
 mod search_term;
 
 pub use command::CommandCompleter;
-pub use file::FileCompleter;
+pub use input_completer::InputCompleter;

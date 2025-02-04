@@ -5,12 +5,11 @@ use reedline::{
     KeyCode, KeyModifiers, MenuBuilder, Prompt, Reedline, ReedlineEvent, ReedlineMenu, Signal,
 };
 
-use super::completer::{CommandCompleter, FileCompleter};
+use super::completer::InputCompleter;
 
 // TODO: Store the last `HISTORY_CAPACITY` commands in the history file
 const HISTORY_CAPACITY: usize = 1024;
-const FILE_COMPLETION_MENU: &str = "file_completion_menu";
-const COMMAND_COMPLETION_MENU: &str = "command_completion_menu";
+const COMPLETION_MENU: &str = "completion_menu";
 
 pub struct ForgeEditor {
     editor: Reedline,
@@ -32,17 +31,9 @@ impl ForgeEditor {
             KeyModifiers::NONE,
             KeyCode::Tab,
             ReedlineEvent::UntilFound(vec![
-                ReedlineEvent::HistoryHintComplete,
-                ReedlineEvent::Menu(FILE_COMPLETION_MENU.to_string()),
+                ReedlineEvent::Menu(COMPLETION_MENU.to_string()),
                 ReedlineEvent::Edit(vec![EditCommand::Complete]),
             ]),
-        );
-
-        // on SHIFT + '@' press to start the file completion.
-        keybindings.add_binding(
-            KeyModifiers::SHIFT,
-            KeyCode::Char('@'),
-            ReedlineEvent::Menu(FILE_COMPLETION_MENU.to_owned()),
         );
 
         // on CTRL + k press clears the screen
@@ -66,12 +57,6 @@ impl ForgeEditor {
             ReedlineEvent::Edit(vec![EditCommand::InsertNewline]),
         );
 
-        keybindings.add_binding(
-            KeyModifiers::NONE,
-            KeyCode::Esc,
-            ReedlineEvent::Menu(COMMAND_COMPLETION_MENU.to_string()),
-        );
-
         keybindings
     }
 
@@ -84,15 +69,7 @@ impl ForgeEditor {
         );
         let completion_menu = Box::new(
             ColumnarMenu::default()
-                .with_name(FILE_COMPLETION_MENU)
-                .with_marker("")
-                .with_text_style(Style::new().bold().fg(Color::Cyan))
-                .with_selected_text_style(Style::new().on(Color::White).fg(Color::Black)),
-        );
-
-        let commands_menu = Box::new(
-            ColumnarMenu::default()
-                .with_name(COMMAND_COMPLETION_MENU)
+                .with_name(COMPLETION_MENU)
                 .with_marker("")
                 .with_text_style(Style::new().bold().fg(Color::Cyan))
                 .with_selected_text_style(Style::new().on(Color::White).fg(Color::Black)),
@@ -101,16 +78,12 @@ impl ForgeEditor {
         let edit_mode = Box::new(Emacs::new(Self::init()));
 
         let editor = Reedline::create()
-            .with_completer(Box::new(FileCompleter::new(env.cwd)))
+            .with_completer(Box::new(InputCompleter::new(env.cwd)))
             .with_history(history)
             .with_hinter(Box::new(
                 DefaultHinter::default().with_style(Style::new().fg(Color::DarkGray)),
             ))
             .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
-            .with_menu(ReedlineMenu::WithCompleter {
-                menu: commands_menu,
-                completer: Box::new(CommandCompleter),
-            })
             .with_edit_mode(edit_mode)
             .with_quick_completions(true)
             .with_partial_completions(true)
