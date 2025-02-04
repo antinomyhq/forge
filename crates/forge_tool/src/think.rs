@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
-use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -137,7 +137,7 @@ impl NamedTool for Think {
 }
 
 #[async_trait::async_trait]
-impl ToolCallService for Think {
+impl ExecutableTool for Think {
     type Input = ThoughtInput;
     async fn call(&self, input: Self::Input) -> Result<String, String> {
         let mut thinker = self.clone();

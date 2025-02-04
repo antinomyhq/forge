@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Context;
-use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -29,7 +29,7 @@ impl NamedTool for FSFileInfo {
 }
 
 #[async_trait::async_trait]
-impl ToolCallService for FSFileInfo {
+impl ExecutableTool for FSFileInfo {
     type Input = FSFileInfoInput;
 
     async fn call(&self, input: Self::Input) -> Result<String, String> {

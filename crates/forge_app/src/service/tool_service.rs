@@ -113,7 +113,7 @@ mod test {
     // Mock tool that always succeeds
     struct SuccessTool;
     #[async_trait::async_trait]
-    impl forge_domain::ToolCallService for SuccessTool {
+    impl forge_domain::ExecutableTool for SuccessTool {
         type Input = Value;
 
         async fn call(&self, input: Self::Input) -> Result<String, String> {
@@ -124,7 +124,7 @@ mod test {
     // Mock tool that always fails
     struct FailureTool;
     #[async_trait::async_trait]
-    impl forge_domain::ToolCallService for FailureTool {
+    impl forge_domain::ExecutableTool for FailureTool {
         type Input = Value;
 
         async fn call(&self, _input: Self::Input) -> Result<String, String> {
@@ -198,7 +198,7 @@ mod test {
     // Mock tool that simulates a long-running task
     struct SlowTool;
     #[async_trait::async_trait]
-    impl forge_domain::ToolCallService for SlowTool {
+    impl forge_domain::ExecutableTool for SlowTool {
         type Input = Value;
 
         async fn call(&self, _input: Self::Input) -> Result<String, String> {

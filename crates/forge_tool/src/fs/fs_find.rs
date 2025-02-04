@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
@@ -36,7 +36,7 @@ impl NamedTool for FSSearch {
 }
 
 #[async_trait::async_trait]
-impl ToolCallService for FSSearch {
+impl ExecutableTool for FSSearch {
     type Input = FSSearchInput;
 
     async fn call(&self, input: Self::Input) -> Result<String, String> {

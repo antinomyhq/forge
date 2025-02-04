@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use dissimilar::Chunk;
-use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -213,7 +213,7 @@ async fn process_file_modifications(
 }
 
 #[async_trait::async_trait]
-impl ToolCallService for ApplyPatchJson {
+impl ExecutableTool for ApplyPatchJson {
     type Input = ApplyPatchJsonInput;
 
     async fn call(&self, input: Self::Input) -> Result<String, String> {

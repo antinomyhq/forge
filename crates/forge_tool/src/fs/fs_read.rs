@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -29,7 +29,7 @@ impl NamedTool for FSRead {
 }
 
 #[async_trait::async_trait]
-impl ToolCallService for FSRead {
+impl ExecutableTool for FSRead {
     type Input = FSReadInput;
 
     async fn call(&self, input: Self::Input) -> Result<String, String> {

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::Context;
-use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -125,7 +125,7 @@ impl NamedTool for Outline {
 }
 
 #[async_trait::async_trait]
-impl ToolCallService for Outline {
+impl ExecutableTool for Outline {
     type Input = OutlineInput;
 
     async fn call(&self, input: Self::Input) -> Result<String, String> {

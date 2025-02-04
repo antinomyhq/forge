@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use forge_domain::{NamedTool, ToolCallService, ToolDescription};
+use forge_domain::{ExecutableTool, NamedTool, ToolDescription};
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 use schemars::JsonSchema;
@@ -133,7 +133,7 @@ impl Fetch {
 }
 
 #[async_trait::async_trait]
-impl ToolCallService for Fetch {
+impl ExecutableTool for Fetch {
     type Input = FetchInput;
 
     async fn call(&self, input: Self::Input) -> Result<String, String> {

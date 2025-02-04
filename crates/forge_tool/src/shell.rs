@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -129,7 +129,7 @@ impl NamedTool for Shell {
 }
 
 #[async_trait::async_trait]
-impl ToolCallService for Shell {
+impl ExecutableTool for Shell {
     type Input = ShellInput;
 
     async fn call(&self, input: Self::Input) -> Result<String, String> {

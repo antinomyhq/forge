@@ -1,5 +1,5 @@
 use anyhow::Result;
-use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use inquire::Confirm;
 use schemars::JsonSchema;
@@ -37,7 +37,7 @@ impl NamedTool for Approve {
 }
 
 #[async_trait::async_trait]
-impl ToolCallService for Approve {
+impl ExecutableTool for Approve {
     type Input = ApproveInput;
 
     async fn call(&self, input: ApproveInput) -> Result<String, String> {
