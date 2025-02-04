@@ -49,7 +49,7 @@ impl Environment {
     }
 
     pub fn history_path(&self) -> PathBuf {
-        self.base_path.clone()
+        self.base_path.join(".forge_history")
     }
 }
 /// Repository for accessing system environment information
