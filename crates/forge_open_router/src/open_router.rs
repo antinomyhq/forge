@@ -27,7 +27,7 @@ impl OpenRouterBuilder {
         let base_url = self
             .base_url
             .as_deref()
-            .unwrap_or("https://openrouter.ai/api/v1/");
+            .unwrap_or("http://localhost:11434/v1/");
 
         let base_url = Url::parse(base_url)
             .with_context(|| format!("Failed to parse base URL: {}", base_url))?;
@@ -104,27 +104,38 @@ impl ProviderService for OpenRouter {
                         Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
                             None
                         }
-                        Event::Message(event) => Some(
-                            serde_json::from_str::<OpenRouterResponse>(&event.data)
+                        Event::Message(event) => {
+                            println!("{}", serde_json::from_str::<serde_json::Value>(&event.data).unwrap());
+                            Some(
+                                serde_json::from_str::<OpenRouterResponse>(&event.data)
+                                    .with_context(|| "Failed to parse OpenRouter response")
+                                    .and_then(|message| {
+                                        ChatCompletionMessage::try_from(message.clone())
+                                            .with_context(|| "Failed to create completion message")
+                                    }),
+                            )
+                        },
+                    },
+                    Err(reqwest_eventsource::Error::StreamEnded) => None,
+                    Err(reqwest_eventsource::Error::InvalidStatusCode(code, response)) => {
+                        println!("Invalid status code: {}", code);
+                        let x = response.text().await;
+                        println!("Response: {:?}", x);
+                        let x = x.map_err(|e| anyhow::anyhow!("{}", e)).and_then(|x| {
+                            serde_json::from_str::<OpenRouterResponse>(&x)
+                                .with_context(|| "Failed to parse OpenRouter response")
+                        });
+
+                        Some(
+                            x
                                 .with_context(|| "Failed to parse OpenRouter response")
                                 .and_then(|message| {
                                     ChatCompletionMessage::try_from(message.clone())
                                         .with_context(|| "Failed to create completion message")
-                                }),
-                        ),
-                    },
-                    Err(reqwest_eventsource::Error::StreamEnded) => None,
-                    Err(reqwest_eventsource::Error::InvalidStatusCode(_, response)) => Some(
-                        response
-                            .json::<OpenRouterResponse>()
-                            .await
-                            .with_context(|| "Failed to parse OpenRouter response")
-                            .and_then(|message| {
-                                ChatCompletionMessage::try_from(message.clone())
-                                    .with_context(|| "Failed to create completion message")
-                            })
-                            .with_context(|| "Failed with invalid status code"),
-                    ),
+                                })
+                                .with_context(|| "Failed with invalid status code"),
+                        )
+                    }
                     Err(reqwest_eventsource::Error::InvalidContentType(_, response)) => Some(
                         response
                             .json::<OpenRouterResponse>()
@@ -165,6 +176,9 @@ impl ProviderService for OpenRouter {
     }
 
     async fn parameters(&self, model: &ModelId) -> Result<Parameters> {
+        Ok(Parameters { tool_supported: true })
+
+        /*
         // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
         let path = format!("parameters/{}", model.as_str());
 
@@ -190,7 +204,7 @@ impl ProviderService for OpenRouter {
                 .iter()
                 .flat_map(|parameter| parameter.iter())
                 .any(|parameter| parameter == "tools"),
-        })
+        })*/
     }
 }
 
@@ -284,7 +298,7 @@ mod tests {
             "code": 400
           }
         }))
-        .unwrap();
+            .unwrap();
         let message = serde_json::from_str::<OpenRouterResponse>(&content)
             .context("Failed to parse response")?;
         let message = ChatCompletionMessage::try_from(message.clone());

@@ -19,7 +19,7 @@ pub struct FSSearchInput {
     pub regex: String,
     /// Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not
     /// provided, it will search all files (*).
-    pub file_pattern: Option<String>,
+    pub file_pattern: String,
 }
 
 /// Request to perform a regex search on the content across files in a specified
@@ -73,8 +73,8 @@ impl ToolCallService for FSSearch {
             let full_path = dir.join(path);
 
             // Apply file pattern filter if provided
-            if let Some(ref pattern) = input.file_pattern {
-                let glob = glob::Pattern::new(pattern).map_err(|e| {
+            if !input.file_pattern.is_empty() {
+                let glob = glob::Pattern::new(&input.file_pattern).map_err(|e| {
                     format!(
                         "Invalid glob pattern '{}' for file '{}': {}",
                         pattern,
@@ -153,7 +153,7 @@ mod test {
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
                 regex: "test".to_string(),
-                file_pattern: None,
+                file_pattern: String::new(),
             })
             .await
             .unwrap();
@@ -180,7 +180,7 @@ mod test {
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
                 regex: "test".to_string(),
-                file_pattern: Some("*.rs".to_string()),
+                file_pattern: "*.rs".to_string(),
             })
             .await
             .unwrap();
@@ -204,7 +204,7 @@ mod test {
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
                 regex: "test".to_string(),
-                file_pattern: None,
+                file_pattern: String::new(),
             })
             .await
             .unwrap();
@@ -236,7 +236,7 @@ mod test {
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
                 regex: "test".to_string(),
-                file_pattern: None,
+                file_pattern: String::new(),
             })
             .await
             .unwrap();
@@ -264,7 +264,7 @@ mod test {
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
                 regex: "test".to_string(),
-                file_pattern: None,
+                file_pattern: String::new(),
             })
             .await
             .unwrap();
@@ -288,7 +288,7 @@ mod test {
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
                 regex: "nonexistent".to_string(),
-                file_pattern: None,
+                file_pattern: String::new(),
             })
             .await
             .unwrap();
@@ -305,7 +305,7 @@ mod test {
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
                 regex: "[invalid".to_string(),
-                file_pattern: None,
+                file_pattern: String::new(),
             })
             .await;
 
@@ -320,7 +320,7 @@ mod test {
             .call(FSSearchInput {
                 path: "relative/path".to_string(),
                 regex: "test".to_string(),
-                file_pattern: None,
+                file_pattern: String::new(),
             })
             .await;
 

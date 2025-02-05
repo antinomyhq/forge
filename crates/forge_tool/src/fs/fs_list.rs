@@ -15,7 +15,7 @@ pub struct FSListInput {
     pub path: String,
     /// Whether to list files recursively. Use true for recursive listing, false
     /// or omit for top-level only.
-    pub recursive: Option<bool>,
+    pub recursive: bool,
 }
 
 /// Request to list files and directories within the specified directory. If
@@ -48,7 +48,7 @@ impl ToolCallService for FSList {
         }
 
         let mut paths = Vec::new();
-        let recursive = input.recursive.unwrap_or(false);
+        let recursive = input.recursive;
         let max_depth = if recursive { usize::MAX } else { 1 };
 
         let walker = Walker::max_all()
@@ -111,7 +111,7 @@ mod test {
         let result = fs_list
             .call(FSListInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
-                recursive: None,
+                recursive: false,
             })
             .await
             .unwrap();
@@ -136,7 +136,7 @@ mod test {
         let result = fs_list
             .call(FSListInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
-                recursive: None,
+                recursive: false,
             })
             .await
             .unwrap();
@@ -153,7 +153,7 @@ mod test {
         let result = fs_list
             .call(FSListInput {
                 path: nonexistent_dir.to_string_lossy().to_string(),
-                recursive: None,
+                recursive: false,
             })
             .await;
 
@@ -178,7 +178,7 @@ mod test {
         let result = fs_list
             .call(FSListInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
-                recursive: None,
+                recursive: false,
             })
             .await
             .unwrap();
@@ -213,7 +213,7 @@ mod test {
         let result = fs_list
             .call(FSListInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
-                recursive: Some(true),
+                recursive: true,
             })
             .await
             .unwrap();
@@ -225,7 +225,7 @@ mod test {
     async fn test_fs_list_relative_path() {
         let fs_list = FSList::new(true);
         let result = fs_list
-            .call(FSListInput { path: "relative/path".to_string(), recursive: None })
+            .call(FSListInput { path: "relative/path".to_string(), recursive: false })
             .await;
 
         assert!(result.is_err());

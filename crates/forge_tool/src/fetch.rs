@@ -27,16 +27,8 @@ impl Default for Fetch {
     }
 }
 
-fn default_max_length() -> Option<usize> {
-    Some(5000)
-}
-
-fn default_start_index() -> Option<usize> {
-    Some(0)
-}
-
-fn default_raw() -> Option<bool> {
-    Some(false)
+fn default_max_length() -> usize {
+    5000
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -45,15 +37,15 @@ pub struct FetchInput {
     url: String,
     /// Maximum number of characters to return (default: 5000)
     #[serde(default = "default_max_length")]
-    max_length: Option<usize>,
+    max_length: usize,
     /// Start content from this character index (default: 0),
     /// On return output starting at this character index, useful if a previous
     /// fetch was truncated and more context is required.
-    #[serde(default = "default_start_index")]
-    start_index: Option<usize>,
+    #[serde(default)]
+    start_index: usize,
     /// Get raw content without any markdown conversion (default: false)
-    #[serde(default = "default_raw")]
-    raw: Option<bool>,
+    #[serde(default)]
+    raw: bool,
 }
 
 impl Fetch {
@@ -148,18 +140,18 @@ impl ToolCallService for Fetch {
         let url = Url::parse(&input.url).map_err(|e| format!("Failed to parse URL: {}", e))?;
 
         let (content, prefix) = self
-            .fetch_url(&url, input.raw.unwrap_or(false))
+            .fetch_url(&url, input.raw)
             .await
             .map_err(|e| e.to_string())?;
 
         let original_length = content.len();
-        let start_index = input.start_index.unwrap_or(0);
+        let start_index = input.start_index;
 
         if start_index >= original_length {
             return Ok("<error>No more content available.</error>".to_string());
         }
 
-        let max_length = input.max_length.unwrap_or(5000);
+        let max_length = input.max_length;
         let end = (start_index + max_length).min(original_length);
         let mut truncated = content[start_index..end].to_string();
 
@@ -222,9 +214,9 @@ mod tests {
 
         let input = FetchInput {
             url: format!("{}/test.html", server.url()),
-            max_length: Some(1000),
-            start_index: Some(0),
-            raw: Some(false),
+            max_length: 1000,
+            start_index: 0,
+            raw: false,
         };
 
         let result = fetch.call(input).await.unwrap();
@@ -253,9 +245,9 @@ mod tests {
 
         let input = FetchInput {
             url: format!("{}/test.txt", server.url()),
-            max_length: Some(1000),
-            start_index: Some(0),
-            raw: Some(true),
+            max_length: 1000,
+            start_index: 0,
+            raw: true,
         };
 
         let result = fetch.call(input).await.unwrap();
@@ -285,9 +277,9 @@ mod tests {
 
         let input = FetchInput {
             url: format!("{}/test/page.html", server.url()),
-            max_length: None,
-            start_index: None,
-            raw: None,
+            max_length: 5000,
+            start_index: 0,
+            raw: false,
         };
 
         let result = fetch.call(input).await;
@@ -322,9 +314,9 @@ mod tests {
         // First page
         let input = FetchInput {
             url: format!("{}/long.txt", server.url()),
-            max_length: Some(5000),
-            start_index: Some(0),
-            raw: Some(true),
+            max_length: 5000,
+            start_index: 0,
+            raw: true,
         };
 
         let result = fetch.call(input).await.unwrap();
@@ -335,9 +327,9 @@ mod tests {
         // Second page
         let input = FetchInput {
             url: format!("{}/long.txt", server.url()),
-            max_length: Some(5000),
-            start_index: Some(5000),
-            raw: Some(true),
+            max_length: 5000,
+            start_index: 5000,
+            raw: true,
         };
 
         let result = fetch.call(input).await.unwrap();
@@ -352,9 +344,9 @@ mod tests {
 
         let input = FetchInput {
             url: "not a valid url".to_string(),
-            max_length: None,
-            start_index: None,
-            raw: None,
+            max_length: 5000,
+            start_index: 0,
+            raw: false,
         };
 
         let result = rt.block_on(fetch.call(input));
@@ -377,9 +369,9 @@ mod tests {
 
         let input = FetchInput {
             url: format!("{}/not-found", server.url()),
-            max_length: None,
-            start_index: None,
-            raw: None,
+            max_length: 5000,
+            start_index: 0,
+            raw: false,
         };
 
         let result = fetch.call(input).await;

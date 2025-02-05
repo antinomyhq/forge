@@ -5,6 +5,7 @@ use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use crate::is_default;
 
 /// Problem-solving framework that breaks down tasks into tracked "thoughts".
 /// Supports revisions, alternative branches, and solution confidence tracking.
@@ -27,24 +28,24 @@ pub struct ThoughtInput {
     /// solution.
     pub total_thoughts: i32,
     /// Whether this thought is a revision of a previous thought.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub is_revision: Option<bool>,
+    #[serde(skip_serializing_if = "is_default")]
+    pub is_revision: bool,
     /// The number of the thought being revised, if this is a revision.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub revises_thought: Option<i32>,
+    #[serde(skip_serializing_if = "is_default")]
+    pub revises_thought: i32,
     /// The number of the thought from which this thought branches, if this is a
     /// branch.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub branch_from_thought: Option<i32>,
+    #[serde(skip_serializing_if = "is_default")]
+    pub branch_from_thought: i32,
     /// A unique identifier for the branch, if this is a branch.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub branch_id: Option<String>,
+    #[serde(skip_serializing_if = "is_default")]
+    pub branch_id: String,
     /// Whether additional thoughts are needed to reach a solution.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub needs_more_thoughts: Option<bool>,
+    #[serde(skip_serializing_if = "is_default")]
+    pub needs_more_thoughts: bool,
     /// The current confidence in the solution, ranging from 0.0 to 1.0.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub solution_confidence: Option<f32>,
+    #[serde(skip_serializing_if = "is_default")]
+    pub solution_confidence: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
@@ -74,9 +75,9 @@ impl Think {
         }
 
         // If no confidence is provided, calculate it based on progress
-        if input.solution_confidence.is_none() {
+        if is_default(&input.solution_confidence) {
             input.solution_confidence =
-                Some(input.thought_number as f32 / input.total_thoughts as f32);
+                input.thought_number as f32 / input.total_thoughts as f32;
         }
 
         Ok(input)
@@ -91,8 +92,8 @@ impl Think {
         }
 
         // Evaluate solution confidence
-        if let Some(confidence) = thought_data.solution_confidence {
-            if confidence >= 0.8 {
+        if !is_default(&thought_data.solution_confidence) {
+            if thought_data.solution_confidence >= 0.8 {
                 self.solution_reached = true;
                 thought_data.next_thought_needed = false;
             }
@@ -111,11 +112,10 @@ impl Think {
         self.thought_history.push(thought_data.clone());
 
         // Branch handling remains the same
-        if let (Some(_), Some(branch_id)) =
-            (thought_data.branch_from_thought, &thought_data.branch_id)
+        if !is_default(&thought_data.branch_from_thought) && !is_default(&thought_data.branch_id)
         {
             self.branches
-                .entry(branch_id.clone())
+                .entry(thought_data.branch_id.clone())
                 .or_default()
                 .push(thought_data.clone());
         }
@@ -125,7 +125,7 @@ impl Think {
             total_thoughts: thought_data.total_thoughts,
             next_thought_needed: thought_data.next_thought_needed,
             solution_reached: self.solution_reached,
-            solution_confidence: thought_data.solution_confidence.unwrap_or(0.0),
+            solution_confidence: thought_data.solution_confidence,
             branches: self.branches.keys().cloned().collect(),
             thought_history_length: self.thought_history.len(),
         })
