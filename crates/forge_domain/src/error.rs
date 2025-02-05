@@ -19,9 +19,6 @@ pub enum Error {
 
     #[error("Invalid conversation id: {0}")]
     ConversationId(uuid::Error),
-
-    #[error("Invalid template rendering params: {0}")]
-    Template(handlebars::RenderError),
 }
 
 pub type Result<A> = std::result::Result<A, Error>;

@@ -65,7 +65,11 @@ impl Fixture {
             let response = self.get_model_response(model).await;
 
             if check_response(&response) {
-                println!("[{}] Successfully checked response", model);
+                println!(
+                    "[{}] Successfully checked response in {} attempts",
+                    model,
+                    attempt + 1
+                );
                 return Ok(());
             }
 

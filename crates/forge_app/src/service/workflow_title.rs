@@ -5,13 +5,13 @@ use forge_domain::{
     BoxStreamExt, ChatRequest, ChatResponse, Context, ContextMessage, Environment, ProviderService,
     ResultStream, SystemContext, ToolCall, ToolChoice, ToolDefinition,
 };
-use handlebars::Handlebars;
 use schemars::{schema_for, JsonSchema};
 use serde::Deserialize;
 use tokio_stream::StreamExt;
 
 use super::Service;
 use crate::mpsc_stream::MpscStream;
+use crate::prompts::Prompt;
 
 impl Service {
     /// Creates a new title service with the specified provider
@@ -46,11 +46,6 @@ impl Live {
         tool_supported: bool,
         tool: ToolDefinition,
     ) -> Result<String> {
-        let template = include_str!("../prompts/title.md");
-        let mut hb = Handlebars::new();
-        hb.set_strict_mode(true);
-        hb.register_escape_fn(|str| str.to_string());
-
         let ctx = SystemContext {
             tool_information: tool.usage_prompt().to_string(),
             tool_supported,
@@ -59,7 +54,8 @@ impl Live {
             files: vec![],
         };
 
-        Ok(hb.render_template(template, &ctx)?)
+        let prompt = Prompt::new(include_str!("../prompts/title.md"));
+        prompt.render(&ctx)
     }
 
     fn user_prompt(&self, content: &str) -> String {

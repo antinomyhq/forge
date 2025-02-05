@@ -122,7 +122,7 @@ impl Context {
     }
 
     /// Updates the set system message
-    pub fn set_system_message(mut self, content: impl Into<String>) -> Self {
+    pub fn set_first_system_message(mut self, content: impl Into<String>) -> Self {
         if self.messages.is_empty() {
             self.add_message(ContextMessage::system(content.into()))
         } else {
@@ -171,7 +171,7 @@ mod tests {
     fn test_override_system_message() {
         let request = Context::default()
             .add_message(ContextMessage::system("Initial system message"))
-            .set_system_message("Updated system message");
+            .set_first_system_message("Updated system message");
 
         assert_eq!(
             request.messages[0],
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_set_system_message() {
-        let request = Context::default().set_system_message("A system message");
+        let request = Context::default().set_first_system_message("A system message");
 
         assert_eq!(
             request.messages[0],
@@ -193,7 +193,7 @@ mod tests {
     fn test_insert_system_message() {
         let request = Context::default()
             .add_message(ContextMessage::user("Do something"))
-            .set_system_message("A system message");
+            .set_first_system_message("A system message");
 
         assert_eq!(
             request.messages[0],

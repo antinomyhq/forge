@@ -102,7 +102,7 @@ impl ToolCallFull {
     }
 
     /// Parse multiple tool calls from XML format.
-    pub fn try_from_xml(input: &str) -> std::result::Result<Vec<Self>, String> {
+    pub fn try_from_xml(input: &str) -> std::result::Result<Vec<Self>, Error> {
         parse(input)
     }
 }

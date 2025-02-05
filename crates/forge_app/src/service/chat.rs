@@ -170,11 +170,11 @@ impl ChatService for Live {
 
         let context = if !tool_supported {
             context
-                .set_system_message(system_prompt)
+                .set_first_system_message(system_prompt)
                 .add_message(ContextMessage::user(user_prompt))
         } else {
             context
-                .set_system_message(system_prompt)
+                .set_first_system_message(system_prompt)
                 .add_message(ContextMessage::user(user_prompt))
                 .tools(self.tool.list())
         };
@@ -589,7 +589,7 @@ mod tests {
             .llm_calls;
 
         let expected_llm_request_1 = Context::default()
-            .set_system_message("Do everything that the user says")
+            .set_first_system_message("Do everything that the user says")
             .add_message(ContextMessage::user(
                 "<task>Hello can you use foo tool?</task>",
             ));
@@ -704,7 +704,7 @@ mod tests {
             .await;
 
         let expected_llm_request_1 = Context::default()
-            .set_system_message("Do everything that the user says")
+            .set_first_system_message("Do everything that the user says")
             .add_message(ContextMessage::user(
                 "<task>Hello can you use tools?</task>",
             ));

@@ -5,10 +5,10 @@ use forge_domain::{
     ChatRequest, Environment, FileReadService, ProviderService, SystemContext, ToolService,
 };
 use forge_walker::Walker;
-use handlebars::Handlebars;
 use tracing::debug;
 
 use super::{PromptService, Service};
+use crate::prompts::Prompt;
 
 impl Service {
     pub fn system_prompt(
@@ -43,8 +43,6 @@ impl Live {
 #[async_trait::async_trait]
 impl PromptService for Live {
     async fn get(&self, request: &ChatRequest) -> Result<String> {
-        let template = include_str!("../prompts/coding/system.md");
-
         let custom_instructions = match request.custom_instructions {
             None => None,
             Some(ref path) => {
@@ -52,10 +50,6 @@ impl PromptService for Live {
                 Some(content)
             }
         };
-
-        let mut hb = Handlebars::new();
-        hb.set_strict_mode(true);
-        hb.register_escape_fn(|str| str.to_string());
 
         let tool_supported = self
             .provider
@@ -89,7 +83,8 @@ impl PromptService for Live {
             files,
         };
 
-        Ok(hb.render_template(template, &ctx)?)
+        let prompt = Prompt::new(include_str!("../prompts/coding/system.md"));
+        Ok(prompt.render(&ctx)?)
     }
 }
 

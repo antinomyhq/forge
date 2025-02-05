@@ -14,28 +14,7 @@ First, let's establish the current system information:
 </system_info>
 
 <tool_information>
-{{#if (not tool_supported)}}
-Tool Usage Instructions:
-
-You have access to set of tools. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
-
-Tool Use Formatting:
-
-Tool use is formatted using XML-style tags. Each tool call must be wrapped in `<tool_call>` tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags.  Here's the structure:
-```xml
-<tool_call>
-<tool_name>
-<parameter1_name>value1</parameter1_name>
-<parameter2_name>value2</parameter2_name>
-...
-</tool_name>
-</tool_call>
-```
-
-Before using a tool, ensure all required parameters are available. If any required parameters are missing, do not attempt to use the tool.
-
-<available_tools>{{tool_information}}</available_tools>
-{{/if}}
+{{> tool_use}}
 </tool_information>
 
 Your task will be provided inside <task> tags. For example:
