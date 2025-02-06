@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use derive_more::derive::{Display, From};
 
@@ -16,17 +16,23 @@ pub struct Workflow {
 impl Workflow {
     /// Returns flows that have no predecessors
     pub fn head_flow(&self) -> Vec<FlowId> {
-        todo!()
+        let values = self
+            .handovers
+            .values()
+            .clone()
+            .flatten()
+            .collect::<HashSet<_>>();
+
+        self.handovers
+            .keys()
+            .filter(|&flow| !values.contains(flow))
+            .cloned()
+            .collect::<Vec<_>>()
     }
 }
 
-#[derive(Debug, Display, Eq, PartialEq, From, Hash)]
+#[derive(Debug, Display, Eq, PartialEq, From, Hash, Clone)]
 pub enum FlowId {
     Agent(AgentId),
     Workflow(WorkflowId),
-}
-
-pub struct Handover {
-    pub from: FlowId,
-    pub to: FlowId,
 }

@@ -1,24 +1,13 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
+use handlebars::Handlebars;
 use schemars::schema::RootSchema;
 use serde::Serialize;
 
-use crate::{Environment, ModelId, Provider, ToolName};
-
-#[derive(Default, Serialize)]
-pub struct Variables(HashMap<String, String>);
-impl Variables {
-    pub fn add(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.0.insert(key.into(), value.into());
-    }
-
-    pub fn get(&self, key: &str) -> Option<&String> {
-        self.0.get(key)
-    }
-}
+use crate::variables::Variables;
+use crate::{Environment, Error, ModelId, Provider, ToolName};
 
 #[derive(Serialize, Setters, Clone)]
 pub struct SystemContext {
@@ -39,20 +28,28 @@ pub struct Prompt<V> {
     pub variables: Schema<V>,
 }
 
-impl<V> Prompt<V> {
-    pub fn render(&self, _variables: &V) -> String {
-        todo!()
+impl<V: Serialize> Prompt<V> {
+    pub fn render(&self, ctx: &V) -> crate::Result<String> {
+        let mut hb = Handlebars::new();
+        hb.set_strict_mode(true);
+        hb.register_escape_fn(|str| str.to_string());
+
+        hb.render_template(self.template.as_str(), &ctx)
+            .map_err(Error::Template)
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Schema<S> {
     pub schema: RootSchema,
     _marker: std::marker::PhantomData<S>,
 }
 
-pub enum PromptTemplate {
-    File(PathBuf),
-    Literal(String),
+pub struct PromptTemplate(String);
+impl PromptTemplate {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
 }
 
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone)]
@@ -69,24 +66,27 @@ pub struct Agent {
     pub transforms: Vec<Transform>,
 }
 
-/// Possible use cases for transforms:
-/// - Summarization (TokenLimit)
-///   - Remove all, except first, and add summary as an assistant message
-/// - Enhance user prompt
-///   - Add additional meta information to the last user prompt
-/// - Standard middle-out implementation like in Open Router NOTE: The
-///   transforms are applied in the order they are defined (0th to last)
+/// Transformations that can be applied to the agent's context before sending it
+/// upstream to the provider.
 pub enum Transform {
-    Summarize {
+    /// Compresses multiple assistant messages into a single message
+    Assistant {
         input: String,
+        output: String,
         agent_id: AgentId,
         token_limit: usize,
     },
 
-    EnhanceUserPrompt {
+    /// Works on the user prompt by enriching it with additional information
+    User {
         agent_id: AgentId,
         input: String,
+        output: String,
     },
+
+    /// Intercepts the context and performs an operation without changing the
+    /// context
+    Tap { agent_id: AgentId, input: String },
 }
 
 impl Agent {
