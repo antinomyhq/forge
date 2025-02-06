@@ -110,30 +110,30 @@ impl ProviderService for OpenRouterClient {
             .json(&request)
             .eventsource()?;
         let ty = Arc::new(self.ty.clone());
-                let stream = es
-                    .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-                    .map(move |event| {
-                        let ty = ty.clone();
-                        match event {
-                            Ok(event) => match event {
-                                Event::Open => None,
-                                Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
-                                    None
-                                }
-                                Event::Message(event) => {
-                                    Some(ty.to_chat_completion_message(event.data.as_bytes()))
-                                }
-                            },
-                            Err(reqwest_eventsource::Error::StreamEnded) => None,
-                            Err(reqwest_eventsource::Error::InvalidStatusCode(code, _)) => {
-                                Some(Err(anyhow::anyhow!("Invalid status code: {}", code)))
-                            }
-                            Err(reqwest_eventsource::Error::InvalidContentType(_, _)) => {
-                                Some(Err(anyhow::anyhow!("Invalid content type")))
-                            },
-                            Err(err) => Some(Err(err.into())),
+        let stream = es
+            .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
+            .map(move |event| {
+                let ty = ty.clone();
+                match event {
+                    Ok(event) => match event {
+                        Event::Open => None,
+                        Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
+                            None
                         }
-                    });
+                        Event::Message(event) => {
+                            Some(ty.to_chat_completion_message(event.data.as_bytes()))
+                        }
+                    },
+                    Err(reqwest_eventsource::Error::StreamEnded) => None,
+                    Err(reqwest_eventsource::Error::InvalidStatusCode(code, _)) => {
+                        Some(Err(anyhow::anyhow!("Invalid status code: {}", code)))
+                    }
+                    Err(reqwest_eventsource::Error::InvalidContentType(_, _)) => {
+                        Some(Err(anyhow::anyhow!("Invalid content type")))
+                    }
+                    Err(err) => Some(Err(err.into())),
+                }
+            });
 
         // Ok(Box::pin(stream.filter_map(|x| x)))
         Ok(Box::pin(stream.filter_map(|x| x)))
@@ -215,6 +215,7 @@ mod tests {
             client: Client::new(),
             api_key: None,
             base_url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
+            ty: crate::model::Model::OpenAPI(OpenApi::default()),
         }
     }
 
