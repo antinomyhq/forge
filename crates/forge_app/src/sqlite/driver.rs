@@ -6,6 +6,8 @@ use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use tokio::sync::Mutex;
+use tokio_retry::strategy::ExponentialBackoff;
+use tokio_retry::Retry;
 use tracing::debug;
 
 use super::conn::ConnectionOptions;
@@ -28,7 +30,15 @@ impl Driver {
         Driver { pool: Mutex::new(None), db_path }
     }
 
-    async fn init(&self) -> Result<SQLConnection> {
+    async fn init(&self, attempts: usize) -> Result<SQLConnection> {
+        let retry_strategy = ExponentialBackoff::from_millis(100)
+            .factor(2)
+            .take(attempts);
+
+        Retry::spawn(retry_strategy, || self.init_once()).await
+    }
+
+    async fn init_once(&self) -> Result<SQLConnection> {
         let mut live_pool = self.pool.lock().await;
 
         if let Some(pool) = live_pool.as_ref() {
@@ -54,7 +64,7 @@ impl Driver {
 
         let migrations = conn
             .run_pending_migrations(MIGRATIONS)
-            .map_err(|e| anyhow::anyhow!("Database initialization failed with error: {}", e))
+            .map_err(|e| anyhow::anyhow!("Database migrations failed with error: {}", e))
             .with_context(|| format!("Failed to run database migrations on {}", db_path))?;
 
         debug!(
@@ -85,9 +95,11 @@ impl Driver {
 #[async_trait::async_trait]
 impl Sqlite for Driver {
     async fn connection(&self) -> Result<PooledConnection<ConnectionManager<SqliteConnection>>> {
-        self.init().await?.get().with_context(|| {
-            "Failed to acquire connection from pool - pool may be exhausted or database locked"
-        })
+        const ATTEMPTS: usize = 10;
+        self.init(ATTEMPTS)
+            .await?
+            .get()
+            .with_context(|| format!("Failed to acquire connection after {ATTEMPTS} attempts"))
     }
 }
 

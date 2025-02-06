@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+tokio-retry = "0.3"
 diesel = { version = "2.1.0", features = ["sqlite", "r2d2", "chrono", "uuid"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }

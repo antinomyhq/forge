@@ -2,20 +2,9 @@ use std::path::Path;
 
 use forge_app::{APIService, EnvironmentFactory, Service};
 use forge_domain::{ChatRequest, ChatResponse, ModelId};
-use futures::future::join_all;
 use tokio_stream::StreamExt;
 
 const MAX_RETRIES: usize = 5;
-const SUPPORTED_MODELS: &[&str] = &[
-    "anthropic/claude-3.5-sonnet:beta",
-    "openai/gpt-4o-2024-11-20",
-    "anthropic/claude-3.5-sonnet",
-    "openai/gpt-4o",
-    "openai/gpt-4o-mini",
-    "qwen/qwen-2.5-7b-instruct",
-    // "google/gemini-flash-1.5",
-    "anthropic/claude-3-sonnet",
-];
 
 /// Test fixture for API testing that supports parallel model validation
 struct Fixture {
@@ -79,31 +68,52 @@ impl Fixture {
         }
         Err(format!("[{}] Failed after {} attempts", model, MAX_RETRIES))
     }
-
-    /// Run tests for all models in parallel
-    async fn test_models(
-        &self,
-        check_response: impl Fn(&str) -> bool + Send + Sync + Copy + 'static,
-    ) -> Vec<String> {
-        let futures = SUPPORTED_MODELS
-            .iter()
-            .map(|&model| async move { self.test_single_model(model, check_response).await });
-
-        join_all(futures)
-            .await
-            .into_iter()
-            .filter_map(Result::err)
-            .collect()
-    }
 }
 
-#[tokio::test]
-async fn test_find_cat_name() {
-    let errors = Fixture::new(
-        "There is a cat hidden in the codebase. What is its name? hint: it's present in *.md file, but not in the docs directory. You can use any tool at your disposal to find it. Do not ask me any questions.",
-    )
-    .test_models(|response| response.to_lowercase().contains("juniper"))
-    .await;
+/// Macro to generate model-specific tests
+macro_rules! generate_model_test {
+    ($model:expr) => {
+        #[tokio::test]
+        async fn test_find_cat_name() {
+            let fixture = Fixture::new(
+                "There is a cat hidden in the codebase. What is its name? hint: it's present in *.md file, but not in the docs directory. You can use any tool at your disposal to find it. Do not ask me any questions.",
+            );
 
-    assert!(errors.is_empty(), "Test failures:\n{}", errors.join("\n"));
+            let result = fixture
+                .test_single_model($model, |response| response.to_lowercase().contains("juniper"))
+                .await;
+
+            assert!(result.is_ok(), "Test failure for {}: {:?}", $model, result);
+        }
+    };
+}
+
+mod anthropic_claude_3_5_sonnet_beta {
+    use super::*;
+    generate_model_test!("anthropic/claude-3.5-sonnet:beta");
+}
+
+mod openai_gpt_4o_2024_11_20 {
+    use super::*;
+    generate_model_test!("openai/gpt-4o-2024-11-20");
+}
+
+mod anthropic_claude_3_5_sonnet {
+    use super::*;
+    generate_model_test!("anthropic/claude-3.5-sonnet");
+}
+
+mod openai_gpt_4o {
+    use super::*;
+    generate_model_test!("openai/gpt-4o");
+}
+
+mod openai_gpt_4o_mini {
+    use super::*;
+    generate_model_test!("openai/gpt-4o-mini");
+}
+
+mod anthropic_claude_3_sonnet {
+    use super::*;
+    generate_model_test!("anthropic/claude-3-sonnet");
 }
