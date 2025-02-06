@@ -8,42 +8,46 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
+use crate::Provider;
+use crate::provider_kind::ProviderKind;
 
 use super::model::{ListModelResponse, OpenRouterModel};
 use super::parameters::ParameterResponse;
 use super::request::OpenRouterRequest;
-use super::response::OpenRouterResponse;
 
 #[derive(Debug, Default, Clone, Setters)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct OpenRouterBuilder {
     api_key: Option<String>,
     base_url: Option<String>,
 }
 
 impl OpenRouterBuilder {
-    pub fn build(self) -> anyhow::Result<OpenRouter> {
+    pub fn build(self, provider: Provider) -> anyhow::Result<OpenRouterClient> {
+        if matches!(provider, Provider::OpenAPI(_)) && self.api_key.is_none() {
+            anyhow::bail!("API key is required for OpenAPI models");
+        }
+        
         let client = Client::builder().build()?;
-        let base_url = self
-            .base_url
-            .as_deref()
-            .unwrap_or("https://openrouter.ai/api/v1/");
+        let default_url = provider.default_base_url();
+        let base_url = self.base_url.as_deref().unwrap_or(default_url.as_str());
 
         let base_url = Url::parse(base_url)
             .with_context(|| format!("Failed to parse base URL: {}", base_url))?;
 
-        Ok(OpenRouter { client, base_url, api_key: self.api_key })
+        Ok(OpenRouterClient { client, base_url, api_key: self.api_key, provider })
     }
 }
 
 #[derive(Clone)]
-pub struct OpenRouter {
+pub struct OpenRouterClient {
     client: Client,
     api_key: Option<String>,
     base_url: Url,
+    provider: Provider,
 }
 
-impl OpenRouter {
+impl OpenRouterClient {
     pub fn builder() -> OpenRouterBuilder {
         OpenRouterBuilder::default()
     }
@@ -77,7 +81,7 @@ impl OpenRouter {
 }
 
 #[async_trait::async_trait]
-impl ProviderService for OpenRouter {
+impl ProviderService for OpenRouterClient {
     async fn chat(
         &self,
         model_id: &ModelId,
@@ -94,10 +98,12 @@ impl ProviderService for OpenRouter {
             .headers(self.headers())
             .json(&request)
             .eventsource()?;
+        
+        let provider = self.provider.clone();
 
         let stream = es
             .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-            .then(|event| async {
+            .map(move |event| {
                 match event {
                     Ok(event) => match event {
                         Event::Open => None,
@@ -105,37 +111,12 @@ impl ProviderService for OpenRouter {
                             None
                         }
                         Event::Message(event) => Some(
-                            serde_json::from_str::<OpenRouterResponse>(&event.data)
-                                .with_context(|| "Failed to parse OpenRouter response")
-                                .and_then(|message| {
-                                    ChatCompletionMessage::try_from(message.clone())
-                                        .with_context(|| "Failed to create completion message")
-                                }),
+                            provider
+                                .to_chat_completion_message(event.data.as_bytes())
+                                .map_err(Into::into),
                         ),
                     },
                     Err(reqwest_eventsource::Error::StreamEnded) => None,
-                    Err(reqwest_eventsource::Error::InvalidStatusCode(_, response)) => Some(
-                        response
-                            .json::<OpenRouterResponse>()
-                            .await
-                            .with_context(|| "Failed to parse OpenRouter response")
-                            .and_then(|message| {
-                                ChatCompletionMessage::try_from(message.clone())
-                                    .with_context(|| "Failed to create completion message")
-                            })
-                            .with_context(|| "Failed with invalid status code"),
-                    ),
-                    Err(reqwest_eventsource::Error::InvalidContentType(_, response)) => Some(
-                        response
-                            .json::<OpenRouterResponse>()
-                            .await
-                            .with_context(|| "Failed to parse OpenRouter response")
-                            .and_then(|message| {
-                                ChatCompletionMessage::try_from(message.clone())
-                                    .with_context(|| "Failed to create completion message")
-                            })
-                            .with_context(|| "Failed with invalid content type"),
-                    ),
                     Err(err) => Some(Err(err.into())),
                 }
             });
@@ -165,32 +146,37 @@ impl ProviderService for OpenRouter {
     }
 
     async fn parameters(&self, model: &ModelId) -> Result<Parameters> {
-        // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
-        let path = format!("parameters/{}", model.as_str());
+        match self.provider {
+            Provider::Ollama(_) => Ok(Parameters::new(false)),
+            Provider::OpenAPI(_) => {
+                // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
+                let path = format!("parameters/{}", model.as_str());
 
-        let url = self.url(&path)?;
+                let url = self.url(&path)?;
 
-        let text = self
-            .client
-            .get(url)
-            .headers(self.headers())
-            .send()
-            .await?
-            .error_for_status()?
-            .text()
-            .await?;
+                let text = self
+                    .client
+                    .get(url)
+                    .headers(self.headers())
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .text()
+                    .await?;
 
-        let response: ParameterResponse = serde_json::from_str(&text)
-            .with_context(|| "Failed to parse parameter response".to_string())?;
+                let response: ParameterResponse = serde_json::from_str(&text)
+                    .with_context(|| "Failed to parse parameter response".to_string())?;
 
-        Ok(Parameters {
-            tool_supported: response
-                .data
-                .supported_parameters
-                .iter()
-                .flat_map(|parameter| parameter.iter())
-                .any(|parameter| parameter == "tools"),
-        })
+                Ok(Parameters {
+                    tool_supported: response
+                        .data
+                        .supported_parameters
+                        .iter()
+                        .flat_map(|parameter| parameter.iter())
+                        .any(|parameter| parameter == "tools"),
+                })
+            }
+        }
     }
 }
 
@@ -209,14 +195,16 @@ impl From<OpenRouterModel> for Model {
 mod tests {
     use anyhow::Context;
     use reqwest::Url;
+    use crate::response::OpenRouterResponse;
 
     use super::*;
 
-    fn create_test_client() -> OpenRouter {
-        OpenRouter {
+    fn create_test_client() -> OpenRouterClient {
+        OpenRouterClient {
             client: Client::new(),
             api_key: None,
             base_url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
+            provider: Provider::OpenAPI(Default::default()),
         }
     }
 

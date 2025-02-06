@@ -7,7 +7,7 @@ use schemars::schema::RootSchema;
 use serde::Serialize;
 
 use crate::variables::Variables;
-use crate::{Environment, Error, ModelId, Provider, ToolName};
+use crate::{Environment, Error, ModelId, ProviderKind, ToolName};
 
 #[derive(Serialize, Setters, Clone)]
 pub struct SystemContext {
@@ -57,7 +57,7 @@ pub struct AgentId(String);
 
 pub struct Agent {
     pub id: AgentId,
-    pub provider: Provider,
+    pub provider: ProviderKind,
     pub model: ModelId,
     pub description: String,
     pub system_prompt: Prompt<SystemContext>,
