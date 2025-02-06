@@ -1,17 +1,21 @@
 use std::sync::Arc;
+
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
-use forge_domain::{self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Parameters, ProviderService, ResultStream};
+use forge_domain::{
+    self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Parameters,
+    ProviderService, ResultStream,
+};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
-use crate::parameters::ParameterResponse;
-use crate::provider_kind::ProviderKind;
 
 use super::model::{ListModelResponse, OpenRouterModel};
 use super::request::OpenRouterRequest;
 use super::response::OpenRouterResponse;
+use crate::parameters::ParameterResponse;
+use crate::provider_kind::ProviderKind;
 
 #[derive(Default, Debug, Clone)]
 pub struct OpenApi;
@@ -39,10 +43,7 @@ impl OpenRouterBuilder {
     pub fn build(self, ty: crate::model::Model) -> anyhow::Result<OpenRouterClient> {
         let client = Client::builder().build()?;
         let default_url = ty.default_base_url();
-        let base_url = self
-            .base_url
-            .as_deref()
-            .unwrap_or(default_url.as_str());
+        let base_url = self.base_url.as_deref().unwrap_or(default_url.as_str());
 
         let base_url = Url::parse(base_url)
             .with_context(|| format!("Failed to parse base URL: {}", base_url))?;
@@ -163,11 +164,7 @@ impl ProviderService for OpenRouterClient {
 
     async fn parameters(&self, model: &ModelId) -> Result<Parameters> {
         match self.ty {
-            crate::model::Model::Ollama(_) => {
-                Ok(Parameters {
-                    tool_supported: false,
-                })
-            }
+            crate::model::Model::Ollama(_) => Ok(Parameters { tool_supported: false }),
             _ => {
                 // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
                 let path = format!("parameters/{}", model.as_str());
@@ -222,7 +219,7 @@ mod tests {
             client: Client::new(),
             api_key: None,
             base_url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
-            ty: crate::model::Model::OpenAPI(OpenApi::default()),
+            ty: crate::model::Model::OpenAPI(OpenApi),
         }
     }
 
@@ -291,7 +288,7 @@ mod tests {
             "code": 400
           }
         }))
-            .unwrap();
+        .unwrap();
         let message = serde_json::from_str::<OpenRouterResponse>(&content)
             .context("Failed to parse response")?;
         let message = ChatCompletionMessage::try_from(message.clone());

@@ -22,8 +22,10 @@ impl EnvironmentFactory {
         let small_model_id =
             std::env::var("FORGE_SMALL_MODEL").unwrap_or("anthropic/claude-3.5-haiku".to_owned());
 
-        let model = std::env::var("FORGE_MODEL").ok().and_then(|model| IdkSomeModel::from_str(&model).ok());
-        let model = if api_key.is_some() { 
+        let model = std::env::var("FORGE_MODEL")
+            .ok()
+            .and_then(|model| IdkSomeModel::from_str(&model).ok());
+        let model = if api_key.is_some() {
             model.unwrap_or(IdkSomeModel::OpenApi)
         } else {
             model.unwrap_or_default()

@@ -4,7 +4,10 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 use derive_setters::Setters;
-use forge_domain::{ChatCompletionMessage, ChatRequest, Context, FileReadService, Model, ModelId, Parameters, ProviderService, ResultStream};
+use forge_domain::{
+    ChatCompletionMessage, ChatRequest, Context, FileReadService, Model, ModelId, Parameters,
+    ProviderService, ResultStream,
+};
 use tokio_stream::StreamExt;
 
 use crate::service::PromptService;

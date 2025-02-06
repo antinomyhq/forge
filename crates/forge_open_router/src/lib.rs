@@ -5,10 +5,10 @@ mod request;
 mod response;
 mod tool_choice;
 
-mod open_router;
 mod ollama;
+mod open_router;
 mod provider_kind;
 
-pub use open_router::{OpenRouterClient, OpenApi};
-pub use ollama::Ollama;
 pub use model::Model;
+pub use ollama::Ollama;
+pub use open_router::{OpenApi, OpenRouterClient};

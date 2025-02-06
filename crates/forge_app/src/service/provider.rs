@@ -1,13 +1,19 @@
 use anyhow::{Context, Result};
+use forge_domain::{
+    ChatCompletionMessage, Context as ChatContext, IdkSomeModel, Model, ModelId, Parameters,
+    ProviderService, ResultStream,
+};
+use forge_open_router::{Model as OpenRouterModel, Ollama, OpenApi, OpenRouterClient};
 use moka2::future::Cache;
-
-use forge_domain::{ChatCompletionMessage, Context as ChatContext, IdkSomeModel, Model, ModelId, Parameters, ProviderService, ResultStream};
-use forge_open_router::{Ollama, OpenApi, OpenRouterClient, Model as OpenRouterModel};
 
 use super::Service;
 
 impl Service {
-    pub fn provider_service(api_key: Option<impl ToString>, base_url: Option<String>, model: IdkSomeModel) -> impl ProviderService {
+    pub fn provider_service(
+        api_key: Option<impl ToString>,
+        base_url: Option<String>,
+        model: IdkSomeModel,
+    ) -> impl ProviderService {
         Live::new(api_key, base_url, model)
     }
 }
@@ -23,8 +29,8 @@ impl Live {
             .api_key(api_key.map(|a| a.to_string()))
             .base_url(base_url)
             .build(match model {
-                IdkSomeModel::Ollama => OpenRouterModel::Ollama(Ollama::default()),
-                IdkSomeModel::OpenApi => OpenRouterModel::OpenAPI(OpenApi::default()),
+                IdkSomeModel::Ollama => OpenRouterModel::Ollama(Ollama),
+                IdkSomeModel::OpenApi => OpenRouterModel::OpenAPI(OpenApi),
             })
             .unwrap();
 

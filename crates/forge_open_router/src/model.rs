@@ -1,7 +1,8 @@
 use forge_domain::{ChatCompletionMessage, ModelId};
 use serde::{Deserialize, Serialize};
-use crate::{Ollama, OpenApi};
+
 use crate::provider_kind::ProviderKind;
+use crate::{Ollama, OpenApi};
 
 #[derive(Clone)]
 pub enum Model {

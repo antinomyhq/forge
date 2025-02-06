@@ -5,6 +5,7 @@ use forge_domain::{NamedTool, ToolCallService, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
 use crate::is_default;
 
 /// Problem-solving framework that breaks down tasks into tracked "thoughts".
@@ -76,8 +77,7 @@ impl Think {
 
         // If no confidence is provided, calculate it based on progress
         if is_default(&input.solution_confidence) {
-            input.solution_confidence =
-                input.thought_number as f32 / input.total_thoughts as f32;
+            input.solution_confidence = input.thought_number as f32 / input.total_thoughts as f32;
         }
 
         Ok(input)
@@ -92,11 +92,10 @@ impl Think {
         }
 
         // Evaluate solution confidence
-        if !is_default(&thought_data.solution_confidence) {
-            if thought_data.solution_confidence >= 0.8 {
-                self.solution_reached = true;
-                thought_data.next_thought_needed = false;
-            }
+        if !is_default(&thought_data.solution_confidence) && thought_data.solution_confidence >= 0.8
+        {
+            self.solution_reached = true;
+            thought_data.next_thought_needed = false;
         }
 
         // Terminate thinking if max thoughts reached or solution found
@@ -112,8 +111,7 @@ impl Think {
         self.thought_history.push(thought_data.clone());
 
         // Branch handling remains the same
-        if !is_default(&thought_data.branch_from_thought) && !is_default(&thought_data.branch_id)
-        {
+        if !is_default(&thought_data.branch_from_thought) && !is_default(&thought_data.branch_id) {
             self.branches
                 .entry(thought_data.branch_id.clone())
                 .or_default()
