@@ -64,8 +64,7 @@ impl FromStr for ConfigKey {
 pub enum ConfigValue {
     /// Model identifier string
     Model(String),
-    /// Tool timeout in seconds
-    ToolTimeout(u32),
+    ToolTimeout(u64),
 }
 
 impl ConfigValue {
@@ -87,7 +86,7 @@ impl ConfigValue {
                     Ok(ConfigValue::Model(value.to_string()))
                 }
             }
-            ConfigKey::ToolTimeout => match value.parse::<u32>() {
+            ConfigKey::ToolTimeout => match value.parse::<u64>() {
                 Ok(0) => Err(ConfigError::NonPositiveTimeout),
                 Ok(timeout) => Ok(ConfigValue::ToolTimeout(timeout)),
                 Err(_) => Err(ConfigError::MalformedTimeout(value.to_string())),
@@ -110,17 +109,31 @@ pub struct Config {
 
 impl From<&Environment> for Config {
     fn from(env: &Environment) -> Self {
-        let mut config = Config::default();
-        // No need to handle errors here as we control the input values
-        let _ = config.insert("primary-model", &env.large_model_id);
-        let _ = config.insert("secondary-model", &env.small_model_id);
-        let _ = config.insert("tool-timeout", "20");
-        config
+        let mut values = HashMap::new();
+        values.insert(
+            ConfigKey::PrimaryModel,
+            ConfigValue::Model(env.large_model_id.clone()),
+        );
+        values.insert(
+            ConfigKey::SecondaryModel,
+            ConfigValue::Model(env.small_model_id.clone()),
+        );
+        values.insert(ConfigKey::ToolTimeout, ConfigValue::ToolTimeout(300));
+        Self { values }
     }
 }
 
 impl Config {
-    /// Returns the primary model configuration if set
+    pub fn tool_timeout(&self) -> Option<u64> {
+        self.values.get(&ConfigKey::ToolTimeout).and_then(|v| {
+            if let ConfigValue::ToolTimeout(timeout) = v {
+                Some(*timeout)
+            } else {
+                None
+            }
+        })
+    }
+
     pub fn primary_model(&self) -> Option<String> {
         self.get_model(&ConfigKey::PrimaryModel)
     }

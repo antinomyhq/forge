@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser;
@@ -83,6 +84,12 @@ impl UI {
             None => self.console.prompt(None).await?,
         };
 
+        // Initialize tool timeout from config
+        if let Some(timeout_secs) = self.config.tool_timeout() {
+            self.api
+                .set_tool_timeout(Duration::from_secs(timeout_secs))
+                .await?;
+        }
         // read the model from the config or fallback to environment.
         let mut model = self
             .config
@@ -149,6 +156,11 @@ impl UI {
                     match config_cmd {
                         ConfigCommand::Set(key, value) => match self.config.insert(&key, &value) {
                             Ok(()) => {
+                                if let Some(timeout_secs) = self.config.tool_timeout() {
+                                    let timeout = Duration::from_secs(timeout_secs);
+                                    // if we fail, it's okay, we'll just keep the old timeout.
+                                    let _ = self.api.set_tool_timeout(timeout).await;
+                                }
                                 model =
                                     self.config.primary_model().map(ModelId::new).unwrap_or(
                                         ModelId::from_env(&self.api.environment().await?),

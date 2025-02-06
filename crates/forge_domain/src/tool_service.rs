@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::de::DeserializeOwned;
 
 use crate::{ToolCallFull, ToolDefinition, ToolResult};
@@ -13,6 +15,7 @@ pub trait ExecutableTool {
 pub trait ToolService: Send + Sync {
     // TODO: should take `call` by reference
     async fn call(&self, call: ToolCallFull) -> ToolResult;
+    async fn set_timeout(&self, duration: Duration) -> anyhow::Result<()>;
     fn list(&self) -> Vec<ToolDefinition>;
     fn usage_prompt(&self) -> String;
 }

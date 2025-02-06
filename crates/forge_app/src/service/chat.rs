@@ -247,6 +247,10 @@ mod tests {
             }
         }
 
+        async fn set_timeout(&self, _: Duration) -> anyhow::Result<()> {
+            Ok(())
+        }
+
         fn list(&self) -> Vec<ToolDefinition> {
             self.tool_definitions.clone()
         }

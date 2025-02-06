@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use forge_domain::{Tool, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService};
+use tokio::sync::RwLock;
 use tokio::time::{timeout, Duration};
 use tracing::debug;
 
 use super::Service;
 
-// Timeout duration for tool calls
+// default timeout duration for tool calls
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 impl Service {
@@ -17,6 +18,7 @@ impl Service {
 
 struct Live {
     tools: HashMap<ToolName, Tool>,
+    timeout: RwLock<Duration>,
 }
 
 impl FromIterator<Tool> for Live {
@@ -26,12 +28,18 @@ impl FromIterator<Tool> for Live {
             .map(|tool| (tool.definition.name.clone(), tool))
             .collect::<HashMap<_, _>>();
 
-        Self { tools }
+        Self { tools, timeout: RwLock::new(TOOL_CALL_TIMEOUT) }
     }
 }
 
 #[async_trait::async_trait]
 impl ToolService for Live {
+    async fn set_timeout(&self, duration: Duration) -> anyhow::Result<()> {
+        let mut guard = self.timeout.write().await;
+        *guard = duration;
+        Ok(())
+    }
+
     async fn call(&self, call: ToolCallFull) -> ToolResult {
         let name = call.name.clone();
         let input = call.arguments.clone();
@@ -46,12 +54,13 @@ impl ToolService for Live {
         let output = match self.tools.get(&name) {
             Some(tool) => {
                 // Wrap tool call with timeout
-                match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(input)).await {
+                let timeout_in_seconds = *self.timeout.read().await;
+                match timeout(timeout_in_seconds, tool.executable.call(input)).await {
                     Ok(result) => result,
                     Err(_) => Err(format!(
                         "Tool '{}' timed out after {} minutes",
                         name.as_str(),
-                        TOOL_CALL_TIMEOUT.as_secs() / 60
+                        timeout_in_seconds.as_secs() / 60
                     )),
                 }
             }

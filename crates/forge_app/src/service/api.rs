@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use forge_domain::{
@@ -13,6 +14,7 @@ use super::Service;
 
 #[async_trait::async_trait]
 pub trait APIService: Send + Sync {
+    async fn set_tool_timeout(&self, duration: Duration) -> Result<()>;
     async fn suggestions(&self) -> Result<Vec<File>>;
     async fn tools(&self) -> Vec<ToolDefinition>;
     async fn context(&self, conversation_id: ConversationId) -> Result<Context>;
@@ -95,6 +97,11 @@ impl Live {
 
 #[async_trait::async_trait]
 impl APIService for Live {
+    async fn set_tool_timeout(&self, duration: Duration) -> Result<()> {
+        let _ = self.tool.set_timeout(duration).await?;
+        Ok(())
+    }
+
     async fn suggestions(&self) -> Result<Vec<File>> {
         self.completions.suggestions().await
     }
