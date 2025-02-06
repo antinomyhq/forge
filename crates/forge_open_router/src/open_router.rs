@@ -6,6 +6,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
+use crate::parameters::ParameterResponse;
 use crate::provider_kind::ProviderKind;
 
 use super::model::{ListModelResponse, OpenRouterModel};
@@ -161,35 +162,41 @@ impl ProviderService for OpenRouterClient {
     }
 
     async fn parameters(&self, model: &ModelId) -> Result<Parameters> {
-        Ok(Parameters { tool_supported: true })
+        match self.ty {
+            crate::model::Model::Ollama(_) => {
+                Ok(Parameters {
+                    tool_supported: false,
+                })
+            }
+            _ => {
+                // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
+                let path = format!("parameters/{}", model.as_str());
 
-        /*
-        // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
-        let path = format!("parameters/{}", model.as_str());
+                let url = self.url(&path)?;
 
-        let url = self.url(&path)?;
+                let text = self
+                    .client
+                    .get(url)
+                    .headers(self.headers())
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .text()
+                    .await?;
 
-        let text = self
-            .client
-            .get(url)
-            .headers(self.headers())
-            .send()
-            .await?
-            .error_for_status()?
-            .text()
-            .await?;
+                let response: ParameterResponse = serde_json::from_str(&text)
+                    .with_context(|| "Failed to parse parameter response".to_string())?;
 
-        let response: ParameterResponse = serde_json::from_str(&text)
-            .with_context(|| "Failed to parse parameter response".to_string())?;
-
-        Ok(Parameters {
-            tool_supported: response
-                .data
-                .supported_parameters
-                .iter()
-                .flat_map(|parameter| parameter.iter())
-                .any(|parameter| parameter == "tools"),
-        })*/
+                Ok(Parameters {
+                    tool_supported: response
+                        .data
+                        .supported_parameters
+                        .iter()
+                        .flat_map(|parameter| parameter.iter())
+                        .any(|parameter| parameter == "tools"),
+                })
+            }
+        }
     }
 }
 
