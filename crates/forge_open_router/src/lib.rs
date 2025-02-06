@@ -5,14 +5,14 @@ mod request;
 mod response;
 mod tool_choice;
 
-mod open_router;
 mod ollama;
-mod provider_kind;
+mod open_router;
 mod openrouter;
 mod provider;
+mod provider_kind;
 
-pub use open_router::OpenRouterClient;
 pub use ollama::Ollama;
-pub use provider_kind::ProviderKind;
+pub use open_router::OpenRouterClient;
 pub use openrouter::OpenRouter;
 pub use provider::Provider;
+pub use provider_kind::ProviderKind;

@@ -8,12 +8,12 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
-use crate::Provider;
-use crate::provider_kind::ProviderKind;
 
 use super::model::{ListModelResponse, OpenRouterModel};
 use super::parameters::ParameterResponse;
 use super::request::OpenRouterRequest;
+use crate::provider_kind::ProviderKind;
+use crate::Provider;
 
 #[derive(Debug, Default, Clone, Setters)]
 #[setters(into)]
@@ -27,7 +27,7 @@ impl OpenRouterBuilder {
         if matches!(provider, Provider::OpenRouter(_)) && self.api_key.is_none() {
             anyhow::bail!("API key is required for OpenRouter models");
         }
-        
+
         let client = Client::builder().build()?;
         let default_url = provider.default_base_url();
         let base_url = self.base_url.as_deref().unwrap_or(default_url.as_str());
@@ -98,27 +98,23 @@ impl ProviderService for OpenRouterClient {
             .headers(self.headers())
             .json(&request)
             .eventsource()?;
-        
+
         let provider = self.provider.clone();
 
         let stream = es
             .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-            .map(move |event| {
-                match event {
-                    Ok(event) => match event {
-                        Event::Open => None,
-                        Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
-                            None
-                        }
-                        Event::Message(event) => Some(
-                            provider
-                                .to_chat_completion_message(event.data.as_bytes())
-                                .map_err(Into::into),
-                        ),
-                    },
-                    Err(reqwest_eventsource::Error::StreamEnded) => None,
-                    Err(err) => Some(Err(err.into())),
-                }
+            .map(move |event| match event {
+                Ok(event) => match event {
+                    Event::Open => None,
+                    Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => None,
+                    Event::Message(event) => Some(
+                        provider
+                            .to_chat_completion_message(event.data.as_bytes())
+                            .map_err(Into::into),
+                    ),
+                },
+                Err(reqwest_eventsource::Error::StreamEnded) => None,
+                Err(err) => Some(Err(err.into())),
             });
 
         Ok(Box::pin(stream.filter_map(|x| x)))
@@ -195,9 +191,9 @@ impl From<OpenRouterModel> for Model {
 mod tests {
     use anyhow::Context;
     use reqwest::Url;
-    use crate::response::OpenRouterResponse;
 
     use super::*;
+    use crate::response::OpenRouterResponse;
 
     fn create_test_client() -> OpenRouterClient {
         OpenRouterClient {
