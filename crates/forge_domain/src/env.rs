@@ -6,7 +6,7 @@ use serde::Serialize;
 
 #[derive(Default, Serialize, Debug, Setters, Clone)]
 #[serde(rename_all = "camelCase")]
-#[setters(strip_option)]
+#[setters(strip_option, into)]
 /// Represents the environment in which the application is running.
 pub struct Environment {
     /// The operating system of the environment.

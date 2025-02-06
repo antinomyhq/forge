@@ -24,10 +24,6 @@ pub struct OpenRouterBuilder {
 
 impl OpenRouterBuilder {
     pub fn build(self, provider: Provider) -> anyhow::Result<OpenRouterClient> {
-        if matches!(provider, Provider::OpenRouter(_)) && self.api_key.is_none() {
-            anyhow::bail!("API key is required for OpenRouter models");
-        }
-
         let client = Client::builder().build()?;
         let default_url = provider.default_base_url();
         let base_url = self.base_url.as_deref().unwrap_or(default_url.as_str());
@@ -87,6 +83,10 @@ impl ProviderService for OpenRouterClient {
         model_id: &ModelId,
         request: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        if matches!(self.provider, Provider::OpenRouter(_)) && self.api_key.is_none() {
+            anyhow::bail!("API key is required for OpenRouter models");
+        }
+
         let request = OpenRouterRequest::from(request)
             .model(model_id.clone())
             .stream(true)

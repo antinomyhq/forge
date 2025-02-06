@@ -31,7 +31,7 @@ impl Live {
     ) -> Self {
         let provider = OpenRouterClient::builder()
             .api_key(api_key.map(|x| x.to_string()))
-            .api_key(base_url)
+            .base_url(base_url)
             .build(match provider {
                 ProviderKind::Ollama => forge_open_router::Provider::Ollama(Default::default()),
                 ProviderKind::OpenRouter => {
