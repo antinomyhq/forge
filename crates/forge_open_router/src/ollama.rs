@@ -64,18 +64,37 @@ pub struct OllamaFunction {
 }
 
 /// Trait for converting Ollama response to a standard chat completion message
-impl From<OllamaResponseChunk> for forge_domain::ChatCompletionMessage {
+impl From<OllamaResponseChunk> for ChatCompletionMessage {
     fn from(chunk: OllamaResponseChunk) -> Self {
-        // Extract the first choice's delta content if available
         let content = chunk.choices.first()
             .and_then(|choice| choice.delta.content.clone())
             .unwrap_or_default();
 
+        // Convert Ollama tool calls to domain tool calls
+        let tool_calls = chunk.choices.iter()
+            .filter_map(|choice| choice.delta.tool_calls.as_ref())
+            .flat_map(|tool_calls| {
+                tool_calls.iter().map(|tool_call| {
+                    forge_domain::ToolCall::Part(forge_domain::ToolCallPart {
+                        call_id: tool_call.id.as_ref()
+                            .map(|id| forge_domain::ToolCallId::new(id.clone())),
+                        name: tool_call.function.name.as_ref()
+                            .map(|name| forge_domain::ToolName::new(name.clone())),
+                        arguments_part: tool_call.function.arguments.clone().unwrap_or_default(),
+                    })
+                }).collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
         forge_domain::ChatCompletionMessage {
             content: Some(forge_domain::Content::full(content)),
-            tool_call: vec![],
+            tool_call: tool_calls,
             finish_reason: chunk.choices.first()
-                .and_then(|_| Some(FinishReason::Stop)),
+                .and_then(|choice| match choice.finish_reason.as_deref() {
+                    Some("tool_calls") => Some(FinishReason::ToolCalls),
+                    Some("stop") => Some(FinishReason::Stop),
+                    _ => None
+                }),
             usage: None,
         }
     }
