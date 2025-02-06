@@ -18,7 +18,7 @@ pub struct Environment {
     /// The shell being used.
     pub shell: String,
     /// The Forge API key.
-    pub api_key: String,
+    pub api_key: Option<String>,
     /// The large model ID.
     pub large_model_id: String,
     /// The small model ID.
@@ -26,6 +26,17 @@ pub struct Environment {
 
     /// The base path relative to which everything else stored.
     pub base_path: PathBuf,
+    pub base_url: Option<String>,
+    pub model: IdkSomeModel,
+}
+
+#[derive(Default, Serialize, Debug, Clone, strum_macros::EnumString)]
+#[serde(rename_all = "camelCase")]
+pub enum IdkSomeModel {
+    #[default]
+    #[strum(ascii_case_insensitive)]
+    Ollama,
+    OpenApi,
 }
 
 impl Environment {

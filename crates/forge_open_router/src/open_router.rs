@@ -1,49 +1,66 @@
+use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
-use forge_domain::{
-    self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Parameters,
-    ProviderService, ResultStream,
-};
+use forge_domain::{self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Parameters, ProviderService, ResultStream};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
+use crate::ollama::OllamaResponseChunk;
+use crate::provider_kind::ProviderKind;
 
 use super::model::{ListModelResponse, OpenRouterModel};
 use super::parameters::ParameterResponse;
 use super::request::OpenRouterRequest;
 use super::response::OpenRouterResponse;
 
+#[derive(Default, Debug, Clone)]
+pub struct OpenApi;
+
+impl ProviderKind for OpenApi {
+    fn to_chat_completion_message(&self, input: &[u8]) -> anyhow::Result<ChatCompletionMessage> {
+        let message = serde_json::from_slice::<OpenRouterResponse>(input)?;
+        let ans = ChatCompletionMessage::try_from(message)?;
+        Ok(ans)
+    }
+
+    fn default_base_url(&self) -> String {
+        "https://openrouter.ai/api/v1/".to_string()
+    }
+}
+
 #[derive(Debug, Default, Clone, Setters)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct OpenRouterBuilder {
     api_key: Option<String>,
     base_url: Option<String>,
 }
 
 impl OpenRouterBuilder {
-    pub fn build(self) -> anyhow::Result<OpenRouter> {
+    pub fn build(self, ty: crate::model::Model) -> anyhow::Result<OpenRouterClient> {
         let client = Client::builder().build()?;
+        let default_url = ty.default_base_url();
         let base_url = self
             .base_url
             .as_deref()
-            .unwrap_or("http://localhost:11434/v1/");
+            .unwrap_or(default_url.as_str());
 
         let base_url = Url::parse(base_url)
             .with_context(|| format!("Failed to parse base URL: {}", base_url))?;
 
-        Ok(OpenRouter { client, base_url, api_key: self.api_key })
+        Ok(OpenRouterClient { client, base_url, api_key: self.api_key, ty })
     }
 }
 
 #[derive(Clone)]
-pub struct OpenRouter {
+pub struct OpenRouterClient {
     client: Client,
     api_key: Option<String>,
     base_url: Url,
+    ty: crate::model::Model,
 }
 
-impl OpenRouter {
+impl OpenRouterClient {
     pub fn builder() -> OpenRouterBuilder {
         OpenRouterBuilder::default()
     }
@@ -77,7 +94,7 @@ impl OpenRouter {
 }
 
 #[async_trait::async_trait]
-impl ProviderService for OpenRouter {
+impl ProviderService for OpenRouterClient {
     async fn chat(
         &self,
         model_id: &ModelId,
@@ -94,63 +111,153 @@ impl ProviderService for OpenRouter {
             .headers(self.headers())
             .json(&request)
             .eventsource()?;
+        let ty = Arc::new(self.ty.clone());
+        
+/*        let resp = self
+            .client
+            .post(self.url("chat/completions")?)
+            .headers(self.headers())
+            .json(&request)
+            .send()
+            .await?;
+        let stream = resp
+            .bytes_stream()
+            .map(move |result| -> Option<Result<ChatCompletionMessage, anyhow::Error>> {
+                let ty = ty.clone();
+                match result {
+                    Ok(bytes) => {
+                        println!("{:?}", bytes);
+                        // Convert bytes to string
+                        let event_data = match std::str::from_utf8(&bytes) {
+                            Ok(s) => {
+                                let s = s.trim();
+                                let s = s.strip_prefix("data: ").unwrap_or(s);
+                                let s = s.strip_suffix("data: [DONE]").unwrap_or(s);
+                                s
+                            },
+                            Err(e) => return Some(Err(anyhow::anyhow!("Failed to convert bytes to string: {}", e))),
+                        };
 
-        let stream = es
-            .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-            .then(|event| async {
-                match event {
-                    Ok(event) => match event {
-                        Event::Open => None,
-                        Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
-                            None
+                        // Skip empty or "[DONE]" events
+                  /*      if ["[DONE]", ""].contains(&event_data) {
+                            return None;
+                        }*/
+                        match ty.to_chat_completion_message(event_data.as_bytes()) {
+                            Ok(val) => Some(Ok(val)),
+                            Err(e) => {
+                                println!("Error: {:?}", e);
+                                Some(Err(e))
+                            },
                         }
-                        Event::Message(event) => {
-                            println!("{}", serde_json::from_str::<serde_json::Value>(&event.data).unwrap());
-                            Some(
-                                serde_json::from_str::<OpenRouterResponse>(&event.data)
-                                    .with_context(|| "Failed to parse OpenRouter response")
-                                    .and_then(|message| {
-                                        ChatCompletionMessage::try_from(message.clone())
-                                            .with_context(|| "Failed to create completion message")
-                                    }),
-                            )
-                        },
-                    },
-                    Err(reqwest_eventsource::Error::StreamEnded) => None,
-                    Err(reqwest_eventsource::Error::InvalidStatusCode(code, response)) => {
-                        println!("Invalid status code: {}", code);
-                        let x = response.text().await;
-                        println!("Response: {:?}", x);
-                        let x = x.map_err(|e| anyhow::anyhow!("{}", e)).and_then(|x| {
-                            serde_json::from_str::<OpenRouterResponse>(&x)
-                                .with_context(|| "Failed to parse OpenRouter response")
-                        });
-
-                        Some(
-                            x
-                                .with_context(|| "Failed to parse OpenRouter response")
-                                .and_then(|message| {
-                                    ChatCompletionMessage::try_from(message.clone())
-                                        .with_context(|| "Failed to create completion message")
-                                })
-                                .with_context(|| "Failed with invalid status code"),
-                        )
+                        // Parse the event data
+                        /*match serde_json::from_str::<OpenRouterResponse>(event_data) {
+                            Ok(response) => {
+                                match ChatCompletionMessage::try_from(response) {
+                                    Ok(message) => Some(Ok(message)),
+                                    Err(e) => Some(Err(anyhow::anyhow!(
+                                        "Failed to create completion message: {}",
+                                        e
+                                    ))),
+                                }
+                            }
+                            Err(e) => Some(Err(anyhow::anyhow!(
+                                "Failed to parse OpenRouter response: {}",
+                                e
+                            ))),
+                        }*/
                     }
-                    Err(reqwest_eventsource::Error::InvalidContentType(_, response)) => Some(
-                        response
-                            .json::<OpenRouterResponse>()
-                            .await
-                            .with_context(|| "Failed to parse OpenRouter response")
-                            .and_then(|message| {
-                                ChatCompletionMessage::try_from(message.clone())
-                                    .with_context(|| "Failed to create completion message")
-                            })
-                            .with_context(|| "Failed with invalid content type"),
-                    ),
-                    Err(err) => Some(Err(err.into())),
+                    Err(e) => Some(Err(anyhow::anyhow!("Stream error: {}", e))),
                 }
             });
+*/
+/*        let stream = resp
+            .bytes_stream()
+            .map(move |result| -> Result<ChatCompletionMessage, anyhow::Error> {
+                let bytes = result?;
+                println!("Received chunk: {:?}", bytes);
 
+                // Parse the chunk and convert to ChatCompletionMessage
+                ty
+                    .to_chat_completion_message(bytes.as_ref())
+            })
+            .filter_map(|result| {
+                match result {
+                    Ok(message) => Some(Ok(message)),
+                    Err(e) => {
+                        println!("Error: {:?}", e);
+                        None
+                    }, // Silently drop parsing errors
+                }
+            });
+*/
+                let stream = es
+                    .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
+                    .map(move |event| {
+                        let ty = ty.clone();
+                        match event {
+                            Ok(event) => match event {
+                                Event::Open => None,
+                                Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
+                                    None
+                                }
+                                Event::Message(event) => {
+                                    /*Some(
+                                        serde_json::from_str::<OllamaResponseChunk>(&event.data)
+                                            .with_context(|| "Failed to parse OpenRouter response")
+                                            .and_then(|message| {
+                                                ChatCompletionMessage::try_from(crate::ollama::OllamaResponseChunk::from(message.clone()))
+                                                    .with_context(|| "Failed to create completion message")
+                                            }),
+                                    )*/
+                                    Some(ty.to_chat_completion_message(event.data.as_bytes()))
+                                }
+                            },
+                            Err(reqwest_eventsource::Error::StreamEnded) => None,
+                            Err(reqwest_eventsource::Error::InvalidStatusCode(code, _)) => {
+                                println!("Invalid status code: {}", code);
+                    /*            let x = response.text().await;
+                                println!("Response: {:?}", x);
+                                let x = x.map_err(|e| anyhow::anyhow!("{}", e)).and_then(|x| {
+                                    ty.to_chat_completion_message(&x)
+                                        .with_context(|| "Failed to parse OpenRouter response")
+                                });
+                                x.ok().map(Ok)*/
+                                Some(Err(anyhow::anyhow!("Invalid status code: {}", code)))
+                                /*Some(
+                                    x
+                                        .with_context(|| "Failed to parse OpenRouter response")
+                                        .and_then(|message| {
+                                            ChatCompletionMessage::try_from(message.clone())
+                                                .with_context(|| "Failed to create completion message")
+                                        })
+                                        .with_context(|| "Failed with invalid status code"),
+                                )*/
+                            }
+                            Err(reqwest_eventsource::Error::InvalidContentType(_, _)) => {
+                                Some(Err(anyhow::anyhow!("Invalid content type")))
+/*                                let x = response.text().await;
+                                x.map_err(|e| anyhow::anyhow!("{}", e)).and_then(|x| {
+                                    ty.clone().to_chat_completion_message(&x)
+                                        .with_context(|| "Failed to parse OpenRouter response")
+                                }).ok().map(Ok)*/
+                                /*
+                                Some(
+                                    response
+                                        .json::<OpenRouterResponse>()
+                                        .await
+                                        .with_context(|| "Failed to parse OpenRouter response")
+                                        .and_then(|message| {
+                                            ChatCompletionMessage::try_from(message.clone())
+                                                .with_context(|| "Failed to create completion message")
+                                        })
+                                        .with_context(|| "Failed with invalid content type"),
+                                )*/
+                            },
+                            Err(err) => Some(Err(err.into())),
+                        }
+                    });
+
+        // Ok(Box::pin(stream.filter_map(|x| x)))
         Ok(Box::pin(stream.filter_map(|x| x)))
     }
 
@@ -225,8 +332,8 @@ mod tests {
 
     use super::*;
 
-    fn create_test_client() -> OpenRouter {
-        OpenRouter {
+    fn create_test_client() -> OpenRouterClient {
+        OpenRouterClient {
             client: Client::new(),
             api_key: None,
             base_url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),

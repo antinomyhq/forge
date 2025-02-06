@@ -1,5 +1,29 @@
-use forge_domain::ModelId;
+use forge_domain::{ChatCompletionMessage, ModelId};
 use serde::{Deserialize, Serialize};
+use crate::{Ollama, OpenApi};
+use crate::provider_kind::ProviderKind;
+
+#[derive(Clone)]
+pub enum Model {
+    Ollama(Ollama),
+    OpenAPI(OpenApi),
+}
+
+impl ProviderKind for Model {
+    fn to_chat_completion_message(&self, input: &[u8]) -> anyhow::Result<ChatCompletionMessage> {
+        match self {
+            Model::Ollama(x) => x.to_chat_completion_message(input),
+            Model::OpenAPI(x) => x.to_chat_completion_message(input),
+        }
+    }
+
+    fn default_base_url(&self) -> String {
+        match self {
+            Model::Ollama(x) => x.default_base_url(),
+            Model::OpenAPI(x) => x.default_base_url(),
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct OpenRouterModel {
