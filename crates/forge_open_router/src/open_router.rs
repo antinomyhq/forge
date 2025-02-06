@@ -109,8 +109,7 @@ impl ProviderService for OpenRouterClient {
                     Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => None,
                     Event::Message(event) => Some(
                         provider
-                            .to_chat_completion_message(event.data.as_bytes())
-                            .map_err(Into::into),
+                            .to_chat_completion_message(event.data.as_bytes()),
                     ),
                 },
                 Err(reqwest_eventsource::Error::StreamEnded) => None,
