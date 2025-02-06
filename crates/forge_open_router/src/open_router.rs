@@ -24,8 +24,8 @@ pub struct OpenRouterBuilder {
 
 impl OpenRouterBuilder {
     pub fn build(self, provider: Provider) -> anyhow::Result<OpenRouterClient> {
-        if matches!(provider, Provider::OpenAPI(_)) && self.api_key.is_none() {
-            anyhow::bail!("API key is required for OpenAPI models");
+        if matches!(provider, Provider::OpenRouter(_)) && self.api_key.is_none() {
+            anyhow::bail!("API key is required for OpenRouter models");
         }
         
         let client = Client::builder().build()?;
@@ -148,7 +148,7 @@ impl ProviderService for OpenRouterClient {
     async fn parameters(&self, model: &ModelId) -> Result<Parameters> {
         match self.provider {
             Provider::Ollama(_) => Ok(Parameters::new(false)),
-            Provider::OpenAPI(_) => {
+            Provider::OpenRouter(_) => {
                 // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
                 let path = format!("parameters/{}", model.as_str());
 
@@ -204,7 +204,7 @@ mod tests {
             client: Client::new(),
             api_key: None,
             base_url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
-            provider: Provider::OpenAPI(Default::default()),
+            provider: Provider::OpenRouter(Default::default()),
         }
     }
 

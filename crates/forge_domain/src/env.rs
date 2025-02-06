@@ -37,7 +37,7 @@ pub struct Environment {
 pub enum ProviderKind {
     #[default]
     Ollama,
-    OpenApi,
+    OpenRouter,
 }
 
 impl Environment {

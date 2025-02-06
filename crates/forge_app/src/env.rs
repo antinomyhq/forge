@@ -25,7 +25,7 @@ impl EnvironmentFactory {
             .ok()
             .and_then(|provider| ProviderKind::from_str(&provider).ok());
         let provider = if api_key.is_some() {
-            provider.unwrap_or(ProviderKind::OpenApi)
+            provider.unwrap_or(ProviderKind::OpenRouter)
         } else {
             provider.unwrap_or_default()
         };

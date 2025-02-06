@@ -23,7 +23,7 @@ impl Live {
             .api_key(base_url)
             .build(match provider {
                 ProviderKind::Ollama => forge_open_router::Provider::Ollama(Default::default()),
-                ProviderKind::OpenApi => forge_open_router::Provider::OpenAPI(Default::default()),
+                ProviderKind::OpenRouter => forge_open_router::Provider::OpenRouter(Default::default()),
             })
             .unwrap();
 
