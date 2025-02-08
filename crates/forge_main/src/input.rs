@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use forge_display::StatusDisplay;
+use forge_display::TitleFormat;
 use forge_domain::{Environment, Usage};
 use tokio::fs;
 
@@ -49,13 +49,13 @@ impl UserInput for Console {
                     Ok(input) => return Ok(input),
                     Err(e) => {
                         CONSOLE.writeln(
-                            StatusDisplay::failed(e.to_string(), Usage::default()).format(),
+                            TitleFormat::failed(e.to_string(), Usage::default()).format(),
                         )?;
                     }
                 },
                 Err(e) => {
                     CONSOLE
-                        .writeln(StatusDisplay::failed(e.to_string(), Usage::default()).format())?;
+                        .writeln(TitleFormat::failed(e.to_string(), Usage::default()).format())?;
                 }
             }
         }

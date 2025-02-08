@@ -932,7 +932,10 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "colored 3.0.0",
+ "console",
  "forge_domain",
+ "insta",
+ "similar",
 ]
 
 [[package]]
@@ -1003,15 +1006,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "forge_pretty_diff"
-version = "0.1.0"
-dependencies = [
- "console",
- "insta",
- "similar",
-]
-
-[[package]]
 name = "forge_tool"
 version = "0.1.0"
 dependencies = [
@@ -1022,7 +1016,6 @@ dependencies = [
  "dissimilar",
  "forge_display",
  "forge_domain",
- "forge_pretty_diff",
  "forge_tool_macros",
  "forge_walker",
  "glob",

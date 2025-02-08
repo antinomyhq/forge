@@ -40,7 +40,6 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 nom = "8.0.0"
 console = "0.15"
 strip-ansi-escapes = "0.2.1"
-forge_pretty_diff = { path = "../forge_pretty_diff" }
 
 [dev-dependencies]
 insta = { version = "1.42.0" }

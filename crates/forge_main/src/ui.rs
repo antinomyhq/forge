@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
 use forge_app::{APIService, EnvironmentFactory, Service};
-use forge_display::StatusDisplay;
+use forge_display::TitleFormat;
 use forge_domain::{ChatRequest, ChatResponse, ConversationId, Model, ModelId, Usage};
 use tokio_stream::StreamExt;
 
@@ -120,7 +120,7 @@ impl UI {
                     self.state.current_content = Some(content.clone());
                     if let Err(err) = self.chat(content.clone(), &model).await {
                         CONSOLE.writeln(
-                            StatusDisplay::failed(format!("{:?}", err), self.state.usage.clone())
+                            TitleFormat::failed(format!("{:?}", err), self.state.usage.clone())
                                 .format(),
                         )?;
                     }
@@ -159,7 +159,7 @@ impl UI {
                             }
                             Err(e) => {
                                 CONSOLE.writeln(
-                                    StatusDisplay::failed(e.to_string(), self.state.usage.clone())
+                                    TitleFormat::failed(e.to_string(), self.state.usage.clone())
                                         .format(),
                                 )?;
                             }
@@ -173,7 +173,7 @@ impl UI {
                                 ))?;
                             } else {
                                 CONSOLE.writeln(
-                                    StatusDisplay::failed(
+                                    TitleFormat::failed(
                                         format!("Config key '{}' not found", key),
                                         self.state.usage.clone(),
                                     )
@@ -238,8 +238,7 @@ impl UI {
                     CONSOLE.newline()?;
                     CONSOLE.newline()?;
                     CONSOLE.writeln(
-                        StatusDisplay::execute(tool_name.as_str(), self.state.usage.clone())
-                            .format(),
+                        TitleFormat::execute(tool_name.as_str(), self.state.usage.clone()).format(),
                     )?;
                     CONSOLE.newline()?;
                 }
@@ -264,11 +263,11 @@ impl UI {
 
                 if tool_result.is_error {
                     CONSOLE.writeln(
-                        StatusDisplay::failed(tool_name, self.state.usage.clone()).format(),
+                        TitleFormat::failed(tool_name, self.state.usage.clone()).format(),
                     )?;
                 } else {
                     CONSOLE.writeln(
-                        StatusDisplay::success(tool_name, self.state.usage.clone()).format(),
+                        TitleFormat::success(tool_name, self.state.usage.clone()).format(),
                     )?;
                 }
             }

@@ -130,12 +130,12 @@ impl ExecutableTool for Shell {
         self.validate_command(&input.command)?;
         #[cfg(not(test))]
         {
-            use forge_display::StatusDisplay;
+            use forge_display::TitleFormat;
             use forge_domain::Usage;
 
             println!(
                 "{}",
-                StatusDisplay::execute(format!("sh -c {}", &input.command), Usage::default())
+                TitleFormat::execute(format!("sh -c {}", &input.command), Usage::default())
                     .format()
             );
         }
