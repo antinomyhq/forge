@@ -4,9 +4,13 @@ use console::style;
 use regex::Regex;
 
 /// RipGrepFormatter formats search results in ripgrep-like style.
-pub struct RipGrepFormatter(pub Vec<String>);
+pub struct GrepFormat(Vec<String>);
 
-impl RipGrepFormatter {
+impl GrepFormat {
+    pub fn new(lines: Vec<String>) -> Self {
+        Self(lines)
+    }
+
     /// Format a single line with colorization.
     fn format_line(num: &str, content: &str, regex: &Regex) -> String {
         let mut line = format!("{}{}", style(num).magenta(), style(":").dim());
@@ -79,7 +83,7 @@ mod tests {
             .map(String::from)
             .collect();
 
-        let formatter = RipGrepFormatter(input);
+        let formatter = GrepFormat(input);
         let result = formatter.format(&Regex::new("match").unwrap());
         let actual = strip_ansi_escapes::strip_str(&result);
         let expected = "file.txt\n1:first match\n2:second match\n";
@@ -98,7 +102,7 @@ mod tests {
         .map(String::from)
         .collect();
 
-        let formatter = RipGrepFormatter(input);
+        let formatter = GrepFormat(input);
         let result = formatter.format(&Regex::new("file").unwrap());
         let actual = strip_ansi_escapes::strip_str(&result);
 
@@ -108,7 +112,7 @@ mod tests {
 
     #[test]
     fn test_ripgrep_formatter_empty_input() {
-        let formatter = RipGrepFormatter(vec![]);
+        let formatter = GrepFormat(vec![]);
         let result = formatter.format(&Regex::new("file").unwrap());
         assert_eq!(result, "");
     }
@@ -124,7 +128,7 @@ mod tests {
         .map(String::from)
         .collect();
 
-        let formatter = RipGrepFormatter(input);
+        let formatter = GrepFormat(input);
         let result = formatter.format(&Regex::new("match").unwrap());
         let actual = strip_ansi_escapes::strip_str(&result);
 

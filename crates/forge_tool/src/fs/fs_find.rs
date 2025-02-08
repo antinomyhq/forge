@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use console::style;
-use forge_display::RipGrepFormatter;
+use forge_display::GrepFormat;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
@@ -130,7 +130,7 @@ impl ExecutableTool for FSSearch {
             println!(
                 "{}\n{}",
                 style("Matches:").dim(),
-                RipGrepFormatter(matches.clone()).format(&regex)
+                GrepFormat::new(matches.clone()).format(&regex)
             );
             Ok(matches.join("\n"))
         }

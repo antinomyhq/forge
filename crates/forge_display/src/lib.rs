@@ -1,7 +1,7 @@
 pub mod diff;
-pub mod ripgrep;
+pub mod grep;
 pub mod title;
 
 pub use diff::DiffFormat;
-pub use ripgrep::RipGrepFormatter;
+pub use grep::GrepFormat;
 pub use title::TitleFormat;
