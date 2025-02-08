@@ -935,7 +935,10 @@ dependencies = [
  "console",
  "forge_domain",
  "insta",
+ "pretty_assertions",
+ "regex",
  "similar",
+ "strip-ansi-escapes",
 ]
 
 [[package]]
