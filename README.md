@@ -31,3 +31,27 @@ curl -L https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bas
 # Or with wget
 wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bash
 ```
+
+## Get Started
+
+1. Create a `.env` file in your home directory and set the following variables:
+
+   ```bash
+   OPEN_ROUTER_KEY=[Enter your Open Router Key]
+   FORGE_LARGE_MODEL=anthropic/claude-3.5-sonnet
+   FORGE_SMALL_MODEL=anthropic/claude-3.5-haiku
+
+   ```
+
+2. Start an interactive shell by typing `forge`:
+
+   ```bash
+   forge
+   ⚡ # Write your task here and press enter or type
+   ```
+
+3. Use `@` and press the `tab` key to enable auto-completion of files.
+
+4. Use `/` and press the `tab` key to access built in commands
+
+Use `forge --help` to configure additional parameters.
