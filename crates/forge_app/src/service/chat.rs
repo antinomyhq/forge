@@ -163,21 +163,23 @@ impl ChatService for Live {
         chat: forge_domain::ChatRequest,
         context: Context,
     ) -> ResultStream<ChatResponse, anyhow::Error> {
-        let system_prompt = self.system_prompt.get(&chat).await?;
-        let user_prompt = self.user_prompt.get(&chat).await?;
-
-        let tool_supported = self.provider.parameters(&chat.model).await?.tool_supported;
-
-        let context = if !tool_supported {
-            context
-                .set_first_system_message(system_prompt)
-                .add_message(ContextMessage::user(user_prompt))
+        let context = if chat.content.is_some() {
+            let user_prompt = self.user_prompt.get(&chat).await?;
+            context.add_message(ContextMessage::user(user_prompt))
         } else {
             context
-                .set_first_system_message(system_prompt)
-                .add_message(ContextMessage::user(user_prompt))
-                .tools(self.tool.list())
         };
+
+        let system_prompt = self.system_prompt.get(&chat).await?;
+        let tool_supported = self.provider.parameters(&chat.model).await?.tool_supported;
+
+        let context = context
+            .set_first_system_message(system_prompt)
+            .tools(if !tool_supported {
+                vec![]
+            } else {
+                self.tool.list()
+            });
 
         debug!("Tools: {:?}", self.tool.list());
 
@@ -345,7 +347,8 @@ mod tests {
                 "Yes sure, tell me what you need.",
             ))]])
             .run(
-                ChatRequest::new(ModelId::new("gpt-3.5-turbo"), "Hello can you help me?")
+                ChatRequest::new(ModelId::new("gpt-3.5-turbo"))
+                    .content("Hello can you help me?")
                     .conversation_id(
                         ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
                     ),
@@ -410,7 +413,8 @@ mod tests {
                 json!({"result": "bar tool called"}),
             ])
             .run(
-                ChatRequest::new(ModelId::new("gpt-3.5-turbo"), "Hello can you help me?")
+                ChatRequest::new(ModelId::new("gpt-3.5-turbo"))
+                    .content("Hello can you help me?")
                     .conversation_id(
                         ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
                     ),
@@ -434,9 +438,11 @@ mod tests {
         let actual = Fixture::default()
             .system_prompt("Do everything that the user says")
             .run(
-                ChatRequest::new(model_id.clone(), "Hello can you help me?").conversation_id(
-                    ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
-                ),
+                ChatRequest::new(model_id.clone())
+                    .content("Hello can you help me?")
+                    .conversation_id(
+                        ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
+                    ),
             )
             .await
             .llm_calls;
@@ -478,9 +484,11 @@ mod tests {
             .assistant_responses(mock_llm_responses)
             .tools(vec![json!({"a": 100, "b": 200})])
             .run(
-                ChatRequest::new(model_id, "Hello can you help me?").conversation_id(
-                    ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
-                ),
+                ChatRequest::new(model_id)
+                    .content("Hello can you help me?")
+                    .conversation_id(
+                        ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
+                    ),
             )
             .await
             .messages
@@ -539,9 +547,11 @@ mod tests {
             .assistant_responses(mock_llm_responses)
             .tools(vec![json!({"a": 100, "b": 200})])
             .run(
-                ChatRequest::new(model_id, "Hello can you help me?").conversation_id(
-                    ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
-                ),
+                ChatRequest::new(model_id)
+                    .content("Hello can you help me?")
+                    .conversation_id(
+                        ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
+                    ),
             )
             .await
             .messages
@@ -581,9 +591,11 @@ mod tests {
             .assistant_responses(mock_llm_responses)
             .tools(vec![json!({"a": 100, "b": 200})])
             .run(
-                ChatRequest::new(model_id.clone(), "Hello can you use foo tool?").conversation_id(
-                    ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
-                ),
+                ChatRequest::new(model_id.clone())
+                    .content("Hello can you use foo tool?")
+                    .conversation_id(
+                        ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
+                    ),
             )
             .await
             .llm_calls;
@@ -638,7 +650,8 @@ mod tests {
                 .content_part("Task is complete, let me know how can i help you!")],
         ];
         let total_messages = mock_llm_responses.len();
-        let request = ChatRequest::new(model_id.clone(), "Hello can you use foo tool?")
+        let request = ChatRequest::new(model_id.clone())
+            .content("Hello can you use foo tool?")
             .conversation_id(
                 ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
             );
@@ -697,9 +710,11 @@ mod tests {
                 json!({"x": 300, "y": 400}),
             ])
             .run(
-                ChatRequest::new(model_id.clone(), "Hello can you use tools?").conversation_id(
-                    ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
-                ),
+                ChatRequest::new(model_id.clone())
+                    .content("Hello can you use tools?")
+                    .conversation_id(
+                        ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
+                    ),
             )
             .await;
 

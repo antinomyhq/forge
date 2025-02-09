@@ -111,7 +111,12 @@ impl Title {
 #[async_trait::async_trait]
 impl TitleService for Live {
     async fn get_title(&self, chat: ChatRequest) -> ResultStream<ChatResponse, anyhow::Error> {
-        let user_prompt = self.user_prompt(&chat.content);
+        if chat.content.is_none() {
+            // when there's no content in the chat request, we can't generate a title.
+            return Err(anyhow::anyhow!("task not found for title generation!"));
+        }
+
+        let user_prompt = self.user_prompt(chat.content.as_ref().unwrap());
         let tool = Title::definition();
         let tool_supported = self.provider.parameters(&chat.model).await?.tool_supported;
         let system_prompt = self.system_prompt(tool_supported, tool.clone())?;
@@ -168,7 +173,7 @@ mod tests {
             );
             let chat = Live::new(provider.clone());
 
-            let mut stream = chat.get_title(request).await.unwrap();
+            let mut stream = chat.get_title(request).await?;
 
             let mut responses = vec![];
             while let Some(response) = stream.next().await {
@@ -203,13 +208,11 @@ mod tests {
 
         let actual = Fixture(mock_llm_responses)
             .run(
-                ChatRequest::new(
-                    ModelId::new("gpt-3.5-turbo"),
-                    "write an rust program to generate an fibo seq.",
-                )
-                .conversation_id(
-                    ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
-                ),
+                ChatRequest::new(ModelId::new("gpt-3.5-turbo"))
+                    .content("write an rust program to generate an fibo seq.")
+                    .conversation_id(
+                        ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
+                    ),
             )
             .await
             .unwrap();
@@ -257,13 +260,11 @@ mod tests {
 
         let actual = Fixture(mock_llm_responses)
             .run(
-                ChatRequest::new(
-                    ModelId::new("gpt-3.5-turbo"),
-                    "write an rust program to generate an fibo seq.",
-                )
-                .conversation_id(
-                    ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
-                ),
+                ChatRequest::new(ModelId::new("gpt-3.5-turbo"))
+                    .content("write an rust program to generate an fibo seq.")
+                    .conversation_id(
+                        ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
+                    ),
             )
             .await
             .unwrap();
@@ -275,6 +276,19 @@ mod tests {
             vec![ChatResponse::CompleteTitle(
                 "Rust Fibonacci Implementation".to_string()
             )]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_raise_error_when_content_is_none() {
+        let request = ChatRequest::new(ModelId::new("gpt-3.5-turbo")).conversation_id(
+            ConversationId::parse("5af97419-0277-410a-8ca6-0e2a252152c5").unwrap(),
+        );
+        let actual = Fixture(vec![]).run(request).await;
+        assert!(actual.is_err());
+        assert_eq!(
+            actual.unwrap_err().to_string(),
+            "task not found for title generation!"
         );
     }
 }

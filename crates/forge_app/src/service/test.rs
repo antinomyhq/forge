@@ -50,12 +50,16 @@ impl TestPrompt {
 #[async_trait::async_trait]
 impl PromptService for TestPrompt {
     async fn get(&self, request: &ChatRequest) -> Result<String> {
-        let content = match self.system.clone() {
-            None => format!("<task>{}</task>", request.content),
-            Some(prompt) => prompt,
-        };
+        if let Some(ref content) = request.content {
+            let content = match self.system.clone() {
+                None => format!("<task>{}</task>", content),
+                Some(prompt) => prompt,
+            };
 
-        Ok(content)
+            Ok(content)
+        } else {
+            return Err(anyhow::anyhow!("no task found in request."));
+        }
     }
 }
 

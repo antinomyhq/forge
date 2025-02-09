@@ -28,7 +28,7 @@ impl Fixture {
 
     /// Get model response as text
     async fn get_model_response(&self, model: &str) -> String {
-        let request = ChatRequest::new(ModelId::new(model), self.task.clone());
+        let request = ChatRequest::new(ModelId::new(model)).content(self.task.clone());
         self.api()
             .chat(request)
             .await

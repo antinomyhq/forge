@@ -91,6 +91,21 @@ impl UI {
         loop {
             match input {
                 Command::End => break,
+                Command::Retry => {
+                    if let Some(conversation_id) = self.state.current_conversation_id {
+                        if let Err(e) = self.retry(conversation_id, model.clone()).await {
+                            CONSOLE.writeln(
+                                TitleFormat::failed(e.to_string())
+                                    .sub_title(self.state.usage.to_string())
+                                    .format(),
+                            )?;
+                        }
+                    } else {
+                        CONSOLE
+                            .writeln(TitleFormat::failed("No conversation to retry").format())?;
+                    }
+                    input = self.console.prompt(None).await?;
+                }
                 Command::New => {
                     CONSOLE.writeln(self.context_reset_message(&input))?;
                     self.state = Default::default();
@@ -193,9 +208,16 @@ impl UI {
         Ok(())
     }
 
+    async fn retry(&mut self, conversation_id: ConversationId, model: ModelId) -> Result<()> {
+        match self.api.retry(conversation_id, model).await {
+            Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
+            Err(err) => Err(err),
+        }
+    }
+
     async fn chat(&mut self, content: String, model: &ModelId) -> Result<()> {
         let chat = ChatRequest {
-            content,
+            content: Some(content),
             model: model.clone(),
             conversation_id: self.state.current_conversation_id,
             custom_instructions: self.cli.custom_instructions.clone(),

@@ -105,6 +105,8 @@ pub enum Command {
     /// Config command, can be used to get or set or display configuration
     /// values.
     Config(ConfigCommand),
+    /// Retries the last request irrespective of it's failed or not.
+    Retry,
 }
 
 /// Represents different configuration operations
@@ -185,6 +187,7 @@ impl Command {
             "/config".to_string(),
             "/config set".to_string(),
             "/config get".to_string(),
+            "/retry".to_string(),
         ]
     }
 
@@ -214,6 +217,7 @@ impl Command {
             "/info" => Ok(Command::Info),
             "/exit" => Ok(Command::Exit),
             "/models" => Ok(Command::Models),
+            "/retry" => Ok(Command::Retry),
             text => Ok(Command::Message(text.to_string())),
         }
     }
