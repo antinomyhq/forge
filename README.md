@@ -38,6 +38,13 @@ forge
 
 ## 💬 Example Conversations
 
+<!-- VIDEO_DEMO -->
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=PLACEHOLDER">
+    <img src="https://img.youtube.com/vi/PLACEHOLDER/maxresdefault.jpg" alt="Code-Forge Demo" style="max-width:600px;">
+  </a>
+</div>
+
 Here's how natural conversations with Code-Forge work:
 
 ```bash
