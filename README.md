@@ -31,11 +31,3 @@ curl -L https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bas
 # Or with wget
 wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bash
 ```
-
-The script will:
-
-1. Download the latest release for your architecture
-2. Install it to `/usr/local/bin`
-3. Set appropriate permissions
-
-You can also manually download the latest release from our [releases page](https://github.com/antinomyhq/forge/releases).
