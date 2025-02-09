@@ -1,8 +1,14 @@
 # Code-Forge ⚡
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge)](https://opensource.org/licenses/Apache-2.0)
+[![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange.svg?style=for-the-badge)](https://www.rust-lang.org)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](CONTRIBUTING.md)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
+[![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/commits)
+[![Open Issues](https://img.shields.io/github/issues/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/issues)
+[![Open PRs](https://img.shields.io/github/issues-pr/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/pulls)
+[![Repo Size](https://img.shields.io/github/repo-size/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge)
 
 Software engineers have been using shells (bash, zsh, fish) as their primary interface for decades because they're fast, powerful, and close to the system. The shell is our natural habitat - it's where we navigate code, run tests, manage processes, and orchestrate our development environment. That's why Code-Forge reimagines the shell as an AI-powered environment where you can interact with an intelligent agent using natural language.
 
@@ -179,8 +185,8 @@ For developers who want to contribute to Code-Forge:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/code-forge.git
-cd code-forge
+git clone https://github.com/antinomyhq/forge.git
+cd forge
 
 # Set up environment variables
 cp .env.example .env
