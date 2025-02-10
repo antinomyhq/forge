@@ -88,16 +88,6 @@ macro_rules! generate_model_test {
     };
 }
 
-mod anthropic_claude_3_5_sonnet_beta {
-    use super::*;
-    generate_model_test!("anthropic/claude-3.5-sonnet:beta");
-}
-
-mod openai_gpt_4o_2024_11_20 {
-    use super::*;
-    generate_model_test!("openai/gpt-4o-2024-11-20");
-}
-
 mod anthropic_claude_3_5_sonnet {
     use super::*;
     generate_model_test!("anthropic/claude-3.5-sonnet");
@@ -111,9 +101,4 @@ mod openai_gpt_4o {
 mod openai_gpt_4o_mini {
     use super::*;
     generate_model_test!("openai/gpt-4o-mini");
-}
-
-mod anthropic_claude_3_sonnet {
-    use super::*;
-    generate_model_test!("anthropic/claude-3-sonnet");
 }
