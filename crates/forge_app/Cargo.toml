@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 tokio-retry = "0.3"
 diesel = { version = "2.1.0", features = ["sqlite", "r2d2", "chrono", "uuid"] }
+# We need this, else it's a huge overhead to install sqlite.lib
+rusqlite = { version = "0.33.0", features = ["bundled"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 diesel_migrations = "2.1.0"
