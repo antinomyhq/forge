@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Setters, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[setters(strip_option)]
+#[setters(into, strip_option)]
 /// Represents the environment in which the application is running.
 pub struct Environment {
     /// The operating system of the environment.
@@ -18,7 +18,7 @@ pub struct Environment {
     /// The shell being used.
     pub shell: String,
     /// The Forge API key.
-    pub api_key: String,
+    pub api_key: Option<String>,
     /// The large model ID.
     pub large_model_id: String,
     /// The small model ID.
@@ -26,6 +26,16 @@ pub struct Environment {
 
     /// The base path relative to which everything else stored.
     pub base_path: PathBuf,
+    pub base_url: Option<String>,
+    pub provider_kind: ProviderKind,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, strum_macros::EnumString)]
+#[strum(ascii_case_insensitive)]
+pub enum ProviderKind {
+    #[default]
+    Ollama,
+    OpenRouter,
 }
 
 impl Environment {
@@ -41,6 +51,7 @@ impl Environment {
         self.base_path.join(".forge_history")
     }
 }
+
 /// Repository for accessing system environment information
 #[async_trait]
 pub trait EnvironmentRepository {

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use forge_domain::{
-    ChatCompletionMessage, Context as ChatContext, Model, ModelId, Parameters, ProviderService,
-    ResultStream,
+    ChatCompletionMessage, Context as ChatContext, Model, ModelId, Parameters, ProviderKind,
+    ProviderService, ResultStream,
 };
 use forge_open_router::OpenRouter;
 use moka2::future::Cache;
@@ -9,8 +9,12 @@ use moka2::future::Cache;
 use super::Service;
 
 impl Service {
-    pub fn provider_service(api_key: impl ToString) -> impl ProviderService {
-        Live::new(api_key)
+    pub fn provider_service(
+        api_key: Option<impl ToString>,
+        base_url: Option<impl ToString>,
+        provider: ProviderKind,
+    ) -> impl ProviderService {
+        Live::new(api_key, base_url, provider)
     }
 }
 
@@ -20,9 +24,15 @@ struct Live {
 }
 
 impl Live {
-    fn new(api_key: impl ToString) -> Self {
+    fn new(
+        api_key: Option<impl ToString>,
+        base_url: Option<impl ToString>,
+        provider: ProviderKind,
+    ) -> Self {
         let provider = OpenRouter::builder()
-            .api_key(api_key.to_string())
+            .api_key(api_key.map(|k| k.to_string()))
+            .base_url(base_url.map(|k| k.to_string()))
+            .provider(provider)
             .build()
             .unwrap();
 

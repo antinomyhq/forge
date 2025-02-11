@@ -130,6 +130,7 @@ impl ExecutableTool for Shell {
 mod tests {
     use std::{env, fs};
 
+    use forge_domain::ProviderKind;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -145,10 +146,12 @@ mod tests {
             } else {
                 "/bin/sh".to_string()
             },
-            api_key: String::new(),
+            api_key: None,
             large_model_id: String::new(),
             small_model_id: String::new(),
             base_path: PathBuf::new(),
+            base_url: None,
+            provider_kind: ProviderKind::OpenRouter,
         }
     }
 

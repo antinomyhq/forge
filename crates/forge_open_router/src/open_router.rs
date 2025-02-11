@@ -1,7 +1,7 @@
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_domain::{
-    self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Parameters,
+    self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Parameters, ProviderKind,
     ProviderService, ResultStream,
 };
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
@@ -16,10 +16,11 @@ use super::response::OpenRouterResponse;
 use super::transformers::{pipeline, Transformer};
 
 #[derive(Debug, Default, Clone, Setters)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct OpenRouterBuilder {
     api_key: Option<String>,
     base_url: Option<String>,
+    provider: ProviderKind,
 }
 
 impl OpenRouterBuilder {
@@ -33,7 +34,12 @@ impl OpenRouterBuilder {
         let base_url = Url::parse(base_url)
             .with_context(|| format!("Failed to parse base URL: {}", base_url))?;
 
-        Ok(OpenRouter { client, base_url, api_key: self.api_key })
+        Ok(OpenRouter {
+            client,
+            base_url,
+            api_key: self.api_key,
+            provider: self.provider,
+        })
     }
 }
 
@@ -42,6 +48,7 @@ pub struct OpenRouter {
     client: Client,
     api_key: Option<String>,
     base_url: Url,
+    provider: ProviderKind,
 }
 
 impl OpenRouter {
@@ -167,32 +174,37 @@ impl ProviderService for OpenRouter {
     }
 
     async fn parameters(&self, model: &ModelId) -> Result<Parameters> {
-        // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
-        let path = format!("parameters/{}", model.as_str());
+        match self.provider {
+            ProviderKind::Ollama => Ok(Parameters::new(false)),
+            ProviderKind::OpenRouter => {
+                // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
+                let path = format!("parameters/{}", model.as_str());
 
-        let url = self.url(&path)?;
+                let url = self.url(&path)?;
 
-        let text = self
-            .client
-            .get(url)
-            .headers(self.headers())
-            .send()
-            .await?
-            .error_for_status()?
-            .text()
-            .await?;
+                let text = self
+                    .client
+                    .get(url)
+                    .headers(self.headers())
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .text()
+                    .await?;
 
-        let response: ParameterResponse = serde_json::from_str(&text)
-            .with_context(|| "Failed to parse parameter response".to_string())?;
+                let response: ParameterResponse = serde_json::from_str(&text)
+                    .with_context(|| "Failed to parse parameter response".to_string())?;
 
-        Ok(Parameters {
-            tool_supported: response
-                .data
-                .supported_parameters
-                .iter()
-                .flat_map(|parameter| parameter.iter())
-                .any(|parameter| parameter == "tools"),
-        })
+                Ok(Parameters {
+                    tool_supported: response
+                        .data
+                        .supported_parameters
+                        .iter()
+                        .flat_map(|parameter| parameter.iter())
+                        .any(|parameter| parameter == "tools"),
+                })
+            }
+        }
     }
 }
 
@@ -219,6 +231,7 @@ mod tests {
             client: Client::new(),
             api_key: None,
             base_url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
+            provider: ProviderKind::OpenRouter,
         }
     }
 

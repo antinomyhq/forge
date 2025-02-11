@@ -15,12 +15,12 @@ use crate::error::Error;
 #[serde(untagged)]
 pub enum OpenRouterResponse {
     Success {
-        id: String,
-        provider: String,
-        model: String,
+        id: Option<String>,
+        provider: Option<String>,
+        model: Option<String>,
         choices: Vec<Choice>,
-        created: u64,
-        object: String,
+        created: Option<u64>,
+        object: Option<String>,
         system_fingerprint: Option<String>,
         usage: Option<ResponseUsage>,
     },
@@ -46,7 +46,7 @@ pub enum Choice {
     },
     NonStreaming {
         logprobs: Option<serde_json::Value>,
-        index: u32,
+        index: Option<u32>,
         finish_reason: Option<String>,
         message: ResponseMessage,
         error: Option<ErrorResponse>,
