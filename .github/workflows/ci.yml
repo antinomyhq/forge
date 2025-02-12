@@ -94,7 +94,6 @@ jobs:
   build-release:
     needs:
     - build
-    - draft_release
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     name: build-release
     runs-on: ${{ matrix.os }}
