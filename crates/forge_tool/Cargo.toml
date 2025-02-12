@@ -10,8 +10,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0"
 async-trait = "0.1"
-tracing = "0.1"
-Inflector = "0.11.4"
 forge_tool_macros = { path = "../forge_tool_macros" }
 schemars = "0.8.21"
 regex = "1.10.2"
@@ -26,20 +24,15 @@ tree-sitter-typescript = { version = "0.23" }
 tree-sitter-css = "0.23"
 tree-sitter-java = "0.23"
 tree-sitter-scala = "0.23"
-tree-sitter-go = "0.23"
-tree-sitter-cpp = "0.23"
-tree-sitter-ruby = "0.23"
 forge_walker = { path = "../forge_walker" }
 forge_domain = { path = "../forge_domain" }
 forge_display = { path = "../forge_display" }
 tempfile = "3.8.1"
 streaming-iterator = "0.1.9"
-inquire = "0.7.0"
+#inquire = "0.7.5"
 html2md = "0.2"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 nom = "8.0.0"
-console = "0.15"
-strip-ansi-escapes = "0.2.1"
 
 [dev-dependencies]
 insta = { version = "1.42.0" }
