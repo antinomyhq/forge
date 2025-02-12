@@ -94,7 +94,7 @@ jobs:
   build-release:
     needs:
     - build
-    if: github.event_name == 'push'
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     name: build-release
     runs-on: ${{ matrix.os }}
     permissions:
