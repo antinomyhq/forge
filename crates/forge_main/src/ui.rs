@@ -165,7 +165,7 @@ impl<F: API> UI<F> {
             Ok(mut stream) => {
                 println!("Handling chat stream");
                 self.handle_chat_stream(&mut stream).await
-            },
+            }
             Err(err) => Err(err),
         }
     }
