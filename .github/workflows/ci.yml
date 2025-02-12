@@ -71,26 +71,6 @@ jobs:
       run: cargo +nightly fmt --all --check
     - name: Cargo Clippy
       run: cargo +nightly clippy --all-features --workspace -- -D warnings
-  draft_release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    name: draft_release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-    - uses: actions/checkout@v4
-    - id: create_release
-      uses: release-drafter/release-drafter@v6
-      with:
-        config-name: release-drafter.yml
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - id: set_output
-      run: echo "create_release_id=${{ steps.create_release.outputs.id }}" >> $GITHUB_OUTPUT && echo "create_release_name=${{ steps.create_release.outputs.tag_name }}" >> $GITHUB_OUTPUT
-    outputs:
-      create_release_name: ${{ steps.set_output.outputs.create_release_name }}
-      create_release_id: ${{ steps.set_output.outputs.create_release_id }}
   build-release:
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     name: build-release
@@ -126,42 +106,5 @@ jobs:
       with:
         name: ${{ matrix.binary_name }}
         path: ${{ matrix.binary_name }}
-  semantic_release:
-    needs:
-    - draft_release
-    - build-release
-    if: (startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    name: semantic_release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    env:
-      APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
-    steps:
-    - uses: test-room-7/action-publish-release-drafts@v0
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        tag-name: ${{ needs.draft_release.outputs.create_release_name }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  homebrew_release:
-    needs:
-    - draft_release
-    - build-release
-    - semantic_release
-    if: (startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    name: homebrew_release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        repository: antinomyhq/homebrew-code-forge
-        ref: main
-        token: ${{ secrets.HOMEBREW_ACCESS }}
-    - run: GITHUB_TOKEN="${{ secrets.HOMEBREW_ACCESS }}" ./update-formula.sh ${{needs.draft_release.outputs.create_release_name }}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

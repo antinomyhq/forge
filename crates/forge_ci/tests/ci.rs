@@ -69,30 +69,30 @@ fn generate() {
         Expression::new("github.event_name == 'push' && github.ref == 'refs/heads/main'");
 
     // Add draft release job
-    let draft_release_job = Job::new("draft_release")
-            .runs_on("ubuntu-latest")
-            .cond(main_cond.clone())
-            .permissions(
-                Permissions::default()
-                    .contents(Level::Write)
-                    .pull_requests(Level::Write),
-            )
-            .add_step(Step::uses("actions", "checkout", "v4"))
-            .add_step(
-                Step::uses("release-drafter", "release-drafter", "v6")
-                    .id("create_release")
-                    .env(("GITHUB_TOKEN", "${{ secrets.GITHUB_TOKEN }}"))
-                    .with(("config-name", "release-drafter.yml")),
-            )
-            .add_step(
-                Step::run("echo \"create_release_id=${{ steps.create_release.outputs.id }}\" >> $GITHUB_OUTPUT && echo \"create_release_name=${{ steps.create_release.outputs.tag_name }}\" >> $GITHUB_OUTPUT")
-                    .id("set_output"),
-            )
-            .outputs(indexmap! {
-                "create_release_name".to_string() => "${{ steps.set_output.outputs.create_release_name }}".to_string(),
-                "create_release_id".to_string() => "${{ steps.set_output.outputs.create_release_id }}".to_string()
-            });
-    workflow = workflow.add_job("draft_release", draft_release_job.clone());
+    // let draft_release_job = Job::new("draft_release")
+    //         .runs_on("ubuntu-latest")
+    //         .cond(main_cond.clone())
+    //         .permissions(
+    //             Permissions::default()
+    //                 .contents(Level::Write)
+    //                 .pull_requests(Level::Write),
+    //         )
+    //         .add_step(Step::uses("actions", "checkout", "v4"))
+    //         .add_step(
+    //             Step::uses("release-drafter", "release-drafter", "v6")
+    //                 .id("create_release")
+    //                 .env(("GITHUB_TOKEN", "${{ secrets.GITHUB_TOKEN }}"))
+    //                 .with(("config-name", "release-drafter.yml")),
+    //         )
+    //         .add_step(
+    //             Step::run("echo \"create_release_id=${{ steps.create_release.outputs.id }}\" >> $GITHUB_OUTPUT && echo \"create_release_name=${{ steps.create_release.outputs.tag_name }}\" >> $GITHUB_OUTPUT")
+    //                 .id("set_output"),
+    //         )
+    //         .outputs(indexmap! {
+    //             "create_release_name".to_string() => "${{ steps.set_output.outputs.create_release_name }}".to_string(),
+    //             "create_release_id".to_string() => "${{ steps.set_output.outputs.create_release_id }}".to_string()
+    //         });
+    // workflow = workflow.add_job("draft_release", draft_release_job.clone());
 
     // Build and upload release job
     workflow = workflow.add_job(
@@ -159,51 +159,51 @@ fn generate() {
         .clone();
 
     // Add semantic release job to publish the release
-    let semantic_release_job = Job::new("semantic_release")
-            .add_needs(draft_release_job.clone())
-            .add_needs(build_release_job.clone())
-            .cond(Expression::new("(startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')"))
-            .permissions(
-                Permissions::default()
-                    .contents(Level::Write)
-                    .pull_requests(Level::Write),
-            )
-            .runs_on("ubuntu-latest")
-            .env(("GITHUB_TOKEN", "${{ secrets.GITHUB_TOKEN }}"))
-            .env(("APP_VERSION", "${{ needs.draft_release.outputs.create_release_name }}"))
-            .add_step(
-                Step::uses("test-room-7", "action-publish-release-drafts", "v0")
-                    .env(("GITHUB_TOKEN", "${{ secrets.GITHUB_TOKEN }}"))
-                    .add_with(("github-token", "${{ secrets.GITHUB_TOKEN }}"))
-                    .add_with(("tag-name", "${{ needs.draft_release.outputs.create_release_name }}")),
-            );
-    workflow = workflow.add_job("semantic_release", semantic_release_job.clone());
+    // let semantic_release_job = Job::new("semantic_release")
+    //         .add_needs(draft_release_job.clone())
+    //         .add_needs(build_release_job.clone())
+    //         .cond(Expression::new("(startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')"))
+    //         .permissions(
+    //             Permissions::default()
+    //                 .contents(Level::Write)
+    //                 .pull_requests(Level::Write),
+    //         )
+    //         .runs_on("ubuntu-latest")
+    //         .env(("GITHUB_TOKEN", "${{ secrets.GITHUB_TOKEN }}"))
+    //         .env(("APP_VERSION", "${{ needs.draft_release.outputs.create_release_name }}"))
+    //         .add_step(
+    //             Step::uses("test-room-7", "action-publish-release-drafts", "v0")
+    //                 .env(("GITHUB_TOKEN", "${{ secrets.GITHUB_TOKEN }}"))
+    //                 .add_with(("github-token", "${{ secrets.GITHUB_TOKEN }}"))
+    //                 .add_with(("tag-name", "${{ needs.draft_release.outputs.create_release_name }}")),
+    //         );
+    // workflow = workflow.add_job("semantic_release", semantic_release_job.clone());
 
     // Homebrew release job
-    workflow = workflow.add_job(
-        "homebrew_release",
-        Job::new("homebrew_release")
-            .add_needs(draft_release_job.clone())
-            .add_needs(build_release_job.clone())
-            .add_needs(semantic_release_job.clone())
-            .cond(Expression::new("(startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')"))
-            .permissions(
-                Permissions::default()
-                    .contents(Level::Write)
-                    .pull_requests(Level::Write),
-            )
-            .runs_on("ubuntu-latest")
-            .add_step(
-                Step::uses("actions", "checkout", "v4")
-                    .add_with(("repository", "antinomyhq/homebrew-code-forge"))
-                    .add_with(("ref", "main"))
-                    .add_with(("token", "${{ secrets.HOMEBREW_ACCESS }}")),
-            )
-            // Make script executable and run it with token
-            .add_step(
-                Step::run("GITHUB_TOKEN=\"${{ secrets.HOMEBREW_ACCESS }}\" ./update-formula.sh ${{needs.draft_release.outputs.create_release_name }}"),
-            ),
-    );
+    // workflow = workflow.add_job(
+    //     "homebrew_release",
+    //     Job::new("homebrew_release")
+    //         // .add_needs(draft_release_job.clone())
+    //         .add_needs(build_release_job.clone())
+    //         // .add_needs(semantic_release_job.clone())
+    //         .cond(Expression::new("(startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')"))
+    //         .permissions(
+    //             Permissions::default()
+    //                 .contents(Level::Write)
+    //                 .pull_requests(Level::Write),
+    //         )
+    //         .runs_on("ubuntu-latest")
+    //         .add_step(
+    //             Step::uses("actions", "checkout", "v4")
+    //                 .add_with(("repository", "antinomyhq/homebrew-code-forge"))
+    //                 .add_with(("ref", "main"))
+    //                 .add_with(("token", "${{ secrets.HOMEBREW_ACCESS }}")),
+    //         )
+    //         // Make script executable and run it with token
+    //         .add_step(
+    //             Step::run("GITHUB_TOKEN=\"${{ secrets.HOMEBREW_ACCESS }}\" ./update-formula.sh ${{needs.draft_release.outputs.create_release_name }}"),
+    //         ),
+    // );
 
     workflow.generate().unwrap();
 }
