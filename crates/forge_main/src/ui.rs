@@ -71,7 +71,9 @@ impl<F: API> UI<F> {
 
     pub async fn run(&mut self) -> Result<()> {
         // Handle direct prompt if provided
+        println!("Running UI");
         let prompt = self.cli.prompt.clone();
+        println!("Got prompt: {:?}", prompt);
         if let Some(prompt) = prompt {
             self.chat(prompt).await?;
             return Ok(());

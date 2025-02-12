@@ -12,11 +12,11 @@ async fn main() -> Result<()> {
 
     // Initialize and run the UI
     let cli = Cli::parse();
-    tracing::debug!("CLI arguments: {:?}", cli);
     println!("CLI arguments: {:?}", cli);
     let api = Arc::new(forge_api::ForgeAPI::init(cli.restricted));
-    tracing::debug!("API initialized");
+    println!("API initialized");
     let mut ui = UI::init(cli, api).await?;
+    println!("UI initialized");
     ui.run().await?;
 
     Ok(())
