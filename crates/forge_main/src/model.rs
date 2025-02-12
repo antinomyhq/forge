@@ -108,6 +108,7 @@ impl Command {
     /// - `Err` - Input was an invalid command
     pub fn parse(input: &str) -> Self {
         let trimmed = input.trim();
+        println!("Trimmed input: {}", trimmed);
 
         match trimmed {
             "/new" => Command::New,

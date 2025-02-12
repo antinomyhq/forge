@@ -15,6 +15,7 @@ pub struct ForgeEditor {
     editor: Reedline,
 }
 
+#[derive(Debug)]
 pub enum ReadResult {
     Success(String),
     Empty,

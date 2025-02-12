@@ -43,6 +43,7 @@ impl UserInput for Console {
 
         loop {
             let result = engine.prompt(&prompt);
+            println!("Got result: {:?}", result);
             match result {
                 Ok(ReadResult::Continue) => continue,
                 Ok(ReadResult::Exit) => return Ok(Command::Exit),
