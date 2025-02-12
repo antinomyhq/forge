@@ -64,13 +64,13 @@ fn generate() {
     });
 
     let _build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();
-    let main_cond =
+    let _main_cond =
         Expression::new("github.event_name == 'push' && github.ref == 'refs/heads/main'");
 
     // Add draft release job
     // let draft_release_job = Job::new("draft_release")
     //         .runs_on("ubuntu-latest")
-    //         .cond(main_cond.clone())
+    //         .cond(_main_cond.clone())
     //         .permissions(
     //             Permissions::default()
     //                 .contents(Level::Write)
@@ -152,7 +152,7 @@ fn generate() {
                 * ), */
     );
     // Store reference to build-release job
-    let build_release_job = workflow
+    let _build_release_job = workflow
         .jobs
         .clone()
         .unwrap()
