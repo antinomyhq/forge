@@ -101,7 +101,7 @@ fn generate() {
             .add_needs(build_job.clone())
             // .add_needs(draft_release_job.clone())
             .cond(Expression::new(
-                "github.event_name == 'pull_request' && github.base_ref == 'main'",
+                "github.event_name == 'push'",
             ))
             .strategy(Strategy { fail_fast: None, max_parallel: None, matrix: Some(matrix) })
             .runs_on("${{ matrix.os }}")
@@ -134,16 +134,20 @@ fn generate() {
             .add_step(Step::run(
                 "cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}",
             ))
+            .add_step(Step::uses("actions", "upload-artifact", "v4")
+                .add_with(("name", "${{ matrix.binary_name }}"))
+                .add_with(("path", "${{ matrix.binary_name }}"))
+            )
             // Upload directly to release
-            .add_step(
-                Step::uses("xresloader", "upload-to-github-release", "v1")
-                    .add_with((
-                        "release_id",
-                        "${{ needs.draft_release.outputs.create_release_id }}",
-                    ))
-                    .add_with(("file", "${{ matrix.binary_name }}"))
-                    .add_with(("overwrite", "true")),
-            ),
+            // .add_step(
+            //     Step::uses("xresloader", "upload-to-github-release", "v1")
+            //         .add_with((
+            //             "release_id",
+            //             "${{ needs.draft_release.outputs.create_release_id }}",
+            //         ))
+            //         .add_with(("file", "${{ matrix.binary_name }}"))
+            //         .add_with(("overwrite", "true")),
+            // ),
     );
     // Store reference to build-release job
     let build_release_job = workflow

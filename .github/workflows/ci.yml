@@ -94,7 +94,7 @@ jobs:
   build-release:
     needs:
     - build
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    if: github.event_name == 'push'
     name: build-release
     runs-on: ${{ matrix.os }}
     permissions:
@@ -149,11 +149,10 @@ jobs:
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
-    - uses: xresloader/upload-to-github-release@v1
+    - uses: actions/upload-artifact@v4
       with:
-        release_id: ${{ needs.draft_release.outputs.create_release_id }}
-        file: ${{ matrix.binary_name }}
-        overwrite: 'true'
+        name: ${{ matrix.binary_name }}
+        path: ${{ matrix.binary_name }}
   semantic_release:
     needs:
     - draft_release
