@@ -177,14 +177,14 @@ impl<F: API> UI<F> {
         println!("Handling chat stream");
         
         // Set up the ctrl-c handler once, outside the loop
-        let ctrl_c = tokio::signal::ctrl_c();
-        tokio::pin!(ctrl_c);
+        // let ctrl_c = tokio::signal::ctrl_c();
+        // tokio::pin!(ctrl_c);
         
         while let Some(maybe_message) = stream.next().await {
-            if ctrl_c.is_terminated() {
+            /*if ctrl_c.is_terminated() {
                 println!("Ctrl-C received, exiting...");
                 return Ok(());
-            }
+            }*/
             
             println!("Got stream message: {:?}", maybe_message);
             match maybe_message {
