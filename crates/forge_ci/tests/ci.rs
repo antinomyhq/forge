@@ -91,7 +91,7 @@ fn generate() {
     //         )
     //         .outputs(indexmap! {
     //             "create_release_name".to_string() => "${{
-    // steps.set_output.outputs.create_release_name }}".to_string(),            
+    // steps.set_output.outputs.create_release_name }}".to_string(),
     // "create_release_id".to_string() => "${{
     // steps.set_output.outputs.create_release_id }}".to_string()         });
     // workflow = workflow.add_job("draft_release", draft_release_job.clone());
