@@ -4,17 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1", features = ["full", "test-util"] }
+tokio = { version = "1", features = ["full"] }
 tracing = "0.1.41"
 async-trait = "0.1.83"
-forge_tool = { path = "../forge_tool" }
-forge_open_router = { path = "../forge_open_router" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.133"
-forge_domain = { path = "../forge_domain" }
 moka2 = "0.13"
 schemars = "0.8.21"
 anyhow = "1.0.75"
+
+forge_domain = { path = "../forge_domain" }
+forge_tool = { path = "../forge_tool" }
+forge_open_router = { path = "../forge_open_router" }
 
 [dev-dependencies]
 insta = "1.41.1"
