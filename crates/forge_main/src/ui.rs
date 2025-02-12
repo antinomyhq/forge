@@ -113,6 +113,7 @@ impl<F: API> UI<F> {
                     println!("Got message: {}", content);
                     self.state.current_content = Some(content.clone());
                     if let Err(err) = self.chat(content.clone()).await {
+                        println!("Message Err: {:?}", err);
                         CONSOLE.writeln(
                             TitleFormat::failed(format!("{:?}", err))
                                 .sub_title(self.state.usage.to_string())
