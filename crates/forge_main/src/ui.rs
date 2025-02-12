@@ -89,6 +89,7 @@ impl<F: API> UI<F> {
         };
 
         loop {
+            println!("Handling input: {:?}", input);
             match input {
                 Command::New => {
                     self.api.reset().await?;
