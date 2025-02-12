@@ -24,7 +24,7 @@ fn generate() {
                 "target": "x86_64-unknown-linux-gnu",
                 "binary_name": "forge-x86_64-unknown-linux-gnu",
                 "binary_path": "target/x86_64-unknown-linux-gnu/debug/forge",
-                "cross": "false"
+                "cross": "true"
             },
             // {
             //     "os": "ubuntu-latest",
