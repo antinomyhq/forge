@@ -162,9 +162,9 @@ impl<F: API> UI<F> {
             }
         });
         match self.api.chat(chat).await {
-            Ok(mut stream) => {
+            Ok(stream) => {
                 println!("Handling chat stream");
-                self.handle_chat_stream(&mut stream).await
+                self.handle_chat_stream(stream).await
             }
             Err(err) => Err(err),
         }
@@ -172,10 +172,9 @@ impl<F: API> UI<F> {
 
     async fn handle_chat_stream(
         &mut self,
-        stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
+        mut stream: impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin,
     ) -> Result<()> {
         println!("Handling chat stream");
-        println!("Stream: {:?}", stream);
 
         // Set up the ctrl-c handler once, outside the loop
         // let ctrl_c = tokio::signal::ctrl_c();
