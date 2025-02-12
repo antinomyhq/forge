@@ -59,6 +59,7 @@ impl UserInput for Console {
     }
 }
 
+#[derive(Debug)]
 pub enum PromptInput {
     Update {
         title: Option<String>,

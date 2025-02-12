@@ -112,6 +112,7 @@ impl<F: API> UI<F> {
                 Command::Message(ref content) => {
                     println!("Got message: {}", content);
                     self.state.current_content = Some(content.clone());
+                    println!("Cur state: {:?}", self.state.current_content);
                     if let Err(err) = self.chat(content.clone()).await {
                         println!("Message Err: {:?}", err);
                         CONSOLE.writeln(
@@ -120,8 +121,9 @@ impl<F: API> UI<F> {
                                 .format(),
                         )?;
                     }
-                    let prompt_input = Some((&self.state).into());
                     println!("Prompting input");
+                    let prompt_input = Some((&self.state).into());
+                    println!("Prompting input: {:?}", prompt_input);
                     input = self.console.prompt(prompt_input).await?;
                 }
                 Command::Exit => {
@@ -153,12 +155,17 @@ impl<F: API> UI<F> {
         };
         tokio::spawn({
             let content = content.clone();
+            println!("Dispatching event");
             async move {
                 let _ = TRACKER.dispatch(EventKind::Prompt(content)).await;
+                println!("Event dispatched");
             }
         });
         match self.api.chat(chat).await {
-            Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
+            Ok(mut stream) => {
+                println!("Handling chat stream");
+                self.handle_chat_stream(&mut stream).await
+            },
             Err(err) => Err(err),
         }
     }
