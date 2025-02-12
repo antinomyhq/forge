@@ -4,38 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio-retry = "0.3"
-#diesel = { version = "2.1.0", features = ["sqlite", "r2d2", "chrono", "uuid"] }
-# We need this, else it's a huge overhead to install sqlite.lib
-#rusqlite = { version = "0.33.0", features = ["bundled"] }
-uuid = { version = "1.0", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-diesel_migrations = "2.1.0"
 tokio = { version = "1", features = ["full", "test-util"] }
-derive_more = { version = "1.0.0", features = ["full"] }
-clap = { version = "4.5.23", features = ["derive"] }
 tracing = "0.1.41"
 async-trait = "0.1.83"
 forge_tool = { path = "../forge_tool" }
 forge_open_router = { path = "../forge_open_router" }
-forge_walker = { path = "../forge_walker" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.133"
-derive_setters = "0.1.6"
-dotenv = "0.15.0"
-tokio-stream = "0.1.17"
-pulldown-cmark = { version = "0.12.0" }
-handlebars = "6.2.0"
-r2d2 = "0.8.10"
 forge_domain = { path = "../forge_domain" }
-forge_stream = { path = "../forge_stream" }
 moka2 = "0.13"
-dirs = "6.0.0"
 schemars = "0.8.21"
 anyhow = "1.0.75"
-futures = "0.3.31"
 
 [dev-dependencies]
 insta = "1.41.1"
-pretty_assertions = "1.4.1"
-tempfile = "3.10.1"
