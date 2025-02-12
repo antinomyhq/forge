@@ -27,14 +27,15 @@ tree-sitter-scala = "0.23"
 forge_walker = { path = "../forge_walker" }
 forge_domain = { path = "../forge_domain" }
 forge_display = { path = "../forge_display" }
-tempfile = "3.8.1"
 streaming-iterator = "0.1.9"
 #inquire = "0.7.5"
 html2md = "0.2"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 nom = "8.0.0"
+tracing = "0.1.41"
 
 [dev-dependencies]
 insta = { version = "1.42.0" }
 pretty_assertions = "1.4.1"
 mockito = "1.6.0"
+tempfile = "3.8.1"

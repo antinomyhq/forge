@@ -45,6 +45,7 @@ impl ExecutableTool for SelectTool {
     type Input = SelectInput;
 
     async fn call(&self, _input: SelectInput) -> Result<String, String> {
+        tracing::info!("Selecting from options: {:?}", _input.options);
         // let ans = InquireSelect::new(&input.message, input.options)
         //     .prompt()
         //     .map_err(|e| e.to_string())?;

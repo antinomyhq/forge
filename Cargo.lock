@@ -1003,6 +1003,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.11",
  "tokio",
+ "tracing",
  "tree-sitter",
  "tree-sitter-css",
  "tree-sitter-java",

@@ -41,6 +41,8 @@ impl ExecutableTool for Approve {
     type Input = ApproveInput;
 
     async fn call(&self, _input: ApproveInput) -> Result<String, String> {
+        tracing::info!("hx");
+
         /*let ans = Confirm::new(&input.message)
         .with_default(true)
         .prompt()

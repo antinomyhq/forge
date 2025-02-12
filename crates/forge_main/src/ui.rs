@@ -48,6 +48,7 @@ pub struct UI<F> {
 impl<F: API> UI<F> {
     pub async fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
         // Parse CLI arguments first to get flags
+        tracing::debug!("Initializing UI with CLI: {:?}", cli);
 
         let env = api.environment();
         let guard = log::init_tracing(env.clone())?;

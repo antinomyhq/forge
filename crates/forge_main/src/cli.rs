@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
     /// Path to a file containing initial commands to execute.
