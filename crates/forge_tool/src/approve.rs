@@ -42,9 +42,9 @@ impl ExecutableTool for Approve {
 
     async fn call(&self, _input: ApproveInput) -> Result<String, String> {
         /*let ans = Confirm::new(&input.message)
-            .with_default(true)
-            .prompt()
-            .map_err(|e| e.to_string())?;*/
+        .with_default(true)
+        .prompt()
+        .map_err(|e| e.to_string())?;*/
         Ok("ans".to_string())
     }
 }
