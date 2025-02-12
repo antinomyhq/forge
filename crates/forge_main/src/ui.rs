@@ -174,12 +174,15 @@ impl<F: API> UI<F> {
         &mut self,
         stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
+        println!("Handling chat stream");
         loop {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
+                    println!("Ctrl-C received, exiting...");
                     return Ok(());
                 }
                 maybe_message = stream.next() => {
+                    println!("Got stream message: {:?}", maybe_message);
                     match maybe_message {
                         Some(Ok(message)) => self.handle_chat_response(message)?,
                         Some(Err(err)) => {

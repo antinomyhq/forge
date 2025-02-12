@@ -62,6 +62,7 @@ impl DispatchEvent {
     pub const USER_TASK: &'static str = "user_task";
 }
 
+#[derive(Debug)]
 pub struct AgentMessage<T> {
     pub agent: AgentId,
     pub message: T,
