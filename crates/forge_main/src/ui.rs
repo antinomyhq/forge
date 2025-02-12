@@ -175,6 +175,7 @@ impl<F: API> UI<F> {
         stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
         println!("Handling chat stream");
+        println!("Stream: {:?}", stream);
 
         // Set up the ctrl-c handler once, outside the loop
         // let ctrl_c = tokio::signal::ctrl_c();
