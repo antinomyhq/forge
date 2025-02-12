@@ -98,7 +98,7 @@ fn generate() {
     workflow = workflow.add_job(
         "build-release",
         Job::new("build-release")
-            .add_needs(build_job.clone())
+            // .add_needs(build_job.clone())
             // .add_needs(draft_release_job.clone())
             .cond(Expression::new(
                 "github.event_name == 'pull_request' && github.base_ref == 'main'",
