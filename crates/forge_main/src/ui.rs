@@ -175,24 +175,27 @@ impl<F: API> UI<F> {
         stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
         println!("Handling chat stream");
-        loop {
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => {
-                    println!("Ctrl-C received, exiting...");
-                    return Ok(());
-                }
-                maybe_message = stream.next() => {
-                    println!("Got stream message: {:?}", maybe_message);
-                    match maybe_message {
-                        Some(Ok(message)) => self.handle_chat_response(message)?,
-                        Some(Err(err)) => {
-                            return Err(err);
-                        }
-                        None => return Ok(()),
-                    }
+        
+        // Set up the ctrl-c handler once, outside the loop
+        let ctrl_c = tokio::signal::ctrl_c();
+        tokio::pin!(ctrl_c);
+        
+        while let Some(maybe_message) = stream.next().await {
+            if ctrl_c.is_terminated() {
+                println!("Ctrl-C received, exiting...");
+                return Ok(());
+            }
+            
+            println!("Got stream message: {:?}", maybe_message);
+            match maybe_message {
+                Ok(message) => self.handle_chat_response(message)?,
+                Err(err) => {
+                    return Err(err);
                 }
             }
         }
+        
+        Ok(())
     }
 
     fn handle_chat_response(&mut self, message: AgentMessage<ChatResponse>) -> Result<()> {
