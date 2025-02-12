@@ -92,8 +92,6 @@ jobs:
       create_release_name: ${{ steps.set_output.outputs.create_release_name }}
       create_release_id: ${{ steps.set_output.outputs.create_release_id }}
   build-release:
-    needs:
-    - build
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     name: build-release
     runs-on: ${{ matrix.os }}

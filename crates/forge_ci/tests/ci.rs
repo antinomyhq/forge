@@ -64,7 +64,7 @@ fn generate() {
         ]
     });
 
-    let build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();
+    let _build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();
     let main_cond =
         Expression::new("github.event_name == 'push' && github.ref == 'refs/heads/main'");
 
