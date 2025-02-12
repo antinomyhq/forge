@@ -109,6 +109,7 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::Message(ref content) => {
+                    println!("Got message: {}", content);
                     self.state.current_content = Some(content.clone());
                     if let Err(err) = self.chat(content.clone()).await {
                         CONSOLE.writeln(
@@ -118,6 +119,7 @@ impl<F: API> UI<F> {
                         )?;
                     }
                     let prompt_input = Some((&self.state).into());
+                    println!("Prompting input");
                     input = self.console.prompt(prompt_input).await?;
                 }
                 Command::Exit => {

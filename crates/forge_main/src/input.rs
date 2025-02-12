@@ -37,7 +37,9 @@ impl UserInput for Console {
     async fn prompt(&self, input: Option<Self::PromptInput>) -> anyhow::Result<Command> {
         CONSOLE.writeln("")?;
         let mut engine = ForgeEditor::start(self.env.clone());
+        println!("Prompting user for input...");
         let prompt: ForgePrompt = input.map(Into::into).unwrap_or_default();
+        println!("Prompt: {:?}", prompt);
 
         loop {
             let result = engine.prompt(&prompt);

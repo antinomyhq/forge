@@ -13,7 +13,7 @@ const RIGHT_CHEVRON: &str = "❯";
 const TRUNCATION_INDICATOR: &str = "…";
 
 /// Very Specialized Prompt for the Agent Chat
-#[derive(Clone, Default, Setters)]
+#[derive(Clone, Default, Setters, Debug)]
 #[setters(strip_option, borrow_self)]
 pub struct ForgePrompt {
     title: Option<String>,
