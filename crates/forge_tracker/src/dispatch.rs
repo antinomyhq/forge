@@ -3,7 +3,6 @@ use std::process::Output;
 
 use chrono::{DateTime, Utc};
 use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
-use sysinfo::System;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
@@ -160,8 +159,9 @@ fn client_id() -> String {
 
 // Get the number of CPU cores
 fn cores() -> usize {
-    let sys = System::new_all();
-    sys.physical_core_count().unwrap_or(0)
+    1
+    /*  let sys = System::new_all();
+    sys.physical_core_count().unwrap_or(0)*/
 }
 
 // Get the uptime in minutes
@@ -195,7 +195,8 @@ fn args() -> Vec<String> {
 }
 
 fn os_name() -> String {
-    System::long_os_version().unwrap_or("Unknown".to_string())
+    "Unknown".to_string()
+    // System::long_os_version().unwrap_or()
 }
 
 // Should take arbitrary text and be able to extract email addresses

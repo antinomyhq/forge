@@ -18,12 +18,11 @@ serde_json = "1.0.66"
 machineid-rs = "1.2.4"
 tokio = { version = "1.43.0", features = ["rt", "time", "full"] }
 tracing = { version = "0.1.26" }
-sysinfo = "0.33.1"
+#sysinfo = "0.33.1"
 posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81419031e4889d9c3882d7458d2efa588a8" }
 async-trait = "0.1.81"
 chrono = "0.4.38"
 whoami = "1.5.2"
-strum = "0.27.0"
 convert_case = "0.7.1"
 http = "1.2.0"
 regex = "1.11.1"

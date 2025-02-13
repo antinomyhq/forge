@@ -13,21 +13,12 @@ forge_tracker = { path = "../forge_tracker" }
 tokio = { version = "1.0", features = ["full"] }
 tokio-stream = "0.1.17"
 colored = "3.0.0"
-crossterm = { version = "0.28", features = ["event-stream"] }
 async-trait = "0.1"
-inquire = "0.7.5"
-regex = "1.10.2"
-strum = "0.26.3"
-strum_macros = "0.26.4"
 anyhow = "1.0.95"
-chrono = "0.4"
 derive_setters = "0.1"
 lazy_static = "1.4.0"
-serde_json = "1.0"
-thiserror = "2.0"
 reedline = "0.38.0"
 nu-ansi-term = "0.50.1"
-dirs = "6.0.0"
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
