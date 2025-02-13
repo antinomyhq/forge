@@ -125,7 +125,7 @@ fn generate() {
                     .add_with(("args", "--target ${{ matrix.target }}"))
                     .add_with(("use-cross", "${{ matrix.cross }}"))
                     .add_with(("cross-version", "0.2.4"))
-                    .add_env(("RUSTFLAGS", "-C target-feature=+crt-static"))
+                    .add_env(("RUSTFLAGS", "-C target-feature=+crt-static -g"))
                     .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
                     .add_env((
                         "APP_VERSION",
