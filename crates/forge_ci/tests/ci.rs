@@ -31,7 +31,7 @@ fn generate() {
                 "target": "aarch64-unknown-linux-musl",
                 "binary_name": "forge-aarch64-unknown-linux-musl",
                 "binary_path": "target/aarch64-unknown-linux-musl/release/forge",
-                "cross": "true"
+                "cross": "false"
             },
             {
                 "os": "ubuntu-latest",
