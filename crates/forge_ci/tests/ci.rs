@@ -23,53 +23,61 @@ fn generate() {
                 "os": "ubuntu-latest",
                 "target": "x86_64-unknown-linux-musl",
                 "binary_name": "forge-x86_64-unknown-linux-musl",
-                "binary_path": "target/x86_64-unknown-linux-musl/release/forge",
+                "binary_path": "target/x86_64-unknown-linux-musl/debug/forge",
                 "cross": "false"
             },
             {
                 "os": "ubuntu-latest",
                 "target": "aarch64-unknown-linux-musl",
-                "binary_name": "forge-aarch64-unknown-linux-musl",
-                "binary_path": "target/aarch64-unknown-linux-musl/release/forge",
+                "binary_name": "forge-x86_64-unknown-linux-musl",
+                "binary_path": "target/x86_64-unknown-linux-musl/debug/forge",
+                "cross": "true"
+            },
+            {
+                "os": "ubuntu-latest",
+                "target": "x86_64-unknown-linux-gnu",
+                "binary_name": "forge-x86_64-unknown-linux-gnu",
+                "binary_path": "target/x86_64-unknown-linux-gnu/debug/forge",
+                "cross": "false"
+            },
+            {
+                "os": "ubuntu-latest",
+                "target": "aarch64-unknown-linux-gnu",
+                "binary_name": "forge-aarch64-unknown-linux-gnu",
+                "binary_path": "target/aarch64-unknown-linux-gnu/debug/forge",
                 "cross": "true"
             },
             {
                 "os": "macos-latest",
                 "target": "x86_64-apple-darwin",
                 "binary_name": "forge-x86_64-apple-darwin",
-                "binary_path": "target/x86_64-apple-darwin/release/forge",
+                "binary_path": "target/x86_64-apple-darwin/debug/forge",
                 "cross": "false"
             },
             {
                 "os": "macos-latest",
                 "target": "aarch64-apple-darwin",
                 "binary_name": "forge-aarch64-apple-darwin",
-                "binary_path": "target/aarch64-apple-darwin/release/forge",
+                "binary_path": "target/aarch64-apple-darwin/debug/forge",
                 "cross": "false"
             },
             {
                 "os": "windows-latest",
                 "target": "x86_64-pc-windows-msvc",
                 "binary_name": "forge-x86_64-pc-windows-msvc.exe",
-                "binary_path": "target/x86_64-pc-windows-msvc/release/forge.exe",
+                "binary_path": "target/x86_64-pc-windows-msvc/debug/forge.exe",
                 "cross": "false"
             },
             {
                 "os": "windows-latest",
                 "target": "aarch64-pc-windows-msvc",
                 "binary_name": "forge-aarch64-pc-windows-msvc.exe",
-                "binary_path": "target/aarch64-pc-windows-msvc/release/forge.exe",
-                "cross": "false"
-            },
-            {
-                "os": "ubuntu-latest",
-                "target": "x86_64-unknown-linux-gnu",
-                "binary_name": "forge-x86_64-unknown-linux-gnu",
-                "binary_path": "target/x86_64-unknown-linux-gnu/release/forge",
+                "binary_path": "target/aarch64-pc-windows-msvc/debug/forge.exe",
                 "cross": "false"
             }
         ]
     });
+
 
     let build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();
     let main_cond =
