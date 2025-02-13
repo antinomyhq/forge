@@ -71,5 +71,9 @@ pub fn pipeline() -> impl Transformer {
     Identity
         .combine(DropToolCalls.when_name(|name| name.contains("mistral")))
         .combine(SetToolChoice::new(ToolChoice::Auto).when_name(|name| name.contains("gemini")))
-        .combine(SetCache.when_name(|name| !name.contains("mistral")))
+        .combine(SetCache.when_name(|name| {
+            ["mistral", "gemini", "gpt"]
+                .iter()
+                .all(|p| !name.contains(p))
+        }))
 }
