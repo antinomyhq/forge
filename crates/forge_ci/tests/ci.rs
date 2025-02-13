@@ -78,7 +78,6 @@ fn generate() {
         ]
     });
 
-
     let build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();
     let main_cond =
         Expression::new("github.event_name == 'push' && github.ref == 'refs/heads/main'");
@@ -129,6 +128,13 @@ fn generate() {
                 Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
                     .with(("target", "${{ matrix.target }}")),
             )
+            // Build add link flags
+            .add_step(
+                Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
+                    .if_condition(Expression::new(
+                        "!contains(matrix.target, '-unknown-linux-gnu')",
+                    )),
+            )
             // Build release binary
             .add_step(
                 Step::uses("ClementTsang", "cargo-action", "v0.0.6")
@@ -136,7 +142,7 @@ fn generate() {
                     .add_with(("args", "--target ${{ matrix.target }}"))
                     .add_with(("use-cross", "${{ matrix.cross }}"))
                     .add_with(("cross-version", "0.2.4"))
-                    .add_env(("RUSTFLAGS", "${{ matrix.target == 'x86_64-unknown-linux-gnu' && '' || '-C target-feature=+crt-static' }}"))
+                    .add_env(("RUSTFLAGS", "${{ env.RUSTFLAGS }}"))
                     .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
                     .add_env((
                         "APP_VERSION",
