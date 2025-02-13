@@ -148,7 +148,7 @@ jobs:
     - if: '!contains(matrix.target, ''-unknown-linux-gnu'')'
       run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - if: contains(matrix.target, 'aarch64-unknown-linux-musl')
-      run: sudo apt-get update sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools
+      run: sudo apt-get update; sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools
     - uses: ClementTsang/cargo-action@v0.0.6
       with:
         command: build --release

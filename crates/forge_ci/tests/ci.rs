@@ -133,7 +133,7 @@ fn generate() {
                     )),
             )
             .add_step(
-                Step::run(r#"sudo apt-get update sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools"#)
+                Step::run(r#"sudo apt-get update; sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools"#)
                 .if_condition(Expression::new(
         "contains(matrix.target, 'aarch64-unknown-linux-musl')",
             )),
