@@ -98,7 +98,7 @@ jobs:
         use-cross: ${{ matrix.cross }}
         cross-version: 0.2.4
       env:
-        RUSTFLAGS: -C target-feature=+crt-static -g
+        RUSTFLAGS: -g
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
