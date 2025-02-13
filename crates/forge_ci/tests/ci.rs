@@ -128,7 +128,9 @@ fn generate() {
             // Build add link flags
             .add_step(
                 Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
-                    .if_condition(Expression::new("!contains(matrix.target, '-unknown-linux-gnu')"))
+                    .if_condition(Expression::new(
+                        "!contains(matrix.target, '-unknown-linux-gnu')",
+                    )),
             )
             // Build release binary
             .add_step(
