@@ -37,11 +37,8 @@ fi
 LIBC_INFO=$(ldd --version 2>&1 | head -n 1)
 if echo "$LIBC_INFO" | grep -iF "musl"; then
     LIBC_SUFFIX="-musl"
-elif echo "$LIBC_INFO" | grep -iF "gnu"; then
-    LIBC_SUFFIX="-gnu"
 else
-    echo -e "${RED}Unable to determine libc type. Unsupported system.${NC}"
-    exit 1
+    LIBC_SUFFIX="-gnu"
 fi
 
 # Get the latest release version from GitHub
