@@ -121,6 +121,8 @@ jobs:
     - uses: taiki-e/setup-cross-toolchain-action@v1
       with:
         target: ${{ matrix.target }}
+    - if: '!contains(matrix.target, ''-unknown-linux-gnu'')'
+      run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - uses: ClementTsang/cargo-action@v0.0.6
       with:
         command: build
@@ -128,7 +130,7 @@ jobs:
         use-cross: ${{ matrix.cross }}
         cross-version: 0.2.4
       env:
-        RUSTFLAGS: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && '' || '-C target-feature=+crt-static' }}
+        RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
