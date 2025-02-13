@@ -60,6 +60,13 @@ fn generate() {
                 "binary_name": "forge-aarch64-pc-windows-msvc.exe",
                 "binary_path": "target/aarch64-pc-windows-msvc/release/forge.exe",
                 "cross": "false"
+            },
+            {
+                "os": "ubuntu-latest",
+                "target": "x86_64-unknown-linux-gnu",
+                "binary_name": "forge-x86_64-unknown-linux-gnu",
+                "binary_path": "target/x86_64-unknown-linux-gnu/release/forge",
+                "cross": "false"
             }
         ]
     });
@@ -121,7 +128,7 @@ fn generate() {
                     .add_with(("args", "--target ${{ matrix.target }}"))
                     .add_with(("use-cross", "${{ matrix.cross }}"))
                     .add_with(("cross-version", "0.2.4"))
-                    .add_env(("RUSTFLAGS", "-C target-feature=+crt-static"))
+                    .add_env(("RUSTFLAGS", "${{ matrix.target == 'x86_64-unknown-linux-gnu' && '' || '-C target-feature=+crt-static' }}"))
                     .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
                     .add_env((
                         "APP_VERSION",
