@@ -81,11 +81,11 @@ jobs:
     strategy:
       matrix:
         include:
-        - binary_name: forge-x86_64-unknown-linux-gnu
-          binary_path: target/x86_64-unknown-linux-gnu/debug/forge
+        - binary_name: forge-x86_64-unknown-linux-musl
+          binary_path: target/x86_64-unknown-linux-musl/debug/forge
           cross: 'false'
           os: ubuntu-latest
-          target: x86_64-unknown-linux-gnu
+          target: x86_64-unknown-linux-musl
     steps:
     - uses: actions/checkout@v4
     - uses: taiki-e/setup-cross-toolchain-action@v1
@@ -98,7 +98,7 @@ jobs:
         use-cross: ${{ matrix.cross }}
         cross-version: 0.2.4
       env:
-        RUSTFLAGS: -g
+        RUSTFLAGS: -C target-feature=+crt-static
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
