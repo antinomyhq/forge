@@ -92,6 +92,10 @@ jobs:
       create_release_name: ${{ steps.set_output.outputs.create_release_name }}
       create_release_id: ${{ steps.set_output.outputs.create_release_id }}
   build-release:
+    needs:
+    - build
+    - draft_release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     name: build-release
     runs-on: ${{ matrix.os }}
     permissions:
