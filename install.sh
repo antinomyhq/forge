@@ -33,6 +33,17 @@ if [ "$OS" != "linux" ]; then
     exit 1
 fi
 
+# Detect libc
+LIBC_INFO=$(ldd --version 2>&1 | head -n 1)
+if echo "$LIBC_INFO" | grep -iF "musl"; then
+    LIBC_SUFFIX="-musl"
+elif echo "$LIBC_INFO" | grep -iF "gnu"; then
+    LIBC_SUFFIX="-gnu"
+else
+    echo -e "${RED}Unable to determine libc type. Unsupported system.${NC}"
+    exit 1
+fi
+
 # Get the latest release version from GitHub
 echo -e "${BLUE}Fetching latest release...${NC}"
 LATEST_RELEASE=$(curl -s https://api.github.com/repos/antinomyhq/forge/releases/latest | grep '"tag_name":' | cut -d'"' -f4)
@@ -45,11 +56,9 @@ fi
 echo -e "${GREEN}Latest release: $LATEST_RELEASE${NC}"
 
 # Download URL
-DOWNLOAD_URL="https://github.com/antinomyhq/forge/releases/download/$LATEST_RELEASE/forge-$ARCH-unknown-$OSTYPE"
-
+DOWNLOAD_URL="https://github.com/antinomyhq/forge/releases/download/$LATEST_RELEASE/forge-$ARCH-unknown-linux$LIBC_SUFFIX"
 # Create temp directory
 TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
 
 # Download and extract
 echo -e "${BLUE}Downloading Forge...${NC}"
@@ -61,6 +70,7 @@ echo -e "${BLUE}Extracting...${NC}"
 echo -e "${BLUE}Installing to /usr/local/bin...${NC}"
 sudo mv "$TMP_DIR/forge" "/usr/local/bin/"
 sudo chmod +x "/usr/local/bin/forge"
+rm -rf "$TMP_DIR"
 
 # Verify installation
 if command -v forge >/dev/null 2>&1; then
