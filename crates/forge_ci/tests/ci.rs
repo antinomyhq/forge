@@ -29,8 +29,8 @@ fn generate() {
             {
                 "os": "ubuntu-latest",
                 "target": "aarch64-unknown-linux-musl",
-                "binary_name": "forge-x86_64-unknown-linux-musl",
-                "binary_path": "target/x86_64-unknown-linux-musl/release/forge",
+                "binary_name": "forge-aarch64-unknown-linux-musl",
+                "binary_path": "target/aarch64-unknown-linux-musl/release/forge",
                 "cross": "true"
             },
             {
@@ -112,9 +112,6 @@ fn generate() {
     workflow = workflow.add_job(
         "build-release",
         Job::new("build-release")
-            .add_needs(build_job.clone())
-            .add_needs(draft_release_job.clone())
-            .cond(main_cond.clone())
             .strategy(Strategy { fail_fast: None, max_parallel: None, matrix: Some(matrix) })
             .runs_on("${{ matrix.os }}")
             .permissions(
@@ -134,6 +131,12 @@ fn generate() {
                     .if_condition(Expression::new(
                         "!contains(matrix.target, '-unknown-linux-gnu')",
                     )),
+            )
+            .add_step(
+                Step::run(r#"sudo apt-get update sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools"#)
+                .if_condition(Expression::new(
+        "contains(matrix.target, 'aarch64-unknown-linux-musl')",
+            )),
             )
             // Build release binary
             .add_step(
