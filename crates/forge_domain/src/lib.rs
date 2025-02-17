@@ -80,6 +80,7 @@ pub trait ConversationService: Send + Sync {
         agent: &AgentId,
         context: Context,
     ) -> anyhow::Result<()>;
+    async fn insert_event(&self, id: &ConversationId, event: DispatchEvent) -> anyhow::Result<()>;
 }
 
 /// Core app trait providing access to services and repositories.

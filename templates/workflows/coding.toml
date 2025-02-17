@@ -1,0 +1,31 @@
+[[agents]]
+id = "conversation-summarizer"
+model = "anthropic/claude-3.5-sonnet"
+tools = ["forge_tool_event_dispatch"]
+subscribe = []
+max_turns = 1024
+ephemeral = true
+
+[agents.system_prompt]
+template = "../roles/conversation-summarizer.mustache"
+
+[agents.user_prompt]
+template = "<input>{{event.value}}</input>"
+
+
+[[agents]]
+id = "developer"
+model = "anthropic/claude-3.5-sonnet"
+tools = ["tool_forge_fs_read", "tool_forge_fs_create", "tool_forge_fs_remove", "tool_forge_fs_list", "tool_forge_fs_search", "tool_forge_fs_info", "tool_forge_patch", "tool_forge_code_outline", "tool_forge_process_shell", "tool_forge_process_think", "tool_forge_net_fetch"]
+subscribe = ["user_task"]
+max_turns = 1024
+ephemeral = false
+
+transforms = [{agent_id="conversation-summarizer",type= "Assistant", output= "compressed_history", input= "context", token_limit= 1000}]
+
+[agents.system_prompt]
+template = "../roles/software-engineer.mustache"
+
+[agents.user_prompt]
+template = "<task>{{event.value}}</task>"
+

@@ -189,10 +189,10 @@ impl<A: App> Orchestrator<A> {
         tool_call: &ToolCallFull,
     ) -> anyhow::Result<Option<ToolResult>> {
         if let Some(event) = DispatchEvent::parse(tool_call) {
+            self.insert_event(event.clone()).await?;
             self.send(agent_id, ChatResponse::Custom(event.clone()))
                 .await?;
             self.dispatch(&event).await?;
-
             Ok(None)
         } else {
             Ok(Some(self.app.tool_service().call(tool_call.clone()).await))
@@ -218,9 +218,9 @@ impl<A: App> Orchestrator<A> {
                         let input = DispatchEvent::new(input_key, summary.get());
                         self.init_agent(agent_id, &input).await?;
 
-                        let value = self.get_event(output_key).await?;
+                        let event = self.get_event(output_key).await?;
 
-                        summary.set(serde_json::to_string(&value)?);
+                        summary.set(event.value);
                     }
                 }
                 Transform::User { agent_id, output: output_key } => {
@@ -261,6 +261,13 @@ impl<A: App> Orchestrator<A> {
             .get(name)
             .ok_or(Error::UndefinedVariable(name.to_string()))?
             .clone())
+    }
+
+    async fn insert_event(&self, event: DispatchEvent) -> anyhow::Result<()> {
+        self.app
+            .conversation_service()
+            .insert_event(&self.chat_request.conversation_id, event)
+            .await
     }
 
     async fn get_conversation(&self) -> anyhow::Result<Conversation> {

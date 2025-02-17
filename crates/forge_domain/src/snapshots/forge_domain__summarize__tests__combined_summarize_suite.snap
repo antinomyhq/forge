@@ -1,0 +1,58 @@
+---
+source: crates/forge_domain/src/summarize.rs
+expression: suite
+---
+[Shouldn't summarize when user message isn't completed.]
+[Before]
+User: Short message
+Assistant: Brief response
+
+[After]
+No changes has been made to context
+
+
+[Shouldn't summarize when there's no user message]
+[Before]
+System: System message
+Assistant: Assistant message
+Assistant: Another assistant message
+
+[After]
+No changes has been made to context
+
+
+[Summarize the completed user message]
+[Before]
+System: System Prompt
+User: User Question
+Assistant: Answer-1
+Assistant: Answer-2
+Assistant: Answer-3
+Assistant: Answer-4
+User: okay, what are tools avail to you?
+Assistant: i have only one tool avail to me and it's `shell` tool.
+
+[After]
+System: System Prompt
+Assistant: 
+<work_summary>
+User asked some question, which agent answered.
+</work_summary>
+User: okay, what are tools avail to you?
+Assistant: i have only one tool avail to me and it's `shell` tool.
+
+
+
+[Should not summarize when context token count is less then specified]
+[Before]
+System: System Prompt
+User: User Question
+Assistant: Answer-1
+Assistant: Answer-2
+Assistant: Answer-3
+Assistant: Answer-4
+User: okay, what are tools avail to you?
+Assistant: i have only one tool avail to me and it's `shell` tool.
+
+[After]
+No changes has been made to context
