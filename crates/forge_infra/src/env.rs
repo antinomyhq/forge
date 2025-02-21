@@ -34,13 +34,11 @@ impl ForgeEnvironmentService {
         dotenv::dotenv().ok();
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
 
-        let provider_key = std::env::var("FORGE_KEY")
-            .or_else(|_| std::env::var("OPEN_ROUTER_KEY"))
-            .or_else(|_| std::env::var("OPENAI_API_KEY"))
-            .or_else(|_| std::env::var("ANTHROPIC_API_KEY"))
-            .expect("No API key found. Please set one of: FORGE_KEY, OPEN_ROUTER_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY");
-        // note: since we know the key is set, we can unwrap here.
+        // TODO: this can fail if proper configuration is not provided.
         let provider = Provider::from_env().unwrap();
+        let provider_key = provider.to_key().expect("Failed to get provider key");
+        let provider_url = provider.to_base_url().to_string();
+
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
@@ -54,7 +52,7 @@ impl ForgeEnvironmentService {
             qdrant_key: std::env::var("QDRANT_KEY").ok(),
             qdrant_cluster: std::env::var("QDRANT_CLUSTER").ok(),
             provider_key,
-            provider_url: provider.to_base_url().to_string(),
+            provider_url,
         }
     }
 }

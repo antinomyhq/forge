@@ -1,6 +1,10 @@
+mod test_infra;
+
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use forge_api::{AgentMessage, ChatRequest, ChatResponse, ForgeAPI, ModelId, API};
+use test_infra::TestInfra;
 use tokio_stream::StreamExt;
 
 const MAX_RETRIES: usize = 5;
@@ -10,18 +14,21 @@ const WORKFLOW_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../forge.to
 struct Fixture {
     task: String,
     model: ModelId,
+    provider_env_name: String,
 }
 
 impl Fixture {
     /// Create a new test fixture with the given task
-    fn new(task: impl Into<String>, model: ModelId) -> Self {
-        Self { task: task.into(), model }
+    fn new(task: impl Into<String>, model: ModelId, provider_env_name: String) -> Self {
+        Self { task: task.into(), model, provider_env_name }
     }
 
     /// Get the API service, panicking if not validated
     fn api(&self) -> impl API {
-        // NOTE: In tests the CWD is not the project root
-        ForgeAPI::init(true)
+        ForgeAPI::init_with_infra(Arc::new(TestInfra::new(
+            true,
+            self.provider_env_name.clone(),
+        )))
     }
 
     /// Get model response as text
@@ -87,12 +94,13 @@ impl Fixture {
 
 /// Macro to generate model-specific tests
 macro_rules! generate_model_test {
-    ($model:expr) => {
+    ($model:expr,$provider_env_name:expr) => {
         #[tokio::test]
         async fn test_find_cat_name() {
             let fixture = Fixture::new(
-                "There is a cat hidden in the codebase. What is its name? hint: it's present in juniper.md file. You can use any tool at your disposal to find it. Do not ask me any questions.",
+                "There is a cat hidden in the codebase. What is its name? hint: it's present in juniper.md file. You can use any tool at your disposal to find it. Do not ask follow up questions.",
                 ModelId::new($model),
+                $provider_env_name.to_string(),
             );
 
             let result = fixture
@@ -104,27 +112,58 @@ macro_rules! generate_model_test {
     };
 }
 
-mod anthropic_claude_3_5_sonnet {
+mod open_router_tests {
     use super::*;
-    generate_model_test!("anthropic/claude-3.5-sonnet");
+    mod anthropic_claude_3_5_sonnet {
+        use super::*;
+        generate_model_test!("anthropic/claude-3.5-sonnet", "OPEN_ROUTER_KEY");
+    }
+
+    mod openai_gpt_4o {
+        use super::*;
+        generate_model_test!("openai/gpt-4o", "OPEN_ROUTER_KEY");
+    }
+
+    mod openai_gpt_4o_mini {
+        use super::*;
+        generate_model_test!("openai/gpt-4o-mini", "OPEN_ROUTER_KEY");
+    }
+
+    mod gemini_flash_2_0 {
+        use super::*;
+        generate_model_test!("google/gemini-2.0-flash-001", "OPEN_ROUTER_KEY");
+    }
+
+    mod mistralai_codestral_2501 {
+        use super::*;
+        generate_model_test!("mistralai/codestral-2501", "OPEN_ROUTER_KEY");
+    }
 }
 
-mod openai_gpt_4o {
+mod open_ai_tests {
     use super::*;
-    generate_model_test!("openai/gpt-4o");
+
+    mod openai_gpt_4o {
+        use super::*;
+        generate_model_test!("gpt-4o", "OPEN_AI_KEY");
+    }
+
+    mod openai_gpt_4o_mini {
+        use super::*;
+        generate_model_test!("gpt-4o-mini", "OPEN_AI_KEY");
+    }
 }
 
-mod openai_gpt_4o_mini {
+mod anthropic_tests {
     use super::*;
-    generate_model_test!("openai/gpt-4o-mini");
-}
 
-mod gemini_flash_2_0 {
-    use super::*;
-    generate_model_test!("google/gemini-2.0-flash-001");
-}
+    mod claude_3_5_haiku_20241022 {
+        use super::*;
+        generate_model_test!("claude-3-5-haiku-20241022", "ANTHROPIC_KEY");
+    }
 
-mod mistralai_codestral_2501 {
-    use super::*;
-    generate_model_test!("mistralai/codestral-2501");
+    mod claude_3_5_sonnet_20241022 {
+        use super::*;
+        generate_model_test!("claude-3-5-sonnet-20241022", "ANTHROPIC_KEY");
+    }
 }

@@ -38,6 +38,13 @@ impl ForgeAPI<ForgeApp<ForgeInfra>> {
     }
 }
 
+impl<Infra: Infrastructure> ForgeAPI<ForgeApp<Infra>> {
+    pub fn init_with_infra(infra: Arc<Infra>) -> Self {
+        let app = Arc::new(ForgeApp::new(infra));
+        ForgeAPI::new(app)
+    }
+}
+
 #[async_trait::async_trait]
 impl<F: App + Infrastructure> API for ForgeAPI<F> {
     async fn suggestions(&self) -> Result<Vec<File>> {

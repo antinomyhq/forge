@@ -6,6 +6,11 @@ edition = "2021"
 [dev-dependencies]
 anyhow = "1.0"
 forge_api = { path = "../forge_api" }
+forge_app = { path = "../forge_app" }
+forge_domain = { path = "../forge_domain" }
 futures = "0.3"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
+async-trait = "0.1"
+dotenv = "0.15"
+dirs = "6.0"

@@ -1218,7 +1218,12 @@ name = "forge_inte"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "dirs 6.0.0",
+ "dotenv",
  "forge_api",
+ "forge_app",
+ "forge_domain",
  "futures",
  "tokio",
  "tokio-stream",
