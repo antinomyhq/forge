@@ -10,7 +10,7 @@ agents:
       - tool_forge_event_dispatch
     subscribe:
       - user_task_init
-    system_prompt: "{{> title-generator.hbs }}"
+    system_prompt: "{{> system-prompt-title-generator.hbs }}"
     user_prompt: <technical_content>{{event.value}}</technical_content>
 
   - id: developer
@@ -27,6 +27,6 @@ agents:
       - user_task_init
       - user_task_update
     ephemeral: false
-    system_prompt: "{{> software-engineer.hbs }}"
+    system_prompt: "{{> system-prompt-engineer.hbs }}"
     user_prompt: |
       <task>{{event.value}}</task>
