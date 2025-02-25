@@ -120,6 +120,10 @@ impl TryFrom<ContextMessage> for Message {
             ContextMessage::ToolMessage(tool_result) => {
                 Message { role: Role::User, content: vec![tool_result.try_into()?] }
             }
+            ContextMessage::Attachments(_attachments) => {
+                // Needs review
+                todo!()
+            }
         })
     }
 }

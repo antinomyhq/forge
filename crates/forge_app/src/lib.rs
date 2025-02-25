@@ -1,4 +1,5 @@
 mod app;
+mod attachment;
 mod conversation;
 mod provider;
 mod suggestion;

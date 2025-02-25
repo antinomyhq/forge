@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use forge_domain::App;
 
+use crate::attachment::ForgeChatRequest;
 use crate::conversation::ForgeConversationService;
 use crate::provider::ForgeProviderService;
 use crate::suggestion::ForgeSuggestionService;
@@ -21,6 +22,7 @@ pub struct ForgeApp<F> {
     provider_service: ForgeProviderService,
     conversation_service: ForgeConversationService,
     prompt_service: ForgeTemplateService,
+    attachment_service: ForgeChatRequest,
     suggestion_service: Arc<ForgeSuggestionService<F>>,
 }
 
@@ -33,6 +35,7 @@ impl<F: Infrastructure> ForgeApp<F> {
             provider_service: ForgeProviderService::new(infra.clone()),
             conversation_service: ForgeConversationService::new(),
             prompt_service: ForgeTemplateService::new(),
+            attachment_service: ForgeChatRequest,
             suggestion_service,
         }
     }
@@ -43,6 +46,7 @@ impl<F: Infrastructure> App for ForgeApp<F> {
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService;
     type PromptService = ForgeTemplateService;
+    type AttachmentService = ForgeChatRequest;
     type SuggestionService = ForgeSuggestionService<F>;
 
     fn tool_service(&self) -> &Self::ToolService {
@@ -63,6 +67,10 @@ impl<F: Infrastructure> App for ForgeApp<F> {
 
     fn prompt_service(&self) -> &Self::PromptService {
         &self.prompt_service
+    }
+
+    fn attachment_service(&self) -> &Self::AttachmentService {
+        &self.attachment_service
     }
 }
 

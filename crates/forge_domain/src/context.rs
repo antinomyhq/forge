@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use derive_more::derive::{Display, From};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -5,6 +7,23 @@ use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
 use crate::{ToolChoice, ToolDefinition};
+
+#[derive(
+    Debug, schemars::JsonSchema, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash,
+)]
+pub struct Attachment {
+    pub content: String,
+    pub path: String,
+    pub content_type: ContentType,
+}
+
+#[derive(
+    Debug, schemars::JsonSchema, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash,
+)]
+pub enum ContentType {
+    ImageURL,
+    Text,
+}
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -14,6 +33,7 @@ use crate::{ToolChoice, ToolDefinition};
 pub enum ContextMessage {
     ContentMessage(ContentMessage),
     ToolMessage(ToolResult),
+    Attachments(HashSet<Attachment>),
 }
 
 impl ContextMessage {
@@ -46,13 +66,6 @@ impl ContextMessage {
         .into()
     }
 
-    pub fn content(&self) -> String {
-        match self {
-            ContextMessage::ContentMessage(message) => message.content.to_string(),
-            ContextMessage::ToolMessage(result) => serde_json::to_string(&result.content).unwrap(),
-        }
-    }
-
     pub fn tool_result(result: ToolResult) -> Self {
         Self::ToolMessage(result)
     }
@@ -61,6 +74,7 @@ impl ContextMessage {
         match self {
             ContextMessage::ContentMessage(message) => message.role == role,
             ContextMessage::ToolMessage(_) => false,
+            ContextMessage::Attachments(_) => Role::User == role,
         }
     }
 }
@@ -103,6 +117,10 @@ pub struct Context {
 }
 
 impl Context {
+    pub fn add_attachments(mut self, attachment: HashSet<Attachment>) -> Self {
+        self.messages.push(ContextMessage::Attachments(attachment));
+        self
+    }
     pub fn add_tool(mut self, tool: impl Into<ToolDefinition>) -> Self {
         let tool: ToolDefinition = tool.into();
         self.tools.push(tool);
@@ -178,6 +196,9 @@ impl Context {
                         serde_json::to_string(&result.content).unwrap()
                     ));
                     lines.push_str("</message>");
+                }
+                ContextMessage::Attachments(_) => {
+                    todo!()
                 }
             }
         }

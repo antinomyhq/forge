@@ -103,7 +103,8 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::Message(ref content) => {
-                    if let Err(err) = self.chat(content.clone()).await {
+                    let chat_result = self.chat(content.clone()).await;
+                    if let Err(err) = chat_result {
                         CONSOLE.writeln(
                             TitleFormat::failed(format!("{:?}", err))
                                 .sub_title(self.state.usage.to_string())
@@ -149,7 +150,7 @@ impl<F: API> UI<F> {
             }
         };
 
-        let chat = ChatRequest { content: content.clone(), conversation_id };
+        let chat = ChatRequest::new(content.clone(), conversation_id);
 
         tokio::spawn(TRACKER.dispatch(EventKind::Prompt(content)));
         match self.api.chat(chat).await {
