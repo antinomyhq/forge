@@ -1,14 +1,15 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::Context;
 use forge_display::DiffFormat;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
-use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
+use crate::{FileReadService, FileWriteService, Infrastructure};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSWriteInput {
@@ -20,23 +21,34 @@ pub struct FSWriteInput {
     pub content: String,
 }
 
-/// Use it to create a new file at a specified path with the provided content.
-/// Always provide absolute paths for file locations. The tool
-/// automatically handles the creation of any missing intermediary directories
-/// in the specified path.
-/// IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the
-/// shell tool instead.
-#[derive(ToolDescription)]
-pub struct FSWrite;
+pub struct FSWrite<F: Infrastructure>(Arc<F>);
 
-impl NamedTool for FSWrite {
+impl<F: Infrastructure> ToolDescription for FSWrite<F> {
+    fn description(&self) -> String {
+        "Use it to create a new file at a specified path with the provided content.
+        Always provide absolute paths for file locations. The tool
+        automatically handles the creation of any missing intermediary directories
+        in the specified path.
+        IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the
+        shell tool instead."
+            .to_string()
+    }
+}
+
+impl<F: Infrastructure> FSWrite<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self(infra)
+    }
+}
+
+impl<F: Infrastructure> NamedTool for FSWrite<F> {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_fs_create")
     }
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for FSWrite {
+impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
     type Input = FSWriteInput;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
@@ -57,14 +69,17 @@ impl ExecutableTool for FSWrite {
         // record the file content before they're modified
         let old_content = if path.is_file() {
             // if file already exists, we should be able to read it.
-            tokio::fs::read_to_string(path).await?
+            self.0.file_read_service().read(path).await?
         } else {
             // if file doesn't exist, we should record it as an empty string.
             "".to_string()
         };
 
         // Write file only after validation passes and directories are created
-        tokio::fs::write(&input.path, &input.content).await?;
+        self.0
+            .file_write_service()
+            .write(path, &input.content)
+            .await?;
 
         let mut result = format!(
             "Successfully wrote {} bytes to {}",
@@ -77,7 +92,8 @@ impl ExecutableTool for FSWrite {
         }
 
         // record the file content after they're modified
-        let new_content = tokio::fs::read_to_string(path).await?;
+        let new_content = self.0.file_read_service().read(path).await?;
+
         let diff = DiffFormat::format(path.to_path_buf(), &old_content, &new_content);
         println!("{}", diff);
 
@@ -93,6 +109,7 @@ mod test {
     use tokio::fs;
 
     use super::*;
+    use crate::tools::tests::Stub;
     use crate::tools::utils::TempDir;
 
     async fn assert_path_exists(path: impl AsRef<Path>) {
@@ -105,7 +122,7 @@ mod test {
         let file_path = temp_dir.path().join("test.txt");
         let content = "Hello, World!";
 
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(Arc::new(Stub::default()));
         let output = fs_write
             .call(FSWriteInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -128,7 +145,7 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.rs");
 
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(Arc::new(Stub::default()));
         let result = fs_write
             .call(FSWriteInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -145,7 +162,7 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.rs");
 
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(Arc::new(Stub::default()));
         let content = "fn main() { let x = 42; }";
         let result = fs_write
             .call(FSWriteInput {
@@ -170,7 +187,7 @@ mod test {
         let nested_path = temp_dir.path().join("new_dir").join("test.txt");
         let content = "Hello from nested file!";
 
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(Arc::new(Stub::default()));
         let result = fs_write
             .call(FSWriteInput {
                 path: nested_path.to_string_lossy().to_string(),
@@ -200,7 +217,7 @@ mod test {
             .join("deep.txt");
         let content = "Deep in the directory structure";
 
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(Arc::new(Stub::default()));
         let result = fs_write
             .call(FSWriteInput {
                 path: deep_path.to_string_lossy().to_string(),
@@ -232,7 +249,7 @@ mod test {
         let path_str = format!("{}/dir_a/dir_b/file.txt", temp_dir.path().to_string_lossy());
         let content = "Testing path separators";
 
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(Arc::new(Stub::default()));
         let result = fs_write
             .call(FSWriteInput { path: path_str, content: content.to_string() })
             .await
@@ -255,7 +272,7 @@ mod test {
 
     #[tokio::test]
     async fn test_fs_write_relative_path() {
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(Arc::new(Stub::default()));
         let result = fs_write
             .call(FSWriteInput {
                 path: "relative/path/file.txt".to_string(),

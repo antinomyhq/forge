@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -38,22 +39,22 @@ impl From<&UIState> for PromptInput {
 pub struct UI<F> {
     state: UIState,
     api: Arc<F>,
-    console: Console,
+    console: Console<F>,
     cli: Cli,
     models: Option<Vec<Model>>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
 
-impl<F: API> UI<F> {
+impl<F: API + Send + Sync> UI<F> {
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
         // Parse CLI arguments first to get flags
 
         let env = api.environment();
         Ok(Self {
             state: Default::default(),
-            api,
-            console: Console::new(env.clone()),
+            api: api.clone(),
+            console: Console::new(api),
             cli,
             models: None,
             _guard: forge_tracker::init_tracing(env.log_path())?,
@@ -196,7 +197,8 @@ impl<F: API> UI<F> {
                 let path = format!("{path}.json");
 
                 let content = serde_json::to_string_pretty(&conversation)?;
-                tokio::fs::write(path.as_str(), content).await?;
+
+                self.api.write_file(&Path::new(&path), &content).await?;
 
                 CONSOLE.writeln(
                     TitleFormat::success("dump")

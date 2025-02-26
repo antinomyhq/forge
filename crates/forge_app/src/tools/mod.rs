@@ -22,14 +22,14 @@ use crate::{EnvironmentService, Infrastructure};
 pub fn tools<F: Infrastructure, S: SuggestionService>(infra: Arc<F>, suggest: Arc<S>) -> Vec<Tool> {
     let env = infra.environment_service().get_environment();
     vec![
-        FSRead.into(),
-        FSWrite.into(),
+        FSRead::new(infra.clone()).into(),
+        FSWrite::new(infra.clone()).into(),
         FSRemove.into(),
         FSList::default().into(),
-        FSSearch.into(),
+        FSSearch::new(infra.clone()).into(),
         FSFileInfo.into(),
         // TODO: once ApplyPatchJson is stable we can delete ApplyPatch
-        ApplyPatch.into(),
+        ApplyPatch::new(infra.clone()).into(),
         // ApplyPatchJson.into(),
         Shell::new(env.clone()).into(),
         Think::default().into(),
@@ -40,13 +40,13 @@ pub fn tools<F: Infrastructure, S: SuggestionService>(infra: Arc<F>, suggest: Ar
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::path::{Path, PathBuf};
 
     use forge_domain::{Environment, Point, Query, Suggestion};
 
     use super::*;
-    use crate::{EmbeddingService, FileReadService, VectorIndex};
+    use crate::{EmbeddingService, FileReadService, FileWriteService, VectorIndex};
 
     /// Create a default test environment
     fn stub() -> Stub {
@@ -71,8 +71,14 @@ mod tests {
         }
     }
 
-    struct Stub {
+    pub struct Stub {
         env: Environment,
+    }
+
+    impl Default for Stub {
+        fn default() -> Self {
+            stub()
+        }
     }
 
     #[async_trait::async_trait]
@@ -90,10 +96,20 @@ mod tests {
     }
     #[async_trait::async_trait]
     impl FileReadService for Stub {
-        async fn read(&self, _path: &Path) -> anyhow::Result<String> {
-            unimplemented!()
+        async fn read(&self, path: &Path) -> anyhow::Result<String> {
+            let content = tokio::fs::read_to_string(path).await?;
+            Ok(content)
         }
     }
+
+    #[async_trait::async_trait]
+    impl FileWriteService for Stub {
+        async fn write(&self, path: &Path, content: &str) -> anyhow::Result<()> {
+            tokio::fs::write(path, content).await?;
+            Ok(())
+        }
+    }
+
     #[async_trait::async_trait]
     impl VectorIndex<Suggestion> for Stub {
         async fn store(&self, _information: Point<Suggestion>) -> anyhow::Result<()> {
@@ -109,6 +125,7 @@ mod tests {
     impl Infrastructure for Stub {
         type EnvironmentService = Stub;
         type FileReadService = Stub;
+        type FileWriteService = Stub;
         type VectorIndex = Stub;
         type EmbeddingService = Stub;
 
@@ -125,6 +142,10 @@ mod tests {
         }
 
         fn embedding_service(&self) -> &Self::EmbeddingService {
+            self
+        }
+
+        fn file_write_service(&self) -> &Self::FileReadService {
             self
         }
     }

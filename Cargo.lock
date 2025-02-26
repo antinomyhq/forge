@@ -885,6 +885,7 @@ dependencies = [
  "derive_setters",
  "dirs",
  "forge_api",
+ "forge_app",
  "forge_display",
  "forge_tracker",
  "forge_walker",

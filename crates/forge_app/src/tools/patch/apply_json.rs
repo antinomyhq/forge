@@ -1,15 +1,15 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use dissimilar::Chunk;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
-use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::fs;
 
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
+use crate::{FileReadService, FileWriteService, Infrastructure};
 
 /// Threshold for fuzzy matching. A score above this value is considered a
 /// match. The score is calculated as the ratio of matching characters to total
@@ -168,12 +168,17 @@ pub struct ApplyPatchJsonInput {
     pub replacements: Vec<Replacement>,
 }
 
-/// Finds and replaces all occurrences of the search text with the replacement
-/// text in the file at the given path.
-#[derive(ToolDescription)]
-pub struct ApplyPatchJson;
+pub struct ApplyPatchJson<F: Infrastructure>(Arc<F>);
 
-impl NamedTool for ApplyPatchJson {
+impl<F: Infrastructure> ToolDescription for ApplyPatchJson<F> {
+    fn description(&self) -> String {
+        "Finds and replaces all occurrences of the search text with the replacement
+        text in the file at the given path."
+            .to_string()
+    }
+}
+
+impl<F: Infrastructure> NamedTool for ApplyPatchJson<F> {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_patch_v2")
     }
@@ -196,13 +201,20 @@ fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
 }
 
 /// Process the file modifications and return the formatted output
-async fn process_file_modifications(
+async fn process_file_modifications<F: Infrastructure>(
+    infra: Arc<F>,
     path: &Path,
     replacements: Vec<Replacement>,
 ) -> Result<String, Error> {
-    let content = fs::read_to_string(path).await?;
+    let content = infra.file_read_service().read(path).await.unwrap();
+
     let content = apply_replacements(content, replacements)?;
-    fs::write(path, &content).await?;
+
+    infra
+        .file_write_service()
+        .write(path, &content)
+        .await
+        .unwrap();
 
     let warning = syn::validate(path, &content).map(|e| e.to_string());
     Ok(format_output(
@@ -213,14 +225,14 @@ async fn process_file_modifications(
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for ApplyPatchJson {
+impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
     type Input = ApplyPatchJsonInput;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        Ok(process_file_modifications(path, input.replacements).await?)
+        Ok(process_file_modifications(self.0.clone(), path, input.replacements).await?)
     }
 }
 
