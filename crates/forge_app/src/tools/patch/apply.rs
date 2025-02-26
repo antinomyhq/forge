@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::bail;
 use dissimilar::Chunk;
@@ -7,12 +8,12 @@ use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use thiserror::Error;
-use tokio::fs;
 
 use super::marker::{DIVIDER, REPLACE, SEARCH};
 use super::parse::{self, PatchBlock};
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
+use crate::{FileReadService, FileWriteService, Infrastructure};
 
 #[derive(Debug, Error)]
 enum Error {
@@ -32,15 +33,21 @@ pub struct ApplyPatchInput {
     pub diff: String,
 }
 
-pub struct ApplyPatch;
+pub struct ApplyPatch<F: Infrastructure>(Arc<F>);
 
-impl NamedTool for ApplyPatch {
+impl<F: Infrastructure> ApplyPatch<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self(infra)
+    }
+}
+
+impl<F: Infrastructure> NamedTool for ApplyPatch<F> {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_patch")
     }
 }
 
-impl ToolDescription for ApplyPatch {
+impl<F: Infrastructure> ToolDescription for ApplyPatch<F> {
     fn description(&self) -> String {
         format!(
             r#"Replace sections in a file using multiple SEARCH/REPLACE blocks. Example:
@@ -141,7 +148,7 @@ async fn apply_patches(content: String, blocks: Vec<PatchBlock>) -> Result<Strin
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for ApplyPatch {
+impl<F: Infrastructure> ExecutableTool for ApplyPatch<F> {
     type Input = ApplyPatchInput;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
@@ -155,15 +162,12 @@ impl ExecutableTool for ApplyPatch {
         let blocks = parse::parse_blocks(&input.diff)?;
 
         // Read the content of the file before applying the patch
-        let old_content = fs::read_to_string(&input.path)
-            .await
-            .map_err(Error::FileOperation)?;
+        let old_content = self.0.file_read_service().read(path).await?;
 
         let result = async {
             let modified = apply_patches(old_content.clone(), blocks).await?;
-            fs::write(&input.path, &modified)
-                .await
-                .map_err(Error::FileOperation)?;
+        
+            self.0.file_write_service().write(path, &modified).await?;
 
             let syntax_warning = syn::validate(&input.path, &modified);
 
@@ -187,9 +191,8 @@ impl ExecutableTool for ApplyPatch {
          .await?;
 
         // record the content of the file after applying the patch
-        let new_content = fs::read_to_string(path)
-            .await
-            .map_err(Error::FileOperation)?;
+        let new_content = self.0.file_read_service().read(path).await?;
+
         // Generate diff between old and new content
         let diff = DiffFormat::format(path.to_path_buf(), &old_content, &new_content);
         println!("{}", diff);
@@ -204,9 +207,10 @@ mod test {
 
     use super::*;
     use crate::tools::utils::TempDir;
+    use crate::tools::tests::Stub;
 
     async fn write_test_file(path: impl AsRef<Path>, content: &str) -> Result<(), Error> {
-        fs::write(&path, content)
+        tokio::fs::write(&path, content)
             .await
             .map_err(Error::FileOperation)
     }
@@ -230,7 +234,7 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
         let nonexistent = temp_dir.path().join("nonexistent.txt");
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         let result = fs_replace
             .call(ApplyPatchInput {
                 path: nonexistent.to_string_lossy().to_string(),
@@ -249,7 +253,7 @@ mod test {
 
         write_test_file(&file_path, content).await.unwrap();
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         let result = fs_replace
             .call(ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -264,7 +268,7 @@ mod test {
         insta::assert_snapshot!(TempDir::normalize(&result));
 
         // Also snapshot the final file content to verify whitespace preservation
-        let final_content = fs::read_to_string(&file_path).await.unwrap();
+        let final_content = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(final_content);
     }
 
@@ -275,7 +279,7 @@ mod test {
 
         write_test_file(&file_path, "").await.unwrap();
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         let result = fs_replace
             .call(ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -287,7 +291,7 @@ mod test {
         insta::assert_snapshot!(TempDir::normalize(&result));
 
         // Also snapshot the final file content
-        let final_content = fs::read_to_string(&file_path).await.unwrap();
+        let final_content = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(final_content);
     }
 
@@ -299,7 +303,7 @@ mod test {
 
         write_test_file(&file_path, content).await.unwrap();
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         let diff = format!("{SEARCH}\n    First Line    \n{DIVIDER}\n    New First    \n{REPLACE}\n{SEARCH}\n    Last Line    \n{DIVIDER}\n    New Last    \n{REPLACE}\n").to_string();
 
         let result = fs_replace
@@ -310,7 +314,7 @@ mod test {
         insta::assert_snapshot!(TempDir::normalize(&result));
 
         // Also snapshot the final file content to verify both replacements
-        let final_content = fs::read_to_string(&file_path).await.unwrap();
+        let final_content = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(final_content);
     }
 
@@ -322,7 +326,7 @@ mod test {
 
         write_test_file(&file_path, content).await.unwrap();
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         let diff = format!("{SEARCH}\n  Middle Line  \n{DIVIDER}\n{REPLACE}\n");
         let result = fs_replace
             .call(ApplyPatchInput { path: file_path.to_string_lossy().to_string(), diff })
@@ -332,7 +336,7 @@ mod test {
         insta::assert_snapshot!(TempDir::normalize(&result));
 
         // Also snapshot the final file content to verify the line was removed
-        let final_content = fs::read_to_string(&file_path).await.unwrap();
+        let final_content = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(final_content);
     }
 
@@ -345,7 +349,7 @@ mod test {
         let content = "\n\n// Header comment\n\n\nfunction test() {\n    // Inside comment\n\n    let x = 1;\n\n\n    console.log(x);\n}\n\n// Footer comment\n\n\n";
         write_test_file(&file_path, content).await.unwrap();
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
 
         // Test 1: Replace content while preserving surrounding newlines
         let result = fs_replace
@@ -357,7 +361,7 @@ mod test {
             .unwrap();
 
         insta::assert_snapshot!(TempDir::normalize(&result));
-        let content1 = fs::read_to_string(&file_path).await.unwrap();
+        let content1 = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(content1);
 
         // Test 2: Replace block with different newline pattern
@@ -373,7 +377,7 @@ mod test {
             .unwrap();
 
         insta::assert_snapshot!(TempDir::normalize(&result));
-        let content2 = fs::read_to_string(&file_path).await.unwrap();
+        let content2 = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(content2);
 
         // Test 3: Replace with empty lines preservation
@@ -389,7 +393,7 @@ mod test {
             .unwrap();
 
         insta::assert_snapshot!(TempDir::normalize(&result));
-        let content3 = fs::read_to_string(&file_path).await.unwrap();
+        let content3 = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(content3);
     }
 
@@ -409,7 +413,7 @@ mod test {
 "#;
         write_test_file(&file_path, content).await.unwrap();
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         // Search with different casing, spacing, and variable names
         let result = fs_replace
             .call(ApplyPatchInput {
@@ -420,7 +424,7 @@ mod test {
             .unwrap();
 
         insta::assert_snapshot!(TempDir::normalize(&result));
-        let content1 = fs::read_to_string(&file_path).await.unwrap();
+        let content1 = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(content1);
 
         // Test fuzzy matching with more variations
@@ -433,7 +437,7 @@ mod test {
             .unwrap();
 
         insta::assert_snapshot!(TempDir::normalize(&result));
-        let content2 = fs::read_to_string(&file_path).await.unwrap();
+        let content2 = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(content2);
     }
 
@@ -453,7 +457,7 @@ mod test {
 "#;
         write_test_file(&file_path, content).await.unwrap();
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         // Search with structural similarities but different variable names and spacing
         let result = fs_replace
             .call(ApplyPatchInput {
@@ -464,7 +468,7 @@ mod test {
             .unwrap();
 
         insta::assert_snapshot!(TempDir::normalize(&result));
-        let content1 = fs::read_to_string(&file_path).await.unwrap();
+        let content1 = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(content1);
 
         // Test fuzzy matching with error handling changes
@@ -477,7 +481,7 @@ mod test {
             .unwrap();
 
         insta::assert_snapshot!(TempDir::normalize(&result));
-        let content2 = fs::read_to_string(&file_path).await.unwrap();
+        let content2 = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(content2);
     }
 
@@ -489,7 +493,7 @@ mod test {
 
         write_test_file(&file_path, content).await.unwrap();
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         let result = fs_replace
             .call(ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -502,7 +506,7 @@ mod test {
             .unwrap();
 
         insta::assert_snapshot!(TempDir::normalize(&result));
-        let content = fs::read_to_string(&file_path).await.unwrap();
+        let content = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(content);
     }
 
@@ -514,7 +518,7 @@ mod test {
 
         write_test_file(&file_path, content).await.unwrap();
 
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         let result = fs_replace
             .call(ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -524,13 +528,13 @@ mod test {
             .unwrap();
 
         insta::assert_snapshot!(TempDir::normalize(&result));
-        let content = fs::read_to_string(&file_path).await.unwrap();
+        let content = tokio::fs::read_to_string(&file_path).await.unwrap();
         insta::assert_snapshot!(content);
     }
 
     #[tokio::test]
     async fn test_patch_relative_path() {
-        let fs_replace = ApplyPatch;
+        let fs_replace = ApplyPatch::new(Arc::new(Stub::default()));
         let result = fs_replace
             .call(ApplyPatchInput {
                 path: "relative/path.txt".to_string(),

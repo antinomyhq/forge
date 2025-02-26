@@ -1,9 +1,9 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use forge_api::{Environment, Usage};
+use forge_api::{Usage, API};
 use forge_display::TitleFormat;
-use tokio::fs;
 
 use crate::console::CONSOLE;
 use crate::editor::{ForgeEditor, ReadResult};
@@ -12,23 +12,23 @@ use crate::prompt::ForgePrompt;
 
 /// Console implementation for handling user input via command line.
 #[derive(Debug)]
-pub struct Console {
-    env: Environment,
+pub struct Console<F> {
+    api: Arc<F>,
 }
 
-impl Console {
+impl<F> Console<F> {
     /// Creates a new instance of `Console`.
-    pub fn new(env: Environment) -> Self {
-        Self { env }
+    pub fn new(api: Arc<F>) -> Self {
+        Self { api }
     }
 }
 
 #[async_trait]
-impl UserInput for Console {
+impl<F: API + Send + Sync> UserInput for Console<F> {
     type PromptInput = PromptInput;
     async fn upload<P: Into<PathBuf> + Send>(&self, path: P) -> anyhow::Result<Command> {
         let path = path.into();
-        let content = fs::read_to_string(&path).await?.trim().to_string();
+        let content = self.api.read_file(&path).await?.trim().to_string();
 
         CONSOLE.writeln(content.clone())?;
         Ok(Command::Message(content))
@@ -36,7 +36,8 @@ impl UserInput for Console {
 
     async fn prompt(&self, input: Option<Self::PromptInput>) -> anyhow::Result<Command> {
         CONSOLE.writeln("")?;
-        let mut engine = ForgeEditor::start(self.env.clone());
+        let env = self.api.environment();
+        let mut engine = ForgeEditor::start(env);
         let prompt: ForgePrompt = input.map(Into::into).unwrap_or_default();
 
         loop {
