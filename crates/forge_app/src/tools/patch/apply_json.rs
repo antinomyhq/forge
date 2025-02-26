@@ -10,6 +10,7 @@ use tokio::fs;
 
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
+use crate::services::fs::FileWriteService;
 
 /// Threshold for fuzzy matching. A score above this value is considered a
 /// match. The score is calculated as the ratio of matching characters to total
@@ -202,7 +203,7 @@ async fn process_file_modifications(
 ) -> Result<String, Error> {
     let content = fs::read_to_string(path).await?;
     let content = apply_replacements(content, replacements)?;
-    fs::write(path, &content).await?;
+    FileWriteService::write(path, &content).await?;
 
     let warning = syn::validate(path, &content).map(|e| e.to_string());
     Ok(format_output(

@@ -7,6 +7,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
+use crate::services::fs::FileReadService;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSReadInput {
@@ -37,7 +38,7 @@ impl ExecutableTool for FSRead {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        tokio::fs::read_to_string(path)
+        FileReadService::read_to_string(path)
             .await
             .with_context(|| format!("Failed to read file content from {}", input.path))
     }

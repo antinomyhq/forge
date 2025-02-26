@@ -11,6 +11,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
+use crate::services::fs::{FileReadService, FileWriteService};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSSearchInput {
@@ -110,7 +111,7 @@ impl ExecutableTool for FSSearch {
             }
 
             // Try to read the file content
-            let content = match tokio::fs::read_to_string(&full_path).await {
+            let content = match FileReadService::read_to_string(&full_path).await {
                 Ok(content) => content,
                 Err(e) => {
                     // Skip binary or unreadable files silently

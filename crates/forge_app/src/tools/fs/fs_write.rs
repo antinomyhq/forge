@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
+use crate::services::fs::{FileReadService, FileWriteService};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSWriteInput {
@@ -57,14 +58,14 @@ impl ExecutableTool for FSWrite {
         // record the file content before they're modified
         let old_content = if path.is_file() {
             // if file already exists, we should be able to read it.
-            tokio::fs::read_to_string(path).await?
+            FileReadService::read_to_string(path).await?
         } else {
             // if file doesn't exist, we should record it as an empty string.
             "".to_string()
         };
 
         // Write file only after validation passes and directories are created
-        tokio::fs::write(&input.path, &input.content).await?;
+        FileWriteService::write(&input.path, &input.content).await?;
 
         let mut result = format!(
             "Successfully wrote {} bytes to {}",
@@ -77,7 +78,7 @@ impl ExecutableTool for FSWrite {
         }
 
         // record the file content after they're modified
-        let new_content = tokio::fs::read_to_string(path).await?;
+        let new_content = FileReadService::read_to_string(path).await?;
         let diff = DiffFormat::format(path.to_path_buf(), &old_content, &new_content);
         println!("{}", diff);
 
