@@ -132,3 +132,132 @@ mod mistralai_codestral_2501 {
     use super::*;
     generate_model_test!("mistralai/codestral-2501");
 }
+
+mod retry_functionality {
+    use tokio_stream::StreamExt;
+    use forge_api::{ConversationId, DispatchEvent};
+    use super::*;
+
+    #[tokio::test]
+    async fn test_retry_functionality() {
+        let api = ForgeAPI::init(true);
+        let mut workflow = api.load(Some(&PathBuf::from(WORKFLOW_PATH))).await.unwrap();
+        let test_model = ModelId::new("anthropic/claude-3.5-sonnet");
+        workflow.agents.iter_mut().for_each(|agent| {
+            agent.model = test_model.clone();
+        });
+
+        let conversation_id = api.init(workflow).await.unwrap();
+
+        let initial_message = "What is the capital of France?";
+        let request = ChatRequest::new(initial_message, conversation_id.clone());
+        // collect initial response
+        let initial_response = api.chat(request)
+            .await
+            .unwrap()
+            .filter_map(|message| match message {
+                    Ok(AgentMessage { message: ChatResponse::Text(text), .. }) => Some(text),
+                    _ => None,
+            })
+            .collect::<Vec<_>>()
+            .await
+            .join("");
+        // verify initial response contains expected information
+        assert!(initial_response.to_lowercase().contains("paris"),
+            "Initial response should mention Paris");
+        // retry the conversation
+        let retry_response = api.retry(conversation_id.clone())
+            .await
+            .unwrap()
+            .filter_map(|message| match message.unwrap() {
+                    AgentMessage { message: ChatResponse::Text(text), .. } => Some(text),
+                    _ => None,
+            })
+            .collect::<Vec<_>>()
+            .await
+            .join("");
+
+        // verify retry response also contains same message
+        assert!(retry_response.to_lowercase().contains("paris"),
+            "Retry response should mention Paris"
+        );
+
+        // verify that retry used same message
+        let conversation = api.conversation(&conversation_id).await.unwrap().unwrap();
+        let last_user_message = conversation.rfind_event(DispatchEvent::USER_TASK_UPDATE)
+            .or_else(|| conversation.rfind_event(DispatchEvent::USER_TASK_INIT))
+            .unwrap();
+        assert_eq!(last_user_message.value, initial_message,
+            "The last user message should match the initial message"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_retry_with_no_conversation() {
+        let api = ForgeAPI::init(true);
+        let conversation_id = ConversationId::generate();
+        let result = api.retry(conversation_id).await;
+        assert!(result.is_err(), "Retry with non-existent conversation should fail");
+
+        match result {
+            Ok(_) => panic!("Expected an error but got success"),
+            Err(e) => {
+                let err_string = e.to_string();
+                assert!(err_string.contains("not found"),
+                    "Error should indicate conversation not found, got: {}", err_string
+                )
+            }
+        }
+
+    }
+
+    #[tokio::test]
+    async fn test_retry_with_multiple_messages() {
+        let api = ForgeAPI::init(true);
+        let mut workflow = api.load(Some(&PathBuf::from(WORKFLOW_PATH))).await.unwrap();
+        let test_model = ModelId::new("anthropic/claude-3.5-sonnet");
+        workflow.agents.iter_mut().for_each(|agent| {
+            agent.model = test_model.clone();
+        });
+        let conversation_id = api.init(workflow).await.unwrap();
+
+        let first_message = "What is the capital of France?";
+        let request1 = ChatRequest::new(first_message, conversation_id.clone());
+        api.chat(request1)
+            .await
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+
+        let second_message = "What is the capital of Italy?";
+        let request2 = ChatRequest::new(second_message, conversation_id.clone());
+        api.chat(request2)
+            .await
+            .unwrap()
+            .collect::<Vec<_>>()
+            .await;
+
+        let retry_response = api.retry(conversation_id.clone())
+            .await
+            .unwrap()
+            .filter_map(|message| match message.unwrap() {
+                    AgentMessage { message: ChatResponse::Text(text), .. } => Some(text),
+                    _ => None,
+            })
+            .collect::<Vec<_>>()
+            .await
+            .join("");
+
+        assert!(retry_response.to_lowercase().contains("rome"),
+            "Retry response should mention Rome"
+        );
+
+        let conversation = api.conversation(&conversation_id).await.unwrap().unwrap();
+        let last_user_message = conversation.rfind_event(DispatchEvent::USER_TASK_UPDATE).unwrap();
+        assert_eq!(last_user_message.value, second_message,
+            "The last user message should match the second message"
+        )
+
+
+    }
+}
