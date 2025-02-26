@@ -85,6 +85,20 @@ impl<F: API> UI<F> {
                     input = self.console.prompt(prompt_input).await?;
                     continue;
                 }
+                Command::Retry => {
+                    if let Some(conversation_id) = &self.state.conversation_id {
+                        CONSOLE.writeln(TitleFormat::retrying().format())?;
+                        match self.api.retry(conversation_id.clone()).await {
+                            Ok(mut stream) => self.handle_chat_stream(&mut stream).await?,
+                            Err(err) => CONSOLE.writeln(TitleFormat::failed(err.to_string()).format())?,
+                        }
+                    } else {
+                        CONSOLE.writeln(TitleFormat::failed("No active conversation to retry").format())?;
+                    }
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                    continue;
+                }
                 Command::New => {
                     banner::display()?;
                     self.state = Default::default();

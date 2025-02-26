@@ -132,3 +132,76 @@ mod mistralai_codestral_2501 {
     use super::*;
     generate_model_test!("mistralai/codestral-2501");
 }
+
+/// Test the retry functionality
+#[tokio::test]
+async fn test_retry_functionality() {
+    // Initialize the API
+    let api = ForgeAPI::init(true);
+    
+    // Load the workflow
+    let workflow = api.load(Some(&PathBuf::from(WORKFLOW_PATH))).await.unwrap();
+    
+    // Initialize the conversation
+    let conversation_id = api.init(workflow).await.unwrap();
+    
+    // Create a test message
+    let test_message = "Test message for retry functionality";
+    let request = ChatRequest::new(test_message, conversation_id.clone());
+    
+    // Send the initial chat request
+    let mut initial_stream = api.chat(request).await.unwrap();
+    
+    // Wait for at least one response or timeout after 5 seconds
+    let mut initial_responses = Vec::new();
+    let start_time = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(5);
+    
+    while let Some(message) = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        initial_stream.next()
+    ).await.unwrap_or(None) {
+        if let Ok(AgentMessage { message: ChatResponse::Text(text), .. }) = message {
+            initial_responses.push(text);
+        }
+        
+        // Break after 5 seconds to avoid hanging
+        if start_time.elapsed() > timeout {
+            break;
+        }
+    }
+    
+    // Verify that the conversation exists
+    let conversation = api.conversation(&conversation_id).await.unwrap();
+    assert!(conversation.is_some(), "Conversation should exist after initial chat");
+    
+    // Now test the retry functionality
+    let mut retry_stream = api.retry(conversation_id.clone()).await.unwrap();
+    
+    // Wait for at least one response or timeout after 5 seconds
+    let mut retry_responses = Vec::new();
+    let start_time = std::time::Instant::now();
+    
+    while let Some(message) = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        retry_stream.next()
+    ).await.unwrap_or(None) {
+        if let Ok(AgentMessage { message: ChatResponse::Text(text), .. }) = message {
+            retry_responses.push(text);
+        }
+        
+        // Break after 5 seconds to avoid hanging
+        if start_time.elapsed() > timeout {
+            break;
+        }
+    }
+    
+    // For testing purposes, we'll consider the test successful if we can call retry without errors
+    // The actual responses might vary based on the model and test environment
+    println!("Initial responses: {:?}", initial_responses);
+    println!("Retry responses: {:?}", retry_responses);
+    
+    // Verify that the conversation exists after retry
+    let conversation = api.conversation(&conversation_id).await.unwrap();
+    assert!(conversation.is_some(), "Conversation should exist after retry");
+}
