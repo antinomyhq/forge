@@ -38,7 +38,7 @@ pub trait FileReadService: Send + Sync {
 /// for both real file system access and test mocking.
 #[async_trait::async_trait]
 pub trait FileWriteService: Send + Sync {
-    /// Reads the content of a file at the specified path.
+    /// Writes the contents to a file at the specified path.
     async fn write(&self, path: &Path, content: &str) -> anyhow::Result<()>;
 }
 

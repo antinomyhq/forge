@@ -64,7 +64,7 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
     }
 
     fn environment(&self) -> Environment {
-        self.app.environment_service().get_environment().clone()
+        self.app.environment_service().get_environment()
     }
 
     async fn load(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
