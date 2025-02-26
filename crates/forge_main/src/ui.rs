@@ -129,6 +129,36 @@ impl<F: API> UI<F> {
 
                     input = self.console.prompt(None).await?;
                 }
+                Command::Retry => {
+                    if let Some(conversation_id) = self.state.conversation_id.clone() {
+                        CONSOLE.writeln(
+                            TitleFormat::execute("retry")
+                                .sub_title(self.state.usage.to_string())
+                                .format()
+                        )?;
+
+                        // Simplified error handling that matches the Command::Message case
+                        if let Err(err) = async {
+                            let mut stream = self.api.retry(conversation_id).await?;
+                            self.handle_chat_stream(&mut stream).await
+                        }.await {
+                            CONSOLE.writeln(
+                                TitleFormat::failed(format!("{:?}", err))
+                                    .sub_title(self.state.usage.to_string())
+                                    .format()
+                            )?;
+                        }
+                    } else {
+                        CONSOLE.writeln(
+                            TitleFormat::failed("retry")
+                                .error("No active conversation")
+                                .format(),
+                        )?
+                    }
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                    continue;
+                }
             }
         }
 
