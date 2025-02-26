@@ -4,13 +4,13 @@ use validator::Validate;
 
 use crate::ApiKey;
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateApiKeyRequest {
     #[validate(length(min = 1, message = "name cannot be empty"))]
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ApiKeyResponse {
     pub id: String,
     pub key_name: String,

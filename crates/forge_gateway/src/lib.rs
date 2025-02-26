@@ -1,8 +1,8 @@
 pub mod config;
-mod data;
-mod error;
-mod presentation;
-mod service;
+pub mod data;
+pub mod error;
+pub mod presentation;
+pub mod service;
 
 use std::sync::Arc;
 
