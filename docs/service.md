@@ -1,3 +1,11 @@
+---
+layout: page
+title: Service Documentation
+nav_order: 4
+description: "Service implementation details for Code-Forge"
+permalink: /service
+---
+
 ## Example
 
 The `Service` struct acts as a factory, providing static methods to create service instances:

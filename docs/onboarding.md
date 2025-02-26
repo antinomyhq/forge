@@ -1,3 +1,11 @@
+---
+layout: page
+title: Onboarding
+nav_order: 2
+description: "Onboarding guide for Code-Forge"
+permalink: /onboarding
+---
+
 # Code-Forge: AI-Powered Code Assistant
 
 Code-Forge is a sophisticated AI-powered coding assistant platform built in Rust, designed to provide intelligent code generation, manipulation, and analysis capabilities through a modular and extensible architecture.
