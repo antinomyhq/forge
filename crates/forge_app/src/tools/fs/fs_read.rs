@@ -56,18 +56,24 @@ impl<F: Infrastructure> ExecutableTool for FSRead<F> {
 
 #[cfg(test)]
 mod test {
-
     use pretty_assertions::assert_eq;
+    use tokio::fs;
 
     use super::*;
     use crate::tools::tests::Stub;
+    use crate::tools::utils::TempDir;
 
     #[tokio::test]
     async fn test_fs_read_success() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+
         let test_content = "Hello, World!";
+        fs::write(&file_path, test_content).await.unwrap();
+
         let fs_read = FSRead::new(Arc::new(Stub::default()));
         let result = fs_read
-            .call(FSReadInput { path: "/test/file.txt".to_string() })
+            .call(FSReadInput { path: file_path.to_string_lossy().to_string() })
             .await
             .unwrap();
 
@@ -76,9 +82,12 @@ mod test {
 
     #[tokio::test]
     async fn test_fs_read_nonexistent_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let nonexistent_file = temp_dir.path().join("nonexistent.txt");
+
         let fs_read = FSRead::new(Arc::new(Stub::default()));
         let result = fs_read
-            .call(FSReadInput { path: "/nonexistent/file.txt".to_string() })
+            .call(FSReadInput { path: nonexistent_file.to_string_lossy().to_string() })
             .await;
 
         assert!(result.is_err());
@@ -86,10 +95,13 @@ mod test {
 
     #[tokio::test]
     async fn test_fs_read_empty_file() {
-        let fs_read = FSRead::new(Arc::new(Stub::default()));
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("empty.txt");
+        fs::write(&file_path, "").await.unwrap();
 
+        let fs_read = FSRead::new(Arc::new(Stub::default()));
         let result = fs_read
-            .call(FSReadInput { path: "/empty/file.txt".to_string() })
+            .call(FSReadInput { path: file_path.to_string_lossy().to_string() })
             .await
             .unwrap();
 
@@ -98,13 +110,12 @@ mod test {
 
     #[test]
     fn test_description() {
-        assert!(FSRead::new(Arc::new(Stub::default())).description().len() > 100)
+        assert!(FSRead.description().len() > 100)
     }
 
     #[tokio::test]
     async fn test_fs_read_relative_path() {
         let fs_read = FSRead::new(Arc::new(Stub::default()));
-
         let result = fs_read
             .call(FSReadInput { path: "relative/path.txt".to_string() })
             .await;
