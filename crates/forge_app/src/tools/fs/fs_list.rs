@@ -8,7 +8,6 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
-use crate::services::fs::{FileReadService, FileWriteService};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSListInput {
@@ -123,10 +122,10 @@ mod test {
     async fn test_fs_list_with_files_and_dirs() {
         let temp_dir = TempDir::new().unwrap();
 
-        FileWriteService::write(temp_dir.path().join("file1.txt"), "content1")
+        fs::write(temp_dir.path().join("file1.txt"), "content1")
             .await
             .unwrap();
-        FileWriteService::write(temp_dir.path().join("file2.txt"), "content2")
+        fs::write(temp_dir.path().join("file2.txt"), "content2")
             .await
             .unwrap();
         fs::create_dir(temp_dir.path().join("dir1")).await.unwrap();
@@ -164,10 +163,10 @@ mod test {
     async fn test_fs_list_with_hidden_files() {
         let temp_dir = TempDir::new().unwrap();
 
-        FileWriteService::write(temp_dir.path().join("regular.txt"), "content")
+        fs::write(temp_dir.path().join("regular.txt"), "content")
             .await
             .unwrap();
-        FileWriteService::write(temp_dir.path().join(".hidden"), "content")
+        fs::write(temp_dir.path().join(".hidden"), "content")
             .await
             .unwrap();
         fs::create_dir(temp_dir.path().join(".hidden_dir"))
@@ -195,16 +194,15 @@ mod test {
         // Create nested directory structure
         fs::create_dir(temp_dir.path().join("dir1")).await.unwrap();
         fs::write(temp_dir.path().join("dir1/file1.txt"), "content1")
-        FileWriteService::write(temp_dir.path().join("dir1/file1.txt"), "content1")
             .await
             .unwrap();
         fs::create_dir(temp_dir.path().join("dir1/subdir"))
             .await
             .unwrap();
-        FileWriteService::write(temp_dir.path().join("dir1/subdir/file2.txt"), "content2")
+        fs::write(temp_dir.path().join("dir1/subdir/file2.txt"), "content2")
             .await
             .unwrap();
-        FileWriteService::write(temp_dir.path().join("root.txt"), "content3")
+        fs::write(temp_dir.path().join("root.txt"), "content3")
             .await
             .unwrap();
 

@@ -4,7 +4,6 @@ use tokio::fs;
 
 use crate::outline::{Outline, OutlineInput};
 use crate::tools::utils::TempDir;
-use crate::services::fs::FileWriteService;
 
 #[tokio::test]
 async fn java_outline() {
@@ -48,7 +47,7 @@ public class UserService {
     }
 }"#;
     let file_path = temp_dir.path().join("test.java");
-    FileWriteService::write(&file_path, content).await.unwrap();
+    fs::write(&file_path, content).await.unwrap();
 
     let outline = Outline;
     let result = outline

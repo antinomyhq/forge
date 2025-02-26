@@ -4,7 +4,6 @@ use tokio::fs;
 
 use crate::outline::{Outline, OutlineInput};
 use crate::tools::utils::TempDir;
-use crate::services::fs::FileWriteService;
 
 #[tokio::test]
 async fn tsx_outline() {
@@ -46,7 +45,7 @@ export class UserContainer extends React.Component<Props, { loading: boolean }> 
     }
 }"#;
     let file_path = temp_dir.path().join("test.tsx");
-    FileWriteService::write(&file_path, content).await.unwrap();
+    fs::write(&file_path, content).await.unwrap();
 
     let outline = Outline;
     let result = outline

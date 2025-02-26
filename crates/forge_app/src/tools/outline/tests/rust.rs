@@ -4,7 +4,6 @@ use tokio::fs;
 
 use crate::outline::{Outline, OutlineInput};
 use crate::tools::utils::TempDir;
-use crate::services::fs::FileWriteService;
 
 #[tokio::test]
 async fn rust_outline() {
@@ -26,7 +25,7 @@ impl User {
 }
 "#;
     let file_path = temp_dir.path().join("test.rs");
-    FileWriteService::write(&file_path, content).await.unwrap();
+    fs::write(&file_path, content).await.unwrap();
 
     let outline = Outline;
     let result = outline

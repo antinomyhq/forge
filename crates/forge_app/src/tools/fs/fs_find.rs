@@ -154,13 +154,13 @@ mod test {
     async fn test_fs_search_content() {
         let temp_dir = TempDir::new().unwrap();
 
-        FileWriteService::write(temp_dir.path().join("test1.txt"), "Hello test world")
+        fs::write(temp_dir.path().join("test1.txt"), "Hello test world")
             .await
             .unwrap();
-        FileWriteService::write(temp_dir.path().join("test2.txt"), "Another test case")
+        fs::write(temp_dir.path().join("test2.txt"), "Another test case")
             .await
             .unwrap();
-        FileWriteService::write(temp_dir.path().join("other.txt"), "No match here")
+        fs::write(temp_dir.path().join("other.txt"), "No match here")
             .await
             .unwrap();
 
@@ -184,10 +184,10 @@ mod test {
     async fn test_fs_search_with_pattern() {
         let temp_dir = TempDir::new().unwrap();
 
-        FileWriteService::write(temp_dir.path().join("test1.txt"), "Hello test world")
+        fs::write(temp_dir.path().join("test1.txt"), "Hello test world")
             .await
             .unwrap();
-        FileWriteService::write(temp_dir.path().join("test2.rs"), "fn test() {}")
+        fs::write(temp_dir.path().join("test2.rs"), "fn test() {}")
             .await
             .unwrap();
 
@@ -211,7 +211,7 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
         let content = "line 1\nline 2\ntest line\nline 4\nline 5";
 
-        FileWriteService::write(temp_dir.path().join("test.txt"), content)
+        fs::write(temp_dir.path().join("test.txt"), content)
             .await
             .unwrap();
 
@@ -235,15 +235,15 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
 
         let sub_dir = temp_dir.path().join("subdir");
-        FileWriteService::create_dir(&sub_dir).await.unwrap();
+        fs::create_dir(&sub_dir).await.unwrap();
 
-        FileWriteService::write(temp_dir.path().join("test1.txt"), "test content")
+        fs::write(temp_dir.path().join("test1.txt"), "test content")
             .await
             .unwrap();
-        FileWriteService::write(sub_dir.join("test2.txt"), "more test content")
+        fs::write(sub_dir.join("test2.txt"), "more test content")
             .await
             .unwrap();
-        FileWriteService::write(sub_dir.join("best.txt"), "this is proper\n test content")
+        fs::write(sub_dir.join("best.txt"), "this is proper\n test content")
             .await
             .unwrap();
 
@@ -268,7 +268,7 @@ mod test {
     async fn test_fs_search_case_insensitive() {
         let temp_dir = TempDir::new().unwrap();
 
-        FileWriteService::write(
+        fs::write(
             temp_dir.path().join("test.txt"),
             "TEST CONTENT\ntest content",
         )
@@ -295,7 +295,7 @@ mod test {
     async fn test_fs_search_no_matches() {
         let temp_dir = TempDir::new().unwrap();
 
-        FileWriteService::write(temp_dir.path().join("test.txt"), "content")
+        fs::write(temp_dir.path().join("test.txt"), "content")
             .await
             .unwrap();
 

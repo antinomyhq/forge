@@ -120,7 +120,7 @@ mod test {
         assert!(output.contains(&content.len().to_string()));
 
         // Verify file was actually written
-        let content = FileReadService::read_to_string(&file_path).await.unwrap();
+        let content = fs::read_to_string(&file_path).await.unwrap();
         assert_eq!(content, "Hello, World!")
     }
 

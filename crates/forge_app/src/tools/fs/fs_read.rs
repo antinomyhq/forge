@@ -7,7 +7,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
-use crate::services::fs::{FileReadService, FileWriteService};
+use crate::services::fs::FileReadService;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSReadInput {
@@ -58,7 +58,7 @@ mod test {
         let file_path = temp_dir.path().join("test.txt");
 
         let test_content = "Hello, World!";
-        FileWriteService::write(&file_path, test_content).await.unwrap();
+        fs::write(&file_path, test_content).await.unwrap();
 
         let fs_read = FSRead;
         let result = fs_read
@@ -86,7 +86,7 @@ mod test {
     async fn test_fs_read_empty_file() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("empty.txt");
-        FileWriteService::write(&file_path, "").await.unwrap();
+        fs::write(&file_path, "").await.unwrap();
 
         let fs_read = FSRead;
         let result = fs_read

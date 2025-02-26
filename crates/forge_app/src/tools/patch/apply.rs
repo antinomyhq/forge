@@ -207,7 +207,7 @@ mod test {
     use crate::tools::utils::TempDir;
 
     async fn write_test_file(path: impl AsRef<Path>, content: &str) -> Result<(), Error> {
-        FileWriteService::write(&path, content)
+        fs::write(&path, content)
             .await
             .map_err(Error::FileOperation)
     }
