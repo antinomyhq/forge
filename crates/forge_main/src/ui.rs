@@ -198,7 +198,7 @@ impl<F: API + Send + Sync> UI<F> {
 
                 let content = serde_json::to_string_pretty(&conversation)?;
 
-                self.api.write_file(&Path::new(&path), &content).await?;
+                self.api.write_file(Path::new(&path), &content).await?;
 
                 CONSOLE.writeln(
                     TitleFormat::success("dump")
