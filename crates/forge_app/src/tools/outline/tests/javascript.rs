@@ -4,6 +4,7 @@ use tokio::fs;
 
 use crate::outline::{Outline, OutlineInput};
 use crate::tools::utils::TempDir;
+use crate::services::fs::FileWriteService;
 
 #[tokio::test]
 async fn javascript_outline() {
@@ -40,7 +41,7 @@ async function fetchItems() {
     return Promise.resolve([]);
 }"#;
     let file_path = temp_dir.path().join("test.js");
-    fs::write(&file_path, content).await.unwrap();
+    FileWriteService::write(&file_path, content).await.unwrap();
 
     let outline = Outline;
     let result = outline

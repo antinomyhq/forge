@@ -4,13 +4,14 @@ use tokio::fs;
 
 use crate::outline::{Outline, OutlineInput};
 use crate::tools::utils::TempDir;
+use crate::services::fs::FileWriteService;
 
 #[tokio::test]
 async fn test_outline_multiple_files() {
     let temp_dir = TempDir::new().unwrap();
 
     // Rust file
-    fs::write(
+    FileWriteService::write(
         temp_dir.path().join("main.rs"),
         "fn main() { println!(\"Hello\"); }",
     )
@@ -18,7 +19,7 @@ async fn test_outline_multiple_files() {
     .unwrap();
 
     // JavaScript file
-    fs::write(
+    FileWriteService::write(
         temp_dir.path().join("script.js"),
         "function init() { console.log('Ready'); }",
     )
@@ -26,7 +27,7 @@ async fn test_outline_multiple_files() {
     .unwrap();
 
     // Python file
-    fs::write(
+    FileWriteService::write(
         temp_dir.path().join("app.py"),
         "def start(): print('Starting')",
     )
@@ -63,7 +64,7 @@ async fn test_outline_empty_directory() {
 #[tokio::test]
 async fn test_outline_unsupported_files() {
     let temp_dir = TempDir::new().unwrap();
-    fs::write(temp_dir.path().join("data.txt"), "Some text")
+    FileWriteService::write(temp_dir.path().join("data.txt"), "Some text")
         .await
         .unwrap();
 

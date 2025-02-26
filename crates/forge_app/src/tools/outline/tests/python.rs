@@ -4,6 +4,7 @@ use tokio::fs;
 
 use crate::outline::{Outline, OutlineInput};
 use crate::tools::utils::TempDir;
+use crate::services::fs::FileWriteService;
 
 #[tokio::test]
 async fn python_outline() {
@@ -34,7 +35,7 @@ def decorated_function():
 async def fetch_data():
     return "data""#;
     let file_path = temp_dir.path().join("test.py");
-    fs::write(&file_path, content).await.unwrap();
+    FileWriteService::write(&file_path, content).await.unwrap();
 
     let outline = Outline;
     let result = outline

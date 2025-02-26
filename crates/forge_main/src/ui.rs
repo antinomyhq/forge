@@ -14,6 +14,7 @@ use crate::console::CONSOLE;
 use crate::info::Info;
 use crate::input::{Console, PromptInput};
 use crate::model::{Command, UserInput};
+use crate::services::fs::FileWriteService;
 
 lazy_static! {
     pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
@@ -196,7 +197,7 @@ impl<F: API> UI<F> {
                 let path = format!("{path}.json");
 
                 let content = serde_json::to_string_pretty(&conversation)?;
-                tokio::fs::write(path.as_str(), content).await?;
+                FileWriteService::write(path.as_str(), content).await?;
 
                 CONSOLE.writeln(
                     TitleFormat::success("dump")

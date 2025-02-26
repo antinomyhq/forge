@@ -11,6 +11,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
+use crate::services::fs::{FileReadService, FileWriteService};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSSearchInput {
@@ -110,7 +111,7 @@ impl ExecutableTool for FSSearch {
             }
 
             // Try to read the file content
-            let content = match tokio::fs::read_to_string(&full_path).await {
+            let content = match FileReadService::read_to_string(&full_path).await {
                 Ok(content) => content,
                 Err(e) => {
                     // Skip binary or unreadable files silently
@@ -153,13 +154,13 @@ mod test {
     async fn test_fs_search_content() {
         let temp_dir = TempDir::new().unwrap();
 
-        fs::write(temp_dir.path().join("test1.txt"), "Hello test world")
+        FileWriteService::write(temp_dir.path().join("test1.txt"), "Hello test world")
             .await
             .unwrap();
-        fs::write(temp_dir.path().join("test2.txt"), "Another test case")
+        FileWriteService::write(temp_dir.path().join("test2.txt"), "Another test case")
             .await
             .unwrap();
-        fs::write(temp_dir.path().join("other.txt"), "No match here")
+        FileWriteService::write(temp_dir.path().join("other.txt"), "No match here")
             .await
             .unwrap();
 
@@ -183,10 +184,10 @@ mod test {
     async fn test_fs_search_with_pattern() {
         let temp_dir = TempDir::new().unwrap();
 
-        fs::write(temp_dir.path().join("test1.txt"), "Hello test world")
+        FileWriteService::write(temp_dir.path().join("test1.txt"), "Hello test world")
             .await
             .unwrap();
-        fs::write(temp_dir.path().join("test2.rs"), "fn test() {}")
+        FileWriteService::write(temp_dir.path().join("test2.rs"), "fn test() {}")
             .await
             .unwrap();
 
@@ -210,7 +211,7 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
         let content = "line 1\nline 2\ntest line\nline 4\nline 5";
 
-        fs::write(temp_dir.path().join("test.txt"), content)
+        FileWriteService::write(temp_dir.path().join("test.txt"), content)
             .await
             .unwrap();
 
@@ -234,15 +235,15 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
 
         let sub_dir = temp_dir.path().join("subdir");
-        fs::create_dir(&sub_dir).await.unwrap();
+        FileWriteService::create_dir(&sub_dir).await.unwrap();
 
-        fs::write(temp_dir.path().join("test1.txt"), "test content")
+        FileWriteService::write(temp_dir.path().join("test1.txt"), "test content")
             .await
             .unwrap();
-        fs::write(sub_dir.join("test2.txt"), "more test content")
+        FileWriteService::write(sub_dir.join("test2.txt"), "more test content")
             .await
             .unwrap();
-        fs::write(sub_dir.join("best.txt"), "this is proper\n test content")
+        FileWriteService::write(sub_dir.join("best.txt"), "this is proper\n test content")
             .await
             .unwrap();
 
@@ -267,7 +268,7 @@ mod test {
     async fn test_fs_search_case_insensitive() {
         let temp_dir = TempDir::new().unwrap();
 
-        fs::write(
+        FileWriteService::write(
             temp_dir.path().join("test.txt"),
             "TEST CONTENT\ntest content",
         )
@@ -294,7 +295,7 @@ mod test {
     async fn test_fs_search_no_matches() {
         let temp_dir = TempDir::new().unwrap();
 
-        fs::write(temp_dir.path().join("test.txt"), "content")
+        FileWriteService::write(temp_dir.path().join("test.txt"), "content")
             .await
             .unwrap();
 

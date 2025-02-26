@@ -7,6 +7,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
+use crate::services::fs::{FileReadService, FileWriteService};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSRemoveInput {
@@ -67,7 +68,7 @@ mod test {
         let file_path = temp_dir.path().join("test.txt");
 
         // Create a test file
-        fs::write(&file_path, "test content").await.unwrap();
+        FileWriteService::write(&file_path, "test content").await.unwrap();
         assert!(file_path.exists());
 
         let fs_remove = FSRemove;

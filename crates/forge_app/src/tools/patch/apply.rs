@@ -13,6 +13,7 @@ use super::marker::{DIVIDER, REPLACE, SEARCH};
 use super::parse::{self, PatchBlock};
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
+use crate::services::fs::FileWriteService;
 
 #[derive(Debug, Error)]
 enum Error {
@@ -161,7 +162,7 @@ impl ExecutableTool for ApplyPatch {
 
         let result = async {
             let modified = apply_patches(old_content.clone(), blocks).await?;
-            fs::write(&input.path, &modified)
+            FileWriteService::write(&input.path, &modified)
                 .await
                 .map_err(Error::FileOperation)?;
 
@@ -206,7 +207,7 @@ mod test {
     use crate::tools::utils::TempDir;
 
     async fn write_test_file(path: impl AsRef<Path>, content: &str) -> Result<(), Error> {
-        fs::write(&path, content)
+        FileWriteService::write(&path, content)
             .await
             .map_err(Error::FileOperation)
     }
