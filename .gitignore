@@ -38,3 +38,7 @@ Cargo.lock
 .vscode/
 .fastembed_cache/
 *.log*
+
+# ignore shuttle generated files
+.shuttle*
+Secrets*.toml

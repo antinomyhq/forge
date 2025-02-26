@@ -117,6 +117,11 @@ impl Context {
         self
     }
 
+    pub fn extend_messages(mut self, messages: Vec<ContextMessage>) -> Self {
+        self.messages.extend(messages);
+        self
+    }
+
     pub fn extend_tools(mut self, tools: Vec<impl Into<ToolDefinition>>) -> Self {
         self.tools.extend(tools.into_iter().map(Into::into));
         self

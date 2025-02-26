@@ -31,7 +31,7 @@ impl Display for Usage {
 /// Represents a message that was received from the LLM provider
 /// NOTE: Tool call messages are part of the larger Response object and not part
 /// of the message.
-#[derive(Default, Clone, Debug, Setters, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, Setters, PartialEq, Eq, Serialize)]
 #[setters(into, strip_option)]
 pub struct ChatCompletionMessage {
     pub content: Option<Content>,
@@ -42,7 +42,7 @@ pub struct ChatCompletionMessage {
 }
 
 /// Represents partial or full content of a message
-#[derive(Clone, Debug, PartialEq, Eq, From)]
+#[derive(Clone, Debug, PartialEq, Eq, From, Serialize)]
 pub enum Content {
     Part(ContentPart),
     Full(ContentFull),
