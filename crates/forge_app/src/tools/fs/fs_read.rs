@@ -110,7 +110,7 @@ mod test {
 
     #[test]
     fn test_description() {
-        assert!(FSRead.description().len() > 100)
+        assert!(FSRead::new(Arc::new(Stub::default())).description().len() > 100)
     }
 
     #[tokio::test]
