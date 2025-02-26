@@ -34,8 +34,8 @@ pub trait API {
     /// Retry the last user message from a conversation
     async fn retry(
         &self,
-        conversation_id: ConversationId
-    ) ->  anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>, anyhow::Error>>>;
+        conversation_id: ConversationId,
+    ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>, anyhow::Error>>>;
 
     /// Creates a new conversation with the given workflow
     async fn init(&self, workflow: Workflow) -> anyhow::Result<ConversationId>;

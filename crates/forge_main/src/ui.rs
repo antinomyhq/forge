@@ -134,18 +134,20 @@ impl<F: API> UI<F> {
                         CONSOLE.writeln(
                             TitleFormat::execute("retry")
                                 .sub_title(self.state.usage.to_string())
-                                .format()
+                                .format(),
                         )?;
 
                         // Simplified error handling that matches the Command::Message case
                         if let Err(err) = async {
                             let mut stream = self.api.retry(conversation_id).await?;
                             self.handle_chat_stream(&mut stream).await
-                        }.await {
+                        }
+                        .await
+                        {
                             CONSOLE.writeln(
                                 TitleFormat::failed(format!("{:?}", err))
                                     .sub_title(self.state.usage.to_string())
-                                    .format()
+                                    .format(),
                             )?;
                         }
                     } else {
