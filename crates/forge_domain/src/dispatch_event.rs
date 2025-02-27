@@ -5,17 +5,14 @@ use serde::{Deserialize, Serialize};
 use crate::{NamedTool, ToolCallFull, ToolDefinition, ToolName};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-#[serde(tag="type", content="value")]
+#[serde(tag = "type", content = "value")]
 pub enum EventType {
     UserTaskInit(String),
     UserTaskUpdate(String),
     Title(String),
 
     // For custom events
-    Custom {
-        name: String,
-        value: String,
-    }
+    Custom { name: String, value: String },
 }
 
 impl EventType {
@@ -42,10 +39,7 @@ impl EventType {
             DispatchEvent::USER_TASK_INIT => EventType::UserTaskInit(value.to_string()),
             DispatchEvent::USER_TASK_UPDATE => EventType::UserTaskUpdate(value.to_string()),
             DispatchEvent::TITLE => EventType::Title(value.to_string()),
-            _ => EventType::Custom {
-                name: name.to_string(),
-                value: value.to_string(),
-            }
+            _ => EventType::Custom { name: name.to_string(), value: value.to_string() },
         }
     }
 }
@@ -81,7 +75,7 @@ impl DispatchEvent {
     pub fn name(&self) -> String {
         self.event_type.name()
     }
-    
+
     pub fn value(&self) -> String {
         self.event_type.value()
     }
@@ -106,15 +100,14 @@ impl DispatchEvent {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
 
-        Self {
-            id,
-            event_type,
-            timestamp,
-        }
+        Self { id, event_type, timestamp }
     }
 
     pub fn new_name_value(name: impl ToString, value: impl ToString) -> Self {
-        Self::new(EventType::from_name_value(name.to_string().as_str(), value.to_string().as_str()))
+        Self::new(EventType::from_name_value(
+            name.to_string().as_str(),
+            value.to_string().as_str(),
+        ))
     }
 
     pub fn task_init(value: impl ToString) -> Self {
