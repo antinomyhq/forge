@@ -20,28 +20,36 @@ impl SearchTerm {
     /// Returns the word at the cursor position.
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
+        // Handle empty string case
+        if self.line.is_empty() || self.position == 0 {
+            return None;
+        }
+
         let line = &self.line[..self.position];
         let chars_with_indices: Vec<_> = line.char_indices().collect();
-        
+
         // Find the start of the current word by searching backwards for whitespace
         let mut start_byte = 0;
+        let mut found_non_whitespace = false;
+
         for &(byte_pos, c) in chars_with_indices.iter().rev() {
             if c.is_whitespace() {
-                start_byte = byte_pos + c.len_utf8();
-                break;
+                if found_non_whitespace {
+                    start_byte = byte_pos + c.len_utf8();
+                    break;
+                }
+            } else {
+                found_non_whitespace = true;
             }
         }
-        
+
         let term_str = &line[start_byte..];
-        
-        // Check if the term is valid (non-empty and no whitespace)
-        if term_str.is_empty() || term_str.contains(' ') {
+
+        // Check if the term is valid (non-empty and not just whitespace)
+        if term_str.is_empty() || term_str.trim().is_empty() {
             None
         } else {
-            Some(TermResult { 
-                span: Span::new(start_byte, self.position), 
-                term: term_str 
-            })
+            Some(TermResult { span: Span::new(start_byte, self.position), term: term_str })
         }
     }
 }
