@@ -49,5 +49,6 @@ pub trait API {
     async fn read_file<P: AsRef<Path> + Send>(&self, path: P) -> anyhow::Result<String>;
 
     /// Writes the contents to the given path
-    async fn write_file<P: AsRef<Path> + Send>(&self, path: P, content: &str) -> anyhow::Result<()>;
+    async fn write_file<P: AsRef<Path> + Send>(&self, path: P, content: &str)
+        -> anyhow::Result<()>;
 }

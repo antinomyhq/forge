@@ -1,5 +1,6 @@
+use std::collections::HashSet;
 use std::path::Path;
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Context;
 use forge_display::{GrepFormat, Kind, TitleFormat};
@@ -9,8 +10,8 @@ use regex::Regex;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::FileReadService;
-use crate::{tools::utils::assert_absolute_path, Infrastructure};
+use crate::tools::utils::assert_absolute_path;
+use crate::{FileReadService, Infrastructure};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSSearchInput {

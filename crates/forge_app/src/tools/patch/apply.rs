@@ -166,9 +166,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatch<F> {
 
         let result = async {
             let modified = apply_patches(old_content.clone(), blocks).await?;
-        
             self.0.file_write_service().write(path, &modified).await?;
-
             let syntax_warning = syn::validate(&input.path, &modified);
 
             // Handle syntax warning and build output
@@ -206,8 +204,8 @@ mod test {
     use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
     use super::*;
-    use crate::tools::utils::TempDir;
     use crate::tools::tests::Stub;
+    use crate::tools::utils::TempDir;
 
     async fn write_test_file(path: impl AsRef<Path>, content: &str) -> Result<(), Error> {
         tokio::fs::write(&path, content)

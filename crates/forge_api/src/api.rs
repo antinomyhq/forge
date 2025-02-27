@@ -82,7 +82,14 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
         self.app.file_read_service().read(path.as_ref()).await
     }
 
-    async fn write_file<P: AsRef<Path> + Send>(&self, path: P, content: &str) -> anyhow::Result<()> {
-        self.app.file_write_service().write(path.as_ref(), content).await
+    async fn write_file<P: AsRef<Path> + Send>(
+        &self,
+        path: P,
+        content: &str,
+    ) -> anyhow::Result<()> {
+        self.app
+            .file_write_service()
+            .write(path.as_ref(), content)
+            .await
     }
 }
