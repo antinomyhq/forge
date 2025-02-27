@@ -21,36 +21,30 @@ impl SearchTerm {
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
         // Handle empty string case
-        if self.line.is_empty() || self.position == 0 {
+        if self.line.is_empty() {
             return None;
         }
 
-        let line = &self.line[..self.position];
-        let chars_with_indices: Vec<_> = line.char_indices().collect();
-
-        // Find the start of the current word by searching backwards for whitespace
-        let mut start_byte = 0;
-        let mut found_non_whitespace = false;
-
-        for &(byte_pos, c) in chars_with_indices.iter().rev() {
-            if c.is_whitespace() {
-                if found_non_whitespace {
-                    start_byte = byte_pos + c.len_utf8();
-                    break;
-                }
-            } else {
-                found_non_whitespace = true;
-            }
-        }
-
-        let term_str = &line[start_byte..];
-
-        // Check if the term is valid (non-empty and not just whitespace)
-        if term_str.is_empty() || term_str.trim().is_empty() {
-            None
-        } else {
-            Some(TermResult { span: Span::new(start_byte, self.position), term: term_str })
-        }
+        // Get the substring up to the cursor position
+        let line_slice = &self.line[..self.position];
+        
+        // Find the start of the current text segment by looking for the last whitespace
+        // or the beginning of the line
+        let start_position = line_slice
+            .char_indices()
+            .rev()
+            .find(|(_, c)| c.is_whitespace())
+            .map(|(idx, c)| idx + c.len_utf8())
+            .unwrap_or(0);
+        
+        // Extract the current term (everything from the start position to the cursor)
+        let term = &line_slice[start_position..];
+        
+        // Return the term and its position
+        Some(TermResult {
+            span: Span::new(start_position, self.position),
+            term,
+        })
     }
 }
 
