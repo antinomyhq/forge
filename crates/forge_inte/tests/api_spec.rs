@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, Conversation, ForgeAPI, ModelId, API};
+use forge_api::{
+    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, ForgeAPI, ModelId, API,
+};
 use tokio_stream::StreamExt;
 
 const MAX_RETRIES: usize = 5;
@@ -86,7 +88,8 @@ impl Fixture {
         ))
     }
 
-    /// Initialize a conversation with a specific message and return the conversation ID and response
+    /// Initialize a conversation with a specific message and return the
+    /// conversation ID and response
     async fn init_conversation_with_message(&self, message: &str) -> (ConversationId, String) {
         let api = self.api();
         // load the workflow from path
@@ -99,10 +102,10 @@ impl Fixture {
 
         // initialize the conversation by storing the workflow.
         let conversation_id = api.init(workflow).await.unwrap();
-        
+
         // send the message
         let response = self.send_message(message, &conversation_id).await;
-        
+
         (conversation_id, response)
     }
 
@@ -110,7 +113,7 @@ impl Fixture {
     async fn send_message(&self, message: &str, conversation_id: &ConversationId) -> String {
         let api = self.api();
         let request = ChatRequest::new(message, conversation_id.clone());
-        
+
         api.chat(request)
             .await
             .unwrap()
@@ -128,7 +131,7 @@ impl Fixture {
     /// Retry a conversation and return the response
     async fn retry(&self, conversation_id: &ConversationId) -> String {
         let api = self.api();
-        
+
         api.retry(conversation_id.clone())
             .await
             .unwrap()
@@ -154,11 +157,11 @@ impl Fixture {
         &self,
         conversation_id: &ConversationId,
         attempts: usize,
-        validate_fn: impl Fn(&str) -> bool
+        validate_fn: impl Fn(&str) -> bool,
     ) -> Result<(), String> {
         for attempt in 0..attempts {
             let response = self.retry(conversation_id).await;
-            
+
             if validate_fn(&response) {
                 println!(
                     "[{}] Successfully validated retry response in {} attempts",
@@ -167,12 +170,17 @@ impl Fixture {
                 );
                 return Ok(());
             }
-            
+
             if attempt < attempts - 1 {
-                println!("[{}] Retry attempt {}/{}", self.model, attempt + 1, attempts);
+                println!(
+                    "[{}] Retry attempt {}/{}",
+                    self.model,
+                    attempt + 1,
+                    attempts
+                );
             }
         }
-        
+
         Err(format!(
             "[{}] Failed to validate retry response after {} attempts",
             self.model, attempts
@@ -228,58 +236,73 @@ mod mistralai_codestral_2501 {
 
 mod retry_functionality {
     use forge_api::{ConversationId, DispatchEvent};
+
     use super::*;
 
     #[tokio::test]
     async fn test_retry_functionality() {
         // Create a fixture with the test model
         let fixture = Fixture::new(ModelId::new("anthropic/claude-3.5-sonnet"));
-        
+
         // Initialize a conversation with a message
         let initial_message = "What is the capital of France?";
-        let (conversation_id, initial_response) = fixture.init_conversation_with_message(initial_message).await;
-        
+        let (conversation_id, initial_response) = fixture
+            .init_conversation_with_message(initial_message)
+            .await;
+
         // Verify initial response contains expected information
-        assert!(initial_response.to_lowercase().contains("paris"),
-            "Initial response should mention Paris");
-            
+        assert!(
+            initial_response.to_lowercase().contains("paris"),
+            "Initial response should mention Paris"
+        );
+
         // Retry the conversation
         let retry_response = fixture.retry(&conversation_id).await;
-        
+
         // Verify retry response also contains same message
-        assert!(retry_response.to_lowercase().contains("paris"),
-            "Retry response should mention Paris");
-            
+        assert!(
+            retry_response.to_lowercase().contains("paris"),
+            "Retry response should mention Paris"
+        );
+
         // Verify that retry used same message
         let conversation = fixture.get_conversation(&conversation_id).await.unwrap();
-        let last_user_message = conversation.rfind_event(DispatchEvent::USER_TASK_UPDATE)
+        let last_user_message = conversation
+            .rfind_event(DispatchEvent::USER_TASK_UPDATE)
             .or_else(|| conversation.rfind_event(DispatchEvent::USER_TASK_INIT))
             .unwrap();
-        assert_eq!(last_user_message.value, initial_message,
-            "The last user message should match the initial message");
+        assert_eq!(
+            last_user_message.value, initial_message,
+            "The last user message should match the initial message"
+        );
     }
 
     #[tokio::test]
     async fn test_retry_with_no_conversation() {
         // Create a fixture with the test model
         let fixture = Fixture::new(ModelId::new("anthropic/claude-3.5-sonnet"));
-        
+
         // Generate a random conversation ID that doesn't exist
         let conversation_id = ConversationId::generate();
-        
+
         // Try to retry the non-existent conversation
         let api = fixture.api();
         let result = api.retry(conversation_id).await;
-        
+
         // Verify that the retry fails with the expected error
-        assert!(result.is_err(), "Retry with non-existent conversation should fail");
-        
+        assert!(
+            result.is_err(),
+            "Retry with non-existent conversation should fail"
+        );
+
         match result {
             Ok(_) => panic!("Expected an error but got success"),
             Err(e) => {
                 let err_string = e.to_string();
-                assert!(err_string.contains("not found"),
-                    "Error should indicate conversation not found, got: {}", err_string
+                assert!(
+                    err_string.contains("not found"),
+                    "Error should indicate conversation not found, got: {}",
+                    err_string
                 )
             }
         }
@@ -289,80 +312,100 @@ mod retry_functionality {
     async fn test_retry_with_multiple_messages() {
         // Create a fixture with the test model
         let fixture = Fixture::new(ModelId::new("anthropic/claude-3.5-sonnet"));
-        
+
         // Initialize a conversation with the first message
         let first_message = "What is the capital of France?";
         let (conversation_id, _) = fixture.init_conversation_with_message(first_message).await;
-        
+
         // Send a second message
         let second_message = "What is the capital of Italy?";
         fixture.send_message(second_message, &conversation_id).await;
-        
+
         // Retry the conversation
         let retry_response = fixture.retry(&conversation_id).await;
-        
+
         // Verify retry response contains expected information for the second message
-        assert!(retry_response.to_lowercase().contains("rome"),
-            "Retry response should mention Rome");
-            
+        assert!(
+            retry_response.to_lowercase().contains("rome"),
+            "Retry response should mention Rome"
+        );
+
         // Verify that retry used the second message
         let conversation = fixture.get_conversation(&conversation_id).await.unwrap();
-        let last_user_message = conversation.rfind_event(DispatchEvent::USER_TASK_UPDATE).unwrap();
-        assert_eq!(last_user_message.value, second_message,
-            "The last user message should match the second message");
+        let last_user_message = conversation
+            .rfind_event(DispatchEvent::USER_TASK_UPDATE)
+            .unwrap();
+        assert_eq!(
+            last_user_message.value, second_message,
+            "The last user message should match the second message"
+        );
     }
-    
+
     #[tokio::test]
     async fn test_retry_with_multiple_attempts() {
         // Create a fixture with the test model
         let fixture = Fixture::new(ModelId::new("anthropic/claude-3.5-sonnet"));
-        
+
         // Initialize a conversation with a message
         let message = "What is the capital of France?";
         let (conversation_id, _) = fixture.init_conversation_with_message(message).await;
-        
+
         // Test retry with multiple attempts, looking for a specific word
-        let result = fixture.test_retry_with_attempts(&conversation_id, 3, |response| {
-            response.to_lowercase().contains("paris")
-        }).await;
-        
-        assert!(result.is_ok(), "Retry with multiple attempts should succeed: {:?}", result);
+        let result = fixture
+            .test_retry_with_attempts(&conversation_id, 3, |response| {
+                response.to_lowercase().contains("paris")
+            })
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Retry with multiple attempts should succeed: {:?}",
+            result
+        );
     }
-    
+
     #[tokio::test]
     async fn test_retry_with_different_models() {
         // Test with different models to ensure retry works across models
-        let models = [
-            "anthropic/claude-3.5-sonnet",
-            "openai/gpt-4o-mini",
-        ];
-        
+        let models = ["anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini"];
+
         for model_name in models {
             // Create a fixture with the test model
             let fixture = Fixture::new(ModelId::new(model_name));
-            
+
             // Initialize a conversation with a message
             let message = "What is the capital of Germany?";
-            let (conversation_id, initial_response) = fixture.init_conversation_with_message(message).await;
-            
+            let (conversation_id, initial_response) =
+                fixture.init_conversation_with_message(message).await;
+
             // Verify initial response contains expected information
-            assert!(initial_response.to_lowercase().contains("berlin"),
-                "[{}] Initial response should mention Berlin", model_name);
-                
+            assert!(
+                initial_response.to_lowercase().contains("berlin"),
+                "[{}] Initial response should mention Berlin",
+                model_name
+            );
+
             // Retry the conversation
             let retry_response = fixture.retry(&conversation_id).await;
-            
+
             // Verify retry response also contains same information
-            assert!(retry_response.to_lowercase().contains("berlin"),
-                "[{}] Retry response should mention Berlin", model_name);
-                
+            assert!(
+                retry_response.to_lowercase().contains("berlin"),
+                "[{}] Retry response should mention Berlin",
+                model_name
+            );
+
             // Verify that retry used same message
             let conversation = fixture.get_conversation(&conversation_id).await.unwrap();
-            let last_user_message = conversation.rfind_event(DispatchEvent::USER_TASK_UPDATE)
+            let last_user_message = conversation
+                .rfind_event(DispatchEvent::USER_TASK_UPDATE)
                 .or_else(|| conversation.rfind_event(DispatchEvent::USER_TASK_INIT))
                 .unwrap();
-            assert_eq!(last_user_message.value, message,
-                "[{}] The last user message should match the initial message", model_name);
+            assert_eq!(
+                last_user_message.value, message,
+                "[{}] The last user message should match the initial message",
+                model_name
+            );
         }
     }
 }
