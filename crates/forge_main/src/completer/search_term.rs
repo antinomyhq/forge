@@ -13,34 +13,39 @@ impl SearchTerm {
                 line.len()
             );
         }
-        Self { line: line.to_string(), position }
+        Self {
+            line: line.to_string(),
+            position,
+        }
     }
 
     /// Get the search term from the line based on the cursor position.
     /// Returns the word at the cursor position.
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
+        let line = &self.line[..self.position];
+        let mut chars_with_indices: Vec<_> = line.char_indices().collect();
+
         // Find the start of the current word by searching backwards for whitespace
-        let mut start = 0;
-        for (i, c) in self.line.chars().take(self.position).enumerate().rev() {
+        let mut start_byte = 0;
+        for &(byte_pos, c) in chars_with_indices.iter().rev() {
             if c.is_whitespace() {
-                start = i + 1;
+                start_byte = byte_pos + c.len_utf8();
                 break;
             }
         }
 
-        // Extract the term from start to cursor position
-        let term_str = &self.line[start..self.position];
+        let term_str = &line[start_byte..];
 
         // Check if the term is valid (non-empty and no whitespace)
-        if term_str.is_empty() || term_str.chars().any(|c| c.is_whitespace()) {
-            return None;
+        if term_str.is_empty() || term_str.contains(' ') {
+            None
+        } else {
+            Some(TermResult {
+                span: Span::new(start_byte, self.position),
+                term: term_str,
+            })
         }
-
-        Some(TermResult {
-            span: Span::new(start, self.position),
-            term: term_str,
-        })
     }
 }
 
@@ -92,14 +97,14 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_input() {
-        let results = SearchTerm::test("");
-        assert_debug_snapshot!(results);
-    }
+    fn test_edge_cases() {
+        let empty = SearchTerm::test("");
+        assert_debug_snapshot!(empty);
 
-    #[test]
-    fn test_whitespace_input() {
-        let results = SearchTerm::test("   ");
-        assert_debug_snapshot!(results);
+        let whitespace = SearchTerm::test("   ");
+        assert_debug_snapshot!(whitespace);
+
+        let mid_word = SearchTerm::test("hello_world");
+        assert_debug_snapshot!(mid_word);
     }
 }
