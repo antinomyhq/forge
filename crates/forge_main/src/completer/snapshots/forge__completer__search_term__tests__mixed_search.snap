@@ -1,0 +1,114 @@
+---
+source: crates/forge_main/src/completer/search_term.rs
+expression: results
+---
+[
+    TermSpec {
+        input: "a[bc @def ghi",
+        output: None,
+        span_start: None,
+        span_end: None,
+        pos: 1,
+    },
+    TermSpec {
+        input: "ab[c @def ghi",
+        output: None,
+        span_start: None,
+        span_end: None,
+        pos: 2,
+    },
+    TermSpec {
+        input: "abc[ @def ghi",
+        output: None,
+        span_start: None,
+        span_end: None,
+        pos: 3,
+    },
+    TermSpec {
+        input: "abc [@def ghi",
+        output: None,
+        span_start: None,
+        span_end: None,
+        pos: 4,
+    },
+    TermSpec {
+        input: "abc @[def ghi",
+        output: Some(
+            "",
+        ),
+        span_start: Some(
+            5,
+        ),
+        span_end: Some(
+            5,
+        ),
+        pos: 5,
+    },
+    TermSpec {
+        input: "abc @d[ef ghi",
+        output: Some(
+            "d",
+        ),
+        span_start: Some(
+            5,
+        ),
+        span_end: Some(
+            6,
+        ),
+        pos: 6,
+    },
+    TermSpec {
+        input: "abc @de[f ghi",
+        output: Some(
+            "de",
+        ),
+        span_start: Some(
+            5,
+        ),
+        span_end: Some(
+            7,
+        ),
+        pos: 7,
+    },
+    TermSpec {
+        input: "abc @def[ ghi",
+        output: Some(
+            "def",
+        ),
+        span_start: Some(
+            5,
+        ),
+        span_end: Some(
+            8,
+        ),
+        pos: 8,
+    },
+    TermSpec {
+        input: "abc @def [ghi",
+        output: None,
+        span_start: None,
+        span_end: None,
+        pos: 9,
+    },
+    TermSpec {
+        input: "abc @def g[hi",
+        output: None,
+        span_start: None,
+        span_end: None,
+        pos: 10,
+    },
+    TermSpec {
+        input: "abc @def gh[i",
+        output: None,
+        span_start: None,
+        span_end: None,
+        pos: 11,
+    },
+    TermSpec {
+        input: "abc @def ghi[",
+        output: None,
+        span_start: None,
+        span_end: None,
+        pos: 12,
+    },
+]
