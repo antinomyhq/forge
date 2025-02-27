@@ -160,7 +160,6 @@ mod tests {
 
     #[test]
     fn test_provider_from_env_with_no_keys() {
-        reset_env();
         let provider = Provider::from_env();
         assert_eq!(provider, None);
     }
