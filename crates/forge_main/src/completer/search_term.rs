@@ -22,7 +22,10 @@ impl SearchTerm {
     pub fn process(&self) -> Option<TermResult<'_>> {
         // Handle empty string case
         if self.line.is_empty() {
-            return None;
+            return Some(TermResult {
+                span: Span::new(0, 0),
+                term: "",
+            });
         }
 
         // Get the substring up to the cursor position
