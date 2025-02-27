@@ -13,10 +13,7 @@ impl SearchTerm {
                 line.len()
             );
         }
-        Self {
-            line: line.to_string(),
-            position,
-        }
+        Self { line: line.to_string(), position }
     }
 
     /// Get the search term from the line based on the cursor position.
@@ -24,7 +21,7 @@ impl SearchTerm {
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
         let line = &self.line[..self.position];
-        let mut chars_with_indices: Vec<_> = line.char_indices().collect();
+        let chars_with_indices: Vec<_> = line.char_indices().collect();
 
         // Find the start of the current word by searching backwards for whitespace
         let mut start_byte = 0;
@@ -41,10 +38,7 @@ impl SearchTerm {
         if term_str.is_empty() || term_str.contains(' ') {
             None
         } else {
-            Some(TermResult {
-                span: Span::new(start_byte, self.position),
-                term: term_str,
-            })
+            Some(TermResult { span: Span::new(start_byte, self.position), term: term_str })
         }
     }
 }
