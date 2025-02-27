@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use colored::Colorize;
-use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, Model, Usage, API};
+use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, EventType, Model, Usage, API};
 use forge_display::TitleFormat;
 use forge_tracker::EventKind;
 use lazy_static::lazy_static;
@@ -252,9 +252,10 @@ impl<F: API> UI<F> {
                 }
             }
             ChatResponse::Custom(event) => {
-                if event.name == "title" {
-                    self.state.current_title = Some(event.value);
+                if let EventType::Title(ref value) = event.event_type {
+                    self.state.current_title = Some(value.clone());
                 }
+                
             }
             ChatResponse::Usage(u) => {
                 self.state.usage = u;
