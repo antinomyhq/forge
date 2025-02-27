@@ -31,7 +31,7 @@ impl SearchTerm {
             .char_indices()
             .rev()
             .find(|(_, c)| c.is_whitespace() || *c == '@')
-            .map(|(i, c)| if c.is_whitespace() { i + 1 } else { i + 1 }) // Skip the whitespace or include @ character
+            .map(|(i, _)| i + 1) // Skip the whitespace or include @ character
             .unwrap_or(0);
 
         // If we're at a word boundary or the word is empty, return None
