@@ -22,7 +22,7 @@ impl SearchTerm {
     pub fn process(&self) -> Option<TermResult<'_>> {
         let line = &self.line[..self.position];
         let chars_with_indices: Vec<_> = line.char_indices().collect();
-
+        
         // Find the start of the current word by searching backwards for whitespace
         let mut start_byte = 0;
         for &(byte_pos, c) in chars_with_indices.iter().rev() {
@@ -31,14 +31,17 @@ impl SearchTerm {
                 break;
             }
         }
-
+        
         let term_str = &line[start_byte..];
-
+        
         // Check if the term is valid (non-empty and no whitespace)
         if term_str.is_empty() || term_str.contains(' ') {
             None
         } else {
-            Some(TermResult { span: Span::new(start_byte, self.position), term: term_str })
+            Some(TermResult { 
+                span: Span::new(start_byte, self.position), 
+                term: term_str 
+            })
         }
     }
 }
