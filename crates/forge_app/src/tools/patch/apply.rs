@@ -43,7 +43,7 @@ impl<F: Infrastructure> ApplyPatch<F> {
 
 impl<F: Infrastructure> NamedTool for ApplyPatch<F> {
     fn tool_name() -> ToolName {
-        ToolName::new("tool_forge_patch")
+        ToolName::new("tool_forge_fs_patch")
     }
 }
 
