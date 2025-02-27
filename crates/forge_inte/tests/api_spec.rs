@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Once;
 
 use anyhow::Context;
 use forge_api::{AgentMessage, ChatRequest, ChatResponse, ForgeAPI, ModelId, API};
@@ -7,20 +8,22 @@ use tokio_stream::StreamExt;
 const MAX_RETRIES: usize = 5;
 const WORKFLOW_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/test_workflow.yaml");
 
+static INIT: Once = Once::new();
+
 /// Test fixture for API testing that supports parallel model validation
 struct Fixture {
     model: ModelId,
-    #[allow(dead_code)] // The guard is kept alive by being held in the struct
-    _guard: forge_tracker::Guard,
 }
 
 impl Fixture {
     /// Create a new test fixture with the given task
     fn new(model: ModelId) -> Self {
-        Self {
-            model,
-            _guard: forge_tracker::init_tracing(PathBuf::from(".")).unwrap(),
-        }
+        // Initialize tracing only once across all test threads
+        INIT.call_once(|| {
+            let _ = forge_tracker::init_tracing(PathBuf::from("."));
+        });
+        
+        Self { model }
     }
 
     /// Get the API service, panicking if not validated
