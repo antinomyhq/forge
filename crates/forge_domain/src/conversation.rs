@@ -77,3 +77,10 @@ impl Conversation {
         self.events.iter().rfind(|event| event.name == event_name)
     }
 }
+    pub fn get_last_user_message(&self) -> Option<&DispatchEvent> {
+    self.events
+        .iter()
+        .rev()
+        .find(|event| event.name == "user_message")
+}
+}
