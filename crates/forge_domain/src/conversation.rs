@@ -74,10 +74,14 @@ impl Conversation {
     }
 
     pub fn rfind_event(&self, event_name: &str) -> Option<&DispatchEvent> {
-        self.events.iter().rfind(|event| event.event_type.name() == event_name)
+        self.events
+            .iter()
+            .rfind(|event| event.event_type.name() == event_name)
     }
 
     pub fn rfind_event_by_type(&self, event_type: &EventType) -> Option<&DispatchEvent> {
-        self.events.iter().rfind(|event| &event.event_type == event_type)
+        self.events
+            .iter()
+            .rfind(|event| &event.event_type == event_type)
     }
 }

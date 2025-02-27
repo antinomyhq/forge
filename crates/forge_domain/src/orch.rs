@@ -261,8 +261,15 @@ impl<A: App> Orchestrator<A> {
         Ok(self.get_conversation().await?.rfind_event(name).cloned())
     }
 
-    async fn get_last_event_by_type(&self, event_type: &EventType) -> anyhow::Result<Option<DispatchEvent>> {
-        Ok(self.get_conversation().await?.rfind_event_by_type(event_type).cloned())
+    async fn get_last_event_by_type(
+        &self,
+        event_type: &EventType,
+    ) -> anyhow::Result<Option<DispatchEvent>> {
+        Ok(self
+            .get_conversation()
+            .await?
+            .rfind_event_by_type(event_type)
+            .cloned())
     }
 
     async fn insert_event(&self, event: DispatchEvent) -> anyhow::Result<()> {
