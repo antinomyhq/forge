@@ -67,10 +67,12 @@ impl Provider {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use lazy_static::lazy_static;
     use std::env;
     use std::sync::Mutex;
+
+    use lazy_static::lazy_static;
+
+    use super::*;
 
     lazy_static! {
         static ref ENV_LOCK: Mutex<()> = Mutex::new(());
