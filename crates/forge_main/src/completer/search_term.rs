@@ -16,29 +16,38 @@ impl SearchTerm {
         Self { line: line.to_string(), position }
     }
 
-    /// Get the search term from the line based on '@' marker or cursor position
+    /// Get the search term from the line based on cursor position
     ///
-    /// If '@' marker is present, returns the word following it.
-    /// Otherwise, returns the word at the cursor position.
+    /// Returns the word at the cursor position.
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
-        // Get all the indexes of the '@' chars
-        // Get all chars between @ and the cursor
-        let term = self
-            .line
-            .chars()
-            .enumerate()
-            .filter(|(_, c)| *c == '@')
-            .map(|(i, _)| i)
-            .filter(|at| *at < self.position)
-            .max_by(|a, b| a.cmp(b))
-            .map(|at| TermResult {
-                span: Span::new(at + 1, self.position),
-                term: &self.line[at + 1..self.position],
-            })
-            .filter(|s| !s.term.contains(" "));
+        // If the position is 0, there's no term to complete
+        if self.position == 0 {
+            return None;
+        }
 
-        term
+        // Find the start of the current word (looking backward from cursor position)
+        let word_start = self.line[..self.position]
+            .char_indices()
+            .rev()
+            .find(|(_, c)| c.is_whitespace() || *c == '@')
+            .map(|(i, c)| if c.is_whitespace() { i + 1 } else { i + 1 }) // Skip the whitespace or include @ character
+            .unwrap_or(0);
+
+        // If we're at a word boundary or the word is empty, return None
+        if word_start == self.position {
+            return None;
+        }
+
+        // Extract the term
+        let term = &self.line[word_start..self.position];
+
+        // Don't return terms with spaces
+        if term.contains(' ') {
+            return None;
+        }
+
+        Some(TermResult { span: Span::new(word_start, self.position), term })
     }
 }
 
@@ -87,5 +96,17 @@ mod tests {
     fn test_marker_based_search() {
         let results = SearchTerm::test("@abc @def ghi@");
         assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_word_based_search() {
+        let results = SearchTerm::test("abc def ghi");
+        assert_debug_snapshot!("word_based_search", results);
+    }
+
+    #[test]
+    fn test_mixed_search() {
+        let results = SearchTerm::test("abc @def ghi");
+        assert_debug_snapshot!("mixed_search", results);
     }
 }
