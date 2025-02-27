@@ -16,29 +16,31 @@ impl SearchTerm {
         Self { line: line.to_string(), position }
     }
 
-    /// Get the search term from the line based on '@' marker or cursor position
-    ///
-    /// If '@' marker is present, returns the word following it.
-    /// Otherwise, returns the word at the cursor position.
+    /// Get the search term from the line based on the cursor position.
+    /// Returns the word at the cursor position.
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
-        // Get all the indexes of the '@' chars
-        // Get all chars between @ and the cursor
-        let term = self
-            .line
-            .chars()
-            .enumerate()
-            .filter(|(_, c)| *c == '@')
-            .map(|(i, _)| i)
-            .filter(|at| *at < self.position)
-            .max_by(|a, b| a.cmp(b))
-            .map(|at| TermResult {
-                span: Span::new(at + 1, self.position),
-                term: &self.line[at + 1..self.position],
-            })
-            .filter(|s| !s.term.contains(" "));
+        // Find the start of the current word by searching backwards for whitespace
+        let mut start = 0;
+        for (i, c) in self.line.chars().take(self.position).enumerate().rev() {
+            if c.is_whitespace() {
+                start = i + 1;
+                break;
+            }
+        }
 
-        term
+        // Extract the term from start to cursor position
+        let term_str = &self.line[start..self.position];
+
+        // Check if the term is valid (non-empty and no whitespace)
+        if term_str.is_empty() || term_str.chars().any(|c| c.is_whitespace()) {
+            return None;
+        }
+
+        Some(TermResult {
+            span: Span::new(start, self.position),
+            term: term_str,
+        })
     }
 }
 
@@ -84,8 +86,20 @@ mod tests {
     }
 
     #[test]
-    fn test_marker_based_search() {
-        let results = SearchTerm::test("@abc @def ghi@");
+    fn test_word_based_search() {
+        let results = SearchTerm::test("foo bar baz");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_empty_input() {
+        let results = SearchTerm::test("");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_whitespace_input() {
+        let results = SearchTerm::test("   ");
         assert_debug_snapshot!(results);
     }
 }
