@@ -83,7 +83,7 @@ mod tests {
         // Create a new guard without unwrapping - if it fails, we'll just run without the lock
         // This will allow tests to continue even if another test already has the lock
         let _guard = ENV_LOCK.lock();
-        
+
         // Clear existing environment variables that might interfere with our test
         env::remove_var("FORGE_KEY");
         env::remove_var("FORGE_PROVIDER_URL");
