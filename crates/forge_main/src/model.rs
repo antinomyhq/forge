@@ -58,6 +58,7 @@ use async_trait::async_trait;
 /// - System commands (starting with '/')
 /// - Regular chat messages
 /// - File content
+/// - Custom dispatch commands (starting with '/dispatch-')
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     /// Start a new conversation while preserving history.
@@ -75,6 +76,15 @@ pub enum Command {
     Models,
     /// Dumps the current conversation into a json file
     Dump,
+    /// Custom dispatch command with event name and value.
+    /// This can be triggered with '/dispatch-{event_name} {value}'.
+    /// Event names can use alphanumeric characters, underscores, and hyphens.
+    Dispatch {
+        /// The name of the event to dispatch
+        name: String,
+        /// The value to pass with the event (can be empty)
+        value: String,
+    },
 }
 
 impl Command {
@@ -91,7 +101,14 @@ impl Command {
             "/exit".to_string(),
             "/models".to_string(),
             "/dump".to_string(),
+            "/dispatch-".to_string(), // Base dispatch command for autocompletion
         ]
+    }
+
+    /// Validates if a string is a valid event name.
+    /// Event names can only contain alphanumeric characters, underscores, and hyphens.
+    fn is_valid_event_name(name: &str) -> bool {
+        !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
     }
 
     /// Parses a string input into an Input.
@@ -99,6 +116,7 @@ impl Command {
     /// This function:
     /// - Trims whitespace from the input
     /// - Recognizes and validates commands (starting with '/')
+    /// - Handles dispatch commands (starting with '/dispatch-')
     /// - Converts regular text into messages
     ///
     /// # Returns
@@ -107,14 +125,38 @@ impl Command {
     pub fn parse(input: &str) -> Self {
         let trimmed = input.trim();
 
+        // First check for standard commands
         match trimmed {
-            "/new" => Command::New,
-            "/info" => Command::Info,
-            "/exit" => Command::Exit,
-            "/models" => Command::Models,
-            "/dump" => Command::Dump,
-            text => Command::Message(text.to_string()),
+            "/new" => return Command::New,
+            "/info" => return Command::Info,
+            "/exit" => return Command::Exit,
+            "/models" => return Command::Models,
+            "/dump" => return Command::Dump,
+            _ => {}
         }
+
+        // Check for dispatch commands
+        if let Some(dispatch_part) = trimmed.strip_prefix("/dispatch-") {
+            // Split at first space to separate event name and value
+            let (event_name, event_value) = match dispatch_part.find(' ') {
+                Some(space_idx) => {
+                    let (name, value) = dispatch_part.split_at(space_idx);
+                    (name, value.trim())
+                }
+                None => (dispatch_part, ""), // No space found, entire part is event name
+            };
+
+            // Validate event name
+            if Self::is_valid_event_name(event_name) {
+                return Command::Dispatch {
+                    name: event_name.to_string(),
+                    value: event_value.to_string(),
+                };
+            }
+        }
+
+        // If not a command, treat as regular message
+        Command::Message(trimmed.to_string())
     }
 }
 
@@ -146,4 +188,66 @@ pub trait UserInput {
     /// * `Ok(Input)` - Successfully processed input
     /// * `Err` - An error occurred during input processing
     async fn prompt(&self, input: Option<Self::PromptInput>) -> anyhow::Result<Command>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dispatch_command_parsing() {
+        // Test valid dispatch commands
+        assert_eq!(
+            Command::parse("/dispatch-gh-issue Create new issue"),
+            Command::Dispatch {
+                name: "gh-issue".to_string(),
+                value: "Create new issue".to_string()
+            }
+        );
+
+        assert_eq!(
+            Command::parse("/dispatch-notify"),
+            Command::Dispatch {
+                name: "notify".to_string(),
+                value: "".to_string()
+            }
+        );
+
+        assert_eq!(
+            Command::parse("/dispatch-log-error Error with spaces"),
+            Command::Dispatch {
+                name: "log-error".to_string(),
+                value: "Error with spaces".to_string()
+            }
+        );
+
+        // Test invalid dispatch commands
+        assert_eq!(
+            Command::parse("/dispatch-"),
+            Command::Message("/dispatch-".to_string())
+        );
+
+        // Both "/dispatch-" and "/dispatch- " should be treated the same after trimming
+        assert_eq!(
+            Command::parse("/dispatch-"),
+            Command::parse("/dispatch- ")
+        );
+    }
+
+    #[test]
+    fn test_event_name_validation() {
+        // Valid event names
+        assert!(Command::is_valid_event_name("test"));
+        assert!(Command::is_valid_event_name("test-name"));
+        assert!(Command::is_valid_event_name("test_name"));
+        assert!(Command::is_valid_event_name("test123"));
+        assert!(Command::is_valid_event_name("123test"));
+
+        // Invalid event names
+        assert!(!Command::is_valid_event_name(""));
+        assert!(!Command::is_valid_event_name(" "));
+        assert!(!Command::is_valid_event_name("test name"));
+        assert!(!Command::is_valid_event_name("test.name"));
+        assert!(!Command::is_valid_event_name("test/name"));
+    }
 }

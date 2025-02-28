@@ -915,6 +915,7 @@ dependencies = [
  "forge_infra",
  "forge_stream",
  "forge_walker",
+ "futures",
  "insta",
  "serde",
  "serde_json",

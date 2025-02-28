@@ -12,6 +12,7 @@ forge_app = { path = "../forge_app" }
 forge_walker = { path = "../forge_walker" }
 forge_infra = { path = "../forge_infra" }
 serde_yaml = "0.9.34"
+futures = "0.3"
 
 [dev-dependencies]
 tempfile = "3.8.1"
