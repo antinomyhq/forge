@@ -44,4 +44,15 @@ pub trait API {
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>>;
+
+    /// Dispatches a custom event with the given name and value.
+    ///
+    /// # Arguments
+    /// * `event_name` - The name of the event to dispatch
+    /// * `event_value` - The value to pass with the event
+    ///
+    /// # Returns
+    /// * `Ok(())` - Event was successfully dispatched
+    /// * `Err` - Failed to dispatch event
+    async fn dispatch(&self, event_name: &str, event_value: &str) -> anyhow::Result<()>;
 }

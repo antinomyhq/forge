@@ -129,6 +129,34 @@ impl<F: API> UI<F> {
 
                     input = self.console.prompt(None).await?;
                 }
+                Command::Dispatch { name, value } => {
+                    // Display the dispatch attempt
+                    CONSOLE.writeln(
+                        TitleFormat::execute(format!("Dispatching event: {} with value: {}", name, value))
+                            .format(),
+                    )?;
+
+                    // Attempt to dispatch the event
+                    match self.api.dispatch(&name, &value).await {
+                        Ok(_) => {
+                            CONSOLE.writeln(
+                                TitleFormat::success("Event dispatched successfully")
+                                    .sub_title(format!("event: {}", name))
+                                    .format(),
+                            )?;
+                        }
+                        Err(err) => {
+                            CONSOLE.writeln(
+                                TitleFormat::failed(format!("Failed to dispatch event: {:?}", err))
+                                    .sub_title(format!("event: {}", name))
+                                    .format(),
+                            )?;
+                        }
+                    }
+
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                }
             }
         }
 
