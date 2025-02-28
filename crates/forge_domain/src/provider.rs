@@ -54,6 +54,22 @@ impl Provider {
         }
     }
 
+    /// converts the provider to it's key by reading appropriate environment
+    /// variable
+    pub fn get_key(&self) -> String {
+        match self {
+            Provider::OpenRouter => std::env::var("OPEN_ROUTER_KEY")
+                .or_else(|_| std::env::var("FORGE_KEY"))
+                .expect("Either OPEN_ROUTER_KEY or FORGE_KEY is required"),
+            Provider::Anthropic => std::env::var("ANTHROPIC_API_KEY")
+                .or_else(|_| std::env::var("FORGE_KEY"))
+                .expect("Either ANTHROPIC_API_KEY or FORGE_KEY is required"),
+            Provider::OpenAI => std::env::var("OPENAI_API_KEY")
+                .or_else(|_| std::env::var("FORGE_KEY"))
+                .expect("Either OPENAI_API_KEY or FORGE_KEY is required"),
+        }
+    }
+
     /// detects the active provider from base URL
     pub fn from_url(url: &str) -> Option<Self> {
         match url {

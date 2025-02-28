@@ -1,0 +1,44 @@
+[package]
+name = "forge_gateway"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "forge_gateway"
+path = "src/bin/server.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+axum = { version = "0.8", features = ["json", "macros", "http2"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+tokio = { version = "1.0", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+futures-util = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tower-http = { version = "0.5", features = ["cors", "trace", "timeout", "validate-request"] }
+tower = { version = "0.4", features = ["util"]}
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "1.0"
+anyhow = "1.0"
+async-trait = "0.1"
+uuid = { version = "1.7", features = ["v4", "serde"] }
+time = { version = "0.3", features = ["serde"] }
+forge_domain = { path = "../forge_domain" }
+forge_open_router = { path = "../forge_open_router"}
+postgrest = "1.0"
+clerk-rs = { version = "0.3.1", features = ["axum"] }
+dotenv = "0.15"
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+validator = { version = "0.16", features = ["derive"] }
+shuttle-runtime = "0.52.0"
+shuttle-axum = "0.52.0"
+
+[dev-dependencies]
+mockall = "0.13.1"
+http-body-util= "*"
