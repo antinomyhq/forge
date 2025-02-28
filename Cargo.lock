@@ -1009,6 +1009,7 @@ dependencies = [
  "derive_setters",
  "futures",
  "insta",
+ "lazy_static",
  "nom 8.0.0",
  "pretty_assertions",
  "schemars",
