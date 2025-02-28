@@ -22,7 +22,7 @@ impl Fixture {
         INIT.call_once(|| {
             let _ = forge_tracker::init_tracing(PathBuf::from("."));
         });
-        
+
         Self { model }
     }
 
