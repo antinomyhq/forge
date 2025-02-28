@@ -29,7 +29,8 @@ pub fn init_tracing(log_path: PathBuf) -> anyhow::Result<Guard> {
         .with_writer(non_blocking)
         .finish();
 
-    // Try to set the global default, but don't panic if it fails because it's already set
+    // Try to set the global default, but don't panic if it fails because it's
+    // already set
     let _ = tracing::subscriber::set_global_default(subscriber);
 
     debug!("Logging system initialized successfully");

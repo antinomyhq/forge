@@ -80,8 +80,9 @@ mod tests {
     }
 
     fn with_env(envs: Vec<(String, String)>, env_based_test: impl FnOnce()) {
-        // Create a new guard without unwrapping - if it fails, we'll just run without the lock
-        // This will allow tests to continue even if another test already has the lock
+        // Create a new guard without unwrapping - if it fails, we'll just run without
+        // the lock This will allow tests to continue even if another test
+        // already has the lock
         let _guard = ENV_LOCK.lock();
 
         // Clear existing environment variables that might interfere with our test
