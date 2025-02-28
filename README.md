@@ -7,6 +7,7 @@ Best Practices:
 
 [![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
 [![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
+[![Discord](https://img.shields.io/discord/1044859667798568962?style=for-the-badge&cacheSeconds=120&logo=discord)](https://discord.gg/kRZBPpkgwq)
 
 **Forge: AI-Enhanced Terminal Development Environment**
 
@@ -44,6 +45,7 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
     - [Built-in Templates](#built-in-templates)
     - [Example Workflow Configuration](#example-workflow-configuration)
 - [Why Shell?](#why-shell)
+- [Community](#community)
 - [Support Us](#support-us)
 
 ## Installation
@@ -279,6 +281,12 @@ There's a reason why the shell has stood the test of time for development tools 
 - **Speed Matters**: Unlike IDEs and Web UIs, Code Forge's shell is extremely lightweight. This exceptional speed unlocks powerful capabilities that directly enhance your productivity: seamlessly get in and out of workflows, manage multiple feature developments in parallel, effortlessly coordinate across git worktrees, and instantly access AI assistance in any directory.
 
 - **Tool Composition**: Unix philosophy teaches us to make tools that compose well. The AI can pipe commands together, combining tools like `find | xargs forge -p | grep "foo"` in ways that solve complex problems elegantly.
+
+## Community
+
+Join our vibrant Discord community to connect with other Code-Forge users and contributors, get help with your projects, share ideas, and provide feedback!
+
+[![Discord](https://img.shields.io/discord/1044859667798568962?style=for-the-badge&cacheSeconds=120&logo=discord)](https://discord.gg/kRZBPpkgwq)
 
 ## Support Us
 
