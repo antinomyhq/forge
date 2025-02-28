@@ -22,15 +22,12 @@ impl SearchTerm {
     pub fn process(&self) -> Option<TermResult<'_>> {
         // Handle empty string case
         if self.line.is_empty() {
-            return Some(TermResult {
-                span: Span::new(0, 0),
-                term: "",
-            });
+            return Some(TermResult { span: Span::new(0, 0), term: "" });
         }
 
         // Get the substring up to the cursor position
         let line_slice = &self.line[..self.position];
-        
+
         // Find the start of the current text segment by looking for the last whitespace
         // or the beginning of the line
         let start_position = line_slice
@@ -39,15 +36,12 @@ impl SearchTerm {
             .find(|(_, c)| c.is_whitespace())
             .map(|(idx, c)| idx + c.len_utf8())
             .unwrap_or(0);
-        
+
         // Extract the current term (everything from the start position to the cursor)
         let term = &line_slice[start_position..];
-        
+
         // Return the term and its position
-        Some(TermResult {
-            span: Span::new(start_position, self.position),
-            term,
-        })
+        Some(TermResult { span: Span::new(start_position, self.position), term })
     }
 }
 
