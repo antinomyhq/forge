@@ -1,3 +1,11 @@
+---
+layout: page
+title: Development Guidelines
+nav_order: 3
+description: "Development guidelines for Code-Forge"
+permalink: /guidelines
+---
+
 ## Handling Errors
 
 - Use `anyhow::Result` for error handling in services and repositories.
