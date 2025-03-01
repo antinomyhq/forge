@@ -18,9 +18,9 @@ pub enum EventType {
 impl EventType {
     pub fn name(&self) -> String {
         match self {
-            EventType::UserTaskInit(_) => DispatchEvent::USER_TASK_INIT.to_string(),
-            EventType::UserTaskUpdate(_) => DispatchEvent::USER_TASK_UPDATE.to_string(),
-            EventType::Title(_) => DispatchEvent::TITLE.to_string(),
+            EventType::UserTaskInit(_) => Event::USER_TASK_INIT.to_string(),
+            EventType::UserTaskUpdate(_) => Event::USER_TASK_UPDATE.to_string(),
+            EventType::Title(_) => Event::TITLE.to_string(),
             EventType::Custom { name, .. } => name.clone(),
         }
     }
@@ -36,9 +36,9 @@ impl EventType {
 
     pub fn from_name_value(name: &str, value: &str) -> Self {
         match name {
-            DispatchEvent::USER_TASK_INIT => EventType::UserTaskInit(value.to_string()),
-            DispatchEvent::USER_TASK_UPDATE => EventType::UserTaskUpdate(value.to_string()),
-            DispatchEvent::TITLE => EventType::Title(value.to_string()),
+            Event::USER_TASK_INIT => EventType::UserTaskInit(value.to_string()),
+            Event::USER_TASK_UPDATE => EventType::UserTaskUpdate(value.to_string()),
+            Event::TITLE => EventType::Title(value.to_string()),
             _ => EventType::Custom { name: name.to_string(), value: value.to_string() },
         }
     }
