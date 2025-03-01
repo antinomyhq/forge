@@ -235,7 +235,7 @@ mod mistralai_codestral_2501 {
 }
 
 mod retry_functionality {
-    use forge_api::{ConversationId, DispatchEvent};
+    use forge_api::{ConversationId, Event};
 
     use super::*;
 
@@ -268,8 +268,8 @@ mod retry_functionality {
         // Verify that retry used same message
         let conversation = fixture.get_conversation(&conversation_id).await.unwrap();
         let last_user_message = conversation
-            .rfind_event(DispatchEvent::USER_TASK_UPDATE)
-            .or_else(|| conversation.rfind_event(DispatchEvent::USER_TASK_INIT))
+            .rfind_event(Event::USER_TASK_UPDATE)
+            .or_else(|| conversation.rfind_event(Event::USER_TASK_INIT))
             .unwrap();
         assert_eq!(
             last_user_message.value, initial_message,
@@ -333,7 +333,7 @@ mod retry_functionality {
         // Verify that retry used the second message
         let conversation = fixture.get_conversation(&conversation_id).await.unwrap();
         let last_user_message = conversation
-            .rfind_event(DispatchEvent::USER_TASK_UPDATE)
+            .rfind_event(Event::USER_TASK_UPDATE)
             .unwrap();
         assert_eq!(
             last_user_message.value, second_message,
