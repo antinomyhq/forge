@@ -127,7 +127,6 @@ impl<F: Infrastructure> ExecutableTool for FSSearch<F> {
                 Err(e) => {
                     for cause in e.chain() {
                         if let Some(io_error) = cause.downcast_ref::<std::io::Error>() {
-                            // Skip binary or unreadable files silently
                             if io_error.kind() != std::io::ErrorKind::InvalidData {
                                 matches.push(format!(
                                     "Error reading {:?}: {}",
