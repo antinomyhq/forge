@@ -48,6 +48,13 @@ impl<'context> Summarize<'context> {
             .pop_front()
             .map(|turn| Summary { summarize: self, next_turn: turn })
     }
+
+    /// Compact the entire context into a single summary
+    pub fn compact(&mut self) -> String {
+        let summary = self.context.to_text();
+        self.replace(&summary, 0..self.context.messages.len());
+        summary
+    }
 }
 
 pub struct Summary<'this, 'context> {

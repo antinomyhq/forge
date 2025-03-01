@@ -20,6 +20,12 @@ impl ForgeToolService {
     pub fn new<F: Infrastructure, S: SuggestionService>(infra: Arc<F>, suggest: Arc<S>) -> Self {
         ForgeToolService::from_iter(crate::tools::tools(infra.clone(), suggest.clone()))
     }
+
+    pub async fn compact_context(&self, context: Context) -> Result<String, anyhow::Error> {
+        let mut summarize = Summarize::new(context, 1000); // Adjust token limit as needed
+        let summary = summarize.compact();
+        Ok(summary)
+    }
 }
 
 impl FromIterator<Tool> for ForgeToolService {
