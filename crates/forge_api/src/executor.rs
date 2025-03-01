@@ -54,7 +54,11 @@ impl<F: Infrastructure + App> ForgeExecutorService<F> {
     pub async fn retry(
         &self,
         conversation_id: ConversationId,
+<<<<<<< HEAD
     ) ->anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>>>>{
+=======
+    ) -> Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
+>>>>>>> 6060d16 (Move logic to executor, Remove unnecessary TC)
         let conversation = self
         .app
         .conversation_service()
@@ -62,10 +66,18 @@ impl<F: Infrastructure + App> ForgeExecutorService<F> {
         .await?
         .ok_or(Error::ConversationNotFound(conversation_id.clone()))?;
     let last_user_message = conversation
+<<<<<<< HEAD
         .rfind_event(Event::USER_TASK_UPDATE)
         .or_else(|| conversation.rfind_event(Event::USER_TASK_INIT))
         .ok_or(anyhow::anyhow!("No user message found in the conversation"))?;
     let chat_request = ChatRequest::new(last_user_message.value.clone(), conversation_id);
     Ok(self.chat(chat_request).await?)
+=======
+        .rfind_event(DispatchEvent::USER_TASK_UPDATE)
+        .or_else(|| conversation.rfind_event(DispatchEvent::USER_TASK_INIT))
+        .ok_or(anyhow::anyhow!("No user message found in the conversation"))?;
+    let chat_request = ChatRequest::new(last_user_message.value.clone(), conversation_id);
+    Ok(self.executor_service.chat(chat_request).await?)
+>>>>>>> 6060d16 (Move logic to executor, Remove unnecessary TC)
     }
 }
