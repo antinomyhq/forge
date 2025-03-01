@@ -68,6 +68,12 @@ impl Event {
         Self::new(Self::USER_TASK_UPDATE, value)
     }
 
+    pub fn compact_init(value: impl ToString) -> Self {
+        Self::new(Self::USER_COMPACT_INIT, value)
+    }
+
+    pub const USER_COMPACT_INIT: &'static str = "user_compact_init";
+
     pub const USER_TASK_INIT: &'static str = "user_task_init";
     pub const USER_TASK_UPDATE: &'static str = "user_task_update";
 }

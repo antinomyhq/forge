@@ -84,6 +84,10 @@ pub struct Agent {
     /// Maximum number of turns the agent can take    
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub max_turns: Option<u64>,
+
+    /// Agent responsible for handling context compaction
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_agent: Option<AgentId>,
 }
 
 /// Transformations that can be applied to the agent's context before sending it

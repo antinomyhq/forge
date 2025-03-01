@@ -44,4 +44,9 @@ pub struct Cli {
     /// Path to a file containing the workflow to execute.
     #[arg(long, short = 'w')]
     pub workflow: Option<PathBuf>,
+
+    /// Compact the current context into a summarized version.
+    #[arg(long, short = 'k')]
+    pub compact: bool,
+
 }
