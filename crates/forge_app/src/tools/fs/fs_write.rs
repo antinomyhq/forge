@@ -326,7 +326,7 @@ mod test {
         fs::write(&file_path, original_content).await.unwrap();
 
         // Now attempt to write without overwrite flag
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(Arc::new(Stub::default()));
         let result = fs_write
             .call(FSWriteInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -361,7 +361,7 @@ mod test {
         fs::write(&file_path, original_content).await.unwrap();
 
         // Now attempt to write with overwrite flag
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(Arc::new(Stub::default()));
         let result = fs_write
             .call(FSWriteInput {
                 path: file_path.to_string_lossy().to_string(),
