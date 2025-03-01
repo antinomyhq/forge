@@ -16,29 +16,33 @@ impl SearchTerm {
         Self { line: line.to_string(), position }
     }
 
-    /// Get the search term from the line based on '@' marker or cursor position
+    /// Get the search term from the current word at cursor position
     ///
-    /// If '@' marker is present, returns the word following it.
-    /// Otherwise, returns the word at the cursor position.
+    /// Returns the word at the cursor position.
+    /// A word is defined as a sequence of non-whitespace characters.
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
-        // Get all the indexes of the '@' chars
-        // Get all chars between @ and the cursor
-        let term = self
-            .line
-            .chars()
-            .enumerate()
-            .filter(|(_, c)| *c == '@')
-            .map(|(i, _)| i)
-            .filter(|at| *at < self.position)
-            .max_by(|a, b| a.cmp(b))
-            .map(|at| TermResult {
-                span: Span::new(at + 1, self.position),
-                term: &self.line[at + 1..self.position],
-            })
-            .filter(|s| !s.term.contains(" "));
+        // Find the start of the current word (looking backwards from cursor)
+        let word_start = self.line[..self.position]
+            .char_indices()
+            .rev()
+            .find(|(_, c)| c.is_whitespace())
+            .map(|(i, _)| i + 1)
+            .unwrap_or(0);
 
-        term
+        // Only return a result if we have some text to work with
+        if word_start < self.position {
+            let term = &self.line[word_start..self.position];
+            // Don't complete if the term contains spaces
+            if !term.contains(' ') {
+                return Some(TermResult {
+                    span: Span::new(word_start, self.position),
+                    term,
+                });
+            }
+        }
+
+        None
     }
 }
 
@@ -84,8 +88,142 @@ mod tests {
     }
 
     #[test]
-    fn test_marker_based_search() {
-        let results = SearchTerm::test("@abc @def ghi@");
-        assert_debug_snapshot!(results);
+    fn test_word_based_completion() {
+        let results = SearchTerm::test("abc def ghi");
+        assert_debug_snapshot!(results, @r###"
+        [
+            TermSpec {
+                input: "a[bc def ghi",
+                output: Some(
+                    "a",
+                ),
+                span_start: Some(
+                    0,
+                ),
+                span_end: Some(
+                    1,
+                ),
+                pos: 1,
+            },
+            TermSpec {
+                input: "ab[c def ghi",
+                output: Some(
+                    "ab",
+                ),
+                span_start: Some(
+                    0,
+                ),
+                span_end: Some(
+                    2,
+                ),
+                pos: 2,
+            },
+            TermSpec {
+                input: "abc[ def ghi",
+                output: Some(
+                    "abc",
+                ),
+                span_start: Some(
+                    0,
+                ),
+                span_end: Some(
+                    3,
+                ),
+                pos: 3,
+            },
+            TermSpec {
+                input: "abc [def ghi",
+                output: None,
+                span_start: None,
+                span_end: None,
+                pos: 4,
+            },
+            TermSpec {
+                input: "abc d[ef ghi",
+                output: Some(
+                    "d",
+                ),
+                span_start: Some(
+                    4,
+                ),
+                span_end: Some(
+                    5,
+                ),
+                pos: 5,
+            },
+            TermSpec {
+                input: "abc de[f ghi",
+                output: Some(
+                    "de",
+                ),
+                span_start: Some(
+                    4,
+                ),
+                span_end: Some(
+                    6,
+                ),
+                pos: 6,
+            },
+            TermSpec {
+                input: "abc def[ ghi",
+                output: Some(
+                    "def",
+                ),
+                span_start: Some(
+                    4,
+                ),
+                span_end: Some(
+                    7,
+                ),
+                pos: 7,
+            },
+            TermSpec {
+                input: "abc def [ghi",
+                output: None,
+                span_start: None,
+                span_end: None,
+                pos: 8,
+            },
+            TermSpec {
+                input: "abc def g[hi",
+                output: Some(
+                    "g",
+                ),
+                span_start: Some(
+                    8,
+                ),
+                span_end: Some(
+                    9,
+                ),
+                pos: 9,
+            },
+            TermSpec {
+                input: "abc def gh[i",
+                output: Some(
+                    "gh",
+                ),
+                span_start: Some(
+                    8,
+                ),
+                span_end: Some(
+                    10,
+                ),
+                pos: 10,
+            },
+            TermSpec {
+                input: "abc def ghi[",
+                output: Some(
+                    "ghi",
+                ),
+                span_start: Some(
+                    8,
+                ),
+                span_end: Some(
+                    11,
+                ),
+                pos: 11,
+            },
+        ]
+        "###);
     }
 }
