@@ -66,7 +66,7 @@ impl<A: App> Orchestrator<A> {
 
         // Adding self to the list of tool definitions
 
-        forge_tools.push(DispatchEvent::tool_definition());
+        forge_tools.push(Event::tool_definition());
 
         forge_tools
             .into_iter()
@@ -160,7 +160,7 @@ impl<A: App> Orchestrator<A> {
         Ok(ChatCompletionResult { content, tool_calls })
     }
 
-    async fn dispatch(&self, event: &DispatchEvent) -> anyhow::Result<()> {
+    async fn dispatch(&self, event: &Event) -> anyhow::Result<()> {
         debug!(
             conversation_id = %self.chat_request.conversation_id,
             event_name = %event.name(),
@@ -193,7 +193,7 @@ impl<A: App> Orchestrator<A> {
         agent_id: &AgentId,
         tool_call: &ToolCallFull,
     ) -> anyhow::Result<Option<ToolResult>> {
-        if let Some(event) = DispatchEvent::parse(tool_call) {
+        if let Some(event) = Event::parse(tool_call) {
             self.send(agent_id, ChatResponse::Custom(event.clone()))
                 .await?;
 
@@ -220,7 +220,7 @@ impl<A: App> Orchestrator<A> {
                 } => {
                     let mut summarize = Summarize::new(&mut context, *token_limit);
                     while let Some(mut summary) = summarize.summarize() {
-                        let input = DispatchEvent::new_name_value(input_key, summary.get());
+                        let input = Event::new_name_value(input_key, summary.get());
                         self.init_agent(agent_id, &input).await?;
 
                         if let Some(value) = self.get_last_event(output_key).await? {
@@ -235,7 +235,7 @@ impl<A: App> Orchestrator<A> {
                         ..
                     })) = context.messages.last_mut()
                     {
-                        let task = DispatchEvent::task_init(content.clone());
+                        let task = Event::task_init(content.clone());
                         self.init_agent(agent_id, &task).await?;
                         if let Some(output) = self.get_last_event(output_key).await? {
                             let message = &output.value();
@@ -246,7 +246,7 @@ impl<A: App> Orchestrator<A> {
                     }
                 }
                 Transform::PassThrough { agent_id, input: input_key } => {
-                    let input = DispatchEvent::new_name_value(input_key, context.to_text());
+                    let input = Event::new_name_value(input_key, context.to_text());
 
                     // NOTE: Tap transformers will not modify the context
                     self.init_agent(agent_id, &input).await?;
@@ -257,14 +257,14 @@ impl<A: App> Orchestrator<A> {
         Ok(context)
     }
 
-    async fn get_last_event(&self, name: &str) -> anyhow::Result<Option<DispatchEvent>> {
+    async fn get_last_event(&self, name: &str) -> anyhow::Result<Option<Event>> {
         Ok(self.get_conversation().await?.rfind_event(name).cloned())
     }
 
     async fn get_last_event_by_type(
         &self,
         event_type: &EventType,
-    ) -> anyhow::Result<Option<DispatchEvent>> {
+    ) -> anyhow::Result<Option<Event>> {
         Ok(self
             .get_conversation()
             .await?
@@ -272,7 +272,7 @@ impl<A: App> Orchestrator<A> {
             .cloned())
     }
 
-    async fn insert_event(&self, event: DispatchEvent) -> anyhow::Result<()> {
+    async fn insert_event(&self, event: Event) -> anyhow::Result<()> {
         self.app
             .conversation_service()
             .insert_event(&self.chat_request.conversation_id, event)
@@ -304,7 +304,7 @@ impl<A: App> Orchestrator<A> {
             .await
     }
 
-    async fn init_agent(&self, agent: &AgentId, event: &DispatchEvent) -> anyhow::Result<()> {
+    async fn init_agent(&self, agent: &AgentId, event: &Event) -> anyhow::Result<()> {
         debug!(
             conversation_id = %self.chat_request.conversation_id,
             agent = %agent,
@@ -390,16 +390,16 @@ impl<A: App> Orchestrator<A> {
 
     /// Initializes the appropriate dispatch event based on whether this is the
     /// first message in the workflow
-    async fn init_dispatch_event(&self) -> anyhow::Result<DispatchEvent> {
+    async fn init_dispatch_event(&self) -> anyhow::Result<Event> {
         let has_task = self
             .get_last_event_by_type(&EventType::UserTaskInit("".to_string()))
             .await?
             .is_some();
 
         Ok(if has_task {
-            DispatchEvent::task_update(self.chat_request.content.clone())
+            Event::task_update(self.chat_request.content.clone())
         } else {
-            DispatchEvent::task_init(self.chat_request.content.clone())
+            Event::task_init(self.chat_request.content.clone())
         })
     }
 

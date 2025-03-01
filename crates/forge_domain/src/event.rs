@@ -18,9 +18,9 @@ pub enum EventType {
 impl EventType {
     pub fn name(&self) -> String {
         match self {
-            EventType::UserTaskInit(_) => DispatchEvent::USER_TASK_INIT.to_string(),
-            EventType::UserTaskUpdate(_) => DispatchEvent::USER_TASK_UPDATE.to_string(),
-            EventType::Title(_) => DispatchEvent::TITLE.to_string(),
+            EventType::UserTaskInit(_) => Event::USER_TASK_INIT.to_string(),
+            EventType::UserTaskUpdate(_) => Event::USER_TASK_UPDATE.to_string(),
+            EventType::Title(_) => Event::TITLE.to_string(),
             EventType::Custom { name, .. } => name.clone(),
         }
     }
@@ -36,9 +36,9 @@ impl EventType {
 
     pub fn from_name_value(name: &str, value: &str) -> Self {
         match name {
-            DispatchEvent::USER_TASK_INIT => EventType::UserTaskInit(value.to_string()),
-            DispatchEvent::USER_TASK_UPDATE => EventType::UserTaskUpdate(value.to_string()),
-            DispatchEvent::TITLE => EventType::Title(value.to_string()),
+            Event::USER_TASK_INIT => EventType::UserTaskInit(value.to_string()),
+            Event::USER_TASK_UPDATE => EventType::UserTaskUpdate(value.to_string()),
+            Event::TITLE => EventType::Title(value.to_string()),
             _ => EventType::Custom { name: name.to_string(), value: value.to_string() },
         }
     }
@@ -46,7 +46,7 @@ impl EventType {
 
 // We'll use simple strings for JSON schema compatibility
 #[derive(Debug, JsonSchema, Deserialize, Serialize, Clone)]
-pub struct DispatchEvent {
+pub struct Event {
     pub id: String,
     #[serde(flatten)]
     pub event_type: EventType,
@@ -55,23 +55,23 @@ pub struct DispatchEvent {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Setters)]
 pub struct UserContext {
-    event: DispatchEvent,
+    event: Event,
     suggestions: Vec<String>,
 }
 
 impl UserContext {
-    pub fn new(event: DispatchEvent) -> Self {
+    pub fn new(event: Event) -> Self {
         Self { event, suggestions: Default::default() }
     }
 }
 
-impl NamedTool for DispatchEvent {
+impl NamedTool for Event {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_event_dispatch")
     }
 }
 
-impl DispatchEvent {
+impl Event {
     pub fn name(&self) -> String {
         self.event_type.name()
     }
