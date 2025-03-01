@@ -1,7 +1,7 @@
 variables:
   models:
-    advanced_model: &advanced_model claude-3-7-sonnet-20250219
-    efficiency_model: &efficiency_model claude-3-5-haiku-20241022
+    advanced_model: &advanced_model anthropic/claude-3-7-sonnet-20250219
+    efficiency_model: &efficiency_model anthropic/claude-3-5-haiku-20241022
 
 agents:
   - id: title_generation_worker
