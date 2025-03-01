@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use bytes::Bytes;
 use forge_app::FileReadService;
 
 pub struct ForgeFileReadService;
@@ -19,9 +20,10 @@ impl ForgeFileReadService {
 
 #[async_trait::async_trait]
 impl FileReadService for ForgeFileReadService {
-    async fn read(&self, path: &Path) -> Result<String> {
-        Ok(tokio::fs::read_to_string(path)
+    async fn read(&self, path: &Path) -> Result<Bytes> {
+        Ok(tokio::fs::read(path)
             .await
+            .map(Bytes::from)
             .with_context(|| format!("Failed to read file: {}", path.display()))?)
     }
 }

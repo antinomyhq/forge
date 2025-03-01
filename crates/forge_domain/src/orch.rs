@@ -316,6 +316,13 @@ impl<A: App> Orchestrator<A> {
             }
         };
 
+        let (content, attachments) = self
+            .app
+            .attachment_service()
+            .attachments(event.value.clone())
+            .await?;
+        let event = event.clone().value(content);
+
         let mut user_context = UserContext::new(event.clone());
 
         if agent.suggestions {
@@ -334,7 +341,9 @@ impl<A: App> Orchestrator<A> {
             event.value.clone()
         };
 
-        context = context.add_message(ContextMessage::user(content));
+        context = context
+            .add_message(ContextMessage::user(content))
+            .add_attachments(attachments);
 
         loop {
             context = self.execute_transform(&agent.transforms, context).await?;

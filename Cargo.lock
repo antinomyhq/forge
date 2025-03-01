@@ -296,9 +296,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.9.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "325918d6fe32f23b19878fe4b34794ae41fc19ddbe53b10571a4874d44ffd39b"
+checksum = "f61dac84819c6588b558454b194026eb1f09c293b9036ae9b159e74e73ab6cf9"
 
 [[package]]
 name = "cc"
@@ -543,7 +543,6 @@ checksum = "829d955a0bb380ef178a640b91779e3987da38c9aea133b20614cfed8cdea9c6"
 dependencies = [
  "bitflags 2.8.0",
  "crossterm_winapi",
- "futures-core",
  "mio",
  "parking_lot",
  "rustix",
@@ -894,9 +893,7 @@ dependencies = [
  "chrono",
  "clap",
  "colored 3.0.0",
- "crossterm",
  "derive_setters",
- "dirs",
  "forge_api",
  "forge_display",
  "forge_tracker",
@@ -904,17 +901,14 @@ dependencies = [
  "insta",
  "lazy_static",
  "nu-ansi-term 0.50.1",
- "once_cell",
  "pretty_assertions",
  "reedline",
- "regex",
  "serde_json",
- "strum 0.27.0",
- "tempfile",
- "thiserror 2.0.11",
  "tokio",
  "tokio-stream",
  "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -942,6 +936,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
+ "bytes",
  "chrono",
  "derive_more 1.0.0",
  "derive_setters",
@@ -966,6 +962,8 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "strum 0.27.1",
+ "strum_macros 0.27.1",
  "syn 2.0.98",
  "tempfile",
  "thiserror 2.0.11",
@@ -1042,6 +1040,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bytes",
  "dirs",
  "dotenv",
  "forge_app",
@@ -1125,7 +1124,7 @@ dependencies = [
  "reqwest 0.12.12",
  "serde",
  "serde_json",
- "strum 0.27.0",
+ "strum 0.27.1",
  "sysinfo 0.33.1",
  "tokio",
  "tracing",
@@ -3464,12 +3463,9 @@ checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
 
 [[package]]
 name = "strum"
-version = "0.27.0"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce1475c515a4f03a8a7129bb5228b81a781a86cb0b3fbbc19e1c556d491a401f"
-dependencies = [
- "strum_macros 0.27.1",
-]
+checksum = "f64def088c51c9510a8579e3c5d67c65349dcf755e5479ad3d010aa6454e2c32"
 
 [[package]]
 name = "strum_macros"
