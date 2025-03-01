@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.23", features = ["derive"] }
 forge_api = { path = "../forge_api" }
+forge_app = { path = "../forge_app" }
 forge_walker = { path = "../forge_walker" }
 forge_display = { path = "../forge_display" }
 forge_tracker = { path = "../forge_tracker" }
