@@ -31,4 +31,3 @@ tracing = "0.1.41"
 [dev-dependencies]
 insta = { version = "1.34.0", features = ["json"] }
 pretty_assertions = "1.4.1"
-lazy_static = "1.5.0"

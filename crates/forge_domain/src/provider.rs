@@ -68,116 +68,69 @@ impl Provider {
 #[cfg(test)]
 mod tests {
     use std::env;
-    use std::sync::Mutex;
-
-    use lazy_static::lazy_static;
 
     use super::*;
 
     // reset the env variables for reliable tests
-    lazy_static! {
-        static ref ENV_LOCK: Mutex<()> = Mutex::new(());
-    }
-
-    fn with_env(envs: Vec<(String, String)>, env_based_test: impl FnOnce()) {
-        // Create a new guard without unwrapping - if it fails, we'll just run without the lock
-        // This will allow tests to continue even if another test already has the lock
-        let _guard = ENV_LOCK.lock();
-
-        // Clear existing environment variables that might interfere with our test
+    fn reset_env() {
         env::remove_var("FORGE_KEY");
         env::remove_var("FORGE_PROVIDER_URL");
         env::remove_var("OPEN_ROUTER_KEY");
         env::remove_var("OPENAI_API_KEY");
         env::remove_var("ANTHROPIC_API_KEY");
-
-        // Set the environment variables for this test
-        for (key, value) in envs.iter() {
-            env::set_var(key, value);
-        }
-
-        // Run the actual test
-        env_based_test();
-
-        // Clean up
-        for (key, _) in envs.iter() {
-            env::remove_var(key);
-        }
     }
 
     #[test]
     fn test_provider_from_env_with_forge_key_and_without_provider_url() {
-        with_env(
-            vec![("FORGE_KEY".to_string(), "some_forge_key".to_string())],
-            || {
-                let provider = Provider::from_env();
-                assert_eq!(provider, None);
-            },
-        );
+        reset_env();
+        env::set_var("FORGE_KEY", "some_forge_key");
+
+        let provider = Provider::from_env();
+        assert_eq!(provider, None);
     }
 
     #[test]
     fn test_provider_from_env_with_forge_key() {
-        with_env(
-            vec![
-                ("FORGE_KEY".to_string(), "some_forge_key".to_string()),
-                (
-                    "FORGE_PROVIDER_URL".to_string(),
-                    "https://api.openai.com/v1/".to_string(),
-                ),
-            ],
-            || {
-                let provider = Provider::from_env();
-                assert_eq!(provider, Some(Provider::OpenAI));
-            },
-        );
+        reset_env();
+        env::set_var("FORGE_KEY", "some_forge_key");
+        env::set_var("FORGE_PROVIDER_URL", "https://api.openai.com/v1/");
+
+        let provider = Provider::from_env();
+        assert_eq!(provider, Some(Provider::OpenAI));
     }
 
     #[test]
     fn test_provider_from_env_with_open_router_key() {
-        with_env(
-            vec![(
-                "OPEN_ROUTER_KEY".to_string(),
-                "some_open_router_key".to_string(),
-            )],
-            || {
-                let provider = Provider::from_env();
-                assert_eq!(provider, Some(Provider::OpenRouter));
-            },
-        );
+        reset_env();
+        env::set_var("OPEN_ROUTER_KEY", "some_open_router_key");
+
+        let provider = Provider::from_env();
+        assert_eq!(provider, Some(Provider::OpenRouter));
     }
 
     #[test]
     fn test_provider_from_env_with_openai_key() {
-        with_env(
-            vec![("OPENAI_API_KEY".to_string(), "some_openai_key".to_string())],
-            || {
-                let provider = Provider::from_env();
-                assert_eq!(provider, Some(Provider::OpenAI));
-            },
-        );
+        reset_env();
+        env::set_var("OPENAI_API_KEY", "some_openai_key");
+
+        let provider = Provider::from_env();
+        assert_eq!(provider, Some(Provider::OpenAI));
     }
 
     #[test]
     fn test_provider_from_env_with_anthropic_key() {
-        with_env(
-            vec![(
-                "ANTHROPIC_API_KEY".to_string(),
-                "some_anthropic_key".to_string(),
-            )],
-            || {
-                let provider = Provider::from_env();
-                assert_eq!(provider, Some(Provider::Anthropic));
-            },
-        );
+        reset_env();
+        env::set_var("ANTHROPIC_API_KEY", "some_anthropic_key");
+
+        let provider = Provider::from_env();
+        assert_eq!(provider, Some(Provider::Anthropic));
     }
 
     #[test]
     fn test_provider_from_env_with_no_keys() {
-        with_env(vec![], || {
-            let provider = Provider::from_env();
-            assert_eq!(provider, None);
-        });
+        reset_env();
+        let provider = Provider::from_env();
+        assert_eq!(provider, None);
     }
 
     #[test]
