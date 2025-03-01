@@ -7,9 +7,9 @@ Best Practices:
 
 [![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
 [![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
+[![Discord](https://img.shields.io/discord/1044859667798568962?style=for-the-badge&cacheSeconds=120&logo=discord)](https://discord.gg/kRZBPpkgwq)
 
 **Forge: AI-Enhanced Terminal Development Environment**
-
 
 Forge is a comprehensive coding agent that integrates AI capabilities with your development environment, offering sophisticated assistance while maintaining the efficiency of your existing workflow.
 
@@ -28,8 +28,6 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
   - [Mac](#mac)
   - [Linux](#linux)
 - [Get Started](#get-started)
-- [Environment Configuration](#environment-configuration)
-- [See It In Action](#see-it-in-action)
 - [Features](#features)
   - [Complete Coding Agent](#complete-coding-agent)
   - [Interactive AI Shell](#interactive-ai-shell)
@@ -47,6 +45,7 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
     - [Built-in Templates](#built-in-templates)
     - [Example Workflow Configuration](#example-workflow-configuration)
 - [Why Shell?](#why-shell)
+- [Community](#community)
 - [Support Us](#support-us)
 
 ## Installation
@@ -78,44 +77,16 @@ wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | b
 
 1. Create a `.env` file in your home directory with your API credentials:
 
-```bash
-# Your API key for accessing AI models (see Environment Configuration section)
-OPEN_ROUTER_KEY=<Enter your Open Router Key>
-```
-
-_You can get a Key at [Open Router](https://openrouter.ai/)_
-
-2. Launch Code Forge:
    ```bash
-   forge
-   ⚡ # Now just describe what you want to build or solve!
+   # Your API key for accessing AI models (see Environment Configuration section)
+   OPEN_ROUTER_KEY=<Enter your Open Router Key>
    ```
 
-## Environment Configuration
+   _You can get a Key at [Open Router](https://openrouter.ai/)_
 
-Code-Forge can be configured through environment variables. You can set these in your shell profile (e.g., `.bashrc`, `.zshrc`) or by creating a `.env` file in your home directory.
+2. Launch Code Forge:
 
-## See It In Action
-
-Instead of manually coding tedious tasks, let Code Forge handle them:
-
-```bash
-⚡ forge Task 1
-```
-
-<!-- <Video here> -->
-
-```bash
-⚡ forge Task 2
-```
-
-<!-- <Video here> -->
-
-```bash
-⚡ forge Task 3
-```
-
-<!-- <Video here> -->
+   ![Code-Forge Demo](https://antinomy.ai/images/forge_demo_2x.gif)
 
 ## Features
 
@@ -240,8 +211,8 @@ Each agent needs tools to perform tasks, configured in the `tools` field:
 - `tools` - List of tools the agent can use
 - `subscribe` - Events the agent listens to
 - `ephemeral` - If true, agent is destroyed after task completion
-- `system_prompt` - Instructions for how the agent should behave
-- `user_prompt` - Format for user inputs
+- `system_prompt` - (Optional) Instructions for how the agent should behave. While optional, it's recommended to provide clear instructions for best results.
+- `user_prompt` - (Optional) Format for user inputs. If not provided, the raw event value is used.
 
 #### Built-in Templates
 
@@ -310,6 +281,12 @@ There's a reason why the shell has stood the test of time for development tools 
 - **Speed Matters**: Unlike IDEs and Web UIs, Code Forge's shell is extremely lightweight. This exceptional speed unlocks powerful capabilities that directly enhance your productivity: seamlessly get in and out of workflows, manage multiple feature developments in parallel, effortlessly coordinate across git worktrees, and instantly access AI assistance in any directory.
 
 - **Tool Composition**: Unix philosophy teaches us to make tools that compose well. The AI can pipe commands together, combining tools like `find | xargs forge -p | grep "foo"` in ways that solve complex problems elegantly.
+
+## Community
+
+Join our vibrant Discord community to connect with other Code-Forge users and contributors, get help with your projects, share ideas, and provide feedback!
+
+[![Discord](https://img.shields.io/discord/1044859667798568962?style=for-the-badge&cacheSeconds=120&logo=discord)](https://discord.gg/kRZBPpkgwq)
 
 ## Support Us
 

@@ -66,7 +66,7 @@ impl<A: App> Orchestrator<A> {
 
         // Adding self to the list of tool definitions
 
-        forge_tools.push(DispatchEvent::tool_definition());
+        forge_tools.push(Event::tool_definition());
 
         forge_tools
             .into_iter()
@@ -91,22 +91,26 @@ impl<A: App> Orchestrator<A> {
             .tool_supported;
         system_context.tool_supported = Some(tool_supported);
 
-        let system_message = self
-            .app
-            .prompt_service()
-            .render(
-                &agent.system_prompt,
-                &system_context.tool_information(tool_usage_prompt),
-            )
-            .await?;
+        let mut context = Context::default();
 
-        Ok(Context::default()
-            .set_first_system_message(system_message)
-            .extend_tools(if tool_supported {
-                tool_defs
-            } else {
-                Vec::new()
-            }))
+        if let Some(system_prompt) = &agent.system_prompt {
+            let system_message = self
+                .app
+                .prompt_service()
+                .render(
+                    system_prompt,
+                    &system_context.tool_information(tool_usage_prompt),
+                )
+                .await?;
+
+            context = context.set_first_system_message(system_message);
+        }
+
+        Ok(context.extend_tools(if tool_supported {
+            tool_defs
+        } else {
+            Vec::new()
+        }))
     }
 
     async fn collect_messages(
@@ -160,7 +164,7 @@ impl<A: App> Orchestrator<A> {
         Ok(ChatCompletionResult { content, tool_calls })
     }
 
-    async fn dispatch(&self, event: &DispatchEvent) -> anyhow::Result<()> {
+    async fn dispatch(&self, event: &Event) -> anyhow::Result<()> {
         debug!(
             conversation_id = %self.chat_request.conversation_id,
             event_name = %event.name,
@@ -193,7 +197,7 @@ impl<A: App> Orchestrator<A> {
         agent_id: &AgentId,
         tool_call: &ToolCallFull,
     ) -> anyhow::Result<Option<ToolResult>> {
-        if let Some(event) = DispatchEvent::parse(tool_call) {
+        if let Some(event) = Event::parse(tool_call) {
             self.send(agent_id, ChatResponse::Custom(event.clone()))
                 .await?;
 
@@ -220,7 +224,7 @@ impl<A: App> Orchestrator<A> {
                 } => {
                     let mut summarize = Summarize::new(&mut context, *token_limit);
                     while let Some(mut summary) = summarize.summarize() {
-                        let input = DispatchEvent::new(input_key, summary.get());
+                        let input = Event::new(input_key, summary.get());
                         self.init_agent(agent_id, &input).await?;
 
                         if let Some(value) = self.get_last_event(output_key).await? {
@@ -235,7 +239,7 @@ impl<A: App> Orchestrator<A> {
                         ..
                     })) = context.messages.last_mut()
                     {
-                        let task = DispatchEvent::task_init(content.clone());
+                        let task = Event::task_init(content.clone());
                         self.init_agent(agent_id, &task).await?;
                         if let Some(output) = self.get_last_event(output_key).await? {
                             let message = &output.value;
@@ -246,7 +250,7 @@ impl<A: App> Orchestrator<A> {
                     }
                 }
                 Transform::PassThrough { agent_id, input: input_key } => {
-                    let input = DispatchEvent::new(input_key, context.to_text());
+                    let input = Event::new(input_key, context.to_text());
 
                     // NOTE: Tap transformers will not modify the context
                     self.init_agent(agent_id, &input).await?;
@@ -257,11 +261,11 @@ impl<A: App> Orchestrator<A> {
         Ok(context)
     }
 
-    async fn get_last_event(&self, name: &str) -> anyhow::Result<Option<DispatchEvent>> {
+    async fn get_last_event(&self, name: &str) -> anyhow::Result<Option<Event>> {
         Ok(self.get_conversation().await?.rfind_event(name).cloned())
     }
 
-    async fn insert_event(&self, event: DispatchEvent) -> anyhow::Result<()> {
+    async fn insert_event(&self, event: Event) -> anyhow::Result<()> {
         self.app
             .conversation_service()
             .insert_event(&self.chat_request.conversation_id, event)
@@ -293,7 +297,7 @@ impl<A: App> Orchestrator<A> {
             .await
     }
 
-    async fn init_agent(&self, agent: &AgentId, event: &DispatchEvent) -> anyhow::Result<()> {
+    async fn init_agent(&self, agent: &AgentId, event: &Event) -> anyhow::Result<()> {
         debug!(
             conversation_id = %self.chat_request.conversation_id,
             agent = %agent,
@@ -320,11 +324,15 @@ impl<A: App> Orchestrator<A> {
             user_context = user_context.suggestions(suggestions);
         }
 
-        let content = self
-            .app
-            .prompt_service()
-            .render(&agent.user_prompt, &user_context)
-            .await?;
+        let content = if let Some(user_prompt) = &agent.user_prompt {
+            self.app
+                .prompt_service()
+                .render(user_prompt, &user_context)
+                .await?
+        } else {
+            // Use the raw event value as content if no user_prompt is provided
+            event.value.clone()
+        };
 
         context = context.add_message(ContextMessage::user(content));
 
@@ -379,16 +387,13 @@ impl<A: App> Orchestrator<A> {
 
     /// Initializes the appropriate dispatch event based on whether this is the
     /// first message in the workflow
-    async fn init_dispatch_event(&self) -> anyhow::Result<DispatchEvent> {
-        let has_task = self
-            .get_last_event(DispatchEvent::USER_TASK_INIT)
-            .await?
-            .is_some();
+    async fn init_dispatch_event(&self) -> anyhow::Result<Event> {
+        let has_task = self.get_last_event(Event::USER_TASK_INIT).await?.is_some();
 
         Ok(if has_task {
-            DispatchEvent::task_update(self.chat_request.content.clone())
+            Event::task_update(self.chat_request.content.clone())
         } else {
-            DispatchEvent::task_init(self.chat_request.content.clone())
+            Event::task_init(self.chat_request.content.clone())
         })
     }
 

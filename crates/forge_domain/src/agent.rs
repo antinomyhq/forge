@@ -50,8 +50,10 @@ pub struct Agent {
     pub id: AgentId,
     pub model: ModelId,
     pub description: Option<String>,
-    pub system_prompt: Template<SystemContext>,
-    pub user_prompt: Template<UserContext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<Template<SystemContext>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_prompt: Option<Template<UserContext>>,
 
     /// When set to true all user events will also contain a suggestions field
     /// that is prefilled with the matching information from vector store.
