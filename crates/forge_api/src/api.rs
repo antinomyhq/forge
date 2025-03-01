@@ -78,3 +78,26 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
         self.app.conversation_service().get(conversation_id).await
     }
 }
+
+async fn retry(
+    &self,
+    conversation_id: ConversationId,
+) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
+    let conversation = self
+        .app
+        .conversation_service()
+        .get(&conversation_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
+
+    let last_user_message = conversation
+        .events
+        .iter()
+        .rev()
+        .find(|event| event.name == "user_message")
+        .ok_or_else(|| anyhow::anyhow!("No user message found in conversation"))?;
+
+    let chat_request = ChatRequest::new(last_user_message.content.clone(), conversation_id);
+    self.chat(chat_request).await
+}
+}

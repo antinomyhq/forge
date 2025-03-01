@@ -7,7 +7,9 @@ pub struct CommandCompleter;
 
 impl Completer for CommandCompleter {
     fn complete(&mut self, line: &str, _: usize) -> Vec<reedline::Suggestion> {
-        Command::available_commands()
+        let mut commands = Command::available_commands();
+        commands.push("/retry".to_string()); 
+        commands
             .into_iter()
             .filter(|cmd| cmd.starts_with(line))
             .map(|cmd| Suggestion {
