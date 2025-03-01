@@ -36,7 +36,7 @@ pub struct ApplyPatch;
 
 impl NamedTool for ApplyPatch {
     fn tool_name() -> ToolName {
-        ToolName::new("tool_forge_patch")
+        ToolName::new("tool_forge_fs_patch")
     }
 }
 

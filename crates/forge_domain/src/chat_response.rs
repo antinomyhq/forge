@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::{DispatchEvent, ToolCallFull, ToolResult, Usage};
+use crate::{Event, ToolCallFull, ToolResult, Usage};
 
 /// Events that are emitted by the agent for external consumption. This includes
 /// events for all internal state changes.
@@ -11,5 +11,5 @@ pub enum ChatResponse {
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
     Usage(Usage),
-    Custom(DispatchEvent),
+    Custom(Event),
 }
