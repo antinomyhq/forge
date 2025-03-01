@@ -211,8 +211,8 @@ Each agent needs tools to perform tasks, configured in the `tools` field:
 - `tools` - List of tools the agent can use
 - `subscribe` - Events the agent listens to
 - `ephemeral` - If true, agent is destroyed after task completion
-- `system_prompt` - Instructions for how the agent should behave
-- `user_prompt` - Format for user inputs
+- `system_prompt` - (Optional) Instructions for how the agent should behave. While optional, it's recommended to provide clear instructions for best results.
+- `user_prompt` - (Optional) Format for user inputs. If not provided, the raw event value is used.
 
 #### Built-in Templates
 

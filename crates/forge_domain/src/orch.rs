@@ -91,22 +91,26 @@ impl<A: App> Orchestrator<A> {
             .tool_supported;
         system_context.tool_supported = Some(tool_supported);
 
-        let system_message = self
-            .app
-            .prompt_service()
-            .render(
-                &agent.system_prompt,
-                &system_context.tool_information(tool_usage_prompt),
-            )
-            .await?;
+        let mut context = Context::default();
 
-        Ok(Context::default()
-            .set_first_system_message(system_message)
-            .extend_tools(if tool_supported {
-                tool_defs
-            } else {
-                Vec::new()
-            }))
+        if let Some(system_prompt) = &agent.system_prompt {
+            let system_message = self
+                .app
+                .prompt_service()
+                .render(
+                    system_prompt,
+                    &system_context.tool_information(tool_usage_prompt),
+                )
+                .await?;
+
+            context = context.set_first_system_message(system_message);
+        }
+
+        Ok(context.extend_tools(if tool_supported {
+            tool_defs
+        } else {
+            Vec::new()
+        }))
     }
 
     async fn collect_messages(
@@ -320,11 +324,15 @@ impl<A: App> Orchestrator<A> {
             user_context = user_context.suggestions(suggestions);
         }
 
-        let content = self
-            .app
-            .prompt_service()
-            .render(&agent.user_prompt, &user_context)
-            .await?;
+        let content = if let Some(user_prompt) = &agent.user_prompt {
+            self.app
+                .prompt_service()
+                .render(user_prompt, &user_context)
+                .await?
+        } else {
+            // Use the raw event value as content if no user_prompt is provided
+            event.value.clone()
+        };
 
         context = context.add_message(ContextMessage::user(content));
 
