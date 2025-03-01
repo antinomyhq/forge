@@ -130,13 +130,7 @@ impl<F: API> UI<F> {
                     input = self.console.prompt(None).await?;
                 }
                 Command::Retry => {
-                    if let Some(conversation_id) = self.state.conversation_id.clone() {
-                        CONSOLE.writeln(
-                            TitleFormat::execute("retry")
-                                .sub_title(self.state.usage.to_string())
-                                .format(),
-                        )?;
-
+                    let Some(conversation_id) = self.state.conversation_id.clone();
                         // Simplified error handling that matches the Command::Message case
                         if let Err(err) = async {
                             let mut stream = self.api.retry(conversation_id).await?;

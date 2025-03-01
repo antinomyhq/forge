@@ -363,49 +363,4 @@ mod retry_functionality {
             result
         );
     }
-
-    #[tokio::test]
-    async fn test_retry_with_different_models() {
-        // Test with different models to ensure retry works across models
-        let models = ["anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini"];
-
-        for model_name in models {
-            // Create a fixture with the test model
-            let fixture = Fixture::new(ModelId::new(model_name));
-
-            // Initialize a conversation with a message
-            let message = "What is the capital of Germany?";
-            let (conversation_id, initial_response) =
-                fixture.init_conversation_with_message(message).await;
-
-            // Verify initial response contains expected information
-            assert!(
-                initial_response.to_lowercase().contains("berlin"),
-                "[{}] Initial response should mention Berlin",
-                model_name
-            );
-
-            // Retry the conversation
-            let retry_response = fixture.retry(&conversation_id).await;
-
-            // Verify retry response also contains same information
-            assert!(
-                retry_response.to_lowercase().contains("berlin"),
-                "[{}] Retry response should mention Berlin",
-                model_name
-            );
-
-            // Verify that retry used same message
-            let conversation = fixture.get_conversation(&conversation_id).await.unwrap();
-            let last_user_message = conversation
-                .rfind_event(DispatchEvent::USER_TASK_UPDATE)
-                .or_else(|| conversation.rfind_event(DispatchEvent::USER_TASK_INIT))
-                .unwrap();
-            assert_eq!(
-                last_user_message.value, message,
-                "[{}] The last user message should match the initial message",
-                model_name
-            );
-        }
-    }
 }

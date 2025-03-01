@@ -82,17 +82,6 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
         &self,
         conversation_id: ConversationId,
     ) -> Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
-        let conversation = self
-            .app
-            .conversation_service()
-            .get(&conversation_id)
-            .await?
-            .ok_or(Error::ConversationNotFound(conversation_id.clone()))?;
-        let last_user_message = conversation
-            .rfind_event(DispatchEvent::USER_TASK_UPDATE)
-            .or_else(|| conversation.rfind_event(DispatchEvent::USER_TASK_INIT))
-            .ok_or(anyhow::anyhow!("No user message found in the conversation"))?;
-        let chat_request = ChatRequest::new(last_user_message.value.clone(), conversation_id);
-        Ok(self.executor_service.chat(chat_request).await?)
+        Ok(self.executor_service.retry(conversation_id).await?)
     }
 }
