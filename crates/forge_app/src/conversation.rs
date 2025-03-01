@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    AgentId, Context, Conversation, ConversationId, ConversationService, DispatchEvent, Workflow,
+    AgentId, Context, Conversation, ConversationId, ConversationService, Event, Workflow,
 };
 use tokio::sync::Mutex;
 
@@ -53,7 +53,7 @@ impl ConversationService for ForgeConversationService {
         Ok(())
     }
 
-    async fn insert_event(&self, id: &ConversationId, event: DispatchEvent) -> anyhow::Result<()> {
+    async fn insert_event(&self, id: &ConversationId, event: Event) -> anyhow::Result<()> {
         let mut guard = self.workflows.lock().await;
         guard
             .get_mut(id)
