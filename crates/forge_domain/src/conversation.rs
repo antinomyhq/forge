@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Agent, AgentId, Context, DispatchEvent, Error, EventType, Workflow};
+use crate::{Agent, AgentId, Context, Error, Event, EventType, Workflow};
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -33,7 +33,7 @@ pub struct Conversation {
     pub id: ConversationId,
     pub archived: bool,
     pub state: HashMap<AgentId, AgentState>,
-    pub events: Vec<DispatchEvent>,
+    pub events: Vec<Event>,
     pub workflow: Workflow,
 }
 
@@ -73,13 +73,13 @@ impl Conversation {
         self.state.get(id).and_then(|s| s.context.as_ref())
     }
 
-    pub fn rfind_event(&self, event_name: &str) -> Option<&DispatchEvent> {
+    pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
         self.events
             .iter()
             .rfind(|event| event.event_type.name() == event_name)
     }
 
-    pub fn rfind_event_by_type(&self, event_type: &EventType) -> Option<&DispatchEvent> {
+    pub fn rfind_event_by_type(&self, event_type: &EventType) -> Option<&Event> {
         self.events
             .iter()
             .rfind(|event| &event.event_type == event_type)

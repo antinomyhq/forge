@@ -46,7 +46,7 @@ impl EventType {
 
 // We'll use simple strings for JSON schema compatibility
 #[derive(Debug, JsonSchema, Deserialize, Serialize, Clone)]
-pub struct DispatchEvent {
+pub struct Event {
     pub id: String,
     #[serde(flatten)]
     pub event_type: EventType,
@@ -55,23 +55,23 @@ pub struct DispatchEvent {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Setters)]
 pub struct UserContext {
-    event: DispatchEvent,
+    event: Event,
     suggestions: Vec<String>,
 }
 
 impl UserContext {
-    pub fn new(event: DispatchEvent) -> Self {
+    pub fn new(event: Event) -> Self {
         Self { event, suggestions: Default::default() }
     }
 }
 
-impl NamedTool for DispatchEvent {
+impl NamedTool for Event {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_event_dispatch")
     }
 }
 
-impl DispatchEvent {
+impl Event {
     pub fn name(&self) -> String {
         self.event_type.name()
     }

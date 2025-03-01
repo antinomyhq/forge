@@ -3,9 +3,9 @@ mod chat_request;
 mod chat_response;
 mod context;
 mod conversation;
-mod event;
 mod env;
 mod error;
+mod event;
 mod file;
 mod message;
 mod model;
@@ -30,9 +30,9 @@ pub use chat_request::*;
 pub use chat_response::*;
 pub use context::*;
 pub use conversation::*;
-pub use event::*;
 pub use env::*;
 pub use error::*;
+pub use event::*;
 pub use file::*;
 pub use message::*;
 pub use model::*;
@@ -86,7 +86,7 @@ pub trait ConversationService: Send + Sync {
     async fn insert_event(
         &self,
         conversation_id: &ConversationId,
-        event: DispatchEvent,
+        event: Event,
     ) -> anyhow::Result<()>;
 }
 
