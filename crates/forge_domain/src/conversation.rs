@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Agent, AgentId, Context, Error, Event, Workflow};
+use crate::{Agent, AgentId, Context, Error, Event, EventType, Workflow};
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -74,6 +74,14 @@ impl Conversation {
     }
 
     pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
-        self.events.iter().rfind(|event| event.name == event_name)
+        self.events
+            .iter()
+            .rfind(|event| event.event_type.name() == event_name)
+    }
+
+    pub fn rfind_event_by_type(&self, event_type: &EventType) -> Option<&Event> {
+        self.events
+            .iter()
+            .rfind(|event| &event.event_type == event_type)
     }
 }

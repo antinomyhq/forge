@@ -4,12 +4,52 @@ use serde::{Deserialize, Serialize};
 
 use crate::{NamedTool, ToolCallFull, ToolDefinition, ToolName};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[serde(tag = "type", content = "value")]
+pub enum EventType {
+    UserTaskInit(String),
+    UserTaskUpdate(String),
+    Title(String),
+
+    // For custom events
+    Custom { name: String, value: String },
+}
+
+impl EventType {
+    pub fn name(&self) -> String {
+        match self {
+            EventType::UserTaskInit(_) => Event::USER_TASK_INIT.to_string(),
+            EventType::UserTaskUpdate(_) => Event::USER_TASK_UPDATE.to_string(),
+            EventType::Title(_) => Event::TITLE.to_string(),
+            EventType::Custom { name, .. } => name.clone(),
+        }
+    }
+
+    pub fn value(&self) -> String {
+        match self {
+            EventType::UserTaskInit(value) => value.clone(),
+            EventType::UserTaskUpdate(value) => value.clone(),
+            EventType::Title(value) => value.clone(),
+            EventType::Custom { value, .. } => value.clone(),
+        }
+    }
+
+    pub fn from_name_value(name: &str, value: &str) -> Self {
+        match name {
+            Event::USER_TASK_INIT => EventType::UserTaskInit(value.to_string()),
+            Event::USER_TASK_UPDATE => EventType::UserTaskUpdate(value.to_string()),
+            Event::TITLE => EventType::Title(value.to_string()),
+            _ => EventType::Custom { name: name.to_string(), value: value.to_string() },
+        }
+    }
+}
+
 // We'll use simple strings for JSON schema compatibility
 #[derive(Debug, JsonSchema, Deserialize, Serialize, Clone)]
 pub struct Event {
     pub id: String,
-    pub name: String,
-    pub value: String,
+    #[serde(flatten)]
+    pub event_type: EventType,
     pub timestamp: String,
 }
 
@@ -32,6 +72,14 @@ impl NamedTool for Event {
 }
 
 impl Event {
+    pub fn name(&self) -> String {
+        self.event_type.name()
+    }
+
+    pub fn value(&self) -> String {
+        self.event_type.value()
+    }
+
     pub fn tool_definition() -> ToolDefinition {
         ToolDefinition {
             name: Self::tool_name(),
@@ -48,26 +96,29 @@ impl Event {
         serde_json::from_value(tool_call.arguments.clone()).ok()
     }
 
-    pub fn new(name: impl ToString, value: impl ToString) -> Self {
+    pub fn new(event_type: EventType) -> Self {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
 
-        Self {
-            id,
-            name: name.to_string(),
-            value: value.to_string(),
-            timestamp,
-        }
+        Self { id, event_type, timestamp }
+    }
+
+    pub fn new_name_value(name: impl ToString, value: impl ToString) -> Self {
+        Self::new(EventType::from_name_value(
+            name.to_string().as_str(),
+            value.to_string().as_str(),
+        ))
     }
 
     pub fn task_init(value: impl ToString) -> Self {
-        Self::new(Self::USER_TASK_INIT, value)
+        Self::new(EventType::UserTaskInit(value.to_string()))
     }
 
     pub fn task_update(value: impl ToString) -> Self {
-        Self::new(Self::USER_TASK_UPDATE, value)
+        Self::new(EventType::UserTaskUpdate(value.to_string()))
     }
 
     pub const USER_TASK_INIT: &'static str = "user_task_init";
     pub const USER_TASK_UPDATE: &'static str = "user_task_update";
+    pub const TITLE: &'static str = "title";
 }

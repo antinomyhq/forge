@@ -163,8 +163,8 @@ impl<A: App> Orchestrator<A> {
     async fn dispatch(&self, event: &Event) -> anyhow::Result<()> {
         debug!(
             conversation_id = %self.chat_request.conversation_id,
-            event_name = %event.name,
-            event_value = %event.value,
+            event_name = %event.name(),
+            event_value = %event.value(),
             "Dispatching event"
         );
 
@@ -177,7 +177,7 @@ impl<A: App> Orchestrator<A> {
                 .ok_or(Error::ConversationNotFound(
                     self.chat_request.conversation_id.clone(),
                 ))?
-                .entries(event.name.as_str())
+                .entries(event.name().as_str())
                 .iter()
                 .map(|agent| self.init_agent(&agent.id, event)),
         )
@@ -220,7 +220,7 @@ impl<A: App> Orchestrator<A> {
                 } => {
                     let mut summarize = Summarize::new(&mut context, *token_limit);
                     while let Some(mut summary) = summarize.summarize() {
-                        let input = Event::new(input_key, summary.get());
+                        let input = Event::new_name_value(input_key, summary.get());
                         self.init_agent(agent_id, &input).await?;
 
                         if let Some(value) = self.get_last_event(output_key).await? {
@@ -238,7 +238,7 @@ impl<A: App> Orchestrator<A> {
                         let task = Event::task_init(content.clone());
                         self.init_agent(agent_id, &task).await?;
                         if let Some(output) = self.get_last_event(output_key).await? {
-                            let message = &output.value;
+                            let message = &output.value();
                             content
                                 .push_str(&format!("\n<{output_key}>\n{message}\n</{output_key}>"));
                         }
@@ -246,7 +246,7 @@ impl<A: App> Orchestrator<A> {
                     }
                 }
                 Transform::PassThrough { agent_id, input: input_key } => {
-                    let input = Event::new(input_key, context.to_text());
+                    let input = Event::new_name_value(input_key, context.to_text());
 
                     // NOTE: Tap transformers will not modify the context
                     self.init_agent(agent_id, &input).await?;
@@ -259,6 +259,17 @@ impl<A: App> Orchestrator<A> {
 
     async fn get_last_event(&self, name: &str) -> anyhow::Result<Option<Event>> {
         Ok(self.get_conversation().await?.rfind_event(name).cloned())
+    }
+
+    async fn get_last_event_by_type(
+        &self,
+        event_type: &EventType,
+    ) -> anyhow::Result<Option<Event>> {
+        Ok(self
+            .get_conversation()
+            .await?
+            .rfind_event_by_type(event_type)
+            .cloned())
     }
 
     async fn insert_event(&self, event: Event) -> anyhow::Result<()> {
@@ -380,7 +391,10 @@ impl<A: App> Orchestrator<A> {
     /// Initializes the appropriate dispatch event based on whether this is the
     /// first message in the workflow
     async fn init_dispatch_event(&self) -> anyhow::Result<Event> {
-        let has_task = self.get_last_event(Event::USER_TASK_INIT).await?.is_some();
+        let has_task = self
+            .get_last_event_by_type(&EventType::UserTaskInit("".to_string()))
+            .await?
+            .is_some();
 
         Ok(if has_task {
             Event::task_update(self.chat_request.content.clone())
