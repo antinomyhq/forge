@@ -93,6 +93,13 @@ impl Attachment {
 
         paths
     }
+
+    pub fn to_base64(&self) -> Option<String> {
+        match &self.content_type {
+            ContentType::Image(ext) => Some(format!("data:image/{};base64,{}", ext, self.content)),
+            ContentType::Text => None,
+        }
+    }
 }
 
 #[derive(
@@ -143,7 +150,7 @@ pub enum ContentType {
 pub enum ContextMessage {
     ContentMessage(ContentMessage),
     ToolMessage(ToolResult),
-    Attachments(HashSet<Attachment>),
+    Image(String),
 }
 
 impl ContextMessage {
@@ -184,7 +191,7 @@ impl ContextMessage {
         match self {
             ContextMessage::ContentMessage(message) => message.role == role,
             ContextMessage::ToolMessage(_) => false,
-            ContextMessage::Attachments(_) => Role::User == role,
+            ContextMessage::Image(_) => Role::User == role,
         }
     }
 }
@@ -228,7 +235,11 @@ pub struct Context {
 
 impl Context {
     pub fn add_attachments(mut self, attachment: HashSet<Attachment>) -> Self {
-        self.messages.push(ContextMessage::Attachments(attachment));
+        attachment.into_iter().for_each(|attachment| {
+            if let Some(val) = attachment.to_base64() {
+                self.messages.push(ContextMessage::Image(val));
+            }
+        });
         self
     }
     pub fn add_tool(mut self, tool: impl Into<ToolDefinition>) -> Self {
@@ -307,12 +318,8 @@ impl Context {
                     ));
                     lines.push_str("</message>");
                 }
-                ContextMessage::Attachments(attachments) => {
-                    attachments.iter().for_each(|attachment| {
-                        lines.push_str(
-                            format!("<file_attachment path=\"{}\">", attachment.path).as_str(),
-                        );
-                    })
+                ContextMessage::Image(url) => {
+                    lines.push_str(format!("<file_attachment path=\"{}\">", url).as_str());
                 }
             }
         }

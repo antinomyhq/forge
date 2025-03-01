@@ -1,5 +1,6 @@
 use derive_setters::Setters;
-use forge_domain::{Attachment, ContentType, ContextMessage};
+use forge_domain::ContextMessage;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Default, Setters)]
@@ -120,34 +121,48 @@ impl TryFrom<ContextMessage> for Message {
             ContextMessage::ToolMessage(tool_result) => {
                 Message { role: Role::User, content: vec![tool_result.try_into()?] }
             }
-            ContextMessage::Attachments(attachments) => {
-                let content = attachments
-                    .into_iter()
-                    .map(Content::try_from)
-                    .filter_map(|result| result.ok())
-                    .collect::<Vec<_>>();
-
-                Message { content, role: Role::User }
+            ContextMessage::Image(url) => {
+                Message { content: vec![Content::from(url)], role: Role::User }
             }
         })
     }
 }
 
-impl TryFrom<Attachment> for Content {
-    type Error = ();
-
-    fn try_from(value: Attachment) -> Result<Self, Self::Error> {
-        if let ContentType::Image(ext) = value.content_type {
-            Ok(Content::Image {
+impl From<String> for Content {
+    fn from(value: String) -> Self {
+        match extract_image_and_base64(&value) {
+            Some((media_type, data)) => Content::Image {
                 source: ImageSource {
                     type_: "base64".to_string(),
-                    media_type: format!("image/{}", ext),
-                    data: value.content,
+                    media_type: Some(format!("image/{}", media_type)),
+                    data: Some(data),
+                    url: None,
                 },
-            })
-        } else {
-            Err(())
+            },
+            None => Content::Image {
+                source: ImageSource {
+                    type_: "url".to_string(),
+                    media_type: None,
+                    data: None,
+                    url: Some(value),
+                },
+            },
         }
+    }
+}
+
+fn extract_image_and_base64(data_uri: &str) -> Option<(String, String)> {
+    // Regular expression to match the data URI pattern
+    let re = Regex::new(r"^data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$").unwrap();
+
+    // Match the data URI against the regular expression
+    if let Some(captures) = re.captures(data_uri) {
+        // Extract image type and base64 part
+        let image_type = captures.get(1).map_or("", |m| m.as_str()).to_string();
+        let base64_data = captures.get(2).map_or("", |m| m.as_str()).to_string();
+        Some((image_type, base64_data))
+    } else {
+        None
     }
 }
 
@@ -155,8 +170,12 @@ impl TryFrom<Attachment> for Content {
 struct ImageSource {
     #[serde(rename = "type")]
     type_: String,
-    media_type: String,
-    data: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    media_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
 }
 
 #[derive(Serialize)]

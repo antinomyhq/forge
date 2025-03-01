@@ -61,7 +61,11 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
                 content_type: ContentType::Image(extension),
             })
         } else {
-            Ok(Attachment { content: read, path, content_type: ContentType::Text })
+            Ok(Attachment {
+                content: String::from_utf8(read.to_vec())?,
+                path,
+                content_type: ContentType::Text,
+            })
         }
     }
 }

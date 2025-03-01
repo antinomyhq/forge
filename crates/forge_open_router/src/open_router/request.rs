@@ -1,8 +1,7 @@
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use forge_domain::{
-    ContentType, Context, ContextMessage, ModelId, Role, ToolCallFull, ToolCallId, ToolDefinition,
-    ToolName,
+    Context, ContextMessage, ModelId, Role, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
 };
 use serde::{Deserialize, Serialize};
 
@@ -281,19 +280,9 @@ impl From<ContextMessage> for OpenRouterMessage {
                 tool_call_id: tool_result.call_id,
                 tool_calls: None,
             },
-            ContextMessage::Attachments(attachments) => {
-                let mut content = vec![];
-                for attachment in attachments {
-                    if let ContentType::Image(ext) = attachment.content_type {
-                        content.push(ContentPart::ImageUrl {
-                            image_url: ImageUrl {
-                                url: format!("data:image/{};base64,{}", ext, attachment.content),
-                                detail: None,
-                            },
-                        });
-                    }
-                }
-
+            ContextMessage::Image(url) => {
+                let content =
+                    vec![ContentPart::ImageUrl { image_url: ImageUrl { url, detail: None } }];
                 OpenRouterMessage {
                     role: OpenRouterRole::User,
                     content: Some(MessageContent::Parts(content)),

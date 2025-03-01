@@ -10,6 +10,7 @@ mod tools;
 use std::path::Path;
 
 pub use app::*;
+use bytes::Bytes;
 use forge_domain::{Point, Query, Suggestion};
 
 /// Repository for accessing system environment information
@@ -30,7 +31,7 @@ pub trait EnvironmentService {
 #[async_trait::async_trait]
 pub trait FileReadService: Send + Sync {
     /// Reads the content of a file at the specified path.
-    async fn read(&self, path: &Path) -> anyhow::Result<String>;
+    async fn read(&self, path: &Path) -> anyhow::Result<Bytes>;
 }
 
 #[async_trait::async_trait]
