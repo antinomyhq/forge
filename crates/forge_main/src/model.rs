@@ -106,9 +106,13 @@ impl Command {
     }
 
     /// Validates if a string is a valid event name.
-    /// Event names can only contain alphanumeric characters, underscores, and hyphens.
+    /// Event names can only contain alphanumeric characters, underscores, and
+    /// hyphens.
     fn is_valid_event_name(name: &str) -> bool {
-        !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        !name.is_empty()
+            && name
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
     }
 
     /// Parses a string input into an Input.
@@ -207,10 +211,7 @@ mod tests {
 
         assert_eq!(
             Command::parse("/dispatch-notify"),
-            Command::Dispatch {
-                name: "notify".to_string(),
-                value: "".to_string()
-            }
+            Command::Dispatch { name: "notify".to_string(), value: "".to_string() }
         );
 
         assert_eq!(
@@ -228,10 +229,7 @@ mod tests {
         );
 
         // Both "/dispatch-" and "/dispatch- " should be treated the same after trimming
-        assert_eq!(
-            Command::parse("/dispatch-"),
-            Command::parse("/dispatch- ")
-        );
+        assert_eq!(Command::parse("/dispatch-"), Command::parse("/dispatch- "));
     }
 
     #[test]

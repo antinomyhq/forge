@@ -132,8 +132,11 @@ impl<F: API> UI<F> {
                 Command::Dispatch { name, value } => {
                     // Display the dispatch attempt
                     CONSOLE.writeln(
-                        TitleFormat::execute(format!("Dispatching event: {} with value: {}", name, value))
-                            .format(),
+                        TitleFormat::execute(format!(
+                            "Dispatching event: {} with value: {}",
+                            name, value
+                        ))
+                        .format(),
                     )?;
 
                     // Attempt to dispatch the event

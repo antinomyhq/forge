@@ -81,22 +81,25 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
     async fn dispatch(&self, event_name: &str, event_value: &str) -> anyhow::Result<()> {
         // Initialize a new conversation with default workflow for the event
         let conversation_id = self.init(self.load(None).await?).await?;
-        
+
         // Use the executor service to handle the event dispatch
         let chat = ChatRequest {
-            content: format!("Dispatching event: {} with value: {}", event_name, event_value),
+            content: format!(
+                "Dispatching event: {} with value: {}",
+                event_name, event_value
+            ),
             conversation_id,
         };
-        
+
         // Execute the chat request which will handle the event
         let mut stream = self.executor_service.chat(chat).await?;
-        
+
         // Process the stream to ensure the event is handled
         use futures::StreamExt;
         while let Some(result) = stream.next().await {
             result?;
         }
-        
+
         Ok(())
     }
 }

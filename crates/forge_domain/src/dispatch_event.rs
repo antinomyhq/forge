@@ -55,7 +55,7 @@ impl DispatchEvent {
         if !Self::validate_name(&name) {
             return Err(anyhow::anyhow!("Invalid event name: must be non-empty and contain only alphanumeric characters, underscores, or dashes"));
         }
-        
+
         Ok(Self {
             id: uuid::Uuid::new_v4().to_string(),
             name,
@@ -66,7 +66,10 @@ impl DispatchEvent {
 
     /// Validates if the event name follows the required format
     pub fn validate_name(name: &str) -> bool {
-        !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        !name.is_empty()
+            && name
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
     }
 
     pub fn task_init(value: impl ToString) -> Self {
