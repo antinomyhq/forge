@@ -332,9 +332,7 @@ mod retry_functionality {
 
         // Verify that retry used the second message
         let conversation = fixture.get_conversation(&conversation_id).await.unwrap();
-        let last_user_message = conversation
-            .rfind_event(Event::USER_TASK_UPDATE)
-            .unwrap();
+        let last_user_message = conversation.rfind_event(Event::USER_TASK_UPDATE).unwrap();
         assert_eq!(
             last_user_message.value, second_message,
             "The last user message should match the second message"
