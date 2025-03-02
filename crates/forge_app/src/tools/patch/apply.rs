@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::bail;
-use dissimilar::Chunk;
 use forge_display::DiffFormat;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use schemars::JsonSchema;
@@ -79,6 +78,26 @@ def new_function(x, y=0):
     }
 }
 
+/// Start and end indices align with UTF-8 character boundaries
+fn get_utf8_safe_indices(s: &str, byte_start: usize, byte_end: usize) -> Option<(usize, usize)> {
+    let start = s
+        .char_indices()
+        .find(|&(i, _)| i == byte_start)
+        .map(|(i, _)| i)?;
+    let end = s
+        .char_indices()
+        .find(|&(i, _)| i == byte_end)
+        .map(|(i, _)| i)?;
+    Some((start, end))
+}
+
+/// Replaces a substring only if UTF-8 boundaries are valid
+fn safe_replace_range(content: &mut String, start: usize, end: usize, replacement: &str) {
+    if let Some((safe_start, safe_end)) = get_utf8_safe_indices(content, start, end) {
+        content.replace_range(safe_start..safe_end, replacement);
+    }
+}
+
 /// Apply changes to file content based on search/replace blocks.
 /// Changes are only written to disk if all replacements are successful.
 async fn apply_patches(content: String, blocks: Vec<PatchBlock>) -> Result<String, Error> {
@@ -95,48 +114,9 @@ async fn apply_patches(content: String, blocks: Vec<PatchBlock>) -> Result<Strin
         // For exact matching, first try to find the exact string
         if let Some(start_idx) = result.find(&block.search) {
             let end_idx = start_idx + block.search.len();
-            result.replace_range(start_idx..end_idx, &block.replace);
-            continue;
-        }
-
-        // If exact match fails, try fuzzy matching
-        let normalized_search = block.search.replace("\r\n", "\n").replace('\r', "\n");
-        let normalized_result = result.replace("\r\n", "\n").replace('\r', "\n");
-
-        if let Some(start_idx) = normalized_result.find(&normalized_search) {
-            result.replace_range(start_idx..start_idx + block.search.len(), &block.replace);
-            continue;
-        }
-
-        // If still no match, try more aggressive fuzzy matching
-        let chunks = dissimilar::diff(&result, &block.search);
-        let mut best_match = None;
-        let mut best_score = 0.0;
-        let mut current_pos = 0;
-
-        for chunk in chunks.iter() {
-            if let Chunk::Equal(text) = chunk {
-                let score = text.len() as f64 / block.search.len() as f64;
-                if score > best_score {
-                    best_score = score;
-                    best_match = Some((current_pos, text.len()));
-                }
-            }
-            match chunk {
-                Chunk::Equal(text) | Chunk::Delete(text) | Chunk::Insert(text) => {
-                    current_pos += text.len();
-                }
-            }
-        }
-
-        if let Some((start_idx, len)) = best_match {
-            if best_score > 0.7 {
-                // Threshold for fuzzy matching
-                result.replace_range(start_idx..start_idx + len, &block.replace);
-            }
+            safe_replace_range(&mut result, start_idx, end_idx, &block.replace);
         }
     }
-
     Ok(result)
 }
 
