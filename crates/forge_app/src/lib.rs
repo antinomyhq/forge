@@ -2,7 +2,6 @@ mod app;
 mod attachment;
 mod conversation;
 mod provider;
-mod suggestion;
 mod template;
 mod tool_service;
 mod tools;

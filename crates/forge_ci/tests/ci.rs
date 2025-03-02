@@ -31,7 +31,7 @@ fn generate() {
             cancel_in_progress: None,
             limit: None,
         })
-        .add_env(("OPEN_ROUTER_KEY", "${{secrets.OPEN_ROUTER_KEY}}"));
+        .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"));
 
     // Set up the build matrix for all platforms
     let matrix = json!({

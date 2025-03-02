@@ -5,7 +5,6 @@ use forge_domain::App;
 use crate::attachment::ForgeChatRequest;
 use crate::conversation::ForgeConversationService;
 use crate::provider::ForgeProviderService;
-use crate::suggestion::ForgeSuggestionService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::Infrastructure;
@@ -18,25 +17,23 @@ use crate::Infrastructure;
 ///   environment, file reading, vector indexing, and embedding.
 pub struct ForgeApp<F> {
     infra: Arc<F>,
-    tool_service: ForgeToolService,
+    tool_service: Arc<ForgeToolService>,
     provider_service: ForgeProviderService,
     conversation_service: ForgeConversationService,
-    prompt_service: ForgeTemplateService,
+    prompt_service: ForgeTemplateService<F, ForgeToolService>,
     attachment_service: ForgeChatRequest<F>,
-    suggestion_service: Arc<ForgeSuggestionService<F>>,
 }
 
 impl<F: Infrastructure> ForgeApp<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        let suggestion_service = Arc::new(ForgeSuggestionService::new(infra.clone()));
+        let tool_service = Arc::new(ForgeToolService::new(infra.clone()));
         Self {
             infra: infra.clone(),
-            tool_service: ForgeToolService::new(infra.clone(), suggestion_service.clone()),
             provider_service: ForgeProviderService::new(infra.clone()),
             conversation_service: ForgeConversationService::new(),
-            prompt_service: ForgeTemplateService::new(),
+            prompt_service: ForgeTemplateService::new(infra.clone(), tool_service.clone()),
+            tool_service,
             attachment_service: ForgeChatRequest::new(infra),
-            suggestion_service,
         }
     }
 }
@@ -45,16 +42,11 @@ impl<F: Infrastructure> App for ForgeApp<F> {
     type ToolService = ForgeToolService;
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService;
-    type PromptService = ForgeTemplateService;
+    type TemplateService = ForgeTemplateService<F, ForgeToolService>;
     type AttachmentService = ForgeChatRequest<F>;
-    type SuggestionService = ForgeSuggestionService<F>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
-    }
-
-    fn suggestion_service(&self) -> &Self::SuggestionService {
-        &self.suggestion_service
     }
 
     fn provider_service(&self) -> &Self::ProviderService {
@@ -65,7 +57,7 @@ impl<F: Infrastructure> App for ForgeApp<F> {
         &self.conversation_service
     }
 
-    fn prompt_service(&self) -> &Self::PromptService {
+    fn template_service(&self) -> &Self::TemplateService {
         &self.prompt_service
     }
 
