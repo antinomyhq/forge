@@ -22,23 +22,21 @@ impl SearchTerm {
     /// Otherwise, returns the word at the cursor position.
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
-        // Get all the indexes of the '@' chars
-        // Get all chars between @ and the cursor
-        let term = self
-            .line
-            .chars()
-            .enumerate()
-            .filter(|(_, c)| *c == '@')
-            .map(|(i, _)| i)
-            .filter(|at| *at < self.position)
-            .max_by(|a, b| a.cmp(b))
-            .map(|at| TermResult {
-                span: Span::new(at + 1, self.position),
-                term: &self.line[at + 1..self.position],
-            })
-            .filter(|s| !s.term.contains(" "));
 
-        term
+        let query = &self.line[..self.position];
+        let word = query
+            .split_whitespace()
+            .last()
+            .unwrap_or("");
+
+        if word.is_empty() {
+            return None;
+        }
+
+        Some(TermResult {
+            span: Span::new(self.position - word.len(), self.position),
+            term: word,
+        })
     }
 }
 
@@ -84,8 +82,14 @@ mod tests {
     }
 
     #[test]
-    fn test_marker_based_search() {
-        let results = SearchTerm::test("@abc @def ghi@");
+    fn test_general_tab_completion() {
+        let results = SearchTerm::test("fo");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_command_completion() {
+        let results = SearchTerm::test("/com");
         assert_debug_snapshot!(results);
     }
 }
