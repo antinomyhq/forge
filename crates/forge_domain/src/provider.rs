@@ -29,7 +29,7 @@ impl Provider {
     pub fn from_env() -> Option<Self> {
         match (
             std::env::var("FORGE_KEY"),
-            std::env::var("OPEN_ROUTER_KEY"),
+            std::env::var("OPENROUTER_API_KEY"),
             std::env::var("OPENAI_API_KEY"),
             std::env::var("ANTHROPIC_API_KEY"),
         ) {

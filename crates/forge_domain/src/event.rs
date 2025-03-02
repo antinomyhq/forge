@@ -14,12 +14,12 @@ pub struct Event {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Setters)]
-pub struct UserContext {
+pub struct EventContext {
     event: Event,
     suggestions: Vec<String>,
 }
 
-impl UserContext {
+impl EventContext {
     pub fn new(event: Event) -> Self {
         Self { event, suggestions: Default::default() }
     }

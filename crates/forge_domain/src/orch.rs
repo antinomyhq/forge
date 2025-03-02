@@ -77,10 +77,6 @@ impl<A: App> Orchestrator<A> {
     async fn init_agent_context(&self, agent: &Agent) -> anyhow::Result<Context> {
         let tool_defs = self.init_tool_definitions(agent);
 
-        let tool_usage_prompt = tool_defs.iter().fold("".to_string(), |acc, tool| {
-            format!("{}\n{}", acc, tool.usage_prompt())
-        });
-
         let mut system_context = self.system_context.clone();
 
         let tool_supported = self
@@ -96,11 +92,8 @@ impl<A: App> Orchestrator<A> {
         if let Some(system_prompt) = &agent.system_prompt {
             let system_message = self
                 .app
-                .prompt_service()
-                .render(
-                    system_prompt,
-                    &system_context.tool_information(tool_usage_prompt),
-                )
+                .template_service()
+                .render_system(agent, system_prompt)
                 .await?;
 
             context = context.set_first_system_message(system_message);
@@ -316,18 +309,11 @@ impl<A: App> Orchestrator<A> {
             }
         };
 
-        let mut user_context = UserContext::new(event.clone());
-
-        if agent.suggestions {
-            let suggestions = self.init_suggestions().await?;
-            debug!(suggestions = ?suggestions, "Suggestions received");
-            user_context = user_context.suggestions(suggestions);
-        }
-
         let content = if let Some(user_prompt) = &agent.user_prompt {
+            // Use the consolidated render_event method which handles suggestions internally
             self.app
-                .prompt_service()
-                .render(user_prompt, &user_context)
+                .template_service()
+                .render_event(agent, user_prompt, event)
                 .await?
         } else {
             // Use the raw event value as content if no user_prompt is provided
@@ -335,9 +321,11 @@ impl<A: App> Orchestrator<A> {
         };
 
         context = context.add_message(ContextMessage::user(content));
+        self.set_context(&agent.id, context.clone()).await?;
 
         loop {
             context = self.execute_transform(&agent.transforms, context).await?;
+            self.set_context(&agent.id, context.clone()).await?;
             let response = self
                 .app
                 .provider_service()
@@ -372,17 +360,6 @@ impl<A: App> Orchestrator<A> {
         self.complete_turn(&agent.id).await?;
 
         Ok(())
-    }
-
-    async fn init_suggestions(&self) -> anyhow::Result<Vec<String>> {
-        Ok(self
-            .app
-            .suggestion_service()
-            .search(&self.chat_request.content)
-            .await?
-            .into_iter()
-            .map(|suggestion| suggestion.suggestion)
-            .collect())
     }
 
     /// Initializes the appropriate dispatch event based on whether this is the

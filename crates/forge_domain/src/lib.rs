@@ -39,7 +39,6 @@ pub use model::*;
 pub use orch::*;
 pub use point::*;
 pub use provider::*;
-use serde::Serialize;
 pub use suggestion::*;
 pub use summarize::*;
 pub use template::*;
@@ -92,17 +91,18 @@ pub trait ConversationService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait TemplateService: Send + Sync {
-    async fn render<T: Serialize + Send + Sync>(
+    async fn render_system(
         &self,
-        prompt: &Template<T>,
-        value: &T,
+        agent: &Agent,
+        prompt: &Template<SystemContext>,
     ) -> anyhow::Result<String>;
-}
 
-#[async_trait::async_trait]
-pub trait SuggestionService: Send + Sync + 'static {
-    async fn search(&self, request: &str) -> anyhow::Result<Vec<Suggestion>>;
-    async fn insert(&self, suggestion: Suggestion) -> anyhow::Result<()>;
+    async fn render_event(
+        &self,
+        agent: &Agent,
+        prompt: &Template<EventContext>,
+        event: &Event,
+    ) -> anyhow::Result<String>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -112,12 +112,10 @@ pub trait App: Send + Sync + 'static {
     type ToolService: ToolService;
     type ProviderService: ProviderService;
     type ConversationService: ConversationService;
-    type PromptService: TemplateService;
-    type SuggestionService: SuggestionService;
+    type TemplateService: TemplateService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
-    fn prompt_service(&self) -> &Self::PromptService;
-    fn suggestion_service(&self) -> &Self::SuggestionService;
+    fn template_service(&self) -> &Self::TemplateService;
 }

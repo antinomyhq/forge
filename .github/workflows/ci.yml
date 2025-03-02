@@ -18,7 +18,7 @@
 name: ci
 env:
   RUSTFLAGS: -Dwarnings
-  OPEN_ROUTER_KEY: ${{secrets.OPEN_ROUTER_KEY}}
+  OPENROUTER_API_KEY: ${{secrets.OPENROUTER_API_KEY}}
 on:
   pull_request:
     types:

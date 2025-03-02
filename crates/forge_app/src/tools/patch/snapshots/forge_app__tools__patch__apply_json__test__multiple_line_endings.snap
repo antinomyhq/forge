@@ -1,14 +1,0 @@
----
-source: crates/forge_app/src/tools/patch/apply_json.rs
-expression: actual
-snapshot_kind: text
----
-<!-- INITIAL -->line1
-line2line3
-line4
-<!-- REPLACEMENTS -->
-<!-- SEARCH -->line2
-<!-- REPLACE -->replaced
-<!-- FINAL -->line1
-replacedline3
-line4

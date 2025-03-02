@@ -79,7 +79,7 @@ wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | b
 
    ```bash
    # Your API key for accessing AI models (see Environment Configuration section)
-   OPEN_ROUTER_KEY=<Enter your Open Router Key>
+   OPENROUTER_API_KEY=<Enter your Open Router Key>
    ```
 
    _You can get a Key at [Open Router](https://openrouter.ai/)_

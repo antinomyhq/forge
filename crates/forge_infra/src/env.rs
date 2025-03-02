@@ -35,10 +35,10 @@ impl ForgeEnvironmentService {
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
 
         let provider_key = std::env::var("FORGE_KEY")
-            .or_else(|_| std::env::var("OPEN_ROUTER_KEY"))
+            .or_else(|_| std::env::var("OPENROUTER_API_KEY"))
             .or_else(|_| std::env::var("OPENAI_API_KEY"))
             .or_else(|_| std::env::var("ANTHROPIC_API_KEY"))
-            .expect("No API key found. Please set one of: FORGE_KEY, OPEN_ROUTER_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY");
+            .expect("No API key found. Please set one of: FORGE_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY");
         // note: since we know the key is set, we can unwrap here.
         let provider = Provider::from_env().unwrap();
         Environment {
@@ -77,7 +77,7 @@ mod tests {
     fn reset_env() {
         env::remove_var("FORGE_KEY");
         env::remove_var("FORGE_PROVIDER_URL");
-        env::remove_var("OPEN_ROUTER_KEY");
+        env::remove_var("OPENROUTER_API_KEY");
         env::remove_var("OPENAI_API_KEY");
         env::remove_var("ANTHROPIC_API_KEY");
     }
@@ -107,7 +107,7 @@ mod tests {
     #[serial]
     fn test_provider_from_env_with_open_router_key() {
         reset_env();
-        env::set_var("OPEN_ROUTER_KEY", "some_open_router_key");
+        env::set_var("OPENROUTER_API_KEY", "some_open_router_key");
 
         let provider = Provider::from_env();
         assert_eq!(provider, Some(Provider::OpenRouter));
