@@ -58,9 +58,7 @@ impl<F: Infrastructure + App> ForgeExecutorService<F> {
         &self,
         conversation_id: ConversationId,
     ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>>>> {
-        let conversation = self
-            .app
-            .conversation_service()
+        let conversation = self.infra.conversation_service()
             .get(&conversation_id)
             .await?
             .ok_or(Error::ConversationNotFound(conversation_id.clone()))?;

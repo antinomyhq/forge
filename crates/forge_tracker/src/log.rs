@@ -25,7 +25,7 @@ pub fn init_tracing(log_path: PathBuf) -> anyhow::Result<Guard> {
         .with_ansi(true)
         .with_span_events(FmtSpan::ACTIVE)
         .with_writer(non_blocking)
-        .try_init();
+        .init();
 
     debug!("Logging system initialized successfully");
     Ok(Guard(guard))
