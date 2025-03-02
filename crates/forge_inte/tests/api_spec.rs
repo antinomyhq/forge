@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use forge_api::{AgentMessage, ChatRequest, ChatResponse, ForgeAPI, ModelId, API};
+use forge_api::{
+    AgentMessage, ChatRequest, ChatResponse, ForgeAPI, ModelId, API,
+};
 use tokio_stream::StreamExt;
 
 const MAX_RETRIES: usize = 5;
@@ -85,6 +87,7 @@ impl Fixture {
             self.model, MAX_RETRIES
         ))
     }
+
 }
 
 /// Macro to generate model-specific tests
