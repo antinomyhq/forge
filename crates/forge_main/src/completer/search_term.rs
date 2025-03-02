@@ -42,6 +42,19 @@ impl SearchTerm {
     }
 }
 
+    /// Highlight the matching text in the suggestion
+    ///
+    /// This function takes the suggestion and the matched term, and highlights the matched part.
+    pub fn highlight_match(suggestion: &str, matched_term: &str) -> String {
+        if let Some(index) = suggestion.to_lowercase().find(&matched_term.to_lowercase()) {
+            let (before, matching) = suggestion.split_at(index);
+            let (matching, after) = matching.split_at(matched_term.len());
+            format!("{before}\x1b[1;32m{matching}\x1b[0m{after}") // Highlight matching text in green
+        } else {
+            suggestion.to_string()
+        }
+    }
+
 #[derive(Debug)]
 pub struct TermResult<'a> {
     pub span: Span,
@@ -87,5 +100,16 @@ mod tests {
     fn test_marker_based_search() {
         let results = SearchTerm::test("@abc @def ghi@");
         assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_highlight_match() {
+        let suggestion = "crates/forge_app/src/tools/patch/apply.rs";
+        let matched_term = "apply";
+        let highlighted = SearchTerm::highlight_match(suggestion, matched_term);
+        assert_eq!(
+            highlighted,
+            "crates/forge_app/src/tools/patch/\x1b[1;32mapply\x1b[0m.rs"
+        );
     }
 }
