@@ -9,11 +9,11 @@ use forge_stream::MpscStream;
 use forge_walker::Walker;
 
 pub struct ForgeExecutorService<F> {
-    app: Arc<F>,
+    infra: Arc<F>,
 }
 impl<F: Infrastructure + App> ForgeExecutorService<F> {
-    pub fn new(app: Arc<F>) -> Self {
-        Self { app }
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra }
     }
 }
 
@@ -22,9 +22,9 @@ impl<F: Infrastructure + App> ForgeExecutorService<F> {
         &self,
         request: ChatRequest,
     ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>>>> {
-        let env = self.app.environment_service().get_environment();
+        let env = self.infra.environment_service().get_environment();
         let mut files = Walker::max_all()
-            .max_depth(2)
+            .max_depth(4)
             .cwd(env.cwd.clone())
             .get()
             .await?
@@ -37,12 +37,12 @@ impl<F: Infrastructure + App> ForgeExecutorService<F> {
 
         let ctx = SystemContext {
             env: Some(env),
-            tool_information: Some(self.app.tool_service().usage_prompt()),
+            tool_information: Some(self.infra.tool_service().usage_prompt()),
             tool_supported: Some(true),
             files,
         };
 
-        let app = self.app.clone();
+        let app = self.infra.clone();
 
         Ok(MpscStream::spawn(move |tx| async move {
             let tx = Arc::new(tx);

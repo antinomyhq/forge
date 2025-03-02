@@ -3,4 +3,4 @@ mod apply_json;
 mod marker;
 mod parse;
 
-pub use apply::ApplyPatch;
+pub use apply_json::ApplyPatchJson;
