@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 use crate::template::Template;
-use crate::{Environment, ModelId, ToolName, UserContext};
+use crate::{Environment, EventContext, ModelId, ToolName};
 
 #[derive(Debug, Default, Setters, Clone, Serialize, Deserialize)]
 #[setters(strip_option)]
@@ -37,6 +37,13 @@ impl From<ToolName> for AgentId {
     }
 }
 
+impl Agent {
+    /// Default walker depth for file traversal.
+    pub fn default_walker_depth() -> usize {
+        5
+    }
+}
+
 fn is_true(value: &bool) -> bool {
     *value
 }
@@ -53,7 +60,7 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_prompt: Option<Template<SystemContext>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_prompt: Option<Template<UserContext>>,
+    pub user_prompt: Option<Template<EventContext>>,
 
     /// When set to true all user events will also contain a suggestions field
     /// that is prefilled with the matching information from vector store.
@@ -84,6 +91,10 @@ pub struct Agent {
     /// Maximum number of turns the agent can take    
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub max_turns: Option<u64>,
+
+    /// Depth to which the file walker should traverse for this agent
+    #[serde(default = "Agent::default_walker_depth")]
+    pub walker_depth: usize,
 }
 
 /// Transformations that can be applied to the agent's context before sending it

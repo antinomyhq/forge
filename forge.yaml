@@ -13,7 +13,7 @@ agents:
     system_prompt: "{{> system-prompt-title-generator.hbs }}"
     user_prompt: <technical_content>{{event.value}}</technical_content>
 
-  - id: developer
+  - id: software-engineer
     model: *advanced_model
     tools:
       - tool_forge_fs_read

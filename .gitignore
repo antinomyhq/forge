@@ -38,3 +38,4 @@ Cargo.lock
 .vscode/
 .fastembed_cache/
 *.log*
+*.json

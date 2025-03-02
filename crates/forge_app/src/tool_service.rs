@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use forge_domain::{
-    SuggestionService, Tool, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
-};
+use forge_domain::{Tool, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService};
 use tokio::time::{timeout, Duration};
 use tracing::{debug, error};
 
@@ -17,8 +15,8 @@ pub struct ForgeToolService {
 }
 
 impl ForgeToolService {
-    pub fn new<F: Infrastructure, S: SuggestionService>(infra: Arc<F>, suggest: Arc<S>) -> Self {
-        ForgeToolService::from_iter(crate::tools::tools(infra.clone(), suggest.clone()))
+    pub fn new<F: Infrastructure>(infra: Arc<F>) -> Self {
+        ForgeToolService::from_iter(crate::tools::tools(infra.clone()))
     }
 }
 
