@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
+use async_trait::async_trait;
 use forge_api::Model;
 
 use crate::info::Info;
@@ -47,10 +49,6 @@ impl From<&[Model]> for Info {
         info
     }
 }
-
-use std::path::PathBuf;
-
-use async_trait::async_trait;
 
 /// Represents user input types in the chat application.
 ///

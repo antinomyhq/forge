@@ -321,6 +321,29 @@ impl<A: App> Orchestrator<A> {
         };
 
         context = context.add_message(ContextMessage::user(content));
+
+        // Process attachments
+        let attachments = self
+            .app
+            .attachment_service()
+            .attachments(&event.value)
+            .await?;
+
+        for attachment in attachments.into_iter() {
+            match attachment.content_type {
+                ContentType::Image => {
+                    context = context.add_message(ContextMessage::Image(attachment.content));
+                }
+                ContentType::Text => {
+                    let content = format!(
+                        "<file_content path=\"{}\">{}</file_content>",
+                        attachment.path, attachment.content
+                    );
+                    context = context.add_message(ContextMessage::user(content));
+                }
+            }
+        }
+
         self.set_context(&agent.id, context.clone()).await?;
 
         loop {

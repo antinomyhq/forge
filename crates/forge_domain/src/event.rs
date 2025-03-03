@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{NamedTool, ToolCallFull, ToolDefinition, ToolName};
 
 // We'll use simple strings for JSON schema compatibility
-#[derive(Debug, JsonSchema, Deserialize, Serialize, Clone)]
+#[derive(Debug, JsonSchema, Deserialize, Serialize, Clone, Setters)]
 pub struct Event {
     pub id: String,
     pub name: String,
