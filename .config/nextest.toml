@@ -1,0 +1,3 @@
+[profile.default]
+# Set default test timeouts - mark tests as SLOW after 30 seconds
+slow-timeout = { period = "1s", terminate-after = 30, grace-period = "0s" }
