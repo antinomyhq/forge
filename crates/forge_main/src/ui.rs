@@ -252,8 +252,8 @@ impl<F: API> UI<F> {
                 }
             }
             ChatResponse::Custom(event) => {
-                if event.name == "title" {
-                    self.state.current_title = Some(event.value);
+                if event.name() == "title" {
+                    self.state.current_title = Some(event.value());
                 }
             }
             ChatResponse::Usage(u) => {

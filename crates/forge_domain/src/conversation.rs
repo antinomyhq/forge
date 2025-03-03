@@ -74,6 +74,6 @@ impl Conversation {
     }
 
     pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
-        self.events.iter().rfind(|event| event.name == event_name)
+        self.events.iter().rfind(|event| event.name() == event_name)
     }
 }
