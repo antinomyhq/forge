@@ -56,6 +56,7 @@ impl ForgeEnvironmentService {
             provider_key,
             provider_url: provider.to_base_url().to_string(),
             openai_key: std::env::var("OPENAI_API_KEY").ok(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 }

@@ -146,6 +146,7 @@ mod tests {
             qdrant_cluster: None,
             pid: std::process::id(),
             openai_key: None,
+            version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 

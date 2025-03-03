@@ -30,6 +30,8 @@ pub struct Environment {
     pub provider_url: String,
     /// The OpenAI API key required to use embedding models.
     pub openai_key: Option<String>,
+    /// The Forge version.
+    pub version: String,
 }
 
 impl Environment {

@@ -52,6 +52,7 @@ impl From<&Environment> for Info {
             .add_item("PID", env.pid)
             .add_item("Working Directory", env.cwd.display())
             .add_item("Shell", &env.shell)
+            .add_item("Forge Version", &env.version)
             .add_title("Paths")
             .add_item("Config", env.base_path.display())
             .add_item("Logs", env.log_path().display())
