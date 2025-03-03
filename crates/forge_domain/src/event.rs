@@ -12,10 +12,7 @@ pub enum EventType {
     UserTaskInit(String),
     UserTaskUpdate(String),
     // For custom events
-    Custom {
-        name: String,
-        value: String,
-    }
+    Custom { name: String, value: String },
 }
 
 impl EventType {
@@ -27,7 +24,7 @@ impl EventType {
             EventType::Custom { name, .. } => name.clone(),
         }
     }
-    
+
     // Helper to get the value of an event
     pub fn value(&self) -> String {
         match self {
@@ -86,19 +83,12 @@ impl Event {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
 
-        Self {
-            id,
-            event_type,
-            timestamp,
-        }
+        Self { id, event_type, timestamp }
     }
 
     // Helper for creating a new custom event (convenience method)
     pub fn new_custom(name: impl ToString, value: impl ToString) -> Self {
-        Self::new(EventType::Custom {
-            name: name.to_string(),
-            value: value.to_string(),
-        })
+        Self::new(EventType::Custom { name: name.to_string(), value: value.to_string() })
     }
 
     pub fn task_init(value: impl ToString) -> Self {
