@@ -20,9 +20,8 @@ impl InputCompleter {
 
 impl Completer for InputCompleter {
     fn complete(&mut self, line: &str, pos: usize) -> Vec<Suggestion> {
-        if line.starts_with("/") {
-            // if the line starts with '/' it's probably a command, so we delegate to the
-            // command completer.
+        if line.starts_with('/') {
+            // Delegate command completions
             let result = CommandCompleter.complete(line, pos);
             if !result.is_empty() {
                 return result;
@@ -38,7 +37,7 @@ impl Completer for InputCompleter {
                     if let Some(file_name) = file.file_name.as_ref() {
                         let file_name_lower = file_name.to_lowercase();
                         let query_lower = query.term.to_lowercase();
-                        if file_name_lower.contains(&query_lower) {
+                        if file_name_lower.starts_with(&query_lower) {
                             Some(Suggestion {
                                 value: file.path,
                                 description: None,
