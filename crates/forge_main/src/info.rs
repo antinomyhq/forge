@@ -77,5 +77,12 @@ impl fmt::Display for Info {
     }
 }
 
+pub fn display_info() -> Info {
+    let version = env!("CARGO_PKG_VERSION"); 
+    Info::new()
+        .add_title("Forge Information")
+        .add_item("Version", version) 
+}
+
 // The display_info function has been removed and its implementation will be
 // inlined in the caller
