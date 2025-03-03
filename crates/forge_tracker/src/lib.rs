@@ -8,3 +8,4 @@ pub use dispatch::Tracker;
 use error::Result;
 pub use event::{Event, EventKind};
 pub use log::{init_tracing, Guard};
+pub use can_track::VERSION;
