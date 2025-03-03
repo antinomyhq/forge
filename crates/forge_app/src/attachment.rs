@@ -237,10 +237,14 @@ mod tests {
         assert_eq!(attachment.path, "/test/image.png");
         assert!(matches!(attachment.content_type, ContentType::Image));
 
-        // Base64 content should be the encoded mock binary content with proper data URI format
+        // Base64 content should be the encoded mock binary content with proper data URI
+        // format
         let expected_base64 =
             base64::engine::general_purpose::STANDARD.encode("mock-binary-content");
-        assert_eq!(attachment.content, format!("data:image/png;base64,{}", expected_base64));
+        assert_eq!(
+            attachment.content,
+            format!("data:image/png;base64,{}", expected_base64)
+        );
     }
 
     #[tokio::test]
@@ -260,9 +264,13 @@ mod tests {
         let attachment = attachments.first().unwrap();
         assert_eq!(attachment.path, "/test/image with spaces.jpg");
 
-        // Base64 content should be the encoded mock jpeg content with proper data URI format
+        // Base64 content should be the encoded mock jpeg content with proper data URI
+        // format
         let expected_base64 = base64::engine::general_purpose::STANDARD.encode("mock-jpeg-content");
-        assert_eq!(attachment.content, format!("data:image/jpeg;base64,{}", expected_base64));
+        assert_eq!(
+            attachment.content,
+            format!("data:image/jpeg;base64,{}", expected_base64)
+        );
     }
 
     #[tokio::test]
