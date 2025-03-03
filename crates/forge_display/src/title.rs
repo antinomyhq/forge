@@ -8,6 +8,7 @@ pub enum Kind {
     Execute,
     Success,
     Failed,
+    Retrying,
 }
 
 impl Kind {
@@ -16,6 +17,7 @@ impl Kind {
             Kind::Execute => "⚙",
             Kind::Success => "✓",
             Kind::Failed => "✗",
+            Kind::Retrying => "↻",
         }
     }
 
@@ -24,6 +26,7 @@ impl Kind {
             Kind::Execute => "execute",
             Kind::Success => "success",
             Kind::Failed => "error",
+            Kind::Retrying => "retrying",
         }
     }
 }
@@ -81,6 +84,16 @@ impl TitleFormat {
         }
     }
 
+    /// Create a retrying status
+    pub fn retrying() -> Self {
+        Self {
+            kind: Kind::Retrying,
+            title: "Retrying last message...".to_string(),
+            error: None,
+            sub_title: Default::default(),
+        }
+    }
+
     pub fn format(&self) -> String {
         let (icon, label, message) = match self.kind {
             Kind::Execute => (
@@ -105,6 +118,11 @@ impl TitleFormat {
                     format!("{}{}", self.title, error_suffix.red()),
                 )
             }
+            Kind::Retrying => (
+                self.icon().yellow(),
+                self.label().bold().yellow(),
+                self.title.to_string(),
+            ),
         };
 
         let timestamp = if cfg!(test) {
