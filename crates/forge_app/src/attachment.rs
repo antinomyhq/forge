@@ -1,10 +1,9 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::Arc;
 
 use base64::Engine;
-use forge_domain::{Attachment, AttachmentService, ContentType, ImageType};
+use forge_domain::{Attachment, AttachmentService, ContentType};
 
 use crate::{FileReadService, Infrastructure};
 // TODO: bring pdf support, pdf is just a collection of images.
@@ -18,7 +17,7 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         Self { infra }
     }
 
-    async fn prepare_attachments<T: AsRef<Path>>(&self, paths: HashSet<T>) -> HashSet<Attachment> {
+    async fn prepare_attachments<T: AsRef<Path>>(&self, paths: HashSet<T>) -> Vec<Attachment> {
         futures::future::join_all(
             paths
                 .into_iter()
@@ -28,54 +27,34 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         .await
         .into_iter()
         .filter_map(|v| v.ok())
-        .collect::<HashSet<_>>()
+        .collect::<Vec<_>>()
     }
 
-    fn prepare_message(
-        &self,
-        mut message: String,
-        attachments: &mut HashSet<Attachment>,
-    ) -> String {
-        for attachment in attachments.clone() {
-            if let ContentType::Text = &attachment.content_type {
-                let xml = format!(
-                    "<file path=\"{}\">{}</file>",
-                    attachment.path, attachment.content
-                );
-                message.push_str(&xml);
-
-                attachments.remove(&attachment);
-            }
-        }
-
-        message
-    }
-    async fn populate_attachments(&self, v: PathBuf) -> anyhow::Result<Attachment> {
-        let path = v.to_string_lossy().to_string();
-        let ext = v.extension().map(|v| v.to_string_lossy().to_string());
-        let read = self.infra.file_read_service().read(v.as_path()).await?;
-        if let Some(extension) = ext.as_ref().and_then(|v| ImageType::from_str(v).ok()) {
-            Ok(Attachment {
-                content: base64::engine::general_purpose::STANDARD.encode(read),
-                path,
-                content_type: ContentType::Image(extension),
-            })
+    async fn populate_attachments(&self, path: PathBuf) -> anyhow::Result<Attachment> {
+        let extension = path.extension().map(|v| v.to_string_lossy().to_string());
+        let read = self.infra.file_read_service().read(path.as_path()).await?;
+        let path = path.to_string_lossy().to_string();
+        if let Some(img_extension) = extension.and_then(|ext| match ext.as_str() {
+            "jpeg" | "jpg" => Some("jpeg"),
+            "png" => Some("png"),
+            "webp" => Some("webp"),
+            _ => None,
+        }) {
+            let base_64_encoded = base64::engine::general_purpose::STANDARD.encode(read);
+            let content = format!("data:image/{};base64,{}", img_extension, base_64_encoded);
+            Ok(Attachment { content, path, content_type: ContentType::Image })
         } else {
-            Ok(Attachment {
-                content: String::from_utf8(read.to_vec())?,
-                path,
-                content_type: ContentType::Text,
-            })
+            let content = String::from_utf8(read.to_vec())?;
+            Ok(Attachment { content, path, content_type: ContentType::Text })
         }
     }
 }
 
 #[async_trait::async_trait]
 impl<F: Infrastructure> AttachmentService for ForgeChatRequest<F> {
-    async fn attachments(&self, chat: String) -> anyhow::Result<(String, HashSet<Attachment>)> {
-        let mut attachments = self.prepare_attachments(Attachment::parse_all(&chat)).await;
-
-        Ok((self.prepare_message(chat, &mut attachments), attachments))
+    async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
+        let attachments = self.prepare_attachments(Attachment::parse_all(url)).await;
+        Ok(attachments)
     }
 }
 
@@ -85,15 +64,14 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
-    use base64::Engine; // Add the Engine trait
+    use base64::Engine;
     use bytes::Bytes;
-    use forge_domain::{AttachmentService, ContentType, ImageType};
+    use forge_domain::{AttachmentService, ContentType, Environment, Point, Query, Suggestion};
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
         EmbeddingService, EnvironmentService, FileReadService, Infrastructure, VectorIndex,
     };
-    use forge_domain::{Environment, Point, Query, Suggestion};
 
     struct MockEnvironmentService {}
 
@@ -221,94 +199,74 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_attachments_function_with_text_file() {
+    async fn test_add_url_with_text_file() {
         // Setup
         let infra = Arc::new(MockInfrastructure::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with a text file path in chat message
-        let chat_message = "Check this file @/test/file1.txt please".to_string();
+        let url = "@/test/file1.txt".to_string();
 
         // Execute
-        let (result_message, attachments) = chat_request
-            .attachments(chat_message.clone())
-            .await
-            .unwrap();
+        let attachments = chat_request.attachments(&url).await.unwrap();
 
         // Assert
-        // The text file should be removed from attachments and added to the message
-        assert_eq!(attachments.len(), 0);
-        assert!(result_message
-            .contains("<file path=\"/test/file1.txt\">This is a text file content</file>"));
+        // Text files should be included in the attachments
+        assert_eq!(attachments.len(), 1);
+        let attachment = attachments.first().unwrap();
+        assert_eq!(attachment.path, "/test/file1.txt");
+        assert_eq!(attachment.content_type, ContentType::Text);
+        assert_eq!(attachment.content, "This is a text file content");
     }
 
     #[tokio::test]
-    async fn test_attachments_function_with_image() {
+    async fn test_add_url_with_image() {
         // Setup
         let infra = Arc::new(MockInfrastructure::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an image file
-        let chat_message = "Look at this image @/test/image.png".to_string();
+        let url = "@/test/image.png".to_string();
 
         // Execute
-        let (result_message, attachments) = chat_request
-            .attachments(chat_message.clone())
-            .await
-            .unwrap();
+        let attachments = chat_request.attachments(&url).await.unwrap();
 
         // Assert
-        // The image should remain in attachments and not be added to the message
         assert_eq!(attachments.len(), 1);
-        assert_eq!(result_message, chat_message);
-
-        let attachment = attachments.iter().next().unwrap();
+        let attachment = attachments.first().unwrap();
         assert_eq!(attachment.path, "/test/image.png");
-        assert!(matches!(
-            attachment.content_type,
-            ContentType::Image(ImageType::Png)
-        ));
+        assert!(matches!(attachment.content_type, ContentType::Image));
 
-        // Base64 content should be the encoded mock binary content
+        // Base64 content should be the encoded mock binary content with proper data URI format
         let expected_base64 =
             base64::engine::general_purpose::STANDARD.encode("mock-binary-content");
-        assert_eq!(attachment.content, expected_base64);
+        assert_eq!(attachment.content, format!("data:image/png;base64,{}", expected_base64));
     }
 
     #[tokio::test]
-    async fn test_attachments_function_with_jpg_image_with_spaces() {
+    async fn test_add_url_with_jpg_image_with_spaces() {
         // Setup
         let infra = Arc::new(MockInfrastructure::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an image file that has spaces in the path
-        let chat_message = "Look at this image @\"/test/image with spaces.jpg\"".to_string();
+        let url = "@\"/test/image with spaces.jpg\"".to_string();
 
         // Execute
-        let (result_message, attachments) = chat_request
-            .attachments(chat_message.clone())
-            .await
-            .unwrap();
+        let attachments = chat_request.attachments(&url).await.unwrap();
 
         // Assert
-        // The image should remain in attachments
         assert_eq!(attachments.len(), 1);
-        assert_eq!(result_message, chat_message);
-
-        let attachment = attachments.iter().next().unwrap();
+        let attachment = attachments.first().unwrap();
         assert_eq!(attachment.path, "/test/image with spaces.jpg");
-        assert!(matches!(
-            attachment.content_type,
-            ContentType::Image(ImageType::Jpeg)
-        ));
 
-        // Base64 content should be the encoded mock jpeg content
+        // Base64 content should be the encoded mock jpeg content with proper data URI format
         let expected_base64 = base64::engine::general_purpose::STANDARD.encode("mock-jpeg-content");
-        assert_eq!(attachment.content, expected_base64);
+        assert_eq!(attachment.content, format!("data:image/jpeg;base64,{}", expected_base64));
     }
 
     #[tokio::test]
-    async fn test_attachments_function_with_multiple_files() {
+    async fn test_add_url_with_multiple_files() {
         // Setup
         let infra = Arc::new(MockInfrastructure::new());
 
@@ -321,71 +279,65 @@ mod tests {
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with multiple files mentioned
-        let chat_message = "Check these files: @/test/file1.txt and @/test/file2.txt and this image @/test/image.png".to_string();
+        let url = "@/test/file1.txt @/test/file2.txt @/test/image.png".to_string();
 
         // Execute
-        let (result_message, attachments) = chat_request
-            .attachments(chat_message.clone())
-            .await
-            .unwrap();
+        let attachments = chat_request.attachments(&url).await.unwrap();
 
         // Assert
-        // The text files should be removed from attachments and added to the message
-        // Only the image should remain in attachments
-        assert_eq!(attachments.len(), 1);
-        assert!(matches!(
-            attachments.iter().next().unwrap().content_type,
-            ContentType::Image(_)
-        ));
+        // All files should be included in the attachments
+        assert_eq!(attachments.len(), 3);
 
-        assert!(result_message
-            .contains("<file path=\"/test/file1.txt\">This is a text file content</file>"));
-        assert!(result_message
-            .contains("<file path=\"/test/file2.txt\">This is another text file</file>"));
+        // Verify that each expected file is in the attachments
+        let has_file1 = attachments
+            .iter()
+            .any(|a| a.path == "/test/file1.txt" && matches!(a.content_type, ContentType::Text));
+        let has_file2 = attachments
+            .iter()
+            .any(|a| a.path == "/test/file2.txt" && matches!(a.content_type, ContentType::Text));
+        let has_image = attachments
+            .iter()
+            .any(|a| a.path == "/test/image.png" && matches!(a.content_type, ContentType::Image));
+
+        assert!(has_file1, "Missing file1.txt in attachments");
+        assert!(has_file2, "Missing file2.txt in attachments");
+        assert!(has_image, "Missing image.png in attachments");
     }
 
     #[tokio::test]
-    async fn test_attachments_function_with_nonexistent_file() {
+    async fn test_add_url_with_nonexistent_file() {
         // Setup
         let infra = Arc::new(MockInfrastructure::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with a file that doesn't exist
-        let chat_message = "Check this file @/test/nonexistent.txt".to_string();
+        let url = "@/test/nonexistent.txt".to_string();
 
         // Execute
-        let (result_message, attachments) = chat_request
-            .attachments(chat_message.clone())
-            .await
-            .unwrap();
+        let attachments = chat_request.attachments(&url).await.unwrap();
 
         // Assert - nonexistent files should be ignored
         assert_eq!(attachments.len(), 0);
-        assert_eq!(result_message, chat_message);
     }
 
     #[tokio::test]
-    async fn test_attachments_function_empty_message() {
+    async fn test_add_url_empty() {
         // Setup
         let infra = Arc::new(MockInfrastructure::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an empty message
-        let chat_message = "".to_string();
+        let url = "".to_string();
 
         // Execute
-        let (result_message, attachments) = chat_request
-            .attachments(chat_message.clone())
-            .await
-            .unwrap();
+        let attachments = chat_request.attachments(&url).await.unwrap();
 
         // Assert - no attachments
         assert_eq!(attachments.len(), 0);
-        assert_eq!(result_message, "");
     }
 
     #[tokio::test]
-    async fn test_attachments_function_with_unsupported_image_extension() {
+    async fn test_add_url_with_unsupported_extension() {
         // Setup
         let infra = Arc::new(MockInfrastructure::new());
 
@@ -398,16 +350,16 @@ mod tests {
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with the file
-        let chat_message = "Check this file @/test/unknown.xyz".to_string();
+        let url = "@/test/unknown.xyz".to_string();
 
         // Execute
-        let (result_message, attachments) = chat_request
-            .attachments(chat_message.clone())
-            .await
-            .unwrap();
+        let attachments = chat_request.attachments(&url).await.unwrap();
 
         // Assert - should be treated as text
-        assert_eq!(attachments.len(), 0);
-        assert!(result_message.contains("<file path=\"/test/unknown.xyz\">Some content</file>"));
+        assert_eq!(attachments.len(), 1);
+        let attachment = attachments.first().unwrap();
+        assert_eq!(attachment.path, "/test/unknown.xyz");
+        assert_eq!(attachment.content_type, ContentType::Text);
+        assert_eq!(attachment.content, "Some content");
     }
 }

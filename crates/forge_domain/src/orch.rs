@@ -309,27 +309,41 @@ impl<A: App> Orchestrator<A> {
             }
         };
 
-        let (content, attachments) = self
-            .app
-            .attachment_service()
-            .attachments(event.value.clone())
-            .await?;
-        let event = event.clone().value(content);
-
         let content = if let Some(user_prompt) = &agent.user_prompt {
             // Use the consolidated render_event method which handles suggestions internally
             self.app
                 .template_service()
-                .render_event(agent, user_prompt, &event)
+                .render_event(agent, user_prompt, event)
                 .await?
         } else {
             // Use the raw event value as content if no user_prompt is provided
             event.value.clone()
         };
 
-        context = context
-            .add_message(ContextMessage::user(content))
-            .add_attachments(attachments);
+        context = context.add_message(ContextMessage::user(content));
+
+        // Process attachments
+        let attachments = self
+            .app
+            .attachment_service()
+            .attachments(&event.value)
+            .await?;
+
+        for attachment in attachments.into_iter() {
+            match attachment.content_type {
+                ContentType::Image => {
+                    context = context.add_message(ContextMessage::Image(attachment.content));
+                }
+                ContentType::Text => {
+                    let content = format!(
+                        "<file_content path=\"{}\">{}</file_content>",
+                        attachment.path, attachment.content
+                    );
+                    context = context.add_message(ContextMessage::user(content));
+                }
+            }
+        }
+
         self.set_context(&agent.id, context.clone()).await?;
 
         loop {

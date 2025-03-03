@@ -93,52 +93,13 @@ impl Attachment {
 
         paths
     }
-
-    pub fn to_base64(&self) -> Option<String> {
-        match &self.content_type {
-            ContentType::Image(ext) => Some(format!("data:image/{};base64,{}", ext, self.content)),
-            ContentType::Text => None,
-        }
-    }
-}
-
-#[derive(
-    Debug,
-    strum_macros::EnumIter,
-    strum_macros::Display,
-    strum_macros::EnumString,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-)]
-pub enum ImageType {
-    #[strum(
-        to_string = "jpeg",
-        serialize = "jpeg",
-        serialize = "jpg",
-        ascii_case_insensitive
-    )]
-    Jpeg,
-    #[strum(to_string = "png", ascii_case_insensitive)]
-    Png,
-    #[strum(
-        to_string = "webp",
-        serialize = "gif",
-        serialize = "webp",
-        ascii_case_insensitive
-    )]
-    Webp,
 }
 
 #[derive(
     Debug, schemars::JsonSchema, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash,
 )]
 pub enum ContentType {
-    Image(ImageType),
+    Image,
     Text,
 }
 
@@ -234,14 +195,11 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn add_attachments(mut self, attachment: HashSet<Attachment>) -> Self {
-        attachment.into_iter().for_each(|attachment| {
-            if let Some(val) = attachment.to_base64() {
-                self.messages.push(ContextMessage::Image(val));
-            }
-        });
+    pub fn add_url(mut self, url: &str) -> Self {
+        self.messages.push(ContextMessage::Image(url.to_string()));
         self
     }
+
     pub fn add_tool(mut self, tool: impl Into<ToolDefinition>) -> Self {
         let tool: ToolDefinition = tool.into();
         self.tools.push(tool);

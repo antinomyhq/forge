@@ -25,8 +25,6 @@ mod tool_result;
 mod tool_usage;
 mod workflow;
 
-use std::collections::HashSet;
-
 pub use agent::*;
 pub use chat_request::*;
 pub use chat_response::*;
@@ -109,7 +107,7 @@ pub trait TemplateService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AttachmentService {
-    async fn attachments(&self, content: String) -> anyhow::Result<(String, HashSet<Attachment>)>;
+    async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>>;
 }
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
