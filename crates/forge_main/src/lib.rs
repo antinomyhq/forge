@@ -8,7 +8,9 @@ mod input;
 mod model;
 mod normalize;
 mod prompt;
+mod snapshot;
 mod ui;
 
 pub use cli::Cli;
 pub use ui::UI;
+pub use snapshot::handle_snapshot_command;

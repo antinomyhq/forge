@@ -10,6 +10,7 @@ forge_api = { path = "../forge_api" }
 forge_walker = { path = "../forge_walker" }
 forge_display = { path = "../forge_display" }
 forge_tracker = { path = "../forge_tracker" }
+forge_snapshot = { path = "../forge_snapshot" }
 tokio = { version = "1.0", features = ["full"] }
 tokio-stream = "0.1.17"
 colored = "3.0.0"

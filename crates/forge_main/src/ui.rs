@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use clap::Parser;
 use colored::Colorize;
 use forge_api::{
     AgentMessage, ChatRequest, ChatResponse, ConversationId, Event, Model, Usage, API,
@@ -11,7 +12,7 @@ use lazy_static::lazy_static;
 use tokio_stream::StreamExt;
 
 use crate::banner;
-use crate::cli::Cli;
+use crate::cli::{Cli, Commands};
 use crate::console::CONSOLE;
 use crate::info::Info;
 use crate::input::{Console, PromptInput};
@@ -82,6 +83,29 @@ impl<F: API> UI<F> {
         if let Some(prompt) = prompt {
             self.chat(prompt).await?;
             return Ok(());
+        }
+
+        // Handle subcommands if provided
+        if let Some(cmd) = &self.cli.command_type {
+            match cmd {
+                Commands::Snapshot(snapshot_cmd) => {
+                    return crate::handle_snapshot_command(snapshot_cmd.clone()).await;
+                }
+            }
+        }
+
+        // Handle commands if provided
+        if let Some(cmd_str) = &self.cli.command {
+            // Parse the command string using clap
+            let args = cmd_str.split_whitespace().collect::<Vec<_>>();
+            let cmd = Commands::try_parse_from(args)
+                .map_err(|e| anyhow::anyhow!("Failed to parse command: {}", e))?;
+            
+            match cmd {
+                Commands::Snapshot(snapshot_cmd) => {
+                    return crate::handle_snapshot_command(snapshot_cmd.clone()).await;
+                }
+            }
         }
 
         // Display the banner in dimmed colors since we're in interactive mode
