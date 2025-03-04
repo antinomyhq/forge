@@ -1,6 +1,7 @@
 use std::path::Path;
 
 // No longer using dissimilar for fuzzy matching
+use forge_display::DiffFormat;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
@@ -222,25 +223,6 @@ fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
     }
 }
 
-/// Process the file modification and return the formatted output
-async fn process_file_modifications(
-    path: &Path,
-    search: &str,
-    operation: &Operation,
-    content: &str,
-) -> Result<String, Error> {
-    let file_content = fs::read_to_string(path).await?;
-    let file_content = apply_replacement(file_content, search, operation, content)?;
-    fs::write(path, &file_content).await?;
-
-    let warning = syn::validate(path, &file_content).map(|e| e.to_string());
-    Ok(format_output(
-        path.to_string_lossy().as_ref(),
-        &file_content,
-        warning.as_deref(),
-    ))
-}
-
 #[async_trait::async_trait]
 impl ExecutableTool for ApplyPatchJson {
     type Input = ApplyPatchJsonInput;
@@ -249,10 +231,30 @@ impl ExecutableTool for ApplyPatchJson {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        Ok(
-            process_file_modifications(path, &input.search, &input.operation, &input.content)
-                .await?,
-        )
+        // Read the original content before modification
+        let old_content = fs::read_to_string(path).await.map_err(Error::FileOperation)?;
+
+        // Apply the replacement
+        let modified_content = apply_replacement(old_content.clone(), &input.search, &input.operation, &input.content)?;
+        
+        // Write modified content to file
+        fs::write(path, &modified_content).await.map_err(Error::FileOperation)?;
+
+        // Check for syntax errors
+        let warning = syn::validate(path, &modified_content).map(|e| e.to_string());
+        
+        // Format the output
+        let result = format_output(
+            path.to_string_lossy().as_ref(),
+            &modified_content,
+            warning.as_deref(),
+        );
+        
+        // Generate diff between old and new content
+        let diff = DiffFormat::format(path.to_path_buf(), &old_content, &modified_content);
+        println!("{}", diff);
+
+        Ok(result)
     }
 }
 
