@@ -31,7 +31,8 @@ fn generate() {
             cancel_in_progress: None,
             limit: None,
         })
-        .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"));
+        .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
+        .add_env(("RUN_API_TESTS", "0"));
 
     // Set up the build matrix for all platforms
     let matrix = json!({

@@ -39,6 +39,7 @@ pub fn tools<F: Infrastructure>(infra: Arc<F>) -> Vec<Tool> {
 mod tests {
     use std::path::{Path, PathBuf};
 
+    use bytes::Bytes;
     use forge_domain::{Environment, Point, Query, Suggestion};
 
     use super::*;
@@ -86,7 +87,7 @@ mod tests {
     }
     #[async_trait::async_trait]
     impl FileReadService for Stub {
-        async fn read(&self, _path: &Path) -> anyhow::Result<String> {
+        async fn read(&self, _path: &Path) -> anyhow::Result<Bytes> {
             unimplemented!()
         }
     }
