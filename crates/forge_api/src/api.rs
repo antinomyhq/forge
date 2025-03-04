@@ -82,7 +82,7 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
         &self,
         conversation_id: ConversationId,
     ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
-        // Get the conversation
+        // Get the original conversation
         let conversation = self
             .app
             .conversation_service()
@@ -105,10 +105,16 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
             })
             .ok_or_else(|| anyhow::anyhow!("No task found in conversation"))?;
 
-        // Create a new chat request with the last task content
-        let chat = ChatRequest { content: last_task.value.clone(), conversation_id };
+        // Initialize a new conversation with the same workflow
+        let new_conversation_id: ConversationId = self.app.conversation_service().create(conversation.workflow.clone()).await?;
 
-        // Call the chat method with the request
+        // Create a new chat request with the last task content and new conversation ID
+        let chat = ChatRequest { 
+            event: last_task.clone(),
+            conversation_id: new_conversation_id 
+        };
+
+        // Call the chat method with the new request
         Ok(self.executor_service.chat(chat).await?)
     }
 }
