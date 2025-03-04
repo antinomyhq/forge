@@ -46,9 +46,7 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
         let mut walker = Walker::max_all();
 
         // Only set max_depth if the value is provided
-        if let Some(depth) = agent.max_walker_depth {
-            walker = walker.max_depth(depth);
-        }
+        walker = walker.max_depth(agent.max_walker_depth.unwrap_or(1));
 
         let mut files = walker
             .cwd(env.cwd.clone())
