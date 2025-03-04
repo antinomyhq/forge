@@ -1,0 +1,58 @@
+---
+source: crates/forge_main/src/completer/search_term.rs
+expression: results
+---
+[
+    TermSpec {
+        input: "/[com",
+        output: Some(
+            "/",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            1,
+        ),
+        pos: 1,
+    },
+    TermSpec {
+        input: "/c[om",
+        output: Some(
+            "/c",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            2,
+        ),
+        pos: 2,
+    },
+    TermSpec {
+        input: "/co[m",
+        output: Some(
+            "/co",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            3,
+        ),
+        pos: 3,
+    },
+    TermSpec {
+        input: "/com[",
+        output: Some(
+            "/com",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            4,
+        ),
+        pos: 4,
+    },
+]

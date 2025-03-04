@@ -1,0 +1,32 @@
+---
+source: crates/forge_main/src/completer/search_term.rs
+expression: results
+---
+[
+    TermSpec {
+        input: "f[o",
+        output: Some(
+            "f",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            1,
+        ),
+        pos: 1,
+    },
+    TermSpec {
+        input: "fo[",
+        output: Some(
+            "fo",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            2,
+        ),
+        pos: 2,
+    },
+]
