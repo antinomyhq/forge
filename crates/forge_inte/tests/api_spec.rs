@@ -1,3 +1,4 @@
+use std::env;
 use std::path::PathBuf;
 
 use anyhow::Context;
@@ -6,6 +7,11 @@ use tokio_stream::StreamExt;
 
 const MAX_RETRIES: usize = 5;
 const WORKFLOW_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/test_workflow.yaml");
+
+/// Check if API tests should run based on environment variable
+fn should_run_api_tests() -> bool {
+    env::var("RUN_API_TESTS").map(|v| v != "0").unwrap_or(true)
+}
 
 /// Test fixture for API testing that supports parallel model validation
 struct Fixture {
@@ -92,6 +98,14 @@ macro_rules! generate_model_test {
     ($model:expr) => {
         #[tokio::test]
         async fn test_find_cat_name() {
+            if !should_run_api_tests() {
+                println!(
+                    "Skipping API test for {} as RUN_API_TESTS is not set to 'true'",
+                    $model
+                );
+                return;
+            }
+
             let fixture = Fixture::new(ModelId::new($model));
 
             let result = fixture
