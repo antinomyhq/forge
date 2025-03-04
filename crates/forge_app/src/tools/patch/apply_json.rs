@@ -252,8 +252,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
 
         // Read the original content once
         let mut current_content =
-            String::from_utf8_lossy(&self.0.file_read_service().read(path).await?)
-                .to_string();
+            String::from_utf8_lossy(&self.0.file_read_service().read(path).await?).to_string();
 
         // Apply each patch sequentially
         for patch in input.patches {

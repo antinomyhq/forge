@@ -111,7 +111,8 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
         }
 
         // record the file content after they're modified
-        let new_content = String::from_utf8_lossy(&self.0.file_read_service().read(path).await?).to_string();
+        let new_content =
+            String::from_utf8_lossy(&self.0.file_read_service().read(path).await?).to_string();
         let title = if file_exists { "overwrite" } else { "create" };
         let diff = DiffFormat::format(title, path.to_path_buf(), &old_content, &new_content);
         println!("{}", diff);

@@ -163,7 +163,8 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatch<F> {
         let blocks = parse::parse_blocks(&input.diff)?;
 
         // Read the content of the file before applying the patch
-        let old_content = String::from_utf8_lossy(&self.0.file_read_service().read(path).await?).to_string();
+        let old_content =
+            String::from_utf8_lossy(&self.0.file_read_service().read(path).await?).to_string();
 
         let result = async {
             let modified = apply_patches(old_content.clone(), blocks).await?;
@@ -190,7 +191,8 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatch<F> {
          .await?;
 
         // record the content of the file after applying the patch
-        let new_content = String::from_utf8_lossy(&self.0.file_read_service().read(path).await?).to_string();
+        let new_content =
+            String::from_utf8_lossy(&self.0.file_read_service().read(path).await?).to_string();
 
         // Generate diff between old and new content
         let diff = DiffFormat::format("patch", path.to_path_buf(), &old_content, &new_content);

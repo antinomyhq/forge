@@ -79,7 +79,10 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
     }
 
     async fn read_file<P: AsRef<Path> + Send>(&self, path: P) -> anyhow::Result<String> {
-        Ok(String::from_utf8_lossy(&self.app.file_read_service().read(path.as_ref()).await?).to_string())
+        Ok(
+            String::from_utf8_lossy(&self.app.file_read_service().read(path.as_ref()).await?)
+                .to_string(),
+        )
     }
 
     async fn write_file<P: AsRef<Path> + Send>(
