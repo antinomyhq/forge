@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use anyhow::Context as AnyhowContext;
 use async_recursion::async_recursion;
 use futures::future::join_all;
 use futures::{Stream, StreamExt};
@@ -128,14 +129,17 @@ impl<A: App> Orchestrator<A> {
             .collect::<Vec<_>>();
 
         // From partial tool calls
-        tool_calls.extend(ToolCallFull::try_from_parts(
-            &messages
-                .iter()
-                .filter_map(|message| message.tool_call.first())
-                .clone()
-                .filter_map(|tool_call| tool_call.as_partial().cloned())
-                .collect::<Vec<_>>(),
-        )?);
+        let tool_call_parts = messages
+            .iter()
+            .filter_map(|message| message.tool_call.first())
+            .clone()
+            .filter_map(|tool_call| tool_call.as_partial().cloned())
+            .collect::<Vec<_>>();
+
+        tool_calls.extend(
+            ToolCallFull::try_from_parts(&tool_call_parts)
+                .with_context(|| format!("Failed to parse tool call: {:?}", tool_call_parts))?,
+        );
 
         // From XML
         tool_calls.extend(ToolCallFull::try_from_xml(&content)?);
