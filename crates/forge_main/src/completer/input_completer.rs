@@ -18,10 +18,16 @@ impl InputCompleter {
         Self { walker }
     }
 
-    fn create_styled_suggestion(file_path: String, file_name: &str, query: &str, span: reedline::Span, is_prefix: bool) -> Suggestion {
+    fn create_styled_suggestion(
+        file_path: String,
+        file_name: &str,
+        query: &str,
+        span: reedline::Span,
+        is_prefix: bool,
+    ) -> Suggestion {
         // Create a style that highlights the matched portion with background color
         let highlight_style = Style::new().on(Color::Green).fg(Color::Black).bold();
-        
+
         // Split the path into directory and filename
         let path_parts: Vec<&str> = file_path.rsplitn(2, '/').collect();
         let (file_part, _dir_part) = match path_parts.as_slice() {
@@ -34,7 +40,8 @@ impl InputCompleter {
             // For prefix matches, highlight just the matching prefix
             let query_len = query.len();
             if query_len > 0 {
-                format!("{}{}",
+                format!(
+                    "{}{}",
                     highlight_style.paint(&file_part[..query_len]),
                     &file_part[query_len..]
                 )
@@ -45,10 +52,11 @@ impl InputCompleter {
             // For substring matches, find and highlight the matching portion
             let file_part_lower = file_part.to_lowercase();
             let query_lower = query.to_lowercase();
-            
+
             if let Some(match_idx) = file_part_lower.find(&query_lower) {
                 let match_end = match_idx + query.len();
-                format!("{}{}{}",
+                format!(
+                    "{}{}{}",
                     &file_part[..match_idx],
                     highlight_style.paint(&file_part[match_idx..match_end]),
                     &file_part[match_end..]
@@ -63,7 +71,9 @@ impl InputCompleter {
             value: file_path,
             description: Some(description),
             style: None, // We're using the description for styling instead
-            extra: Some(vec![if is_prefix { "prefix" } else { "substring" }.to_string()]),
+            extra: Some(vec![
+                if is_prefix { "prefix" } else { "substring" }.to_string()
+            ]),
             span,
             append_whitespace: true,
         }
@@ -90,11 +100,12 @@ impl Completer for InputCompleter {
                     if let Some(file_name) = file.file_name.as_ref() {
                         let file_name_lower = file_name.to_lowercase();
                         let query_lower = query.term.to_lowercase();
-                        
+
                         // First try prefix match (higher priority)
                         let is_prefix_match = file_name_lower.starts_with(&query_lower);
                         // Then try substring match (lower priority)
-                        let is_substring_match = !is_prefix_match && file_name_lower.contains(&query_lower);
+                        let is_substring_match =
+                            !is_prefix_match && file_name_lower.contains(&query_lower);
 
                         if is_prefix_match || is_substring_match {
                             Some(Self::create_styled_suggestion(

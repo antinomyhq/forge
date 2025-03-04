@@ -35,10 +35,7 @@ impl SearchTerm {
             let term = &self.line[word_start..self.position];
             // Don't complete if the term contains spaces
             if !term.contains(' ') {
-                return Some(TermResult {
-                    span: Span::new(word_start, self.position),
-                    term,
-                });
+                return Some(TermResult { span: Span::new(word_start, self.position), term });
             }
         }
 
