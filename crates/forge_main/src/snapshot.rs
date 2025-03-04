@@ -24,15 +24,12 @@ pub async fn handle_snapshot_command(cmd: SnapshotCommand) -> Result<()> {
             let snapshots = service.list_snapshots(&file_path).await?;
             println!("INDEX  TIMESTAMP    DATE                SIZE");
             for (i, snapshot) in snapshots.iter().enumerate() {
-                let timestamp_secs = snapshot.timestamp / 1000;
-                let date = DateTime::<Utc>::from_timestamp_millis(snapshot.timestamp as i64)
-                    .unwrap_or(Utc::now())
-                    .with_timezone(&Local);
+                let date = snapshot.date.with_timezone(&Local);
                 
                 println!(
                     "{:<6}  {:<11}  {:<19}  {:.1}K{}",
                     i,
-                    timestamp_secs,
+                    snapshot.timestamp,
                     date.format("%Y-%m-%d %H:%M"),
                     snapshot.size as f64 / 1024.0,
                     if i == 0 { "   (current)" } else { "" }

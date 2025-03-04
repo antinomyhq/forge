@@ -194,14 +194,12 @@ impl FileSnapshotService for FileSnapshotServiceImpl {
     }
 
     async fn restore_by_timestamp(&self, file_path: &Path, timestamp: u64) -> Result<()> {
-        // Convert timestamp to seconds for file lookup
-        let timestamp_secs = timestamp / 1000;
         let snapshot_path = self.get_snapshot_path(file_path, timestamp);
         
         if !snapshot_path.exists() {
             return Err(SnapshotError::NotFound(format!(
                 "No snapshot found for timestamp {}",
-                timestamp_secs
+                timestamp
             )));
         }
 
@@ -230,7 +228,7 @@ impl FileSnapshotService for FileSnapshotServiceImpl {
 
         let metadata = async_fs::metadata(&snapshot_path).await?;
         let date = DateTime::<Utc>::from(
-            UNIX_EPOCH + std::time::Duration::from_millis(timestamp)
+            UNIX_EPOCH + std::time::Duration::from_secs(timestamp)
         );
 
         Ok(SnapshotMetadata {
@@ -311,8 +309,8 @@ impl FileSnapshotService for FileSnapshotServiceImpl {
         let diff = diff_config.diff_lines(&previous, &current);
         let mut result = String::new();
 
-        result.push_str(&format!("--- {} ({})\n", file_path.display(), snapshot.info.date));
-        result.push_str(&format!("+++ {} (current)\n", file_path.display()));
+        result.push_str(&format!("--- {} (current)\n", file_path.display()));
+        result.push_str(&format!("+++ {} ({})\n", file_path.display(), snapshot.info.date.format("%Y-%m-%d %H:%M:%S UTC")));
 
         for group in diff.grouped_ops(3) {
             let line_old = group.first().unwrap().old_range().start;
