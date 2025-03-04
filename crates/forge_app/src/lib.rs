@@ -33,6 +33,16 @@ pub trait FileReadService: Send + Sync {
     async fn read(&self, path: &Path) -> anyhow::Result<Bytes>;
 }
 
+/// A service for writing content to file in the filesystem.
+///
+/// This trait provides an abstraction over file writing operations, allowing
+/// for both real file system access and test mocking.
+#[async_trait::async_trait]
+pub trait FileWriteService: Send + Sync {
+    /// Writes the contents to a file at the specified path.
+    async fn write(&self, path: &Path, content: &str) -> anyhow::Result<()>;
+}
+
 #[async_trait::async_trait]
 pub trait VectorIndex<T>: Send + Sync {
     async fn store(&self, point: Point<T>) -> anyhow::Result<()>;
@@ -47,11 +57,13 @@ pub trait EmbeddingService: Send + Sync {
 pub trait Infrastructure: Send + Sync + 'static {
     type EnvironmentService: EnvironmentService;
     type FileReadService: FileReadService;
+    type FileWriteService: FileWriteService;
     type VectorIndex: VectorIndex<Suggestion>;
     type EmbeddingService: EmbeddingService;
 
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn file_read_service(&self) -> &Self::FileReadService;
+    fn file_write_service(&self) -> &Self::FileWriteService;
     fn vector_index(&self) -> &Self::VectorIndex;
     fn embedding_service(&self) -> &Self::EmbeddingService;
 }

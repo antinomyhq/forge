@@ -1,17 +1,17 @@
 use std::path::Path;
+use std::sync::Arc;
 
 // No longer using dissimilar for fuzzy matching
 use forge_display::DiffFormat;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
-use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum_macros::AsRefStr;
 use thiserror::Error;
-use tokio::fs;
 
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
+use crate::{FileReadService, FileWriteService, Infrastructure};
 
 // Removed fuzzy matching threshold as we only use exact matching now
 
@@ -203,13 +203,24 @@ pub struct Input {
     pub patches: Vec<ApplyPatchJsonInput>,
 }
 
-/// Performs a single text operation (prepend, append, replace, swap, delete) on
-/// matched text in a file. The operation is applied to the first match found in
-/// the text.
-#[derive(ToolDescription)]
-pub struct ApplyPatchJson;
+pub struct ApplyPatchJson<F: Infrastructure>(Arc<F>);
 
-impl NamedTool for ApplyPatchJson {
+impl<F: Infrastructure> ApplyPatchJson<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self(infra)
+    }
+}
+
+impl<F: Infrastructure> ToolDescription for ApplyPatchJson<F> {
+    fn description(&self) -> String {
+        "Performs a single text operation (prepend, append, replace, swap, delete) on
+matched text in a file. The operation is applied to the first match found in
+the text."
+            .to_string()
+    }
+}
+
+impl<F: Infrastructure> NamedTool for ApplyPatchJson<F> {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_fs_patch")
     }
@@ -232,7 +243,7 @@ fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for ApplyPatchJson {
+impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
     type Input = Input;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
@@ -240,9 +251,9 @@ impl ExecutableTool for ApplyPatchJson {
         assert_absolute_path(path)?;
 
         // Read the original content once
-        let mut current_content = fs::read_to_string(path)
-            .await
-            .map_err(Error::FileOperation)?;
+        let mut current_content =
+            String::from_utf8_lossy(&self.0.file_read_service().read(path).await?.to_vec())
+                .to_string();
 
         // Apply each patch sequentially
         for patch in input.patches {
@@ -264,9 +275,10 @@ impl ExecutableTool for ApplyPatchJson {
         }
 
         // Write final content to file after all patches are applied
-        fs::write(path, &current_content)
-            .await
-            .map_err(Error::FileOperation)?;
+        self.0
+            .file_write_service()
+            .write(path, &current_content)
+            .await?;
 
         // Check for syntax errors
         let warning = syn::validate(path, &current_content).map(|e| e.to_string());

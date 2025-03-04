@@ -70,7 +70,8 @@ mod tests {
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
-        EmbeddingService, EnvironmentService, FileReadService, Infrastructure, VectorIndex,
+        EmbeddingService, EnvironmentService, FileReadService, FileWriteService, Infrastructure,
+        VectorIndex,
     };
 
     struct MockEnvironmentService {}
@@ -91,6 +92,25 @@ mod tests {
                 provider_url: "url".to_string(),
                 openai_key: None,
             }
+        }
+    }
+
+    struct MockFileWriteService {
+        files: Mutex<HashMap<PathBuf, String>>,
+    }
+
+    impl MockFileWriteService {
+        fn new() -> Self {
+            Self { files: Mutex::new(HashMap::new()) }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileWriteService for MockFileWriteService {
+        async fn write(&self, path: &Path, content: &str) -> anyhow::Result<()> {
+            let mut files = self.files.lock().unwrap();
+            files.insert(path.to_path_buf(), content.to_string());
+            Ok(())
         }
     }
 
@@ -162,6 +182,7 @@ mod tests {
         file_service: MockFileReadService,
         vector_index: MockVectorIndex,
         embedding_service: MockEmbeddingService,
+        write_service: MockFileWriteService,
     }
 
     impl MockInfrastructure {
@@ -171,6 +192,7 @@ mod tests {
                 file_service: MockFileReadService::new(),
                 vector_index: MockVectorIndex {},
                 embedding_service: MockEmbeddingService {},
+                write_service: MockFileWriteService::new(),
             }
         }
     }
@@ -180,6 +202,7 @@ mod tests {
         type FileReadService = MockFileReadService;
         type VectorIndex = MockVectorIndex;
         type EmbeddingService = MockEmbeddingService;
+        type FileWriteService = MockFileWriteService;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
@@ -195,6 +218,10 @@ mod tests {
 
         fn embedding_service(&self) -> &Self::EmbeddingService {
             &self.embedding_service
+        }
+
+        fn file_write_service(&self) -> &Self::FileWriteService {
+            &self.write_service
         }
     }
 

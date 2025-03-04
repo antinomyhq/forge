@@ -1,12 +1,12 @@
 use std::path::Path;
+use std::sync::Arc;
 
-use anyhow::Context;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
-use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
+use crate::{FileReadService, Infrastructure};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSReadInput {
@@ -14,32 +14,43 @@ pub struct FSReadInput {
     pub path: String,
 }
 
-/// Request to read the contents of a file at the specified path. Use this when
-/// you need to examine the contents of an existing file you do not know the
-/// contents of, for example to analyze code, review text files, or extract
-/// information from configuration files. Automatically extracts raw text from
-/// PDF and DOCX files. May not be suitable for other types of binary files, as
-/// it returns the raw content as a string.
-#[derive(ToolDescription)]
-pub struct FSRead;
+pub struct FSRead<F: Infrastructure> {
+    infra: Arc<F>,
+}
 
-impl NamedTool for FSRead {
+impl<F: Infrastructure> FSRead<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra }
+    }
+}
+
+impl<F: Infrastructure> ToolDescription for FSRead<F> {
+    fn description(&self) -> String {
+        "Request to read the contents of a file at the specified path. Use this when
+        you need to examine the contents of an existing file you do not know the
+        contents of, for example to analyze code, review text files, or extract
+        information from configuration files. Automatically extracts raw text from
+        PDF and DOCX files. May not be suitable for other types of binary files, as
+        it returns the raw content as a string."
+            .to_string()
+    }
+}
+
+impl<F: Infrastructure> NamedTool for FSRead<F> {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_fs_read")
     }
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for FSRead {
+impl<F: Infrastructure> ExecutableTool for FSRead<F> {
     type Input = FSReadInput;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        tokio::fs::read_to_string(path)
-            .await
-            .with_context(|| format!("Failed to read file content from {}", input.path))
+        Ok(String::from_utf8_lossy(&self.infra.file_read_service().read(path).await?).to_string())
     }
 }
 
@@ -49,6 +60,7 @@ mod test {
     use tokio::fs;
 
     use super::*;
+    use crate::tools::tests::Stub;
     use crate::tools::utils::TempDir;
 
     #[tokio::test]
@@ -59,7 +71,7 @@ mod test {
         let test_content = "Hello, World!";
         fs::write(&file_path, test_content).await.unwrap();
 
-        let fs_read = FSRead;
+        let fs_read = FSRead::new(Arc::new(Stub::default()));
         let result = fs_read
             .call(FSReadInput { path: file_path.to_string_lossy().to_string() })
             .await
@@ -73,7 +85,7 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
         let nonexistent_file = temp_dir.path().join("nonexistent.txt");
 
-        let fs_read = FSRead;
+        let fs_read = FSRead::new(Arc::new(Stub::default()));
         let result = fs_read
             .call(FSReadInput { path: nonexistent_file.to_string_lossy().to_string() })
             .await;
@@ -87,7 +99,7 @@ mod test {
         let file_path = temp_dir.path().join("empty.txt");
         fs::write(&file_path, "").await.unwrap();
 
-        let fs_read = FSRead;
+        let fs_read = FSRead::new(Arc::new(Stub::default()));
         let result = fs_read
             .call(FSReadInput { path: file_path.to_string_lossy().to_string() })
             .await
@@ -98,12 +110,12 @@ mod test {
 
     #[test]
     fn test_description() {
-        assert!(FSRead.description().len() > 100)
+        assert!(FSRead::new(Arc::new(Stub::default())).description().len() > 100)
     }
 
     #[tokio::test]
     async fn test_fs_read_relative_path() {
-        let fs_read = FSRead;
+        let fs_read = FSRead::new(Arc::new(Stub::default()));
         let result = fs_read
             .call(FSReadInput { path: "relative/path.txt".to_string() })
             .await;

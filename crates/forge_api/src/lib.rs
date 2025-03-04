@@ -44,4 +44,11 @@ pub trait API {
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>>;
+
+    /// Reads a file from the given path
+    async fn read_file<P: AsRef<Path> + Send>(&self, path: P) -> anyhow::Result<String>;
+
+    /// Writes the contents to the given path
+    async fn write_file<P: AsRef<Path> + Send>(&self, path: P, content: &str)
+        -> anyhow::Result<()>;
 }

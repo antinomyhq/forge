@@ -16,17 +16,12 @@ fn should_run_api_tests() -> bool {
 /// Test fixture for API testing that supports parallel model validation
 struct Fixture {
     model: ModelId,
-    #[allow(dead_code)] // The guard is kept alive by being held in the struct
-    _guard: forge_tracker::Guard,
 }
 
 impl Fixture {
     /// Create a new test fixture with the given task
     fn new(model: ModelId) -> Self {
-        Self {
-            model,
-            _guard: forge_tracker::init_tracing(PathBuf::from(".")).unwrap(),
-        }
+        Self { model }
     }
 
     /// Get the API service, panicking if not validated

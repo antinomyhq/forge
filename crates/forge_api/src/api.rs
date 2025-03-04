@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::{EnvironmentService, ForgeApp, Infrastructure};
+use forge_app::{EnvironmentService, FileReadService, FileWriteService, ForgeApp, Infrastructure};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_stream::MpscStream;
@@ -64,7 +64,7 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
     }
 
     fn environment(&self) -> Environment {
-        self.app.environment_service().get_environment().clone()
+        self.app.environment_service().get_environment()
     }
 
     async fn load(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
@@ -76,5 +76,20 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>> {
         self.app.conversation_service().get(conversation_id).await
+    }
+
+    async fn read_file<P: AsRef<Path> + Send>(&self, path: P) -> anyhow::Result<String> {
+        Ok(String::from_utf8_lossy(&self.app.file_read_service().read(path.as_ref()).await?).to_string())
+    }
+
+    async fn write_file<P: AsRef<Path> + Send>(
+        &self,
+        path: P,
+        content: &str,
+    ) -> anyhow::Result<()> {
+        self.app
+            .file_write_service()
+            .write(path.as_ref(), content)
+            .await
     }
 }
