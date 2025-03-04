@@ -22,15 +22,14 @@ impl SnapshotCli {
             return Ok(());
         }
 
-        println!("INDEX  TIMESTAMP    DATE                    SIZE");
-        println!("-----  ---------    ----                    ----");
-
+        println!("INDEX  TIMESTAMP    DATE                SIZE");
+        
         for (i, snapshot) in snapshots.iter().enumerate() {
             let size = format_size(snapshot.size);
             println!(
-                "{:5}  {:10}   {}    {:>8}   {}",
+                "{:5}  {:10}   {:16}    {:>4}   {}",
                 i,
-                snapshot.timestamp,
+                snapshot.timestamp / 1000,  // Convert milliseconds to seconds
                 snapshot.date.format("%Y-%m-%d %H:%M"),
                 size,
                 if i == 0 { "(current)" } else { "" }
