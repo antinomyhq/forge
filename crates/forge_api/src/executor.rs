@@ -1,11 +1,7 @@
 use std::sync::Arc;
 
 
-use forge_app::{EnvironmentService, Infrastructure};
-use forge_domain::{
-    AgentMessage, App, ChatRequest, ChatResponse, ConversationId, ConversationService, Error,
-    Event, Orchestrator, SystemContext, ToolService,
-};
+use forge_domain::{AgentMessage, App, ChatRequest, ChatResponse, ContextMessage, ConversationId, ConversationService, Error, Event, Orchestrator, Role};
 
 use forge_stream::MpscStream;
 
@@ -40,15 +36,28 @@ impl<F: App> ForgeExecutorService<F> {
         &self,
         conversation_id: ConversationId,
     ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>>>> {
-        let conversation = self.infra.conversation_service()
+        let conversation = self.app.conversation_service()
             .get(&conversation_id)
             .await?
             .ok_or(Error::ConversationNotFound(conversation_id.clone()))?;
-        let last_user_message = conversation
-            .rfind_event(Event::USER_TASK_UPDATE)
-            .or_else(|| conversation.rfind_event(Event::USER_TASK_INIT))
-            .ok_or(anyhow::anyhow!("No user message found in the conversation"))?;
-        let chat_request = ChatRequest::new(last_user_message.value.clone(), conversation_id);
-        self.chat(chat_request).await
+        let agent_with_context = conversation.state.iter()
+            .find_map(|(agent_id, state)| state.context.as_ref().map(|context| (agent_id, context)));
+
+        if let Some((_agent_id, context)) = agent_with_context {
+            let last_user_message = context.messages.iter().rev()
+                .find_map(|msg| match msg {
+                    ContextMessage::ContentMessage(content_msg) if content_msg.role == Role::User => {
+                        Some(content_msg.content.clone())
+                    }
+                    _ => None
+                })
+                .ok_or(anyhow::anyhow!("no user message found"))?;
+
+            let event = Event::new("user_task_update", last_user_message);
+            let chat_request = ChatRequest::new(event, conversation_id);
+            self.chat(chat_request).await
+        } else {
+            Err(anyhow::anyhow!("no agent with context found in conversation"))
+        }
     }
 }
