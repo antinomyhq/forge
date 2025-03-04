@@ -1,9 +1,9 @@
 mod snapshot;
 mod commands;
 
-use clap::Parser;
-use commands::snapshot::SnapshotCommand;
 use std::path::PathBuf;
+use clap::{Parser, Subcommand};
+use commands::snapshot::SnapshotCommand;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -14,6 +14,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Snapshot management commands
     Snapshot(SnapshotCommand),
 }
 
@@ -39,4 +40,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-}
+} 
