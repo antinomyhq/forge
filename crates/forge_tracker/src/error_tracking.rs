@@ -1,11 +1,12 @@
-use crate::{EventKind, ErrorDetails, Tracker};
 use std::backtrace::Backtrace;
+
 use lazy_static::lazy_static;
+
+use crate::{ErrorDetails, EventKind, Tracker};
 
 lazy_static! {
     static ref TRACKER: Tracker = Tracker::default();
 }
-
 
 pub async fn track_error(
     error_type: impl Into<String>,
@@ -39,16 +40,18 @@ pub async fn track_error_without_trace(
 
 #[cfg(test)]
 mod tests {
+    
+
     use super::*;
-    use tokio;
 
     #[tokio::test]
     async fn test_track_error() {
         let result = track_error(
             "TestError",
             "Test error message",
-            "test_track_error function"
-        ).await;
+            "test_track_error function",
+        )
+        .await;
         assert!(result.is_ok());
     }
 
@@ -57,8 +60,9 @@ mod tests {
         let result = track_error_without_trace(
             "TestError",
             "Test error message",
-            "test_track_error_without_trace function"
-        ).await;
+            "test_track_error_without_trace function",
+        )
+        .await;
         assert!(result.is_ok());
     }
-} 
+}
