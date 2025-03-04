@@ -1,10 +1,9 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
 use colored::Colorize;
-use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, ConversationId, Event, Model, Usage, API,
-};
+use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, Model, Usage, API};
 use forge_display::TitleFormat;
 use forge_tracker::EventKind;
 use lazy_static::lazy_static;
@@ -16,11 +15,6 @@ use crate::console::CONSOLE;
 use crate::info::Info;
 use crate::input::{Console, PromptInput};
 use crate::model::{Command, UserInput};
-
-// Event type constants moved to UI layer
-pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
-pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
-pub const EVENT_TITLE: &str = "title";
 
 lazy_static! {
     pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
@@ -45,31 +39,22 @@ impl From<&UIState> for PromptInput {
 pub struct UI<F> {
     state: UIState,
     api: Arc<F>,
-    console: Console,
+    console: Console<F>,
     cli: Cli,
     models: Option<Vec<Model>>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
 
-impl<F: API> UI<F> {
-    // Helper functions for creating events with the specific event names
-    fn create_task_init_event(content: impl ToString) -> Event {
-        Event::new(EVENT_USER_TASK_INIT, content)
-    }
-
-    fn create_task_update_event(content: impl ToString) -> Event {
-        Event::new(EVENT_USER_TASK_UPDATE, content)
-    }
-
+impl<F: API + Send + Sync> UI<F> {
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
         // Parse CLI arguments first to get flags
 
         let env = api.environment();
         Ok(Self {
             state: Default::default(),
-            api,
-            console: Console::new(env.clone()),
+            api: api.clone(),
+            console: Console::new(api),
             cli,
             models: None,
             _guard: forge_tracker::init_tracing(env.log_path())?,
@@ -119,8 +104,7 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::Message(ref content) => {
-                    let chat_result = self.chat(content.clone()).await;
-                    if let Err(err) = chat_result {
+                    if let Err(err) = self.chat(content.clone()).await {
                         CONSOLE.writeln(
                             TitleFormat::failed(format!("{:?}", err))
                                 .sub_title(self.state.usage.to_string())
@@ -166,25 +150,9 @@ impl<F: API> UI<F> {
             }
         };
 
-        // Determine if this is the first message or an update based on conversation
-        // history
-        let conversation = self.api.conversation(&conversation_id).await?;
-
-        // Create a ChatRequest with the appropriate event type
-        let event = if conversation
-            .as_ref()
-            .is_none_or(|c| c.rfind_event(EVENT_USER_TASK_INIT).is_none())
-        {
-            Self::create_task_init_event(content.clone())
-        } else {
-            Self::create_task_update_event(content.clone())
-        };
-
-        // Create the chat request with the event
-        let chat = ChatRequest::new(event, conversation_id);
+        let chat = ChatRequest { content: content.clone(), conversation_id };
 
         tokio::spawn(TRACKER.dispatch(EventKind::Prompt(content)));
-
         match self.api.chat(chat).await {
             Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
             Err(err) => Err(err),
@@ -226,10 +194,11 @@ impl<F: API> UI<F> {
                         format!("{timestamp}-{title}")
                     });
 
-                let path = format!("{path}-dump.json");
+                let path = format!("{path}.json");
 
                 let content = serde_json::to_string_pretty(&conversation)?;
-                tokio::fs::write(path.as_str(), content).await?;
+
+                self.api.write_file(Path::new(&path), &content).await?;
 
                 CONSOLE.writeln(
                     TitleFormat::success("dump")
@@ -285,7 +254,7 @@ impl<F: API> UI<F> {
                 }
             }
             ChatResponse::Custom(event) => {
-                if event.name == EVENT_TITLE {
+                if event.name == "title" {
                     self.state.current_title = Some(event.value);
                 }
             }

@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use forge_domain::App;
 
-use crate::attachment::ForgeChatRequest;
 use crate::conversation::ForgeConversationService;
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
@@ -21,7 +20,6 @@ pub struct ForgeApp<F> {
     provider_service: ForgeProviderService,
     conversation_service: ForgeConversationService,
     prompt_service: ForgeTemplateService<F, ForgeToolService>,
-    attachment_service: ForgeChatRequest<F>,
 }
 
 impl<F: Infrastructure> ForgeApp<F> {
@@ -33,7 +31,6 @@ impl<F: Infrastructure> ForgeApp<F> {
             conversation_service: ForgeConversationService::new(),
             prompt_service: ForgeTemplateService::new(infra.clone(), tool_service.clone()),
             tool_service,
-            attachment_service: ForgeChatRequest::new(infra),
         }
     }
 }
@@ -43,7 +40,6 @@ impl<F: Infrastructure> App for ForgeApp<F> {
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService;
     type TemplateService = ForgeTemplateService<F, ForgeToolService>;
-    type AttachmentService = ForgeChatRequest<F>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -60,15 +56,12 @@ impl<F: Infrastructure> App for ForgeApp<F> {
     fn template_service(&self) -> &Self::TemplateService {
         &self.prompt_service
     }
-
-    fn attachment_service(&self) -> &Self::AttachmentService {
-        &self.attachment_service
-    }
 }
 
 impl<F: Infrastructure> Infrastructure for ForgeApp<F> {
     type EnvironmentService = F::EnvironmentService;
     type FileReadService = F::FileReadService;
+    type FileWriteService = F::FileWriteService;
     type VectorIndex = F::VectorIndex;
     type EmbeddingService = F::EmbeddingService;
 
@@ -86,5 +79,9 @@ impl<F: Infrastructure> Infrastructure for ForgeApp<F> {
 
     fn embedding_service(&self) -> &Self::EmbeddingService {
         self.infra.embedding_service()
+    }
+
+    fn file_write_service(&self) -> &Self::FileWriteService {
+        self.infra.file_write_service()
     }
 }

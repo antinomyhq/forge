@@ -20,13 +20,13 @@ impl fmt::Display for Line {
 pub struct DiffFormat;
 
 impl DiffFormat {
-    pub fn format(op_name: &str, path: PathBuf, old: &str, new: &str) -> String {
+    pub fn format(path: PathBuf, old: &str, new: &str) -> String {
         let diff = TextDiff::from_lines(old, new);
         let ops = diff.grouped_ops(3);
 
         let mut output = format!(
             "{}\n\n",
-            TitleFormat::success(op_name).sub_title(path.display().to_string())
+            TitleFormat::success("diff").sub_title(path.display().to_string())
         );
 
         if ops.is_empty() {
@@ -77,14 +77,14 @@ mod tests {
     fn test_color_output() {
         let old = "Hello World\nThis is a test\nThird line\nFourth line";
         let new = "Hello World\nThis is a modified test\nNew line\nFourth line";
-        let diff = DiffFormat::format("diff", "example.txt".into(), old, new);
+        let diff = DiffFormat::format("example.txt".into(), old, new);
         println!("\nColor Output Test:\n{}", diff);
     }
 
     #[test]
     fn test_diff_printer_no_differences() {
         let content = "line 1\nline 2\nline 3";
-        let diff = DiffFormat::format("diff", "xyz.txt".into(), content, content);
+        let diff = DiffFormat::format("xyz.txt".into(), content, content);
         assert!(diff.contains("No changes applied"));
     }
 
@@ -92,7 +92,7 @@ mod tests {
     fn test_file_source() {
         let old = "line 1\nline 2\nline 3\nline 4\nline 5";
         let new = "line 1\nline 2\nline 3";
-        let diff = DiffFormat::format("diff", "xya.txt".into(), old, new);
+        let diff = DiffFormat::format("xya.txt".into(), old, new);
         let clean_diff = strip_ansi_codes(&diff);
         assert_snapshot!(clean_diff);
     }
@@ -101,7 +101,7 @@ mod tests {
     fn test_diff_printer_simple_diff() {
         let old = "line 1\nline 2\nline 3\nline 5\nline 6\nline 7\nline 8\nline 9";
         let new = "line 1\nmodified line\nline 3\nline 5\nline 6\nline 7\nline 8\nline 9";
-        let diff = DiffFormat::format("diff", "abc.txt".into(), old, new);
+        let diff = DiffFormat::format("abc.txt".into(), old, new);
         let clean_diff = strip_ansi_codes(&diff);
         assert_snapshot!(clean_diff);
     }

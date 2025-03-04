@@ -2,7 +2,6 @@ use std::fmt;
 
 use colored::Colorize;
 use forge_api::{Environment, Usage};
-use forge_tracker::VERSION;
 
 pub enum Section {
     Title(String),
@@ -49,7 +48,6 @@ impl From<&Environment> for Info {
     fn from(env: &Environment) -> Self {
         Info::new()
             .add_title("Environment")
-            .add_item("Version", VERSION)
             .add_item("OS", &env.os)
             .add_item("PID", env.pid)
             .add_item("Working Directory", env.cwd.display())

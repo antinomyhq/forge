@@ -1,17 +1,15 @@
 use std::path::Path;
+use std::sync::Arc;
 
 // No longer using dissimilar for fuzzy matching
-use forge_display::DiffFormat;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
-use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum_macros::AsRefStr;
 use thiserror::Error;
-use tokio::fs;
 
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
+use crate::{FileReadService, FileWriteService, Infrastructure};
 
 // Removed fuzzy matching threshold as we only use exact matching now
 
@@ -63,6 +61,10 @@ enum Error {
     NoMatch(String),
     #[error("Could not find swap target text: {0}")]
     NoSwapTarget(String),
+    #[error("Failed to read file: {0}")]
+    FileReadError(anyhow::Error),
+    #[error("Failed to write file: {0}")]
+    FileWriteError(anyhow::Error),
 }
 
 fn apply_replacement(
@@ -161,7 +163,7 @@ fn apply_replacement(
 }
 
 /// Operation types that can be performed on matched text
-#[derive(Deserialize, Serialize, JsonSchema, Debug, Clone, PartialEq, AsRefStr)]
+#[derive(Deserialize, Serialize, JsonSchema, Debug, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Operation {
     /// Prepend content before the matched text
@@ -181,6 +183,9 @@ pub enum Operation {
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ApplyPatchJsonInput {
+    /// The path to the file to modify
+    pub path: String,
+
     /// The text to search for in the source. If empty, operation applies to the
     /// end of the file.
     pub search: String,
@@ -193,23 +198,23 @@ pub struct ApplyPatchJsonInput {
     pub content: String,
 }
 
-#[derive(Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct Input {
-    /// The path to the file to modify
-    pub path: String,
+pub struct ApplyPatchJson<F: Infrastructure>(Arc<F>);
 
-    /// List of patch operations to apply in sequence
-    pub patches: Vec<ApplyPatchJsonInput>,
+impl<F: Infrastructure> ApplyPatchJson<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self(infra)
+    }
 }
 
-/// Performs a single text operation (prepend, append, replace, swap, delete) on
-/// matched text in a file. The operation is applied to the first match found in
-/// the text.
-#[derive(ToolDescription)]
-pub struct ApplyPatchJson;
+impl<F: Infrastructure> ToolDescription for ApplyPatchJson<F> {
+    fn description(&self) -> String {
+        "Finds and replaces all occurrences of the search text with the replacement
+        text in the file at the given path."
+            .to_string()
+    }
+}
 
-impl NamedTool for ApplyPatchJson {
+impl<F: Infrastructure> NamedTool for ApplyPatchJson<F> {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_fs_patch")
     }
@@ -231,55 +236,38 @@ fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
     }
 }
 
+/// Process the file modification and return the formatted output
+async fn process_file_modifications<F: Infrastructure>(
+    infra: Arc<F>,
+    path: &Path,
+    search: &str,
+    operation: &Operation,
+    content: &str,
+) -> Result<String, Error> {
+    let file_content = infra.file_read_service().read(path).await.map_err(Error::FileReadError)?;
+    let file_content = apply_replacement(file_content, search, operation, content)?;
+    infra.file_write_service().write(path, &file_content).await.map_err(Error::FileWriteError)?;
+
+    let warning = syn::validate(path, &file_content).map(|e| e.to_string());
+    Ok(format_output(
+        path.to_string_lossy().as_ref(),
+        &file_content,
+        warning.as_deref(),
+    ))
+}
+
 #[async_trait::async_trait]
-impl ExecutableTool for ApplyPatchJson {
-    type Input = Input;
+impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
+    type Input = ApplyPatchJsonInput;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        // Read the original content once
-        let mut current_content = fs::read_to_string(path)
-            .await
-            .map_err(Error::FileOperation)?;
-
-        // Apply each patch sequentially
-        for patch in input.patches {
-            // Save the old content before modification for diff generation
-            let old_content = current_content.clone();
-
-            // Apply the replacement
-            current_content = apply_replacement(
-                current_content,
-                &patch.search,
-                &patch.operation,
-                &patch.content,
-            )?;
-
-            // Generate diff between old and new content
-            let diff =
-                DiffFormat::format("patch", path.to_path_buf(), &old_content, &current_content);
-            println!("{}", diff);
-        }
-
-        // Write final content to file after all patches are applied
-        fs::write(path, &current_content)
-            .await
-            .map_err(Error::FileOperation)?;
-
-        // Check for syntax errors
-        let warning = syn::validate(path, &current_content).map(|e| e.to_string());
-
-        // Format the output
-        let result = format_output(
-            path.to_string_lossy().as_ref(),
-            &current_content,
-            warning.as_deref(),
-        );
-
-        // Return the final result
-        Ok(result)
+        Ok(
+            process_file_modifications(self.0.clone(), path, &input.search, &input.operation, &input.content)
+                .await?,
+        )
     }
 }
 

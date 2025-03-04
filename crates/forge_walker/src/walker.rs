@@ -95,8 +95,8 @@ impl Walker {
             let binary_extensions = [
                 "exe", "dll", "so", "dylib", "bin", "obj", "o", "class", "pyc", "jar", "war",
                 "ear", "zip", "tar", "gz", "rar", "7z", "iso", "img", "pdf", "doc", "docx", "xls",
-                "xlsx", "ppt", "pptx", "bmp", "ico", "mp3", "mp4", "avi", "mov", "sqlite", "db",
-                "bin",
+                "xlsx", "ppt", "pptx", "jpg", "jpeg", "png", "gif", "bmp", "ico", "mp3", "mp4",
+                "avi", "mov", "sqlite", "db", "bin",
             ];
             binary_extensions.contains(&ext.as_ref())
         } else {

@@ -1,6 +1,5 @@
 use derive_setters::Setters;
 use forge_domain::ContextMessage;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Default, Setters)]
@@ -121,69 +120,13 @@ impl TryFrom<ContextMessage> for Message {
             ContextMessage::ToolMessage(tool_result) => {
                 Message { role: Role::User, content: vec![tool_result.try_into()?] }
             }
-            ContextMessage::Image(url) => {
-                Message { content: vec![Content::from(url)], role: Role::User }
-            }
         })
     }
-}
-
-impl From<String> for Content {
-    fn from(value: String) -> Self {
-        match extract_image_and_base64(&value) {
-            Some((media_type, data)) => Content::Image {
-                source: ImageSource {
-                    type_: "base64".to_string(),
-                    media_type: Some(format!("image/{}", media_type)),
-                    data: Some(data),
-                    url: None,
-                },
-            },
-            None => Content::Image {
-                source: ImageSource {
-                    type_: "url".to_string(),
-                    media_type: None,
-                    data: None,
-                    url: Some(value),
-                },
-            },
-        }
-    }
-}
-
-fn extract_image_and_base64(data_uri: &str) -> Option<(String, String)> {
-    // Regular expression to match the data URI pattern
-    let re = Regex::new(r"^data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$").unwrap();
-
-    // Match the data URI against the regular expression
-    if let Some(captures) = re.captures(data_uri) {
-        // Extract image type and base64 part
-        let image_type = captures.get(1).map_or("", |m| m.as_str()).to_string();
-        let base64_data = captures.get(2).map_or("", |m| m.as_str()).to_string();
-        Some((image_type, base64_data))
-    } else {
-        None
-    }
-}
-
-#[derive(Serialize)]
-struct ImageSource {
-    #[serde(rename = "type")]
-    type_: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    media_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
 enum Content {
-    Image {
-        source: ImageSource,
-    },
     Text {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]

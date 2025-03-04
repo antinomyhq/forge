@@ -280,17 +280,6 @@ impl From<ContextMessage> for OpenRouterMessage {
                 tool_call_id: tool_result.call_id,
                 tool_calls: None,
             },
-            ContextMessage::Image(url) => {
-                let content =
-                    vec![ContentPart::ImageUrl { image_url: ImageUrl { url, detail: None } }];
-                OpenRouterMessage {
-                    role: OpenRouterRole::User,
-                    content: Some(MessageContent::Parts(content)),
-                    name: None,
-                    tool_call_id: None,
-                    tool_calls: None,
-                }
-            }
         }
     }
 }

@@ -42,13 +42,10 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
     ) -> anyhow::Result<String> {
         let env = self.infra.environment_service().get_environment();
 
-        // Build the walker, only setting max_depth if a value was provided
-        let mut walker = Walker::max_all();
+        let walker_depth = agent.walker_depth;
 
-        // Only set max_depth if the value is provided
-        walker = walker.max_depth(agent.max_walker_depth.unwrap_or(1));
-
-        let mut files = walker
+        let mut files = Walker::max_all()
+            .max_depth(walker_depth)
             .cwd(env.cwd.clone())
             .get()
             .await?

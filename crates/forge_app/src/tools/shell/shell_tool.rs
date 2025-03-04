@@ -98,7 +98,7 @@ impl ExecutableTool for Shell {
             use forge_display::TitleFormat;
 
             println!(
-                "\n{}",
+                "{}",
                 TitleFormat::execute(format!(
                     "{} {} {}",
                     self.env.shell, parameter, &input.command

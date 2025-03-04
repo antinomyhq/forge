@@ -37,6 +37,13 @@ impl From<ToolName> for AgentId {
     }
 }
 
+impl Agent {
+    /// Default walker depth for file traversal.
+    pub fn default_walker_depth() -> usize {
+        5
+    }
+}
+
 fn is_true(value: &bool) -> bool {
     *value
 }
@@ -85,10 +92,9 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub max_turns: Option<u64>,
 
-    /// Maximum depth to which the file walker should traverse for this agent
-    /// If not provided, the maximum possible depth will be used
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_walker_depth: Option<usize>,
+    /// Depth to which the file walker should traverse for this agent
+    #[serde(default = "Agent::default_walker_depth")]
+    pub walker_depth: usize,
 }
 
 /// Transformations that can be applied to the agent's context before sending it
@@ -105,11 +111,7 @@ pub enum Transform {
     },
 
     /// Works on the user prompt by enriching it with additional information
-    User {
-        agent_id: AgentId,
-        output: String,
-        input: String,
-    },
+    User { agent_id: AgentId, output: String },
 
     /// Intercepts the context and performs an operation without changing the
     /// context

@@ -105,10 +105,6 @@ pub trait TemplateService: Send + Sync {
     ) -> anyhow::Result<String>;
 }
 
-#[async_trait::async_trait]
-pub trait AttachmentService {
-    async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>>;
-}
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -117,11 +113,9 @@ pub trait App: Send + Sync + 'static {
     type ProviderService: ProviderService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
-    type AttachmentService: AttachmentService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
     fn template_service(&self) -> &Self::TemplateService;
-    fn attachment_service(&self) -> &Self::AttachmentService;
 }

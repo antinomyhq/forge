@@ -4,7 +4,6 @@ mod dispatch;
 mod error;
 mod event;
 mod log;
-pub use can_track::VERSION;
 pub use dispatch::Tracker;
 use error::Result;
 pub use event::{Event, EventKind};
