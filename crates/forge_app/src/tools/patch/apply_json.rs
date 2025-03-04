@@ -232,24 +232,33 @@ impl ExecutableTool for ApplyPatchJson {
         assert_absolute_path(path)?;
 
         // Read the original content before modification
-        let old_content = fs::read_to_string(path).await.map_err(Error::FileOperation)?;
+        let old_content = fs::read_to_string(path)
+            .await
+            .map_err(Error::FileOperation)?;
 
         // Apply the replacement
-        let modified_content = apply_replacement(old_content.clone(), &input.search, &input.operation, &input.content)?;
-        
+        let modified_content = apply_replacement(
+            old_content.clone(),
+            &input.search,
+            &input.operation,
+            &input.content,
+        )?;
+
         // Write modified content to file
-        fs::write(path, &modified_content).await.map_err(Error::FileOperation)?;
+        fs::write(path, &modified_content)
+            .await
+            .map_err(Error::FileOperation)?;
 
         // Check for syntax errors
         let warning = syn::validate(path, &modified_content).map(|e| e.to_string());
-        
+
         // Format the output
         let result = format_output(
             path.to_string_lossy().as_ref(),
             &modified_content,
             warning.as_deref(),
         );
-        
+
         // Generate diff between old and new content
         let diff = DiffFormat::format(path.to_path_buf(), &old_content, &modified_content);
         println!("{}", diff);
