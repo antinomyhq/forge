@@ -46,3 +46,10 @@ Code-Forge provides several powerful features:
    - JSON schema-based tool definitions
    - Asynchronous tool execution
    - Error handling and validation
+
+5. **Error Tracking**
+   - Comprehensive error monitoring
+   - Stack trace collection
+   - Error categorization and context
+   - Opt-out respecting privacy preferences
+   - Error frequency analysis
