@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use anyhow::Context as AnyhowContext;
 use async_recursion::async_recursion;
 use futures::future::join_all;
 use futures::{Stream, StreamExt};
@@ -18,9 +19,8 @@ pub struct AgentMessage<T> {
 
 pub struct Orchestrator<App> {
     app: Arc<App>,
-    system_context: SystemContext,
     sender: Option<Arc<ArcSender>>,
-    chat_request: ChatRequest,
+    conversation_id: ConversationId,
 }
 
 struct ChatCompletionResult {
@@ -29,18 +29,8 @@ struct ChatCompletionResult {
 }
 
 impl<A: App> Orchestrator<A> {
-    pub fn new(
-        svc: Arc<A>,
-        chat_request: ChatRequest,
-        system_context: SystemContext,
-        sender: Option<ArcSender>,
-    ) -> Self {
-        Self {
-            app: svc,
-            system_context,
-            sender: sender.map(Arc::new),
-            chat_request,
-        }
+    pub fn new(svc: Arc<A>, conversation_id: ConversationId, sender: Option<ArcSender>) -> Self {
+        Self { app: svc, sender: sender.map(Arc::new), conversation_id }
     }
 
     async fn send_message(&self, agent_id: &AgentId, message: ChatResponse) -> anyhow::Result<()> {
@@ -77,15 +67,12 @@ impl<A: App> Orchestrator<A> {
     async fn init_agent_context(&self, agent: &Agent) -> anyhow::Result<Context> {
         let tool_defs = self.init_tool_definitions(agent);
 
-        let mut system_context = self.system_context.clone();
-
         let tool_supported = self
             .app
             .provider_service()
             .parameters(&agent.model)
             .await?
             .tool_supported;
-        system_context.tool_supported = Some(tool_supported);
 
         let mut context = Context::default();
 
@@ -142,14 +129,17 @@ impl<A: App> Orchestrator<A> {
             .collect::<Vec<_>>();
 
         // From partial tool calls
-        tool_calls.extend(ToolCallFull::try_from_parts(
-            &messages
-                .iter()
-                .filter_map(|message| message.tool_call.first())
-                .clone()
-                .filter_map(|tool_call| tool_call.as_partial().cloned())
-                .collect::<Vec<_>>(),
-        )?);
+        let tool_call_parts = messages
+            .iter()
+            .filter_map(|message| message.tool_call.first())
+            .clone()
+            .filter_map(|tool_call| tool_call.as_partial().cloned())
+            .collect::<Vec<_>>();
+
+        tool_calls.extend(
+            ToolCallFull::try_from_parts(&tool_call_parts)
+                .with_context(|| format!("Failed to parse tool call: {:?}", tool_call_parts))?,
+        );
 
         // From XML
         tool_calls.extend(ToolCallFull::try_from_xml(&content)?);
@@ -157,9 +147,9 @@ impl<A: App> Orchestrator<A> {
         Ok(ChatCompletionResult { content, tool_calls })
     }
 
-    async fn dispatch(&self, event: &Event) -> anyhow::Result<()> {
+    pub async fn dispatch(&self, event: &Event) -> anyhow::Result<()> {
         debug!(
-            conversation_id = %self.chat_request.conversation_id,
+            conversation_id = %self.conversation_id,
             event_name = %event.name,
             event_value = %event.value,
             "Dispatching event"
@@ -169,11 +159,9 @@ impl<A: App> Orchestrator<A> {
         join_all(
             self.app
                 .conversation_service()
-                .get(&self.chat_request.conversation_id)
+                .get(&self.conversation_id)
                 .await?
-                .ok_or(Error::ConversationNotFound(
-                    self.chat_request.conversation_id.clone(),
-                ))?
+                .ok_or(Error::ConversationNotFound(self.conversation_id.clone()))?
                 .entries(event.name.as_str())
                 .iter()
                 .map(|agent| self.init_agent(&agent.id, event)),
@@ -225,14 +213,14 @@ impl<A: App> Orchestrator<A> {
                         }
                     }
                 }
-                Transform::User { agent_id, output: output_key } => {
+                Transform::User { agent_id, input: input_key, output: output_key } => {
                     if let Some(ContextMessage::ContentMessage(ContentMessage {
                         role: Role::User,
                         content,
                         ..
                     })) = context.messages.last_mut()
                     {
-                        let task = Event::task_init(content.clone());
+                        let task = Event::new(input_key, content.clone());
                         self.init_agent(agent_id, &task).await?;
                         if let Some(output) = self.get_last_event(output_key).await? {
                             let message = &output.value;
@@ -261,7 +249,7 @@ impl<A: App> Orchestrator<A> {
     async fn insert_event(&self, event: Event) -> anyhow::Result<()> {
         self.app
             .conversation_service()
-            .insert_event(&self.chat_request.conversation_id, event)
+            .insert_event(&self.conversation_id, event)
             .await
     }
 
@@ -269,30 +257,28 @@ impl<A: App> Orchestrator<A> {
         Ok(self
             .app
             .conversation_service()
-            .get(&self.chat_request.conversation_id)
+            .get(&self.conversation_id)
             .await?
-            .ok_or(Error::ConversationNotFound(
-                self.chat_request.conversation_id.clone(),
-            ))?)
+            .ok_or(Error::ConversationNotFound(self.conversation_id.clone()))?)
     }
 
     async fn complete_turn(&self, agent: &AgentId) -> anyhow::Result<()> {
         self.app
             .conversation_service()
-            .inc_turn(&self.chat_request.conversation_id, agent)
+            .inc_turn(&self.conversation_id, agent)
             .await
     }
 
     async fn set_context(&self, agent: &AgentId, context: Context) -> anyhow::Result<()> {
         self.app
             .conversation_service()
-            .set_context(&self.chat_request.conversation_id, agent, context)
+            .set_context(&self.conversation_id, agent, context)
             .await
     }
 
     async fn init_agent(&self, agent: &AgentId, event: &Event) -> anyhow::Result<()> {
         debug!(
-            conversation_id = %self.chat_request.conversation_id,
+            conversation_id = %self.conversation_id,
             agent = %agent,
             event = ?event,
             "Initializing agent"
@@ -321,6 +307,29 @@ impl<A: App> Orchestrator<A> {
         };
 
         context = context.add_message(ContextMessage::user(content));
+
+        // Process attachments
+        let attachments = self
+            .app
+            .attachment_service()
+            .attachments(&event.value)
+            .await?;
+
+        for attachment in attachments.into_iter() {
+            match attachment.content_type {
+                ContentType::Image => {
+                    context = context.add_message(ContextMessage::Image(attachment.content));
+                }
+                ContentType::Text => {
+                    let content = format!(
+                        "<file_content path=\"{}\">{}</file_content>",
+                        attachment.path, attachment.content
+                    );
+                    context = context.add_message(ContextMessage::user(content));
+                }
+            }
+        }
+
         self.set_context(&agent.id, context.clone()).await?;
 
         loop {
@@ -360,22 +369,5 @@ impl<A: App> Orchestrator<A> {
         self.complete_turn(&agent.id).await?;
 
         Ok(())
-    }
-
-    /// Initializes the appropriate dispatch event based on whether this is the
-    /// first message in the workflow
-    async fn init_dispatch_event(&self) -> anyhow::Result<Event> {
-        let has_task = self.get_last_event(Event::USER_TASK_INIT).await?.is_some();
-
-        Ok(if has_task {
-            Event::task_update(self.chat_request.content.clone())
-        } else {
-            Event::task_init(self.chat_request.content.clone())
-        })
-    }
-
-    pub async fn execute(&self) -> anyhow::Result<()> {
-        let event = self.init_dispatch_event().await?;
-        self.dispatch(&event).await
     }
 }

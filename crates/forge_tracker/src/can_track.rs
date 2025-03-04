@@ -3,7 +3,10 @@ use std::env;
 const LONG_ENV_FILTER_VAR_NAME: &str = "FORGE_TRACKER";
 
 /// Version information
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = match option_env!("APP_VERSION") {
+    None => env!("CARGO_PKG_VERSION"),
+    Some(v) => v,
+};
 
 /// Checks if tracking is enabled
 pub fn can_track() -> bool {

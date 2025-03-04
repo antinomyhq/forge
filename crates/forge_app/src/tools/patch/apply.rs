@@ -191,7 +191,7 @@ impl ExecutableTool for ApplyPatch {
             .await
             .map_err(Error::FileOperation)?;
         // Generate diff between old and new content
-        let diff = DiffFormat::format(path.to_path_buf(), &old_content, &new_content);
+        let diff = DiffFormat::format("patch", path.to_path_buf(), &old_content, &new_content);
         println!("{}", diff);
 
         Ok(result)

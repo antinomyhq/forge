@@ -97,7 +97,8 @@ impl ExecutableTool for FSWrite {
 
         // record the file content after they're modified
         let new_content = tokio::fs::read_to_string(path).await?;
-        let diff = DiffFormat::format(path.to_path_buf(), &old_content, &new_content);
+        let title = if file_exists { "overwrite" } else { "create" };
+        let diff = DiffFormat::format(title, path.to_path_buf(), &old_content, &new_content);
         println!("{}", diff);
 
         Ok(result)

@@ -25,11 +25,17 @@ impl<F: Infrastructure> ForgeLoaderService<F> {
     /// default if neither exists.
     pub async fn load(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         let content = match path {
-            Some(path) => self.0.file_read_service().read(path).await?,
+            Some(path) => String::from_utf8(self.0.file_read_service().read(path).await?.to_vec())?,
             None => {
                 let current_dir_config = Path::new("forge.yaml");
                 if current_dir_config.exists() {
-                    self.0.file_read_service().read(current_dir_config).await?
+                    String::from_utf8(
+                        self.0
+                            .file_read_service()
+                            .read(current_dir_config)
+                            .await?
+                            .to_vec(),
+                    )?
                 } else {
                     DEFAULT_FORGE_WORKFLOW.to_string()
                 }

@@ -1,10 +1,12 @@
 use std::path::Path;
 
 // No longer using dissimilar for fuzzy matching
+use forge_display::DiffFormat;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum_macros::AsRefStr;
 use thiserror::Error;
 use tokio::fs;
 
@@ -159,7 +161,7 @@ fn apply_replacement(
 }
 
 /// Operation types that can be performed on matched text
-#[derive(Deserialize, Serialize, JsonSchema, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, JsonSchema, Debug, Clone, PartialEq, AsRefStr)]
 #[serde(rename_all = "snake_case")]
 pub enum Operation {
     /// Prepend content before the matched text
@@ -179,9 +181,6 @@ pub enum Operation {
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ApplyPatchJsonInput {
-    /// The path to the file to modify
-    pub path: String,
-
     /// The text to search for in the source. If empty, operation applies to the
     /// end of the file.
     pub search: String,
@@ -192,6 +191,16 @@ pub struct ApplyPatchJsonInput {
     /// The content to use for the operation (replacement text, text to
     /// prepend/append, or target text for swap operations)
     pub content: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct Input {
+    /// The path to the file to modify
+    pub path: String,
+
+    /// List of patch operations to apply in sequence
+    pub patches: Vec<ApplyPatchJsonInput>,
 }
 
 /// Performs a single text operation (prepend, append, replace, swap, delete) on
@@ -222,37 +231,55 @@ fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
     }
 }
 
-/// Process the file modification and return the formatted output
-async fn process_file_modifications(
-    path: &Path,
-    search: &str,
-    operation: &Operation,
-    content: &str,
-) -> Result<String, Error> {
-    let file_content = fs::read_to_string(path).await?;
-    let file_content = apply_replacement(file_content, search, operation, content)?;
-    fs::write(path, &file_content).await?;
-
-    let warning = syn::validate(path, &file_content).map(|e| e.to_string());
-    Ok(format_output(
-        path.to_string_lossy().as_ref(),
-        &file_content,
-        warning.as_deref(),
-    ))
-}
-
 #[async_trait::async_trait]
 impl ExecutableTool for ApplyPatchJson {
-    type Input = ApplyPatchJsonInput;
+    type Input = Input;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        Ok(
-            process_file_modifications(path, &input.search, &input.operation, &input.content)
-                .await?,
-        )
+        // Read the original content once
+        let mut current_content = fs::read_to_string(path)
+            .await
+            .map_err(Error::FileOperation)?;
+
+        // Apply each patch sequentially
+        for patch in input.patches {
+            // Save the old content before modification for diff generation
+            let old_content = current_content.clone();
+
+            // Apply the replacement
+            current_content = apply_replacement(
+                current_content,
+                &patch.search,
+                &patch.operation,
+                &patch.content,
+            )?;
+
+            // Generate diff between old and new content
+            let diff =
+                DiffFormat::format("patch", path.to_path_buf(), &old_content, &current_content);
+            println!("{}", diff);
+        }
+
+        // Write final content to file after all patches are applied
+        fs::write(path, &current_content)
+            .await
+            .map_err(Error::FileOperation)?;
+
+        // Check for syntax errors
+        let warning = syn::validate(path, &current_content).map(|e| e.to_string());
+
+        // Format the output
+        let result = format_output(
+            path.to_string_lossy().as_ref(),
+            &current_content,
+            warning.as_deref(),
+        );
+
+        // Return the final result
+        Ok(result)
     }
 }
 
