@@ -226,7 +226,7 @@ impl<F: API> UI<F> {
                         format!("{timestamp}-{title}")
                     });
 
-                let path = format!("{path}.json");
+                let path = format!("{path}-dump.json");
 
                 let content = serde_json::to_string_pretty(&conversation)?;
                 tokio::fs::write(path.as_str(), content).await?;
