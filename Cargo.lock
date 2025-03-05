@@ -895,6 +895,7 @@ dependencies = [
  "colored 3.0.0",
  "derive_setters",
  "forge_api",
+ "forge_app",
  "forge_display",
  "forge_tracker",
  "forge_walker",

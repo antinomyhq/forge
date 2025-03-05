@@ -1,16 +1,17 @@
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::Context;
 use forge_display::{GrepFormat, Kind, TitleFormat};
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
-use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
+use crate::{FileReadService, Infrastructure};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSSearchInput {
@@ -24,12 +25,23 @@ pub struct FSSearchInput {
     pub file_pattern: Option<String>,
 }
 
-/// Request to perform a regex search on the content across files in a specified
-/// directory, providing context-rich results. This tool searches for patterns
-/// or specific content across multiple files, displaying each match with
-/// encapsulating context. The path must be absolute.
-#[derive(ToolDescription)]
-pub struct FSSearch;
+pub struct FSSearch<F: Infrastructure>(Arc<F>);
+
+impl<F: Infrastructure> FSSearch<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self(infra)
+    }
+}
+
+impl<F: Infrastructure> ToolDescription for FSSearch<F> {
+    fn description(&self) -> String {
+        "Request to perform a regex search on the content across files in a specified
+        directory, providing context-rich results. This tool searches for patterns
+        or specific content across multiple files, displaying each match with
+        encapsulating context. The path must be absolute."
+            .to_string()
+    }
+}
 
 impl From<&FSSearchInput> for TitleFormat {
     fn from(input: &FSSearchInput) -> Self {
@@ -44,14 +56,14 @@ impl From<&FSSearchInput> for TitleFormat {
     }
 }
 
-impl NamedTool for FSSearch {
+impl<F: Infrastructure> NamedTool for FSSearch<F> {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_fs_search")
     }
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for FSSearch {
+impl<F: Infrastructure> ExecutableTool for FSSearch<F> {
     type Input = FSSearchInput;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
@@ -110,12 +122,19 @@ impl ExecutableTool for FSSearch {
             }
 
             // Try to read the file content
-            let content = match tokio::fs::read_to_string(&full_path).await {
-                Ok(content) => content,
+            let content = match self.0.file_read_service().read(full_path.as_ref()).await {
+                Ok(content) => String::from_utf8_lossy(&content).to_string(),
                 Err(e) => {
-                    // Skip binary or unreadable files silently
-                    if e.kind() != std::io::ErrorKind::InvalidData {
-                        matches.push(format!("Error reading {:?}: {}", full_path.display(), e));
+                    for cause in e.chain() {
+                        if let Some(io_error) = cause.downcast_ref::<std::io::Error>() {
+                            if io_error.kind() != std::io::ErrorKind::InvalidData {
+                                matches.push(format!(
+                                    "Error reading {:?}: {}",
+                                    full_path.display(),
+                                    e
+                                ));
+                            }
+                        }
                     }
                     continue;
                 }
@@ -147,6 +166,7 @@ mod test {
     use tokio::fs;
 
     use super::*;
+    use crate::tools::tests::Stub;
     use crate::tools::utils::TempDir;
 
     #[tokio::test]
@@ -163,7 +183,7 @@ mod test {
             .await
             .unwrap();
 
-        let fs_search = FSSearch;
+        let fs_search = FSSearch::new(Arc::new(Stub::default()));
         let result = fs_search
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
@@ -190,7 +210,7 @@ mod test {
             .await
             .unwrap();
 
-        let fs_search = FSSearch;
+        let fs_search = FSSearch::new(Arc::new(Stub::default()));
         let result = fs_search
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
@@ -214,7 +234,7 @@ mod test {
             .await
             .unwrap();
 
-        let fs_search = FSSearch;
+        let fs_search = FSSearch::new(Arc::new(Stub::default()));
         let result = fs_search
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
@@ -246,7 +266,7 @@ mod test {
             .await
             .unwrap();
 
-        let fs_search = FSSearch;
+        let fs_search = FSSearch::new(Arc::new(Stub::default()));
         let result = fs_search
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
@@ -274,7 +294,7 @@ mod test {
         .await
         .unwrap();
 
-        let fs_search = FSSearch;
+        let fs_search = FSSearch::new(Arc::new(Stub::default()));
         let result = fs_search
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
@@ -298,7 +318,7 @@ mod test {
             .await
             .unwrap();
 
-        let fs_search = FSSearch;
+        let fs_search = FSSearch::new(Arc::new(Stub::default()));
         let result = fs_search
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
@@ -315,7 +335,7 @@ mod test {
     async fn test_fs_search_invalid_regex() {
         let temp_dir = TempDir::new().unwrap();
 
-        let fs_search = FSSearch;
+        let fs_search = FSSearch::new(Arc::new(Stub::default()));
         let result = fs_search
             .call(FSSearchInput {
                 path: temp_dir.path().to_string_lossy().to_string(),
@@ -333,7 +353,7 @@ mod test {
 
     #[tokio::test]
     async fn test_fs_search_relative_path() {
-        let fs_search = FSSearch;
+        let fs_search = FSSearch::new(Arc::new(Stub::default()));
         let result = fs_search
             .call(FSSearchInput {
                 path: "relative/path".to_string(),
