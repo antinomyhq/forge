@@ -77,4 +77,11 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
     ) -> anyhow::Result<Option<Conversation>> {
         self.app.conversation_service().get(conversation_id).await
     }
+
+    async fn retry(
+        &self,
+        conversation_id: ConversationId,
+    ) -> Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
+        Ok(self.executor_service.retry(conversation_id).await?)
+    }
 }

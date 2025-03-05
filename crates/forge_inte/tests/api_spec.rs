@@ -94,6 +94,7 @@ impl Fixture {
             self.model, MAX_RETRIES
         ))
     }
+
 }
 
 /// Macro to generate model-specific tests
