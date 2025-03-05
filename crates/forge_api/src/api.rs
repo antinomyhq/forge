@@ -77,4 +77,44 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
     ) -> anyhow::Result<Option<Conversation>> {
         self.app.conversation_service().get(conversation_id).await
     }
+
+    async fn retry(
+        &self,
+        conversation_id: ConversationId,
+    ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
+        // Get the original conversation
+        let conversation = self
+            .app
+            .conversation_service()
+            .get(&conversation_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
+
+        // Find the last user task event
+        let last_task = conversation
+            .events
+            .iter()
+            .rev()
+            .find(|event| event.name == "user_task_init" || event.name == "user_task_update")
+            .or_else(|| {
+                conversation
+                    .events
+                    .iter()
+                    .rev()
+                    .find(|event| event.name == "prompt")
+            })
+            .ok_or_else(|| anyhow::anyhow!("No task found in conversation"))?;
+
+        // Initialize a new conversation with the same workflow
+        let new_conversation_id: ConversationId = self.app.conversation_service().create(conversation.workflow.clone()).await?;
+
+        // Create a new chat request with the last task content and new conversation ID
+        let chat = ChatRequest { 
+            event: last_task.clone(),
+            conversation_id: new_conversation_id 
+        };
+
+        // Call the chat method with the new request
+        Ok(self.executor_service.chat(chat).await?)
+    }
 }

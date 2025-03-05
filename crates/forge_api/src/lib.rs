@@ -44,4 +44,10 @@ pub trait API {
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>>;
+
+    /// Retries the last user message in the conversation
+    async fn retry(
+        &self,
+        conversation_id: ConversationId,
+    ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>, anyhow::Error>>>;
 }
