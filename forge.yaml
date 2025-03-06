@@ -1,8 +1,9 @@
-variables:
-  models:
-    advanced_model: &advanced_model anthropic/claude-3.7-sonnet
-    efficiency_model: &efficiency_model anthropic/claude-3.5-haiku
+# YAML Variables
+advanced_model: &advanced_model anthropic/claude-3.7-sonnet
+efficiency_model: &efficiency_model anthropic/claude-3.5-haiku
 
+variables:
+  mode: ACT
 agents:
   - id: title_generation_worker
     model: *efficiency_model
@@ -30,3 +31,4 @@ agents:
     system_prompt: "{{> system-prompt-engineer.hbs }}"
     user_prompt: |
       <task>{{event.value}}</task>
+      <mode>{{variables.mode}}</mode>

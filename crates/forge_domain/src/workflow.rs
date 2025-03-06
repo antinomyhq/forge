@@ -1,10 +1,14 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{Agent, AgentId};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Workflow {
     pub agents: Vec<Agent>,
+    pub variables: Option<HashMap<String, Value>>,
 }
 
 impl Workflow {

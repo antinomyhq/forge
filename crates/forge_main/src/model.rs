@@ -71,6 +71,12 @@ pub enum Command {
     Exit,
     /// Lists the models available for use.
     Models,
+    /// Switch to "act" mode.
+    /// This can be triggered with the '/act' command.
+    Act,
+    /// Switch to "plan" mode.
+    /// This can be triggered with the '/plan' command.
+    Plan,
     /// Dumps the current conversation into a json file
     Dump,
 }
@@ -88,6 +94,8 @@ impl Command {
             "/info".to_string(),
             "/exit".to_string(),
             "/models".to_string(),
+            "/act".to_string(),
+            "/plan".to_string(),
             "/dump".to_string(),
         ]
     }
@@ -111,6 +119,8 @@ impl Command {
             "/exit" => Command::Exit,
             "/models" => Command::Models,
             "/dump" => Command::Dump,
+            "/act" => Command::Act,
+            "/plan" => Command::Plan,
             text => Command::Message(text.to_string()),
         }
     }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
@@ -6,6 +7,7 @@ use forge_domain::{
 use forge_walker::Walker;
 use handlebars::Handlebars;
 use rust_embed::Embed;
+use serde_json::Value;
 use tracing::debug;
 
 use crate::{EmbeddingService, EnvironmentService, Infrastructure, VectorIndex};
@@ -74,9 +76,13 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
         agent: &Agent,
         prompt: &Template<EventContext>,
         event: &Event,
+        variables: &HashMap<String, Value>,
     ) -> anyhow::Result<String> {
         // Create an EventContext with the provided event
         let mut event_context = EventContext::new(event.clone());
+
+        // Add variables to the context
+        event_context = event_context.variables(variables.clone());
 
         // Only add suggestions if the agent has suggestions enabled
         if agent.suggestions {
@@ -100,6 +106,8 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
             // Add suggestions to the event context
             event_context = event_context.suggestions(suggestion_strings);
         }
+
+        debug!(event_context = ?event_context, "Event context");
 
         // Render the template with the event context
         Ok(self

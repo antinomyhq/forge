@@ -1,5 +1,3 @@
-use std::fmt::{self, Display};
-
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -12,20 +10,6 @@ pub struct Usage {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub total_tokens: u64,
-}
-
-impl Display for Usage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.total_tokens > 0 {
-            write!(
-                f,
-                "[tokens {}/{}/{}]",
-                self.prompt_tokens, self.completion_tokens, self.total_tokens
-            )
-        } else {
-            Ok(())
-        }
-    }
 }
 
 /// Represents a message that was received from the LLM provider
@@ -141,17 +125,6 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-
-    #[test]
-    fn test_usage_display() {
-        // Test with non-zero tokens
-        let usage = Usage { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-        assert_eq!(usage.to_string(), "[tokens 10/20/30]");
-
-        // Test with zero tokens
-        let usage = Usage::default();
-        assert_eq!(usage.to_string(), "");
-    }
 
     #[test]
     fn test_finish_reason_from_str() {

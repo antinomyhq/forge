@@ -12,10 +12,10 @@ forge_app = { path = "../forge_app" }
 forge_walker = { path = "../forge_walker" }
 forge_infra = { path = "../forge_infra" }
 serde_yaml = "0.9.34"
+serde_json = { version = "1.0" }
 
 [dev-dependencies]
 tempfile = "3.8.1"
 tokio = { version = "1.0", features = ["full"] }
 insta = "1.41.1"
-serde_json = "1.0.133"
 serde = { version = "1.0" }

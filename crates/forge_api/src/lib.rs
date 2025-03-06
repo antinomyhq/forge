@@ -8,6 +8,7 @@ use std::path::Path;
 pub use api::*;
 pub use forge_domain::*;
 use forge_stream::MpscStream;
+use serde_json::Value;
 
 #[async_trait::async_trait]
 pub trait API {
@@ -44,4 +45,19 @@ pub trait API {
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>>;
+
+    /// Gets a variable from the conversation
+    async fn get_variable(
+        &self,
+        conversation_id: &ConversationId,
+        key: &str,
+    ) -> anyhow::Result<Option<Value>>;
+
+    /// Sets a variable in the conversation
+    async fn set_variable(
+        &self,
+        conversation_id: &ConversationId,
+        key: String,
+        value: Value,
+    ) -> anyhow::Result<()>;
 }

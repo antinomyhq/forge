@@ -36,6 +36,7 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
   - [Autocomplete](#autocomplete)
   - [WYSIWYG Shell Experience](#wysiwyg-shell-experience)
   - [Command Interruption](#command-interruption)
+  - [Operation Modes](#operation-modes)
 - [Custom Workflows and Multi-Agent Systems](#custom-workflows-and-multi-agent-systems)
   - [Creating Custom Workflows](#creating-custom-workflows)
   - [Workflow Configuration](#workflow-configuration)
@@ -136,10 +137,12 @@ Additional security features include:
 
 Forge offers several built-in commands to enhance your interaction:
 
-- `\new` - Start a new task when you've completed your current one
-- `\info` - View environment summary, logs folder location, and command history
-- `\models` - List all available AI models with capabilities and context limits
-- `\dump` - Save the current conversation in JSON format to a file for reference
+- `/new` - Start a new task when you've completed your current one
+- `/info` - View environment summary, logs folder location, and command history
+- `/models` - List all available AI models with capabilities and context limits
+- `/dump` - Save the current conversation in JSON format to a file for reference
+- `/act` - Switch to ACT mode (default), allowing Forge to execute commands and implement changes
+- `/plan` - Switch to PLAN mode, where Forge analyzes and plans but doesn't modify files
 
 ### Autocomplete
 
@@ -160,6 +163,44 @@ Stay in control of your shell environment with intuitive command handling:
 
 - **Cancel with `CTRL+C`:** Gracefully interrupt ongoing operations, providing the flexibility to halt processes that no longer need execution.
 - **Exit with `CTRL+D`:** Easily exit the shell session without hassle, ensuring you can quickly terminate your operations when needed.
+
+### Operation Modes
+
+Forge operates in two distinct modes to provide flexible assistance based on your needs:
+
+#### ACT Mode (Default)
+
+In ACT mode, which is the default when you start Forge, the assistant is empowered to directly implement changes to your codebase and execute commands:
+
+- **Full Execution**: Forge can modify files, create new ones, and execute shell commands
+- **Implementation**: Directly implements the solutions it proposes
+- **Verification**: Performs verification steps to ensure changes work as intended
+- **Best For**: When you want Forge to handle implementation details and fix issues directly
+
+**Example**:
+
+```bash
+# Switch to ACT mode within a Forge session
+/act
+```
+
+#### PLAN Mode
+
+In PLAN mode, Forge analyzes and plans but doesn't modify your codebase:
+
+- **Read-Only Operations**: Can only read files and run non-destructive commands
+- **Detailed Analysis**: Thoroughly examines code, identifies issues, and proposes solutions
+- **Structured Planning**: Provides step-by-step action plans for implementing changes
+- **Best For**: When you want to understand what changes are needed before implementing them yourself
+
+**Example**:
+
+```bash
+# Switch to PLAN mode within a Forge session
+/plan
+```
+
+You can easily switch between modes during a session using the `/act` and `/plan` commands. PLAN mode is especially useful for reviewing potential changes before they're implemented, while ACT mode streamlines the development process by handling implementation details for you.
 
 ## Custom Workflows and Multi-Agent Systems
 
