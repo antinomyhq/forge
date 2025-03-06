@@ -1,10 +1,9 @@
 mod snapshot;
 mod commands;
 
+use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use commands::snapshot::SnapshotCommand;
-use std::path::PathBuf;
-use forge_snapshot::DefaultSnapshotService;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -23,12 +22,12 @@ enum Commands {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     
-    // Initialize snapshot service using public factory method
+    // Initialize snapshot service
     let snapshot_dir = std::env::var("FORGE_SNAPSHOT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("snapshots"));
     
-    let snapshot_service = DefaultSnapshotService::create(
+    let snapshot_service = snapshot::service::DefaultSnapshotService::new(
         snapshot_dir,
         10, // max snapshots per file
         30, // retention days
@@ -41,4 +40,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-}
+} 

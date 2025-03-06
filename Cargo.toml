@@ -1,9 +1,47 @@
 [workspace]
-members = ["crates/*"]
 resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+
+[workspace.dependencies]
+clap = { version = "4.4.18", features = ["derive"] }
+anyhow = "1.0.80"
+serde = { version = "1.0.197", features = ["derive"] }
+sha2 = "0.10.8"
+chrono = "0.4.31"
+async-trait = "0.1.77"
+tokio = { version = "1.35.1", features = ["full"] }
+tempfile = "3.9.0"
+similar = "2.4.0"
+insta = "1.34.0"
+pretty_assertions = "1.4.1"
 
 [profile.release]
+opt-level = 3
 lto = true
 codegen-units = 1
-opt-level = 3
 strip = true
+
+[package]
+name = "forge"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A development tool with file snapshot capabilities"
+
+[dependencies]
+clap = { version = "4.4.18", features = ["derive"] }
+anyhow = "1.0.80"
+serde = { version = "1.0.197", features = ["derive"] }
+sha2 = "0.10.8"
+chrono = "0.4.31"
+async-trait = "0.1.77"
+tokio = { version = "1.35.1", features = ["full"] }
+tempfile = "3.9.0"
+similar = "2.4.0"
+insta = "1.34.0"
+pretty_assertions = "1.4.1"
