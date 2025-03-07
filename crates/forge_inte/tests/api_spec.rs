@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::env;
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::{env, fs};
 
 use anyhow::{anyhow, Context, Result};
 use forge_api::{AgentMessage, ChatRequest, ChatResponse, Event, ForgeAPI, ModelId, API};
@@ -237,7 +236,7 @@ macro_rules! generate_model_test {
     ($model:expr) => {
         #[tokio::test]
         async fn test_find_cat_name() {
-/*            if !should_run_api_tests() {
+            /*            if !should_run_api_tests() {
                 println!(
                     "Skipping API test for {} as RUN_API_TESTS is not set to 'true'",
                     $model
