@@ -19,11 +19,9 @@ pub fn init_tracing(log_path: PathBuf) -> anyhow::Result<Guard> {
         )
         .with_timer(tracing_subscriber::fmt::time::uptime())
         .with_thread_ids(false)
-        .with_target(true)
+        .with_target(false)
         .with_file(true)
         .with_line_number(true)
-        .with_ansi(true)
-        .with_span_events(FmtSpan::ACTIVE)
         .with_writer(non_blocking)
         .init();
 
