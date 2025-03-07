@@ -11,3 +11,5 @@ tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 serde_yaml = "0.9.34"
 forge_tracker = { path = "../forge_tracker" }
+serde = { version = "1.0", features = ["derive"] }
+once_cell = "1.18"
