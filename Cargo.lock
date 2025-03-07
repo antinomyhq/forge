@@ -1048,6 +1048,8 @@ dependencies = [
  "forge_api",
  "forge_tracker",
  "futures",
+ "once_cell",
+ "serde",
  "serde_yaml",
  "tokio",
  "tokio-stream",
