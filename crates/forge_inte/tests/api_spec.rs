@@ -237,13 +237,13 @@ macro_rules! generate_model_test {
     ($model:expr) => {
         #[tokio::test]
         async fn test_find_cat_name() {
-            if !should_run_api_tests() {
+/*            if !should_run_api_tests() {
                 println!(
                     "Skipping API test for {} as RUN_API_TESTS is not set to 'true'",
                     $model
                 );
                 return;
-            }
+            }*/
 
             let fixture = Fixture::new(ModelId::new($model));
 
