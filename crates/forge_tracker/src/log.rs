@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use tracing::debug;
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::{self};
 
 pub fn init_tracing(log_path: PathBuf) -> anyhow::Result<Guard> {
