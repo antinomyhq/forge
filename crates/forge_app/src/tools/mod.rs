@@ -21,14 +21,14 @@ pub fn tools<F: Infrastructure>(infra: Arc<F>) -> Vec<Tool> {
     let env = infra.environment_service().get_environment();
     vec![
         FSRead.into(),
-        FSWrite.into(),
+        FSWrite::new(infra.clone()).into(),
+        // @ssddOnTop need to keep a back up on file removal
         FSRemove.into(),
         FSList::default().into(),
         FSSearch.into(),
         FSFileInfo.into(),
-        // TODO: once ApplyPatchJson is stable we can delete ApplyPatch
-        // ApplyPatch.into(),
-        ApplyPatchJson.into(),
+        // ApplyPatch::new(infra.clone()).into(),
+        ApplyPatchJson::new(infra).into(),
         Shell::new(env.clone()).into(),
         Think::default().into(),
         Fetch::default().into(),
@@ -41,9 +41,13 @@ mod tests {
 
     use bytes::Bytes;
     use forge_domain::{Environment, Point, Provider, Query, Suggestion};
+    use forge_snaps::{SnapshotInfo, SnapshotMetadata};
 
     use super::*;
-    use crate::{EmbeddingService, FileReadService, VectorIndex};
+    use crate::{
+        EmbeddingService, FileMetaService, FileReadService, FileSnapshotService, FileWriteService,
+        VectorIndex,
+    };
 
     /// Create a default test environment
     fn stub() -> Stub {
@@ -90,6 +94,13 @@ mod tests {
             unimplemented!()
         }
     }
+
+    #[async_trait::async_trait]
+    impl FileWriteService for Stub {
+        async fn write(&self, _: &Path, _: Bytes) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+    }
     #[async_trait::async_trait]
     impl VectorIndex<Suggestion> for Stub {
         async fn store(&self, _information: Point<Suggestion>) -> anyhow::Result<()> {
@@ -102,11 +113,68 @@ mod tests {
     }
 
     #[async_trait::async_trait]
+    impl FileSnapshotService for Stub {
+        fn snapshot_dir(&self) -> PathBuf {
+            unimplemented!()
+        }
+
+        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<SnapshotInfo> {
+            unimplemented!()
+        }
+
+        async fn list_snapshots(&self, _: &Path) -> anyhow::Result<Vec<SnapshotInfo>> {
+            unimplemented!()
+        }
+
+        async fn restore_by_timestamp(&self, _: &Path, _: &str) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn restore_by_index(&self, _: &Path, _: isize) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn restore_previous(&self, _: &Path) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn get_snapshot_by_timestamp(
+            &self,
+            _: &Path,
+            _: &str,
+        ) -> anyhow::Result<SnapshotMetadata> {
+            unimplemented!()
+        }
+
+        async fn get_snapshot_by_index(
+            &self,
+            _: &Path,
+            _: isize,
+        ) -> anyhow::Result<SnapshotMetadata> {
+            unimplemented!()
+        }
+
+        async fn purge_older_than(&self, _: u32) -> anyhow::Result<usize> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileMetaService for Stub {
+        async fn is_file(&self, _: &Path) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
     impl Infrastructure for Stub {
         type EnvironmentService = Stub;
         type FileReadService = Stub;
+        type FileWriteService = Stub;
         type VectorIndex = Stub;
         type EmbeddingService = Stub;
+        type FileMetaService = Stub;
+        type FileSnapshotService = Stub;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             self
@@ -116,11 +184,23 @@ mod tests {
             self
         }
 
+        fn file_write_service(&self) -> &Self::FileWriteService {
+            self
+        }
+
         fn vector_index(&self) -> &Self::VectorIndex {
             self
         }
 
         fn embedding_service(&self) -> &Self::EmbeddingService {
+            self
+        }
+
+        fn file_meta_service(&self) -> &Self::FileMetaService {
+            self
+        }
+
+        fn file_snapshot_service(&self) -> &Self::FileSnapshotService {
             self
         }
     }

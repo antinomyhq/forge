@@ -59,7 +59,7 @@ impl<F: Infrastructure> AttachmentService for ForgeChatRequest<F> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use core::str;
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
@@ -70,13 +70,15 @@ mod tests {
     use forge_domain::{
         AttachmentService, ContentType, Environment, Point, Provider, Query, Suggestion,
     };
+    use forge_snaps::{SnapshotInfo, SnapshotMetadata};
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
-        EmbeddingService, EnvironmentService, FileReadService, Infrastructure, VectorIndex,
+        EmbeddingService, EnvironmentService, FileMetaService, FileReadService,
+        FileSnapshotService, FileWriteService, Infrastructure, VectorIndex,
     };
-
-    struct MockEnvironmentService {}
+    #[derive(Debug)]
+    pub struct MockEnvironmentService {}
 
     #[async_trait::async_trait]
     impl EnvironmentService for MockEnvironmentService {
@@ -96,11 +98,7 @@ mod tests {
         }
     }
 
-    struct MockFileReadService {
-        files: Mutex<HashMap<PathBuf, String>>,
-    }
-
-    impl MockFileReadService {
+    impl MockFileService {
         fn new() -> Self {
             let mut files = HashMap::new();
             // Add some mock files
@@ -117,27 +115,34 @@ mod tests {
                 "mock-jpeg-content".to_string(),
             );
 
-            Self { files: Mutex::new(files) }
+            Self {
+                files: Mutex::new(
+                    files
+                        .into_iter()
+                        .map(|(a, b)| (a, Bytes::from(b)))
+                        .collect::<Vec<_>>(),
+                ),
+            }
         }
 
         fn add_file(&self, path: PathBuf, content: String) {
             let mut files = self.files.lock().unwrap();
-            files.insert(path, content);
+            files.push((path, Bytes::from_owner(content)));
         }
     }
 
     #[async_trait::async_trait]
-    impl FileReadService for MockFileReadService {
+    impl FileReadService for MockFileService {
         async fn read(&self, path: &Path) -> anyhow::Result<Bytes> {
             let files = self.files.lock().unwrap();
-            match files.get(path) {
-                Some(content) => Ok(Bytes::from(content.clone())),
+            match files.iter().find(|v| v.0 == path) {
+                Some((_, content)) => Ok(content.clone()),
                 None => Err(anyhow::anyhow!("File not found: {:?}", path)),
             }
         }
     }
-
-    struct MockVectorIndex {}
+    #[derive(Debug)]
+    pub struct MockVectorIndex {}
 
     #[async_trait::async_trait]
     impl VectorIndex<Suggestion> for MockVectorIndex {
@@ -149,8 +154,8 @@ mod tests {
             Ok(vec![])
         }
     }
-
-    struct MockEmbeddingService {}
+    #[derive(Debug)]
+    pub struct MockEmbeddingService {}
 
     #[async_trait::async_trait]
     impl EmbeddingService for MockEmbeddingService {
@@ -159,34 +164,122 @@ mod tests {
         }
     }
 
-    struct MockInfrastructure {
+    #[derive(Debug)]
+    pub struct MockInfrastructure {
         env_service: MockEnvironmentService,
-        file_service: MockFileReadService,
+        file_service: MockFileService,
         vector_index: MockVectorIndex,
         embedding_service: MockEmbeddingService,
+        file_snapshot_service: MockSnapService,
     }
 
     impl MockInfrastructure {
-        fn new() -> Self {
+        pub fn new() -> Self {
             Self {
                 env_service: MockEnvironmentService {},
-                file_service: MockFileReadService::new(),
+                file_service: MockFileService::new(),
                 vector_index: MockVectorIndex {},
                 embedding_service: MockEmbeddingService {},
+                file_snapshot_service: MockSnapService,
             }
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct MockFileService {
+        files: Mutex<Vec<(PathBuf, Bytes)>>,
+    }
+
+    #[async_trait::async_trait]
+    impl FileWriteService for MockFileService {
+        async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+            let index = self.files.lock().unwrap().iter().position(|v| v.0 == path);
+            if let Some(index) = index {
+                self.files.lock().unwrap().remove(index);
+            }
+            self.files
+                .lock()
+                .unwrap()
+                .push((path.to_path_buf(), contents));
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct MockSnapService;
+
+    #[async_trait::async_trait]
+    impl FileSnapshotService for MockSnapService {
+        fn snapshot_dir(&self) -> PathBuf {
+            unimplemented!()
+        }
+
+        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<SnapshotInfo> {
+            unimplemented!()
+        }
+
+        async fn list_snapshots(&self, _: &Path) -> anyhow::Result<Vec<SnapshotInfo>> {
+            unimplemented!()
+        }
+
+        async fn restore_by_timestamp(&self, _: &Path, _: &str) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn restore_by_index(&self, _: &Path, _: isize) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn restore_previous(&self, _: &Path) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn get_snapshot_by_timestamp(
+            &self,
+            _: &Path,
+            _: &str,
+        ) -> anyhow::Result<SnapshotMetadata> {
+            unimplemented!()
+        }
+
+        async fn get_snapshot_by_index(
+            &self,
+            _: &Path,
+            _: isize,
+        ) -> anyhow::Result<SnapshotMetadata> {
+            unimplemented!()
+        }
+
+        async fn purge_older_than(&self, _: u32) -> anyhow::Result<usize> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileMetaService for MockFileService {
+        async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
+            Ok(self.files.lock().unwrap().iter().any(|(p, _)| p == path))
         }
     }
 
     impl Infrastructure for MockInfrastructure {
         type EnvironmentService = MockEnvironmentService;
-        type FileReadService = MockFileReadService;
+        type FileReadService = MockFileService;
+        type FileWriteService = MockFileService;
         type VectorIndex = MockVectorIndex;
         type EmbeddingService = MockEmbeddingService;
+        type FileMetaService = MockFileService;
+        type FileSnapshotService = MockSnapService;
+
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
         }
 
         fn file_read_service(&self) -> &Self::FileReadService {
+            &self.file_service
+        }
+
+        fn file_write_service(&self) -> &Self::FileWriteService {
             &self.file_service
         }
 
@@ -196,6 +289,14 @@ mod tests {
 
         fn embedding_service(&self) -> &Self::EmbeddingService {
             &self.embedding_service
+        }
+
+        fn file_meta_service(&self) -> &Self::FileMetaService {
+            &self.file_service
+        }
+
+        fn file_snapshot_service(&self) -> &Self::FileSnapshotService {
+            &self.file_snapshot_service
         }
     }
 

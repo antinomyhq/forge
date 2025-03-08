@@ -1,0 +1,15 @@
+[package]
+name = "forge_snaps"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.97"
+async-trait = "0.1.87"
+forge_fs = { path = "../forge_fs" }
+forge_walker = { path = "../forge_walker" }
+blake3 = "1.6.1"
+
+[dev-dependencies]
+tempfile = "3.17.1"
+tokio = {version = "1.43.0", features = ["full"]}

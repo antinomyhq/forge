@@ -69,8 +69,11 @@ impl<F: Infrastructure> App for ForgeApp<F> {
 impl<F: Infrastructure> Infrastructure for ForgeApp<F> {
     type EnvironmentService = F::EnvironmentService;
     type FileReadService = F::FileReadService;
+    type FileWriteService = F::FileWriteService;
     type VectorIndex = F::VectorIndex;
     type EmbeddingService = F::EmbeddingService;
+    type FileMetaService = F::FileMetaService;
+    type FileSnapshotService = F::FileSnapshotService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
@@ -80,11 +83,23 @@ impl<F: Infrastructure> Infrastructure for ForgeApp<F> {
         self.infra.file_read_service()
     }
 
+    fn file_write_service(&self) -> &Self::FileWriteService {
+        self.infra.file_write_service()
+    }
+
     fn vector_index(&self) -> &Self::VectorIndex {
         self.infra.vector_index()
     }
 
     fn embedding_service(&self) -> &Self::EmbeddingService {
         self.infra.embedding_service()
+    }
+
+    fn file_meta_service(&self) -> &Self::FileMetaService {
+        self.infra.file_meta_service()
+    }
+
+    fn file_snapshot_service(&self) -> &Self::FileSnapshotService {
+        self.infra.file_snapshot_service()
     }
 }

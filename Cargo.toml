@@ -92,3 +92,5 @@ forge_stream = { path = "crates/forge_stream" }
 forge_tool_macros = { path = "crates/forge_tool_macros" }
 forge_tracker = { path = "crates/forge_tracker" }
 forge_walker = { path = "crates/forge_walker" }
+forge_fs = { path = "crates/forge_fs" }
+forge_snaps = { path = "crates/forge_snaps" }
