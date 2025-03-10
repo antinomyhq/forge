@@ -40,7 +40,6 @@ pub async fn track_error_without_trace(
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::*;
 
