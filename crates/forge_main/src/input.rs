@@ -9,6 +9,7 @@ use crate::console::CONSOLE;
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{Command, UserInput};
 use crate::prompt::ForgePrompt;
+use crate::state::Mode;
 
 /// Console implementation for handling user input via command line.
 #[derive(Debug)]
@@ -60,14 +61,16 @@ pub enum PromptInput {
     Update {
         title: Option<String>,
         usage: Option<Usage>,
+        mode: Mode,
     },
 }
 
 impl From<PromptInput> for ForgePrompt {
     fn from(input: PromptInput) -> Self {
         match input {
-            PromptInput::Update { title, usage } => {
+            PromptInput::Update { title, usage, mode } => {
                 let mut prompt = ForgePrompt::default();
+                prompt.mode(mode);
                 if let Some(title) = title {
                     prompt.title(title);
                 }

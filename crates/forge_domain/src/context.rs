@@ -220,9 +220,12 @@ impl Context {
     }
 
     pub fn add_tool_results(mut self, results: Vec<ToolResult>) -> Self {
-        debug!(results = ?results, "Adding tool results to context");
-        self.messages
-            .extend(results.into_iter().map(ContextMessage::tool_result));
+        if !results.is_empty() {
+            debug!(results = ?results, "Adding tool results to context");
+            self.messages
+                .extend(results.into_iter().map(ContextMessage::tool_result));
+        }
+
         self
     }
 

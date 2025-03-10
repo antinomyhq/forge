@@ -44,7 +44,7 @@ fn default_raw() -> Option<bool> {
 pub struct FetchInput {
     /// URL to fetch
     url: String,
-    /// Maximum number of characters to return (default: 5000)
+    /// Maximum number of characters to return (default: 40000)
     #[serde(default = "default_max_length")]
     max_length: Option<usize>,
     /// Start content from this character index (default: 0),
@@ -166,7 +166,7 @@ impl ExecutableTool for Fetch {
             return Ok("<error>No more content available.</error>".to_string());
         }
 
-        let max_length = input.max_length.unwrap_or(5000);
+        let max_length = input.max_length.unwrap_or(40000);
         let end = (start_index + max_length).min(original_length);
         let mut truncated = content[start_index..end].to_string();
 

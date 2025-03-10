@@ -4,6 +4,7 @@ use anyhow::Result;
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{Agent, AgentId, Context, Error, Event, Workflow};
@@ -35,6 +36,7 @@ pub struct Conversation {
     pub state: HashMap<AgentId, AgentState>,
     pub events: Vec<Event>,
     pub workflow: Workflow,
+    pub variables: HashMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -47,10 +49,11 @@ impl Conversation {
     pub fn new(id: ConversationId, workflow: Workflow) -> Self {
         Self {
             id,
-            workflow,
             archived: false,
             state: Default::default(),
             events: Default::default(),
+            variables: workflow.variables.clone().unwrap_or_default(),
+            workflow,
         }
     }
 
@@ -75,5 +78,27 @@ impl Conversation {
 
     pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
         self.events.iter().rfind(|event| event.name == event_name)
+    }
+
+    /// Get a variable value by its key
+    ///
+    /// Returns None if the variable doesn't exist
+    pub fn get_variable(&self, key: &str) -> Option<&Value> {
+        self.variables.get(key)
+    }
+
+    /// Set a variable with the given key and value
+    ///
+    /// If the key already exists, its value will be updated
+    pub fn set_variable(&mut self, key: String, value: Value) -> &mut Self {
+        self.variables.insert(key, value);
+        self
+    }
+
+    /// Delete a variable by its key
+    ///
+    /// Returns true if the variable was present and removed, false otherwise
+    pub fn delete_variable(&mut self, key: &str) -> bool {
+        self.variables.remove(key).is_some()
     }
 }

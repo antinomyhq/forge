@@ -6,7 +6,7 @@ use forge_app::{FileReadService, Infrastructure};
 use forge_domain::Workflow;
 
 // Default forge.yaml content embedded in the binary
-const DEFAULT_FORGE_WORKFLOW: &str = include_str!("../../../forge.yaml");
+const DEFAULT_FORGE_WORKFLOW: &str = include_str!("../../../forge.default.yaml");
 
 /// A workflow loader to load the workflow from the given path.
 /// It also resolves the internal paths specified in the workflow.

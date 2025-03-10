@@ -11,6 +11,8 @@ Best Practices:
 
 **Forge: AI-Enhanced Terminal Development Environment**
 
+![Code-Forge Demo](https://antinomy.ai/images/forge_demo_2x.gif)
+
 Forge is a comprehensive coding agent that integrates AI capabilities with your development environment, offering sophisticated assistance while maintaining the efficiency of your existing workflow.
 
 - Advanced AI coding assistant with comprehensive understanding, planning, and execution of complex development tasks
@@ -36,6 +38,10 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
   - [Autocomplete](#autocomplete)
   - [WYSIWYG Shell Experience](#wysiwyg-shell-experience)
   - [Command Interruption](#command-interruption)
+  - [Operation Modes](#operation-modes)
+    - [ACT Mode (Default)](#act-mode-default)
+    - [PLAN Mode](#plan-mode)
+  - [Application Logs](#application-logs)
 - [Custom Workflows and Multi-Agent Systems](#custom-workflows-and-multi-agent-systems)
   - [Creating Custom Workflows](#creating-custom-workflows)
   - [Workflow Configuration](#workflow-configuration)
@@ -44,6 +50,9 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
     - [Agent Configuration Options](#agent-configuration-options)
     - [Built-in Templates](#built-in-templates)
     - [Example Workflow Configuration](#example-workflow-configuration)
+- [Provider Configuration](#provider-configuration)
+  - [Supported Providers](#supported-providers)
+  - [Custom Provider URLs](#custom-provider-urls)
 - [Why Shell?](#why-shell)
 - [Community](#community)
 - [Support Us](#support-us)
@@ -80,6 +89,9 @@ wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | b
    ```bash
    # Your API key for accessing AI models (see Environment Configuration section)
    OPENROUTER_API_KEY=<Enter your Open Router Key>
+   
+   # Optional: Set a custom URL for OpenAI-compatible providers
+   #OPENAI_URL=https://custom-openai-provider.com/v1
    ```
 
    _You can get a Key at [Open Router](https://openrouter.ai/)_
@@ -136,10 +148,12 @@ Additional security features include:
 
 Forge offers several built-in commands to enhance your interaction:
 
-- `\new` - Start a new task when you've completed your current one
-- `\info` - View environment summary, logs folder location, and command history
-- `\models` - List all available AI models with capabilities and context limits
-- `\dump` - Save the current conversation in JSON format to a file for reference
+- `/new` - Start a new task when you've completed your current one
+- `/info` - View environment summary, logs folder location, and command history
+- `/models` - List all available AI models with capabilities and context limits
+- `/dump` - Save the current conversation in JSON format to a file for reference
+- `/act` - Switch to ACT mode (default), allowing Forge to execute commands and implement changes
+- `/plan` - Switch to PLAN mode, where Forge analyzes and plans but doesn't modify files
 
 ### Autocomplete
 
@@ -160,6 +174,128 @@ Stay in control of your shell environment with intuitive command handling:
 
 - **Cancel with `CTRL+C`:** Gracefully interrupt ongoing operations, providing the flexibility to halt processes that no longer need execution.
 - **Exit with `CTRL+D`:** Easily exit the shell session without hassle, ensuring you can quickly terminate your operations when needed.
+
+### Operation Modes
+
+Forge operates in two distinct modes to provide flexible assistance based on your needs:
+
+#### ACT Mode (Default)
+
+In ACT mode, which is the default when you start Forge, the assistant is empowered to directly implement changes to your codebase and execute commands:
+
+- **Full Execution**: Forge can modify files, create new ones, and execute shell commands
+- **Implementation**: Directly implements the solutions it proposes
+- **Verification**: Performs verification steps to ensure changes work as intended
+- **Best For**: When you want Forge to handle implementation details and fix issues directly
+
+**Example**:
+
+```bash
+# Switch to ACT mode within a Forge session
+/act
+```
+
+#### PLAN Mode
+
+In PLAN mode, Forge analyzes and plans but doesn't modify your codebase:
+
+- **Read-Only Operations**: Can only read files and run non-destructive commands
+- **Detailed Analysis**: Thoroughly examines code, identifies issues, and proposes solutions
+- **Structured Planning**: Provides step-by-step action plans for implementing changes
+- **Best For**: When you want to understand what changes are needed before implementing them yourself
+
+**Example**:
+
+```bash
+# Switch to PLAN mode within a Forge session
+/plan
+```
+
+You can easily switch between modes during a session using the `/act` and `/plan` commands. PLAN mode is especially useful for reviewing potential changes before they're implemented, while ACT mode streamlines the development process by handling implementation details for you.
+
+### Application Logs
+
+Forge generates detailed JSON-formatted logs that help with troubleshooting and understanding the application's behavior. These logs provide valuable insights into system operations and API interactions.
+
+**Log Location and Access**
+
+Logs are stored in your application support directory with date-based filenames. The typical path looks like:
+
+```bash
+/Users/username/Library/Application Support/forge/logs/forge.log.YYYY-MM-DD
+```
+
+You can easily locate log files using the built-in command `/info`, which displays system information including the exact path to your log files.
+
+**Viewing and Filtering Logs**
+
+To view logs in real-time with automatic updates, use the `tail` command:
+
+```bash
+tail -f /Users/tushar/Library/Application Support/forge/logs/forge.log.2025-03-07
+```
+
+**Formatted Log Viewing with jq**
+
+Since Forge logs are in JSON format, you can pipe them through `jq` for better readability:
+
+```bash
+tail -f /Users/tushar/Library/Application Support/forge/logs/forge.log.2025-03-07 | jq
+```
+
+This displays the logs in a nicely color-coded structure that's much easier to analyze, helping you quickly identify patterns, errors, or specific behavior during development and debugging.
+
+## Provider Configuration
+
+Forge supports multiple AI providers and allows custom configuration to meet your specific needs.
+
+### Supported Providers
+
+Forge automatically detects and uses your API keys from environment variables in the following priority order:
+
+1. `FORGE_KEY` - Antinomy's provider (OpenAI-compatible)
+2. `OPENROUTER_API_KEY` - Open Router provider (aggregates multiple models)
+3. `OPENAI_API_KEY` - Official OpenAI provider
+4. `ANTHROPIC_API_KEY` - Official Anthropic provider
+
+To use a specific provider, set the corresponding environment variable in your `.env` file.
+
+```bash
+# Examples of different provider configurations (use only one)
+
+# For Open Router (recommended, provides access to multiple models)
+OPENROUTER_API_KEY=your_openrouter_key_here
+
+# For official OpenAI
+OPENAI_API_KEY=your_openai_key_here
+
+# For official Anthropic
+ANTHROPIC_API_KEY=your_anthropic_key_here
+
+# For Antinomy's provider
+FORGE_KEY=your_forge_key_here
+```
+
+### Custom Provider URLs
+
+For OpenAI-compatible providers (including Open Router), you can customize the API endpoint URL by setting the `OPENAI_URL` environment variable:
+
+```bash
+# Custom OpenAI-compatible provider
+OPENAI_API_KEY=your_api_key_here
+OPENAI_URL=https://your-custom-provider.com/v1
+
+# Or with Open Router but custom endpoint
+OPENROUTER_API_KEY=your_openrouter_key_here
+OPENAI_URL=https://alternative-openrouter-endpoint.com/v1
+```
+
+This is particularly useful when:
+
+- Using self-hosted models with OpenAI-compatible APIs
+- Connecting to enterprise OpenAI deployments
+- Using proxy services or API gateways
+- Working with regional API endpoints
 
 ## Custom Workflows and Multi-Agent Systems
 
@@ -211,6 +347,7 @@ Each agent needs tools to perform tasks, configured in the `tools` field:
 - `tools` - List of tools the agent can use
 - `subscribe` - Events the agent listens to
 - `ephemeral` - If true, agent is destroyed after task completion
+- `tool_supported` - (Optional) Boolean flag that determines whether tools defined in the agent configuration are actually made available to the LLM. When set to `false`, tools are listed in the configuration but not included in AI model requests, causing the agent to format tool calls in XML rather than in the model's native format. Default: `true`.
 - `system_prompt` - (Optional) Instructions for how the agent should behave. While optional, it's recommended to provide clear instructions for best results.
 - `user_prompt` - (Optional) Format for user inputs. If not provided, the raw event value is used.
 
@@ -241,6 +378,7 @@ agents:
       - tool_forge_event_dispatch
     subscribe:
       - user_task_init
+    tool_supported: false # Force XML-based tool call formatting
     system_prompt: "{{> system-prompt-title-generator.hbs }}"
     user_prompt: <technical_content>{{event.value}}</technical_content>
 
@@ -258,6 +396,7 @@ agents:
       - user_task_init
       - user_task_update
     ephemeral: false
+    tool_supported: true # Use model's native tool call format (default)
     system_prompt: "{{> system-prompt-engineer.hbs }}"
     user_prompt: |
       <task>{{event.value}}</task>

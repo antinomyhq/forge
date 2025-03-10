@@ -60,13 +60,16 @@ impl<F: Infrastructure> AttachmentService for ForgeChatRequest<F> {
 
 #[cfg(test)]
 mod tests {
+    use core::str;
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_domain::{AttachmentService, ContentType, Environment, Point, Query, Suggestion};
+    use forge_domain::{
+        AttachmentService, ContentType, Environment, Point, Provider, Query, Suggestion,
+    };
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
@@ -87,9 +90,8 @@ mod tests {
                 qdrant_key: None,
                 qdrant_cluster: None,
                 base_path: PathBuf::from("/base"),
-                provider_key: "key".to_string(),
-                provider_url: "url".to_string(),
                 openai_key: None,
+                provider: Provider::open_router("test-key"),
             }
         }
     }
@@ -180,7 +182,6 @@ mod tests {
         type FileReadService = MockFileReadService;
         type VectorIndex = MockVectorIndex;
         type EmbeddingService = MockEmbeddingService;
-
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
         }

@@ -1,8 +1,6 @@
 use anyhow::Context as _;
-use derive_setters::Setters;
-use forge_domain::{
-    ChatCompletionMessage, Context, Model, ModelId, Parameters, ProviderService, ResultStream,
-};
+use derive_builder::Builder;
+use forge_domain::{ChatCompletionMessage, Context, Model, ModelId, ProviderService, ResultStream};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
@@ -11,36 +9,7 @@ use tokio_stream::StreamExt;
 use super::request::Request;
 use super::response::{EventData, ListModelResponse};
 
-#[derive(Debug, Default, Clone, Setters)]
-#[setters(into, strip_option)]
-pub struct AnthropicBuilder {
-    api_key: Option<String>,
-    base_url: Option<String>,
-    anthropic_version: Option<String>,
-}
-
-impl AnthropicBuilder {
-    pub fn build(self) -> anyhow::Result<Anthropic> {
-        let client = Client::builder().build()?;
-        let base_url = self
-            .base_url
-            .as_deref()
-            .unwrap_or("https://api.anthropic.com/v1/");
-
-        let base_url = Url::parse(base_url)
-            .with_context(|| format!("Failed to parse base URL: {}", base_url))?;
-        let anthropic_version = self
-            .anthropic_version
-            .unwrap_or_else(|| "2023-06-01".to_string());
-        let api_key = self
-            .api_key
-            .ok_or_else(|| anyhow::anyhow!("API key is required"))?;
-
-        Ok(Anthropic { client, base_url, api_key, anthropic_version })
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Builder)]
 pub struct Anthropic {
     client: Client,
     api_key: String,
@@ -145,11 +114,6 @@ impl ProviderService for Anthropic {
         let response: ListModelResponse = serde_json::from_str(&text)?;
         Ok(response.data.into_iter().map(Into::into).collect())
     }
-    async fn parameters(&self, _model: &ModelId) -> anyhow::Result<Parameters> {
-        // TODO: anthropic provider doesn't have this API, so for now allowing tool
-        // calls for all models.
-        Ok(Parameters { tool_supported: true })
-    }
 }
 
 #[cfg(test)]
@@ -162,7 +126,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_for_models() {
-        let anthropic = Anthropic::builder().api_key("sk-some-key").build().unwrap();
+        let anthropic = Anthropic::builder()
+            .client(Client::new())
+            .base_url(Url::parse("https://api.anthropic.com/v1/").unwrap())
+            .anthropic_version("v1".to_string())
+            .api_key("sk-some-key".to_string())
+            .build()
+            .unwrap();
         assert_eq!(
             anthropic.url("/models").unwrap().as_str(),
             "https://api.anthropic.com/v1/models"

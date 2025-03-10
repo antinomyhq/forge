@@ -124,6 +124,7 @@ impl ExecutableTool for Shell {
 mod tests {
     use std::{env, fs};
 
+    use forge_domain::Provider;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -139,8 +140,7 @@ mod tests {
             } else {
                 "/bin/sh".to_string()
             },
-            provider_key: String::default(),
-            provider_url: Default::default(),
+            provider: Provider::anthropic("test-key"),
             base_path: PathBuf::new(),
             qdrant_key: None,
             qdrant_cluster: None,

@@ -4,52 +4,52 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-uuid = { version = "1.0", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-tokio = { version = "1", features = ["full", "test-util"] }
-derive_more = { version = "1.0.0", features = ["full"] }
-tracing = "0.1.41"
-async-trait = "0.1.83"
-forge_open_router = { path = "../forge_open_router" }
-forge_tool_macros = { path = "../forge_tool_macros" }
-forge_display = { path = "../forge_display" }
-forge_walker = { path = "../forge_walker" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.133"
-derive_setters = "0.1.6"
-tokio-stream = "0.1.17"
-handlebars = { version = "6.2.0", features = ["rust-embed"] }
-forge_domain = { path = "../forge_domain" }
-moka2 = "0.13"
-schemars = "0.8.21"
-anyhow = "1.0.75"
-futures = "0.3.31"
-reqwest = { version = "0.12.12", features = ["json", "rustls-tls"], default-features = false }
-regex = "1.11.1"
-dissimilar = "1.0.9"
-syn = "2.0.98"
-thiserror = "2.0.11"
-nom = "8.0.0"
-tree-sitter = "0.25.1"
-html2md = "0.2.15"
-glob = "0.3.2"
-tree-sitter-rust = "0.23"
-tree-sitter-python = "0.23"
-tree-sitter-typescript = { version = "0.23" }
-tree-sitter-css = "0.23"
-tree-sitter-java = "0.23"
-tree-sitter-scala = "0.23"
-tree-sitter-go = "0.23"
-tree-sitter-cpp = "0.23"
-tree-sitter-ruby = "0.23"
-rust-embed = "8.5.0"
-base64 = "0.22.1"
-strum_macros = "0.27.1"
-strum = "0.27.1"
-bytes = "1.10.0"
+uuid.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+derive_more.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+forge_open_router.workspace = true
+forge_tool_macros.workspace = true
+forge_display.workspace = true
+forge_walker.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+derive_setters.workspace = true
+tokio-stream.workspace = true
+handlebars.workspace = true
+forge_domain.workspace = true
+moka2.workspace = true
+schemars.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+reqwest.workspace = true
+regex.workspace = true
+dissimilar.workspace = true
+syn.workspace = true
+thiserror.workspace = true
+nom.workspace = true
+tree-sitter.workspace = true
+html2md.workspace = true
+glob.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-css.workspace = true
+tree-sitter-java.workspace = true
+tree-sitter-scala.workspace = true
+tree-sitter-go.workspace = true
+tree-sitter-cpp.workspace = true
+tree-sitter-ruby.workspace = true
+rust-embed.workspace = true
+base64.workspace = true
+strum_macros.workspace = true
+strum.workspace = true
+bytes.workspace = true
 
 [dev-dependencies]
-insta = "1.41.1"
-mockito = "1.6.1"
-pretty_assertions = "1.4.1"
-tempfile = "3.10.1"
+insta.workspace = true
+mockito.workspace = true
+pretty_assertions.workspace = true
+tempfile.workspace = true

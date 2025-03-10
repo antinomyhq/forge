@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
+use crate::Provider;
+
 #[derive(Debug, Setters, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[setters(strip_option)]
@@ -24,10 +26,8 @@ pub struct Environment {
     pub qdrant_cluster: Option<String>,
     /// The base path relative to which everything else stored.
     pub base_path: PathBuf,
-    /// The Forge API key.
-    pub provider_key: String,
-    /// The base url for provider
-    pub provider_url: String,
+    /// Resolved provider based on the environment configuration.    
+    pub provider: Provider,
     /// The OpenAI API key required to use embedding models.
     pub openai_key: Option<String>,
 }

@@ -24,7 +24,7 @@ agents:
       - user_help_query
     system_prompt: |
       {{> system-prompt-help.hbs }}
-    user_prompt: <user_query>{{event.value}}</user_query>
+    user_prompt: <query>{{event.value}}</query>
 
   - id: software-engineer
     model: *advanced_model
@@ -41,7 +41,7 @@ agents:
       - user_task_init
       - user_task_update
     ephemeral: false
-    max_walker_depth: 1024
+    max_walker_depth: 4
     system_prompt: "{{> system-prompt-engineer.hbs }}"
     user_prompt: |
       <task>{{event.value}}</task>

@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use derive_setters::Setters;
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{NamedTool, ToolCallFull, ToolDefinition, ToolName};
 
@@ -17,11 +20,16 @@ pub struct Event {
 pub struct EventContext {
     event: Event,
     suggestions: Vec<String>,
+    variables: HashMap<String, Value>,
 }
 
 impl EventContext {
     pub fn new(event: Event) -> Self {
-        Self { event, suggestions: Default::default() }
+        Self {
+            event,
+            suggestions: Default::default(),
+            variables: Default::default(),
+        }
     }
 }
 

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dev-dependencies]
-gh-workflow-tailcall = "0.5.1"
-pretty_assertions = "1.4.1"
-serde_json = "1.0.108"
-indexmap = "2.7.1"
+gh-workflow-tailcall.workspace = true
+pretty_assertions.workspace = true
+serde_json.workspace = true
+indexmap.workspace = true

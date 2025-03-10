@@ -67,12 +67,8 @@ impl<A: App> Orchestrator<A> {
     async fn init_agent_context(&self, agent: &Agent) -> anyhow::Result<Context> {
         let tool_defs = self.init_tool_definitions(agent);
 
-        let tool_supported = self
-            .app
-            .provider_service()
-            .parameters(&agent.model)
-            .await?
-            .tool_supported;
+        // Use the agent's tool_supported flag directly instead of querying the provider
+        let tool_supported = agent.tool_supported;
 
         let mut context = Context::default();
 
@@ -296,10 +292,14 @@ impl<A: App> Orchestrator<A> {
         };
 
         let content = if let Some(user_prompt) = &agent.user_prompt {
-            // Use the consolidated render_event method which handles suggestions internally
+            // Get conversation variables from the conversation
+            let variables = &conversation.variables;
+
+            // Use the consolidated render_event method which handles suggestions and
+            // variables
             self.app
                 .template_service()
-                .render_event(agent, user_prompt, event)
+                .render_event(agent, user_prompt, event, variables)
                 .await?
         } else {
             // Use the raw event value as content if no user_prompt is provided

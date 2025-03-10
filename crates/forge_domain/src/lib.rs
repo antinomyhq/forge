@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use serde_json::Value;
 mod agent;
 mod chat_request;
 mod chat_response;
@@ -60,7 +63,6 @@ pub trait ProviderService: Send + Sync + 'static {
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
     async fn models(&self) -> anyhow::Result<Vec<Model>>;
-    async fn parameters(&self, model: &ModelId) -> anyhow::Result<Parameters>;
 }
 
 #[async_trait::async_trait]
@@ -87,6 +89,14 @@ pub trait ConversationService: Send + Sync {
         conversation_id: &ConversationId,
         event: Event,
     ) -> anyhow::Result<()>;
+    async fn get_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<Option<Value>>;
+    async fn set_variable(
+        &self,
+        id: &ConversationId,
+        key: String,
+        value: Value,
+    ) -> anyhow::Result<()>;
+    async fn delete_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<bool>;
 }
 
 #[async_trait::async_trait]
@@ -102,6 +112,7 @@ pub trait TemplateService: Send + Sync {
         agent: &Agent,
         prompt: &Template<EventContext>,
         event: &Event,
+        variables: &HashMap<String, Value>,
     ) -> anyhow::Result<String>;
 }
 

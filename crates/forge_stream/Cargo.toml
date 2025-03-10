@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-futures = "0.3.31"
-tokio = "1.43.0"
+futures.workspace = true
+tokio.workspace = true

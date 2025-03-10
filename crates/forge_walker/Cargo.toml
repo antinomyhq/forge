@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ignore = "0.4.23"
-tokio = { version = "1.42.0", features = ["fs", "rt", "macros", "rt-multi-thread"] }
-anyhow = "1.0"
-derive_setters = "0.1.6"
+ignore.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+derive_setters.workspace = true
 
 [dev-dependencies]
-pretty_assertions = "1.4.1"
-tempfile = "3.10.0"
+pretty_assertions.workspace = true
+tempfile.workspace = true

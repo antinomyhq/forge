@@ -7,6 +7,8 @@ pub struct ForgeEnvironmentService {
     restricted: bool,
 }
 
+type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
+
 impl ForgeEnvironmentService {
     /// Creates a new EnvironmentFactory with current working directory
     ///
@@ -30,17 +32,44 @@ impl ForgeEnvironmentService {
         }
     }
 
+    /// Resolves the provider key and provider from environment variables
+    ///
+    /// Returns a tuple of (provider_key, provider)
+    /// Panics if no API key is found in the environment
+    fn resolve_provider(&self) -> Provider {
+        let keys: [ProviderSearch; 4] = [
+            ("FORGE_KEY", Box::new(Provider::antinomy)),
+            ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
+            ("OPENAI_API_KEY", Box::new(Provider::openai)),
+            ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
+        ];
+
+        let env_variables = keys
+            .iter()
+            .map(|(key, _)| *key)
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        keys.into_iter()
+            .find_map(|(key, fun)| {
+                std::env::var(key).ok().map(|key| {
+                    let mut provider = fun(&key);
+
+                    if let Ok(url) = std::env::var("OPENAI_URL") {
+                        provider.open_ai_url(url);
+                    }
+
+                    provider
+                })
+            })
+            .unwrap_or_else(|| panic!("No API key found. Please set one of: {}", env_variables))
+    }
+
     fn get(&self) -> Environment {
         dotenv::dotenv().ok();
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
+        let provider = self.resolve_provider();
 
-        let provider_key = std::env::var("FORGE_KEY")
-            .or_else(|_| std::env::var("OPENROUTER_API_KEY"))
-            .or_else(|_| std::env::var("OPENAI_API_KEY"))
-            .or_else(|_| std::env::var("ANTHROPIC_API_KEY"))
-            .expect("No API key found. Please set one of: FORGE_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY");
-        // note: since we know the key is set, we can unwrap here.
-        let provider = Provider::from_env().unwrap();
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
@@ -53,9 +82,8 @@ impl ForgeEnvironmentService {
 
             qdrant_key: std::env::var("QDRANT_KEY").ok(),
             qdrant_cluster: std::env::var("QDRANT_CLUSTER").ok(),
-            provider_key,
-            provider_url: provider.to_base_url().to_string(),
             openai_key: std::env::var("OPENAI_API_KEY").ok(),
+            provider,
         }
     }
 }
@@ -63,113 +91,5 @@ impl ForgeEnvironmentService {
 impl EnvironmentService for ForgeEnvironmentService {
     fn get_environment(&self) -> Environment {
         self.get()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::env;
-
-    use forge_domain::Provider;
-    use serial_test::serial;
-
-    // reset the env variables for reliable tests
-    fn reset_env() {
-        env::remove_var("FORGE_KEY");
-        env::remove_var("FORGE_PROVIDER_URL");
-        env::remove_var("OPENROUTER_API_KEY");
-        env::remove_var("OPENAI_API_KEY");
-        env::remove_var("ANTHROPIC_API_KEY");
-    }
-
-    #[test]
-    #[serial]
-    fn test_provider_from_env_with_forge_key_and_without_provider_url() {
-        reset_env();
-        env::set_var("FORGE_KEY", "some_forge_key");
-
-        let provider = Provider::from_env();
-        assert_eq!(provider, None);
-    }
-
-    #[test]
-    #[serial]
-    fn test_provider_from_env_with_forge_key() {
-        reset_env();
-        env::set_var("FORGE_KEY", "some_forge_key");
-        env::set_var("FORGE_PROVIDER_URL", "https://api.openai.com/v1/");
-
-        let provider = Provider::from_env();
-        assert_eq!(provider, Some(Provider::OpenAI));
-    }
-
-    #[test]
-    #[serial]
-    fn test_provider_from_env_with_open_router_key() {
-        reset_env();
-        env::set_var("OPENROUTER_API_KEY", "some_open_router_key");
-
-        let provider = Provider::from_env();
-        assert_eq!(provider, Some(Provider::OpenRouter));
-    }
-
-    #[test]
-    #[serial]
-    fn test_provider_from_env_with_openai_key() {
-        reset_env();
-        env::set_var("OPENAI_API_KEY", "some_openai_key");
-
-        let provider = Provider::from_env();
-        assert_eq!(provider, Some(Provider::OpenAI));
-    }
-
-    #[test]
-    #[serial]
-    fn test_provider_from_env_with_anthropic_key() {
-        reset_env();
-        env::set_var("ANTHROPIC_API_KEY", "some_anthropic_key");
-
-        let provider = Provider::from_env();
-        assert_eq!(provider, Some(Provider::Anthropic));
-    }
-
-    #[test]
-    #[serial]
-    fn test_provider_from_env_with_no_keys() {
-        reset_env();
-        let provider = Provider::from_env();
-        assert_eq!(provider, None);
-    }
-
-    #[test]
-    #[serial]
-    fn test_from_url() {
-        assert_eq!(
-            Provider::from_url("https://api.openai.com/v1/"),
-            Some(Provider::OpenAI)
-        );
-        assert_eq!(
-            Provider::from_url("https://api.openrouter.io/v1/"),
-            Some(Provider::OpenRouter)
-        );
-        assert_eq!(
-            Provider::from_url("https://api.anthropic.com/v1/"),
-            Some(Provider::Anthropic)
-        );
-        assert_eq!(Provider::from_url("https://unknown.url/"), None);
-    }
-
-    #[test]
-    #[serial]
-    fn test_to_url() {
-        assert_eq!(Provider::OpenAI.to_base_url(), "https://api.openai.com/v1/");
-        assert_eq!(
-            Provider::OpenRouter.to_base_url(),
-            "https://api.openrouter.io/v1/"
-        );
-        assert_eq!(
-            Provider::Anthropic.to_base_url(),
-            "https://api.anthropic.com/v1/"
-        );
     }
 }

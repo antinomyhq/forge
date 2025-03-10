@@ -2,44 +2,29 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use colored::Colorize;
-use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, ConversationId, Event, Model, Usage, API,
-};
+use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, Event, Model, API};
 use forge_display::TitleFormat;
 use forge_tracker::EventKind;
 use lazy_static::lazy_static;
+use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::banner;
 use crate::cli::Cli;
 use crate::console::CONSOLE;
 use crate::info::Info;
-use crate::input::{Console, PromptInput};
+use crate::input::Console;
 use crate::model::{Command, UserInput};
+use crate::state::{Mode, UIState};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
 pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
+pub const EVENT_USER_HELP_QUERY: &str = "user_help_query";
 pub const EVENT_TITLE: &str = "title";
 
 lazy_static! {
     pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
-}
-
-#[derive(Default)]
-struct UIState {
-    current_title: Option<String>,
-    conversation_id: Option<ConversationId>,
-    usage: Usage,
-}
-
-impl From<&UIState> for PromptInput {
-    fn from(state: &UIState) -> Self {
-        PromptInput::Update {
-            title: state.current_title.clone(),
-            usage: Some(state.usage.clone()),
-        }
-    }
 }
 
 pub struct UI<F> {
@@ -53,6 +38,39 @@ pub struct UI<F> {
 }
 
 impl<F: API> UI<F> {
+    // Set the current mode and update conversation variable
+    async fn handle_mode_change(&mut self, mode: Mode) -> Result<()> {
+        // Update the mode in state
+        self.state.mode = mode;
+
+        // Show message that mode changed
+        let mode_str = self.state.mode.to_string();
+
+        // Set the mode variable in the conversation if a conversation exists
+        let conversation_id = self.init_conversation().await?;
+        self.api
+            .set_variable(
+                &conversation_id,
+                "mode".to_string(),
+                Value::from(mode_str.as_str()),
+            )
+            .await?;
+
+        // Print a mode-specific message
+        let mode_message = match self.state.mode {
+            Mode::Act => "mode - executes commands and makes file changes",
+            Mode::Plan => "mode - plans actions without making changes",
+            Mode::Help => "mode - answers questions (type /act or /plan to switch back)",
+        };
+
+        CONSOLE.write(
+            TitleFormat::success(&mode_str)
+                .sub_title(mode_message)
+                .format(),
+        )?;
+
+        Ok(())
+    }
     // Helper functions for creating events with the specific event names
     fn create_task_init_event(content: impl ToString) -> Event {
         Event::new(EVENT_USER_TASK_INIT, content)
@@ -60,6 +78,9 @@ impl<F: API> UI<F> {
 
     fn create_task_update_event(content: impl ToString) -> Event {
         Event::new(EVENT_USER_TASK_UPDATE, content)
+    }
+    fn create_user_help_query_event(content: impl ToString) -> Event {
+        Event::new(EVENT_USER_HELP_QUERY, content)
     }
 
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
@@ -119,16 +140,36 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::Message(ref content) => {
-                    let chat_result = self.chat(content.clone()).await;
+                    let chat_result = match self.state.mode {
+                        Mode::Help => self.help_chat(content.clone()).await,
+                        _ => self.chat(content.clone()).await,
+                    };
                     if let Err(err) = chat_result {
-                        CONSOLE.writeln(
-                            TitleFormat::failed(format!("{:?}", err))
-                                .sub_title(self.state.usage.to_string())
-                                .format(),
-                        )?;
+                        CONSOLE.writeln(TitleFormat::failed(format!("{:?}", err)).format())?;
                     }
                     let prompt_input = Some((&self.state).into());
                     input = self.console.prompt(prompt_input).await?;
+                }
+                Command::Act => {
+                    self.handle_mode_change(Mode::Act).await?;
+
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                    continue;
+                }
+                Command::Plan => {
+                    self.handle_mode_change(Mode::Plan).await?;
+
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                    continue;
+                }
+                Command::Help => {
+                    self.handle_mode_change(Mode::Help).await?;
+
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                    continue;
                 }
                 Command::Exit => {
                     break;
@@ -152,19 +193,24 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
-    async fn chat(&mut self, content: String) -> Result<()> {
-        let conversation_id = match self.state.conversation_id {
-            Some(ref id) => id.clone(),
+    async fn init_conversation(&mut self) -> Result<ConversationId> {
+        match self.state.conversation_id {
+            Some(ref id) => Ok(id.clone()),
             None => {
                 let conversation_id = self
                     .api
                     .init(self.api.load(self.cli.workflow.as_deref()).await?)
                     .await?;
+
                 self.state.conversation_id = Some(conversation_id.clone());
 
-                conversation_id
+                Ok(conversation_id)
             }
-        };
+        }
+    }
+
+    async fn chat(&mut self, content: String) -> Result<()> {
+        let conversation_id = self.init_conversation().await?;
 
         // Determine if this is the first message or an update based on conversation
         // history
@@ -271,17 +317,9 @@ impl<F: API> UI<F> {
                 CONSOLE.writeln(format!("{}", tool_result.content.dimmed()))?;
 
                 if tool_result.is_error {
-                    CONSOLE.writeln(
-                        TitleFormat::failed(tool_name)
-                            .sub_title(self.state.usage.to_string())
-                            .format(),
-                    )?;
+                    CONSOLE.writeln(TitleFormat::failed(tool_name).format())?;
                 } else {
-                    CONSOLE.writeln(
-                        TitleFormat::success(tool_name)
-                            .sub_title(self.state.usage.to_string())
-                            .format(),
-                    )?;
+                    CONSOLE.writeln(TitleFormat::success(tool_name).format())?;
                 }
             }
             ChatResponse::Custom(event) => {
@@ -294,5 +332,21 @@ impl<F: API> UI<F> {
             }
         }
         Ok(())
+    } // Handle help chat in HELP mode
+    async fn help_chat(&mut self, content: String) -> Result<()> {
+        let conversation_id = self.init_conversation().await?;
+
+        // Create a help query event
+        let event = Self::create_user_help_query_event(content.clone());
+
+        // Create the chat request with the help query event
+        let chat = ChatRequest::new(event, conversation_id);
+
+        tokio::spawn(TRACKER.dispatch(EventKind::Prompt(content)));
+
+        match self.api.chat(chat).await {
+            Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
+            Err(err) => Err(err),
+        }
     }
 }

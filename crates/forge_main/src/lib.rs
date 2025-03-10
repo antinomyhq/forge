@@ -8,6 +8,7 @@ mod input;
 mod model;
 mod normalize;
 mod prompt;
+mod state;
 mod ui;
 
 pub use cli::Cli;

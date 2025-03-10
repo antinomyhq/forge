@@ -5,6 +5,8 @@ use forge_api::Usage;
 use nu_ansi_term::{Color, Style};
 use reedline::{Prompt, PromptHistorySearchStatus};
 
+use crate::state::Mode;
+
 // Constants
 const AI_INDICATOR: &str = "⚡";
 const MULTILINE_INDICATOR: &str = "::: ";
@@ -16,6 +18,7 @@ const RIGHT_CHEVRON: &str = "❯";
 pub struct ForgePrompt {
     title: Option<String>,
     usage: Option<Usage>,
+    mode: Mode,
 }
 
 impl Prompt for ForgePrompt {
@@ -32,21 +35,19 @@ impl Prompt for ForgePrompt {
     }
 
     fn render_prompt_right(&self) -> Cow<str> {
-        if let Some(usage) = self.usage.as_ref() {
-            let usage_text = format!(
-                "[{}/{}/{}]",
-                usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
-            );
-            Cow::Owned(
-                Style::new()
-                    .bold()
-                    .fg(Color::DarkGray)
-                    .paint(usage_text)
-                    .to_string(),
-            )
-        } else {
-            Cow::Borrowed("")
-        }
+        let usage = self
+            .usage
+            .as_ref()
+            .unwrap_or(&Usage::default())
+            .total_tokens;
+        let usage_text = format!("[{}/{}]", self.mode, usage);
+        Cow::Owned(
+            Style::new()
+                .bold()
+                .fg(Color::DarkGray)
+                .paint(usage_text)
+                .to_string(),
+        )
     }
 
     fn render_prompt_indicator(&self, _prompt_mode: reedline::PromptEditMode) -> Cow<str> {
@@ -107,7 +108,7 @@ mod tests {
         let usage_style = Style::new()
             .bold()
             .fg(Color::DarkGray)
-            .paint("[10/20/30]")
+            .paint("[ACT/30]")
             .to_string();
         let actual = prompt.render_prompt_right();
         let expected = usage_style;
@@ -118,7 +119,11 @@ mod tests {
     fn test_render_prompt_right_without_usage() {
         let prompt = ForgePrompt::default();
         let actual = prompt.render_prompt_right();
-        let expected = "";
+        let expected = Style::new()
+            .bold()
+            .fg(Color::DarkGray)
+            .paint("[ACT/0]")
+            .to_string();
         assert_eq!(actual, expected);
     }
 

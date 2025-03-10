@@ -7,3 +7,88 @@ lto = true
 codegen-units = 1
 opt-level = 3
 strip = true
+
+[workspace.dependencies]
+anyhow = "1.0.95"
+async-recursion = "1.1.1"
+async-trait = "0.1.86"
+base64 = "0.22.1"
+bytes = "1.10.0"
+chrono = { version = "0.4.39", features = ["serde"] }
+clap = { version = "4.5.23", features = ["derive"] }
+colored = "3.0.0"
+console = "0.15.7"
+convert_case = "0.7.1"
+derive_builder = "0.20.2"
+derive_more = { version = "2.0.1", features = ["full"] }
+derive_setters = "0.1.6"
+dirs = "6.0.0"
+dissimilar = "1.0.9"
+dotenv = "0.15.0"
+futures = "0.3.31"
+gh-workflow-tailcall = "0.5.1"
+glob = "0.3.2"
+handlebars = { version = "6.2.0", features = ["rust-embed"] }
+html2md = "0.2.15"
+http = "1.2.0"
+ignore = "0.4.23"
+indexmap = "2.7.1"
+insta = { version = "1.42.0", features = ["json"] }
+lazy_static = "1.4.0"
+machineid-rs = "1.2.4"
+mockito = "1.6.1"
+moka2 = "0.13"
+nom = "8.0.0"
+nu-ansi-term = "0.50.1"
+posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81419031e4889d9c3882d7458d2efa588a8" }
+pretty_assertions = "1.4.1"
+proc-macro2 = "1.0"
+qdrant-client = "1.13.0"
+quote = "1.0"
+reedline = "0.38.0"
+regex = "1.11.1"
+reqwest = { version = "0.12.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest-eventsource = "0.6.0"
+rust-embed = "8.5.0"
+schemars = "0.8.21"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.138"
+serde_yaml = "0.9.34"
+similar = { version = "2.4", features = ["inline"] }
+strip-ansi-escapes = "0.2.0"
+strum = "0.27.1"
+strum_macros = "0.27.1"
+syn = { version = "2.0.98", features = ["full"] }
+sysinfo = "0.33.1"
+tempfile = "3.10.1"
+thiserror = "2.0.11"
+tokio = { version = "1.43.0", features = ["full", "test-util"] }
+tokio-stream = "0.1.17"
+tracing = "0.1.41"
+tracing-appender = "0.2.3"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
+tree-sitter = "0.25.1"
+tree-sitter-rust = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-typescript = { version = "0.23" }
+tree-sitter-css = "0.23"
+tree-sitter-java = "0.23"
+tree-sitter-scala = "0.23"
+tree-sitter-go = "0.23"
+tree-sitter-cpp = "0.23"
+tree-sitter-ruby = "0.23"
+url = { version = "2.5.4", features = ["serde"] }
+uuid = { version = "1.11.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
+whoami = "1.5.2"
+
+# Internal crates
+forge_api = { path = "crates/forge_api" }
+forge_app = { path = "crates/forge_app" }
+forge_display = { path = "crates/forge_display" }
+forge_domain = { path = "crates/forge_domain" }
+forge_infra = { path = "crates/forge_infra" }
+forge_open_router = { path = "crates/forge_open_router" }
+forge_stream = { path = "crates/forge_stream" }
+forge_tool_macros = { path = "crates/forge_tool_macros" }
+forge_tracker = { path = "crates/forge_tracker" }
+forge_walker = { path = "crates/forge_walker" }
