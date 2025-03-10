@@ -12,10 +12,13 @@ pub struct SystemContext {
     pub env: Option<Environment>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_information: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_supported: Option<bool>,
+    /// Indicates whether the agent supports tools.
+    /// This value is populated directly from the Agent configuration.
+    #[serde(default)]
+    pub tool_supported: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<String>,
+    pub readme: String,
 }
 
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
@@ -47,6 +50,9 @@ fn truth() -> bool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Agent {
+    /// Flag to enable/disable tool support for this agent.
+    #[serde(default)]
+    pub tool_supported: bool,
     pub id: AgentId,
     pub model: ModelId,
     pub description: Option<String>,

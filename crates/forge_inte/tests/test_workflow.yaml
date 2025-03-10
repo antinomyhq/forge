@@ -1,6 +1,7 @@
 agents:
   - id: developer
     model: anthropic/claude-3.5-sonnet
+    tool_supported: true
     tools:
       - tool_forge_fs_read
       - tool_forge_fs_search

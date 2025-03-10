@@ -2,8 +2,7 @@
 
 use anyhow::{Context as _, Result};
 use forge_domain::{
-    ChatCompletionMessage, Context, Model, ModelId, Parameters, Provider, ProviderService,
-    ResultStream,
+    ChatCompletionMessage, Context, Model, ModelId, Provider, ProviderService, ResultStream,
 };
 
 use crate::anthropic::Anthropic;
@@ -57,13 +56,6 @@ impl ProviderService for Client {
         match self {
             Client::OpenAICompat(provider) => provider.models().await,
             Client::Anthropic(provider) => provider.models().await,
-        }
-    }
-
-    async fn parameters(&self, model: &ModelId) -> anyhow::Result<Parameters> {
-        match self {
-            Client::OpenAICompat(provider) => provider.parameters(model).await,
-            Client::Anthropic(provider) => provider.parameters(model).await,
         }
     }
 }

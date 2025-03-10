@@ -20,6 +20,7 @@ use crate::state::{Mode, UIState};
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
 pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
+pub const EVENT_USER_HELP_QUERY: &str = "user_help_query";
 pub const EVENT_TITLE: &str = "title";
 
 lazy_static! {
@@ -43,7 +44,7 @@ impl<F: API> UI<F> {
         self.state.mode = mode;
 
         // Show message that mode changed
-        let mode = self.state.mode.to_string();
+        let mode_str = self.state.mode.to_string();
 
         // Set the mode variable in the conversation if a conversation exists
         let conversation_id = self.init_conversation().await?;
@@ -51,13 +52,20 @@ impl<F: API> UI<F> {
             .set_variable(
                 &conversation_id,
                 "mode".to_string(),
-                Value::from(mode.as_str()),
+                Value::from(mode_str.as_str()),
             )
             .await?;
 
+        // Print a mode-specific message
+        let mode_message = match self.state.mode {
+            Mode::Act => "mode - executes commands and makes file changes",
+            Mode::Plan => "mode - plans actions without making changes",
+            Mode::Help => "mode - answers questions (type /act or /plan to switch back)",
+        };
+
         CONSOLE.write(
-            TitleFormat::success(&mode)
-                .sub_title("mode activated")
+            TitleFormat::success(&mode_str)
+                .sub_title(mode_message)
                 .format(),
         )?;
 
@@ -70,6 +78,9 @@ impl<F: API> UI<F> {
 
     fn create_task_update_event(content: impl ToString) -> Event {
         Event::new(EVENT_USER_TASK_UPDATE, content)
+    }
+    fn create_user_help_query_event(content: impl ToString) -> Event {
+        Event::new(EVENT_USER_HELP_QUERY, content)
     }
 
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
@@ -129,7 +140,10 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::Message(ref content) => {
-                    let chat_result = self.chat(content.clone()).await;
+                    let chat_result = match self.state.mode {
+                        Mode::Help => self.help_chat(content.clone()).await,
+                        _ => self.chat(content.clone()).await,
+                    };
                     if let Err(err) = chat_result {
                         CONSOLE.writeln(TitleFormat::failed(format!("{:?}", err)).format())?;
                     }
@@ -145,6 +159,13 @@ impl<F: API> UI<F> {
                 }
                 Command::Plan => {
                     self.handle_mode_change(Mode::Plan).await?;
+
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                    continue;
+                }
+                Command::Help => {
+                    self.handle_mode_change(Mode::Help).await?;
 
                     let prompt_input = Some((&self.state).into());
                     input = self.console.prompt(prompt_input).await?;
@@ -311,5 +332,21 @@ impl<F: API> UI<F> {
             }
         }
         Ok(())
+    } // Handle help chat in HELP mode
+    async fn help_chat(&mut self, content: String) -> Result<()> {
+        let conversation_id = self.init_conversation().await?;
+
+        // Create a help query event
+        let event = Self::create_user_help_query_event(content.clone());
+
+        // Create the chat request with the help query event
+        let chat = ChatRequest::new(event, conversation_id);
+
+        tokio::spawn(TRACKER.dispatch(EventKind::Prompt(content)));
+
+        match self.api.chat(chat).await {
+            Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
+            Err(err) => Err(err),
+        }
     }
 }

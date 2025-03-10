@@ -77,6 +77,9 @@ pub enum Command {
     /// Switch to "plan" mode.
     /// This can be triggered with the '/plan' command.
     Plan,
+    /// Switch to "help" mode.
+    /// This can be triggered with the '/help' command.
+    Help,
     /// Dumps the current conversation into a json file
     Dump,
 }
@@ -96,6 +99,7 @@ impl Command {
             "/models".to_string(),
             "/act".to_string(),
             "/plan".to_string(),
+            "/help".to_string(),
             "/dump".to_string(),
         ]
     }
@@ -121,6 +125,7 @@ impl Command {
             "/dump" => Command::Dump,
             "/act" => Command::Act,
             "/plan" => Command::Plan,
+            "/help" => Command::Help,
             text => Command::Message(text.to_string()),
         }
     }

@@ -5,6 +5,7 @@ use crate::input::PromptInput;
 #[derive(Clone, Default)]
 pub enum Mode {
     Plan,
+    Help,
     #[default]
     Act,
 }
@@ -13,6 +14,7 @@ impl std::fmt::Display for Mode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Mode::Plan => write!(f, "PLAN"),
+            Mode::Help => write!(f, "HELP"),
             Mode::Act => write!(f, "ACT"),
         }
     }

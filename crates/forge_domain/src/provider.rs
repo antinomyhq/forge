@@ -9,28 +9,38 @@ pub enum Provider {
 }
 
 impl Provider {
-    pub fn antinomy(key: impl Into<String>) -> Provider {
+    /// Sets the OpenAI URL if the provider is an OpenAI compatible provider
+    pub fn open_ai_url(&mut self, url: String) {
+        match self {
+            Provider::OpenAI { url: set_url, .. } => {
+                *set_url = Url::parse(&url).unwrap();
+            }
+            Provider::Anthropic { .. } => {}
+        }
+    }
+
+    pub fn antinomy(key: &str) -> Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::ANTINOMY_URL).unwrap(),
             key: Some(key.into()),
         }
     }
 
-    pub fn openai(key: impl Into<String>) -> Provider {
+    pub fn openai(key: &str) -> Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::OPENAI_URL).unwrap(),
             key: Some(key.into()),
         }
     }
 
-    pub fn open_router(key: impl Into<String>) -> Provider {
+    pub fn open_router(key: &str) -> Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::OPEN_ROUTER_URL).unwrap(),
             key: Some(key.into()),
         }
     }
 
-    pub fn anthropic(key: impl Into<String>) -> Provider {
+    pub fn anthropic(key: &str) -> Provider {
         Provider::Anthropic { key: key.into() }
     }
 

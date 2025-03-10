@@ -67,12 +67,8 @@ impl<A: App> Orchestrator<A> {
     async fn init_agent_context(&self, agent: &Agent) -> anyhow::Result<Context> {
         let tool_defs = self.init_tool_definitions(agent);
 
-        let tool_supported = self
-            .app
-            .provider_service()
-            .parameters(&agent.model)
-            .await?
-            .tool_supported;
+        // Use the agent's tool_supported flag directly instead of querying the provider
+        let tool_supported = agent.tool_supported;
 
         let mut context = Context::default();
 

@@ -1,8 +1,8 @@
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_domain::{
-    self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Parameters, Provider,
-    ProviderService, ResultStream,
+    self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider, ProviderService,
+    ResultStream,
 };
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
@@ -11,7 +11,6 @@ use tokio_stream::StreamExt;
 use tracing::debug;
 
 use super::model::{ListModelResponse, OpenRouterModel};
-use super::parameters::ParameterResponse;
 use super::request::OpenRouterRequest;
 use super::response::OpenRouterResponse;
 use crate::open_router::transformers::{ProviderPipeline, Transformer};
@@ -55,23 +54,6 @@ impl OpenRouter {
         }
         headers.insert("X-Title", HeaderValue::from_static("code-forge"));
         headers
-    }
-
-    // Fetches parameters from the API and returns the raw text response
-    async fn fetch_parameters(&self, path: &str) -> Result<String> {
-        let url = self.url(path)?;
-        let text = self
-            .client
-            .get(url)
-            .headers(self.headers())
-            .send()
-            .await?
-            .error_for_status()
-            .with_context(|| "Failed to complete parameter request")?
-            .text()
-            .await?;
-
-        Ok(text)
     }
 }
 
@@ -162,35 +144,6 @@ impl ProviderService for OpenRouter {
             // TODO: This could fail for some providers
             let data: ListModelResponse = serde_json::from_str(&response)?;
             Ok(data.data.into_iter().map(Into::into).collect())
-        }
-    }
-
-    async fn parameters(&self, model: &ModelId) -> Result<Parameters> {
-        if self.provider.is_open_router() | self.provider.is_antinomy() {
-            // For Eg: https://openrouter.ai/api/v1/parameters/google/gemini-pro-1.5-exp
-            let path = if self.provider.is_open_router() {
-                format!("parameters/{}", model)
-            } else {
-                format!("model/{}/parameters", model)
-            };
-
-            let text = self.fetch_parameters(&path).await?;
-
-            let response: ParameterResponse = serde_json::from_str(&text)
-                .with_context(|| "Failed to parse parameter response".to_string())?;
-
-            Ok(Parameters {
-                tool_supported: response
-                    .data
-                    .supported_parameters
-                    .iter()
-                    .flat_map(|parameter| parameter.iter())
-                    .any(|parameter| parameter == "tools"),
-            })
-        } else if self.provider.is_open_ai() {
-            return Ok(Parameters { tool_supported: true });
-        } else {
-            return Ok(Parameters { tool_supported: false });
         }
     }
 }

@@ -63,7 +63,6 @@ pub trait ProviderService: Send + Sync + 'static {
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
     async fn models(&self) -> anyhow::Result<Vec<Model>>;
-    async fn parameters(&self, model: &ModelId) -> anyhow::Result<Parameters>;
 }
 
 #[async_trait::async_trait]

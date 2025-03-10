@@ -12,6 +12,9 @@ use tracing::debug;
 
 use crate::{EmbeddingService, EnvironmentService, Infrastructure, VectorIndex};
 
+// Include README.md at compile time
+const README_CONTENT: &str = include_str!("../../../README.md");
+
 #[derive(Embed)]
 #[folder = "../../templates/"]
 struct Templates;
@@ -61,14 +64,18 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
         // Sort the files alphabetically to ensure consistent ordering
         files.sort();
 
+        // Create the context with README content for all agents
         let ctx = SystemContext {
             env: Some(env),
             tool_information: Some(self.tool_service.usage_prompt()),
-            tool_supported: Some(true),
+            tool_supported: agent.tool_supported,
             files,
+            readme: README_CONTENT.to_string(),
         };
 
-        Ok(self.hb.render_template(prompt.template.as_str(), &ctx)?)
+        // Render the template with the context
+        let result = self.hb.render_template(prompt.template.as_str(), &ctx)?;
+        Ok(result)
     }
 
     async fn render_event(

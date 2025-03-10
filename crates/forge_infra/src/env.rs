@@ -38,19 +38,10 @@ impl ForgeEnvironmentService {
     /// Panics if no API key is found in the environment
     fn resolve_provider(&self) -> Provider {
         let keys: [ProviderSearch; 4] = [
-            ("FORGE_KEY", Box::new(|key: &str| Provider::antinomy(key))),
-            (
-                "OPENROUTER_API_KEY",
-                Box::new(|key: &str| Provider::open_router(key)),
-            ),
-            (
-                "OPENAI_API_KEY",
-                Box::new(|key: &str| Provider::openai(key)),
-            ),
-            (
-                "ANTHROPIC_API_KEY",
-                Box::new(|key: &str| Provider::anthropic(key)),
-            ),
+            ("FORGE_KEY", Box::new(Provider::antinomy)),
+            ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
+            ("OPENAI_API_KEY", Box::new(Provider::openai)),
+            ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
         ];
 
         let env_variables = keys
@@ -60,7 +51,17 @@ impl ForgeEnvironmentService {
             .join(", ");
 
         keys.into_iter()
-            .find_map(|(key, fun)| std::env::var(key).ok().map(|key| fun(&key)))
+            .find_map(|(key, fun)| {
+                std::env::var(key).ok().map(|key| {
+                    let mut provider = fun(&key);
+
+                    if let Ok(url) = std::env::var("OPENAI_URL") {
+                        provider.open_ai_url(url);
+                    }
+
+                    provider
+                })
+            })
             .unwrap_or_else(|| panic!("No API key found. Please set one of: {}", env_variables))
     }
 
