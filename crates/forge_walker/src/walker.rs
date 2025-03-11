@@ -11,6 +11,7 @@ pub struct File {
     pub path: String,
     pub file_name: Option<String>,
     pub size: u64,
+    pub is_cwd: bool,
 }
 
 impl File {
@@ -182,6 +183,7 @@ impl Walker {
                 .strip_prefix(&self.cwd)
                 .with_context(|| format!("Failed to strip prefix from path: {}", path.display()))?;
             let path_string = relative_path.to_string_lossy().to_string();
+            let is_cwd = path_string.is_empty();
 
             let file_name = path
                 .file_name()
@@ -194,7 +196,7 @@ impl Walker {
                 path_string
             };
 
-            files.push(File { path: path_string, file_name, size: file_size });
+            files.push(File { path: path_string, file_name, size: file_size, is_cwd });
 
             if !is_dir {
                 total_size += file_size;

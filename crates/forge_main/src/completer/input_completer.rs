@@ -67,7 +67,7 @@ impl InputCompleter {
         };
 
         // Use the walker to get all files and directories
-        let walker = Walker::min_all().cwd(base_path);
+        let walker = Walker::min_all().max_depth(1).cwd(base_path);
         let files = walker.get_blocking().unwrap_or_default();
 
         // Filter based on the search term and create suggestions
