@@ -22,7 +22,7 @@ impl File {
 #[derive(Debug, Clone, Setters)]
 pub struct Walker {
     /// Base directory to start walking from
-    pub cwd: PathBuf,
+    cwd: PathBuf,
 
     /// Maximum depth of directory traversal
     max_depth: usize,
@@ -46,7 +46,7 @@ pub struct Walker {
 const DEFAULT_MAX_FILE_SIZE: u64 = 1024 * 1024; // 1MB
 const DEFAULT_MAX_FILES: usize = 100;
 const DEFAULT_MAX_TOTAL_SIZE: u64 = 10 * 1024 * 1024; // 10MB
-const DEFAULT_MAX_DEPTH: usize = 1;
+const DEFAULT_MAX_DEPTH: usize = 5;
 const DEFAULT_MAX_BREADTH: usize = 10;
 
 impl Walker {
@@ -181,12 +181,6 @@ impl Walker {
             let relative_path = path
                 .strip_prefix(&self.cwd)
                 .with_context(|| format!("Failed to strip prefix from path: {}", path.display()))?;
-
-            // Skip the current directory (when relative_path is empty)
-            if relative_path.as_os_str().is_empty() {
-                continue;
-            }
-
             let path_string = relative_path.to_string_lossy().to_string();
 
             let file_name = path
