@@ -1,8 +1,8 @@
 use std::path::PathBuf;
-
 use clap::{Parser, Subcommand};
 
-#[derive(Parser)]
+/// Command-line interface for the application.
+#[derive(Parser, Debug)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
     /// Path to a file containing initial commands to execute.
@@ -45,57 +45,61 @@ pub struct Cli {
     #[arg(long, short = 'w')]
     pub workflow: Option<PathBuf>,
 
+    /// Subcommand for managing snapshots.
     #[command(subcommand)]
-    pub snapshot: Option<Snapshot>,
+    pub snapshot_command: Option<Snapshot>,
 }
 
-#[derive(Subcommand)]
+/// Subcommands for managing snapshots.
+#[derive(Subcommand, Debug)]
 pub enum Snapshot {
+    /// Manage file snapshots.
     Snapshot {
         #[command(subcommand)]
         sub_command: SnapshotCommand,
     },
 }
 
-#[derive(Subcommand)]
+/// Operations for managing file snapshots.
+#[derive(Subcommand, Debug)]
 pub enum SnapshotCommand {
-    /// List all snapshots for a file
+    /// List all snapshots for a file.
     List {
-        /// Path to the file
+        /// Path to the file.
         path: PathBuf,
     },
 
-    /// Restore a file from a snapshot
+    /// Restore a file from a snapshot.
     Restore {
-        /// Path to the file
+        /// Path to the file.
         path: PathBuf,
 
-        /// Restore by timestamp
+        /// Restore by timestamp.
         #[arg(long, short)]
         timestamp: Option<u64>,
 
-        /// Restore by index
+        /// Restore by index.
         #[arg(long, short)]
         index: Option<usize>,
     },
 
-    /// Show differences between versions of a file
+    /// Show differences between versions of a file.
     Diff {
-        /// Path to the file
+        /// Path to the file.
         path: PathBuf,
 
-        /// Show diff for a specific timestamp
+        /// Show diff for a specific timestamp.
         #[arg(long)]
         timestamp: Option<u64>,
 
-        /// Restore by index
+        /// Restore by index.
         #[arg(long, short)]
         index: Option<usize>,
     },
 
-    /// Purge old snapshots
+    /// Purge old snapshots.
     Purge {
-        /// Remove snapshots older than a specific number of days (default: 0)
+        /// Remove snapshots older than a specific number of days (default: 0).
         #[arg(long, default_value_t = 0)]
         older_than: u32,
     },
