@@ -16,19 +16,19 @@ impl SearchTerm {
         Self { line: line.to_string(), position }
     }
 
-    /// Process the current input line to determine the search term for completion
-    /// 
+    /// Process the current input line to determine the search term for
+    /// completion
+    ///
     /// For shell-like behavior:
-    /// - If the line is empty or cursor is at the beginning, return an empty term
-    /// - Otherwise, find the last space before the cursor and return the text between that space and the cursor
+    /// - If the line is empty or cursor is at the beginning, return an empty
+    ///   term
+    /// - Otherwise, find the last space before the cursor and return the text
+    ///   between that space and the cursor
     /// - If no space found, return the entire line up to the cursor
     pub fn process(&self) -> Option<TermResult<'_>> {
         // Handle empty string or cursor at beginning
         if self.line.is_empty() || self.position == 0 {
-            return Some(TermResult {
-                span: Span::new(0, 0),
-                term: "",
-            });
+            return Some(TermResult { span: Span::new(0, 0), term: "" });
         }
 
         // Find the last space before cursor position
@@ -91,15 +91,15 @@ mod tests {
         let results = SearchTerm::test("@abc @def ghi@");
         assert_debug_snapshot!(results);
     }
-    
+
     #[test]
     fn test_path_based_search() {
         let results = SearchTerm::test("cd /usr/local/");
         assert_debug_snapshot!(results);
-        
+
         let results2 = SearchTerm::test("ls folder/sub");
         assert_debug_snapshot!(results2);
-        
+
         let results3 = SearchTerm::test("");
         assert_debug_snapshot!(results3);
     }

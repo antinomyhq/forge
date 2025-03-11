@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
     // Run with error handling
     let result = run().await;
     let _ = restore_terminal();
-    
+
     result
 }
 

@@ -181,12 +181,12 @@ impl Walker {
             let relative_path = path
                 .strip_prefix(&self.cwd)
                 .with_context(|| format!("Failed to strip prefix from path: {}", path.display()))?;
-            
+
             // Skip the current directory (when relative_path is empty)
             if relative_path.as_os_str().is_empty() {
                 continue;
             }
-            
+
             let path_string = relative_path.to_string_lossy().to_string();
 
             let file_name = path
