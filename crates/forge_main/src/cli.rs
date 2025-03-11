@@ -48,6 +48,10 @@ pub struct Cli {
     /// Subcommand for managing snapshots.
     #[command(subcommand)]
     pub snapshot_command: Option<Snapshot>,
+
+    /// Subcommand for compacting the context.
+    #[command(subcommand)]
+    pub compact_command: Option<Compact>,
 }
 
 /// Subcommands for managing snapshots.
@@ -102,5 +106,16 @@ pub enum SnapshotCommand {
         /// Remove snapshots older than a specific number of days (default: 0).
         #[arg(long, default_value_t = 0)]
         older_than: u32,
+    },
+}
+
+/// Subcommands for compacting the context.
+#[derive(Subcommand, Debug)]
+pub enum Compact {
+    /// Compact the current context.
+    Compact {
+        /// Path to the file containing the context to compact.
+        #[arg(long, short)]
+        context_file: Option<PathBuf>,
     },
 }
