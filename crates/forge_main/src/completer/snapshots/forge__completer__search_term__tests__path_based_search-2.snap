@@ -1,0 +1,175 @@
+---
+source: crates/forge_main/src/completer/search_term.rs
+expression: results2
+---
+[
+    TermSpec {
+        input: "l[s folder/sub",
+        output: Some(
+            "l",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            1,
+        ),
+        pos: 1,
+    },
+    TermSpec {
+        input: "ls[ folder/sub",
+        output: Some(
+            "ls",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            2,
+        ),
+        pos: 2,
+    },
+    TermSpec {
+        input: "ls [folder/sub",
+        output: Some(
+            "",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            3,
+        ),
+        pos: 3,
+    },
+    TermSpec {
+        input: "ls f[older/sub",
+        output: Some(
+            "f",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            4,
+        ),
+        pos: 4,
+    },
+    TermSpec {
+        input: "ls fo[lder/sub",
+        output: Some(
+            "fo",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            5,
+        ),
+        pos: 5,
+    },
+    TermSpec {
+        input: "ls fol[der/sub",
+        output: Some(
+            "fol",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            6,
+        ),
+        pos: 6,
+    },
+    TermSpec {
+        input: "ls fold[er/sub",
+        output: Some(
+            "fold",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            7,
+        ),
+        pos: 7,
+    },
+    TermSpec {
+        input: "ls folde[r/sub",
+        output: Some(
+            "folde",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            8,
+        ),
+        pos: 8,
+    },
+    TermSpec {
+        input: "ls folder[/sub",
+        output: Some(
+            "folder",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            9,
+        ),
+        pos: 9,
+    },
+    TermSpec {
+        input: "ls folder/[sub",
+        output: Some(
+            "folder/",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            10,
+        ),
+        pos: 10,
+    },
+    TermSpec {
+        input: "ls folder/s[ub",
+        output: Some(
+            "folder/s",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            11,
+        ),
+        pos: 11,
+    },
+    TermSpec {
+        input: "ls folder/su[b",
+        output: Some(
+            "folder/su",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            12,
+        ),
+        pos: 12,
+    },
+    TermSpec {
+        input: "ls folder/sub[",
+        output: Some(
+            "folder/sub",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            13,
+        ),
+        pos: 13,
+    },
+]

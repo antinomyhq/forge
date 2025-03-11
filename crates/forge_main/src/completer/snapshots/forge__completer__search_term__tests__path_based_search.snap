@@ -1,0 +1,188 @@
+---
+source: crates/forge_main/src/completer/search_term.rs
+expression: results
+---
+[
+    TermSpec {
+        input: "c[d /usr/local/",
+        output: Some(
+            "c",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            1,
+        ),
+        pos: 1,
+    },
+    TermSpec {
+        input: "cd[ /usr/local/",
+        output: Some(
+            "cd",
+        ),
+        span_start: Some(
+            0,
+        ),
+        span_end: Some(
+            2,
+        ),
+        pos: 2,
+    },
+    TermSpec {
+        input: "cd [/usr/local/",
+        output: Some(
+            "",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            3,
+        ),
+        pos: 3,
+    },
+    TermSpec {
+        input: "cd /[usr/local/",
+        output: Some(
+            "/",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            4,
+        ),
+        pos: 4,
+    },
+    TermSpec {
+        input: "cd /u[sr/local/",
+        output: Some(
+            "/u",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            5,
+        ),
+        pos: 5,
+    },
+    TermSpec {
+        input: "cd /us[r/local/",
+        output: Some(
+            "/us",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            6,
+        ),
+        pos: 6,
+    },
+    TermSpec {
+        input: "cd /usr[/local/",
+        output: Some(
+            "/usr",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            7,
+        ),
+        pos: 7,
+    },
+    TermSpec {
+        input: "cd /usr/[local/",
+        output: Some(
+            "/usr/",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            8,
+        ),
+        pos: 8,
+    },
+    TermSpec {
+        input: "cd /usr/l[ocal/",
+        output: Some(
+            "/usr/l",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            9,
+        ),
+        pos: 9,
+    },
+    TermSpec {
+        input: "cd /usr/lo[cal/",
+        output: Some(
+            "/usr/lo",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            10,
+        ),
+        pos: 10,
+    },
+    TermSpec {
+        input: "cd /usr/loc[al/",
+        output: Some(
+            "/usr/loc",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            11,
+        ),
+        pos: 11,
+    },
+    TermSpec {
+        input: "cd /usr/loca[l/",
+        output: Some(
+            "/usr/loca",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            12,
+        ),
+        pos: 12,
+    },
+    TermSpec {
+        input: "cd /usr/local[/",
+        output: Some(
+            "/usr/local",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            13,
+        ),
+        pos: 13,
+    },
+    TermSpec {
+        input: "cd /usr/local/[",
+        output: Some(
+            "/usr/local/",
+        ),
+        span_start: Some(
+            3,
+        ),
+        span_end: Some(
+            14,
+        ),
+        pos: 14,
+    },
+]
