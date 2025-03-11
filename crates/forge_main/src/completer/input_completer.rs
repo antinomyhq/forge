@@ -148,12 +148,13 @@ impl InputCompleter {
         };
 
         // Use the walker to get all files and directories
-        let walker = Walker::min_all().cwd(target_dir);
+        let walker = Walker::min_all().max_depth(1).cwd(target_dir);
         let files = walker.get_blocking().unwrap_or_default();
 
         // Create suggestions for all files in the directory
         files
             .into_iter()
+            .filter(|file| !file.is_cwd) // skip current dir
             .filter_map(|file| {
                 if let Some(file_name) = file.file_name.as_ref() {
                     let mut value = format!("{}{}", query, file_name);
