@@ -16,29 +16,32 @@ impl SearchTerm {
         Self { line: line.to_string(), position }
     }
 
-    /// Get the search term from the line based on '@' marker or cursor position
-    ///
-    /// If '@' marker is present, returns the word following it.
-    /// Otherwise, returns the word at the cursor position.
-    /// If no word is found, returns None.
+    /// Process the current input line to determine the search term for completion
+    /// 
+    /// For shell-like behavior:
+    /// - If the line is empty or cursor is at the beginning, return an empty term
+    /// - Otherwise, find the last space before the cursor and return the text between that space and the cursor
+    /// - If no space found, return the entire line up to the cursor
     pub fn process(&self) -> Option<TermResult<'_>> {
-        // Get all the indexes of the '@' chars
-        // Get all chars between @ and the cursor
-        let term = self
-            .line
-            .chars()
-            .enumerate()
-            .filter(|(_, c)| *c == '@')
-            .map(|(i, _)| i)
-            .filter(|at| *at < self.position)
-            .max_by(|a, b| a.cmp(b))
-            .map(|at| TermResult {
-                span: Span::new(at + 1, self.position),
-                term: &self.line[at + 1..self.position],
-            })
-            .filter(|s| !s.term.contains(" "));
+        // Handle empty string or cursor at beginning
+        if self.line.is_empty() || self.position == 0 {
+            return Some(TermResult {
+                span: Span::new(0, 0),
+                term: "",
+            });
+        }
 
-        term
+        // Find the last space before cursor position
+        let start_pos = match self.line[..self.position].rfind(char::is_whitespace) {
+            Some(pos) => pos + 1, // Start after the space
+            None => 0,            // No space found, use the beginning of line
+        };
+
+        // Return the term between the last space and cursor position
+        Some(TermResult {
+            span: Span::new(start_pos, self.position),
+            term: &self.line[start_pos..self.position],
+        })
     }
 }
 
@@ -87,5 +90,17 @@ mod tests {
     fn test_marker_based_search() {
         let results = SearchTerm::test("@abc @def ghi@");
         assert_debug_snapshot!(results);
+    }
+    
+    #[test]
+    fn test_path_based_search() {
+        let results = SearchTerm::test("cd /usr/local/");
+        assert_debug_snapshot!(results);
+        
+        let results2 = SearchTerm::test("ls folder/sub");
+        assert_debug_snapshot!(results2);
+        
+        let results3 = SearchTerm::test("");
+        assert_debug_snapshot!(results3);
     }
 }
