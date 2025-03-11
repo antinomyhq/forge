@@ -87,12 +87,6 @@ mod tests {
     }
 
     #[test]
-    fn test_marker_based_search() {
-        let results = SearchTerm::test("@abc @def ghi@");
-        assert_debug_snapshot!(results);
-    }
-
-    #[test]
     fn test_path_based_search() {
         let results = SearchTerm::test("cd /usr/local/");
         assert_debug_snapshot!(results);

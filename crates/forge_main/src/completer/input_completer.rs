@@ -73,6 +73,7 @@ impl InputCompleter {
         // Filter based on the search term and create suggestions
         files
             .into_iter()
+            .filter(|file| !file.is_cwd) // skip current dir
             .filter_map(|file| {
                 let file_name = file.file_name.as_ref()?;
                 let file_name_lower = file_name.to_lowercase();
