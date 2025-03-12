@@ -83,7 +83,8 @@ impl Conversation {
     }
 
     pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
-        self.state.values()
+        self.state
+            .values()
             .flat_map(|state| state.queue.iter())
             .find(|event| event.name == event_name)
     }

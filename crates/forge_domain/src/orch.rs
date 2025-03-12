@@ -240,15 +240,8 @@ impl<A: App> Orchestrator<A> {
         Ok(context)
     }
 
-    async fn get_last_event(
-        &self,
-        name: &str,
-    ) -> anyhow::Result<Option<Event>> {
-        Ok(self
-            .get_conversation()
-            .await?
-            .rfind_event(name)
-            .cloned())
+    async fn get_last_event(&self, name: &str) -> anyhow::Result<Option<Event>> {
+        Ok(self.get_conversation().await?.rfind_event(name).cloned())
     }
 
     async fn insert_event(&self, event: Event) -> anyhow::Result<()> {
