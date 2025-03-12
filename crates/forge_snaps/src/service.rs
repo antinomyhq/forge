@@ -226,7 +226,7 @@ impl SnapshotService {
 
         Ok(result)
     }
-    
+
     pub async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()> {
         // Canonicalize the path if it's relative
         let file_path = self.canonicalize_path(file_path);
