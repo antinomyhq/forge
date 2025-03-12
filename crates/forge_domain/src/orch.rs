@@ -21,7 +21,6 @@ pub struct Orchestrator<App> {
     app: Arc<App>,
     sender: Option<ArcSender>,
     conversation_id: ConversationId,
-    active_agents: RwLock<HashSet<AgentId>>,
 }
 
 struct ChatCompletionResult {
@@ -35,7 +34,6 @@ impl<A: App> Orchestrator<A> {
             app: svc,
             sender,
             conversation_id,
-            active_agents: RwLock::new(HashSet::new()),
         }
     }
 
