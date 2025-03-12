@@ -101,7 +101,11 @@ pub trait ConversationService: Send + Sync {
     ) -> anyhow::Result<()>;
     async fn delete_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<bool>;
     // Returns the next event for the given conversation and agent
-    async fn pop_event(&self, id: &ConversationId, agent_id: &AgentId) -> anyhow::Result<Option<Event>>;
+    async fn pop_event(
+        &self,
+        id: &ConversationId,
+        agent_id: &AgentId,
+    ) -> anyhow::Result<Option<Event>>;
 }
 
 #[async_trait::async_trait]
