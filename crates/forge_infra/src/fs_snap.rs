@@ -12,7 +12,7 @@ pub struct ForgeFileSnapshotService {
 impl ForgeFileSnapshotService {
     pub fn new(env: Environment) -> Self {
         Self {
-            inner: forge_snaps::SnapshotService::new(env.snapshot_path()),
+            inner: forge_snaps::SnapshotService::new(env.cwd.clone(), env.snapshot_path()),
         }
     }
 }

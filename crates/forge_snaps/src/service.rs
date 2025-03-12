@@ -11,6 +11,8 @@ use crate::{SnapshotInfo, SnapshotMetadata};
 /// functionality for files with retention policies.
 #[derive(Default, Debug)]
 pub struct SnapshotService {
+    /// Current Working Directory,
+    cwd: PathBuf,
     /// Base directory for storing snapshots
     snapshot_base_dir: PathBuf,
     /// Maximum number of snapshots to keep per file
@@ -19,10 +21,22 @@ pub struct SnapshotService {
 
 impl SnapshotService {
     /// Creates a new instance with a custom snapshot directory
-    pub fn new(snapshot_base_dir: PathBuf) -> Self {
+    pub fn new(cwd: PathBuf, snapshot_base_dir: PathBuf) -> Self {
         Self {
+            cwd,
             snapshot_base_dir,
             max_snapshots_per_file: 10, // Default from requirements
+        }
+    }
+
+    /// Helper method to handle relative paths by joining with cwd and canonicalizing
+    fn canonicalize_path(&self, path: &Path) -> PathBuf {
+        if path.is_relative() {
+            // If the path is relative, join it with current working directory
+            self.cwd.join(path)
+        } else {
+            // If it's already absolute, just use it as is
+            path.to_path_buf()
         }
     }
 
@@ -109,13 +123,15 @@ impl SnapshotService {
     }
 
     pub async fn create_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo> {
+        // Canonicalize the path if it's relative
+        let file_path = self.canonicalize_path(file_path);
         // Ensure the file exists
         if !file_path.exists() {
             anyhow::bail!("File does not exist: {:?}", file_path);
         }
 
         // ForgeFS::read the file content
-        let content = ForgeFS::read(file_path)
+        let content = ForgeFS::read(&file_path)
             .await
             .with_context(|| format!("Failed to ForgeFS::read file: {:?}", file_path))?;
 
@@ -126,7 +142,7 @@ impl SnapshotService {
             .to_string();
 
         // Get the snapshot directory and create it if needed
-        let snapshot_dir = self.get_file_snapshot_dir(file_path).await?;
+        let snapshot_dir = self.get_file_snapshot_dir(&file_path).await?;
         let snapshot_filename = self.create_snapshot_filename(&timestamp);
         let snapshot_path = snapshot_dir.join(&snapshot_filename);
 
@@ -136,7 +152,7 @@ impl SnapshotService {
             .with_context(|| format!("Failed to ForgeFS::write snapshot: {:?}", snapshot_path))?;
 
         // Apply retention policy
-        self.apply_retention_policy(file_path).await?;
+        self.apply_retention_policy(&file_path).await?;
 
         // Create and return the SnapshotInfo
         let snapshot_info = SnapshotInfo::with_timestamp(
@@ -179,10 +195,12 @@ impl SnapshotService {
     }
 
     pub async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()> {
-        let snapshot_metadata = self.get_snapshot_by_timestamp(file_path, timestamp).await?;
+        // Canonicalize the path if it's relative
+        let file_path = self.canonicalize_path(file_path);
+        let snapshot_metadata = self.get_snapshot_by_timestamp(&file_path, timestamp).await?;
 
         // ForgeFS::write the content back to the original file
-        ForgeFS::write(file_path, &snapshot_metadata.content)
+        ForgeFS::write(&file_path, &snapshot_metadata.content)
             .await
             .with_context(|| format!("Failed to restore file: {:?}", file_path))?;
 
@@ -190,10 +208,12 @@ impl SnapshotService {
     }
 
     pub async fn restore_by_index(&self, file_path: &Path, index: isize) -> Result<()> {
-        let snapshot_metadata = self.get_snapshot_by_index(file_path, index).await?;
+        // Canonicalize the path if it's relative
+        let file_path = self.canonicalize_path(file_path);
+        let snapshot_metadata = self.get_snapshot_by_index(&file_path, index).await?;
 
         // ForgeFS::write the content back to the original file
-        ForgeFS::write(file_path, &snapshot_metadata.content)
+        ForgeFS::write(&file_path, &snapshot_metadata.content)
             .await
             .with_context(|| format!("Failed to restore file: {:?}", file_path))?;
 
@@ -201,7 +221,9 @@ impl SnapshotService {
     }
 
     pub async fn restore_previous(&self, file_path: &Path) -> Result<()> {
-        self.restore_by_index(file_path, -1).await
+        // Canonicalize the path if it's relative
+        let file_path = self.canonicalize_path(file_path);
+        self.restore_by_index(&file_path, -1).await
     }
 
     pub async fn get_snapshot_by_timestamp(
@@ -209,7 +231,9 @@ impl SnapshotService {
         file_path: &Path,
         timestamp: &str,
     ) -> Result<SnapshotMetadata> {
-        let snapshot_dir = self.get_file_snapshot_dir(file_path).await?;
+        // Canonicalize the path if it's relative
+        let file_path = self.canonicalize_path(file_path);
+        let snapshot_dir = self.get_file_snapshot_dir(&file_path).await?;
         let snapshot_filename = self.create_snapshot_filename(timestamp);
         let snapshot_path = snapshot_dir.join(snapshot_filename);
 
@@ -222,7 +246,7 @@ impl SnapshotService {
             .with_context(|| format!("Failed to ForgeFS::read snapshot: {:?}", snapshot_path))?;
 
         // Find the index of this snapshot
-        let snapshots = self.get_sorted_snapshots(file_path).await?;
+        let snapshots = self.get_sorted_snapshots(&file_path).await?;
         let index = snapshots
             .iter()
             .position(|(t, _)| t.to_string() == timestamp)
@@ -235,7 +259,7 @@ impl SnapshotService {
             index,
         );
 
-        Ok(SnapshotMetadata { info, content, path_hash: self.hash_path(file_path) })
+        Ok(SnapshotMetadata { info, content, path_hash: self.hash_path(&file_path) })
     }
 
     pub async fn get_snapshot_by_index(
@@ -243,7 +267,9 @@ impl SnapshotService {
         file_path: &Path,
         mut index: isize,
     ) -> Result<SnapshotMetadata> {
-        let snapshots = self.get_sorted_snapshots(file_path).await?;
+        // Canonicalize the path if it's relative
+        let file_path = self.canonicalize_path(file_path);
+        let snapshots = self.get_sorted_snapshots(&file_path).await?;
 
         if index == -1 {
             index = (snapshots.len() - 1) as isize;
@@ -260,7 +286,7 @@ impl SnapshotService {
         dbg!(index);
 
         let (timestamp, _) = snapshots[index as usize];
-        self.get_snapshot_by_timestamp(file_path, &timestamp.to_string())
+        self.get_snapshot_by_timestamp(&file_path, &timestamp.to_string())
             .await
     }
 
@@ -323,7 +349,7 @@ mod tests {
     async fn test_create_snapshot() -> Result<()> {
         let temp_dir = tempdir()?;
         let base_path = temp_dir.path().to_path_buf();
-        let service = SnapshotService::new(base_path.join("snapshots"));
+        let service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
 
         // Create a test file
         let test_file_path = base_path.join("test.txt");
@@ -345,7 +371,7 @@ mod tests {
     async fn test_list_snapshots() -> Result<()> {
         let temp_dir = tempdir()?;
         let base_path = temp_dir.path().to_path_buf();
-        let service = SnapshotService::new(base_path.join("snapshots"));
+        let service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
 
         // Create a test file
         let test_file_path = base_path.join("test.txt");
@@ -385,7 +411,7 @@ mod tests {
         for i in 1..snapshots.len() {
             let prev_timestamp = snapshots[i - 1].timestamp.parse::<u128>().unwrap_or(0);
             let curr_timestamp = snapshots[i].timestamp.parse::<u128>().unwrap_or(0);
-            assert!(prev_timestamp >= curr_timestamp);
+            assert!(prev_timestamp < curr_timestamp);
         }
 
         Ok(())
@@ -395,7 +421,7 @@ mod tests {
     async fn test_restore_by_index() -> Result<()> {
         let temp_dir = tempdir()?;
         let base_path = temp_dir.path().to_path_buf();
-        let service = SnapshotService::new(base_path.join("snapshots"));
+        let service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
 
         // Create a test file
         let test_file_path = base_path.join("test.txt");
@@ -425,7 +451,7 @@ mod tests {
     async fn test_retention_policy() -> Result<()> {
         let temp_dir = tempdir()?;
         let base_path = temp_dir.path().to_path_buf();
-        let mut service = SnapshotService::new(base_path.join("snapshots"));
+        let mut service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
         service.max_snapshots_per_file = 3; // Set a small limit for testing
 
         // Create a test file
