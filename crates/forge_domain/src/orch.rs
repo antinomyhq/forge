@@ -4,7 +4,6 @@ use std::sync::Arc;
 use anyhow::Context as AnyhowContext;
 use async_recursion::async_recursion;
 use futures::{Stream, StreamExt};
-use tokio::sync::RwLock;
 use tracing::debug;
 
 use crate::*;
@@ -30,11 +29,7 @@ struct ChatCompletionResult {
 
 impl<A: App> Orchestrator<A> {
     pub fn new(svc: Arc<A>, conversation_id: ConversationId, sender: Option<ArcSender>) -> Self {
-        Self {
-            app: svc,
-            sender,
-            conversation_id,
-        }
+        Self { app: svc, sender, conversation_id }
     }
 
     async fn send_message(&self, agent_id: &AgentId, message: ChatResponse) -> anyhow::Result<()> {
@@ -167,14 +162,13 @@ impl<A: App> Orchestrator<A> {
         self.insert_event(event.clone()).await?;
 
         for agent in subscribed_agents {
-            let is_active = {
-                let active_agents = self.active_agents.read().await;
-                active_agents.contains(&agent.id)
-            };
-
-            if !is_active {
-                // Add to active agents set
-                self.active_agents.write().await.insert(agent.id.clone());
+            let conversation = self.get_conversation().await?;
+            if conversation.is_agent_active(&agent.id) {
+                // mark agent active in conversation.
+                self.app
+                    .conversation_service()
+                    .set_agent_active(&conversation.id, &agent.id)
+                    .await?;
 
                 // Initialize agent if not already active
                 let app = self.app.clone();
@@ -433,9 +427,9 @@ impl<A: App> Orchestrator<A> {
                     self.init_agent_with_event(agent_id, &event).await?;
                 }
                 _ => {
-                    // we don't find event or error occurred, then remove the agent from active
-                    // agents
-                    self.active_agents.write().await.remove(agent_id);
+                    let _ = conversation_service
+                        .set_agent_inactive(&self.conversation_id, agent_id)
+                        .await;
                     break;
                 }
             }

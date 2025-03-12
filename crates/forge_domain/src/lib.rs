@@ -100,12 +100,16 @@ pub trait ConversationService: Send + Sync {
         value: Value,
     ) -> anyhow::Result<()>;
     async fn delete_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<bool>;
-    // Returns the next event for the given conversation and agent
+    /// Returns the next event for the given conversation and agent
     async fn poll(
         &self,
         id: &ConversationId,
         agent_id: &AgentId,
     ) -> anyhow::Result<Option<Event>>;
+    /// Marks the agent as active in the conversation
+    async fn set_agent_active(&self, id: &ConversationId, agent_id: &AgentId) -> anyhow::Result<()>;
+    /// Marks the agent as in-active in the conversation
+    async fn set_agent_inactive(&self, id: &ConversationId, agent_id: &AgentId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]

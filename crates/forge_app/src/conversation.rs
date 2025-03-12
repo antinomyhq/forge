@@ -110,4 +110,18 @@ impl ConversationService for ForgeConversationService {
         })
         .await
     }
+
+    async fn set_agent_active(&self, id: &ConversationId, agent_id: &AgentId) -> Result<()> {
+        self.write(id, |conversation| {
+            conversation.active_agents.insert(agent_id.clone());
+        })
+        .await
+    }
+
+    async fn set_agent_inactive(&self, id: &ConversationId, agent_id: &AgentId) -> Result<()> {
+        self.write(id, |conversation| {
+            conversation.active_agents.remove(agent_id);
+        })
+        .await
+    }
 }

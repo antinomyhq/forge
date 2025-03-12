@@ -1,11 +1,10 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, sync::Arc};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use anyhow::Result;
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::{Agent, AgentId, Context, Error, Event, Workflow};
@@ -37,8 +36,7 @@ pub struct Conversation {
     pub state: HashMap<AgentId, AgentState>,
     pub workflow: Workflow,
     pub variables: HashMap<String, Value>,
-    #[serde(skip)]
-    pub active_agents: Arc<RwLock<HashSet<AgentId>>>,
+    pub active_agents: HashSet<AgentId>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -57,7 +55,7 @@ impl Conversation {
             state: Default::default(),
             variables: workflow.variables.clone().unwrap_or_default(),
             workflow,
-            active_agents: Arc::new(RwLock::new(HashSet::new())),
+            active_agents: HashSet::new(),
         }
     }
 
@@ -131,17 +129,7 @@ impl Conversation {
     }
 
     /// Check if an agent is currently active
-    pub async fn is_agent_active(&self, agent_id: &AgentId) -> bool {
-        self.active_agents.read().await.contains(agent_id)
-    }
-
-    /// Add an agent to the active set
-    pub async fn add_active_agent(&self, agent_id: AgentId) {
-        self.active_agents.write().await.insert(agent_id);
-    }
-
-    /// Remove an agent from the active set
-    pub async fn remove_active_agent(&self, agent_id: &AgentId) {
-        self.active_agents.write().await.remove(agent_id);
+    pub fn is_agent_active(&self, agent_id: &AgentId) -> bool {
+        self.active_agents.contains(agent_id)
     }
 }
