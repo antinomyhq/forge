@@ -3,6 +3,16 @@ pub mod std {
         *base = other;
     }
 }
+
+pub mod string {
+    pub fn concat(base: &mut String, other: impl AsRef<str>) {
+        if !base.is_empty() && !other.as_ref().is_empty() {
+            base.push('\n');
+        }
+        base.push_str(other.as_ref());
+    }
+}
+
 pub mod vec {
     pub use merge::vec::*;
     use merge::Merge;

@@ -362,9 +362,20 @@ Each agent needs tools to perform tasks, configured in the `tools` field:
 - `tools` - List of tools the agent can use
 - `subscribe` - Events the agent listens to
 - `ephemeral` - If true, agent is destroyed after task completion
+- `project_rules` - (Optional) Clear instructions or guidelines that define the rules for the agent. This section ensures the agent follows the desired processes and complies with any specific conditions or constraints set.
 - `tool_supported` - (Optional) Boolean flag that determines whether tools defined in the agent configuration are actually made available to the LLM. When set to `false`, tools are listed in the configuration but not included in AI model requests, causing the agent to format tool calls in XML rather than in the model's native format. Default: `true`.
 - `system_prompt` - (Optional) Instructions for how the agent should behave. While optional, it's recommended to provide clear instructions for best results.
 - `user_prompt` - (Optional) Format for user inputs. If not provided, the raw event value is used.
+
+**Example Agent Configuration:**
+```yaml
+agents:
+  - id: software-engineer
+    model: gpt-4
+    project_rules: always ensure you compile and run tests before presenting to user
+    system_prompt: |
+      You are a software engineer...
+```
 
 #### Built-in Templates
 

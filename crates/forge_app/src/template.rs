@@ -71,6 +71,7 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
             tool_supported: agent.tool_supported,
             files,
             readme: README_CONTENT.to_string(),
+            project_rules: agent.project_rules.clone(),
         };
 
         // Render the template with the context

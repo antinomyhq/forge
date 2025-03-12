@@ -21,6 +21,8 @@ pub struct SystemContext {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<String>,
     pub readme: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub project_rules: String,
 }
 
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
@@ -107,6 +109,11 @@ pub struct Agent {
     /// If not provided, the maximum possible depth will be used
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_walker_depth: Option<usize>,
+
+    /// Rules that the agent needs to follow.
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    #[merge(strategy = crate::merge::string::concat)]
+    pub project_rules: String,
 }
 
 impl Key for Agent {
@@ -140,4 +147,73 @@ pub enum Transform {
     /// Intercepts the context and performs an operation without changing the
     /// context
     PassThrough { agent_id: AgentId, input: String },
+}
+
+#[cfg(test)]
+mod tests {
+    use merge::Merge;
+
+    use super::*;
+
+    impl Default for Agent {
+        fn default() -> Self {
+            Agent {
+                tool_supported: false,
+                id: AgentId(String::new()),
+                model: None,
+                description: None,
+                system_prompt: None,
+                user_prompt: None,
+                suggestions: false,
+                ephemeral: false,
+                enable: true, // Assuming default is enabled
+                tools: Vec::new(),
+                transforms: Vec::new(),
+                subscribe: Vec::new(),
+                max_turns: None,
+                max_walker_depth: None,
+                project_rules: String::new(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_merge_project_rules() {
+        // case 1: base has some project rules and other has some rules
+        let mut base = Agent::default();
+        base.project_rules = "Rule 1: Be concise".to_string();
+
+        let other = Agent {
+            project_rules: "Rule 2: Be precise".to_string(),
+            ..Agent::default()
+        };
+
+        base.merge(other);
+        assert_eq!(base.project_rules, "Rule 1: Be concise\nRule 2: Be precise");
+
+        // case 2: base has empty project rules but other has some rules
+        let mut base = Agent::default();
+        let other = Agent {
+            project_rules: "Rule 1: Be precise".to_string(),
+            ..Agent::default()
+        };
+
+        base.merge(other);
+        assert_eq!(base.project_rules, "Rule 1: Be precise");
+
+        // case 3: base and other has empty project rules
+        let mut base = Agent::default();
+
+        let other = Agent::default();
+        base.merge(other);
+        assert!(base.project_rules.is_empty());
+
+        // case 4: base has some project rules and other has no project rules.
+        let mut base = Agent::default();
+        base.project_rules = "Rule 1: Be concise".to_string();
+
+        let other = Agent::default();
+        base.merge(other);
+        assert_eq!(base.project_rules, "Rule 1: Be concise");
+    }
 }
