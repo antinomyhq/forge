@@ -34,7 +34,6 @@ pub struct Conversation {
     pub id: ConversationId,
     pub archived: bool,
     pub state: HashMap<AgentId, AgentState>,
-    pub events: Vec<Event>,
     pub workflow: Workflow,
     pub variables: HashMap<String, Value>,
 }
@@ -53,7 +52,6 @@ impl Conversation {
             id,
             archived: false,
             state: Default::default(),
-            events: Default::default(),
             variables: workflow.variables.clone().unwrap_or_default(),
             workflow,
         }
@@ -84,8 +82,8 @@ impl Conversation {
         self.state.get(id).and_then(|s| s.context.as_ref())
     }
 
-    pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
-        self.events.iter().rfind(|event| event.name == event_name)
+    pub fn rfind_event(&self, agent_id: &AgentId, event_name: &str) -> Option<&Event> {
+        self.state.get(agent_id).and_then(|s| s.queue.iter().rfind(|event| event.name == event_name))
     }
 
     /// Get a variable value by its key
