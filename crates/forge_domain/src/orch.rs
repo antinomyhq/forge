@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context as AnyhowContext;
 use async_recursion::async_recursion;
-use futures::future::join_all;
 use futures::{Stream, StreamExt};
+use tokio::sync::RwLock;
 use tracing::debug;
 
 use crate::*;
@@ -19,8 +19,9 @@ pub struct AgentMessage<T> {
 
 pub struct Orchestrator<App> {
     app: Arc<App>,
-    sender: Option<Arc<ArcSender>>,
+    sender: Option<ArcSender>,
     conversation_id: ConversationId,
+    active_agents: RwLock<HashSet<AgentId>>,
 }
 
 struct ChatCompletionResult {
@@ -30,7 +31,12 @@ struct ChatCompletionResult {
 
 impl<A: App> Orchestrator<A> {
     pub fn new(svc: Arc<A>, conversation_id: ConversationId, sender: Option<ArcSender>) -> Self {
-        Self { app: svc, sender: sender.map(Arc::new), conversation_id }
+        Self {
+            app: svc,
+            sender,
+            conversation_id,
+            active_agents: RwLock::new(HashSet::new()),
+        }
     }
 
     async fn send_message(&self, agent_id: &AgentId, message: ChatResponse) -> anyhow::Result<()> {
@@ -151,21 +157,44 @@ impl<A: App> Orchestrator<A> {
             "Dispatching event"
         );
 
-        // adds the event to agents queue for processing.
+        let subscribed_agents = self
+            .app
+            .conversation_service()
+            .get(&self.conversation_id)
+            .await?
+            .ok_or(Error::ConversationNotFound(self.conversation_id.clone()))?
+            .entries(event.name.as_str());
+
+        // Insert event into the queue first
         self.insert_event(event.clone()).await?;
-        join_all(
-            self.app
-                .conversation_service()
-                .get(&self.conversation_id)
-                .await?
-                .ok_or(Error::ConversationNotFound(self.conversation_id.clone()))?
-                .entries(event.name.as_str())
-                .iter()
-                .map(|agent| self.init_agent(&agent.id)),
-        )
-        .await
-        .into_iter()
-        .collect::<anyhow::Result<Vec<()>>>()?;
+
+        for agent in subscribed_agents {
+            let is_active = {
+                let active_agents = self.active_agents.read().await;
+                active_agents.contains(&agent.id)
+            };
+
+            if !is_active {
+                // Add to active agents set
+                self.active_agents.write().await.insert(agent.id.clone());
+
+                // Initialize agent if not already active
+                let app = self.app.clone();
+                let conversation_id = self.conversation_id.clone();
+                let agent_id = agent.id.clone();
+
+                // TODO: we shouldn't create an separate instance of Orchestrator, instead should clone that and
+                // use init_agent method.
+                let sender = self.sender.clone();
+                tokio::spawn(async move {
+                    let orch = Orchestrator::new(app, conversation_id, sender);
+                    if let Err(e) = orch.init_agent(&agent_id).await {
+                        tracing::error!("Failed to initialize agent: {}", e);
+                    }
+                });
+            }
+        }
+
         Ok(())
     }
 
@@ -395,14 +424,15 @@ impl<A: App> Orchestrator<A> {
 
     async fn init_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
         // process all the events for the agent
-        while let Ok(Some(event)) = self
-            .app
-            .conversation_service()
-            .pop_event(&self.conversation_id, agent_id)
-            .await
-        {
-            self.init_agent_with_event(agent_id, &event).await?;
+        loop {
+            if let Some(event) = self
+                .app
+                .conversation_service()
+                .pop_event(&self.conversation_id, agent_id)
+                .await?
+            {
+                let _ = self.init_agent_with_event(agent_id, &event).await?;
+            }
         }
-        Ok(())
     }
 }
