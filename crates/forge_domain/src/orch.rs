@@ -428,7 +428,7 @@ impl<A: App> Orchestrator<A> {
 
         loop {
             match conversation_service
-                .pop_event(&self.conversation_id, agent_id)
+                .next_event(&self.conversation_id, agent_id)
                 .await
             {
                 Ok(Some(event)) => {

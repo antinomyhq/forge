@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context as AnyhowContext, Result};
+use anyhow::{anyhow, Result};
 use forge_domain::{
     AgentId, Context, Conversation, ConversationId, ConversationService, Event, Workflow,
 };
@@ -77,6 +77,7 @@ impl ConversationService for ForgeConversationService {
         Ok(())
     }
 
+    /// Adds an event to agents who have subscribed to the event.
     async fn insert_event(&self, id: &ConversationId, event: Event) -> Result<()> {
         self.write(id, |c| {
             c.add_event(event);
@@ -99,15 +100,14 @@ impl ConversationService for ForgeConversationService {
         self.write(id, |c| c.delete_variable(key)).await
     }
 
-    async fn pop_event(&self, id: &ConversationId, agent_id: &AgentId) -> Result<Option<Event>> {
+    /// Returns next event available for the agent.
+    async fn next_event(&self, id: &ConversationId, agent_id: &AgentId) -> Result<Option<Event>> {
         self.write(id, |conversation| {
             conversation
                 .state
                 .get_mut(agent_id)
-                .map(|state| state.queue.pop_front())
-                .context("Agent not found")
+                .and_then(|state| state.queue.pop_front())
         })
         .await
-        .and_then(|result| result)
     }
 }
