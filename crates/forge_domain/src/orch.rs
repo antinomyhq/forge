@@ -424,15 +424,15 @@ impl<A: App> Orchestrator<A> {
 
     async fn init_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
         // process all the events for the agent
-        loop {
-            if let Some(event) = self
-                .app
-                .conversation_service()
-                .pop_event(&self.conversation_id, agent_id)
-                .await?
-            {
-                let _ = self.init_agent_with_event(agent_id, &event).await?;
-            }
+        while let Some(event) = self
+            .app
+            .conversation_service()
+            .pop_event(&self.conversation_id, agent_id)
+            .await?
+        {
+            let _ = self.init_agent_with_event(agent_id, &event).await?;
         }
+
+        Ok(())
     }
 }
