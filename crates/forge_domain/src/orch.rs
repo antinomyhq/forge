@@ -163,7 +163,7 @@ impl<A: App> Orchestrator<A> {
 
         for agent in subscribed_agents {
             let conversation = self.get_conversation().await?;
-            if conversation.is_agent_active(&agent.id) {
+            if !conversation.is_agent_active(&agent.id) {
                 // mark agent active in conversation.
                 self.app
                     .conversation_service()
