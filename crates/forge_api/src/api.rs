@@ -42,10 +42,10 @@ impl ForgeAPI<ForgeApp<ForgeInfra>> {
 
 #[async_trait::async_trait]
 impl<F: App + Infrastructure> API for ForgeAPI<F> {
-    async fn list_snapshots(&self, file_path: &Path) -> Result<Vec<SnapshotInfo>> {
+    async fn list_snapshots(&self) -> Result<Vec<SnapshotInfo>> {
         self.app
             .file_snapshot_service()
-            .list_snapshots(file_path)
+            .list_snapshots()
             .await
     }
 

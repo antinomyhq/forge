@@ -79,7 +79,7 @@ pub trait FsSnapshotService: Send + Sync {
     async fn create_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo>;
 
     // Listing
-    async fn list_snapshots(&self, file_path: &Path) -> Result<Vec<SnapshotInfo>>;
+    async fn list_snapshots(&self) -> Result<Vec<SnapshotInfo>>;
 
     // Timestamp-based restoration
     async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()>;

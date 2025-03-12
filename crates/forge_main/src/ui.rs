@@ -199,8 +199,8 @@ impl<F: API> UI<F> {
     }
     async fn handle_snaps(&self, snapshot_command: &SnapshotCommand) -> Result<()> {
         match snapshot_command {
-            SnapshotCommand::List { path } => {
-                let snapshots: Vec<SnapshotInfo> = self.api.list_snapshots(path).await?;
+            SnapshotCommand::List => {
+                let snapshots: Vec<SnapshotInfo> = self.api.list_snapshots().await?;
                 if snapshots.is_empty() {
                     CONSOLE.writeln(
                         TitleFormat::failed("Snapshots")
@@ -222,19 +222,12 @@ impl<F: API> UI<F> {
                             .sub_title(format!("timestamp: {}", snap.timestamp))
                             .format(),
                     )?;
-
-                    // Display original path and snapshot path with proper formatting
-                    CONSOLE.writeln(format!(
-                        "{}: {}",
-                        "Original Path".bold(),
-                        snap.original_path.display()
-                    ))?;
+                    
                     CONSOLE.writeln(format!(
                         "{}: {}",
                         "Snapshot Timestamp".bold(),
                         snap.timestamp
                     ))?;
-                    CONSOLE.writeln(format!("{}: {}", "Index".bold(), snap.index))?;
                     CONSOLE.writeln(format!(
                         "{}: '{}'",
                         "Snapshot Path".bold(),

@@ -13,10 +13,7 @@ use serde_json::Value;
 #[async_trait::async_trait]
 pub trait API: Sync + Send {
     /// List snapshots for a file path
-    async fn list_snapshots(
-        &self,
-        file_path: &Path,
-    ) -> anyhow::Result<Vec<forge_snaps::SnapshotInfo>>;
+    async fn list_snapshots(&self) -> anyhow::Result<Vec<forge_snaps::SnapshotInfo>>;
 
     /// Restore a file from a snapshot by timestamp
     async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> anyhow::Result<()>;
