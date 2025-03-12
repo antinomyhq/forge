@@ -12,7 +12,7 @@ use tokio_stream::StreamExt;
 use crate::banner;
 use crate::cli::{Cli, Snapshot, SnapshotCommand};
 use crate::console::CONSOLE;
-use crate::info::Info;
+use crate::info::{Info, UsageInfo};
 use crate::input::Console;
 use crate::model::{Command, UserInput};
 use crate::state::{Mode, UIState};
@@ -136,7 +136,7 @@ impl<F: API> UI<F> {
                 }
                 Command::Info => {
                     let info =
-                        Info::from(&self.api.environment()).extend(Info::from(&self.state.usage));
+                        Info::from(&self.api.environment()).extend(Info::from(UsageInfo::new(&self.state.usage, self.api.list_snapshots().await?.len())));
 
                     CONSOLE.writeln(info.to_string())?;
 
@@ -222,7 +222,7 @@ impl<F: API> UI<F> {
                             .sub_title(format!("timestamp: {}", snap.timestamp))
                             .format(),
                     )?;
-                    
+
                     CONSOLE.writeln(format!(
                         "{}: {}",
                         "Snapshot Timestamp".bold(),
