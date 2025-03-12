@@ -180,7 +180,16 @@ impl<A: App> Orchestrator<A> {
                 .await?;
 
             self.dispatch(&event).await?;
-            Ok(None)
+            Ok(Some(
+                ToolResult::new(tool_call.name.clone())
+                    .call_id(
+                        tool_call
+                            .call_id
+                            .clone()
+                            .expect("toolcall id must be present at this point."),
+                    )
+                    .success("Event Dispatched Successfully".to_string()),
+            ))
         } else {
             Ok(Some(self.app.tool_service().call(tool_call.clone()).await))
         }
