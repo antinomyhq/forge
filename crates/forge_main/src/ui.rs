@@ -135,8 +135,9 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::Info => {
-                    let info =
-                        Info::from(&self.api.environment()).extend(Info::from(UsageInfo::new(&self.state.usage, self.api.list_snapshots().await?.len())));
+                    let info = Info::from(&self.api.environment()).extend(Info::from(
+                        UsageInfo::new(&self.state.usage, self.api.list_snapshots().await?.len()),
+                    ));
 
                     CONSOLE.writeln(info.to_string())?;
 

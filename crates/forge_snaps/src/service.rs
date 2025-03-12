@@ -29,7 +29,8 @@ impl SnapshotService {
         }
     }
 
-    /// Helper method to handle relative paths by joining with cwd and canonicalizing
+    /// Helper method to handle relative paths by joining with cwd and
+    /// canonicalizing
     fn canonicalize_path(&self, path: &Path) -> PathBuf {
         if path.is_relative() {
             // If the path is relative, join it with current working directory
@@ -168,21 +169,32 @@ impl SnapshotService {
     pub async fn list_snapshots(&self) -> Result<Vec<SnapshotInfo>> {
         let mut result = vec![];
 
-        // Get all directories in the snapshot base dir (each directory represents a file)
+        // Get all directories in the snapshot base dir (each directory represents a
+        // file)
         let entries = Walker::max_all()
             .cwd(self.snapshot_base_dir.clone())
             .get()
             .await
-            .with_context(|| format!("Failed to read base snapshot directory: {:?}", self.snapshot_base_dir))?;
+            .with_context(|| {
+                format!(
+                    "Failed to read base snapshot directory: {:?}",
+                    self.snapshot_base_dir
+                )
+            })?;
         for entry in entries {
             if entry.is_dir() {
                 continue;
             }
-            
+
             if let Some(filename) = entry.file_name {
                 dbg!(&filename);
                 if let Some(timestamp) = self.get_timestamp_from_filename(&filename) {
-                    result.push(SnapshotInfo::with_timestamp(timestamp.to_string(), PathBuf::new(), self.snapshot_base_dir.join(entry.path), 0));
+                    result.push(SnapshotInfo::with_timestamp(
+                        timestamp.to_string(),
+                        PathBuf::new(),
+                        self.snapshot_base_dir.join(entry.path),
+                        0,
+                    ));
                 }
             }
         }
@@ -197,7 +209,9 @@ impl SnapshotService {
     pub async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()> {
         // Canonicalize the path if it's relative
         let file_path = self.canonicalize_path(file_path);
-        let snapshot_metadata = self.get_snapshot_by_timestamp(&file_path, timestamp).await?;
+        let snapshot_metadata = self
+            .get_snapshot_by_timestamp(&file_path, timestamp)
+            .await?;
 
         // ForgeFS::write the content back to the original file
         ForgeFS::write(&file_path, &snapshot_metadata.content)
@@ -404,7 +418,8 @@ mod tests {
         // List snapshots
         let snapshots = service.list_snapshots().await?;
 
-        // Verify we have at least one snapshot in the result (should be 2, one for each file)
+        // Verify we have at least one snapshot in the result (should be 2, one for each
+        // file)
         assert!(!snapshots.is_empty());
 
         // The timestamps should be in descending order (newest first)
