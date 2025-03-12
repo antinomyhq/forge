@@ -403,7 +403,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_snapshots() -> Result<()> {
+    async fn test_list_snapshots_all() -> Result<()> {
         let temp_dir = tempdir()?;
         let base_path = temp_dir.path().to_path_buf();
         let service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
@@ -449,6 +449,42 @@ mod tests {
             let curr_timestamp = snapshots[i].timestamp.parse::<u128>().unwrap_or(0);
             assert!(prev_timestamp < curr_timestamp);
         }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_snapshots_specific() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let base_path = temp_dir.path().to_path_buf();
+        let service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
+
+        // Create a test file
+        let test_file_path = base_path.join("test.txt");
+        let mut file = File::create(&test_file_path).await?;
+        file.write_all(b"test content").await?;
+        file.flush().await?;
+
+        // Create multiple snapshots
+        let _snapshot1 = service.create_snapshot(&test_file_path).await?;
+
+        // Sleep for some time to avoid having same name for snapshot
+        tokio::time::sleep(Duration::from_millis(10)).await;
+
+        // Modify file
+        let mut file = File::create(&test_file_path).await?;
+        file.write_all(b"modified content").await?;
+        file.flush().await?;
+
+        let _snapshot2 = service.create_snapshot(&test_file_path).await?;
+
+        // List snapshots
+        let snapshots = service.list_snapshots(Some(&test_file_path)).await?;
+
+        // Verify we have 2 snapshots, newest first
+        assert_eq!(snapshots.len(), 2);
+        assert_eq!(snapshots[0].index, 0);
+        assert_eq!(snapshots[1].index, 1);
 
         Ok(())
     }

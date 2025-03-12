@@ -121,7 +121,7 @@ mod tests {
             unimplemented!()
         }
 
-        async fn list_snapshots(&self, _: &Path) -> anyhow::Result<Vec<SnapshotInfo>> {
+        async fn list_snapshots(&self, _: Option<&Path>) -> anyhow::Result<Vec<SnapshotInfo>> {
             unimplemented!()
         }
 
