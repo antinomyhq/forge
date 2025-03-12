@@ -432,10 +432,11 @@ impl<A: App> Orchestrator<A> {
                 .await
             {
                 Ok(Some(event)) => {
-                    let _ = self.init_agent_with_event(agent_id, &event).await?;
+                    self.init_agent_with_event(agent_id, &event).await?;
                 }
                 _ => {
-                    // we don't find event or error occurred, then remove the agent from active agents
+                    // we don't find event or error occurred, then remove the agent from active
+                    // agents
                     self.active_agents.write().await.remove(agent_id);
                     break;
                 }
