@@ -101,7 +101,7 @@ impl ConversationService for ForgeConversationService {
     }
 
     /// Returns next event available for the agent.
-    async fn next_event(&self, id: &ConversationId, agent_id: &AgentId) -> Result<Option<Event>> {
+    async fn poll(&self, id: &ConversationId, agent_id: &AgentId) -> Result<Option<Event>> {
         self.write(id, |conversation| {
             conversation
                 .state
