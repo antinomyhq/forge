@@ -384,13 +384,15 @@ impl<A: App> Orchestrator<A> {
         Ok(())
     }
 
-    async fn init_agent(&self, agent: &AgentId) -> anyhow::Result<()> {
-        let conversation = self.get_conversation().await?;
-        let mut state = conversation.state.get(agent).cloned().unwrap_or_default();
-
+    async fn init_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
         // process all the events for the agent
-        while let Some(event) = state.queue.pop_front() {
-            self.init_agent_inner(agent, &event).await?;
+        while let Ok(Some(event)) = self
+            .app
+            .conversation_service()
+            .pop_event(&self.conversation_id, agent_id)
+            .await
+        {
+            self.init_agent_inner(agent_id, &event).await?;
         }
         Ok(())
     }
