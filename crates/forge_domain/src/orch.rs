@@ -203,7 +203,7 @@ impl<A: App> Orchestrator<A> {
                     let mut summarize = Summarize::new(&mut context, *token_limit);
                     while let Some(mut summary) = summarize.summarize() {
                         let input = Event::new(input_key, summary.get());
-                        self.init_agent_inner(agent_id, &input).await?;
+                        self.init_agent_with_event(agent_id, &input).await?;
 
                         if let Some(value) = self.get_last_event(output_key).await? {
                             summary.set(serde_json::to_string(&value)?);
@@ -218,7 +218,7 @@ impl<A: App> Orchestrator<A> {
                     })) = context.messages.last_mut()
                     {
                         let task = Event::new(input_key, content.clone());
-                        self.init_agent_inner(agent_id, &task).await?;
+                        self.init_agent_with_event(agent_id, &task).await?;
 
                         if let Some(output) = self.get_last_event(output_key).await? {
                             let message = &output.value;
@@ -232,7 +232,7 @@ impl<A: App> Orchestrator<A> {
                     let input = Event::new(input_key, context.to_text());
 
                     // NOTE: Tap transformers will not modify the context
-                    self.init_agent_inner(agent_id, &input).await?;
+                    self.init_agent_with_event(agent_id, &input).await?;
                 }
             }
         }
@@ -274,7 +274,7 @@ impl<A: App> Orchestrator<A> {
             .await
     }
 
-    async fn init_agent_inner(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
+    async fn init_agent_with_event(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
         debug!(
             conversation_id = %self.conversation_id,
             agent = %agent_id,
@@ -392,7 +392,7 @@ impl<A: App> Orchestrator<A> {
             .pop_event(&self.conversation_id, agent_id)
             .await
         {
-            self.init_agent_inner(agent_id, &event).await?;
+            self.init_agent_with_event(agent_id, &event).await?;
         }
         Ok(())
     }
