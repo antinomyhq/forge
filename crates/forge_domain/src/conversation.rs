@@ -111,27 +111,18 @@ impl Conversation {
         self.variables.remove(key).is_some()
     }
 
-    /// Add an event to the queue of agents that are subscribed to it
+    /// Add an event to the queue of subscribed agents
     pub fn add_event(&mut self, event: Event) -> &mut Self {
-        // collect all agents that are subscribed to the event
-        let subscribed_agents = self
-            .workflow
-            .agents
-            .iter()
-            .filter(|a| a.enable)
-            .filter(|a| self.turn_count(&a.id).unwrap_or(0) < a.max_turns.unwrap_or(u64::MAX))
-            .filter(|a| a.subscribe.contains(&event.name))
-            .map(|agent| agent.id.clone())
-            .collect::<Vec<_>>();
-
-        // push the events in queue for all subscribed agents
-        for agent_id in subscribed_agents {
+        let subscribed_agents = self.entries(&event.name);
+        
+        subscribed_agents.iter().for_each(|agent| {
             self.state
-                .entry(agent_id)
+                .entry(agent.id.clone())
                 .or_default()
                 .queue
                 .push_back(event.clone());
-        }
+        });
+
         self
     }
 }
