@@ -424,14 +424,16 @@ impl<A: App> Orchestrator<A> {
 
     async fn init_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
         // process all the events for the agent
-        while let Some(event) = self
-            .app
-            .conversation_service()
+        let conversation_service = self.app.conversation_service();
+        while let Some(event) = conversation_service
             .pop_event(&self.conversation_id, agent_id)
             .await?
         {
             self.init_agent_with_event(agent_id, &event).await?;
         }
+
+        // Remove agent from active agents set
+        self.active_agents.write().await.remove(agent_id);
 
         Ok(())
     }
