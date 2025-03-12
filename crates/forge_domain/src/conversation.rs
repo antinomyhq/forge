@@ -83,14 +83,9 @@ impl Conversation {
     }
 
     pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
-        for (_, state) in self.state.iter() {
-            for event in state.queue.iter().rev() {
-                if event.name == event_name {
-                    return Some(event);
-                }
-            }
-        }
-        None
+        self.state.values()
+            .flat_map(|state| state.queue.iter())
+            .find(|event| event.name == event_name)
     }
 
     /// Get a variable value by its key
