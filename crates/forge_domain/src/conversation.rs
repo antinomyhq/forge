@@ -114,7 +114,7 @@ impl Conversation {
     /// Add an event to the queue of subscribed agents
     pub fn add_event(&mut self, event: Event) -> &mut Self {
         let subscribed_agents = self.entries(&event.name);
-        
+
         subscribed_agents.iter().for_each(|agent| {
             self.state
                 .entry(agent.id.clone())
