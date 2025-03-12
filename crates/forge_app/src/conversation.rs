@@ -99,14 +99,15 @@ impl ConversationService for ForgeConversationService {
         self.write(id, |c| c.delete_variable(key)).await
     }
 
-    /// Returns the next event for the given conversation and agent
     async fn pop_event(&self, id: &ConversationId, agent_id: &AgentId) -> Result<Option<Event>> {
-        let mut guard = self.workflows.lock().await;
-        let conversation = guard.get_mut(id).context("Conversation not found")?;
-        let state = conversation
-            .state
-            .get_mut(agent_id)
-            .context("Agent not found")?;
-        Ok(state.queue.pop_front())
+        self.write(id, |conversation| {
+            conversation
+                .state
+                .get_mut(agent_id)
+                .map(|state| state.queue.pop_front())
+                .context("Agent not found")
+        })
+        .await
+        .and_then(|result| result)
     }
 }
