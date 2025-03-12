@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use anyhow::Result;
 use derive_more::derive::Display;
@@ -43,6 +43,8 @@ pub struct Conversation {
 pub struct AgentState {
     pub turn_count: u64,
     pub context: Option<Context>,
+    /// holds the events that are waiting to be processed
+    pub queue: VecDeque<Event>,
 }
 
 impl Conversation {
@@ -61,6 +63,7 @@ impl Conversation {
         self.state.get(id).map(|s| s.turn_count)
     }
 
+    /// Returns all the agents that are subscribed to the given event.
     pub fn entries(&self, event_name: &str) -> Vec<Agent> {
         self.workflow
             .agents
@@ -105,5 +108,29 @@ impl Conversation {
     /// Returns true if the variable was present and removed, false otherwise
     pub fn delete_variable(&mut self, key: &str) -> bool {
         self.variables.remove(key).is_some()
+    }
+
+    /// Add an event to the queue of agents that are subscribed to it
+    pub fn add_event(&mut self, event: Event) -> &mut Self {
+        // collect all agents that are subscribed to the event
+        let subscribed_agents = self
+            .workflow
+            .agents
+            .iter()
+            .filter(|a| a.enable)
+            .filter(|a| self.turn_count(&a.id).unwrap_or(0) < a.max_turns.unwrap_or(u64::MAX))
+            .filter(|a| a.subscribe.contains(&event.name))
+            .map(|agent| agent.id.clone())
+            .collect::<Vec<_>>();
+
+        // push the events in queue for all subscribed agents
+        for agent_id in subscribed_agents {
+            self.state
+                .entry(agent_id)
+                .or_default()
+                .queue
+                .push_back(event.clone());
+        }
+        self
     }
 }

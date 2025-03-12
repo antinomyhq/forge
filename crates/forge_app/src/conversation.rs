@@ -79,7 +79,7 @@ impl ConversationService for ForgeConversationService {
 
     async fn insert_event(&self, id: &ConversationId, event: Event) -> Result<()> {
         self.write(id, |c| {
-            c.events.push(event);
+            c.add_event(event);
         })
         .await
     }

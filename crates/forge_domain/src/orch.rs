@@ -151,6 +151,7 @@ impl<A: App> Orchestrator<A> {
             "Dispatching event"
         );
 
+        // adds the event to agents queue for processing.
         self.insert_event(event.clone()).await?;
         join_all(
             self.app
@@ -160,7 +161,7 @@ impl<A: App> Orchestrator<A> {
                 .ok_or(Error::ConversationNotFound(self.conversation_id.clone()))?
                 .entries(event.name.as_str())
                 .iter()
-                .map(|agent| self.init_agent(&agent.id, event)),
+                .map(|agent| self.init_agent(&agent.id)),
         )
         .await
         .into_iter()
@@ -202,7 +203,7 @@ impl<A: App> Orchestrator<A> {
                     let mut summarize = Summarize::new(&mut context, *token_limit);
                     while let Some(mut summary) = summarize.summarize() {
                         let input = Event::new(input_key, summary.get());
-                        self.init_agent(agent_id, &input).await?;
+                        self.init_agent_inner(agent_id, &input).await?;
 
                         if let Some(value) = self.get_last_event(output_key).await? {
                             summary.set(serde_json::to_string(&value)?);
@@ -217,7 +218,8 @@ impl<A: App> Orchestrator<A> {
                     })) = context.messages.last_mut()
                     {
                         let task = Event::new(input_key, content.clone());
-                        self.init_agent(agent_id, &task).await?;
+                        self.init_agent_inner(agent_id, &task).await?;
+
                         if let Some(output) = self.get_last_event(output_key).await? {
                             let message = &output.value;
                             content
@@ -230,7 +232,7 @@ impl<A: App> Orchestrator<A> {
                     let input = Event::new(input_key, context.to_text());
 
                     // NOTE: Tap transformers will not modify the context
-                    self.init_agent(agent_id, &input).await?;
+                    self.init_agent_inner(agent_id, &input).await?;
                 }
             }
         }
@@ -272,15 +274,15 @@ impl<A: App> Orchestrator<A> {
             .await
     }
 
-    async fn init_agent(&self, agent: &AgentId, event: &Event) -> anyhow::Result<()> {
+    async fn init_agent_inner(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
         debug!(
             conversation_id = %self.conversation_id,
-            agent = %agent,
+            agent = %agent_id,
             event = ?event,
             "Initializing agent"
         );
         let conversation = self.get_conversation().await?;
-        let agent = conversation.workflow.get_agent(agent)?;
+        let agent = conversation.workflow.get_agent(agent_id)?;
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
             self.init_agent_context(agent).await?
@@ -379,6 +381,17 @@ impl<A: App> Orchestrator<A> {
 
         self.complete_turn(&agent.id).await?;
 
+        Ok(())
+    }
+
+    async fn init_agent(&self, agent: &AgentId) -> anyhow::Result<()> {
+        let conversation = self.get_conversation().await?;
+        let mut state = conversation.state.get(agent).cloned().unwrap_or_default();
+
+        // process all the events for the agent
+        while let Some(event) = state.queue.pop_front() {
+            self.init_agent_inner(agent, &event).await?;
+        }
         Ok(())
     }
 }
