@@ -30,8 +30,8 @@ impl FsSnapshotService for ForgeFileSnapshotService {
     }
 
     // Listing
-    async fn list_snapshots(&self) -> Result<Vec<SnapshotInfo>> {
-        self.inner.list_snapshots().await
+    async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<SnapshotInfo>> {
+        self.inner.list_snapshots(path).await
     }
 
     // Timestamp-based restoration

@@ -60,7 +60,10 @@ pub enum Snapshot {
 #[derive(Subcommand)]
 pub enum SnapshotCommand {
     /// List all snapshots for a file
-    List,
+    List {
+        /// Path to the file
+        path: Option<PathBuf>,
+    },
 
     /// Restore a file from a snapshot
     Restore {

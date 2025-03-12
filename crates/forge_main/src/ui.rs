@@ -136,7 +136,7 @@ impl<F: API> UI<F> {
                 }
                 Command::Info => {
                     let info = Info::from(&self.api.environment()).extend(Info::from(
-                        UsageInfo::new(&self.state.usage, self.api.list_snapshots().await?.len()),
+                        UsageInfo::new(&self.state.usage, self.api.list_snapshots(None).await?.len()),
                     ));
 
                     CONSOLE.writeln(info.to_string())?;
@@ -200,8 +200,8 @@ impl<F: API> UI<F> {
     }
     async fn handle_snaps(&self, snapshot_command: &SnapshotCommand) -> Result<()> {
         match snapshot_command {
-            SnapshotCommand::List => {
-                let snapshots: Vec<SnapshotInfo> = self.api.list_snapshots().await?;
+            SnapshotCommand::List { path } => {
+                let snapshots: Vec<SnapshotInfo> = self.api.list_snapshots(path.as_ref().map(|v| v.as_path())).await?;
                 if snapshots.is_empty() {
                     CONSOLE.writeln(
                         TitleFormat::failed("Snapshots")
@@ -407,7 +407,7 @@ impl<F: API> UI<F> {
 
     async fn handle_chat_stream(
         &mut self,
-        stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
+        stream: &mut (impl StreamExt<Item=Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
         loop {
             tokio::select! {

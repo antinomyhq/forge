@@ -166,7 +166,10 @@ impl SnapshotService {
         Ok(snapshot_info)
     }
 
-    pub async fn list_snapshots(&self) -> Result<Vec<SnapshotInfo>> {
+    pub async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<SnapshotInfo>> {
+        if let Some(path) = path {
+            return self.list_snapshots_with_path(path).await;
+        }
         let mut result = vec![];
 
         // Get all directories in the snapshot base dir (each directory represents a
@@ -206,6 +209,24 @@ impl SnapshotService {
         Ok(result)
     }
 
+    async fn list_snapshots_with_path(&self, file_path: &Path) -> Result<Vec<SnapshotInfo>> {
+        let snapshots = self.get_sorted_snapshots(file_path).await?;
+        let mut result = vec![];
+
+        for (index, (timestamp, path)) in snapshots.iter().enumerate() {
+            let snapshot_info = SnapshotInfo::with_timestamp(
+                timestamp.to_string(),
+                file_path.to_path_buf(),
+                path.clone(),
+                index,
+            );
+
+            result.push(snapshot_info);
+        }
+
+        Ok(result)
+    }
+    
     pub async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()> {
         // Canonicalize the path if it's relative
         let file_path = self.canonicalize_path(file_path);
@@ -416,7 +437,7 @@ mod tests {
         let _snapshot3 = service.create_snapshot(&test_file_path2).await?;
 
         // List snapshots
-        let snapshots = service.list_snapshots().await?;
+        let snapshots = service.list_snapshots(None).await?;
 
         // Verify we have at least one snapshot in the result (should be 2, one for each
         // file)
@@ -486,7 +507,7 @@ mod tests {
         }
 
         // List snapshots
-        let snapshots = service.list_snapshots().await?;
+        let snapshots = service.list_snapshots(None).await?;
 
         // Verify we have at least one snapshot in the results
         assert!(!snapshots.is_empty());

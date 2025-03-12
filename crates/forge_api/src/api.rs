@@ -42,8 +42,8 @@ impl ForgeAPI<ForgeApp<ForgeInfra>> {
 
 #[async_trait::async_trait]
 impl<F: App + Infrastructure> API for ForgeAPI<F> {
-    async fn list_snapshots(&self) -> Result<Vec<SnapshotInfo>> {
-        self.app.file_snapshot_service().list_snapshots().await
+    async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<SnapshotInfo>> {
+        self.app.file_snapshot_service().list_snapshots(path).await
     }
 
     async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()> {
