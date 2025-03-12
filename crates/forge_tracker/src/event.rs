@@ -5,6 +5,14 @@ use convert_case::{Case, Casing};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ErrorDetails {
+    pub error_type: String,
+    pub message: String,
+    pub context: String,
+    pub stack_trace: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Event {
     pub event_name: Name,
     pub event_value: String,
@@ -47,6 +55,7 @@ pub enum EventKind {
     Start,
     Ping,
     Prompt(String),
+    ErrorOccurred(ErrorDetails),
 }
 
 impl EventKind {
@@ -55,6 +64,7 @@ impl EventKind {
             Self::Start => Name::from("start".to_string()),
             Self::Ping => Name::from("ping".to_string()),
             Self::Prompt(_) => Name::from("prompt".to_string()),
+            Self::ErrorOccurred(_) => Name::from("error_occurred".to_string()),
         }
     }
     pub fn value(&self) -> String {
@@ -62,6 +72,7 @@ impl EventKind {
             Self::Start => "".to_string(),
             Self::Ping => "".to_string(),
             Self::Prompt(content) => content.to_string(),
+            Self::ErrorOccurred(details) => serde_json::to_string(details).unwrap_or_default(),
         }
     }
 }
