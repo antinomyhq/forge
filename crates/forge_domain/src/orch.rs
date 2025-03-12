@@ -205,7 +205,7 @@ impl<A: App> Orchestrator<A> {
                         let input = Event::new(input_key, summary.get());
                         self.init_agent_with_event(agent_id, &input).await?;
 
-                        if let Some(value) = self.get_last_event(agent_id, output_key).await? {
+                        if let Some(value) = self.get_last_event(output_key).await? {
                             summary.set(serde_json::to_string(&value)?);
                         }
                     }
@@ -220,7 +220,7 @@ impl<A: App> Orchestrator<A> {
                         let task = Event::new(input_key, content.clone());
                         self.init_agent_with_event(agent_id, &task).await?;
 
-                        if let Some(output) = self.get_last_event(agent_id, output_key).await? {
+                        if let Some(output) = self.get_last_event(output_key).await? {
                             let message = &output.value;
                             content
                                 .push_str(&format!("\n<{output_key}>\n{message}\n</{output_key}>"));
@@ -242,13 +242,12 @@ impl<A: App> Orchestrator<A> {
 
     async fn get_last_event(
         &self,
-        agent_id: &AgentId,
         name: &str,
     ) -> anyhow::Result<Option<Event>> {
         Ok(self
             .get_conversation()
             .await?
-            .rfind_event(agent_id, name)
+            .rfind_event(name)
             .cloned())
     }
 

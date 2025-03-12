@@ -82,8 +82,15 @@ impl Conversation {
         self.state.get(id).and_then(|s| s.context.as_ref())
     }
 
-    pub fn rfind_event(&self, agent_id: &AgentId, event_name: &str) -> Option<&Event> {
-        self.state.get(agent_id).and_then(|s| s.queue.iter().rfind(|event| event.name == event_name))
+    pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
+        for (_, state) in self.state.iter() {
+            for event in state.queue.iter().rev() {
+                if event.name == event_name {
+                    return Some(event);
+                }
+            }
+        }
+        None
     }
 
     /// Get a variable value by its key
