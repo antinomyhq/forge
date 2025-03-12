@@ -190,7 +190,6 @@ impl SnapshotService {
             }
 
             if let Some(filename) = entry.file_name {
-                dbg!(&filename);
                 if let Some(timestamp) = self.get_timestamp_from_filename(&filename) {
                     result.push(SnapshotInfo::with_timestamp(
                         timestamp.to_string(),
@@ -534,7 +533,8 @@ mod tests {
 
         // Create multiple snapshots with modifications
         for i in 1..=5 {
-            let _snapshot = service.create_snapshot(&test_file_path).await?;
+            let snapshot = service.create_snapshot(&test_file_path).await?;
+            tokio::time::sleep(Duration::from_millis(10)).await;
 
             let mut file = File::create(&test_file_path).await?;
             file.write_all(format!("content {}", i + 1).as_bytes())
