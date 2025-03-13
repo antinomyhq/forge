@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::Result;
 use forge_app::FsSnapshotService;
@@ -6,13 +7,13 @@ use forge_domain::Environment;
 use forge_snaps::{SnapshotInfo, SnapshotMetadata};
 
 pub struct ForgeFileSnapshotService {
-    inner: forge_snaps::SnapshotService,
+    inner: Arc<forge_snaps::SnapshotService>,
 }
 
 impl ForgeFileSnapshotService {
     pub fn new(env: Environment) -> Self {
         Self {
-            inner: forge_snaps::SnapshotService::new(env.cwd.clone(), env.snapshot_path()),
+            inner: Arc::new(forge_snaps::SnapshotService::new(env.cwd.clone(), env.snapshot_path())),
         }
     }
 }

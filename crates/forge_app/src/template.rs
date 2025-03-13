@@ -19,6 +19,7 @@ const README_CONTENT: &str = include_str!("../../../README.md");
 #[folder = "../../templates/"]
 struct Templates;
 
+#[derive(Clone)]
 pub struct ForgeTemplateService<F, T> {
     hb: Handlebars<'static>,
     infra: Arc<F>,

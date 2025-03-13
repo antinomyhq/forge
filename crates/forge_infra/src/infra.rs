@@ -12,33 +12,36 @@ use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fs_write::ForgeFileWriteService;
 use crate::qdrant::QdrantVectorIndex;
 
+#[derive(Clone)]
 pub struct ForgeInfra {
-    file_read_service: ForgeFileReadService,
-    file_write_service: ForgeFileWriteService<ForgeFileSnapshotService>,
-    environment_service: ForgeEnvironmentService,
-    information_repo: QdrantVectorIndex,
-    embedding_service: OpenAIEmbeddingService,
+    file_read_service: Arc<ForgeFileReadService>,
+    file_write_service: Arc<ForgeFileWriteService<ForgeFileSnapshotService>>,
+    environment_service: Arc<ForgeEnvironmentService>,
+    information_repo: Arc<QdrantVectorIndex>,
+    embedding_service: Arc<OpenAIEmbeddingService>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
-    file_meta_service: ForgeFileMetaService,
-    file_remove_service: ForgeFileRemoveService<ForgeFileSnapshotService>,
-    create_dirs_service: ForgeCreateDirsService,
+    file_meta_service: Arc<ForgeFileMetaService>,
+    file_remove_service: Arc<ForgeFileRemoveService<ForgeFileSnapshotService>>,
+    create_dirs_service: Arc<ForgeCreateDirsService>,
 }
 
 impl ForgeInfra {
     pub fn new(restricted: bool) -> Self {
-        let environment_service = ForgeEnvironmentService::new(restricted);
+        let environment_service = Arc::new(ForgeEnvironmentService::new(restricted));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         Self {
-            file_read_service: ForgeFileReadService::new(),
-            file_write_service: ForgeFileWriteService::new(file_snapshot_service.clone()),
-            file_meta_service: ForgeFileMetaService,
-            file_remove_service: ForgeFileRemoveService::new(file_snapshot_service.clone()),
+            file_read_service: Arc::new(ForgeFileReadService::new()),
+            file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
+            file_meta_service: Arc::new(ForgeFileMetaService),
+            file_remove_service: Arc::new(ForgeFileRemoveService::new(
+                file_snapshot_service.clone(),
+            )),
             environment_service,
-            information_repo: QdrantVectorIndex::new(env.clone(), "user_feedback"),
-            embedding_service: OpenAIEmbeddingService::new(env.clone()),
+            information_repo: Arc::new(QdrantVectorIndex::new(env.clone(), "user_feedback")),
+            embedding_service: Arc::new(OpenAIEmbeddingService::new(env.clone())),
             file_snapshot_service,
-            create_dirs_service: ForgeCreateDirsService,
+            create_dirs_service: Arc::new(ForgeCreateDirsService),
         }
     }
 }

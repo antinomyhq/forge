@@ -1,3 +1,4 @@
+mod test_workflow;
 use std::env;
 use std::path::PathBuf;
 
@@ -6,7 +7,6 @@ use forge_api::{AgentMessage, ChatRequest, ChatResponse, Event, ForgeAPI, ModelI
 use tokio_stream::StreamExt;
 
 const MAX_RETRIES: usize = 5;
-const WORKFLOW_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/test_workflow.yaml");
 
 /// Check if API tests should run based on environment variable
 fn should_run_api_tests() -> bool {
@@ -38,8 +38,7 @@ impl Fixture {
     /// Get model response as text
     async fn get_model_response(&self) -> String {
         let api = self.api();
-        // load the workflow from path
-        let mut workflow = api.load(Some(&PathBuf::from(WORKFLOW_PATH))).await.unwrap();
+        let mut workflow = test_workflow::create_test_workflow();
 
         // in workflow, replace all models with the model we want to test.
         workflow.agents.iter_mut().for_each(|agent| {
