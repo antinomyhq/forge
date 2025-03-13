@@ -111,6 +111,10 @@ pub trait ConversationService: Send + Sync {
         id: &ConversationId,
         agent_id: &AgentId,
     ) -> anyhow::Result<()>;
+    /// Execute an async function with a mutable reference to a conversation
+    async fn with_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
+    where
+        F: FnOnce(&mut Conversation) -> T + Send;
 }
 
 #[async_trait::async_trait]

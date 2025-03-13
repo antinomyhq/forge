@@ -22,31 +22,21 @@ impl ForgeConversationService {
     pub fn new() -> Self {
         Self { workflows: Arc::new(Mutex::new(HashMap::new())) }
     }
+}
 
-    // Helper method for operations requiring mutable access to a conversation
-    async fn write<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
+#[async_trait::async_trait]
+impl ConversationService for ForgeConversationService {
+    async fn with_conversation<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
     where
-        F: FnOnce(&mut Conversation) -> T,
+        F: FnOnce(&mut Conversation) -> T + Send,
     {
-        let mut guard = self.workflows.lock().await;
-        let conversation = guard
+        let mut workflows = self.workflows.lock().await;
+        let conversation = workflows
             .get_mut(id)
             .ok_or_else(|| anyhow!("Conversation not found"))?;
         Ok(f(conversation))
     }
 
-    // Helper method for operations requiring immutable access to a conversation
-    async fn read<F, T>(&self, id: &ConversationId, f: F) -> Result<Option<T>>
-    where
-        F: FnOnce(&Conversation) -> Option<T>,
-    {
-        let guard = self.workflows.lock().await;
-        Ok(guard.get(id).and_then(f))
-    }
-}
-
-#[async_trait::async_trait]
-impl ConversationService for ForgeConversationService {
     async fn get(&self, id: &ConversationId) -> Result<Option<Conversation>> {
         Ok(self.workflows.lock().await.get(id).cloned())
     }
@@ -59,10 +49,9 @@ impl ConversationService for ForgeConversationService {
     }
 
     async fn inc_turn(&self, id: &ConversationId, agent: &AgentId) -> Result<()> {
-        if let Some(c) = self.workflows.lock().await.get_mut(id) {
+        self.with_conversation(id, |c| {
             c.state.entry(agent.clone()).or_default().turn_count += 1;
-        }
-        Ok(())
+        }).await
     }
 
     async fn set_context(
@@ -71,57 +60,49 @@ impl ConversationService for ForgeConversationService {
         agent: &AgentId,
         context: Context,
     ) -> Result<()> {
-        if let Some(c) = self.workflows.lock().await.get_mut(id) {
+        self.with_conversation(id, |c| {
             c.state.entry(agent.clone()).or_default().context = Some(context);
-        }
-        Ok(())
+        }).await
     }
 
-    /// Adds an event to agents who have subscribed to the event.
     async fn insert_event(&self, id: &ConversationId, event: Event) -> Result<()> {
-        self.write(id, |c| {
+        self.with_conversation(id, |c| {
             c.add_event(event);
-        })
-        .await
+        }).await
     }
 
     async fn get_variable(&self, id: &ConversationId, key: &str) -> Result<Option<Value>> {
-        self.read(id, |c| c.get_variable(key).cloned()).await
+        self.with_conversation(id, |c| c.get_variable(key).cloned()).await
     }
 
     async fn set_variable(&self, id: &ConversationId, key: String, value: Value) -> Result<()> {
-        self.write(id, |c| {
+        self.with_conversation(id, |c| {
             c.set_variable(key, value);
-        })
-        .await
+        }).await
     }
 
     async fn delete_variable(&self, id: &ConversationId, key: &str) -> Result<bool> {
-        self.write(id, |c| c.delete_variable(key)).await
+        self.with_conversation(id, |c| c.delete_variable(key)).await
     }
 
-    /// Returns next event available for the agent.
     async fn poll(&self, id: &ConversationId, agent_id: &AgentId) -> Result<Option<Event>> {
-        self.write(id, |conversation| {
+        self.with_conversation(id, |conversation| {
             conversation
                 .state
                 .get_mut(agent_id)
                 .and_then(|state| state.queue.pop_front())
-        })
-        .await
+        }).await
     }
 
     async fn set_agent_active(&self, id: &ConversationId, agent_id: &AgentId) -> Result<()> {
-        self.write(id, |conversation| {
+        self.with_conversation(id, |conversation| {
             conversation.active_agents.insert(agent_id.clone());
-        })
-        .await
+        }).await
     }
 
     async fn set_agent_inactive(&self, id: &ConversationId, agent_id: &AgentId) -> Result<()> {
-        self.write(id, |conversation| {
+        self.with_conversation(id, |conversation| {
             conversation.active_agents.remove(agent_id);
-        })
-        .await
+        }).await
     }
 }

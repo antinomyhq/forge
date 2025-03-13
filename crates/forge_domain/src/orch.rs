@@ -162,22 +162,29 @@ impl<A: App> Orchestrator<A> {
         self.insert_event(event.clone()).await?;
 
         for agent in subscribed_agents {
-            let conversation = self.get_conversation().await?;
-            if !conversation.is_agent_active(&agent.id) {
-                // mark agent active in conversation.
-                self.app
-                    .conversation_service()
-                    .set_agent_active(&conversation.id, &agent.id)
-                    .await?;
+            // Check and set agent active state atomically
+            let was_inactive = self
+                .app
+                .conversation_service()
+                .with_conversation(&self.conversation_id, |c| {
+                    if !c.active_agents.contains(&agent.id) {
+                        c.active_agents.insert(agent.id.clone());
+                        true
+                    } else {
+                        false
+                    }
+                })
+                .await?;
 
-                // Initialize agent if not already active
+            // Initialize agent if it was inactive
+            if was_inactive {
                 let app = self.app.clone();
                 let conversation_id = self.conversation_id.clone();
                 let agent_id = agent.id.clone();
-
-                // TODO: we shouldn't create an separate instance of Orchestrator, instead
-                // should clone self and use init_agent method.
                 let sender = self.sender.clone();
+
+                // TODO: we shouldn't create an separate instance of Orchestrator, instead clone self
+                // and use init_agent method.
                 tokio::spawn(async move {
                     let orch = Orchestrator::new(app, conversation_id, sender);
                     if let Err(e) = orch.init_agent(&agent_id).await {
@@ -419,19 +426,22 @@ impl<A: App> Orchestrator<A> {
         let conversation_service = self.app.conversation_service();
 
         loop {
-            match conversation_service
-                .poll(&self.conversation_id, agent_id)
-                .await
-            {
-                Ok(Some(event)) => {
-                    self.init_agent_with_event(agent_id, &event).await?;
-                }
-                _ => {
-                    let _ = conversation_service
-                        .set_agent_inactive(&self.conversation_id, agent_id)
-                        .await;
-                    break;
-                }
+            // Atomically check queue and set inactive status if empty
+            let has_event = conversation_service
+                .with_conversation(&self.conversation_id, |c| {
+                    if let Some(state) = c.state.get_mut(agent_id) {
+                        if let Some(event) = state.queue.pop_front() {
+                            return Some(event);
+                        }
+                    }
+                    c.active_agents.remove(agent_id);
+                    None
+                })
+                .await?;
+
+            match has_event {
+                Some(event) => self.init_agent_with_event(agent_id, &event).await?,
+                None => break,
             }
         }
 
