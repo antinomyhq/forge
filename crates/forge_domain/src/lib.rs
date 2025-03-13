@@ -100,7 +100,8 @@ pub trait ConversationService: Send + Sync {
         value: Value,
     ) -> anyhow::Result<()>;
     async fn delete_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<bool>;
-    /// This is useful when you want to perform several operations on a conversation atomically.
+    /// This is useful when you want to perform several operations on a
+    /// conversation atomically.
     async fn with_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send;
