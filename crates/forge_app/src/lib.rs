@@ -106,7 +106,7 @@ pub trait FsSnapshotService: Send + Sync {
     async fn purge_older_than(&self, days: u32) -> Result<usize>;
 }
 
-pub trait Infrastructure: Send + Sync + Clone + 'static  {
+pub trait Infrastructure: Send + Sync + Clone + 'static {
     type EmbeddingService: EmbeddingService;
     type EnvironmentService: EnvironmentService;
     type FsMetaService: FsMetaService;
