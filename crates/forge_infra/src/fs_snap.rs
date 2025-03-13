@@ -6,7 +6,6 @@ use forge_app::FsSnapshotService;
 use forge_domain::Environment;
 use forge_snaps::{SnapshotInfo, SnapshotMetadata};
 
-#[derive(Clone)]
 pub struct ForgeFileSnapshotService {
     inner: Arc<forge_snaps::SnapshotService>,
 }

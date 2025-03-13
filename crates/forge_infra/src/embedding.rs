@@ -20,7 +20,6 @@ struct EmbeddingData {
     embedding: Vec<f32>,
 }
 
-#[derive(Clone)]
 pub struct OpenAIEmbeddingService {
     client: reqwest::Client,
     env: Environment,

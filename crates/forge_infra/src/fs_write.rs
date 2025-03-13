@@ -5,7 +5,6 @@ use anyhow::Result;
 use bytes::Bytes;
 use forge_app::{FsSnapshotService, FsWriteService};
 
-#[derive(Clone)]
 pub struct ForgeFileWriteService<S> {
     snaps: Arc<S>,
 }

@@ -3,7 +3,6 @@ use std::path::Path;
 use anyhow::Result;
 use forge_app::FsMetaService;
 
-#[derive(Clone)]
 pub struct ForgeFileMetaService;
 #[async_trait::async_trait]
 impl FsMetaService for ForgeFileMetaService {
