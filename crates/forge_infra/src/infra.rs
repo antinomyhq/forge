@@ -12,6 +12,7 @@ use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fs_write::ForgeFileWriteService;
 use crate::qdrant::QdrantVectorIndex;
 
+#[derive(Clone)]
 pub struct ForgeInfra {
     file_read_service: ForgeFileReadService,
     file_write_service: ForgeFileWriteService<ForgeFileSnapshotService>,

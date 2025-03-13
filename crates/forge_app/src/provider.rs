@@ -8,9 +8,10 @@ use forge_open_router::Client;
 
 use crate::{EnvironmentService, Infrastructure};
 
+#[derive(Clone)]
 pub struct ForgeProviderService {
     // The provider service implementation
-    client: Client,
+    client: Arc<Client>,
 }
 
 impl ForgeProviderService {
@@ -21,7 +22,7 @@ impl ForgeProviderService {
             .get_environment()
             .provider
             .clone();
-        Self { client: Client::new(provider).unwrap() }
+        Self { client: Arc::new(Client::new(provider).unwrap()) }
     }
 }
 

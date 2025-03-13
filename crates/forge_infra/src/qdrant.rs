@@ -9,6 +9,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tokio::sync::Mutex;
 
+#[derive(Clone)]
 pub struct QdrantVectorIndex {
     env: Environment,
     client: Arc<Mutex<Option<Arc<Qdrant>>>>,

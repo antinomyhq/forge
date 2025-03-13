@@ -2,7 +2,7 @@ use std::path::Path;
 
 use forge_app::FsCreateDirsService;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ForgeCreateDirsService;
 
 #[async_trait::async_trait]

@@ -4,6 +4,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use forge_app::FsReadService;
 
+#[derive(Clone)]
 pub struct ForgeFileReadService;
 
 impl Default for ForgeFileReadService {

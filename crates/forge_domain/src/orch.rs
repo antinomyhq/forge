@@ -16,6 +16,7 @@ pub struct AgentMessage<T> {
     pub message: T,
 }
 
+#[derive(Clone)]
 pub struct Orchestrator<App> {
     app: Arc<App>,
     sender: Option<ArcSender>,
@@ -163,9 +164,7 @@ impl<A: App> Orchestrator<A> {
         self.insert_event(event.clone()).await?;
 
         for agent in subscribed_agents {
-            let app = self.app.clone();
-            let conversation_id = self.conversation_id.clone();
-            let sender = self.sender.clone();
+            let orchestrator = self.clone();
 
             self.app
                 .conversation_service()
@@ -177,8 +176,7 @@ impl<A: App> Orchestrator<A> {
 
                         let agent_id = agent.id.clone();
                         tokio::spawn(async move {
-                            let orch = Orchestrator::new(app, conversation_id, sender);
-                            if let Err(e) = orch.init_agent(&agent_id).await {
+                            if let Err(e) = orchestrator.init_agent(&agent_id).await {
                                 tracing::error!("Failed to initialize agent: {}", e);
                             }
                         });

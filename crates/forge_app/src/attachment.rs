@@ -8,6 +8,7 @@ use forge_domain::{Attachment, AttachmentService, ContentType};
 use crate::{FsReadService, Infrastructure};
 // TODO: bring pdf support, pdf is just a collection of images.
 
+#[derive(Clone)]
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }

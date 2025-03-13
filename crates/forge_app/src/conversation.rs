@@ -8,6 +8,7 @@ use forge_domain::{
 use serde_json::Value;
 use tokio::sync::Mutex;
 
+#[derive(Clone)]
 pub struct ForgeConversationService {
     workflows: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
 }

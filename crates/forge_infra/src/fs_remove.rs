@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use forge_app::{FileRemoveService, FsSnapshotService};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ForgeFileRemoveService<S> {
     snaps: Arc<S>,
 }
