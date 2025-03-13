@@ -35,17 +35,23 @@ impl FsSnapshotService for ForgeFileSnapshotService {
 
     // Listing
     async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<SnapshotInfo>> {
-        self.inner.list_snapshots(path.map(|v| v.to_path_buf())).await
+        self.inner
+            .list_snapshots(path.map(|v| v.to_path_buf()))
+            .await
     }
 
     // Timestamp-based restoration
     async fn restore_by_timestamp(&self, file_path: &Path, timestamp: u128) -> Result<()> {
-        self.inner.restore_snapshot_with_timestamp(&file_path.display().to_string(), timestamp).await
+        self.inner
+            .restore_snapshot_with_timestamp(&file_path.display().to_string(), timestamp)
+            .await
     }
 
     // Index-based restoration (0 = newest, 1 = previous version, etc.)
     async fn restore_by_hash(&self, file_path: &Path, hash: &str) -> Result<()> {
-        self.inner.restore_snapshot_with_hash(&file_path.display().to_string(), hash).await
+        self.inner
+            .restore_snapshot_with_hash(&file_path.display().to_string(), hash)
+            .await
     }
 
     // Get latest snapshot
@@ -68,12 +74,10 @@ impl FsSnapshotService for ForgeFileSnapshotService {
             .get_snapshot_with_timestamp(&file_path.display().to_string(), timestamp)
             .await
     }
-    async fn get_snapshot_by_hash(
-        &self,
-        file_path: &Path,
-        hash: &str,
-    ) -> Result<SnapshotInfo> {
-        self.inner.get_snapshot_with_hash(&file_path.display().to_string(), hash).await
+    async fn get_snapshot_by_hash(&self, file_path: &Path, hash: &str) -> Result<SnapshotInfo> {
+        self.inner
+            .get_snapshot_with_hash(&file_path.display().to_string(), hash)
+            .await
     }
 
     // Global purge operation

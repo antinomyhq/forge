@@ -1,3 +1,3 @@
 mod walker;
 
-pub use walker::{Walker, File};
+pub use walker::{File, Walker};

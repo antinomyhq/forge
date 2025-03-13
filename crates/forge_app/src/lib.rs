@@ -86,7 +86,7 @@ pub trait FsSnapshotService: Send + Sync {
 
     // Hash-based restoration
     async fn restore_by_hash(&self, file_path: &Path, hash: &str) -> Result<()>; // Get latest snapshot
-    
+
     // Get latest snapshot of the path.
     async fn get_latest(&self, file_path: &Path) -> Result<SnapshotInfo>;
 
@@ -99,11 +99,7 @@ pub trait FsSnapshotService: Send + Sync {
         file_path: &Path,
         timestamp: u128,
     ) -> Result<SnapshotInfo>;
-    async fn get_snapshot_by_hash(
-        &self,
-        file_path: &Path,
-        hash: &str,
-    ) -> Result<SnapshotInfo>;
+    async fn get_snapshot_by_hash(&self, file_path: &Path, hash: &str) -> Result<SnapshotInfo>;
 
     // Global purge operation
     async fn purge_older_than(&self, days: u32) -> Result<usize>;

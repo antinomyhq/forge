@@ -266,17 +266,15 @@ impl<F: API> UI<F> {
                     let mut title = TitleFormat::execute(format!("Snapshot #{}", i));
 
                     if let Ok(time) = i64::try_from(snap.timestamp) {
-                        match Utc.timestamp_millis_opt(time) {
-                            LocalResult::Single(datetime_utc) => {
-                                let datetime_local = datetime_utc.with_timezone(&Local).format("%H:%M:%S %Y-%m-%d").to_string();
-                                title = title.sub_title(format!("timestamp: {}", datetime_local));
-                            }
-                            _ => (),
+                        if let LocalResult::Single(datetime_utc) = Utc.timestamp_millis_opt(time) {
+                            let datetime_local = datetime_utc
+                                .with_timezone(&Local)
+                                .format("%H:%M:%S %Y-%m-%d")
+                                .to_string();
+                            title = title.sub_title(format!("timestamp: {}", datetime_local));
                         }
                     }
-                    CONSOLE.writeln(
-                        title.format()
-                    )?;
+                    CONSOLE.writeln(title.format())?;
 
                     CONSOLE.writeln(format!(
                         "{}: {}",
@@ -312,9 +310,7 @@ impl<F: API> UI<F> {
                             .format(),
                     )?;
 
-                    self.api
-                        .restore_by_timestamp(path, *timestamp)
-                        .await?;
+                    self.api.restore_by_timestamp(path, *timestamp).await?;
 
                     CONSOLE.writeln(
                         TitleFormat::success("Restore Complete")
@@ -364,9 +360,7 @@ impl<F: API> UI<F> {
                             .format(),
                     )?;
 
-                    self.api
-                        .get_snapshot_by_timestamp(path, *timestamp)
-                        .await?
+                    self.api.get_snapshot_by_timestamp(path, *timestamp).await?
                 } else if let Some(hash) = hash {
                     CONSOLE.writeln(
                         TitleFormat::execute("Snapshot Diff")
@@ -374,9 +368,7 @@ impl<F: API> UI<F> {
                             .format(),
                     )?;
 
-                    self.api
-                        .get_snapshot_by_hash(path, hash)
-                        .await?
+                    self.api.get_snapshot_by_hash(path, hash).await?
                 } else {
                     CONSOLE.writeln(
                         TitleFormat::execute("Snapshot Diff")
@@ -467,7 +459,7 @@ impl<F: API> UI<F> {
 
     async fn handle_chat_stream(
         &mut self,
-        stream: &mut (impl StreamExt<Item=Result<AgentMessage<ChatResponse>>> + Unpin),
+        stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
         loop {
             tokio::select! {

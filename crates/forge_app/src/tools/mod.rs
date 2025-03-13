@@ -142,7 +142,11 @@ mod tests {
             unimplemented!()
         }
 
-        async fn get_snapshot_by_timestamp(&self, _: &Path, _: u128) -> anyhow::Result<SnapshotInfo> {
+        async fn get_snapshot_by_timestamp(
+            &self,
+            _: &Path,
+            _: u128,
+        ) -> anyhow::Result<SnapshotInfo> {
             unimplemented!()
         }
 
