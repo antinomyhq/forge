@@ -63,7 +63,7 @@ impl From<UsageInfo<'_>> for Info {
             .add_key_value("Prompt", usage_info.usage.prompt_tokens)
             .add_key_value("Completion", usage_info.usage.completion_tokens)
             .add_key_value("Total", usage_info.usage.total_tokens)
-            .add_item("Total Snapshots", usage_info.total_snapshots)
+            .add_item("Total Snapshots", Some(usage_info.total_snapshots))
     }
 }
 
@@ -81,7 +81,7 @@ impl From<&Environment> for Info {
             .add_key_value("Logs", env.log_path().display())
             .add_key_value("Database", env.db_path().display())
             .add_key_value("History", env.history_path().display())
-            .add_item("Snapshot", env.snapshot_path().display())
+            .add_item("Snapshot", Some(env.snapshot_path().display()))
     }
 }
 
