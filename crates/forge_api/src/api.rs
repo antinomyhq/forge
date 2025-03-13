@@ -159,4 +159,27 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
             .set_variable(conversation_id, key, value)
             .await
     }
+
+    async fn retry(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
+        // Get the conversation
+        let conversation = self.app.conversation_service().get(conversation_id).await?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
+
+        // Find the last user message (either task_init or task_update)
+        let last_user_message = conversation.events.iter().rev()
+            .find(|event| event.name == "user_task_init" || event.name == "user_task_update")
+            .ok_or_else(|| anyhow::anyhow!("No user message found to retry"))?;
+
+        // Create a new task_update event with the same content
+        let retry_event = Event::new("user_task_update", last_user_message.value.clone());
+
+        // Create a chat request with the event
+        let chat_request = ChatRequest::new(retry_event, conversation_id.clone());
+
+        // Execute the chat request
+        Ok(self.executor_service.chat(chat_request).await?)
+    }
 }

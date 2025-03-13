@@ -11,6 +11,24 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 use tracing::error;
 
+trait OptionExt<T> {
+    fn is_none_or<F>(&self, f: F) -> bool
+    where
+        F: FnOnce(&T) -> bool;
+}
+
+impl<T> OptionExt<T> for Option<T> {
+    fn is_none_or<F>(&self, f: F) -> bool
+    where
+        F: FnOnce(&T) -> bool,
+    {
+        match self {
+            None => true,
+            Some(v) => f(v),
+        }
+    }
+}
+
 use crate::banner;
 use crate::cli::{Cli, Snapshot, SnapshotCommand};
 use crate::console::CONSOLE;
@@ -176,6 +194,23 @@ impl<F: API> UI<F> {
 
                         CONSOLE.writeln(TitleFormat::failed(format!("{:?}", err)).format())?;
                     }
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                }
+                Command::Retry => {
+                    // Display the "retry" message
+                    CONSOLE.writeln(TitleFormat::execute("Retrying last message").format())?;
+                    
+                    let retry_result = self.retry().await;
+                    if let Err(err) = retry_result {
+                        tokio::spawn(
+                            TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{:?}", err))),
+                        );
+                        error!(error = ?err, "Retry failed");
+
+                        CONSOLE.writeln(TitleFormat::failed(format!("{:?}", err)).format())?;
+                    }
+                    
                     let prompt_input = Some((&self.state).into());
                     input = self.console.prompt(prompt_input).await?;
                 }
@@ -557,6 +592,22 @@ impl<F: API> UI<F> {
         match self.api.chat(chat).await {
             Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
             Err(err) => Err(err),
+        }
+    }
+
+    /// Implements the retry functionality to reprocess the last user message
+    async fn retry(&mut self) -> Result<()> {
+        // Check if we have a conversation id
+        if let Some(conversation_id) = self.state.conversation_id.clone() {
+            // Call the API's retry method
+            match self.api.retry(&conversation_id).await {
+                Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
+                Err(err) => Err(err),
+            }
+        } else {
+            // No conversation to retry
+            CONSOLE.writeln(TitleFormat::failed("Retry").error("No active conversation").format())?;
+            Ok(())
         }
     }
 }
