@@ -39,7 +39,7 @@ impl<F: Infrastructure> ForgeApp<F> {
     }
 }
 
-impl<F: Infrastructure + Clone> App for ForgeApp<F> {
+impl<F: Infrastructure> App for ForgeApp<F> {
     type ToolService = ForgeToolService;
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService;
