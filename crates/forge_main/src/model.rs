@@ -63,6 +63,9 @@ pub enum Command {
     Help,
     /// Dumps the current conversation into a json file
     Dump,
+    /// Dispatches a custom event.
+    /// This can be triggered with the '/dispatch-event_name value' command format.
+    Dispatch(String, String),
 }
 
 impl Command {
@@ -82,6 +85,7 @@ impl Command {
             "/plan".to_string(),
             "/help".to_string(),
             "/dump".to_string(),
+            "/dispatch-".to_string(),  // Base prefix for dispatch commands
         ]
     }
 
@@ -98,6 +102,7 @@ impl Command {
     pub fn parse(input: &str) -> Self {
         let trimmed = input.trim();
 
+        // Check for standard commands
         match trimmed {
             "/new" => Command::New,
             "/info" => Command::Info,
@@ -107,6 +112,23 @@ impl Command {
             "/act" => Command::Act,
             "/plan" => Command::Plan,
             "/help" => Command::Help,
+            // If it starts with "/dispatch-", parse as a dispatch command
+            text if text.starts_with("/dispatch-") => {
+                // Strip the "/dispatch-" prefix
+                let text = &text["/dispatch-".len()..];
+                
+                // Find the first space to separate event name and value
+                if let Some(space_idx) = text.find(char::is_whitespace) {
+                    // Split into event name and value
+                    let event_name = &text[..space_idx];
+                    let event_value = &text[space_idx + 1..];
+                    Command::Dispatch(event_name.to_string(), event_value.to_string())
+                } else {
+                    // No space found, so the entire text is the event name and the value is empty
+                    Command::Dispatch(text.to_string(), String::new())
+                }
+            },
+            // Default case - treat as a regular message
             text => Command::Message(text.to_string()),
         }
     }
@@ -140,4 +162,61 @@ pub trait UserInput {
     /// * `Ok(Input)` - Successfully processed input
     /// * `Err` - An error occurred during input processing
     async fn prompt(&self, input: Option<Self::PromptInput>) -> anyhow::Result<Command>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dispatch_command_parsing() {
+        // Test basic dispatch command with value
+        let cmd = Command::parse("/dispatch-test value");
+        match cmd {
+            Command::Dispatch(name, value) => {
+                assert_eq!(name, "test");
+                assert_eq!(value, "value");
+            }
+            _ => panic!("Expected Dispatch command"),
+        }
+        
+        // Test dispatch command without value (empty value)
+        let cmd = Command::parse("/dispatch-test");
+        match cmd {
+            Command::Dispatch(name, value) => {
+                assert_eq!(name, "test");
+                assert_eq!(value, "");
+            }
+            _ => panic!("Expected Dispatch command"),
+        }
+        
+        // Test dispatch command with value containing spaces
+        let cmd = Command::parse("/dispatch-github create issue for updating dependencies");
+        match cmd {
+            Command::Dispatch(name, value) => {
+                assert_eq!(name, "github");
+                assert_eq!(value, "create issue for updating dependencies");
+            }
+            _ => panic!("Expected Dispatch command"),
+        }
+    }
+
+    #[test]
+    fn test_standard_commands() {
+        // Ensure our modifications don't break standard commands
+        assert!(matches!(Command::parse("/new"), Command::New));
+        assert!(matches!(Command::parse("/exit"), Command::Exit));
+        assert!(matches!(Command::parse("/info"), Command::Info));
+        assert!(matches!(Command::parse("/models"), Command::Models));
+        assert!(matches!(Command::parse("/act"), Command::Act));
+        assert!(matches!(Command::parse("/plan"), Command::Plan));
+        assert!(matches!(Command::parse("/help"), Command::Help));
+        assert!(matches!(Command::parse("/dump"), Command::Dump));
+        
+        // Test a regular message
+        match Command::parse("Hello, world") {
+            Command::Message(msg) => assert_eq!(msg, "Hello, world"),
+            _ => panic!("Expected Message command"),
+        }
+    }
 }

@@ -187,7 +187,12 @@ impl<F: API> UI<F> {
                     input = self.console.prompt(prompt_input).await?;
                     continue;
                 }
-                Command::Exit => {
+                Command::Dispatch(name, value) => {
+                    self.handle_dispatch_command(name, value).await?;
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                    continue;
+                }                Command::Exit => {
                     break;
                 }
                 Command::Models => {
@@ -564,6 +569,23 @@ impl<F: API> UI<F> {
         // Create the chat request with the help query event
         let chat = ChatRequest::new(event, conversation_id);
         match self.api.chat(chat).await {
+            Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
+            Err(err) => Err(err),
+        }
+    }    /// Handle a custom command dispatch from the input
+    async fn handle_dispatch_command(&mut self, event_name: String, event_value: String) -> Result<()> {
+        // Initialize the conversation
+        let conversation_id = self.init_conversation().await?;
+        
+        // Log the dispatch
+        CONSOLE.writeln(
+            TitleFormat::execute(format!("Dispatching custom event: {}", event_name))
+                .sub_title(format!("value: {}", event_value))
+                .format(),
+        )?;
+
+        // Dispatch the event and handle the chat stream
+        match self.api.dispatch(&conversation_id, &event_name, &event_value).await {
             Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
             Err(err) => Err(err),
         }

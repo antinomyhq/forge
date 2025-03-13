@@ -159,4 +159,20 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
             .set_variable(conversation_id, key, value)
             .await
     }
+    
+    async fn dispatch(
+        &self,
+        conversation_id: &ConversationId,
+        event_name: &str,
+        event_value: &str
+    ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
+        // Create a new event with the provided name and value
+        let event = Event::new(event_name, event_value);
+        
+        // Create a chat request with the event
+        let chat = ChatRequest::new(event, conversation_id.clone());
+        
+        // Forward to the regular chat method
+        self.chat(chat).await
+    }
 }

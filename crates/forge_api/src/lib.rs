@@ -94,4 +94,12 @@ pub trait API: Sync + Send {
         key: String,
         value: Value,
     ) -> anyhow::Result<()>;
+
+    /// Dispatches a custom event with the given name and value
+    async fn dispatch(
+        &self, 
+        conversation_id: &ConversationId,
+        event_name: &str, 
+        event_value: &str
+    ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>, anyhow::Error>>>;
 }
