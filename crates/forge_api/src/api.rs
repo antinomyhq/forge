@@ -5,7 +5,7 @@ use anyhow::Result;
 use forge_app::{EnvironmentService, ForgeApp, FsSnapshotService, Infrastructure};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_snaps::{SnapshotInfo, SnapshotMetadata};
+use forge_snaps::SnapshotInfo;
 use forge_stream::MpscStream;
 use serde_json::Value;
 
@@ -46,17 +46,17 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
         self.app.file_snapshot_service().list_snapshots(path).await
     }
 
-    async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()> {
+    async fn restore_by_timestamp(&self, file_path: &Path, timestamp: u128) -> anyhow::Result<()> {
         self.app
             .file_snapshot_service()
             .restore_by_timestamp(file_path, timestamp)
             .await
     }
 
-    async fn restore_by_index(&self, file_path: &Path, index: isize) -> Result<()> {
+    async fn restore_by_hash(&self, file_path: &Path, hash: &str) -> anyhow::Result<()> {
         self.app
             .file_snapshot_service()
-            .restore_by_index(file_path, index)
+            .restore_by_hash(file_path, hash)
             .await
     }
 
@@ -70,22 +70,22 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
     async fn get_snapshot_by_timestamp(
         &self,
         file_path: &Path,
-        timestamp: &str,
-    ) -> Result<SnapshotMetadata> {
+        timestamp: u128,
+    ) -> anyhow::Result<forge_snaps::SnapshotInfo> {
         self.app
             .file_snapshot_service()
             .get_snapshot_by_timestamp(file_path, timestamp)
             .await
     }
 
-    async fn get_snapshot_by_index(
+    async fn get_snapshot_by_hash(
         &self,
         file_path: &Path,
-        index: isize,
-    ) -> Result<SnapshotMetadata> {
+        hash: &str,
+    ) -> anyhow::Result<forge_snaps::SnapshotInfo> {
         self.app
             .file_snapshot_service()
-            .get_snapshot_by_index(file_path, index)
+            .get_snapshot_by_hash(file_path, hash)
             .await
     }
 
@@ -155,5 +155,9 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
             .conversation_service()
             .set_variable(conversation_id, key, value)
             .await
+    }
+
+    async fn get_lastest_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo> {
+        self.app.file_snapshot_service().get_latest(file_path).await
     }
 }

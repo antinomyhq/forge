@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use chrono::{Local, LocalResult, TimeZone, Utc};
 use colored::Colorize;
 use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, Event, Model, API};
 use forge_display::TitleFormat;
@@ -262,10 +263,19 @@ impl<F: API> UI<F> {
 
                 for (i, snap) in snapshots.iter().enumerate() {
                     // Create a title with the index and timestamp
+                    let mut title = TitleFormat::execute(format!("Snapshot #{}", i));
+
+                    if let Ok(time) = i64::try_from(snap.timestamp) {
+                        match Utc.timestamp_millis_opt(time) {
+                            LocalResult::Single(datetime_utc) => {
+                                let datetime_local = datetime_utc.with_timezone(&Local).format("%H:%M:%S %Y-%m-%d").to_string();
+                                title = title.sub_title(format!("timestamp: {}", datetime_local));
+                            }
+                            _ => (),
+                        }
+                    }
                     CONSOLE.writeln(
-                        TitleFormat::execute(format!("Snapshot #{}", i))
-                            .sub_title(format!("timestamp: {}", snap.timestamp))
-                            .format(),
+                        title.format()
                     )?;
 
                     CONSOLE.writeln(format!(
@@ -273,10 +283,16 @@ impl<F: API> UI<F> {
                         "Snapshot Timestamp".bold(),
                         snap.timestamp
                     ))?;
+
+                    CONSOLE.writeln(format!(
+                        "{}: {}",
+                        "Snapshot Hash".bold(),
+                        snap.instance_hash
+                    ))?;
                     CONSOLE.writeln(format!(
                         "{}: '{}'",
-                        "Snapshot Path".bold(),
-                        snap.snapshot_path.display()
+                        "Original Path".bold(),
+                        snap.original_path
                     ))?;
 
                     // Add a separator between snapshots
@@ -286,7 +302,7 @@ impl<F: API> UI<F> {
                 }
                 Ok(())
             }
-            SnapshotCommand::Restore { timestamp, path, index } => {
+            SnapshotCommand::Restore { timestamp, path, hash } => {
                 let result_title = TitleFormat::execute("Snapshot Restore");
 
                 if let Some(timestamp) = timestamp {
@@ -297,7 +313,7 @@ impl<F: API> UI<F> {
                     )?;
 
                     self.api
-                        .restore_by_timestamp(path, &timestamp.to_string())
+                        .restore_by_timestamp(path, *timestamp)
                         .await?;
 
                     CONSOLE.writeln(
@@ -308,14 +324,14 @@ impl<F: API> UI<F> {
                     return Ok(());
                 }
 
-                if let Some(index) = index {
+                if let Some(hash) = hash {
                     CONSOLE.writeln(
                         result_title
-                            .sub_title(format!("restoring by index: {}", index))
+                            .sub_title(format!("restoring by hash: {}", hash))
                             .format(),
                     )?;
 
-                    self.api.restore_by_index(path, *index as isize).await?;
+                    self.api.restore_by_hash(path, hash).await?;
 
                     CONSOLE.writeln(
                         TitleFormat::success("Restore Complete")
@@ -340,7 +356,7 @@ impl<F: API> UI<F> {
                 )?;
                 Ok(())
             }
-            SnapshotCommand::Diff { path, timestamp, index } => {
+            SnapshotCommand::Diff { path, timestamp, hash } => {
                 let metadata = if let Some(timestamp) = timestamp {
                     CONSOLE.writeln(
                         TitleFormat::execute("Snapshot Diff")
@@ -349,17 +365,17 @@ impl<F: API> UI<F> {
                     )?;
 
                     self.api
-                        .get_snapshot_by_timestamp(path, &timestamp.to_string())
+                        .get_snapshot_by_timestamp(path, *timestamp)
                         .await?
-                } else if let Some(index) = index {
+                } else if let Some(hash) = hash {
                     CONSOLE.writeln(
                         TitleFormat::execute("Snapshot Diff")
-                            .sub_title(format!("comparing with index: {}", index))
+                            .sub_title(format!("comparing with hash: {}", hash))
                             .format(),
                     )?;
 
                     self.api
-                        .get_snapshot_by_index(path, *index as isize)
+                        .get_snapshot_by_hash(path, hash)
                         .await?
                 } else {
                     CONSOLE.writeln(
@@ -368,10 +384,10 @@ impl<F: API> UI<F> {
                             .format(),
                     )?;
 
-                    self.api.get_snapshot_by_index(path, -1).await?
+                    self.api.get_lastest_snapshot(path).await?
                 };
 
-                let prev_content = String::from_utf8_lossy(&metadata.content).to_string();
+                let prev_content = metadata.content;
                 let cur_content = String::from_utf8(forge_fs::ForgeFS::read(path).await?)?;
                 let diff = forge_display::DiffFormat::format(
                     "diff",
@@ -451,7 +467,7 @@ impl<F: API> UI<F> {
 
     async fn handle_chat_stream(
         &mut self,
-        stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
+        stream: &mut (impl StreamExt<Item=Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
         loop {
             tokio::select! {

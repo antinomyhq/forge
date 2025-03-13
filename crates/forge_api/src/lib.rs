@@ -11,6 +11,7 @@ pub use forge_default::create_default_workflow;
 pub use forge_domain::*;
 use forge_stream::MpscStream;
 use serde_json::Value;
+use forge_snaps::SnapshotInfo;
 
 #[async_trait::async_trait]
 pub trait API: Sync + Send {
@@ -21,27 +22,30 @@ pub trait API: Sync + Send {
     ) -> anyhow::Result<Vec<forge_snaps::SnapshotInfo>>;
 
     /// Restore a file from a snapshot by timestamp
-    async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> anyhow::Result<()>;
+    async fn restore_by_timestamp(&self, file_path: &Path, timestamp: u128) -> anyhow::Result<()>;
 
     /// Restore a file from a snapshot by index
-    async fn restore_by_index(&self, file_path: &Path, index: isize) -> anyhow::Result<()>;
+    async fn restore_by_hash(&self, file_path: &Path, hash: &str) -> anyhow::Result<()>;
 
     /// Restore a file from its previous snapshot
     async fn restore_previous(&self, file_path: &Path) -> anyhow::Result<()>;
+
+    /// Get latest snapshot
+    async fn get_lastest_snapshot(&self, file_path: &Path) -> anyhow::Result<SnapshotInfo>;
 
     /// Get a snapshot by timestamp
     async fn get_snapshot_by_timestamp(
         &self,
         file_path: &Path,
-        timestamp: &str,
-    ) -> anyhow::Result<forge_snaps::SnapshotMetadata>;
+        timestamp: u128,
+    ) -> anyhow::Result<forge_snaps::SnapshotInfo>;
 
     /// Get a snapshot by index
-    async fn get_snapshot_by_index(
+    async fn get_snapshot_by_hash(
         &self,
         file_path: &Path,
-        index: isize,
-    ) -> anyhow::Result<forge_snaps::SnapshotMetadata>;
+        hash: &str,
+    ) -> anyhow::Result<forge_snaps::SnapshotInfo>;
 
     /// Purge snapshots older than specified days
     async fn purge_older_than(&self, days: u32) -> anyhow::Result<usize>;

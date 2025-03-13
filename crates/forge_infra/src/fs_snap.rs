@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_app::FsSnapshotService;
 use forge_domain::Environment;
-use forge_snaps::{SnapshotInfo, SnapshotMetadata};
+use forge_snaps::SnapshotInfo;
 
 pub struct ForgeFileSnapshotService {
     inner: Arc<forge_snaps::SnapshotService>,
@@ -30,45 +30,50 @@ impl FsSnapshotService for ForgeFileSnapshotService {
     // Creation
     // FIXME: don't depend on forge_snaps::SnapshotInfo directly
     async fn create_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo> {
-        self.inner.create_snapshot(file_path).await
+        self.inner.create_snapshot(file_path.to_path_buf()).await
     }
 
     // Listing
     async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<SnapshotInfo>> {
-        self.inner.list_snapshots(path).await
+        self.inner.list_snapshots(path.map(|v| v.to_path_buf())).await
     }
 
     // Timestamp-based restoration
-    async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()> {
-        self.inner.restore_by_timestamp(file_path, timestamp).await
+    async fn restore_by_timestamp(&self, file_path: &Path, timestamp: u128) -> Result<()> {
+        self.inner.restore_snapshot_with_timestamp(&file_path.display().to_string(), timestamp).await
     }
 
     // Index-based restoration (0 = newest, 1 = previous version, etc.)
-    async fn restore_by_index(&self, file_path: &Path, index: isize) -> Result<()> {
-        self.inner.restore_by_index(file_path, index).await
+    async fn restore_by_hash(&self, file_path: &Path, hash: &str) -> Result<()> {
+        self.inner.restore_snapshot_with_hash(&file_path.display().to_string(), hash).await
+    }
+
+    // Get latest snapshot
+    async fn get_latest(&self, file_path: &Path) -> Result<SnapshotInfo> {
+        self.inner.get_latest(file_path).await
     }
 
     // Convenient method to restore previous version
     async fn restore_previous(&self, file_path: &Path) -> Result<()> {
-        self.inner.restore_by_index(file_path, 1).await
+        self.inner.restore_previous(file_path).await
     }
 
     // Metadata access
     async fn get_snapshot_by_timestamp(
         &self,
         file_path: &Path,
-        timestamp: &str,
-    ) -> Result<SnapshotMetadata> {
+        timestamp: u128,
+    ) -> Result<SnapshotInfo> {
         self.inner
-            .get_snapshot_by_timestamp(file_path, timestamp)
+            .get_snapshot_with_timestamp(&file_path.display().to_string(), timestamp)
             .await
     }
-    async fn get_snapshot_by_index(
+    async fn get_snapshot_by_hash(
         &self,
         file_path: &Path,
-        index: isize,
-    ) -> Result<SnapshotMetadata> {
-        self.inner.get_snapshot_by_index(file_path, index).await
+        hash: &str,
+    ) -> Result<SnapshotInfo> {
+        self.inner.get_snapshot_with_hash(&file_path.display().to_string(), hash).await
     }
 
     // Global purge operation

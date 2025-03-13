@@ -77,11 +77,11 @@ pub enum SnapshotCommand {
 
         /// Restore by timestamp
         #[arg(long, short)]
-        timestamp: Option<u64>,
+        timestamp: Option<u128>,
 
-        /// Restore by index
-        #[arg(long, short)]
-        index: Option<usize>,
+        /// Restore by hash
+        #[arg(long)]
+        hash: Option<String>,
     },
 
     /// Show differences between versions of a file
@@ -91,11 +91,11 @@ pub enum SnapshotCommand {
 
         /// Show diff for a specific timestamp
         #[arg(long)]
-        timestamp: Option<u64>,
+        timestamp: Option<u128>,
 
-        /// Restore by index
-        #[arg(long, short)]
-        index: Option<usize>,
+        /// Restore by hash
+        #[arg(long)]
+        hash: Option<String>,
     },
 
     /// Purge old snapshots

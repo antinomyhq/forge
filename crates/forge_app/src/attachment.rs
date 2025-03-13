@@ -250,7 +250,7 @@ pub mod tests {
             unimplemented!()
         }
 
-        async fn restore_by_index(&self, _: &Path, _: isize) -> anyhow::Result<()> {
+        async fn restore_by_hash(&self, file_path: &Path, hash: &str) -> Result<()> {
             unimplemented!()
         }
 
@@ -260,9 +260,9 @@ pub mod tests {
 
         async fn get_snapshot_by_timestamp(
             &self,
-            _: &Path,
-            _: &str,
-        ) -> anyhow::Result<SnapshotMetadata> {
+            file_path: &Path,
+            timestamp: u128,
+        ) -> Result<SnapshotInfo> {
             unimplemented!()
         }
 

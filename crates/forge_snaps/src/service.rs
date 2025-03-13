@@ -1,31 +1,28 @@
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use crate::SnapshotInfo;
+use anyhow::{anyhow, Context, Result};
+use std::{
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
+use std::hash::Hasher;
+use base64::Engine;
+use base64::engine::general_purpose;
 
-use anyhow::{Context, Result};
-use forge_fs::ForgeFS;
-use forge_walker::Walker;
-
-use crate::{SnapshotInfo, SnapshotMetadata};
-
-/// Implementation of `FileSnapshotService` that provides snapshot
-/// functionality for files with retention policies.
-#[derive(Default, Debug)]
+/// Implementation of the SnapshotService
+#[derive(Debug)]
 pub struct SnapshotService {
     /// Current Working Directory,
     cwd: PathBuf,
     /// Base directory for storing snapshots
     snapshot_base_dir: PathBuf,
-    /// Maximum number of snapshots to keep per file
-    max_snapshots_per_file: usize,
 }
 
 impl SnapshotService {
-    /// Creates a new instance with a custom snapshot directory
+    /// Create a new FileSystemSnapshotService with a specific home path
     pub fn new(cwd: PathBuf, snapshot_base_dir: PathBuf) -> Self {
         Self {
             cwd,
             snapshot_base_dir,
-            max_snapshots_per_file: 10, // Default from requirements
         }
     }
 
@@ -41,80 +38,22 @@ impl SnapshotService {
         }
     }
 
-    /// Calculates a blake3 hash of the file path for storage organization
-    fn hash_path(&self, file_path: &Path) -> String {
-        let path_str = file_path.to_string_lossy().to_string();
-        let mut hasher = blake3::Hasher::new();
-        hasher.update(path_str.as_bytes());
-        hasher.finalize().to_hex().to_string()
+    /// Create a snapshot filename from a hash ID
+    fn create_snapshot_filename(&self, path: &str, now: u128) -> String {
+        self.snapshot_base_dir.join(path).join(format!("{}.json", now)).display().to_string()
     }
 
-    /// Gets the directory for a specific file's snapshots
-    async fn get_file_snapshot_dir(&self, file_path: &Path) -> Result<PathBuf> {
-        let hash = self.hash_path(file_path);
-        let dir = self.snapshot_base_dir.join(hash);
 
-        // Create the directory if it doesn't exist
-        if !dir.exists() {
-            ForgeFS::create_dir_all(&dir)
-                .await
-                .with_context(|| format!("Failed to create snapshot directory: {:?}", dir))?;
-        }
-
-        Ok(dir)
+    fn instance_hash(timestamp: &str, path_str: &str) -> String {
+        let mut hasher = gxhash::GxHasher::default();
+        hasher.write(path_str.as_bytes());
+        hasher.write(timestamp.as_bytes());
+        format!("{:x}", hasher.finish())
     }
-
-    /// Creates a snapshot filename based on the timestamp
-    fn create_snapshot_filename(&self, timestamp: &str) -> String {
-        format!("{}.snap", timestamp)
-    }
-
-    /// Gets the timestamp from a snapshot filename
-    fn get_timestamp_from_filename(&self, filename: &str) -> Option<u128> {
-        if let Some(name) = filename.strip_suffix(".snap") {
-            name.parse().ok()
-        } else {
-            None
-        }
-    }
-
-    /// Retrieves all snapshot files for a given file, sorted by timestamp
-    /// (newest first)
-    async fn get_sorted_snapshots(&self, file_path: &Path) -> Result<Vec<(u128, PathBuf)>> {
-        let snapshot_dir = self.get_file_snapshot_dir(file_path).await?;
-        let mut snapshots = Vec::new();
-
-        let entries = Walker::min_all().cwd(snapshot_dir.clone()).get().await?;
-
-        for entry in entries {
-            let path = snapshot_dir.join(entry.path);
-            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                if let Some(timestamp) = self.get_timestamp_from_filename(filename) {
-                    snapshots.push((timestamp, path));
-                }
-            }
-        }
-
-        // Sort by timestamp (newest first)
-        snapshots.sort_by(|a, b| b.0.cmp(&a.0));
-
-        Ok(snapshots)
-    }
-
-    /// Applies retention policy to snapshots, removing excess ones
-    async fn apply_retention_policy(&self, file_path: &Path) -> Result<()> {
-        let snapshots = self.get_sorted_snapshots(file_path).await?;
-
-        // Remove excess snapshots based on max_snapshots_per_file
-        if snapshots.len() > self.max_snapshots_per_file {
-            for (_, path) in snapshots.iter().skip(self.max_snapshots_per_file) {
-                ForgeFS::remove_file(path)
-                    .await
-                    .with_context(|| format!("Failed to remove excess snapshot: {:?}", path))?;
-            }
-        }
-
-        Ok(())
+    fn path_hash(path_str: &str) -> String {
+        let mut hasher = gxhash::GxHasher::default();
+        hasher.write(path_str.as_bytes());
+        format!("{:x}", hasher.finish())
     }
 }
 
@@ -122,431 +61,249 @@ impl SnapshotService {
     pub fn snapshot_dir(&self) -> PathBuf {
         self.snapshot_base_dir.clone()
     }
-
-    pub async fn create_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo> {
-        // Canonicalize the path if it's relative
-        let file_path = self.canonicalize_path(file_path);
-        // Ensure the file exists
-        if !file_path.exists() {
-            anyhow::bail!("File does not exist: {:?}", file_path);
+    pub async fn create_snapshot(&self, path: PathBuf) -> Result<SnapshotInfo> {
+        let absolute_path = self.canonicalize_path(&path);
+        // Create timestamp
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .context("Failed to get timestamp")?
+            .as_millis();
+        let snapshot_path = self.create_snapshot_filename(&Self::path_hash(&absolute_path.display().to_string()), now);
+        if let Some(parent) = PathBuf::from(&snapshot_path).parent() {
+            forge_fs::ForgeFS::create_dir_all(parent).await?;
         }
 
-        // ForgeFS::read the file content
-        let content = ForgeFS::read(&file_path)
-            .await
-            .with_context(|| format!("Failed to ForgeFS::read file: {:?}", file_path))?;
+        // Create hash ID from path and timestamp
+        let path_str = absolute_path.to_string_lossy().to_string();
+        let instance_hash = Self::instance_hash(&now.to_string(), &path_str);
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_millis()
-            .to_string();
+        // Read content
+        let content = forge_fs::ForgeFS::read(&path).await?;
 
-        // Get the snapshot directory and create it if needed
-        let snapshot_dir = self.get_file_snapshot_dir(&file_path).await?;
-        let snapshot_filename = self.create_snapshot_filename(&timestamp);
-        let snapshot_path = snapshot_dir.join(&snapshot_filename);
+        // Create JSON snapshot file
+        let snapshot_info = SnapshotInfo {
+            instance_hash: instance_hash.clone(),
+            original_path: absolute_path.display().to_string(),
+            timestamp: now,
+            content: general_purpose::STANDARD.encode(content),
+            snapshot_path: snapshot_path.clone(),
+        };
 
-        // ForgeFS::write the snapshot
-        ForgeFS::write(&snapshot_path, &content)
-            .await
-            .with_context(|| format!("Failed to ForgeFS::write snapshot: {:?}", snapshot_path))?;
-
-        // Apply retention policy
-        self.apply_retention_policy(&file_path).await?;
-
-        // Create and return the SnapshotInfo
-        let snapshot_info = SnapshotInfo::with_timestamp(
-            timestamp,
-            file_path.to_path_buf(),
-            snapshot_path,
-            0, // This is the newest snapshot, so index is 0
-        );
+        let _snapshot_file = forge_fs::ForgeFS::write(snapshot_path, serde_json::to_string(&snapshot_info)?).await?;
 
         Ok(snapshot_info)
     }
 
-    pub async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<SnapshotInfo>> {
+    pub async fn list_snapshots(&self, path: Option<PathBuf>) -> Result<Vec<SnapshotInfo>> {
+        let path = path.map(|v| self.canonicalize_path(&v));
         if let Some(path) = path {
-            return self.list_snapshots_with_path(path).await;
-        }
-        let mut result = vec![];
-
-        // Get all directories in the snapshot base dir (each directory represents a
-        // file)
-        let entries = Walker::max_all()
-            .cwd(self.snapshot_base_dir.clone())
-            .get()
-            .await
-            .with_context(|| {
-                format!(
-                    "Failed to read base snapshot directory: {:?}",
-                    self.snapshot_base_dir
+            let cwd = self.snapshot_base_dir.join(Self::path_hash(&path.display().to_string()));
+            let snaps = forge_walker::Walker::max_all()
+                .cwd(cwd.clone())
+                .get()
+                .await?;
+            let files = futures::future::join_all(
+                snaps
+                    .into_iter()
+                    .filter(|v| !v.is_dir())
+                    .map(|v| forge_fs::ForgeFS::read(cwd.join(v.path)))
+            )
+                .await
+                .into_iter()
+                .flatten()
+                .map(|v|
+                    serde_json::from_slice::<SnapshotInfo>(&v)
                 )
-            })?;
-        for entry in entries {
-            if entry.is_dir() {
-                continue;
-            }
+                .flatten()
+                .collect::<Vec<_>>();
 
-            if let Some(filename) = entry.file_name {
-                if let Some(timestamp) = self.get_timestamp_from_filename(&filename) {
-                    result.push(SnapshotInfo::with_timestamp(
-                        timestamp.to_string(),
-                        PathBuf::new(),
-                        self.snapshot_base_dir.join(entry.path),
-                        0,
-                    ));
-                }
-            }
+            return Ok(files);
         }
-        result.sort_by(|a, b| {
-            let a_timestamp = a.timestamp.parse::<u128>().unwrap_or(0);
-            let b_timestamp = b.timestamp.parse::<u128>().unwrap_or(0);
-            a_timestamp.cmp(&b_timestamp)
-        });
-        Ok(result)
+        let cwd = self.snapshot_base_dir.clone();
+        Ok(
+            futures::future::join_all(
+                forge_walker::Walker::max_all()
+                    .cwd(cwd.clone())
+                    .get()
+                    .await?
+                    .into_iter()
+                    .filter(|v| !v.is_dir())
+                    .map(|v| forge_fs::ForgeFS::read(cwd.join(v.path)))
+            )
+                .await
+                .into_iter()
+                .flatten()
+                .map(|v| serde_json::from_slice::<SnapshotInfo>(&v))
+                .flatten()
+                .collect::<Vec<_>>()
+        )
     }
 
-    async fn list_snapshots_with_path(&self, file_path: &Path) -> Result<Vec<SnapshotInfo>> {
-        let snapshots = self.get_sorted_snapshots(file_path).await?;
-        let mut result = vec![];
-
-        for (index, (timestamp, path)) in snapshots.iter().enumerate() {
-            let snapshot_info = SnapshotInfo::with_timestamp(
-                timestamp.to_string(),
-                file_path.to_path_buf(),
-                path.clone(),
-                index,
-            );
-
-            result.push(snapshot_info);
-        }
-
-        Ok(result)
+    pub async fn get_snapshot_with_hash(&self, path: &str, hash: &str) -> Result<SnapshotInfo> {
+        let snaps = self.list_snapshots(Some(PathBuf::from(path))).await?;
+        // dbg!("Searching: ", hash);
+        // dbg!("Snaps: ", &snaps);
+        snaps.into_iter().find(|v| v.instance_hash == hash).ok_or_else(|| anyhow!("Snapshot not found"))
+    }
+    pub async fn restore_snapshot_with_hash(&self, path: &str, hash: &str) -> Result<()> {
+        let info = self.get_snapshot_with_hash(path, hash).await?;
+        forge_fs::ForgeFS::write(info.original_path, general_purpose::STANDARD.decode(info.content)?).await
     }
 
-    pub async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()> {
-        // Canonicalize the path if it's relative
-        let file_path = self.canonicalize_path(file_path);
-        let snapshot_metadata = self
-            .get_snapshot_by_timestamp(&file_path, timestamp)
-            .await?;
-
-        // ForgeFS::write the content back to the original file
-        ForgeFS::write(&file_path, &snapshot_metadata.content)
-            .await
-            .with_context(|| format!("Failed to restore file: {:?}", file_path))?;
-
-        Ok(())
+    pub async fn get_snapshot_with_timestamp(&self, path: &str, timestamp: u128) -> Result<SnapshotInfo> {
+        let snaps = self.list_snapshots(Some(PathBuf::from(path))).await?;
+        snaps.into_iter().find(|v| v.timestamp == timestamp).ok_or_else(|| anyhow!("Snapshot not found"))
     }
 
-    pub async fn restore_by_index(&self, file_path: &Path, index: isize) -> Result<()> {
-        // Canonicalize the path if it's relative
-        let file_path = self.canonicalize_path(file_path);
-        let snapshot_metadata = self.get_snapshot_by_index(&file_path, index).await?;
-
-        // ForgeFS::write the content back to the original file
-        ForgeFS::write(&file_path, &snapshot_metadata.content)
-            .await
-            .with_context(|| format!("Failed to restore file: {:?}", file_path))?;
-
-        Ok(())
+    pub async fn restore_snapshot_with_timestamp(&self, path: &str, timestamp: u128) -> Result<()> {
+        let info = self.get_snapshot_with_timestamp(path, timestamp).await?;
+        forge_fs::ForgeFS::write(info.original_path, general_purpose::STANDARD.decode(info.content)?).await
+    }
+    pub async fn get_latest(&self, path: &Path) -> Result<SnapshotInfo> {
+        let snaps = self.list_snapshots(Some(path.to_path_buf())).await?;
+        snaps.into_iter().max_by_key(|v| v.timestamp).context("No snapshots found")
     }
 
-    pub async fn restore_previous(&self, file_path: &Path) -> Result<()> {
-        // Canonicalize the path if it's relative
-        let file_path = self.canonicalize_path(file_path);
-        self.restore_by_index(&file_path, -1).await
+    pub async fn restore_previous(&self, path: &Path) -> Result<()> {
+        let info = self.get_latest(path).await?;
+        forge_fs::ForgeFS::write(info.original_path, general_purpose::STANDARD.decode(info.content)?).await
     }
-
-    pub async fn get_snapshot_by_timestamp(
-        &self,
-        file_path: &Path,
-        timestamp: &str,
-    ) -> Result<SnapshotMetadata> {
-        // Canonicalize the path if it's relative
-        let file_path = self.canonicalize_path(file_path);
-        let snapshot_dir = self.get_file_snapshot_dir(&file_path).await?;
-        let snapshot_filename = self.create_snapshot_filename(timestamp);
-        let snapshot_path = snapshot_dir.join(snapshot_filename);
-
-        if !snapshot_path.exists() {
-            anyhow::bail!("Snapshot does not exist for timestamp {}", timestamp);
-        }
-
-        let content = ForgeFS::read(&snapshot_path)
-            .await
-            .with_context(|| format!("Failed to ForgeFS::read snapshot: {:?}", snapshot_path))?;
-
-        // Find the index of this snapshot
-        let snapshots = self.get_sorted_snapshots(&file_path).await?;
-        let index = snapshots
-            .iter()
-            .position(|(t, _)| t.to_string() == timestamp)
-            .unwrap_or(0);
-
-        let info = SnapshotInfo::with_timestamp(
-            timestamp.to_string(),
-            file_path.to_path_buf(),
-            snapshot_path,
-            index,
-        );
-
-        Ok(SnapshotMetadata { info, content, path_hash: self.hash_path(&file_path) })
-    }
-
-    pub async fn get_snapshot_by_index(
-        &self,
-        file_path: &Path,
-        mut index: isize,
-    ) -> Result<SnapshotMetadata> {
-        // Canonicalize the path if it's relative
-        let file_path = self.canonicalize_path(file_path);
-        let snapshots = self.get_sorted_snapshots(&file_path).await?;
-
-        if index == -1 {
-            index = (snapshots.len() - 1) as isize;
-        }
-
-        if index as usize >= snapshots.len() {
-            anyhow::bail!(
-                "Snapshot index {} is out of bounds (max: {})",
-                index,
-                snapshots.len().saturating_sub(1)
-            );
-        }
-
-        dbg!(index);
-
-        let (timestamp, _) = snapshots[index as usize];
-        self.get_snapshot_by_timestamp(&file_path, &timestamp.to_string())
-            .await
-    }
-
     pub async fn purge_older_than(&self, days: u32) -> Result<usize> {
-        let cutoff = SystemTime::now()
+        let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .checked_sub(Duration::from_secs(days as u64 * 24 * 60 * 60))
-            .unwrap_or(Duration::from_secs(0))
+            .context("Failed to get timestamp")?
             .as_millis();
+        let threshold = now - (days as u128 * 24 * 60 * 60 * 1000);
 
-        let mut removed_count = 0;
+        let snaps = self.list_snapshots(None).await?;
+        let to_delete = snaps.into_iter().filter(|v| v.timestamp < threshold).collect::<Vec<_>>();
 
-        // Iterate through all directories in the snapshot base dir
-        let entries = Walker::max_all()
-            .cwd(self.snapshot_base_dir.clone())
-            .get()
+        let deleted = futures::future::join_all(
+            to_delete
+                .into_iter()
+                .map(|v| forge_fs::ForgeFS::remove_file(v.snapshot_path))
+        )
             .await
-            .with_context(|| {
-                format!(
-                    "Failed to ForgeFS::read base snapshot directory: {:?}",
-                    self.snapshot_base_dir
-                )
-            })?;
+            .into_iter()
+            .filter(|v| v.is_ok())
+            .count();
 
-        for entry in entries {
-            let snapshot_path = self.snapshot_base_dir.join(entry.path);
-
-            if !snapshot_path.is_dir() {
-                if let Some(filename) = snapshot_path.file_name().and_then(|n| n.to_str()) {
-                    if let Some(timestamp) = self.get_timestamp_from_filename(filename) {
-                        // Remove if older than the cutoff
-
-                        if timestamp < cutoff {
-                            ForgeFS::remove_file(&snapshot_path)
-                                .await
-                                .with_context(|| {
-                                    format!("Failed to remove old snapshot: {:?}", snapshot_path)
-                                })?;
-                            removed_count += 1;
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(removed_count)
+        Ok(deleted)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use tempfile::tempdir;
-    use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
-
+    use std::fs::File;
     use super::*;
+    use std::io::Write;
+    use tempfile::{tempdir, TempDir};
+
+    fn modify_file<T: AsRef<[u8]>>(file: &mut File, content: T) -> Result<()> {
+        file.write_all(content.as_ref())?;
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_create_snapshot() -> Result<()> {
         let temp_dir = tempdir()?;
-        let base_path = temp_dir.path().to_path_buf();
-        let service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
+        let home_path = temp_dir.path().to_path_buf();
+        let service = SnapshotService::new(home_path.clone(), home_path.join("snaps"));
 
         // Create a test file
-        let test_file_path = base_path.join("test.txt");
-        let mut file = File::create(&test_file_path).await?;
-        file.write_all(b"test content").await?;
-        file.flush().await?;
+        let test_file_path = temp_dir.path().join("test.txt");
+        let test_content = "Hello, world!";
+        let modified_content = "Good bye cruel world!";
+        let mut file = File::create(&test_file_path)?;
+        modify_file(&mut file, test_content)?;
 
-        // Create a snapshot
-        let snapshot_info = service.create_snapshot(&test_file_path).await?;
+        // Create snapshot
+        let info = service.create_snapshot(test_file_path.clone()).await?;
+        modify_file(&mut file, modified_content)?;
 
-        // Verify the snapshot was created
-        assert_eq!(snapshot_info.original_path, test_file_path);
-        assert!(snapshot_info.snapshot_path.exists());
+        // Verify hash_id is not empty
+        assert!(!info.instance_hash.is_empty());
+
+        // Find snapshots
+        let snapshots = service.list_snapshots(Some(test_file_path.clone())).await?;
+        assert_eq!(snapshots.len(), 1);
+
+        // Restore by hash
+        service.restore_snapshot_with_hash(&test_file_path.display().to_string(), &info.instance_hash).await?;
+
+        let updated = std::fs::read_to_string(&test_file_path)?;
+        assert_eq!(updated, test_content);
+        modify_file(&mut file, modified_content)?;
+
+        // Restore by index
+        service.restore_snapshot_with_timestamp(&test_file_path.display().to_string(), info.timestamp).await?;
+        let updated = std::fs::read_to_string(test_file_path)?;
+        assert_eq!(updated, test_content);
 
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_list_snapshots_all() -> Result<()> {
-        let temp_dir = tempdir()?;
-        let base_path = temp_dir.path().to_path_buf();
-        let service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
+    struct Snaps {
+        service: SnapshotService,
+        infos: Vec<SnapshotInfo>,
+    }
+
+    async fn init_multiple(temp_dir: &TempDir, test_contents: &[&str]) -> Result<Snaps> {
+        let home_path = temp_dir.path();
+        let service = SnapshotService::new(home_path.to_path_buf(), home_path.join("snaps"));
+        let mut snapshots = vec![];
 
         // Create a test file
-        let test_file_path = base_path.join("test.txt");
-        let mut file = File::create(&test_file_path).await?;
-        file.write_all(b"test content").await?;
-        file.flush().await?;
+        let test_file_path = temp_dir.path().join("test.txt");
 
-        // Create a snapshot
-        let _snapshot1 = service.create_snapshot(&test_file_path).await?;
+        for content in test_contents {
+            // Update the file
+            let mut file = File::create(&test_file_path)?;
+            modify_file(&mut file, content)?;
 
-        // Sleep for some time to avoid having same name for snapshot
-        tokio::time::sleep(Duration::from_millis(10)).await;
+            // Create snapshot
+            let info = service.create_snapshot(test_file_path.clone()).await?;
+            snapshots.push(info);
+            // Small delay to ensure different timestamps
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
 
-        // Modify file
-        let mut file = File::create(&test_file_path).await?;
-        file.write_all(b"modified content").await?;
-        file.flush().await?;
+        assert_eq!(service.list_snapshots(Some(test_file_path.clone())).await?.len(), 3);
 
-        let _snapshot2 = service.create_snapshot(&test_file_path).await?;
+        Ok(Snaps {
+            service,
+            infos: snapshots,
+        })
+    }
 
-        // Create another test file to have multiple files with snapshots
-        let test_file_path2 = base_path.join("test2.txt");
-        let mut file = File::create(&test_file_path2).await?;
-        file.write_all(b"test2 content").await?;
-        file.flush().await?;
+    #[tokio::test]
+    async fn test_multiple_snapshots_hash_restoration() -> Result<()> {
+        let test_contents = vec!["First version", "Second version", "Third version"];
+        let temp_dir = tempdir()?;
+        
+        let snaps = init_multiple(&temp_dir, &test_contents).await?;
 
-        // Create a snapshot for the second file
-        let _snapshot3 = service.create_snapshot(&test_file_path2).await?;
-
-        // List snapshots
-        let snapshots = service.list_snapshots(None).await?;
-
-        // Verify we have at least one snapshot in the result (should be 2, one for each
-        // file)
-        assert!(!snapshots.is_empty());
-
-        // The timestamps should be in descending order (newest first)
-        for i in 1..snapshots.len() {
-            let prev_timestamp = snapshots[i - 1].timestamp.parse::<u128>().unwrap_or(0);
-            let curr_timestamp = snapshots[i].timestamp.parse::<u128>().unwrap_or(0);
-            assert!(prev_timestamp < curr_timestamp);
+        // Verify restore by index works for all snapshots
+        for (i, info) in snaps.infos.iter().enumerate() {
+            snaps.service.restore_snapshot_with_hash(&info.original_path, &info.instance_hash).await?;
+            assert_eq!(std::fs::read_to_string(&info.original_path)?, test_contents[i]);
         }
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_list_snapshots_specific() -> Result<()> {
+    async fn test_multiple_snapshots_timestamp_restoration() -> Result<()> {
+        let test_contents = vec!["First version", "Second version", "Third version"];
         let temp_dir = tempdir()?;
-        let base_path = temp_dir.path().to_path_buf();
-        let service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
+        
+        let snaps = init_multiple(&temp_dir, &test_contents).await?;
 
-        // Create a test file
-        let test_file_path = base_path.join("test.txt");
-        let mut file = File::create(&test_file_path).await?;
-        file.write_all(b"test content").await?;
-        file.flush().await?;
-
-        // Create multiple snapshots
-        let _snapshot1 = service.create_snapshot(&test_file_path).await?;
-
-        // Sleep for some time to avoid having same name for snapshot
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        // Modify file
-        let mut file = File::create(&test_file_path).await?;
-        file.write_all(b"modified content").await?;
-        file.flush().await?;
-
-        let _snapshot2 = service.create_snapshot(&test_file_path).await?;
-
-        // List snapshots
-        let snapshots = service.list_snapshots(Some(&test_file_path)).await?;
-
-        // Verify we have 2 snapshots, newest first
-        assert_eq!(snapshots.len(), 2);
-        assert_eq!(snapshots[0].index, 0);
-        assert_eq!(snapshots[1].index, 1);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_restore_by_index() -> Result<()> {
-        let temp_dir = tempdir()?;
-        let base_path = temp_dir.path().to_path_buf();
-        let service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
-
-        // Create a test file
-        let test_file_path = base_path.join("test.txt");
-        let mut file = File::create(&test_file_path).await?;
-        file.write_all(b"original content").await?;
-        file.flush().await?;
-
-        // Create a snapshot
-        let _snapshot1 = service.create_snapshot(&test_file_path).await?;
-
-        // Modify file
-        let mut file = File::create(&test_file_path).await?;
-        file.write_all(b"modified content").await?;
-        file.flush().await?;
-
-        // Restore to the original content
-        service.restore_by_index(&test_file_path, 0).await?;
-
-        // Verify the file has been restored
-        let content = tokio::fs::read_to_string(&test_file_path).await?;
-        assert_eq!(content, "original content");
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_retention_policy() -> Result<()> {
-        let temp_dir = tempdir()?;
-        let base_path = temp_dir.path().to_path_buf();
-        let mut service = SnapshotService::new(base_path.clone(), base_path.join("snapshots"));
-        service.max_snapshots_per_file = 3; // Set a small limit for testing
-
-        // Create a test file
-        let test_file_path = base_path.join("test.txt");
-        let mut file = File::create(&test_file_path).await?;
-        file.write_all(b"content 1").await?;
-        file.flush().await?;
-
-        // Create multiple snapshots with modifications
-        for i in 1..=5 {
-            let _snapshot = service.create_snapshot(&test_file_path).await?;
-            tokio::time::sleep(Duration::from_millis(10)).await;
-
-            let mut file = File::create(&test_file_path).await?;
-            file.write_all(format!("content {}", i + 1).as_bytes())
-                .await?;
-            file.flush().await?;
+        // Verify restore by index works for all snapshots
+        for (i, info) in snaps.infos.iter().enumerate() {
+            snaps.service.restore_snapshot_with_timestamp(&info.original_path, info.timestamp).await?;
+            assert_eq!(std::fs::read_to_string(&info.original_path)?, test_contents[i]);
         }
-
-        // List snapshots
-        let snapshots = service.list_snapshots(None).await?;
-
-        // Verify we have at least one snapshot in the results
-        assert!(!snapshots.is_empty());
 
         Ok(())
     }
