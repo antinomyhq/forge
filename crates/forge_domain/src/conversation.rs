@@ -133,8 +133,9 @@ impl Conversation {
 
     /// Gets the next event for a specific agent, if one is available
     ///
-    /// If an event is available in the agent's queue, it is popped and returned.
-    /// Additionally, if the agent's queue becomes empty, it is marked as inactive.
+    /// If an event is available in the agent's queue, it is popped and
+    /// returned. Additionally, if the agent's queue becomes empty, it is
+    /// marked as inactive.
     ///
     /// Returns None if no events are available for this agent.
     pub fn poll_event(&mut self, agent_id: &AgentId) -> Option<Event> {
