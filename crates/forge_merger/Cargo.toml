@@ -1,0 +1,16 @@
+[package]
+name = "forge_merger"
+version = "0.1.0"
+edition = "2021"
+description = "A tool to merge all non-ignored files into one file"
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+forge_walker = { path = "../forge_walker" }
+serde = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

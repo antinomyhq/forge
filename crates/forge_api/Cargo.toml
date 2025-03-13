@@ -13,9 +13,12 @@ forge_walker.workspace = true
 forge_infra.workspace = true
 forge_snaps.workspace = true
 serde_yaml.workspace = true
+forge_merger.workspace = true
 serde_json.workspace = true
 merge.workspace = true
 bytes.workspace = true
+tracing.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

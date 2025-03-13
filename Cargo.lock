@@ -931,6 +931,7 @@ dependencies = [
  "forge_app",
  "forge_domain",
  "forge_infra",
+ "forge_merger",
  "forge_snaps",
  "forge_stream",
  "forge_walker",
@@ -941,6 +942,7 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -957,6 +959,7 @@ dependencies = [
  "dissimilar",
  "forge_display",
  "forge_domain",
+ "forge_merger",
  "forge_open_router",
  "forge_snaps",
  "forge_tool_macros",
@@ -1090,6 +1093,18 @@ dependencies = [
  "serde_yaml",
  "tokio",
  "tokio-stream",
+]
+
+[[package]]
+name = "forge_merger"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "forge_walker",
+ "serde",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

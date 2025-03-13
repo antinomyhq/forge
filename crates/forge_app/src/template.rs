@@ -66,6 +66,18 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
         // Sort the files alphabetically to ensure consistent ordering
         files.sort();
 
+        // Get repository content if available
+        let repo_content = forge_merger::Merger::new(
+            self.infra
+                .environment_service()
+                .get_environment()
+                .cwd
+                .clone(),
+        )
+        .process()
+        .await
+        .ok();
+
         // Create the context with README content for all agents
         let ctx = SystemContext {
             env: Some(env),
@@ -73,6 +85,7 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
             tool_supported: agent.tool_supported.unwrap_or_default(),
             files,
             readme: README_CONTENT.to_string(),
+            repo_content,
             project_rules: agent.project_rules.as_ref().cloned().unwrap_or_default(),
         };
 
@@ -93,6 +106,20 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
 
         // Add variables to the context
         event_context = event_context.variables(variables.clone());
+
+        // Get repository content if available
+        let repo_content = forge_merger::Merger::new(
+            self.infra
+                .environment_service()
+                .get_environment()
+                .cwd
+                .clone(),
+        )
+        .process()
+        .await?;
+        let mut variables = variables.clone();
+        variables.insert("repo_content".to_string(), repo_content.into());
+        event_context = event_context.variables(variables);
 
         // Only add suggestions if the agent has suggestions enabled
         if agent.suggestions.unwrap_or_default() {
