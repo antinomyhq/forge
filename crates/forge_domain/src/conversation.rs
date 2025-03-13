@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use anyhow::Result;
 use derive_more::derive::Display;
@@ -36,7 +36,6 @@ pub struct Conversation {
     pub state: HashMap<AgentId, AgentState>,
     pub workflow: Workflow,
     pub variables: HashMap<String, Value>,
-    pub active_agents: HashSet<AgentId>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -45,6 +44,8 @@ pub struct AgentState {
     pub context: Option<Context>,
     /// holds the events that are waiting to be processed
     pub queue: VecDeque<Event>,
+    /// indicates if the agent is currently processing events
+    pub is_active: bool,
 }
 
 impl Conversation {
@@ -55,7 +56,6 @@ impl Conversation {
             state: Default::default(),
             variables: workflow.variables.clone().unwrap_or_default(),
             workflow,
-            active_agents: HashSet::new(),
         }
     }
 

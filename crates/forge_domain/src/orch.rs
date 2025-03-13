@@ -168,11 +168,14 @@ impl<A: App> Orchestrator<A> {
 
             self.app
                 .conversation_service()
-                .with_conversation(&self.conversation_id, |c| {
-                    let is_inactive = !c.active_agents.contains(&agent.id);
+                .update(&self.conversation_id, |c| {
+                    let is_inactive = c
+                        .state
+                        .get(&agent.id)
+                        .map_or(true, |state| !state.is_active);
                     if is_inactive {
-                        // Mark agent as active within the atomic operation
-                        c.active_agents.insert(agent.id.clone());
+                        // Mark agent as active by setting is_active to true in the agent's state
+                        c.state.entry(agent.id.clone()).or_default().is_active = true;
 
                         let agent_id = agent.id.clone();
                         tokio::spawn(async move {
@@ -416,15 +419,15 @@ impl<A: App> Orchestrator<A> {
         let conversation_service = self.app.conversation_service();
 
         while let Some(event) = conversation_service
-            .with_conversation(&self.conversation_id, |c| {
+            .update(&self.conversation_id, |c| {
                 // if event is present in queue, pop it and return.
-                if let Some(state) = c.state.get_mut(agent_id) {
-                    if let Some(event) = state.queue.pop_front() {
+                if let Some(agent) = c.state.get_mut(agent_id) {
+                    if let Some(event) = agent.queue.pop_front() {
                         return Some(event);
                     }
+                    // since no event is present, set the agent as inactive
+                    agent.is_active = false;
                 }
-                // since no event is present, remove the agent from active agents list.
-                c.active_agents.remove(agent_id);
                 None
             })
             .await?
