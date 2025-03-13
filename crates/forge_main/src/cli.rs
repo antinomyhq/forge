@@ -52,6 +52,15 @@ pub struct Cli {
     #[arg(long, short = 'd')]
     pub dispatch: Option<String>,
 
+    /// Custom dispatch event name for direct dispatch of custom events
+    /// For example: --custom-event "my-event-name" --custom-value "This is the event value"
+    #[arg(long)]
+    pub custom_event: Option<String>,
+
+    /// Custom dispatch event value to be sent with the custom event name
+    #[arg(long)]
+    pub custom_value: Option<String>,
+
     #[command(subcommand)]
     pub snapshot: Option<Snapshot>,
 }

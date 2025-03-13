@@ -39,6 +39,9 @@ impl From<&[Model]> for Info {
 /// - File content
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
+    /// Custom command dispatch that triggers event handling with a format of `/dispatch-event_name value`
+    /// The event_name must follow specific formatting rules (alphanumeric, plus hyphens and underscores)
+    Dispatch(String, String),
     /// Start a new conversation while preserving history.
     /// This can be triggered with the '/new' command.
     New,
@@ -82,6 +85,7 @@ impl Command {
             "/plan".to_string(),
             "/help".to_string(),
             "/dump".to_string(),
+            "/dispatch-event_name".to_string(),
         ]
     }
 
@@ -98,6 +102,29 @@ impl Command {
     pub fn parse(input: &str) -> Self {
         let trimmed = input.trim();
 
+        // Check if this is a dispatch command
+        if trimmed.starts_with("/dispatch-") {
+            // Get everything after "/dispatch-" until a space or end of string
+            let (event_name, value) = match trimmed[10..].find(' ') {
+                Some(space_index) => {
+                    let event_name = &trimmed[10..10 + space_index];
+                    let value = &trimmed[10 + space_index + 1..];
+                    (event_name.to_string(), value.to_string())
+                }
+                None => {
+                    // No space found, so everything after "/dispatch-" is the event name
+                    // and value is empty
+                    (trimmed[10..].to_string(), "".to_string())
+                }
+            };
+            
+            // Validate event name - only allow alphanumeric, underscores, and hyphens
+            if event_name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+                return Command::Dispatch(event_name, value);
+            }
+            // If event name is invalid, treat as a regular message
+        }
+        
         match trimmed {
             "/new" => Command::New,
             "/info" => Command::Info,
@@ -140,4 +167,50 @@ pub trait UserInput {
     /// * `Ok(Input)` - Successfully processed input
     /// * `Err` - An error occurred during input processing
     async fn prompt(&self, input: Option<Self::PromptInput>) -> anyhow::Result<Command>;
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_dispatch_command() {
+        // Test valid dispatch command with value
+        let input = "/dispatch-test_event This is a test value";
+        match Command::parse(input) {
+            Command::Dispatch(event_name, value) => {
+                assert_eq!(event_name, "test_event");
+                assert_eq!(value, "This is a test value");
+            }
+            _ => panic!("Failed to parse valid dispatch command"),
+        }
+        
+        // Test valid dispatch command with no value
+        let input = "/dispatch-empty_event";
+        match Command::parse(input) {
+            Command::Dispatch(event_name, value) => {
+                assert_eq!(event_name, "empty_event");
+                assert_eq!(value, "");
+            }
+            _ => panic!("Failed to parse valid dispatch command without value"),
+        }
+        
+        // Test dispatch command with hyphens and underscores
+        let input = "/dispatch-custom-event_name Some value";
+        match Command::parse(input) {
+            Command::Dispatch(event_name, value) => {
+                assert_eq!(event_name, "custom-event_name");
+                assert_eq!(value, "Some value");
+            }
+            _ => panic!("Failed to parse valid dispatch command with hyphens and underscores"),
+        }
+        
+        // Test invalid dispatch command (contains invalid characters)
+        let input = "/dispatch-invalid!event Value";
+        match Command::parse(input) {
+            Command::Message(message) => {
+                assert_eq!(message, input);
+            }
+            _ => panic!("Invalid dispatch command should be treated as a message"),
+        }
+    }
 }

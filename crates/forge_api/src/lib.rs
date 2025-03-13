@@ -80,6 +80,9 @@ pub trait API: Sync + Send {
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>>;
 
+    /// Dispatches a custom event with the given name and value
+    async fn dispatch(&self, event_name: &str, event_value: &str) -> anyhow::Result<()>;
+
     /// Gets a variable from the conversation
     async fn get_variable(
         &self,
