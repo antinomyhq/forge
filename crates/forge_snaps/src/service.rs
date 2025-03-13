@@ -45,13 +45,13 @@ impl SnapshotService {
 
 
     fn instance_hash(timestamp: &str, path_str: &str) -> String {
-        let mut hasher = gxhash::GxHasher::default();
+        let mut hasher = fnv_rs::Fnv64::default();
         hasher.write(path_str.as_bytes());
         hasher.write(timestamp.as_bytes());
         format!("{:x}", hasher.finish())
     }
     fn path_hash(path_str: &str) -> String {
-        let mut hasher = gxhash::GxHasher::default();
+        let mut hasher = fnv_rs::Fnv64::default();
         hasher.write(path_str.as_bytes());
         format!("{:x}", hasher.finish())
     }
@@ -161,7 +161,7 @@ impl SnapshotService {
     }
     pub async fn get_latest(&self, path: &Path) -> Result<SnapshotInfo> {
         let snaps = self.list_snapshots(Some(path.to_path_buf())).await?;
-        snaps.into_iter().max_by_key(|v| v.timestamp).context("No snapshots found")
+        snaps.into_iter().min_by_key(|v| v.timestamp).context("No snapshots found")
     }
 
     pub async fn restore_previous(&self, path: &Path) -> Result<()> {

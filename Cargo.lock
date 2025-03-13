@@ -861,6 +861,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "fnv_rs"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37d1a20ad5887f117a162e550abf373f3913617e0e392e3fb859610da7e9092b"
+dependencies = [
+ "hex",
+ "paste",
+ "rustc_version",
+]
+
+[[package]]
 name = "forge"
 version = "0.1.0"
 dependencies = [
@@ -1092,10 +1103,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "fnv_rs",
  "forge_fs",
  "forge_walker",
  "futures",
- "gxhash",
  "serde",
  "serde_json",
  "tempfile",
@@ -1370,15 +1381,6 @@ dependencies = [
  "log",
  "regex-automata 0.4.9",
  "regex-syntax 0.8.5",
-]
-
-[[package]]
-name = "gxhash"
-version = "3.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3ce1bab7aa741d4e7042b2aae415b78741f267a98a7271ea226cd5ba6c43d7d"
-dependencies = [
- "rustversion",
 ]
 
 [[package]]
@@ -2335,6 +2337,12 @@ dependencies = [
  "smallvec",
  "windows-targets 0.52.6",
 ]
+
+[[package]]
+name = "paste"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "percent-encoding"
