@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Context as AnyhowContext, Result};
 use forge_domain::{
     AgentId, Context, Conversation, ConversationId, ConversationService, Event, Workflow,
 };
@@ -31,9 +31,7 @@ impl ConversationService for ForgeConversationService {
         F: FnOnce(&mut Conversation) -> T + Send,
     {
         let mut workflows = self.workflows.lock().await;
-        let conversation = workflows
-            .get_mut(id)
-            .ok_or_else(|| anyhow!("Conversation not found"))?;
+        let conversation = workflows.get_mut(id).context("Conversation not found")?;
         Ok(f(conversation))
     }
 
