@@ -166,15 +166,11 @@ impl<A: App> Orchestrator<A> {
             })
             .await?;
 
-        let this = self.clone();
-
         // Execute all initialization futures in parallel
-        let results = join_all(agents.iter().map(|id| this.init_agent(id))).await;
-
-        // Check if any initialization failed
-        for result in results {
-            result?;
-        }
+        join_all(agents.iter().map(|id| self.init_agent(id)))
+            .await
+            .into_iter()
+            .collect::<anyhow::Result<Vec<()>>>()?;
 
         Ok(())
     }
@@ -393,17 +389,7 @@ impl<A: App> Orchestrator<A> {
         let conversation_service = self.app.conversation_service();
 
         while let Some(event) = conversation_service
-            .update(&self.conversation_id, |c| {
-                // if event is present in queue, pop it and return.
-                if let Some(agent) = c.state.get_mut(agent_id) {
-                    if let Some(event) = agent.queue.pop_front() {
-                        return Some(event);
-                    }
-                    // since no event is present, set the agent as inactive
-                    agent.is_active = false;
-                }
-                None
-            })
+            .update(&self.conversation_id, |c| c.poll_event(agent_id))
             .await?
         {
             self.init_agent_with_event(agent_id, &event).await?;

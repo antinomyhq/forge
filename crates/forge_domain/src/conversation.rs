@@ -36,6 +36,7 @@ pub struct Conversation {
     pub state: HashMap<AgentId, AgentState>,
     pub workflow: Workflow,
     pub variables: HashMap<String, Value>,
+    pub events: Vec<Event>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -56,6 +57,7 @@ impl Conversation {
             state: Default::default(),
             variables: workflow.variables.clone().unwrap_or_default(),
             workflow,
+            events: Default::default(),
         }
     }
 
@@ -116,6 +118,7 @@ impl Conversation {
     /// Add an event to the queue of subscribed agents
     pub fn insert_event(&mut self, event: Event) -> &mut Self {
         let subscribed_agents = self.entries(&event.name);
+        self.events.push(event.clone());
 
         subscribed_agents.iter().for_each(|agent| {
             self.state
@@ -126,6 +129,24 @@ impl Conversation {
         });
 
         self
+    }
+
+    /// Gets the next event for a specific agent, if one is available
+    ///
+    /// If an event is available in the agent's queue, it is popped and returned.
+    /// Additionally, if the agent's queue becomes empty, it is marked as inactive.
+    ///
+    /// Returns None if no events are available for this agent.
+    pub fn poll_event(&mut self, agent_id: &AgentId) -> Option<Event> {
+        // if event is present in queue, pop it and return.
+        if let Some(agent) = self.state.get_mut(agent_id) {
+            if let Some(event) = agent.queue.pop_front() {
+                return Some(event);
+            }
+            // since no event is present, set the agent as inactive
+            agent.is_active = false;
+        }
+        None
     }
 
     /// Dispatches an event to all subscribed agents and activates any inactive
