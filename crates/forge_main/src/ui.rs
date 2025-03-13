@@ -107,7 +107,9 @@ impl<F: API> UI<F> {
         // Check for custom event dispatch
         if let Some(event_name) = self.cli.custom_event.clone() {
             let event_value = self.cli.custom_value.clone().unwrap_or_default();
-            return self.handle_dispatch_command(&event_name, &event_value).await;
+            return self
+                .handle_dispatch_command(&event_name, &event_value)
+                .await;
         }
 
         if let Some(snapshot_command) = self.cli.snapshot.as_ref() {
@@ -198,7 +200,8 @@ impl<F: API> UI<F> {
                     let prompt_input = Some((&self.state).into());
                     input = self.console.prompt(prompt_input).await?;
                     continue;
-                }                Command::Exit => {
+                }
+                Command::Exit => {
                     break;
                 }
                 Command::Models => {
@@ -566,25 +569,23 @@ impl<F: API> UI<F> {
         }
         Ok(())
     } // Handle help chat in HELP mode
-        // Handle custom dispatch commands
+      // Handle custom dispatch commands
     async fn handle_dispatch_command(&mut self, event_name: &str, event_value: &str) -> Result<()> {
         // Initialize the conversation if it doesn't exist
         self.init_conversation().await?;
-        
+
         // Log the dispatch
         CONSOLE.writeln(
             TitleFormat::execute(format!("Dispatching custom event: {}", event_name))
                 .sub_title(format!("value: {}", event_value))
                 .format(),
         )?;
-        
+
         // Dispatch the event using the API
         self.api.dispatch(event_name, event_value).await?;
-        
-        CONSOLE.writeln(
-            TitleFormat::success("Event dispatched successfully").format(),
-        )?;
-        
+
+        CONSOLE.writeln(TitleFormat::success("Event dispatched successfully").format())?;
+
         Ok(())
     }
     async fn help_chat(&mut self, content: String) -> Result<()> {

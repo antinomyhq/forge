@@ -140,13 +140,20 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
     async fn dispatch(&self, event_name: &str, event_value: &str) -> anyhow::Result<()> {
         // Create an event with the specified name and value
         let event = Event::new(event_name, event_value);
-        
+
         // Create a new conversation with default workflow if we don't have one
         let dummy_workflow = Workflow::default();
-        let conversation_id = self.app.conversation_service().create(dummy_workflow).await?;
-        
+        let conversation_id = self
+            .app
+            .conversation_service()
+            .create(dummy_workflow)
+            .await?;
+
         // Dispatch the event to the conversation
-        self.app.conversation_service().insert_event(&conversation_id, event).await
+        self.app
+            .conversation_service()
+            .insert_event(&conversation_id, event)
+            .await
     }
 
     async fn get_variable(

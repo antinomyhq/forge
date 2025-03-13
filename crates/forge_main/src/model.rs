@@ -39,8 +39,9 @@ impl From<&[Model]> for Info {
 /// - File content
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
-    /// Custom command dispatch that triggers event handling with a format of `/dispatch-event_name value`
-    /// The event_name must follow specific formatting rules (alphanumeric, plus hyphens and underscores)
+    /// Custom command dispatch that triggers event handling with a format of
+    /// `/dispatch-event_name value` The event_name must follow specific
+    /// formatting rules (alphanumeric, plus hyphens and underscores)
     Dispatch(String, String),
     /// Start a new conversation while preserving history.
     /// This can be triggered with the '/new' command.
@@ -117,14 +118,17 @@ impl Command {
                     (trimmed[10..].to_string(), "".to_string())
                 }
             };
-            
+
             // Validate event name - only allow alphanumeric, underscores, and hyphens
-            if event_name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+            if event_name
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+            {
                 return Command::Dispatch(event_name, value);
             }
             // If event name is invalid, treat as a regular message
         }
-        
+
         match trimmed {
             "/new" => Command::New,
             "/info" => Command::Info,
@@ -183,7 +187,7 @@ mod tests {
             }
             _ => panic!("Failed to parse valid dispatch command"),
         }
-        
+
         // Test valid dispatch command with no value
         let input = "/dispatch-empty_event";
         match Command::parse(input) {
@@ -193,7 +197,7 @@ mod tests {
             }
             _ => panic!("Failed to parse valid dispatch command without value"),
         }
-        
+
         // Test dispatch command with hyphens and underscores
         let input = "/dispatch-custom-event_name Some value";
         match Command::parse(input) {
@@ -203,7 +207,7 @@ mod tests {
             }
             _ => panic!("Failed to parse valid dispatch command with hyphens and underscores"),
         }
-        
+
         // Test invalid dispatch command (contains invalid characters)
         let input = "/dispatch-invalid!event Value";
         match Command::parse(input) {
