@@ -273,6 +273,72 @@ fn test_apt_get_install() {
 }
 
 #[test]
+fn test_forge_automation() {
+    // Generate Forge Automation workflow
+    let mut forge_automation = Workflow::default()
+        .name("Forge Automation")
+        .on(Event {
+            issues: Some(Issues { types: vec![IssuesType::Labeled] }),
+            issue_comment: Some(IssueComment { types: vec![IssueCommentType::Created] }),
+            ..Event::default()
+        })
+        .permissions(
+            Permissions::default()
+                .contents(Level::Write)
+                .issues(Level::Read)
+                .pull_requests(Level::Write),
+        );
+
+    // Process issues job - runs when an issue is labeled with "forge-just-do-it"
+    forge_automation = forge_automation.add_job(
+        "process_issue",
+        Job::new("process_issue")
+            .runs_on("ubuntu-latest")
+            .cond(Expression::new("github.event_name == 'issues' && github.event.label.name == 'forge-just-do-it'"))
+            .add_step(Step::uses("actions", "checkout", "v4"))
+            .add_step(
+                Step::run("curl -L https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bash")
+                    .name("Install Forge CLI"),
+            )
+            .add_step(
+                Step::run("forge --event='{\"name\": \"fix_issue\", \"value\": \"${{ github.event.issue.number }}\"}'")
+                    .name("Run Forge to process issue")
+                    .add_env(("GITHUB_TOKEN", "${{ secrets.GITHUB_TOKEN }}"))
+                    .add_env(("FORGE_KEY", "${{ secrets.FORGE_KEY }}")),
+            ),
+    );
+
+    // Process PR comment job - runs when a comment is added to a PR with the
+    // "forge-just-do-it" label
+    forge_automation = forge_automation.add_job(
+        "update_pr",
+        Job::new("update_pr")
+            .runs_on("ubuntu-latest")
+            .cond(Expression::new(
+                "github.event_name == 'issue_comment' && \
+                 github.event.issue.pull_request && \
+                 contains(github.event.issue.labels.*.name, 'forge-just-do-it')",
+            ))
+            .add_step(Step::uses("actions", "checkout", "v4"))
+            .add_step(
+                Step::run("curl -L https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bash")
+                    .name("Install Forge CLI"),
+            )
+            .add_step(
+                Step::run("forge --event='{\"name\": \"update_pr\", \"value\": \"${{ github.event.issue.number }}\"}'") 
+                    .name("Run Forge to update PR based on comment")
+                    .add_env(("GITHUB_TOKEN", "${{ secrets.GITHUB_TOKEN }}"))
+                    .add_env(("FORGE_KEY", "${{ secrets.FORGE_KEY }}"))
+            ),
+    );
+
+    Generate::new(forge_automation)
+        .name("forge-automation.yml")
+        .generate()
+        .unwrap();
+}
+
+#[test]
 fn test_release_drafter() {
     // Generate Release Drafter workflow
     let mut release_drafter = Workflow::default()
