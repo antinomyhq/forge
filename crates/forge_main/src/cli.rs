@@ -45,6 +45,11 @@ pub struct Cli {
     #[arg(long, short = 'w')]
     pub workflow: Option<PathBuf>,
 
+    /// Dispatch an event to the workflow.
+    /// For example: --event '{"name": "fix_issue", "value": "449"}'
+    #[arg(long, short = 'e')]
+    pub event: Option<String>,
+
     #[command(subcommand)]
     pub snapshot: Option<Snapshot>,
 }

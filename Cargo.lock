@@ -912,6 +912,7 @@ dependencies = [
  "nu-ansi-term 0.50.1",
  "pretty_assertions",
  "reedline",
+ "serde",
  "serde_json",
  "tokio",
  "tokio-stream",
