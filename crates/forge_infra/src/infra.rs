@@ -34,7 +34,9 @@ impl ForgeInfra {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
             file_meta_service: Arc::new(ForgeFileMetaService),
-            file_remove_service: Arc::new(ForgeFileRemoveService::new(file_snapshot_service.clone())),
+            file_remove_service: Arc::new(ForgeFileRemoveService::new(
+                file_snapshot_service.clone(),
+            )),
             environment_service,
             information_repo: Arc::new(QdrantVectorIndex::new(env.clone(), "user_feedback")),
             embedding_service: Arc::new(OpenAIEmbeddingService::new(env.clone())),
