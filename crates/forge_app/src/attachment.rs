@@ -71,7 +71,7 @@ pub mod tests {
     use forge_domain::{
         AttachmentService, ContentType, Environment, Point, Provider, Query, Suggestion,
     };
-    use forge_snaps::{SnapshotInfo, SnapshotMetadata};
+    use forge_snaps::SnapshotInfo;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
@@ -246,11 +246,15 @@ pub mod tests {
             unimplemented!()
         }
 
-        async fn restore_by_timestamp(&self, _: &Path, _: &str) -> anyhow::Result<()> {
+        async fn restore_by_timestamp(&self, _: &Path, _: u128) -> anyhow::Result<()> {
             unimplemented!()
         }
 
-        async fn restore_by_hash(&self, file_path: &Path, hash: &str) -> Result<()> {
+        async fn restore_by_hash(&self, _: &Path, _: &str) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn get_latest(&self, _: &Path) -> anyhow::Result<SnapshotInfo> {
             unimplemented!()
         }
 
@@ -258,19 +262,11 @@ pub mod tests {
             unimplemented!()
         }
 
-        async fn get_snapshot_by_timestamp(
-            &self,
-            file_path: &Path,
-            timestamp: u128,
-        ) -> Result<SnapshotInfo> {
+        async fn get_snapshot_by_timestamp(&self, _: &Path, _: u128) -> anyhow::Result<SnapshotInfo> {
             unimplemented!()
         }
 
-        async fn get_snapshot_by_index(
-            &self,
-            _: &Path,
-            _: isize,
-        ) -> anyhow::Result<SnapshotMetadata> {
+        async fn get_snapshot_by_hash(&self, _: &Path, _: &str) -> anyhow::Result<SnapshotInfo> {
             unimplemented!()
         }
 
