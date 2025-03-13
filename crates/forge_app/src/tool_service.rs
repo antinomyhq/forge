@@ -12,7 +12,7 @@ const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Clone)]
 pub struct ForgeToolService {
-    tools: HashMap<ToolName, Arc<Tool>>,
+    tools: Arc<HashMap<ToolName, Tool>>,
 }
 
 impl ForgeToolService {
@@ -23,12 +23,12 @@ impl ForgeToolService {
 
 impl FromIterator<Tool> for ForgeToolService {
     fn from_iter<T: IntoIterator<Item = Tool>>(iter: T) -> Self {
-        let tools: HashMap<ToolName, Arc<Tool>> = iter
+        let tools: HashMap<ToolName, Tool> = iter
             .into_iter()
-            .map(|tool| (tool.definition.name.clone(), Arc::new(tool)))
+            .map(|tool| (tool.definition.name.clone(), tool))
             .collect::<HashMap<_, _>>();
 
-        Self { tools }
+        Self { tools: Arc::new(tools) }
     }
 }
 
