@@ -150,6 +150,7 @@ impl<A: App> Orchestrator<A> {
             "Dispatching event"
         );
 
+        // collect the agents subscribed to the event
         let subscribed_agents = self
             .app
             .conversation_service()
@@ -162,36 +163,28 @@ impl<A: App> Orchestrator<A> {
         self.insert_event(event.clone()).await?;
 
         for agent in subscribed_agents {
-            // Check and set agent active state atomically
-            let was_inactive = self
-                .app
+            let app = self.app.clone();
+            let conversation_id = self.conversation_id.clone();
+            let sender = self.sender.clone();
+
+            self.app
                 .conversation_service()
                 .with_conversation(&self.conversation_id, |c| {
-                    if !c.active_agents.contains(&agent.id) {
+                    let is_inactive = !c.active_agents.contains(&agent.id);
+                    if is_inactive {
+                        // Mark agent as active within the atomic operation
                         c.active_agents.insert(agent.id.clone());
-                        true
-                    } else {
-                        false
+
+                        let agent_id = agent.id.clone();
+                        tokio::spawn(async move {
+                            let orch = Orchestrator::new(app, conversation_id, sender);
+                            if let Err(e) = orch.init_agent(&agent_id).await {
+                                tracing::error!("Failed to initialize agent: {}", e);
+                            }
+                        });
                     }
                 })
                 .await?;
-
-            // Initialize agent if it was inactive
-            if was_inactive {
-                let app = self.app.clone();
-                let conversation_id = self.conversation_id.clone();
-                let agent_id = agent.id.clone();
-                let sender = self.sender.clone();
-
-                // TODO: we shouldn't create an separate instance of Orchestrator, instead clone
-                // self and use init_agent method.
-                tokio::spawn(async move {
-                    let orch = Orchestrator::new(app, conversation_id, sender);
-                    if let Err(e) = orch.init_agent(&agent_id).await {
-                        tracing::error!("Failed to initialize agent: {}", e);
-                    }
-                });
-            }
         }
 
         Ok(())
@@ -422,27 +415,23 @@ impl<A: App> Orchestrator<A> {
     }
 
     async fn init_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
-        // process all the events for the agent
         let conversation_service = self.app.conversation_service();
 
-        loop {
-            // Atomically check queue and set inactive status if empty
-            let has_event = conversation_service
-                .with_conversation(&self.conversation_id, |c| {
-                    if let Some(state) = c.state.get_mut(agent_id) {
-                        if let Some(event) = state.queue.pop_front() {
-                            return Some(event);
-                        }
+        while let Some(event) = conversation_service
+            .with_conversation(&self.conversation_id, |c| {
+                // if event is present in queue, pop it and return.
+                if let Some(state) = c.state.get_mut(agent_id) {
+                    if let Some(event) = state.queue.pop_front() {
+                        return Some(event);
                     }
-                    c.active_agents.remove(agent_id);
-                    None
-                })
-                .await?;
-
-            match has_event {
-                Some(event) => self.init_agent_with_event(agent_id, &event).await?,
-                None => break,
-            }
+                }
+                // since no event is present, remove the agent from active agents list.
+                c.active_agents.remove(agent_id);
+                None
+            })
+            .await?
+        {
+            self.init_agent_with_event(agent_id, &event).await?;
         }
 
         Ok(())
