@@ -13,7 +13,10 @@ pub struct ForgeFileSnapshotService {
 impl ForgeFileSnapshotService {
     pub fn new(env: Environment) -> Self {
         Self {
-            inner: Arc::new(forge_snaps::SnapshotService::new(env.cwd.clone(), env.snapshot_path())),
+            inner: Arc::new(forge_snaps::SnapshotService::new(
+                env.cwd.clone(),
+                env.snapshot_path(),
+            )),
         }
     }
 }
