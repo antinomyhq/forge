@@ -127,9 +127,4 @@ impl Conversation {
 
         self
     }
-
-    /// Check if an agent is currently active
-    pub fn is_agent_active(&self, agent_id: &AgentId) -> bool {
-        self.active_agents.contains(agent_id)
-    }
 }
