@@ -65,9 +65,14 @@ impl Conversation {
         self.workflow
             .agents
             .iter()
-            .filter(|a| a.enable)
-            .filter(|a| self.turn_count(&a.id).unwrap_or(0) < a.max_turns.unwrap_or(u64::MAX))
-            .filter(|a| a.subscribe.contains(&event_name.to_string()))
+            .filter(|a| {
+                self.turn_count(&a.id).unwrap_or_default() < a.max_turns.unwrap_or(u64::MAX)
+            })
+            .filter(|a| {
+                a.subscribe
+                    .as_ref()
+                    .is_some_and(|subs| subs.contains(&event_name.to_string()))
+            })
             .cloned()
             .collect::<Vec<_>>()
     }

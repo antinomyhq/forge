@@ -1,11 +1,13 @@
 mod api;
 mod executor;
+mod forge_default;
 mod loader;
 mod suggestion;
 
 use std::path::Path;
 
 pub use api::*;
+pub use forge_default::{create_default_workflow, DEFAULT_FORGE_YAML};
 pub use forge_domain::*;
 use forge_stream::MpscStream;
 use serde_json::Value;

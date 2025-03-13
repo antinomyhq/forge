@@ -47,6 +47,7 @@ pub enum EventKind {
     Start,
     Ping,
     Prompt(String),
+    Error(String),
 }
 
 impl EventKind {
@@ -55,6 +56,7 @@ impl EventKind {
             Self::Start => Name::from("start".to_string()),
             Self::Ping => Name::from("ping".to_string()),
             Self::Prompt(_) => Name::from("prompt".to_string()),
+            Self::Error(_) => Name::from("error".to_string()),
         }
     }
     pub fn value(&self) -> String {
@@ -62,6 +64,7 @@ impl EventKind {
             Self::Start => "".to_string(),
             Self::Ping => "".to_string(),
             Self::Prompt(content) => content.to_string(),
+            Self::Error(content) => content.to_string(),
         }
     }
 }

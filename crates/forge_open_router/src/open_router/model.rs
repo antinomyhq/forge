@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct OpenRouterModel {
     pub id: ModelId,
-    pub name: String,
+    pub name: Option<String>,
     pub created: u64,
     pub description: Option<String>,
-    pub context_length: u64,
-    pub architecture: Architecture,
-    pub pricing: Pricing,
-    pub top_provider: TopProvider,
+    pub context_length: Option<u64>,
+    pub architecture: Option<Architecture>,
+    pub pricing: Option<Pricing>,
+    pub top_provider: Option<TopProvider>,
     pub per_request_limits: Option<serde_json::Value>,
 }
 

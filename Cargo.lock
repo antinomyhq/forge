@@ -1083,6 +1083,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "forge_api",
+ "forge_domain",
  "forge_tracker",
  "futures",
  "serde_yaml",

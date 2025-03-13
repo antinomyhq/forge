@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
@@ -20,29 +19,11 @@ impl From<&[Model]> for Info {
     fn from(models: &[Model]) -> Self {
         let mut info = Info::new();
 
-        let mut models_by_provider: BTreeMap<String, Vec<&Model>> = BTreeMap::new();
-        for model in models {
-            let provider = model
-                .id
-                .as_str()
-                .split('/')
-                .next()
-                .unwrap_or("unknown")
-                .to_string();
-            models_by_provider.entry(provider).or_default().push(model);
-        }
-
-        for (provider, provider_models) in models_by_provider.iter() {
-            info = info.add_title(provider.to_string());
-            for model in provider_models {
-                if let Some(context_length) = model.context_length {
-                    info = info.add_item(
-                        &model.name,
-                        format!("{} ({})", model.id, humanize_context_length(context_length)),
-                    );
-                } else {
-                    info = info.add_item(&model.name, format!("{}", model.id));
-                }
+        for model in models.iter() {
+            if let Some(context_length) = model.context_length {
+                info = info.add_key_value(&model.id, humanize_context_length(context_length));
+            } else {
+                info = info.add_key(&model.id);
             }
         }
 

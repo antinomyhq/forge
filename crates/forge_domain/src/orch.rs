@@ -51,7 +51,7 @@ impl<A: App> Orchestrator<A> {
     }
 
     fn init_tool_definitions(&self, agent: &Agent) -> Vec<ToolDefinition> {
-        let allowed = agent.tools.iter().collect::<HashSet<_>>();
+        let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
         let mut forge_tools = self.init_default_tool_definitions();
 
         // Adding self to the list of tool definitions
@@ -68,7 +68,7 @@ impl<A: App> Orchestrator<A> {
         let tool_defs = self.init_tool_definitions(agent);
 
         // Use the agent's tool_supported flag directly instead of querying the provider
-        let tool_supported = agent.tool_supported;
+        let tool_supported = agent.tool_supported.unwrap_or_default();
 
         let mut context = Context::default();
 
@@ -282,7 +282,7 @@ impl<A: App> Orchestrator<A> {
         let conversation = self.get_conversation().await?;
         let agent = conversation.workflow.get_agent(agent)?;
 
-        let mut context = if agent.ephemeral {
+        let mut context = if agent.ephemeral.unwrap_or_default() {
             self.init_agent_context(agent).await?
         } else {
             match conversation.context(&agent.id) {
@@ -333,7 +333,12 @@ impl<A: App> Orchestrator<A> {
         self.set_context(&agent.id, context.clone()).await?;
 
         loop {
-            context = self.execute_transform(&agent.transforms, context).await?;
+            context = self
+                .execute_transform(
+                    agent.transforms.as_ref().map_or(&[], |t| t.as_slice()),
+                    context,
+                )
+                .await?;
             self.set_context(&agent.id, context.clone()).await?;
             let response = self
                 .app

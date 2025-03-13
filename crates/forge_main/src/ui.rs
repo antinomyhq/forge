@@ -8,6 +8,7 @@ use forge_snaps::SnapshotInfo;
 use lazy_static::lazy_static;
 use serde_json::Value;
 use tokio_stream::StreamExt;
+use tracing::error;
 
 use crate::banner;
 use crate::cli::{Cli, Snapshot, SnapshotCommand};
@@ -153,6 +154,11 @@ impl<F: API> UI<F> {
                         _ => self.chat(content.clone()).await,
                     };
                     if let Err(err) = chat_result {
+                        tokio::spawn(
+                            TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{:?}", err))),
+                        );
+                        error!(error = ?err, "Chat request failed");
+
                         CONSOLE.writeln(TitleFormat::failed(format!("{:?}", err)).format())?;
                     }
                     let prompt_input = Some((&self.state).into());
