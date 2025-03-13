@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Context as AnyhowContext;
 use async_recursion::async_recursion;
+use futures::future::join_all;
 use futures::{Stream, StreamExt};
 use tracing::debug;
 
@@ -145,11 +146,11 @@ impl<A: App> Orchestrator<A> {
 
     pub async fn dispatch_spawned(&self, event: Event) -> anyhow::Result<()> {
         let this = self.clone();
-        let _ = tokio::spawn(async move { this.dispatch(&event).await }).await?;
+        let _ = tokio::spawn(async move { this.dispatch(event).await }).await?;
         Ok(())
     }
 
-    pub async fn dispatch(&self, event: &Event) -> anyhow::Result<()> {
+    pub async fn dispatch(&self, event: Event) -> anyhow::Result<()> {
         debug!(
             conversation_id = %self.conversation_id,
             event_name = %event.name,
@@ -157,39 +158,22 @@ impl<A: App> Orchestrator<A> {
             "Dispatching event"
         );
 
-        // collect the agents subscribed to the event
-        let subscribed_agents = self
+        let agents = self
             .app
             .conversation_service()
-            .get(&self.conversation_id)
-            .await?
-            .ok_or(Error::ConversationNotFound(self.conversation_id.clone()))?
-            .entries(event.name.as_str());
+            .update(&self.conversation_id, |conversation| {
+                conversation.dispatch_event(event)
+            })
+            .await?;
 
-        // Insert event into the queue first
-        self.insert_event(event.clone()).await?;
+        let this = self.clone();
 
-        for agent in subscribed_agents {
-            let orchestrator = self.clone();
-            let mut init_agent = false;
-            self.app
-                .conversation_service()
-                .update(&self.conversation_id, |c| {
-                    let is_inactive = c
-                        .state
-                        .get(&agent.id)
-                        .map_or(true, |state| !state.is_active);
-                    if is_inactive {
-                        // Mark agent as active by setting is_active to true in the agent's state
-                        c.state.entry(agent.id.clone()).or_default().is_active = true;
-                        init_agent = true;
-                    }
-                })
-                .await?;
+        // Execute all initialization futures in parallel
+        let results = join_all(agents.iter().map(|id| this.init_agent(id))).await;
 
-            if init_agent {
-                orchestrator.init_agent(&agent.id).await?;
-            }
+        // Check if any initialization failed
+        for result in results {
+            result?;
         }
 
         Ok(())
@@ -207,14 +191,7 @@ impl<A: App> Orchestrator<A> {
 
             self.dispatch_spawned(event).await?;
             Ok(Some(
-                ToolResult::new(tool_call.name.clone())
-                    .call_id(
-                        tool_call
-                            .call_id
-                            .clone()
-                            .expect("toolcall id must be present at this point."),
-                    )
-                    .success("Event Dispatched Successfully".to_string()),
+                ToolResult::from(tool_call.clone()).success("Event Dispatched Successfully"),
             ))
         } else {
             Ok(Some(self.app.tool_service().call(tool_call.clone()).await))
@@ -277,13 +254,6 @@ impl<A: App> Orchestrator<A> {
 
     async fn get_last_event(&self, name: &str) -> anyhow::Result<Option<Event>> {
         Ok(self.get_conversation().await?.rfind_event(name).cloned())
-    }
-
-    async fn insert_event(&self, event: Event) -> anyhow::Result<()> {
-        self.app
-            .conversation_service()
-            .insert_event(&self.conversation_id, event)
-            .await
     }
 
     async fn get_conversation(&self) -> anyhow::Result<Conversation> {

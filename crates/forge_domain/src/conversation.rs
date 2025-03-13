@@ -114,7 +114,7 @@ impl Conversation {
     }
 
     /// Add an event to the queue of subscribed agents
-    pub fn add_event(&mut self, event: Event) -> &mut Self {
+    pub fn insert_event(&mut self, event: Event) -> &mut Self {
         let subscribed_agents = self.entries(&event.name);
 
         subscribed_agents.iter().for_each(|agent| {
@@ -126,5 +126,42 @@ impl Conversation {
         });
 
         self
+    }
+
+    /// Dispatches an event to all subscribed agents and activates any inactive
+    /// agents
+    ///
+    /// This method performs two main operations:
+    /// 1. Adds the event to the queue of all agents that subscribe to this
+    ///    event type
+    /// 2. Activates any inactive agents (where is_active=false) that are
+    ///    subscribed to the event
+    ///
+    /// Returns a vector of AgentIds for all agents that were inactive and are
+    /// now activated
+    pub fn dispatch_event(&mut self, event: Event) -> Vec<AgentId> {
+        let name = event.name.as_str();
+        self.insert_event(event.clone());
+
+        let mut agents = self.entries(name);
+
+        agents
+            .iter_mut()
+            .filter_map(|agent| {
+                let is_inactive = self
+                    .state
+                    .get(&agent.id)
+                    .is_none_or(|state| !state.is_active);
+
+                if is_inactive {
+                    // Mark agent as active by setting is_active to true in the agent's state
+                    self.state.entry(agent.id.clone()).or_default().is_active = true;
+
+                    Some(agent.id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
     }
 }

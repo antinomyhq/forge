@@ -87,11 +87,6 @@ pub trait ConversationService: Send + Sync {
         agent: &AgentId,
         context: Context,
     ) -> anyhow::Result<()>;
-    async fn insert_event(
-        &self,
-        conversation_id: &ConversationId,
-        event: Event,
-    ) -> anyhow::Result<()>;
     async fn get_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<Option<Value>>;
     async fn set_variable(
         &self,

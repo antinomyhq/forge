@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as AnyhowContext, Result};
-use forge_domain::{
-    AgentId, Context, Conversation, ConversationId, ConversationService, Event, Workflow,
-};
+use forge_domain::{AgentId, Context, Conversation, ConversationId, ConversationService, Workflow};
 use serde_json::Value;
 use tokio::sync::Mutex;
 
@@ -62,13 +60,6 @@ impl ConversationService for ForgeConversationService {
     ) -> Result<()> {
         self.update(id, |c| {
             c.state.entry(agent.clone()).or_default().context = Some(context);
-        })
-        .await
-    }
-
-    async fn insert_event(&self, id: &ConversationId, event: Event) -> Result<()> {
-        self.update(id, |c| {
-            c.add_event(event);
         })
         .await
     }
