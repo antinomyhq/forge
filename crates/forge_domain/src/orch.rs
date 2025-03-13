@@ -143,6 +143,12 @@ impl<A: App> Orchestrator<A> {
         Ok(ChatCompletionResult { content, tool_calls })
     }
 
+    pub async fn dispatch_spawned(&self, event: Event) -> anyhow::Result<()> {
+        let this = self.clone();
+        let _ = tokio::spawn(async move { this.dispatch(&event).await }).await?;
+        Ok(())
+    }
+
     pub async fn dispatch(&self, event: &Event) -> anyhow::Result<()> {
         debug!(
             conversation_id = %self.conversation_id,
@@ -165,7 +171,7 @@ impl<A: App> Orchestrator<A> {
 
         for agent in subscribed_agents {
             let orchestrator = self.clone();
-
+            let mut init_agent = false;
             self.app
                 .conversation_service()
                 .update(&self.conversation_id, |c| {
@@ -176,16 +182,14 @@ impl<A: App> Orchestrator<A> {
                     if is_inactive {
                         // Mark agent as active by setting is_active to true in the agent's state
                         c.state.entry(agent.id.clone()).or_default().is_active = true;
-
-                        let agent_id = agent.id.clone();
-                        tokio::spawn(async move {
-                            if let Err(e) = orchestrator.init_agent(&agent_id).await {
-                                tracing::error!("Failed to initialize agent: {}", e);
-                            }
-                        });
+                        init_agent = true;
                     }
                 })
                 .await?;
+
+            if init_agent {
+                orchestrator.init_agent(&agent.id).await?;
+            }
         }
 
         Ok(())
@@ -201,7 +205,7 @@ impl<A: App> Orchestrator<A> {
             self.send(agent_id, ChatResponse::Custom(event.clone()))
                 .await?;
 
-            self.dispatch(&event).await?;
+            self.dispatch_spawned(event).await?;
             Ok(Some(
                 ToolResult::new(tool_call.name.clone())
                     .call_id(
