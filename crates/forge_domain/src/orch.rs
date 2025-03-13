@@ -183,8 +183,8 @@ impl<A: App> Orchestrator<A> {
                 let agent_id = agent.id.clone();
                 let sender = self.sender.clone();
 
-                // TODO: we shouldn't create an separate instance of Orchestrator, instead clone self
-                // and use init_agent method.
+                // TODO: we shouldn't create an separate instance of Orchestrator, instead clone
+                // self and use init_agent method.
                 tokio::spawn(async move {
                     let orch = Orchestrator::new(app, conversation_id, sender);
                     if let Err(e) = orch.init_agent(&agent_id).await {

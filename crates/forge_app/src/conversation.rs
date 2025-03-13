@@ -51,7 +51,8 @@ impl ConversationService for ForgeConversationService {
     async fn inc_turn(&self, id: &ConversationId, agent: &AgentId) -> Result<()> {
         self.with_conversation(id, |c| {
             c.state.entry(agent.clone()).or_default().turn_count += 1;
-        }).await
+        })
+        .await
     }
 
     async fn set_context(
@@ -62,23 +63,27 @@ impl ConversationService for ForgeConversationService {
     ) -> Result<()> {
         self.with_conversation(id, |c| {
             c.state.entry(agent.clone()).or_default().context = Some(context);
-        }).await
+        })
+        .await
     }
 
     async fn insert_event(&self, id: &ConversationId, event: Event) -> Result<()> {
         self.with_conversation(id, |c| {
             c.add_event(event);
-        }).await
+        })
+        .await
     }
 
     async fn get_variable(&self, id: &ConversationId, key: &str) -> Result<Option<Value>> {
-        self.with_conversation(id, |c| c.get_variable(key).cloned()).await
+        self.with_conversation(id, |c| c.get_variable(key).cloned())
+            .await
     }
 
     async fn set_variable(&self, id: &ConversationId, key: String, value: Value) -> Result<()> {
         self.with_conversation(id, |c| {
             c.set_variable(key, value);
-        }).await
+        })
+        .await
     }
 
     async fn delete_variable(&self, id: &ConversationId, key: &str) -> Result<bool> {
