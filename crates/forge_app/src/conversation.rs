@@ -84,25 +84,4 @@ impl ConversationService for ForgeConversationService {
     async fn delete_variable(&self, id: &ConversationId, key: &str) -> Result<bool> {
         self.with_conversation(id, |c| c.delete_variable(key)).await
     }
-
-    async fn poll(&self, id: &ConversationId, agent_id: &AgentId) -> Result<Option<Event>> {
-        self.with_conversation(id, |conversation| {
-            conversation
-                .state
-                .get_mut(agent_id)
-                .and_then(|state| state.queue.pop_front())
-        }).await
-    }
-
-    async fn set_agent_active(&self, id: &ConversationId, agent_id: &AgentId) -> Result<()> {
-        self.with_conversation(id, |conversation| {
-            conversation.active_agents.insert(agent_id.clone());
-        }).await
-    }
-
-    async fn set_agent_inactive(&self, id: &ConversationId, agent_id: &AgentId) -> Result<()> {
-        self.with_conversation(id, |conversation| {
-            conversation.active_agents.remove(agent_id);
-        }).await
-    }
 }
