@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use base64::engine::general_purpose;
 use base64::Engine;
 
-use crate::snapshot::Snapshot;
+use crate::snapshot::{Snapshot, SnapshotId};
 
 /// Implementation of the SnapshotService
 #[derive(Debug)]
@@ -44,12 +44,6 @@ impl SnapshotService {
             .to_string()
     }
 
-    fn instance_hash(timestamp: &str, path_str: &str) -> String {
-        let mut hasher = fnv_rs::Fnv64::default();
-        hasher.write(path_str.as_bytes());
-        hasher.write(timestamp.as_bytes());
-        format!("{:x}", hasher.finish())
-    }
     fn path_hash(path_str: &str) -> String {
         let mut hasher = fnv_rs::Fnv64::default();
         hasher.write(path_str.as_bytes());
@@ -74,16 +68,15 @@ impl SnapshotService {
             forge_fs::ForgeFS::create_dir_all(parent).await?;
         }
 
-        // Create hash ID from path and timestamp
-        let path_str = absolute_path.to_string_lossy().to_string();
-        let instance_hash = Self::instance_hash(&now.to_string(), &path_str);
+        // Generate a unique ID using UUID
+        let snapshot_id = SnapshotId::new();
 
         // Read content
         let content = forge_fs::ForgeFS::read(&path).await?;
 
         // Create JSON snapshot file
         let snapshot_info = Snapshot {
-            hash: instance_hash.clone(),
+            id: snapshot_id,
             original_path: absolute_path.display().to_string(),
             timestamp: now,
             content: general_purpose::STANDARD.encode(content),
@@ -138,11 +131,14 @@ impl SnapshotService {
 
     pub async fn get_snapshot_with_hash(&self, path: &str, hash: &str) -> Result<Snapshot> {
         let snaps = self.list_snapshots(Some(PathBuf::from(path))).await?;
+        let id = SnapshotId::parse(hash).ok_or_else(|| anyhow!("Invalid snapshot ID format"))?;
+
         snaps
             .into_iter()
-            .find(|v| v.hash == hash)
+            .find(|v| v.id == id)
             .ok_or_else(|| anyhow!("Snapshot not found"))
     }
+
     pub async fn restore_snapshot_with_hash(&self, path: &str, hash: &str) -> Result<()> {
         let info = self.get_snapshot_with_hash(path, hash).await?;
         forge_fs::ForgeFS::write(
@@ -246,8 +242,9 @@ mod tests {
         let info = service.create_snapshot(test_file_path.clone()).await?;
         modify_file(&mut file, modified_content)?;
 
-        // Verify hash_id is not empty
-        assert!(!info.hash.is_empty());
+        // Verify ID is valid
+        let id_str = info.id.to_string();
+        assert!(!id_str.is_empty());
 
         // Find snapshots
         let snapshots = service.list_snapshots(Some(test_file_path.clone())).await?;
@@ -255,7 +252,7 @@ mod tests {
 
         // Restore by hash
         service
-            .restore_snapshot_with_hash(&test_file_path.display().to_string(), &info.hash)
+            .restore_snapshot_with_hash(&test_file_path.display().to_string(), &id_str)
             .await?;
 
         let updated = std::fs::read_to_string(&test_file_path)?;
@@ -315,11 +312,12 @@ mod tests {
 
         let snaps = init_multiple(&temp_dir, &test_contents).await?;
 
-        // Verify restore by index works for all snapshots
+        // Verify restore by hash works for all snapshots
         for (i, info) in snaps.infos.iter().enumerate() {
+            let id_str = info.id.to_string();
             snaps
                 .service
-                .restore_snapshot_with_hash(&info.original_path, &info.hash)
+                .restore_snapshot_with_hash(&info.original_path, &id_str)
                 .await?;
             assert_eq!(
                 std::fs::read_to_string(&info.original_path)?,
@@ -337,7 +335,7 @@ mod tests {
 
         let snaps = init_multiple(&temp_dir, &test_contents).await?;
 
-        // Verify restore by index works for all snapshots
+        // Verify restore by timestamp works for all snapshots
         for (i, info) in snaps.infos.iter().enumerate() {
             snaps
                 .service

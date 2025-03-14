@@ -280,7 +280,7 @@ impl<F: API> UI<F> {
                         snap.timestamp
                     ))?;
 
-                    CONSOLE.writeln(format!("{}: {}", "Snapshot Hash".bold(), snap.hash))?;
+                    CONSOLE.writeln(format!("{}: {}", "Id".bold(), snap.id))?;
                     CONSOLE.writeln(format!(
                         "{}: '{}'",
                         "Original Path".bold(),
