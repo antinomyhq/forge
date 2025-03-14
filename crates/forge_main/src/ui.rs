@@ -5,7 +5,7 @@ use chrono::{Local, LocalResult, TimeZone, Utc};
 use colored::Colorize;
 use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, Event, Model, API};
 use forge_display::TitleFormat;
-use forge_snaps::SnapshotInfo;
+use forge_snaps::Snapshot;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use serde_json::Value;
@@ -13,7 +13,7 @@ use tokio_stream::StreamExt;
 use tracing::error;
 
 use crate::banner;
-use crate::cli::{Cli, Snapshot, SnapshotCommand};
+use crate::cli::{Cli, SnapshotCommand};
 use crate::console::CONSOLE;
 use crate::info::{Info, UsageInfo};
 use crate::input::Console;
@@ -118,10 +118,8 @@ impl<F: API> UI<F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        if let Some(snapshot_command) = self.cli.snapshot.as_ref() {
-            return match snapshot_command {
-                Snapshot::Snapshot { sub_command } => self.handle_snaps(sub_command).await,
-            };
+        if let Some(sub_command) = self.cli.snapshot.as_ref() {
+            return self.handle_snaps(sub_command).await;
         }
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
@@ -243,7 +241,7 @@ impl<F: API> UI<F> {
     async fn handle_snaps(&self, snapshot_command: &SnapshotCommand) -> Result<()> {
         match snapshot_command {
             SnapshotCommand::List { path } => {
-                let snapshots: Vec<SnapshotInfo> = self
+                let snapshots: Vec<Snapshot> = self
                     .api
                     .list_snapshots(path.as_ref().map(|v| v.as_path()))
                     .await?;
@@ -282,11 +280,7 @@ impl<F: API> UI<F> {
                         snap.timestamp
                     ))?;
 
-                    CONSOLE.writeln(format!(
-                        "{}: {}",
-                        "Snapshot Hash".bold(),
-                        snap.instance_hash
-                    ))?;
+                    CONSOLE.writeln(format!("{}: {}", "Snapshot Hash".bold(), snap.hash))?;
                     CONSOLE.writeln(format!(
                         "{}: '{}'",
                         "Original Path".bold(),

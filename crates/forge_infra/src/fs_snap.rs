@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_app::FsSnapshotService;
 use forge_domain::Environment;
-use forge_snaps::SnapshotInfo;
+use forge_snaps::Snapshot;
 
 pub struct ForgeFileSnapshotService {
     inner: Arc<forge_snaps::SnapshotService>,
@@ -29,12 +29,12 @@ impl FsSnapshotService for ForgeFileSnapshotService {
 
     // Creation
     // FIXME: don't depend on forge_snaps::SnapshotInfo directly
-    async fn create_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo> {
+    async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot> {
         self.inner.create_snapshot(file_path.to_path_buf()).await
     }
 
     // Listing
-    async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<SnapshotInfo>> {
+    async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<Snapshot>> {
         self.inner
             .list_snapshots(path.map(|v| v.to_path_buf()))
             .await
@@ -55,7 +55,7 @@ impl FsSnapshotService for ForgeFileSnapshotService {
     }
 
     // Get latest snapshot
-    async fn get_latest(&self, file_path: &Path) -> Result<SnapshotInfo> {
+    async fn get_latest(&self, file_path: &Path) -> Result<Snapshot> {
         self.inner.get_latest(file_path).await
     }
 
@@ -69,12 +69,12 @@ impl FsSnapshotService for ForgeFileSnapshotService {
         &self,
         file_path: &Path,
         timestamp: u128,
-    ) -> Result<SnapshotInfo> {
+    ) -> Result<Snapshot> {
         self.inner
             .get_snapshot_with_timestamp(&file_path.display().to_string(), timestamp)
             .await
     }
-    async fn get_snapshot_by_hash(&self, file_path: &Path, hash: &str) -> Result<SnapshotInfo> {
+    async fn get_snapshot_by_hash(&self, file_path: &Path, hash: &str) -> Result<Snapshot> {
         self.inner
             .get_snapshot_with_hash(&file_path.display().to_string(), hash)
             .await

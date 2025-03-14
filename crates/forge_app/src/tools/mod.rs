@@ -40,7 +40,7 @@ mod tests {
 
     use bytes::Bytes;
     use forge_domain::{Environment, Point, Provider, Query, Suggestion};
-    use forge_snaps::SnapshotInfo;
+    use forge_snaps::Snapshot;
 
     use super::*;
     use crate::{
@@ -118,11 +118,11 @@ mod tests {
             unimplemented!()
         }
 
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<SnapshotInfo> {
+        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
             unimplemented!()
         }
 
-        async fn list_snapshots(&self, _: Option<&Path>) -> anyhow::Result<Vec<SnapshotInfo>> {
+        async fn list_snapshots(&self, _: Option<&Path>) -> anyhow::Result<Vec<Snapshot>> {
             unimplemented!()
         }
 
@@ -134,7 +134,7 @@ mod tests {
             unimplemented!()
         }
 
-        async fn get_latest(&self, _: &Path) -> anyhow::Result<SnapshotInfo> {
+        async fn get_latest(&self, _: &Path) -> anyhow::Result<Snapshot> {
             unimplemented!()
         }
 
@@ -142,15 +142,11 @@ mod tests {
             unimplemented!()
         }
 
-        async fn get_snapshot_by_timestamp(
-            &self,
-            _: &Path,
-            _: u128,
-        ) -> anyhow::Result<SnapshotInfo> {
+        async fn get_snapshot_by_timestamp(&self, _: &Path, _: u128) -> anyhow::Result<Snapshot> {
             unimplemented!()
         }
 
-        async fn get_snapshot_by_hash(&self, _: &Path, _: &str) -> anyhow::Result<SnapshotInfo> {
+        async fn get_snapshot_by_hash(&self, _: &Path, _: &str) -> anyhow::Result<Snapshot> {
             unimplemented!()
         }
 

@@ -9,7 +9,7 @@ use std::path::Path;
 pub use api::*;
 pub use forge_default::create_default_workflow;
 pub use forge_domain::*;
-use forge_snaps::SnapshotInfo;
+use forge_snaps::Snapshot;
 use forge_stream::MpscStream;
 use serde_json::Value;
 
@@ -19,7 +19,7 @@ pub trait API: Sync + Send {
     async fn list_snapshots(
         &self,
         path: Option<&Path>,
-    ) -> anyhow::Result<Vec<forge_snaps::SnapshotInfo>>;
+    ) -> anyhow::Result<Vec<forge_snaps::Snapshot>>;
 
     /// Restore a file from a snapshot by timestamp
     async fn restore_by_timestamp(&self, file_path: &Path, timestamp: u128) -> anyhow::Result<()>;
@@ -31,21 +31,21 @@ pub trait API: Sync + Send {
     async fn restore_previous(&self, file_path: &Path) -> anyhow::Result<()>;
 
     /// Get latest snapshot
-    async fn get_latest_snapshot(&self, file_path: &Path) -> anyhow::Result<SnapshotInfo>;
+    async fn get_latest_snapshot(&self, file_path: &Path) -> anyhow::Result<Snapshot>;
 
     /// Get a snapshot by timestamp
     async fn get_snapshot_by_timestamp(
         &self,
         file_path: &Path,
         timestamp: u128,
-    ) -> anyhow::Result<forge_snaps::SnapshotInfo>;
+    ) -> anyhow::Result<forge_snaps::Snapshot>;
 
     /// Get a snapshot by index
     async fn get_snapshot_by_hash(
         &self,
         file_path: &Path,
         hash: &str,
-    ) -> anyhow::Result<forge_snaps::SnapshotInfo>;
+    ) -> anyhow::Result<forge_snaps::Snapshot>;
 
     /// Purge snapshots older than specified days
     async fn purge_older_than(&self, days: u32) -> anyhow::Result<usize>;

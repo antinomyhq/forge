@@ -12,7 +12,7 @@ use anyhow::Result;
 pub use app::*;
 use bytes::Bytes;
 use forge_domain::{Point, Query, Suggestion};
-use forge_snaps::SnapshotInfo;
+use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
 #[async_trait::async_trait]
@@ -76,10 +76,10 @@ pub trait FsSnapshotService: Send + Sync {
 
     // Creation
     // FIXME: don't depend on forge_snaps::SnapshotInfo directly
-    async fn create_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo>;
+    async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot>;
 
     // Listing
-    async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<SnapshotInfo>>;
+    async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<Snapshot>>;
 
     // Timestamp-based restoration
     async fn restore_by_timestamp(&self, file_path: &Path, timestamp: u128) -> Result<()>;
@@ -88,7 +88,7 @@ pub trait FsSnapshotService: Send + Sync {
     async fn restore_by_hash(&self, file_path: &Path, hash: &str) -> Result<()>; // Get latest snapshot
 
     // Get latest snapshot of the path.
-    async fn get_latest(&self, file_path: &Path) -> Result<SnapshotInfo>;
+    async fn get_latest(&self, file_path: &Path) -> Result<Snapshot>;
 
     // Convenient method to restore previous version
     async fn restore_previous(&self, file_path: &Path) -> Result<()>;
@@ -98,8 +98,8 @@ pub trait FsSnapshotService: Send + Sync {
         &self,
         file_path: &Path,
         timestamp: u128,
-    ) -> Result<SnapshotInfo>;
-    async fn get_snapshot_by_hash(&self, file_path: &Path, hash: &str) -> Result<SnapshotInfo>;
+    ) -> Result<Snapshot>;
+    async fn get_snapshot_by_hash(&self, file_path: &Path, hash: &str) -> Result<Snapshot>;
 
     // Global purge operation
     async fn purge_older_than(&self, days: u32) -> Result<usize>;

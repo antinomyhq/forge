@@ -1,23 +1,7 @@
-use serde::{Deserialize, Serialize};
-
-/// Represents information about a file snapshot
-///
-/// Contains details about when the snapshot was created,
-/// the original file path, the snapshot location, and file size.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SnapshotInfo {
-    /// Unique hash ID for the snapshot (based on file path and timestamp)
-    pub instance_hash: String,
-    /// Unix timestamp when the snapshot was created
-    pub timestamp: u128,
-    /// Original file path that was snapshotted
-    pub original_path: String,
-    /// Path to the snapshot file
-    pub snapshot_path: String,
-    /// Content of the file encoded as base64
-    pub content: String,
-}
-
-// Export the service implementation
+// Export the modules
 mod service;
+mod snapshot;
+
+// Re-export the SnapshotInfo struct
 pub use service::*;
+pub use snapshot::Snapshot;

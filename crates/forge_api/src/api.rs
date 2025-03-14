@@ -5,7 +5,7 @@ use anyhow::Result;
 use forge_app::{EnvironmentService, ForgeApp, FsSnapshotService, Infrastructure};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_snaps::SnapshotInfo;
+use forge_snaps::Snapshot;
 use forge_stream::MpscStream;
 use serde_json::Value;
 
@@ -42,7 +42,7 @@ impl ForgeAPI<ForgeApp<ForgeInfra>> {
 
 #[async_trait::async_trait]
 impl<F: App + Infrastructure> API for ForgeAPI<F> {
-    async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<SnapshotInfo>> {
+    async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<Snapshot>> {
         self.app.file_snapshot_service().list_snapshots(path).await
     }
 
@@ -71,7 +71,7 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
         &self,
         file_path: &Path,
         timestamp: u128,
-    ) -> anyhow::Result<forge_snaps::SnapshotInfo> {
+    ) -> anyhow::Result<forge_snaps::Snapshot> {
         self.app
             .file_snapshot_service()
             .get_snapshot_by_timestamp(file_path, timestamp)
@@ -82,7 +82,7 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
         &self,
         file_path: &Path,
         hash: &str,
-    ) -> anyhow::Result<forge_snaps::SnapshotInfo> {
+    ) -> anyhow::Result<forge_snaps::Snapshot> {
         self.app
             .file_snapshot_service()
             .get_snapshot_by_hash(file_path, hash)
@@ -157,7 +157,7 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
             .await
     }
 
-    async fn get_latest_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo> {
+    async fn get_latest_snapshot(&self, file_path: &Path) -> Result<Snapshot> {
         self.app.file_snapshot_service().get_latest(file_path).await
     }
 }

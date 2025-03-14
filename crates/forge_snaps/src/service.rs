@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use base64::engine::general_purpose;
 use base64::Engine;
 
-use crate::SnapshotInfo;
+use crate::snapshot::Snapshot;
 
 /// Implementation of the SnapshotService
 #[derive(Debug)]
@@ -61,7 +61,7 @@ impl SnapshotService {
     pub fn snapshot_dir(&self) -> PathBuf {
         self.snapshot_base_dir.clone()
     }
-    pub async fn create_snapshot(&self, path: PathBuf) -> Result<SnapshotInfo> {
+    pub async fn create_snapshot(&self, path: PathBuf) -> Result<Snapshot> {
         let absolute_path = self.canonicalize_path(&path);
         // Create timestamp
         let now = SystemTime::now()
@@ -82,8 +82,8 @@ impl SnapshotService {
         let content = forge_fs::ForgeFS::read(&path).await?;
 
         // Create JSON snapshot file
-        let snapshot_info = SnapshotInfo {
-            instance_hash: instance_hash.clone(),
+        let snapshot_info = Snapshot {
+            hash: instance_hash.clone(),
             original_path: absolute_path.display().to_string(),
             timestamp: now,
             content: general_purpose::STANDARD.encode(content),
@@ -95,7 +95,7 @@ impl SnapshotService {
         Ok(snapshot_info)
     }
 
-    pub async fn list_snapshots(&self, path: Option<PathBuf>) -> Result<Vec<SnapshotInfo>> {
+    pub async fn list_snapshots(&self, path: Option<PathBuf>) -> Result<Vec<Snapshot>> {
         let path = path.map(|v| self.canonicalize_path(&v));
         if let Some(path) = path {
             let cwd = self
@@ -114,7 +114,7 @@ impl SnapshotService {
             .await
             .into_iter()
             .flatten()
-            .flat_map(|v| serde_json::from_slice::<SnapshotInfo>(&v))
+            .flat_map(|v| serde_json::from_slice::<Snapshot>(&v))
             .collect::<Vec<_>>();
 
             return Ok(files);
@@ -132,17 +132,15 @@ impl SnapshotService {
         .await
         .into_iter()
         .flatten()
-        .flat_map(|v| serde_json::from_slice::<SnapshotInfo>(&v))
+        .flat_map(|v| serde_json::from_slice::<Snapshot>(&v))
         .collect::<Vec<_>>())
     }
 
-    pub async fn get_snapshot_with_hash(&self, path: &str, hash: &str) -> Result<SnapshotInfo> {
+    pub async fn get_snapshot_with_hash(&self, path: &str, hash: &str) -> Result<Snapshot> {
         let snaps = self.list_snapshots(Some(PathBuf::from(path))).await?;
-        // dbg!("Searching: ", hash);
-        // dbg!("Snaps: ", &snaps);
         snaps
             .into_iter()
-            .find(|v| v.instance_hash == hash)
+            .find(|v| v.hash == hash)
             .ok_or_else(|| anyhow!("Snapshot not found"))
     }
     pub async fn restore_snapshot_with_hash(&self, path: &str, hash: &str) -> Result<()> {
@@ -158,7 +156,7 @@ impl SnapshotService {
         &self,
         path: &str,
         timestamp: u128,
-    ) -> Result<SnapshotInfo> {
+    ) -> Result<Snapshot> {
         let snaps = self.list_snapshots(Some(PathBuf::from(path))).await?;
         snaps
             .into_iter()
@@ -174,7 +172,7 @@ impl SnapshotService {
         )
         .await
     }
-    pub async fn get_latest(&self, path: &Path) -> Result<SnapshotInfo> {
+    pub async fn get_latest(&self, path: &Path) -> Result<Snapshot> {
         let snaps = self.list_snapshots(Some(path.to_path_buf())).await?;
         snaps
             .into_iter()
@@ -249,7 +247,7 @@ mod tests {
         modify_file(&mut file, modified_content)?;
 
         // Verify hash_id is not empty
-        assert!(!info.instance_hash.is_empty());
+        assert!(!info.hash.is_empty());
 
         // Find snapshots
         let snapshots = service.list_snapshots(Some(test_file_path.clone())).await?;
@@ -257,7 +255,7 @@ mod tests {
 
         // Restore by hash
         service
-            .restore_snapshot_with_hash(&test_file_path.display().to_string(), &info.instance_hash)
+            .restore_snapshot_with_hash(&test_file_path.display().to_string(), &info.hash)
             .await?;
 
         let updated = std::fs::read_to_string(&test_file_path)?;
@@ -276,7 +274,7 @@ mod tests {
 
     struct Snaps {
         service: SnapshotService,
-        infos: Vec<SnapshotInfo>,
+        infos: Vec<Snapshot>,
     }
 
     async fn init_multiple(temp_dir: &TempDir, test_contents: &[&str]) -> Result<Snaps> {
@@ -321,7 +319,7 @@ mod tests {
         for (i, info) in snaps.infos.iter().enumerate() {
             snaps
                 .service
-                .restore_snapshot_with_hash(&info.original_path, &info.instance_hash)
+                .restore_snapshot_with_hash(&info.original_path, &info.hash)
                 .await?;
             assert_eq!(
                 std::fs::read_to_string(&info.original_path)?,

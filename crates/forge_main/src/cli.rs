@@ -51,15 +51,7 @@ pub struct Cli {
     pub event: Option<String>,
 
     #[command(subcommand)]
-    pub snapshot: Option<Snapshot>,
-}
-
-#[derive(Subcommand)]
-pub enum Snapshot {
-    Snapshot {
-        #[command(subcommand)]
-        sub_command: SnapshotCommand,
-    },
+    pub snapshot: Option<SnapshotCommand>,
 }
 
 #[derive(Subcommand)]
