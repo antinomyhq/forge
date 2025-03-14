@@ -1,4 +1,3 @@
-use std::hash::Hasher;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -34,27 +33,13 @@ impl SnapshotService {
             path.to_path_buf()
         }
     }
-
-    /// Create a snapshot filename from a hash ID
-    fn create_snapshot_filename(&self, path: &str, now: u128) -> String {
-        self.snapshot_base_dir
-            .join(path)
-            .join(format!("{}.json", now))
-            .display()
-            .to_string()
-    }
-
-    fn path_hash(path_str: &str) -> String {
-        let mut hasher = fnv_rs::Fnv64::default();
-        hasher.write(path_str.as_bytes());
-        format!("{:x}", hasher.finish())
-    }
 }
 
 impl SnapshotService {
     pub fn snapshot_dir(&self) -> PathBuf {
         self.snapshot_base_dir.clone()
     }
+    
     pub async fn create_snapshot(&self, path: PathBuf) -> Result<Snapshot> {
         let absolute_path = self.canonicalize_path(&path);
         // Create timestamp
@@ -62,8 +47,10 @@ impl SnapshotService {
             .duration_since(UNIX_EPOCH)
             .context("Failed to get timestamp")?
             .as_millis();
-        let snapshot_path = self
-            .create_snapshot_filename(&Self::path_hash(&absolute_path.display().to_string()), now);
+            
+        let path_hash = Snapshot::path_hash(&absolute_path.display().to_string());
+        let snapshot_path = Snapshot::create_snapshot_filename(&self.snapshot_base_dir, &path_hash, now);
+        
         if let Some(parent) = PathBuf::from(&snapshot_path).parent() {
             forge_fs::ForgeFS::create_dir_all(parent).await?;
         }
@@ -91,13 +78,14 @@ impl SnapshotService {
     pub async fn list_snapshots(&self, path: Option<PathBuf>) -> Result<Vec<Snapshot>> {
         let path = path.map(|v| self.canonicalize_path(&v));
         if let Some(path) = path {
-            let cwd = self
-                .snapshot_base_dir
-                .join(Self::path_hash(&path.display().to_string()));
+            let path_hash = Snapshot::path_hash(&path.display().to_string());
+            let cwd = self.snapshot_base_dir.join(path_hash);
+            
             let snaps = forge_walker::Walker::max_all()
                 .cwd(cwd.clone())
                 .get()
                 .await?;
+                
             let files = futures::future::join_all(
                 snaps
                     .into_iter()
@@ -112,6 +100,7 @@ impl SnapshotService {
 
             return Ok(files);
         }
+        
         let cwd = self.snapshot_base_dir.clone();
         Ok(futures::future::join_all(
             forge_walker::Walker::max_all()
@@ -143,7 +132,7 @@ impl SnapshotService {
         let info = self.get_snapshot_with_hash(path, hash).await?;
         forge_fs::ForgeFS::write(
             info.original_path,
-            general_purpose::STANDARD.decode(info.content)?,
+            info.decode_content()?,
         )
         .await
     }
@@ -164,10 +153,11 @@ impl SnapshotService {
         let info = self.get_snapshot_with_timestamp(path, timestamp).await?;
         forge_fs::ForgeFS::write(
             info.original_path,
-            general_purpose::STANDARD.decode(info.content)?,
+            info.decode_content()?,
         )
         .await
     }
+    
     pub async fn get_latest(&self, path: &Path) -> Result<Snapshot> {
         let snaps = self.list_snapshots(Some(path.to_path_buf())).await?;
         snaps
@@ -180,21 +170,16 @@ impl SnapshotService {
         let info = self.get_latest(path).await?;
         forge_fs::ForgeFS::write(
             info.original_path,
-            general_purpose::STANDARD.decode(info.content)?,
+            info.decode_content()?,
         )
         .await
     }
+    
     pub async fn purge_older_than(&self, days: u32) -> Result<usize> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .context("Failed to get timestamp")?
-            .as_millis();
-        let threshold = now - (days as u128 * 24 * 60 * 60 * 1000);
-
         let snaps = self.list_snapshots(None).await?;
         let to_delete = snaps
             .into_iter()
-            .filter(|v| v.timestamp < threshold)
+            .filter(|snapshot| snapshot.is_older_than_days(days).unwrap_or(false))
             .collect::<Vec<_>>();
 
         let deleted = futures::future::join_all(

@@ -1,4 +1,7 @@
 use std::fmt::{Display, Formatter};
+use std::path::{Path, PathBuf};
+use std::hash::Hasher;
+use anyhow::{Result, Context};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -58,4 +61,42 @@ pub struct Snapshot {
     pub snapshot_path: String,
     /// Content of the file encoded as base64
     pub content: String,
+}
+
+impl Snapshot {
+    /// Decode the base64-encoded content of the snapshot
+    pub fn decode_content(&self) -> Result<Vec<u8>, base64::DecodeError> {
+        use base64::engine::general_purpose;
+        use base64::Engine;
+        general_purpose::STANDARD.decode(&self.content)
+    }
+
+    /// Create a hash of a file path for storage
+    pub fn path_hash(path_str: &str) -> String {
+        let mut hasher = fnv_rs::Fnv64::default();
+        hasher.write(path_str.as_bytes());
+        format!("{:x}", hasher.finish())
+    }
+
+    /// Create a snapshot filename from a path and timestamp
+    pub fn create_snapshot_filename(base_dir: &Path, path: &str, timestamp: u128) -> String {
+        base_dir
+            .join(path)
+            .join(format!("{}.json", timestamp))
+            .display()
+            .to_string()
+    }
+    
+    /// Check if this snapshot is older than the specified number of days
+    pub fn is_older_than_days(&self, days: u32) -> Result<bool> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .context("Failed to get timestamp")?
+            .as_millis();
+        
+        let threshold = now - (days as u128 * 24 * 60 * 60 * 1000);
+        Ok(self.timestamp < threshold)
+    }
 }
