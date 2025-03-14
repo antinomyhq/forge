@@ -1,7 +1,7 @@
+use anyhow::{Context, Result};
 use std::fmt::{Display, Formatter};
-use std::path::{Path, PathBuf};
 use std::hash::Hasher;
-use anyhow::{Result, Context};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

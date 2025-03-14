@@ -131,7 +131,7 @@ impl SnapshotService {
     pub async fn restore_snapshot_with_hash(&self, path: &str, hash: &str) -> Result<()> {
         let info = self.get_snapshot_with_hash(path, hash).await?;
         forge_fs::ForgeFS::write(
-            info.original_path,
+            &info.original_path,
             info.decode_content()?,
         )
             .await
@@ -152,7 +152,7 @@ impl SnapshotService {
     pub async fn restore_snapshot_with_timestamp(&self, path: &str, timestamp: u128) -> Result<()> {
         let info = self.get_snapshot_with_timestamp(path, timestamp).await?;
         forge_fs::ForgeFS::write(
-            info.original_path,
+            &info.original_path,
             info.decode_content()?,
         )
             .await
@@ -169,7 +169,7 @@ impl SnapshotService {
     pub async fn restore_previous(&self, path: &Path) -> Result<()> {
         let info = self.get_latest(path).await?;
         forge_fs::ForgeFS::write(
-            info.original_path,
+            &info.original_path,
             info.decode_content()?,
         )
             .await
