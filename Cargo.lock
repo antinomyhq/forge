@@ -900,6 +900,7 @@ dependencies = [
  "chrono",
  "clap",
  "colored 3.0.0",
+ "crossterm",
  "derive_setters",
  "forge_api",
  "forge_display",

@@ -5,6 +5,7 @@ edition = "2021"
 
 
 [dependencies]
+crossterm.workspace = true
 clap.workspace = true
 forge_api.workspace = true
 forge_walker.workspace = true

@@ -18,6 +18,7 @@ use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, UserInput};
 use crate::state::{Mode, UIState};
+use crate::terminal::{self, TerminalGuard};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -49,6 +50,8 @@ pub struct UI<F> {
     models: Option<Vec<Model>>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
+    // Terminal guard to ensure terminal state is restored on drop
+    _terminal_guard: TerminalGuard,
 }
 
 impl<F: API> UI<F> {
@@ -98,8 +101,10 @@ impl<F: API> UI<F> {
     }
 
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
-        // Parse CLI arguments first to get flags
+        // Initialize terminal state management
+        let terminal_guard = terminal::initialize()?;
 
+        // Parse CLI arguments first to get flags
         let env = api.environment();
         Ok(Self {
             state: Default::default(),
@@ -108,6 +113,7 @@ impl<F: API> UI<F> {
             cli,
             models: None,
             _guard: forge_tracker::init_tracing(env.log_path())?,
+            _terminal_guard: terminal_guard,
         })
     }
 
