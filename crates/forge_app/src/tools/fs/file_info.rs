@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Context;
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, Executor, NamedTool, ToolDescription, ToolName, ToolOutput};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -32,14 +32,18 @@ impl NamedTool for FSFileInfo {
 impl ExecutableTool for FSFileInfo {
     type Input = FSFileInfoInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        input: Self::Input,
+        _: Option<&mut Executor>,
+    ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
         let meta = tokio::fs::metadata(&input.path)
             .await
             .with_context(|| format!("Failed to get metadata for '{}'", input.path))?;
-        Ok(format!("{:?}", meta))
+        Ok(ToolOutput::Text(format!("{:?}", meta)))
     }
 }
 
@@ -58,9 +62,13 @@ mod test {
 
         let fs_info = FSFileInfo;
         let result = fs_info
-            .call(FSFileInfoInput { path: file_path.to_string_lossy().to_string() })
+            .call(
+                FSFileInfoInput { path: file_path.to_string_lossy().to_string() },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         assert!(result.contains("FileType"));
         assert!(result.contains("permissions"));
@@ -75,10 +83,13 @@ mod test {
 
         let fs_info = FSFileInfo;
         let result = fs_info
-            .call(FSFileInfoInput { path: dir_path.to_string_lossy().to_string() })
+            .call(
+                FSFileInfoInput { path: dir_path.to_string_lossy().to_string() },
+                None,
+            )
             .await
             .unwrap();
-
+        let result = result.as_str().unwrap();
         assert!(result.contains("FileType"));
         assert!(result.contains("permissions"));
         assert!(result.contains("modified"));
@@ -91,7 +102,10 @@ mod test {
 
         let fs_info = FSFileInfo;
         let result = fs_info
-            .call(FSFileInfoInput { path: nonexistent_path.to_string_lossy().to_string() })
+            .call(
+                FSFileInfoInput { path: nonexistent_path.to_string_lossy().to_string() },
+                None,
+            )
             .await;
 
         assert!(result.is_err());
@@ -101,7 +115,10 @@ mod test {
     async fn test_fs_file_info_relative_path() {
         let fs_info = FSFileInfo;
         let result = fs_info
-            .call(FSFileInfoInput { path: "relative/path.txt".to_string() })
+            .call(
+                FSFileInfoInput { path: "relative/path.txt".to_string() },
+                None,
+            )
             .await;
 
         assert!(result.is_err());

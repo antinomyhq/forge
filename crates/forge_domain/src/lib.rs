@@ -9,6 +9,7 @@ mod conversation;
 mod env;
 mod error;
 mod event;
+mod executable;
 mod file;
 mod merge;
 mod message;
@@ -38,6 +39,7 @@ pub use conversation::*;
 pub use env::*;
 pub use error::*;
 pub use event::*;
+pub use executable::*;
 pub use file::*;
 pub use message::*;
 pub use model::*;
@@ -71,7 +73,7 @@ pub trait ProviderService: Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait ToolService: Send + Sync {
     // TODO: should take `call` by reference
-    async fn call(&self, call: ToolCallFull) -> ToolResult;
+    async fn call(&self, call: ToolCallFull, exec: &mut Option<Executor>) -> ToolResult;
     fn list(&self) -> Vec<ToolDefinition>;
     fn usage_prompt(&self) -> String;
 }

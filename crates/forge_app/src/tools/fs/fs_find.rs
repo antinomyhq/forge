@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use forge_display::{GrepFormat, Kind, TitleFormat};
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, Executor, NamedTool, ToolDescription, ToolName, ToolOutput};
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
@@ -54,7 +54,11 @@ impl NamedTool for FSSearch {
 impl ExecutableTool for FSSearch {
     type Input = FSSearchInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        input: Self::Input,
+        _: Option<&mut Executor>,
+    ) -> anyhow::Result<ToolOutput> {
         let dir = Path::new(&input.path);
         assert_absolute_path(dir)?;
 
@@ -137,7 +141,7 @@ impl ExecutableTool for FSSearch {
         let formatted_output = GrepFormat::new(matches.clone()).format(&regex);
         println!("{}", formatted_output);
 
-        Ok(matches.join("\n"))
+        Ok(ToolOutput::Text(matches.join("\n")))
     }
 }
 
@@ -165,13 +169,17 @@ mod test {
 
         let fs_search = FSSearch;
         let result = fs_search
-            .call(FSSearchInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: "test".to_string(),
-                file_pattern: None,
-            })
+            .call(
+                FSSearchInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: "test".to_string(),
+                    file_pattern: None,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         let lines: Vec<_> = result.lines().collect();
         assert_eq!(lines.len(), 2);
@@ -192,13 +200,17 @@ mod test {
 
         let fs_search = FSSearch;
         let result = fs_search
-            .call(FSSearchInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: "test".to_string(),
-                file_pattern: Some("*.rs".to_string()),
-            })
+            .call(
+                FSSearchInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: "test".to_string(),
+                    file_pattern: Some("*.rs".to_string()),
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         let lines: Vec<_> = result.lines().collect();
         assert_eq!(lines.len(), 1);
@@ -216,13 +228,17 @@ mod test {
 
         let fs_search = FSSearch;
         let result = fs_search
-            .call(FSSearchInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: "test".to_string(),
-                file_pattern: None,
-            })
+            .call(
+                FSSearchInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: "test".to_string(),
+                    file_pattern: None,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         let lines: Vec<_> = result.lines().collect();
         assert_eq!(lines.len(), 1);
@@ -248,13 +264,17 @@ mod test {
 
         let fs_search = FSSearch;
         let result = fs_search
-            .call(FSSearchInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: "test".to_string(),
-                file_pattern: None,
-            })
+            .call(
+                FSSearchInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: "test".to_string(),
+                    file_pattern: None,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         let lines: Vec<_> = result.lines().collect();
         assert_eq!(lines.len(), 3);
@@ -276,13 +296,17 @@ mod test {
 
         let fs_search = FSSearch;
         let result = fs_search
-            .call(FSSearchInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: "test".to_string(),
-                file_pattern: None,
-            })
+            .call(
+                FSSearchInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: "test".to_string(),
+                    file_pattern: None,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         let lines: Vec<_> = result.lines().collect();
         assert_eq!(lines.len(), 2);
@@ -300,13 +324,17 @@ mod test {
 
         let fs_search = FSSearch;
         let result = fs_search
-            .call(FSSearchInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: "nonexistent".to_string(),
-                file_pattern: None,
-            })
+            .call(
+                FSSearchInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: "nonexistent".to_string(),
+                    file_pattern: None,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         assert!(result.is_empty());
     }
@@ -317,11 +345,14 @@ mod test {
 
         let fs_search = FSSearch;
         let result = fs_search
-            .call(FSSearchInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: "[invalid".to_string(),
-                file_pattern: None,
-            })
+            .call(
+                FSSearchInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: "[invalid".to_string(),
+                    file_pattern: None,
+                },
+                None,
+            )
             .await;
 
         assert!(result.is_err());
@@ -335,11 +366,14 @@ mod test {
     async fn test_fs_search_relative_path() {
         let fs_search = FSSearch;
         let result = fs_search
-            .call(FSSearchInput {
-                path: "relative/path".to_string(),
-                regex: "test".to_string(),
-                file_pattern: None,
-            })
+            .call(
+                FSSearchInput {
+                    path: "relative/path".to_string(),
+                    regex: "test".to_string(),
+                    file_pattern: None,
+                },
+                None,
+            )
             .await;
 
         assert!(result.is_err());

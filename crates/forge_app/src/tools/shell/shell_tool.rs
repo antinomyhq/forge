@@ -1,14 +1,15 @@
 use std::path::PathBuf;
+use std::process::Stdio;
 
 use anyhow::bail;
-use forge_domain::{Environment, ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{
+    Environment, ExecutableTool, Executor, NamedTool, ToolDescription, ToolName, ToolOutput,
+};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tokio::process::Command;
 
-use super::executor::Output;
-use crate::tools::shell::executor::CommandExecutor;
+use super::executor::{CommandExecutor, Output};
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ShellInput {
@@ -16,6 +17,9 @@ pub struct ShellInput {
     pub command: String,
     /// The working directory where the command should be executed.
     pub cwd: PathBuf,
+    /// Is commend expecting an input.
+    #[serde(default)]
+    pub is_expecting_input: bool,
 }
 
 /// Formats command output by wrapping non-empty stdout/stderr in XML tags.
@@ -81,7 +85,11 @@ impl NamedTool for Shell {
 impl ExecutableTool for Shell {
     type Input = ShellInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        input: Self::Input,
+        _: Option<&mut Executor>,
+    ) -> anyhow::Result<ToolOutput> {
         // Validate empty command
         if input.command.trim().is_empty() {
             bail!("Command string is empty or contains only whitespace".to_string());
@@ -107,16 +115,38 @@ impl ExecutableTool for Shell {
             );
         }
 
-        let mut command = Command::new(&self.env.shell);
+        dbg!(&input.is_expecting_input);
+        if input.is_expecting_input {
+            let mut command = tokio::process::Command::new(&self.env.shell);
 
-        command.args([parameter, &input.command]);
+            command.args([parameter, &input.command]);
 
-        // Set the current working directory for the command
-        command.current_dir(input.cwd);
-        // Kill the command when the handler is dropped
-        command.kill_on_drop(true);
+            // Set the current working directory for the command
+            command.current_dir(input.cwd);
+            // Kill the command when the handler is dropped
+            // command.kill_on_drop(true);
+            command
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
 
-        format_output(CommandExecutor::new(command).colored().execute().await?)
+            Ok(ToolOutput::Executor(Executor::new(command).await?))
+        } else {
+            let mut command = tokio::process::Command::new(&self.env.shell);
+
+            command.args([parameter, &input.command]);
+
+            // Set the current working directory for the command
+            command.current_dir(input.cwd);
+            // Kill the command when the handler is dropped
+            command.kill_on_drop(true);
+
+            let output = CommandExecutor::new(command).colored().execute().await?;
+
+            let output = format_output(output)?;
+
+            Ok(ToolOutput::Text(output))
+        }
     }
 }
 
@@ -167,12 +197,17 @@ mod tests {
     async fn test_shell_echo() {
         let shell = Shell::new(test_env());
         let result = shell
-            .call(ShellInput {
-                command: "echo 'Hello, World!'".to_string(),
-                cwd: env::current_dir().unwrap(),
-            })
+            .call(
+                ShellInput {
+                    command: "echo 'Hello, World!'".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
         assert!(result.contains("<stdout>Hello, World!\n</stdout>"));
     }
 
@@ -181,16 +216,21 @@ mod tests {
         let shell = Shell::new(test_env());
         // Use a command that writes to both stdout and stderr
         let result = shell
-            .call(ShellInput {
-                command: if cfg!(target_os = "windows") {
-                    "echo 'to stderr' 1>&2 && echo 'to stdout'".to_string()
-                } else {
-                    "echo 'to stderr' >&2; echo 'to stdout'".to_string()
+            .call(
+                ShellInput {
+                    command: if cfg!(target_os = "windows") {
+                        "echo 'to stderr' 1>&2 && echo 'to stdout'".to_string()
+                    } else {
+                        "echo 'to stderr' >&2; echo 'to stdout'".to_string()
+                    },
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
                 },
-                cwd: env::current_dir().unwrap(),
-            })
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         assert_eq!(
             result,
@@ -202,12 +242,17 @@ mod tests {
     async fn test_shell_both_streams() {
         let shell = Shell::new(test_env());
         let result = shell
-            .call(ShellInput {
-                command: "echo 'to stdout' && echo 'to stderr' >&2".to_string(),
-                cwd: env::current_dir().unwrap(),
-            })
+            .call(
+                ShellInput {
+                    command: "echo 'to stdout' && echo 'to stderr' >&2".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         assert_eq!(
             result,
@@ -221,16 +266,22 @@ mod tests {
         let temp_dir = fs::canonicalize(env::temp_dir()).unwrap();
 
         let result = shell
-            .call(ShellInput {
-                command: if cfg!(target_os = "windows") {
-                    "cd".to_string()
-                } else {
-                    "pwd".to_string()
+            .call(
+                ShellInput {
+                    command: if cfg!(target_os = "windows") {
+                        "cd".to_string()
+                    } else {
+                        "pwd".to_string()
+                    },
+                    cwd: temp_dir.clone(),
+                    is_expecting_input: false,
                 },
-                cwd: temp_dir.clone(),
-            })
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
+
         assert_eq!(result, format!("<stdout>{}\n</stdout>", temp_dir.display()));
     }
 
@@ -238,10 +289,14 @@ mod tests {
     async fn test_shell_invalid_command() {
         let shell = Shell::new(test_env());
         let result = shell
-            .call(ShellInput {
-                command: "non_existent_command".to_string(),
-                cwd: env::current_dir().unwrap(),
-            })
+            .call(
+                ShellInput {
+                    command: "non_existent_command".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
+                },
+                None,
+            )
             .await;
 
         assert!(result.is_err());
@@ -263,7 +318,14 @@ mod tests {
     async fn test_shell_empty_command() {
         let shell = Shell::new(test_env());
         let result = shell
-            .call(ShellInput { command: "".to_string(), cwd: env::current_dir().unwrap() })
+            .call(
+                ShellInput {
+                    command: "".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
+                },
+                None,
+            )
             .await;
         assert!(result.is_err());
         assert_eq!(
@@ -282,16 +344,21 @@ mod tests {
         let shell = Shell::new(test_env());
         let current_dir = env::current_dir().unwrap();
         let result = shell
-            .call(ShellInput {
-                command: if cfg!(target_os = "windows") {
-                    "cd".to_string()
-                } else {
-                    "pwd".to_string()
+            .call(
+                ShellInput {
+                    command: if cfg!(target_os = "windows") {
+                        "cd".to_string()
+                    } else {
+                        "pwd".to_string()
+                    },
+                    cwd: current_dir.clone(),
+                    is_expecting_input: false,
                 },
-                cwd: current_dir.clone(),
-            })
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         assert_eq!(
             result,
@@ -303,12 +370,18 @@ mod tests {
     async fn test_shell_multiple_commands() {
         let shell = Shell::new(test_env());
         let result = shell
-            .call(ShellInput {
-                command: "echo 'first' && echo 'second'".to_string(),
-                cwd: env::current_dir().unwrap(),
-            })
+            .call(
+                ShellInput {
+                    command: "echo 'first' && echo 'second'".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
+
         assert_eq!(result, format!("<stdout>first\nsecond\n</stdout>"));
     }
 
@@ -316,12 +389,17 @@ mod tests {
     async fn test_shell_empty_output() {
         let shell = Shell::new(test_env());
         let result = shell
-            .call(ShellInput {
-                command: "true".to_string(),
-                cwd: env::current_dir().unwrap(),
-            })
+            .call(
+                ShellInput {
+                    command: "true".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         assert!(result.contains("executed successfully"));
         assert!(!result.contains("failed"));
@@ -331,12 +409,17 @@ mod tests {
     async fn test_shell_whitespace_only_output() {
         let shell = Shell::new(test_env());
         let result = shell
-            .call(ShellInput {
-                command: "echo ''".to_string(),
-                cwd: env::current_dir().unwrap(),
-            })
+            .call(
+                ShellInput {
+                    command: "echo ''".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         assert!(result.contains("executed successfully"));
         assert!(!result.contains("failed"));
@@ -346,12 +429,17 @@ mod tests {
     async fn test_shell_with_environment_variables() {
         let shell = Shell::new(test_env());
         let result = shell
-            .call(ShellInput {
-                command: "echo $PATH".to_string(),
-                cwd: env::current_dir().unwrap(),
-            })
+            .call(
+                ShellInput {
+                    command: "echo $PATH".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let result = result.as_str().unwrap();
 
         assert!(!result.is_empty());
         assert!(!result.contains("Error:"));
@@ -368,7 +456,14 @@ mod tests {
         };
 
         let result = shell
-            .call(ShellInput { command: cmd.to_string(), cwd: env::current_dir().unwrap() })
+            .call(
+                ShellInput {
+                    command: cmd.to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    is_expecting_input: false,
+                },
+                None,
+            )
             .await;
 
         // In rbash, this would fail with a permission error
