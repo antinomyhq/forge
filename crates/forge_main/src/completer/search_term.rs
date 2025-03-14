@@ -16,29 +16,32 @@ impl SearchTerm {
         Self { line: line.to_string(), position }
     }
 
-    /// Get the search term from the line based on '@' marker or cursor position
-    ///
-    /// If '@' marker is present, returns the word following it.
-    /// Otherwise, returns the word at the cursor position.
+    /// Get the search term from the line based on the cursor position.
+    /// Returns the word at the cursor position.
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
-        // Get all the indexes of the '@' chars
-        // Get all chars between @ and the cursor
-        let term = self
-            .line
-            .chars()
-            .enumerate()
-            .filter(|(_, c)| *c == '@')
-            .map(|(i, _)| i)
-            .filter(|at| *at < self.position)
-            .max_by(|a, b| a.cmp(b))
-            .map(|at| TermResult {
-                span: Span::new(at + 1, self.position),
-                term: &self.line[at + 1..self.position],
-            })
-            .filter(|s| !s.term.contains(" "));
+        // Handle empty string case
+        if self.line.is_empty() {
+            return Some(TermResult { span: Span::new(0, 0), term: "" });
+        }
 
-        term
+        // Get the substring up to the cursor position
+        let line_slice = &self.line[..self.position];
+
+        // Find the start of the current text segment by looking for the last whitespace
+        // or the beginning of the line
+        let start_position = line_slice
+            .char_indices()
+            .rev()
+            .find(|(_, c)| c.is_whitespace())
+            .map(|(idx, c)| idx + c.len_utf8())
+            .unwrap_or(0);
+
+        // Extract the current term (everything from the start position to the cursor)
+        let term = &line_slice[start_position..];
+
+        // Return the term and its position
+        Some(TermResult { span: Span::new(start_position, self.position), term })
     }
 }
 
@@ -84,8 +87,20 @@ mod tests {
     }
 
     #[test]
-    fn test_marker_based_search() {
-        let results = SearchTerm::test("@abc @def ghi@");
+    fn test_word_based_search() {
+        let results = SearchTerm::test("foo bar baz");
         assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        let empty = SearchTerm::test("");
+        assert_debug_snapshot!(empty);
+
+        let whitespace = SearchTerm::test("   ");
+        assert_debug_snapshot!(whitespace);
+
+        let mid_word = SearchTerm::test("hello_world");
+        assert_debug_snapshot!(mid_word);
     }
 }
