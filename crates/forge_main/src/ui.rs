@@ -1,12 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use base64::Engine;
-use chrono::{Local, LocalResult, TimeZone, Utc};
 use colored::Colorize;
 use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, Event, Model, API};
 use forge_display::TitleFormat;
-use forge_snaps::Snapshot;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use serde_json::Value;
@@ -14,9 +11,9 @@ use tokio_stream::StreamExt;
 use tracing::error;
 
 use crate::banner;
-use crate::cli::{Cli, SnapshotCommand};
+use crate::cli::Cli;
 use crate::console::CONSOLE;
-use crate::info::{Info, UsageInfo};
+use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager, UserInput};
 use crate::state::{Mode, UIState};
@@ -127,9 +124,6 @@ impl<F: API> UI<F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        if let Some(sub_command) = self.cli.snapshot.as_ref() {
-            return self.handle_snaps(sub_command).await;
-        }
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
@@ -165,10 +159,7 @@ impl<F: API> UI<F> {
                 }
                 Command::Info => {
                     let info =
-                        Info::from(&self.api.environment()).extend(Info::from(UsageInfo::new(
-                            &self.state.usage,
-                            self.api.list_snapshots(None).await?.len(),
-                        )));
+                        Info::from(&self.api.environment()).extend(Info::from(&self.state.usage));
 
                     CONSOLE.writeln(info.to_string())?;
 
@@ -264,211 +255,6 @@ impl<F: API> UI<F> {
         // Process the event
         let mut stream = self.api.chat(chat).await?;
         self.handle_chat_stream(&mut stream).await
-    }
-
-    async fn handle_snaps(&self, snapshot_command: &SnapshotCommand) -> Result<()> {
-        match snapshot_command {
-            SnapshotCommand::List { path } => {
-                let snapshots: Vec<Snapshot> = self
-                    .api
-                    .list_snapshots(path.as_ref().map(|v| v.as_path()))
-                    .await?;
-                if snapshots.is_empty() {
-                    CONSOLE.writeln(
-                        TitleFormat::failed("Snapshots")
-                            .sub_title("No snapshots found")
-                            .format(),
-                    )?;
-                    return Ok(());
-                }
-
-                CONSOLE.writeln(
-                    TitleFormat::success(format!("Found {} snapshots", snapshots.len())).format(),
-                )?;
-                CONSOLE.newline()?;
-
-                for (i, snap) in snapshots.iter().enumerate() {
-                    // Create a title with the index and timestamp
-                    let mut title = TitleFormat::execute(format!("Snapshot #{}", i));
-
-                    if let Ok(time) = i64::try_from(snap.timestamp) {
-                        if let LocalResult::Single(datetime_utc) = Utc.timestamp_millis_opt(time) {
-                            let datetime_local = datetime_utc
-                                .with_timezone(&Local)
-                                .format("%H:%M:%S %Y-%m-%d")
-                                .to_string();
-                            title = title.sub_title(format!("timestamp: {}", datetime_local));
-                        }
-                    }
-                    CONSOLE.writeln(title.format())?;
-
-                    CONSOLE.writeln(format!(
-                        "{}: {}",
-                        "Snapshot Timestamp".bold(),
-                        snap.timestamp
-                    ))?;
-
-                    CONSOLE.writeln(format!("{}: {}", "Id".bold(), snap.id))?;
-                    CONSOLE.writeln(format!(
-                        "{}: '{}'",
-                        "Original Path".bold(),
-                        snap.original_path
-                    ))?;
-
-                    // Add a separator between snapshots
-                    if i < snapshots.len() - 1 {
-                        CONSOLE.writeln("---".dimmed().to_string())?;
-                    }
-                }
-                Ok(())
-            }
-            SnapshotCommand::Restore { timestamp, path, hash } => {
-                let result_title = TitleFormat::execute("Snapshot Restore");
-
-                if let Some(timestamp) = timestamp {
-                    CONSOLE.writeln(
-                        result_title
-                            .sub_title(format!("restoring by timestamp: {}", timestamp))
-                            .format(),
-                    )?;
-
-                    self.api.restore_by_timestamp(path, *timestamp).await?;
-
-                    CONSOLE.writeln(
-                        TitleFormat::success("Restore Complete")
-                            .sub_title(format!("path: {}", path.display()))
-                            .format(),
-                    )?;
-                    return Ok(());
-                }
-
-                if let Some(hash) = hash {
-                    CONSOLE.writeln(
-                        result_title
-                            .sub_title(format!("restoring by hash: {}", hash))
-                            .format(),
-                    )?;
-
-                    self.api.restore_by_hash(path, hash).await?;
-
-                    CONSOLE.writeln(
-                        TitleFormat::success("Restore Complete")
-                            .sub_title(format!("path: {}", path.display()))
-                            .format(),
-                    )?;
-                    return Ok(());
-                }
-
-                CONSOLE.writeln(
-                    result_title
-                        .sub_title("restoring previous version")
-                        .format(),
-                )?;
-
-                self.api.restore_previous(path).await?;
-
-                CONSOLE.writeln(
-                    TitleFormat::success("Restore Complete")
-                        .sub_title(format!("path: {}", path.display()))
-                        .format(),
-                )?;
-                Ok(())
-            }
-            SnapshotCommand::Diff { path, timestamp, hash } => {
-                let metadata = if let Some(timestamp) = timestamp {
-                    CONSOLE.writeln(
-                        TitleFormat::execute("Snapshot Diff")
-                            .sub_title(format!("comparing with timestamp: {}", timestamp))
-                            .format(),
-                    )?;
-
-                    self.api.get_snapshot_by_timestamp(path, *timestamp).await?
-                } else if let Some(hash) = hash {
-                    CONSOLE.writeln(
-                        TitleFormat::execute("Snapshot Diff")
-                            .sub_title(format!("comparing with hash: {}", hash))
-                            .format(),
-                    )?;
-
-                    self.api.get_snapshot_by_hash(path, hash).await?
-                } else {
-                    CONSOLE.writeln(
-                        TitleFormat::execute("Snapshot Diff")
-                            .sub_title("comparing with previous version")
-                            .format(),
-                    )?;
-
-                    self.api.get_latest_snapshot(path).await?
-                };
-
-                let prev_content = String::from_utf8(
-                    base64::engine::general_purpose::STANDARD.decode(&metadata.content)?,
-                )?;
-                let cur_content = String::from_utf8(forge_fs::ForgeFS::read(path).await?)?;
-                let diff = forge_display::DiffFormat::format(
-                    "diff",
-                    path.to_path_buf(),
-                    &prev_content,
-                    &cur_content,
-                );
-
-                CONSOLE.writeln(diff)?;
-
-                Ok(())
-            }
-            SnapshotCommand::Purge { older_than } => {
-                let mut title = TitleFormat::execute("Purging Snapshots");
-                if *older_than == 0 {
-                    title = title.sub_title("of all time.".to_string());
-                } else {
-                    title = title.sub_title(format!("older than {} days", older_than));
-                }
-
-                CONSOLE.writeln(title.format())?;
-
-                let count = self.api.purge_older_than(*older_than).await?;
-
-                CONSOLE.writeln(
-                    TitleFormat::success("Purge Complete")
-                        .sub_title(format!("deleted {} snapshots", count))
-                        .format(),
-                )?;
-
-                Ok(())
-            }
-            SnapshotCommand::Show { path, timestamp, hash } => {
-                let metadata = if let Some(timestamp) = timestamp {
-                    CONSOLE.writeln(
-                        TitleFormat::execute("Snapshot Diff")
-                            .sub_title(format!("comparing with timestamp: {}", timestamp))
-                            .format(),
-                    )?;
-
-                    self.api.get_snapshot_by_timestamp(path, *timestamp).await?
-                } else if let Some(hash) = hash {
-                    CONSOLE.writeln(
-                        TitleFormat::execute("Snapshot Diff")
-                            .sub_title(format!("comparing with hash: {}", hash))
-                            .format(),
-                    )?;
-
-                    self.api.get_snapshot_by_hash(path, hash).await?
-                } else {
-                    CONSOLE.writeln(
-                        TitleFormat::execute("Snapshot Diff")
-                            .sub_title("comparing with previous version")
-                            .format(),
-                    )?;
-
-                    self.api.get_latest_snapshot(path).await?
-                };
-                let content = String::from_utf8(
-                    base64::engine::general_purpose::STANDARD.decode(&metadata.content)?,
-                )?;
-                CONSOLE.writeln(content)?;
-                Ok(())
-            }
-        }
     }
 
     async fn init_conversation(&mut self) -> Result<ConversationId> {

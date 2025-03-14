@@ -1,8 +1,9 @@
 use std::fmt::{Display, Formatter};
 use std::hash::Hasher;
-use std::path::Path;
+use std::path::PathBuf;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result};
+use forge_fs::ForgeFS;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -53,50 +54,55 @@ impl From<Uuid> for SnapshotId {
 pub struct Snapshot {
     /// Unique ID for the file
     pub id: SnapshotId,
+
     /// Unix timestamp when the snapshot was created
-    pub timestamp: u128,
-    /// Original file path that was snapshotted
-    pub original_path: String,
-    /// Path to the snapshot file
-    pub snapshot_path: String,
-    /// Content of the file encoded as base64
-    pub content: String,
+    pub timestamp: Duration,
+
+    /// Original file path that is being processed
+    pub path: String,
 }
 
 impl Snapshot {
-    /// Decode the base64-encoded content of the snapshot
-    pub fn decode_content(&self) -> Result<Vec<u8>, base64::DecodeError> {
-        use base64::engine::general_purpose;
-        use base64::Engine;
-        general_purpose::STANDARD.decode(&self.content)
+    pub async fn create(path: PathBuf) -> anyhow::Result<Self> {
+        let path = path.canonicalize()?;
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?;
+
+        Ok(Self {
+            id: SnapshotId::new(),
+            timestamp,
+            path: path.display().to_string(),
+        })
     }
 
     /// Create a hash of a file path for storage
-    pub fn path_hash(path_str: &str) -> String {
+    fn path_hash(&self) -> String {
         let mut hasher = fnv_rs::Fnv64::default();
-        hasher.write(path_str.as_bytes());
+        hasher.write(self.path.as_bytes());
         format!("{:x}", hasher.finish())
     }
 
     /// Create a snapshot filename from a path and timestamp
-    pub fn create_snapshot_filename(base_dir: &Path, path: &str, timestamp: u128) -> String {
-        base_dir
-            .join(path)
-            .join(format!("{}.json", timestamp))
-            .display()
-            .to_string()
+    pub fn snapshot_path(&self, cwd: Option<PathBuf>) -> PathBuf {
+        // Convert Duration to SystemTime then to a formatted string
+        let datetime = UNIX_EPOCH + self.timestamp;
+        // Format: YYYY-MM-DD_HH-MM-SS-mmm (including milliseconds)
+        let formatted_time = chrono::DateTime::<chrono::Utc>::from(datetime)
+            .format("%Y-%m-%d_%H-%M-%S-%3f")
+            .to_string();
+        
+        let filename = format!("{}.snap", formatted_time);
+        let path = PathBuf::from(self.path_hash()).join(PathBuf::from(filename));
+        if let Some(cwd) = cwd {
+            cwd.join(path)
+        } else {
+            path
+        }
     }
 
-    /// Check if this snapshot is older than the specified number of days
-    pub fn is_older_than_days(&self, days: u32) -> Result<bool> {
-        use std::time::{SystemTime, UNIX_EPOCH};
-
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .context("Failed to get timestamp")?
-            .as_millis();
-
-        let threshold = now - (days as u128 * 24 * 60 * 60 * 1000);
-        Ok(self.timestamp < threshold)
+    pub async fn save(&self, path: Option<PathBuf>) -> anyhow::Result<()> {
+        let content = ForgeFS::read(&self.path).await?;
+        let path = self.snapshot_path(path);
+        ForgeFS::write(path, content).await?;
+        Ok(())
     }
 }

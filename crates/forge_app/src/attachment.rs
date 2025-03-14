@@ -237,38 +237,6 @@ pub mod tests {
         async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
             unimplemented!()
         }
-
-        async fn list_snapshots(&self, _: Option<&Path>) -> anyhow::Result<Vec<Snapshot>> {
-            unimplemented!()
-        }
-
-        async fn restore_by_timestamp(&self, _: &Path, _: u128) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-
-        async fn restore_by_hash(&self, _: &Path, _: &str) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-
-        async fn get_latest(&self, _: &Path) -> anyhow::Result<Snapshot> {
-            unimplemented!()
-        }
-
-        async fn restore_previous(&self, _: &Path) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-
-        async fn get_snapshot_by_timestamp(&self, _: &Path, _: u128) -> anyhow::Result<Snapshot> {
-            unimplemented!()
-        }
-
-        async fn get_snapshot_by_hash(&self, _: &Path, _: &str) -> anyhow::Result<Snapshot> {
-            unimplemented!()
-        }
-
-        async fn purge_older_than(&self, _: u32) -> anyhow::Result<usize> {
-            unimplemented!()
-        }
     }
 
     #[async_trait::async_trait]

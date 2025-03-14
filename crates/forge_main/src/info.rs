@@ -45,25 +45,13 @@ impl Info {
     }
 }
 
-pub struct UsageInfo<'a> {
-    usage: &'a Usage,
-    total_snapshots: usize,
-}
-
-impl<'a> UsageInfo<'a> {
-    pub fn new(usage: &'a Usage, total_snapshots: usize) -> Self {
-        Self { usage, total_snapshots }
-    }
-}
-
-impl From<UsageInfo<'_>> for Info {
-    fn from(usage_info: UsageInfo) -> Self {
+impl From<&Usage> for Info {
+    fn from(usage: &Usage) -> Self {
         Info::new()
             .add_title("Usage".to_string())
-            .add_key_value("Prompt", usage_info.usage.prompt_tokens)
-            .add_key_value("Completion", usage_info.usage.completion_tokens)
-            .add_key_value("Total", usage_info.usage.total_tokens)
-            .add_item("Total Snapshots", Some(usage_info.total_snapshots))
+            .add_key_value("Prompt", usage.prompt_tokens)
+            .add_key_value("Completion", usage.completion_tokens)
+            .add_key_value("Total", usage.total_tokens)
     }
 }
 

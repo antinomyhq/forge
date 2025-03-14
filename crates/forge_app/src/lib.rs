@@ -6,7 +6,7 @@ mod template;
 mod tool_service;
 mod tools;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::Result;
 pub use app::*;
@@ -74,32 +74,6 @@ pub trait FsCreateDirsService {
 pub trait FsSnapshotService: Send + Sync {
     // Creation
     async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot>;
-
-    // Listing
-    async fn list_snapshots(&self, path: Option<&Path>) -> Result<Vec<Snapshot>>;
-
-    // Timestamp-based restoration
-    async fn restore_by_timestamp(&self, file_path: &Path, timestamp: u128) -> Result<()>;
-
-    // Hash-based restoration
-    async fn restore_by_hash(&self, file_path: &Path, hash: &str) -> Result<()>; // Get latest snapshot
-
-    // Get latest snapshot of the path.
-    async fn get_latest(&self, file_path: &Path) -> Result<Snapshot>;
-
-    // Convenient method to restore previous version
-    async fn restore_previous(&self, file_path: &Path) -> Result<()>;
-
-    // Metadata access
-    async fn get_snapshot_by_timestamp(
-        &self,
-        file_path: &Path,
-        timestamp: u128,
-    ) -> Result<Snapshot>;
-    async fn get_snapshot_by_hash(&self, file_path: &Path, hash: &str) -> Result<Snapshot>;
-
-    // Global purge operation
-    async fn purge_older_than(&self, days: u32) -> Result<usize>;
 }
 
 pub trait Infrastructure: Send + Sync + Clone + 'static {
