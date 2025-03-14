@@ -1,8 +1,8 @@
-use anyhow::{Context, Result};
 use std::fmt::{Display, Formatter};
 use std::hash::Hasher;
 use std::path::Path;
 
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -86,16 +86,16 @@ impl Snapshot {
             .display()
             .to_string()
     }
-    
+
     /// Check if this snapshot is older than the specified number of days
     pub fn is_older_than_days(&self, days: u32) -> Result<bool> {
         use std::time::{SystemTime, UNIX_EPOCH};
-        
+
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .context("Failed to get timestamp")?
             .as_millis();
-        
+
         let threshold = now - (days as u128 * 24 * 60 * 60 * 1000);
         Ok(self.timestamp < threshold)
     }

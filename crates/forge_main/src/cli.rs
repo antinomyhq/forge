@@ -96,12 +96,12 @@ pub enum SnapshotCommand {
         #[arg(long, default_value_t = 0)]
         older_than: u32,
     },
-    
+
     /// Show content a specific snapshot
     Show {
         /// Path to the file
         path: PathBuf,
-        
+
         /// Show diff for a specific timestamp
         #[arg(long)]
         timestamp: Option<u128>,
@@ -109,5 +109,5 @@ pub enum SnapshotCommand {
         /// Restore by hash
         #[arg(long)]
         hash: Option<String>,
-    }
+    },
 }

@@ -374,7 +374,9 @@ impl<F: API> UI<F> {
                     self.api.get_latest_snapshot(path).await?
                 };
 
-                let prev_content = String::from_utf8(base64::engine::general_purpose::STANDARD.decode(&metadata.content)?)?;
+                let prev_content = String::from_utf8(
+                    base64::engine::general_purpose::STANDARD.decode(&metadata.content)?,
+                )?;
                 let cur_content = String::from_utf8(forge_fs::ForgeFS::read(path).await?)?;
                 let diff = forge_display::DiffFormat::format(
                     "diff",
@@ -433,7 +435,9 @@ impl<F: API> UI<F> {
 
                     self.api.get_latest_snapshot(path).await?
                 };
-                let content = String::from_utf8(base64::engine::general_purpose::STANDARD.decode(&metadata.content)?)?;
+                let content = String::from_utf8(
+                    base64::engine::general_purpose::STANDARD.decode(&metadata.content)?,
+                )?;
                 CONSOLE.writeln(content)?;
                 Ok(())
             }
