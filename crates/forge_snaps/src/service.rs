@@ -39,7 +39,7 @@ impl SnapshotService {
     pub fn snapshot_dir(&self) -> PathBuf {
         self.snapshot_base_dir.clone()
     }
-    
+
     pub async fn create_snapshot(&self, path: PathBuf) -> Result<Snapshot> {
         let absolute_path = self.canonicalize_path(&path);
         // Create timestamp
@@ -47,10 +47,10 @@ impl SnapshotService {
             .duration_since(UNIX_EPOCH)
             .context("Failed to get timestamp")?
             .as_millis();
-            
+
         let path_hash = Snapshot::path_hash(&absolute_path.display().to_string());
         let snapshot_path = Snapshot::create_snapshot_filename(&self.snapshot_base_dir, &path_hash, now);
-        
+
         if let Some(parent) = PathBuf::from(&snapshot_path).parent() {
             forge_fs::ForgeFS::create_dir_all(parent).await?;
         }
@@ -77,45 +77,45 @@ impl SnapshotService {
 
     pub async fn list_snapshots(&self, path: Option<PathBuf>) -> Result<Vec<Snapshot>> {
         let path = path.map(|v| self.canonicalize_path(&v));
-        if let Some(path) = path {
+        let mut result = if let Some(path) = path {
             let path_hash = Snapshot::path_hash(&path.display().to_string());
             let cwd = self.snapshot_base_dir.join(path_hash);
-            
+
             let snaps = forge_walker::Walker::max_all()
                 .cwd(cwd.clone())
                 .get()
                 .await?;
-                
-            let files = futures::future::join_all(
+
+            futures::future::join_all(
                 snaps
                     .into_iter()
                     .filter(|v| !v.is_dir())
                     .map(|v| forge_fs::ForgeFS::read(cwd.join(v.path))),
             )
-            .await
-            .into_iter()
-            .flatten()
-            .flat_map(|v| serde_json::from_slice::<Snapshot>(&v))
-            .collect::<Vec<_>>();
-
-            return Ok(files);
-        }
-        
-        let cwd = self.snapshot_base_dir.clone();
-        Ok(futures::future::join_all(
-            forge_walker::Walker::max_all()
-                .cwd(cwd.clone())
-                .get()
-                .await?
+                .await
                 .into_iter()
-                .filter(|v| !v.is_dir())
-                .map(|v| forge_fs::ForgeFS::read(cwd.join(v.path))),
-        )
-        .await
-        .into_iter()
-        .flatten()
-        .flat_map(|v| serde_json::from_slice::<Snapshot>(&v))
-        .collect::<Vec<_>>())
+                .flatten()
+                .flat_map(|v| serde_json::from_slice::<Snapshot>(&v))
+                .collect::<Vec<_>>()
+        } else {
+            let cwd = self.snapshot_base_dir.clone();
+            futures::future::join_all(
+                forge_walker::Walker::max_all()
+                    .cwd(cwd.clone())
+                    .get()
+                    .await?
+                    .into_iter()
+                    .filter(|v| !v.is_dir())
+                    .map(|v| forge_fs::ForgeFS::read(cwd.join(v.path))),
+            )
+                .await
+                .into_iter()
+                .flatten()
+                .flat_map(|v| serde_json::from_slice::<Snapshot>(&v))
+                .collect::<Vec<_>>()
+        };
+        result.sort_by_key(|v| v.timestamp);
+        Ok(result)
     }
 
     pub async fn get_snapshot_with_hash(&self, path: &str, hash: &str) -> Result<Snapshot> {
@@ -134,7 +134,7 @@ impl SnapshotService {
             info.original_path,
             info.decode_content()?,
         )
-        .await
+            .await
     }
 
     pub async fn get_snapshot_with_timestamp(
@@ -155,14 +155,14 @@ impl SnapshotService {
             info.original_path,
             info.decode_content()?,
         )
-        .await
+            .await
     }
-    
+
     pub async fn get_latest(&self, path: &Path) -> Result<Snapshot> {
         let snaps = self.list_snapshots(Some(path.to_path_buf())).await?;
         snaps
             .into_iter()
-            .min_by_key(|v| v.timestamp)
+            .max_by_key(|v| v.timestamp)
             .context("No snapshots found")
     }
 
@@ -172,9 +172,9 @@ impl SnapshotService {
             info.original_path,
             info.decode_content()?,
         )
-        .await
+            .await
     }
-    
+
     pub async fn purge_older_than(&self, days: u32) -> Result<usize> {
         let snaps = self.list_snapshots(None).await?;
         let to_delete = snaps
@@ -187,10 +187,10 @@ impl SnapshotService {
                 .into_iter()
                 .map(|v| forge_fs::ForgeFS::remove_file(v.snapshot_path)),
         )
-        .await
-        .into_iter()
-        .filter(|v| v.is_ok())
-        .count();
+            .await
+            .into_iter()
+            .filter(|v| v.is_ok())
+            .count();
 
         Ok(deleted)
     }

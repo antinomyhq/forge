@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use base64::Engine;
 use chrono::{Local, LocalResult, TimeZone, Utc};
 use colored::Colorize;
 use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, Event, Model, API};
@@ -373,7 +374,7 @@ impl<F: API> UI<F> {
                     self.api.get_latest_snapshot(path).await?
                 };
 
-                let prev_content = metadata.content;
+                let prev_content = String::from_utf8(base64::engine::general_purpose::STANDARD.decode(&metadata.content)?)?;
                 let cur_content = String::from_utf8(forge_fs::ForgeFS::read(path).await?)?;
                 let diff = forge_display::DiffFormat::format(
                     "diff",
@@ -404,6 +405,36 @@ impl<F: API> UI<F> {
                         .format(),
                 )?;
 
+                Ok(())
+            }
+            SnapshotCommand::Show { path, timestamp, hash } => {
+                let metadata = if let Some(timestamp) = timestamp {
+                    CONSOLE.writeln(
+                        TitleFormat::execute("Snapshot Diff")
+                            .sub_title(format!("comparing with timestamp: {}", timestamp))
+                            .format(),
+                    )?;
+
+                    self.api.get_snapshot_by_timestamp(path, *timestamp).await?
+                } else if let Some(hash) = hash {
+                    CONSOLE.writeln(
+                        TitleFormat::execute("Snapshot Diff")
+                            .sub_title(format!("comparing with hash: {}", hash))
+                            .format(),
+                    )?;
+
+                    self.api.get_snapshot_by_hash(path, hash).await?
+                } else {
+                    CONSOLE.writeln(
+                        TitleFormat::execute("Snapshot Diff")
+                            .sub_title("comparing with previous version")
+                            .format(),
+                    )?;
+
+                    self.api.get_lastest_snapshot(path).await?
+                };
+                let content = String::from_utf8(base64::engine::general_purpose::STANDARD.decode(&metadata.content)?)?;
+                CONSOLE.writeln(content)?;
                 Ok(())
             }
         }
