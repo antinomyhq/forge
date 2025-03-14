@@ -234,10 +234,6 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsSnapshotService for MockSnapService {
-        fn snapshot_dir(&self) -> PathBuf {
-            unimplemented!()
-        }
-
         async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
             unimplemented!()
         }

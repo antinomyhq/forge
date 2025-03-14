@@ -36,10 +36,6 @@ impl SnapshotService {
 }
 
 impl SnapshotService {
-    pub fn snapshot_dir(&self) -> PathBuf {
-        self.snapshot_base_dir.clone()
-    }
-
     pub async fn create_snapshot(&self, path: PathBuf) -> Result<Snapshot> {
         let absolute_path = self.canonicalize_path(&path);
         // Create timestamp

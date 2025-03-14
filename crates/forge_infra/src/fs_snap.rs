@@ -23,10 +23,6 @@ impl ForgeFileSnapshotService {
 
 #[async_trait::async_trait]
 impl FsSnapshotService for ForgeFileSnapshotService {
-    fn snapshot_dir(&self) -> PathBuf {
-        self.inner.snapshot_dir()
-    }
-
     // Creation
     // FIXME: don't depend on forge_snaps::SnapshotInfo directly
     async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot> {

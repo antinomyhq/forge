@@ -72,10 +72,7 @@ pub trait FsCreateDirsService {
 /// Service for managing file snapshots
 #[async_trait::async_trait]
 pub trait FsSnapshotService: Send + Sync {
-    fn snapshot_dir(&self) -> PathBuf;
-
     // Creation
-    // FIXME: don't depend on forge_snaps::SnapshotInfo directly
     async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot>;
 
     // Listing
