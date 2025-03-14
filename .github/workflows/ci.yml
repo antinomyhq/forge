@@ -166,6 +166,16 @@ jobs:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
+    - name: Sign Windows binary
+      if: contains(matrix.os, 'windows')
+      uses: skymatic/code-sign-action@v3
+      with:
+        certificate: ${{ secrets.WINDOWS_CERTIFICATE }}
+        password: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        certificatesha1: ${{ secrets.WINDOWS_CERT_SHA1 }}
+        description: Forge CLI
+        folder: ${{ matrix.binary_path }}
+        timestampUrl: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
   build-release:
     needs:
     - build
@@ -245,6 +255,16 @@ jobs:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
+    - name: Sign Windows binary
+      if: contains(matrix.os, 'windows')
+      uses: skymatic/code-sign-action@v3
+      with:
+        certificate: ${{ secrets.WINDOWS_CERTIFICATE }}
+        password: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        certificatesha1: ${{ secrets.WINDOWS_CERT_SHA1 }}
+        description: Forge CLI
+        folder: ${{ matrix.binary_path }}
+        timestampUrl: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
     - uses: xresloader/upload-to-github-release@v1
       with:

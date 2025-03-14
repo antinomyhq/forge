@@ -177,6 +177,18 @@ fn generate() {
                     "APP_VERSION",
                     "${{ needs.draft_release.outputs.create_release_name }}",
                 )),
+        )
+        // Sign Windows binaries
+        .add_step(
+            Step::uses("skymatic", "code-sign-action", "v3")
+                .name("Sign Windows binary")
+                .if_condition(Expression::new("contains(matrix.os, 'windows')"))
+                .add_with(("certificate", "${{ secrets.WINDOWS_CERTIFICATE }}"))
+                .add_with(("password", "${{ secrets.WINDOWS_CERT_PASSWORD }}"))
+                .add_with(("certificatesha1", "${{ secrets.WINDOWS_CERT_SHA1 }}"))
+                .add_with(("description", "Forge CLI"))
+                .add_with(("folder", "${{ matrix.binary_path }}"))
+                .add_with(("timestampUrl", "${{ secrets.WINDOWS_TIMESTAMP_URL }}")),
         );
     let label_cond = Expression::new("github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'build-all-targets')");
     workflow = workflow.add_job(
