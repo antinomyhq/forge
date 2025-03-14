@@ -11,7 +11,7 @@ Best Practices:
 
 **Forge: AI-Enhanced Terminal Development Environment**
 
-![Code-Forge Demo](https://antinomy.ai/images/forge_demo_2x.gif)
+![Code-Forge Demo](https://assets.antinomy.ai/images/forge_demo_2x.gif)
 
 Forge is a comprehensive coding agent that integrates AI capabilities with your development environment, offering sophisticated assistance while maintaining the efficiency of your existing workflow.
 
@@ -53,7 +53,11 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
     - [Agent Tools](#agent-tools)
     - [Agent Configuration Options](#agent-configuration-options)
     - [Built-in Templates](#built-in-templates)
+    - [Custom Commands](#custom-commands)
     - [Example Workflow Configuration](#example-workflow-configuration)
+      - [Example 1: Using Event Value as Instructions](#example-1-using-event-value-as-instructions)
+      - [Example 2: Using Event Value as Data in a Template](#example-2-using-event-value-as-data-in-a-template)
+      - [Comparing the Two Approaches](#comparing-the-two-approaches)
 - [Why Shell?](#why-shell)
 - [Community](#community)
 - [Support Us](#support-us)
@@ -90,7 +94,7 @@ wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | b
    ```bash
    # Your API key for accessing AI models (see Environment Configuration section)
    OPENROUTER_API_KEY=<Enter your Open Router Key>
-   
+
    # Optional: Set a custom URL for OpenAI-compatible providers
    #OPENAI_URL=https://custom-openai-provider.com/v1
    ```
@@ -99,7 +103,7 @@ wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | b
 
 2. Launch Code Forge:
 
-   ![Code-Forge Demo](https://antinomy.ai/images/forge_demo_2x.gif)
+   ![Code-Forge Demo](https://assets.antinomy.ai/images/forge_demo_2x.gif)
 
 ## Features
 
@@ -319,6 +323,7 @@ Forge loads workflow configurations using the following precedence rules:
 3. **Default Configuration**: An embedded default configuration is always available as a fallback
 
 When a project configuration exists in the current directory, Forge creates a merged configuration where:
+
 - Project settings in `forge.yaml` take precedence over default settings
 - Any settings not specified in the project configuration inherit from defaults
 
@@ -368,6 +373,7 @@ Each agent needs tools to perform tasks, configured in the `tools` field:
 - `user_prompt` - (Optional) Format for user inputs. If not provided, the raw event value is used.
 
 **Example Agent Configuration:**
+
 ```yaml
 agents:
   - id: software-engineer
@@ -389,7 +395,59 @@ Forge provides templates to simplify system prompt creation:
 
 Use these templates with the syntax: `{{> name-of-the-template.hbs }}`
 
+#### Custom Commands
+
+Forge allows you to define custom commands in your workflow configuration. These commands can be executed within the Forge CLI using the `/command_name` syntax.
+
+**Configuration Options:**
+
+- `name` - The name of the command (used as `/name` in the CLI)
+- `description` - A description of what the command does
+- `value` - (Optional) A default prompt value that will be used if no arguments are provided when executing the command
+
+**Example Custom Command Configuration:**
+
+```yaml
+commands:
+  - name: commit
+    description: Commit changes with a standard prefix
+    value: |
+      Understand the diff produced and commit using the 'conventional commit' standard
+
+  - name: branch
+    description: Create and checkout a new branch
+
+  - name: pull-request
+    description: Create a pull request with standard template
+    value: |
+      Understand the diff with respect to `main` and create a pull-request.
+      Ensure it follows 'conventional commit' standard.
+```
+
+With this configuration, users can type `/commit` in the Forge CLI to execute the commit command with the default instructions for handling commits using the conventional commit standard. If specific instructions are needed, they can be provided as an argument: `/commit Create a detailed commit message for the login feature`. Commands without a default value like `/branch` require an argument to be provided: `/branch feature/new-auth`.
+
+**How Custom Commands Work:**
+
+**How Custom Commands Work With the Event System:**
+
+When a custom command is executed in the Forge CLI, it follows a specific event flow:
+
+1. **Command Execution** - User types a command like `/commit feat: add user authentication`
+2. **Event Dispatch** - Forge dispatches an event with:
+   - Name: The command name (e.g., `commit`)
+   - Value: The provided argument or default value (e.g., `feat: add user authentication`)
+3. **Agent Subscription** - Any agent that has subscribed to this event name receives the event
+4. **Event Processing** - The agent processes the event according to its configuration
+
+For an agent to respond to a custom command, it must explicitly subscribe to the event with the same name as the command in its configuration. The agent can then use conditional logic in its user prompt to handle different types of events appropriately.
+
 #### Example Workflow Configuration
+
+Forge provides two main approaches for handling custom command events in agents. Below are examples of both approaches.
+
+##### Example 1: Using Event Value as Instructions
+
+In this approach, the event value itself contains complete instructions that are passed directly to the agent:
 
 ```yaml
 variables:
@@ -397,17 +455,19 @@ variables:
     advanced_model: &advanced_model anthropic/claude-3.7-sonnet
     efficiency_model: &efficiency_model anthropic/claude-3.5-haiku
 
-agents:
-  - id: title_generation_worker
-    model: *efficiency_model
-    tools:
-      - tool_forge_event_dispatch
-    subscribe:
-      - user_task_init
-    tool_supported: false # Force XML-based tool call formatting
-    system_prompt: "{{> system-prompt-title-generator.hbs }}"
-    user_prompt: <technical_content>{{event.value}}</technical_content>
+commands:
+  - name: commit
+    description: Commit changes with a standard prefix
+    value: |
+      Understand the diff produced and commit using the 'conventional commit' standard
 
+  - name: pull-request
+    description: Create a pull request with standard template
+    value: |
+      Understand the diff with respect to `main` and create a pull-request.
+      Ensure it follows 'conventional commit' standard.
+
+agents:
   - id: developer
     model: *advanced_model
     tools:
@@ -421,17 +481,82 @@ agents:
     subscribe:
       - user_task_init
       - user_task_update
+      - commit # Subscribe to the commit command event
+      - pull-request # Subscribe to the pull-request command event
     ephemeral: false
-    tool_supported: true # Use model's native tool call format (default)
+    tool_supported: true
     system_prompt: "{{> system-prompt-engineer.hbs }}"
     user_prompt: |
       <task>{{event.value}}</task>
 ```
 
-This example workflow creates two agents:
+In this example, the entire value from the event is passed directly as the task. The agent receives the complete instructions as they were defined in the command value or provided by the user.
 
-1. A title generation worker that creates meaningful titles for user conversations
-2. A developer agent that can perform comprehensive file and system operations
+##### Example 2: Using Event Value as Data in a Template
+
+In this approach, the event value is used as data within a template that formats different tasks based on the event name:
+
+```yaml
+variables:
+  models:
+    advanced_model: &advanced_model anthropic/claude-3.7-sonnet
+    efficiency_model: &efficiency_model anthropic/claude-3.5-haiku
+
+commands:
+  - name: commit
+    description: Create a git commit with the provided message
+
+  - name: pull-request
+    description: Create a pull request with the provided title
+
+agents:
+  - id: developer
+    model: *advanced_model
+    tools:
+      - tool_forge_fs_read
+      - tool_forge_fs_create
+      - tool_forge_fs_remove
+      - tool_forge_fs_patch
+      - tool_forge_process_shell
+      - tool_forge_net_fetch
+      - tool_forge_fs_search
+    subscribe:
+      - user_task_init
+      - user_task_update
+      - commit # Subscribe to the commit command event
+      - pull-request # Subscribe to the pull-request command event
+    ephemeral: false
+    tool_supported: true
+    system_prompt: "{{> system-prompt-engineer.hbs }}"
+    user_prompt: |
+      {{#if (eq event.name "commit")}}
+      <task>Create a git commit with the following message: {{event.value}}</task>
+      {{else if (eq event.name "pull-request")}}
+      <task>Create a pull request with the title: {{event.value}}</task>
+      {{else}}
+      <task>{{event.value}}</task>
+      {{/if}}
+```
+
+This example, the event value is a simpler string that gets embedded within a template. The template uses Handlebars conditional logic (`{{#if (eq event.name "commit")}}`) to format different tasks based on the event name. The event value is used as data within these task templates.
+
+##### Comparing the Two Approaches
+
+**Approach 1: Event Value as Instructions**
+
+- **Best for**: When the command itself represents a complete task or instruction set
+- **Flexibility**: Users can provide detailed, multi-line instructions via the command
+- **Implementation**: Simpler user_prompt template that just passes the event value through
+- **Example use case**: Complex operations where instructions vary significantly
+
+**Approach 2: Event Value as Data**
+
+- **Best for**: When commands follow predictable patterns with varying data points
+- **Structure**: More consistent task formatting across different command types
+- **Implementation**: More complex user_prompt template with conditional logic
+- **Example use case**: Standardized workflows like git operations with varying messages/titles
+
+You can choose the approach that best fits your specific workflow needs. For simple command structures, Approach 2 provides more consistency, while Approach 1 offers greater flexibility for complex operations.
 
 ## Why Shell?
 

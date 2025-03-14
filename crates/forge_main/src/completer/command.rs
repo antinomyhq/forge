@@ -1,22 +1,31 @@
+use std::sync::Arc;
+
 use reedline::{Completer, Span, Suggestion};
 
-use crate::model::Command;
+use crate::model::ForgeCommandManager;
 
-#[derive(Default)]
-pub struct CommandCompleter;
+#[derive(Clone)]
+pub struct CommandCompleter(Arc<ForgeCommandManager>);
+
+impl CommandCompleter {
+    pub fn new(command_manager: Arc<ForgeCommandManager>) -> Self {
+        Self(command_manager)
+    }
+}
 
 impl Completer for CommandCompleter {
     fn complete(&mut self, line: &str, _: usize) -> Vec<reedline::Suggestion> {
-        Command::available_commands()
+        self.0
+            .list()
             .into_iter()
-            .filter(|cmd| cmd.starts_with(line))
+            .filter(|cmd| cmd.name.starts_with(line))
             .map(|cmd| Suggestion {
-                value: cmd,
-                description: None,
+                value: cmd.name,
+                description: Some(cmd.description),
                 style: None,
                 extra: None,
                 span: Span::new(0, line.len()),
-                append_whitespace: true,
+                append_whitespace: false,
             })
             .collect()
     }

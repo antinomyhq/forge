@@ -6,6 +6,7 @@ pub mod std {
 
 pub mod vec {
 
+    pub use merge::vec::*;
     use merge::Merge;
 
     use super::Key;

@@ -12,7 +12,25 @@ use crate::{Agent, AgentId};
 pub struct Workflow {
     #[merge(strategy = crate::merge::vec::unify_by_key)]
     pub agents: Vec<Agent>,
+
+    #[merge(strategy = crate::merge::option)]
     pub variables: Option<HashMap<String, Value>>,
+
+    #[merge(strategy = crate::merge::vec::append)]
+    #[serde(default)]
+    pub commands: Vec<Command>,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]
+pub struct Command {
+    #[merge(strategy = crate::merge::std::overwrite)]
+    pub name: String,
+
+    #[merge(strategy = crate::merge::std::overwrite)]
+    pub description: String,
+
+    #[merge(strategy = crate::merge::option)]
+    pub value: Option<String>,
 }
 
 impl Workflow {

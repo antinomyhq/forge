@@ -86,7 +86,7 @@ impl OpenRouter {
                         }
                         Event::Message(event) => Some(
                             serde_json::from_str::<OpenRouterResponse>(&event.data)
-                                .with_context(|| "Failed to parse OpenRouter response")
+                                .with_context(|| format!("Failed to parse OpenRouter response: {}", event.data))
                                 .and_then(|message| {
                                     ChatCompletionMessage::try_from(message.clone())
                                         .with_context(|| "Failed to create completion message")

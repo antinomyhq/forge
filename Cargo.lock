@@ -877,7 +877,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64 0.21.7",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "colored 3.0.0",
@@ -895,6 +895,8 @@ dependencies = [
  "reedline",
  "serde",
  "serde_json",
+ "strum 0.27.1",
+ "strum_macros 0.27.1",
  "tokio",
  "tokio-stream",
  "tracing",

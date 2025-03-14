@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use forge_api::Environment;
 use nu_ansi_term::{Color, Style};
 use reedline::{
@@ -6,6 +8,7 @@ use reedline::{
 };
 
 use super::completer::InputCompleter;
+use crate::model::ForgeCommandManager;
 
 // TODO: Store the last `HISTORY_CAPACITY` commands in the history file
 const HISTORY_CAPACITY: usize = 1024;
@@ -60,7 +63,7 @@ impl ForgeEditor {
         keybindings
     }
 
-    pub fn start(env: Environment) -> Self {
+    pub fn new(env: Environment, manager: Arc<ForgeCommandManager>) -> Self {
         // Store file history in system config directory
         let history_file = env.history_path();
 
@@ -78,7 +81,7 @@ impl ForgeEditor {
         let edit_mode = Box::new(Emacs::new(Self::init()));
 
         let editor = Reedline::create()
-            .with_completer(Box::new(InputCompleter::new(env.cwd)))
+            .with_completer(Box::new(InputCompleter::new(env.cwd, manager)))
             .with_history(history)
             .with_hinter(Box::new(
                 DefaultHinter::default().with_style(Style::new().fg(Color::DarkGray)),

@@ -199,7 +199,7 @@ mod tests {
         // check if the response is compatible with the OpenRouterResponse
         fn test_response_compatibility(event: &str) -> bool {
             let open_router_response = serde_json::from_str::<OpenRouterResponse>(event)
-                .with_context(|| "Failed to parse OpenRouter response")
+                .with_context(|| format!("Failed to parse OpenRouter response: {}", event))
                 .and_then(|message| {
                     ChatCompletionMessage::try_from(message.clone())
                         .with_context(|| "Failed to create completion message")

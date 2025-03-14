@@ -69,18 +69,23 @@ impl<F: Infrastructure> ForgeLoaderService<F> {
 
     /// Loads workflow by merging project config with default workflow
     async fn load_with_project_config(&self) -> anyhow::Result<Workflow> {
-        let project_path = Path::new("forge.yaml");
+        let project_path = Path::new("forge.yaml").canonicalize()?;
 
         let project_content = String::from_utf8(
             self.0
                 .file_read_service()
-                .read(project_path)
+                .read(project_path.as_path())
                 .await?
                 .to_vec(),
         )?;
 
-        let project_workflow: Workflow = serde_yaml::from_str(&project_content)
-            .with_context(|| "Failed to parse project workflow")?;
+        let project_workflow: Workflow =
+            serde_yaml::from_str(&project_content).with_context(|| {
+                format!(
+                    "Failed to parse project workflow: {}",
+                    project_path.display()
+                )
+            })?;
 
         // Merge workflows with project taking precedence
         let mut merged_workflow = create_default_workflow();

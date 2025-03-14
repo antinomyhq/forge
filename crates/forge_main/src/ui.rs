@@ -18,7 +18,7 @@ use crate::cli::{Cli, SnapshotCommand};
 use crate::console::CONSOLE;
 use crate::info::{Info, UsageInfo};
 use crate::input::Console;
-use crate::model::{Command, UserInput};
+use crate::model::{Command, ForgeCommandManager, UserInput};
 use crate::state::{Mode, UIState};
 
 // Event type constants moved to UI layer
@@ -31,10 +31,16 @@ lazy_static! {
     pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
 }
 
-#[derive(Deserialize)]
-struct PartialEvent {
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
+pub struct PartialEvent {
     pub name: String,
     pub value: String,
+}
+
+impl PartialEvent {
+    pub fn new(name: impl ToString, value: impl ToString) -> Self {
+        Self { name: name.to_string(), value: value.to_string() }
+    }
 }
 
 impl From<PartialEvent> for Event {
@@ -47,6 +53,7 @@ pub struct UI<F> {
     state: UIState,
     api: Arc<F>,
     console: Console,
+    command: Arc<ForgeCommandManager>,
     cli: Cli,
     models: Option<Vec<Model>>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
@@ -101,13 +108,14 @@ impl<F: API> UI<F> {
 
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
         // Parse CLI arguments first to get flags
-
         let env = api.environment();
+        let command = Arc::new(ForgeCommandManager::default());
         Ok(Self {
             state: Default::default(),
             api,
-            console: Console::new(env.clone()),
+            console: Console::new(env.clone(), command.clone()),
             cli,
+            command,
             models: None,
             _guard: forge_tracker::init_tracing(env.log_path())?,
         })
@@ -130,7 +138,8 @@ impl<F: API> UI<F> {
         }
 
         // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
+        self.init_conversation().await?;
+        banner::display(self.command.command_names())?;
 
         // Get initial input from file or prompt
         let mut input = match &self.cli.command {
@@ -147,8 +156,9 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::New => {
-                    banner::display()?;
                     self.state = Default::default();
+                    self.init_conversation().await?;
+                    banner::display(self.command.command_names())?;
                     input = self.console.prompt(None).await?;
 
                     continue;
@@ -168,7 +178,10 @@ impl<F: API> UI<F> {
                 }
                 Command::Message(ref content) => {
                     let chat_result = match self.state.mode {
-                        Mode::Help => self.help_chat(content.clone()).await,
+                        Mode::Help => {
+                            self.dispatch_event(Self::create_user_help_query_event(content.clone()))
+                                .await
+                        }
                         _ => self.chat(content.clone()).await,
                     };
                     if let Err(err) = chat_result {
@@ -219,11 +232,24 @@ impl<F: API> UI<F> {
 
                     input = self.console.prompt(None).await?;
                 }
+                Command::Custom(event) => {
+                    if let Err(e) = self.dispatch_event(event.into()).await {
+                        CONSOLE.writeln(
+                            TitleFormat::failed("Failed to execute the command.")
+                                .sub_title("Command Execution")
+                                .error(e.to_string())
+                                .format(),
+                        )?;
+                    }
+
+                    input = self.console.prompt(None).await?;
+                }
             }
         }
 
         Ok(())
     }
+
     // Handle dispatching events from the CLI
     async fn handle_dispatch(&mut self, json: String) -> Result<()> {
         // Initialize the conversation
@@ -239,6 +265,7 @@ impl<F: API> UI<F> {
         let mut stream = self.api.chat(chat).await?;
         self.handle_chat_stream(&mut stream).await
     }
+
     async fn handle_snaps(&self, snapshot_command: &SnapshotCommand) -> Result<()> {
         match snapshot_command {
             SnapshotCommand::List { path } => {
@@ -448,11 +475,9 @@ impl<F: API> UI<F> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
             None => {
-                let conversation_id = self
-                    .api
-                    .init(self.api.load(self.cli.workflow.as_deref()).await?)
-                    .await?;
-
+                let workflow = self.api.load(self.cli.workflow.as_deref()).await?;
+                self.command.register_all(&workflow);
+                let conversation_id = self.api.init(workflow).await?;
                 self.state.conversation_id = Some(conversation_id.clone());
 
                 Ok(conversation_id)
@@ -581,14 +606,10 @@ impl<F: API> UI<F> {
             }
         }
         Ok(())
-    } // Handle help chat in HELP mode
-    async fn help_chat(&mut self, content: String) -> Result<()> {
+    }
+
+    async fn dispatch_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
-
-        // Create a help query event
-        let event = Self::create_user_help_query_event(content.clone());
-
-        // Create the chat request with the help query event
         let chat = ChatRequest::new(event, conversation_id);
         match self.api.chat(chat).await {
             Ok(mut stream) => self.handle_chat_stream(&mut stream).await,

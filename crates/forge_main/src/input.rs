@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use forge_api::{Environment, Usage};
@@ -7,7 +8,7 @@ use tokio::fs;
 
 use crate::console::CONSOLE;
 use crate::editor::{ForgeEditor, ReadResult};
-use crate::model::{Command, UserInput};
+use crate::model::{Command, ForgeCommandManager, UserInput};
 use crate::prompt::ForgePrompt;
 use crate::state::Mode;
 
@@ -15,12 +16,13 @@ use crate::state::Mode;
 #[derive(Debug)]
 pub struct Console {
     env: Environment,
+    command: Arc<ForgeCommandManager>,
 }
 
 impl Console {
     /// Creates a new instance of `Console`.
-    pub fn new(env: Environment) -> Self {
-        Self { env }
+    pub fn new(env: Environment, command: Arc<ForgeCommandManager>) -> Self {
+        Self { env, command }
     }
 }
 
@@ -37,7 +39,8 @@ impl UserInput for Console {
 
     async fn prompt(&self, input: Option<Self::PromptInput>) -> anyhow::Result<Command> {
         CONSOLE.writeln("")?;
-        let mut engine = ForgeEditor::start(self.env.clone());
+
+        let mut engine = ForgeEditor::new(self.env.clone(), self.command.clone());
         let prompt: ForgePrompt = input.map(Into::into).unwrap_or_default();
 
         loop {
@@ -50,7 +53,16 @@ impl UserInput for Console {
                     tokio::spawn(
                         crate::ui::TRACKER.dispatch(forge_tracker::EventKind::Prompt(text.clone())),
                     );
-                    return Ok(Command::parse(&text));
+                    match self.command.parse(&text) {
+                        Ok(command) => return Ok(command),
+                        Err(e) => {
+                            CONSOLE.writeln(
+                                TitleFormat::failed("command")
+                                    .sub_title(e.to_string())
+                                    .format(),
+                            )?;
+                        }
+                    }
                 }
                 Err(e) => {
                     CONSOLE.writeln(TitleFormat::failed(e.to_string()).format())?;
