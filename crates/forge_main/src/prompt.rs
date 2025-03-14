@@ -2,10 +2,10 @@ use std::borrow::Cow;
 
 use derive_setters::Setters;
 use forge_api::Usage;
+use forge_tracker::VERSION;
 use nu_ansi_term::{Color, Style};
 use reedline::{Prompt, PromptHistorySearchStatus};
 
-use forge_tracker::VERSION;
 use crate::state::Mode;
 
 // Constants
