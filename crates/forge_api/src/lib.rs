@@ -94,4 +94,10 @@ pub trait API: Sync + Send {
         key: String,
         value: Value,
     ) -> anyhow::Result<()>;
+
+    /// Retries the last user message in the conversation
+    async fn retry(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>, anyhow::Error>>>;
 }
