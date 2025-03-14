@@ -36,6 +36,7 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
   - [Enhanced Security](#enhanced-security)
   - [Built-in Commands](#built-in-commands)
   - [Autocomplete](#autocomplete)
+  - [Image Upload](#image-upload)
   - [WYSIWYG Shell Experience](#wysiwyg-shell-experience)
   - [Command Interruption](#command-interruption)
   - [Operation Modes](#operation-modes)
@@ -168,6 +169,16 @@ Boost your productivity with intelligent command completion:
 - Use Right Arrow to complete previously executed commands
 - Access command history with Up Arrow
 - Quick history search with Ctrl+R
+
+### Image Upload
+
+Easily incorporate images into your conversations:
+
+- Use the `@` special character to tag and upload images directly in your messages
+- Works with both relative and absolute paths:
+  - Relative path: `@screenshots/bug.png` to include an image from a subfolder
+  - Absolute path: `@/Users/username/Documents/diagrams/architecture.png`
+- Perfect for sharing screenshots, diagrams, or any visual context relevant to your development tasks
 
 ### WYSIWYG Shell Experience
 
