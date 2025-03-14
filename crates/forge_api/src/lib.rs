@@ -31,7 +31,7 @@ pub trait API: Sync + Send {
     async fn restore_previous(&self, file_path: &Path) -> anyhow::Result<()>;
 
     /// Get latest snapshot
-    async fn get_lastest_snapshot(&self, file_path: &Path) -> anyhow::Result<SnapshotInfo>;
+    async fn get_latest_snapshot(&self, file_path: &Path) -> anyhow::Result<SnapshotInfo>;
 
     /// Get a snapshot by timestamp
     async fn get_snapshot_by_timestamp(

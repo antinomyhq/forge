@@ -157,7 +157,7 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
             .await
     }
 
-    async fn get_lastest_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo> {
+    async fn get_latest_snapshot(&self, file_path: &Path) -> Result<SnapshotInfo> {
         self.app.file_snapshot_service().get_latest(file_path).await
     }
 }

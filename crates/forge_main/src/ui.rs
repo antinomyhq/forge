@@ -376,7 +376,7 @@ impl<F: API> UI<F> {
                             .format(),
                     )?;
 
-                    self.api.get_lastest_snapshot(path).await?
+                    self.api.get_latest_snapshot(path).await?
                 };
 
                 let prev_content = metadata.content;
