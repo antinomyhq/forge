@@ -3,9 +3,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::Environment;
 
-#[derive(Debug, Default, Setters, Clone, Serialize, Deserialize)]
+#[derive(Debug, Setters, Clone, Serialize, Deserialize)]
 #[setters(strip_option)]
 pub struct SystemContext {
+    // Current date and time at the time of context creation
+    pub current_date: String,
     // Environment information to be included in the system context
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env: Option<Environment>,
