@@ -89,7 +89,7 @@ impl Snapshot {
         let formatted_time = chrono::DateTime::<chrono::Utc>::from(datetime)
             .format("%Y-%m-%d_%H-%M-%S-%3f")
             .to_string();
-        
+
         let filename = format!("{}.snap", formatted_time);
         let path = PathBuf::from(self.path_hash()).join(PathBuf::from(filename));
         if let Some(cwd) = cwd {
