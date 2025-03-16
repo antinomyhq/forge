@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, Executor, NamedTool, ToolDescription, ToolName, ToolOutput};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -141,12 +141,16 @@ impl NamedTool for Think {
 #[async_trait::async_trait]
 impl ExecutableTool for Think {
     type Input = ThoughtInput;
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        input: Self::Input,
+        _: Option<&mut Executor>,
+    ) -> anyhow::Result<ToolOutput> {
         let mut thinker = self.clone();
         let thought_number = input.thought_number;
         let thought_result = thinker
             .process_thought(input)
             .with_context(|| format!("Failed to process thought #{}", thought_number))?;
-        Ok(serde_json::to_string(&thought_result)?)
+        Ok(ToolOutput::Text(serde_json::to_string(&thought_result)?))
     }
 }

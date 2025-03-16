@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Context;
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, Executor, NamedTool, ToolDescription, ToolName, ToolOutput};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -33,13 +33,19 @@ impl NamedTool for FSRead {
 impl ExecutableTool for FSRead {
     type Input = FSReadInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        input: Self::Input,
+        _: Option<&mut Executor>,
+    ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        tokio::fs::read_to_string(path)
-            .await
-            .with_context(|| format!("Failed to read file content from {}", input.path))
+        Ok(ToolOutput::Text(
+            tokio::fs::read_to_string(path)
+                .await
+                .with_context(|| format!("Failed to read file content from {}", input.path))?,
+        ))
     }
 }
 
@@ -61,11 +67,14 @@ mod test {
 
         let fs_read = FSRead;
         let result = fs_read
-            .call(FSReadInput { path: file_path.to_string_lossy().to_string() })
+            .call(
+                FSReadInput { path: file_path.to_string_lossy().to_string() },
+                None,
+            )
             .await
             .unwrap();
 
-        assert_eq!(result, test_content);
+        assert_eq!(result.as_str().unwrap(), test_content);
     }
 
     #[tokio::test]
@@ -75,7 +84,10 @@ mod test {
 
         let fs_read = FSRead;
         let result = fs_read
-            .call(FSReadInput { path: nonexistent_file.to_string_lossy().to_string() })
+            .call(
+                FSReadInput { path: nonexistent_file.to_string_lossy().to_string() },
+                None,
+            )
             .await;
 
         assert!(result.is_err());
@@ -89,11 +101,14 @@ mod test {
 
         let fs_read = FSRead;
         let result = fs_read
-            .call(FSReadInput { path: file_path.to_string_lossy().to_string() })
+            .call(
+                FSReadInput { path: file_path.to_string_lossy().to_string() },
+                None,
+            )
             .await
             .unwrap();
 
-        assert_eq!(result, "");
+        assert_eq!(result.as_str().unwrap(), "");
     }
 
     #[test]
@@ -105,7 +120,7 @@ mod test {
     async fn test_fs_read_relative_path() {
         let fs_read = FSRead;
         let result = fs_read
-            .call(FSReadInput { path: "relative/path.txt".to_string() })
+            .call(FSReadInput { path: "relative/path.txt".to_string() }, None)
             .await;
 
         assert!(result.is_err());

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_display::DiffFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, Executor, NamedTool, ToolDescription, ToolName, ToolOutput};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -53,7 +53,11 @@ impl<F> NamedTool for FSWrite<F> {
 impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
     type Input = FSWriteInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        input: Self::Input,
+        _: Option<&mut Executor>,
+    ) -> anyhow::Result<ToolOutput> {
         // Validate absolute path requirement
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
@@ -114,7 +118,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
         let diff = DiffFormat::format(title, path.to_path_buf(), &old_content, &new_content);
         println!("{}", diff);
 
-        Ok(result)
+        Ok(ToolOutput::Text(result))
     }
 }
 
@@ -151,13 +155,17 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_write = FSWrite::new(infra.clone());
         let output = fs_write
-            .call(FSWriteInput {
-                path: file_path.to_string_lossy().to_string(),
-                content: content.to_string(),
-                overwrite: false,
-            })
+            .call(
+                FSWriteInput {
+                    path: file_path.to_string_lossy().to_string(),
+                    content: content.to_string(),
+                    overwrite: false,
+                },
+                None,
+            )
             .await
             .unwrap();
+        let output = output.as_str().unwrap();
 
         assert!(output.contains("Successfully wrote"));
         assert!(output.contains(&file_path.display().to_string()));
@@ -184,14 +192,18 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
-            .call(FSWriteInput {
-                path: file_path.to_string_lossy().to_string(),
-                content: "fn main() { let x = ".to_string(),
-                overwrite: false,
-            })
+            .call(
+                FSWriteInput {
+                    path: file_path.to_string_lossy().to_string(),
+                    content: "fn main() { let x = ".to_string(),
+                    overwrite: false,
+                },
+                None,
+            )
             .await;
 
         let output = result.unwrap();
+        let output = output.as_str().unwrap();
         assert!(output.contains("Warning:"));
     }
 
@@ -204,14 +216,19 @@ mod test {
         let fs_write = FSWrite::new(infra.clone());
         let content = "fn main() { let x = 42; }";
         let result = fs_write
-            .call(FSWriteInput {
-                path: file_path.to_string_lossy().to_string(),
-                content: content.to_string(),
-                overwrite: false,
-            })
+            .call(
+                FSWriteInput {
+                    path: file_path.to_string_lossy().to_string(),
+                    content: content.to_string(),
+                    overwrite: false,
+                },
+                None,
+            )
             .await;
 
         let output = result.unwrap();
+        let output = output.as_str().unwrap();
+
         assert!(output.contains("Successfully wrote"));
         assert!(output.contains(&file_path.display().to_string()));
         assert!(output.contains(&content.len().to_string()));
@@ -239,14 +256,18 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
-            .call(FSWriteInput {
-                path: nested_path.to_string_lossy().to_string(),
-                content: content.to_string(),
-                overwrite: false,
-            })
+            .call(
+                FSWriteInput {
+                    path: nested_path.to_string_lossy().to_string(),
+                    content: content.to_string(),
+                    overwrite: false,
+                },
+                None,
+            )
             .await
             .unwrap();
 
+        let result = result.as_str().unwrap();
         assert!(result.contains("Successfully wrote"));
         // Verify both directory and file were created
         assert_path_exists(&nested_path, &infra).await;
@@ -279,14 +300,18 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
-            .call(FSWriteInput {
-                path: deep_path.to_string_lossy().to_string(),
-                content: content.to_string(),
-                overwrite: false,
-            })
+            .call(
+                FSWriteInput {
+                    path: deep_path.to_string_lossy().to_string(),
+                    content: content.to_string(),
+                    overwrite: false,
+                },
+                None,
+            )
             .await
             .unwrap();
 
+        let result = result.as_str().unwrap();
         assert!(result.contains("Successfully wrote"));
 
         // Verify entire path was created
@@ -321,14 +346,18 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
-            .call(FSWriteInput {
-                path: path_str,
-                content: content.to_string(),
-                overwrite: false,
-            })
+            .call(
+                FSWriteInput {
+                    path: path_str,
+                    content: content.to_string(),
+                    overwrite: false,
+                },
+                None,
+            )
             .await
             .unwrap();
 
+        let result = result.as_str().unwrap();
         assert!(result.contains("Successfully wrote"));
 
         // Convert to platform path and verify
@@ -357,11 +386,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
-            .call(FSWriteInput {
-                path: "relative/path/file.txt".to_string(),
-                content: "test content".to_string(),
-                overwrite: false,
-            })
+            .call(
+                FSWriteInput {
+                    path: "relative/path/file.txt".to_string(),
+                    content: "test content".to_string(),
+                    overwrite: false,
+                },
+                None,
+            )
             .await;
 
         assert!(result.is_err());
@@ -388,11 +420,14 @@ mod test {
         // Now attempt to write without overwrite flag
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
-            .call(FSWriteInput {
-                path: file_path.to_string_lossy().to_string(),
-                content: "New content".to_string(),
-                overwrite: false,
-            })
+            .call(
+                FSWriteInput {
+                    path: file_path.to_string_lossy().to_string(),
+                    content: "New content".to_string(),
+                    overwrite: false,
+                },
+                None,
+            )
             .await;
 
         // Should result in an error
@@ -436,11 +471,14 @@ mod test {
         // Now attempt to write with overwrite flag
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
-            .call(FSWriteInput {
-                path: file_path.to_string_lossy().to_string(),
-                content: new_content.to_string(),
-                overwrite: true,
-            })
+            .call(
+                FSWriteInput {
+                    path: file_path.to_string_lossy().to_string(),
+                    content: new_content.to_string(),
+                    overwrite: true,
+                },
+                None,
+            )
             .await;
 
         // Should be successful
@@ -448,6 +486,7 @@ mod test {
         let success_msg = result.unwrap();
 
         // Success message should contain expected text
+        let success_msg = success_msg.as_str().unwrap();
         assert!(success_msg.contains("Successfully wrote"));
 
         // Verify file was actually overwritten

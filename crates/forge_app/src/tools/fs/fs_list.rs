@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Context;
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, Executor, NamedTool, ToolDescription, ToolName, ToolOutput};
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use schemars::JsonSchema;
@@ -39,7 +39,11 @@ impl NamedTool for FSList {
 impl ExecutableTool for FSList {
     type Input = FSListInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        input: Self::Input,
+        _: Option<&mut Executor>,
+    ) -> anyhow::Result<ToolOutput> {
         let dir = Path::new(&input.path);
         assert_absolute_path(dir)?;
 
@@ -80,11 +84,11 @@ impl ExecutableTool for FSList {
             }
         }
 
-        Ok(format!(
+        Ok(ToolOutput::Text(format!(
             "<file_list path=\"{}\">\n{}\n</file_list>",
             input.path,
             paths.join("\n")
-        ))
+        )))
     }
 }
 
@@ -108,14 +112,17 @@ mod test {
 
         let fs_list = FSList::new(true);
         let result = fs_list
-            .call(FSListInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                recursive: None,
-            })
+            .call(
+                FSListInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    recursive: None,
+                },
+                None,
+            )
             .await
             .unwrap();
 
-        assert_snapshot!(TempDir::normalize(&result));
+        assert_snapshot!(TempDir::normalize(result.as_str().unwrap()));
     }
 
     #[tokio::test]
@@ -133,14 +140,17 @@ mod test {
 
         let fs_list = FSList::new(true);
         let result = fs_list
-            .call(FSListInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                recursive: None,
-            })
+            .call(
+                FSListInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    recursive: None,
+                },
+                None,
+            )
             .await
             .unwrap();
 
-        assert_snapshot!(TempDir::normalize(&result));
+        assert_snapshot!(TempDir::normalize(result.as_str().unwrap()));
     }
 
     #[tokio::test]
@@ -150,10 +160,13 @@ mod test {
 
         let fs_list = FSList::new(true);
         let result = fs_list
-            .call(FSListInput {
-                path: nonexistent_dir.to_string_lossy().to_string(),
-                recursive: None,
-            })
+            .call(
+                FSListInput {
+                    path: nonexistent_dir.to_string_lossy().to_string(),
+                    recursive: None,
+                },
+                None,
+            )
             .await;
 
         assert!(result.is_err());
@@ -175,13 +188,16 @@ mod test {
 
         let fs_list = FSList::new(true);
         let result = fs_list
-            .call(FSListInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                recursive: None,
-            })
+            .call(
+                FSListInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    recursive: None,
+                },
+                None,
+            )
             .await
             .unwrap();
-
+        let result = result.as_str().unwrap();
         assert!(result.contains("regular.txt"));
         assert!(!result.contains(".hidden"));
         assert!(!result.contains(".hidden_dir"));
@@ -210,21 +226,27 @@ mod test {
 
         // Test recursive listing
         let result = fs_list
-            .call(FSListInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                recursive: Some(true),
-            })
+            .call(
+                FSListInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    recursive: Some(true),
+                },
+                None,
+            )
             .await
             .unwrap();
 
-        assert_snapshot!(TempDir::normalize(&result));
+        assert_snapshot!(TempDir::normalize(result.as_str().unwrap()));
     }
 
     #[tokio::test]
     async fn test_fs_list_relative_path() {
         let fs_list = FSList::new(true);
         let result = fs_list
-            .call(FSListInput { path: "relative/path".to_string(), recursive: None })
+            .call(
+                FSListInput { path: "relative/path".to_string(), recursive: None },
+                None,
+            )
             .await;
 
         assert!(result.is_err());

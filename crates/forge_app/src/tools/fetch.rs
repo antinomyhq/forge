@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use forge_display::TitleFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription};
+use forge_domain::{ExecutableTool, Executor, NamedTool, ToolDescription, ToolOutput};
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 use schemars::JsonSchema;
@@ -148,7 +148,11 @@ impl Fetch {
 impl ExecutableTool for Fetch {
     type Input = FetchInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        input: Self::Input,
+        _: Option<&mut Executor>,
+    ) -> anyhow::Result<ToolOutput> {
         let url = Url::parse(&input.url)
             .with_context(|| format!("Failed to parse URL: {}", input.url))?;
 
@@ -158,7 +162,9 @@ impl ExecutableTool for Fetch {
         let start_index = input.start_index.unwrap_or(0);
 
         if start_index >= original_length {
-            return Ok("<error>No more content available.</error>".to_string());
+            return Ok(ToolOutput::Text(
+                "<error>No more content available.</error>".to_string(),
+            ));
         }
 
         let max_length = input.max_length.unwrap_or(40000);
@@ -172,7 +178,10 @@ impl ExecutableTool for Fetch {
             ));
         }
 
-        Ok(format!("{}Contents of {}:\n{}", prefix, url, truncated))
+        Ok(ToolOutput::Text(format!(
+            "{}Contents of {}:\n{}",
+            prefix, url, truncated
+        )))
     }
 }
 
@@ -229,8 +238,8 @@ mod tests {
             raw: Some(false),
         };
 
-        let result = fetch.call(input).await.unwrap();
-        let normalized_result = normalize_port(result);
+        let result = fetch.call(input, None).await.unwrap();
+        let normalized_result = normalize_port(result.as_str().unwrap().to_string());
         insta::assert_snapshot!(normalized_result);
     }
 
@@ -260,8 +269,8 @@ mod tests {
             raw: Some(true),
         };
 
-        let result = fetch.call(input).await.unwrap();
-        let normalized_result = normalize_port(result);
+        let result = fetch.call(input, None).await.unwrap();
+        let normalized_result = normalize_port(result.as_str().unwrap().to_string());
         insta::assert_snapshot!(normalized_result);
     }
 
@@ -292,7 +301,7 @@ mod tests {
             raw: None,
         };
 
-        let result = fetch.call(input).await;
+        let result = fetch.call(input, None).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -329,8 +338,8 @@ mod tests {
             raw: Some(true),
         };
 
-        let result = fetch.call(input).await.unwrap();
-        let normalized_result = normalize_port(result);
+        let result = fetch.call(input, None).await.unwrap();
+        let normalized_result = normalize_port(result.as_str().unwrap().to_string());
         assert!(normalized_result.contains("A".repeat(5000).as_str()));
         assert!(normalized_result.contains("start_index of 5000"));
 
@@ -342,8 +351,8 @@ mod tests {
             raw: Some(true),
         };
 
-        let result = fetch.call(input).await.unwrap();
-        let normalized_result = normalize_port(result);
+        let result = fetch.call(input, None).await.unwrap();
+        let normalized_result = normalize_port(result.as_str().unwrap().to_string());
         assert!(normalized_result.contains("B".repeat(5000).as_str()));
     }
 
@@ -359,7 +368,7 @@ mod tests {
             raw: None,
         };
 
-        let result = rt.block_on(fetch.call(input));
+        let result = rt.block_on(fetch.call(input, None));
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("parse"));
@@ -385,7 +394,7 @@ mod tests {
             raw: None,
         };
 
-        let result = fetch.call(input).await;
+        let result = fetch.call(input, None).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("404"));
     }

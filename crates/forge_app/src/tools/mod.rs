@@ -15,6 +15,7 @@ use patch::*;
 use shell::Shell;
 use think::Think;
 
+use crate::tools::shell::{ShellExitTool, ShellInputTool};
 use crate::{EnvironmentService, Infrastructure};
 
 pub fn tools<F: Infrastructure>(infra: Arc<F>) -> Vec<Tool> {
@@ -31,6 +32,8 @@ pub fn tools<F: Infrastructure>(infra: Arc<F>) -> Vec<Tool> {
         Shell::new(env.clone()).into(),
         Think::default().into(),
         Fetch::default().into(),
+        ShellInputTool.into(),
+        ShellExitTool.into(),
     ]
 }
 
