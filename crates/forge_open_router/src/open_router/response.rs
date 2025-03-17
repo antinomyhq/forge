@@ -180,7 +180,6 @@ impl TryFrom<OpenRouterResponse> for ModelResponse {
                 } else {
                     let default_response = ModelResponse::assistant(Content::full(""));
                     Ok(default_response)
-                    //Err(Error::EmptyContent)
                 }
             }
             OpenRouterResponse::Failure { error } => Err(Error::Upstream(error)),
