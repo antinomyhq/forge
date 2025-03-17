@@ -27,6 +27,7 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
 **Table of Contents**
 
 - [Installation](#installation)
+  - [NPM](#npm)
   - [Mac](#mac)
   - [Linux](#linux)
 - [Get Started](#get-started)
@@ -64,6 +65,20 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
 - [Support Us](#support-us)
 
 ## Installation
+
+### NPM
+
+The quickest way to install Forge on any operating system is via npm:
+
+```bash
+# Install Forge globally using npm
+npm install -g @antinomyhq/forge
+
+# Or run directly without installation using npx
+npx @antinomyhq/forge
+```
+
+This method works on **Windows**, **macOS**, and **Linux**, providing a consistent installation experience across all platforms.
 
 ### Mac
 
