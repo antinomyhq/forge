@@ -1,14 +1,14 @@
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use bytes::Bytes;
-use forge_app::FileReadService;
+use forge_app::FsReadService;
 
 pub struct ForgeFileReadService;
 
 impl Default for ForgeFileReadService {
     fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -19,11 +19,8 @@ impl ForgeFileReadService {
 }
 
 #[async_trait::async_trait]
-impl FileReadService for ForgeFileReadService {
+impl FsReadService for ForgeFileReadService {
     async fn read(&self, path: &Path) -> Result<Bytes> {
-        Ok(tokio::fs::read(path)
-            .await
-            .map(Bytes::from)
-            .with_context(|| format!("Failed to read file: {}", path.display()))?)
+        Ok(Bytes::from(forge_fs::ForgeFS::read(path).await?))
     }
 }

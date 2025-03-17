@@ -58,13 +58,13 @@ impl Anthropic {
 impl ProviderService for Anthropic {
     async fn chat(
         &self,
-        id: &ModelId,
+        model: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         // TODO: depending on model, we've to set the max_tokens for request. for now,
         // we're setting it to 4000.
         let request = Request::try_from(context)?
-            .model(id.to_string())
+            .model(model.as_str().to_string())
             .stream(true)
             .max_tokens(4000u64);
 
@@ -84,12 +84,16 @@ impl ProviderService for Anthropic {
                         Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
                             None
                         }
-                        Event::Message(_event) => Some(
-                            serde_json::from_str::<EventData>(&_event.data)
-                                .with_context(|| "Failed to parse Anthronic event")
+                        Event::Message(message) => Some(
+                            serde_json::from_str::<EventData>(&message.data)
+                                .with_context(|| "Failed to parse Anthropic event")
                                 .and_then(|event| {
-                                    ChatCompletionMessage::try_from(event)
-                                        .with_context(|| "Failed to create completion message")
+                                    ChatCompletionMessage::try_from(event).with_context(|| {
+                                        format!(
+                                            "Failed to create completion message: {}",
+                                            message.data
+                                        )
+                                    })
                                 }),
                         ),
                     },

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use anyhow::Result;
 use derive_more::derive::Display;
@@ -34,15 +34,19 @@ pub struct Conversation {
     pub id: ConversationId,
     pub archived: bool,
     pub state: HashMap<AgentId, AgentState>,
-    pub events: Vec<Event>,
     pub workflow: Workflow,
     pub variables: HashMap<String, Value>,
+    pub events: Vec<Event>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AgentState {
     pub turn_count: u64,
     pub context: Option<Context>,
+    /// holds the events that are waiting to be processed
+    pub queue: VecDeque<Event>,
+    /// indicates if the agent is currently processing events
+    pub is_active: bool,
 }
 
 impl Conversation {
@@ -51,9 +55,9 @@ impl Conversation {
             id,
             archived: false,
             state: Default::default(),
-            events: Default::default(),
             variables: workflow.variables.clone().unwrap_or_default(),
             workflow,
+            events: Default::default(),
         }
     }
 
@@ -61,13 +65,19 @@ impl Conversation {
         self.state.get(id).map(|s| s.turn_count)
     }
 
+    /// Returns all the agents that are subscribed to the given event.
     pub fn entries(&self, event_name: &str) -> Vec<Agent> {
         self.workflow
             .agents
             .iter()
-            .filter(|a| a.enable)
-            .filter(|a| self.turn_count(&a.id).unwrap_or(0) < a.max_turns.unwrap_or(u64::MAX))
-            .filter(|a| a.subscribe.contains(&event_name.to_string()))
+            .filter(|a| {
+                self.turn_count(&a.id).unwrap_or_default() < a.max_turns.unwrap_or(u64::MAX)
+            })
+            .filter(|a| {
+                a.subscribe
+                    .as_ref()
+                    .is_some_and(|subs| subs.contains(&event_name.to_string()))
+            })
             .cloned()
             .collect::<Vec<_>>()
     }
@@ -77,7 +87,10 @@ impl Conversation {
     }
 
     pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
-        self.events.iter().rfind(|event| event.name == event_name)
+        self.state
+            .values()
+            .flat_map(|state| state.queue.iter().rev())
+            .find(|event| event.name == event_name)
     }
 
     /// Get a variable value by its key
@@ -100,5 +113,77 @@ impl Conversation {
     /// Returns true if the variable was present and removed, false otherwise
     pub fn delete_variable(&mut self, key: &str) -> bool {
         self.variables.remove(key).is_some()
+    }
+
+    /// Add an event to the queue of subscribed agents
+    pub fn insert_event(&mut self, event: Event) -> &mut Self {
+        let subscribed_agents = self.entries(&event.name);
+        self.events.push(event.clone());
+
+        subscribed_agents.iter().for_each(|agent| {
+            self.state
+                .entry(agent.id.clone())
+                .or_default()
+                .queue
+                .push_back(event.clone());
+        });
+
+        self
+    }
+
+    /// Gets the next event for a specific agent, if one is available
+    ///
+    /// If an event is available in the agent's queue, it is popped and
+    /// returned. Additionally, if the agent's queue becomes empty, it is
+    /// marked as inactive.
+    ///
+    /// Returns None if no events are available for this agent.
+    pub fn poll_event(&mut self, agent_id: &AgentId) -> Option<Event> {
+        // if event is present in queue, pop it and return.
+        if let Some(agent) = self.state.get_mut(agent_id) {
+            if let Some(event) = agent.queue.pop_front() {
+                return Some(event);
+            }
+            // since no event is present, set the agent as inactive
+            agent.is_active = false;
+        }
+        None
+    }
+
+    /// Dispatches an event to all subscribed agents and activates any inactive
+    /// agents
+    ///
+    /// This method performs two main operations:
+    /// 1. Adds the event to the queue of all agents that subscribe to this
+    ///    event type
+    /// 2. Activates any inactive agents (where is_active=false) that are
+    ///    subscribed to the event
+    ///
+    /// Returns a vector of AgentIds for all agents that were inactive and are
+    /// now activated
+    pub fn dispatch_event(&mut self, event: Event) -> Vec<AgentId> {
+        let name = event.name.as_str();
+        self.insert_event(event.clone());
+
+        let mut agents = self.entries(name);
+
+        agents
+            .iter_mut()
+            .filter_map(|agent| {
+                let is_inactive = self
+                    .state
+                    .get(&agent.id)
+                    .is_none_or(|state| !state.is_active);
+
+                if is_inactive {
+                    // Mark agent as active by setting is_active to true in the agent's state
+                    self.state.entry(agent.id.clone()).or_default().is_active = true;
+
+                    Some(agent.id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
     }
 }

@@ -8,6 +8,7 @@ pub fn derive_description(input: TokenStream) -> TokenStream {
     // Parse the input struct or enum
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
+    let generics = &input.generics;
 
     // Collect doc lines from all `#[doc = "..."]` attributes
     let mut doc_lines = Vec::new();
@@ -45,10 +46,20 @@ pub fn derive_description(input: TokenStream) -> TokenStream {
     let doc_string = doc_lines.join("\n").trim().to_string();
 
     // Generate an implementation of `ToolDescription` that returns the doc string
-    let expanded = quote! {
-        impl ToolDescription for #name {
-            fn description(&self) -> String {
-                #doc_string.into()
+    let expanded = if generics.params.is_empty() {
+        quote! {
+            impl ToolDescription for #name {
+                fn description(&self) -> String {
+                    #doc_string.into()
+                }
+            }
+        }
+    } else {
+        quote! {
+            impl #generics ToolDescription for #name #generics {
+                fn description(&self) -> String {
+                    #doc_string.into()
+                }
             }
         }
     };

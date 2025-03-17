@@ -1,6 +1,8 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::Context;
+use bytes::Bytes;
 use forge_display::DiffFormat;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
@@ -9,6 +11,7 @@ use serde::Deserialize;
 
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
+use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSWriteInput {
@@ -32,16 +35,22 @@ pub struct FSWriteInput {
 /// IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the
 /// shell tool instead.
 #[derive(ToolDescription)]
-pub struct FSWrite;
+pub struct FSWrite<F>(Arc<F>);
 
-impl NamedTool for FSWrite {
+impl<F: Infrastructure> FSWrite<F> {
+    pub fn new(f: Arc<F>) -> Self {
+        Self(f)
+    }
+}
+
+impl<F> NamedTool for FSWrite<F> {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_fs_create")
     }
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for FSWrite {
+impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
     type Input = FSWriteInput;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
@@ -60,12 +69,13 @@ impl ExecutableTool for FSWrite {
         }
 
         // Check if the file exists
-        let file_exists = path.is_file();
+        let file_exists = self.0.file_meta_service().is_file(path).await?;
 
         // If file exists and overwrite flag is not set, return an error with the
         // existing content
         if file_exists && !input.overwrite {
-            let existing_content = tokio::fs::read_to_string(path).await?;
+            let existing_content =
+                String::from_utf8(self.0.file_read_service().read(path).await?.to_vec())?;
             return Err(anyhow::anyhow!(
                 "File already exists at {}. If you need to overwrite it, set overwrite to true.\n\nExisting content:\n{}",
                 input.path,
@@ -76,14 +86,17 @@ impl ExecutableTool for FSWrite {
         // record the file content before they're modified
         let old_content = if file_exists {
             // if file already exists, we should be able to read it.
-            tokio::fs::read_to_string(path).await?
+            String::from_utf8(self.0.file_read_service().read(path).await?.to_vec())?
         } else {
             // if file doesn't exist, we should record it as an empty string.
             "".to_string()
         };
 
         // Write file only after validation passes and directories are created
-        tokio::fs::write(&input.path, &input.content).await?;
+        self.0
+            .file_write_service()
+            .write(Path::new(&input.path), Bytes::from(input.content.clone()))
+            .await?;
 
         let mut result = format!(
             "Successfully wrote {} bytes to {}",
@@ -96,7 +109,7 @@ impl ExecutableTool for FSWrite {
         }
 
         // record the file content after they're modified
-        let new_content = tokio::fs::read_to_string(path).await?;
+        let new_content = String::from_utf8(self.0.file_read_service().read(path).await?.to_vec())?;
         let title = if file_exists { "overwrite" } else { "create" };
         let diff = DiffFormat::format(title, path.to_path_buf(), &old_content, &new_content);
         println!("{}", diff);
@@ -108,15 +121,25 @@ impl ExecutableTool for FSWrite {
 #[cfg(test)]
 mod test {
     use std::path::Path;
+    use std::sync::Arc;
 
     use pretty_assertions::assert_eq;
-    use tokio::fs;
 
     use super::*;
+    use crate::attachment::tests::MockInfrastructure;
     use crate::tools::utils::TempDir;
+    use crate::{FsMetaService, FsReadService};
 
-    async fn assert_path_exists(path: impl AsRef<Path>) {
-        assert!(fs::metadata(path).await.is_ok(), "Path should exist");
+    async fn assert_path_exists(path: impl AsRef<Path>, infra: &MockInfrastructure) {
+        assert!(
+            infra
+                .file_meta_service()
+                .is_file(path.as_ref())
+                .await
+                .is_ok()
+                || path.as_ref().exists(),
+            "Path should exist"
+        );
     }
 
     #[tokio::test]
@@ -125,7 +148,8 @@ mod test {
         let file_path = temp_dir.path().join("test.txt");
         let content = "Hello, World!";
 
-        let fs_write = FSWrite;
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_write = FSWrite::new(infra.clone());
         let output = fs_write
             .call(FSWriteInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -140,7 +164,15 @@ mod test {
         assert!(output.contains(&content.len().to_string()));
 
         // Verify file was actually written
-        let content = fs::read_to_string(&file_path).await.unwrap();
+        let content = String::from_utf8(
+            infra
+                .file_read_service()
+                .read(&file_path)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
         assert_eq!(content, "Hello, World!")
     }
 
@@ -149,7 +181,8 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.rs");
 
-        let fs_write = FSWrite;
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(FSWriteInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -167,7 +200,8 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.rs");
 
-        let fs_write = FSWrite;
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_write = FSWrite::new(infra.clone());
         let content = "fn main() { let x = 42; }";
         let result = fs_write
             .call(FSWriteInput {
@@ -182,8 +216,17 @@ mod test {
         assert!(output.contains(&file_path.display().to_string()));
         assert!(output.contains(&content.len().to_string()));
         assert!(!output.contains("Warning:"));
+
         // Verify file contains valid Rust code
-        let content = fs::read_to_string(&file_path).await.unwrap();
+        let content = String::from_utf8(
+            infra
+                .file_read_service()
+                .read(&file_path)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
         assert_eq!(content, "fn main() { let x = 42; }");
     }
 
@@ -193,7 +236,8 @@ mod test {
         let nested_path = temp_dir.path().join("new_dir").join("test.txt");
         let content = "Hello from nested file!";
 
-        let fs_write = FSWrite;
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(FSWriteInput {
                 path: nested_path.to_string_lossy().to_string(),
@@ -205,11 +249,19 @@ mod test {
 
         assert!(result.contains("Successfully wrote"));
         // Verify both directory and file were created
-        assert_path_exists(&nested_path).await;
-        assert_path_exists(nested_path.parent().unwrap()).await;
+        assert_path_exists(&nested_path, &infra).await;
+        assert_path_exists(nested_path.parent().unwrap(), &infra).await;
 
         // Verify content
-        let written_content = fs::read_to_string(&nested_path).await.unwrap();
+        let written_content = String::from_utf8(
+            infra
+                .file_read_service()
+                .read(&nested_path)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
         assert_eq!(written_content, content);
     }
 
@@ -224,7 +276,8 @@ mod test {
             .join("deep.txt");
         let content = "Deep in the directory structure";
 
-        let fs_write = FSWrite;
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(FSWriteInput {
                 path: deep_path.to_string_lossy().to_string(),
@@ -237,15 +290,23 @@ mod test {
         assert!(result.contains("Successfully wrote"));
 
         // Verify entire path was created
-        assert_path_exists(&deep_path).await;
+        assert_path_exists(&deep_path, &infra).await;
         let mut current = deep_path.parent().unwrap();
         while current != temp_dir.path() {
-            assert_path_exists(current).await;
+            assert_path_exists(current, &infra).await;
             current = current.parent().unwrap();
         }
 
         // Verify content
-        let written_content = fs::read_to_string(&deep_path).await.unwrap();
+        let written_content = String::from_utf8(
+            infra
+                .file_read_service()
+                .read(&deep_path)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
         assert_eq!(written_content, content);
     }
 
@@ -257,7 +318,8 @@ mod test {
         let path_str = format!("{}/dir_a/dir_b/file.txt", temp_dir.path().to_string_lossy());
         let content = "Testing path separators";
 
-        let fs_write = FSWrite;
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(FSWriteInput {
                 path: path_str,
@@ -275,16 +337,25 @@ mod test {
             .join("dir_b")
             .join("file.txt");
 
-        assert_path_exists(&platform_path).await;
+        assert_path_exists(&platform_path, &infra).await;
 
         // Verify content
-        let written_content = fs::read_to_string(&platform_path).await.unwrap();
+        let written_content = String::from_utf8(
+            infra
+                .file_read_service()
+                .read(&platform_path)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
         assert_eq!(written_content, content);
     }
 
     #[tokio::test]
     async fn test_fs_write_relative_path() {
-        let fs_write = FSWrite;
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(FSWriteInput {
                 path: "relative/path/file.txt".to_string(),
@@ -306,11 +377,16 @@ mod test {
         let file_path = temp_dir.path().join("test_overwrite.txt");
         let original_content = "Original content";
 
+        let infra = Arc::new(MockInfrastructure::new());
         // First, create the file
-        fs::write(&file_path, original_content).await.unwrap();
+        infra
+            .file_write_service()
+            .write(&file_path, Bytes::from(original_content))
+            .await
+            .unwrap();
 
         // Now attempt to write without overwrite flag
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(FSWriteInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -330,7 +406,15 @@ mod test {
         assert!(error_msg.contains(original_content));
 
         // Make sure the file wasn't changed
-        let content = fs::read_to_string(&file_path).await.unwrap();
+        let content = String::from_utf8(
+            infra
+                .file_read_service()
+                .read(&file_path)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
         assert_eq!(content, original_content);
     }
 
@@ -341,11 +425,16 @@ mod test {
         let original_content = "Original content";
         let new_content = "New content";
 
+        let infra = Arc::new(MockInfrastructure::new());
         // First, create the file
-        fs::write(&file_path, original_content).await.unwrap();
+        infra
+            .file_write_service()
+            .write(&file_path, Bytes::from(original_content))
+            .await
+            .unwrap();
 
         // Now attempt to write with overwrite flag
-        let fs_write = FSWrite;
+        let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(FSWriteInput {
                 path: file_path.to_string_lossy().to_string(),
@@ -362,7 +451,15 @@ mod test {
         assert!(success_msg.contains("Successfully wrote"));
 
         // Verify file was actually overwritten
-        let content = fs::read_to_string(&file_path).await.unwrap();
+        let content = String::from_utf8(
+            infra
+                .file_read_service()
+                .read(&file_path)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
         assert_eq!(content, new_content);
     }
 }

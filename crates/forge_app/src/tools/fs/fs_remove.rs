@@ -1,12 +1,13 @@
 use std::path::Path;
+use std::sync::Arc;
 
-use anyhow::Context;
 use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
+use crate::{FileRemoveService, FsMetaService, Infrastructure};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSRemoveInput {
@@ -18,16 +19,22 @@ pub struct FSRemoveInput {
 /// delete an existing file. The path must be absolute. This operation cannot
 /// be undone, so use it carefully.
 #[derive(ToolDescription)]
-pub struct FSRemove;
+pub struct FSRemove<T>(Arc<T>);
 
-impl NamedTool for FSRemove {
+impl<T: Infrastructure> FSRemove<T> {
+    pub fn new(infra: Arc<T>) -> Self {
+        Self(infra)
+    }
+}
+
+impl<T> NamedTool for FSRemove<T> {
     fn tool_name() -> ToolName {
         ToolName::new("tool_forge_fs_remove")
     }
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for FSRemove {
+impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
     type Input = FSRemoveInput;
 
     async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
@@ -35,19 +42,17 @@ impl ExecutableTool for FSRemove {
         assert_absolute_path(path)?;
 
         // Check if the file exists
-        if !path.exists() {
+        if !self.0.file_meta_service().exists(path).await? {
             return Err(anyhow::anyhow!("File not found: {}", input.path));
         }
 
         // Check if it's a file
-        if !path.is_file() {
+        if !self.0.file_meta_service().is_file(path).await? {
             return Err(anyhow::anyhow!("Path is not a file: {}", input.path));
         }
 
         // Remove the file
-        tokio::fs::remove_file(&input.path)
-            .await
-            .with_context(|| format!("Failed to remove file {}", input.path))?;
+        self.0.file_remove_service().remove(path).await?;
 
         Ok(format!("Successfully removed file: {}", input.path))
     }
@@ -55,37 +60,48 @@ impl ExecutableTool for FSRemove {
 
 #[cfg(test)]
 mod test {
-
-    use tokio::fs;
+    use bytes::Bytes;
 
     use super::*;
+    use crate::attachment::tests::MockInfrastructure;
     use crate::tools::utils::TempDir;
+    use crate::{FsCreateDirsService, FsWriteService};
 
     #[tokio::test]
     async fn test_fs_remove_success() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.txt");
+        let infra = Arc::new(MockInfrastructure::new());
 
         // Create a test file
-        fs::write(&file_path, "test content").await.unwrap();
-        assert!(file_path.exists());
+        infra
+            .file_write_service()
+            .write(
+                file_path.as_path(),
+                Bytes::from("test content".as_bytes().to_vec()),
+            )
+            .await
+            .unwrap();
 
-        let fs_remove = FSRemove;
+        assert!(infra.file_meta_service().exists(&file_path).await.unwrap());
+
+        let fs_remove = FSRemove::new(infra.clone());
         let result = fs_remove
             .call(FSRemoveInput { path: file_path.to_string_lossy().to_string() })
             .await
             .unwrap();
 
         assert!(result.contains("Successfully removed file"));
-        assert!(!file_path.exists());
+        assert!(!infra.file_meta_service().exists(&file_path).await.unwrap());
     }
 
     #[tokio::test]
     async fn test_fs_remove_nonexistent_file() {
         let temp_dir = TempDir::new().unwrap();
         let nonexistent_file = temp_dir.path().join("nonexistent.txt");
+        let infra = Arc::new(MockInfrastructure::new());
 
-        let fs_remove = FSRemove;
+        let fs_remove = FSRemove::new(infra);
         let result = fs_remove
             .call(FSRemoveInput { path: nonexistent_file.to_string_lossy().to_string() })
             .await;
@@ -98,12 +114,21 @@ mod test {
     async fn test_fs_remove_directory() {
         let temp_dir = TempDir::new().unwrap();
         let dir_path = temp_dir.path().join("test_dir");
+        let infra = Arc::new(MockInfrastructure::new());
 
         // Create a test directory
-        fs::create_dir(&dir_path).await.unwrap();
-        assert!(dir_path.exists());
+        infra
+            .create_dirs_service()
+            .create_dirs(dir_path.as_path())
+            .await
+            .unwrap();
+        assert!(infra
+            .file_meta_service()
+            .exists(dir_path.as_path())
+            .await
+            .unwrap());
 
-        let fs_remove = FSRemove;
+        let fs_remove = FSRemove::new(infra.clone());
         let result = fs_remove
             .call(FSRemoveInput { path: dir_path.to_string_lossy().to_string() })
             .await;
@@ -113,12 +138,17 @@ mod test {
             .unwrap_err()
             .to_string()
             .contains("Path is not a file"));
-        assert!(dir_path.exists());
+        assert!(infra
+            .file_meta_service()
+            .exists(dir_path.as_path())
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
     async fn test_fs_remove_relative_path() {
-        let fs_remove = FSRemove;
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_remove = FSRemove::new(infra);
         let result = fs_remove
             .call(FSRemoveInput { path: "relative/path.txt".to_string() })
             .await;

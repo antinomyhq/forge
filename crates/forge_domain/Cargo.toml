@@ -23,6 +23,7 @@ uuid.workspace = true
 async-recursion.workspace = true
 tracing.workspace = true
 url.workspace = true
+merge.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

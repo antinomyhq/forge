@@ -59,6 +59,11 @@ impl ForgeEnvironmentService {
                         provider.open_ai_url(url);
                     }
 
+                    // Check for Anthropic URL override
+                    if let Ok(url) = std::env::var("ANTHROPIC_URL") {
+                        provider.anthropic_url(url);
+                    }
+
                     provider
                 })
             })

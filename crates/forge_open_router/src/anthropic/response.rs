@@ -20,7 +20,7 @@ impl From<Model> for forge_domain::Model {
     fn from(value: Model) -> Self {
         Self {
             id: ModelId::new(value.id),
-            name: value.display_name,
+            name: Some(value.display_name),
             description: None,
             context_length: None,
         }

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use chrono::Local;
 use forge_domain::{
     Agent, Event, EventContext, Query, SystemContext, Template, TemplateService, ToolService,
 };
@@ -19,6 +20,7 @@ const README_CONTENT: &str = include_str!("../../../README.md");
 #[folder = "../../templates/"]
 struct Templates;
 
+#[derive(Clone)]
 pub struct ForgeTemplateService<F, T> {
     hb: Handlebars<'static>,
     infra: Arc<F>,
@@ -51,6 +53,7 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
         let mut walker = Walker::max_all();
 
         // Only set max_depth if the value is provided
+        // Create maximum depth for file walker, defaulting to 1 if not specified
         walker = walker.max_depth(agent.max_walker_depth.unwrap_or(1));
 
         let mut files = walker
@@ -64,13 +67,18 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
         // Sort the files alphabetically to ensure consistent ordering
         files.sort();
 
+        // Get current date and time in format YYYY-MM-DD HH:MM:SS
+        let current_date = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
         // Create the context with README content for all agents
         let ctx = SystemContext {
+            current_date,
             env: Some(env),
             tool_information: Some(self.tool_service.usage_prompt()),
-            tool_supported: agent.tool_supported,
+            tool_supported: agent.tool_supported.unwrap_or_default(),
             files,
             readme: README_CONTENT.to_string(),
+            project_rules: agent.project_rules.as_ref().cloned().unwrap_or_default(),
         };
 
         // Render the template with the context
@@ -92,7 +100,7 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
         event_context = event_context.variables(variables.clone());
 
         // Only add suggestions if the agent has suggestions enabled
-        if agent.suggestions {
+        if agent.suggestions.unwrap_or_default() {
             // Query the vector index directly for suggestions
             let query = &event.value;
             let embeddings = self.infra.embedding_service().embed(query).await?;

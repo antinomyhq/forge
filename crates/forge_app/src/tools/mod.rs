@@ -21,14 +21,13 @@ pub fn tools<F: Infrastructure>(infra: Arc<F>) -> Vec<Tool> {
     let env = infra.environment_service().get_environment();
     vec![
         FSRead.into(),
-        FSWrite.into(),
-        FSRemove.into(),
+        FSWrite::new(infra.clone()).into(),
+        FSRemove::new(infra.clone()).into(),
         FSList::default().into(),
         FSSearch.into(),
         FSFileInfo.into(),
-        // TODO: once ApplyPatchJson is stable we can delete ApplyPatch
-        // ApplyPatch.into(),
-        ApplyPatchJson.into(),
+        // ApplyPatch::new(infra.clone()).into(),
+        ApplyPatchJson::new(infra).into(),
         Shell::new(env.clone()).into(),
         Think::default().into(),
         Fetch::default().into(),
@@ -41,9 +40,13 @@ mod tests {
 
     use bytes::Bytes;
     use forge_domain::{Environment, Point, Provider, Query, Suggestion};
+    use forge_snaps::Snapshot;
 
     use super::*;
-    use crate::{EmbeddingService, FileReadService, VectorIndex};
+    use crate::{
+        EmbeddingService, FileRemoveService, FsCreateDirsService, FsMetaService, FsReadService,
+        FsSnapshotService, FsWriteService, VectorIndex,
+    };
 
     /// Create a default test environment
     fn stub() -> Stub {
@@ -67,6 +70,7 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
     struct Stub {
         env: Environment,
     }
@@ -85,8 +89,15 @@ mod tests {
         }
     }
     #[async_trait::async_trait]
-    impl FileReadService for Stub {
+    impl FsReadService for Stub {
         async fn read(&self, _path: &Path) -> anyhow::Result<Bytes> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FsWriteService for Stub {
+        async fn write(&self, _: &Path, _: Bytes) -> anyhow::Result<()> {
             unimplemented!()
         }
     }
@@ -102,17 +113,58 @@ mod tests {
     }
 
     #[async_trait::async_trait]
+    impl FsSnapshotService for Stub {
+        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FsMetaService for Stub {
+        async fn is_file(&self, _: &Path) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+
+        async fn exists(&self, _: &Path) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileRemoveService for Stub {
+        async fn remove(&self, _: &Path) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FsCreateDirsService for Stub {
+        async fn create_dirs(&self, _: &Path) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
     impl Infrastructure for Stub {
         type EnvironmentService = Stub;
-        type FileReadService = Stub;
+        type FsReadService = Stub;
+        type FsWriteService = Stub;
+        type FsRemoveService = Stub;
         type VectorIndex = Stub;
         type EmbeddingService = Stub;
+        type FsMetaService = Stub;
+        type FsSnapshotService = Stub;
+        type FsCreateDirsService = Stub;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             self
         }
 
-        fn file_read_service(&self) -> &Self::FileReadService {
+        fn file_read_service(&self) -> &Self::FsReadService {
+            self
+        }
+
+        fn file_write_service(&self) -> &Self::FsWriteService {
             self
         }
 
@@ -121,6 +173,21 @@ mod tests {
         }
 
         fn embedding_service(&self) -> &Self::EmbeddingService {
+            self
+        }
+
+        fn file_meta_service(&self) -> &Self::FsMetaService {
+            self
+        }
+
+        fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
+            self
+        }
+        fn file_remove_service(&self) -> &Self::FsRemoveService {
+            self
+        }
+
+        fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
             self
         }
     }

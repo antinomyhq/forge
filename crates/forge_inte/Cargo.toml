@@ -11,3 +11,4 @@ tokio.workspace = true
 tokio-stream.workspace = true
 serde_yaml.workspace = true
 forge_tracker.workspace = true
+forge_domain.workspace = true

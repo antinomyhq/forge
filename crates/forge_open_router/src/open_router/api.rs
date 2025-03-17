@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::{bail, Context as _, Result};
 use derive_builder::Builder;
 use forge_domain::{
     self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider, ProviderService,
@@ -55,22 +55,19 @@ impl OpenRouter {
         headers.insert("X-Title", HeaderValue::from_static("code-forge"));
         headers
     }
-}
 
-#[async_trait::async_trait]
-impl ProviderService for OpenRouter {
-    async fn chat(
+    async fn inner_chat(
         &self,
-        model_id: &ModelId,
+        model: &ModelId,
         request: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let mut request = OpenRouterRequest::from(request)
-            .model(model_id.clone())
+            .model(model.clone())
             .stream(true);
         request = ProviderPipeline::new(&self.provider).transform(request);
 
         let url = self.url("chat/completions")?;
-        debug!(url = %url, model = %model_id, "Connecting to OpenRouter API");
+        debug!(url = %url, model = %model, "Connecting Upstream");
         let es = self
             .client
             .post(url)
@@ -87,64 +84,92 @@ impl ProviderService for OpenRouter {
                         Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
                             None
                         }
-                        Event::Message(event) => Some(
-                            serde_json::from_str::<OpenRouterResponse>(&event.data)
-                                .with_context(|| "Failed to parse OpenRouter response")
-                                .and_then(|message| {
-                                    ChatCompletionMessage::try_from(message.clone())
-                                        .with_context(|| "Failed to create completion message")
+                        Event::Message(message) => Some(
+                            serde_json::from_str::<OpenRouterResponse>(&message.data)
+                                .with_context(|| format!("Failed to parse OpenRouter response: {}", message.data))
+                                .and_then(|event| {
+                                    ChatCompletionMessage::try_from(event.clone())
+                                        .with_context(|| format!("Failed to create completion message: {}", message.data))
                                 }),
                         ),
                     },
-                    Err(reqwest_eventsource::Error::StreamEnded) => None,
-                    Err(reqwest_eventsource::Error::InvalidStatusCode(_, response)) => Some(
-                        response
-                            .json::<OpenRouterResponse>()
-                            .await
-                            .with_context(|| "Failed to parse OpenRouter response")
-                            .and_then(|message| {
-                                ChatCompletionMessage::try_from(message.clone())
-                                    .with_context(|| "Failed to create completion message")
-                            })
-                            .with_context(|| "Failed with invalid status code"),
-                    ),
-                    Err(reqwest_eventsource::Error::InvalidContentType(_, response)) => Some(
-                        response
-                            .json::<OpenRouterResponse>()
-                            .await
-                            .with_context(|| "Failed to parse OpenRouter response")
-                            .and_then(|message| {
-                                ChatCompletionMessage::try_from(message.clone())
-                                    .with_context(|| "Failed to create completion message")
-                            })
-                            .with_context(|| "Failed with invalid content type"),
-                    ),
-                    Err(err) => Some(Err(err.into())),
+                    Err(error) => match error {
+                        reqwest_eventsource::Error::StreamEnded => None,
+                        reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
+                            let headers = response.headers().clone();
+                            let status = response.status();
+                            match response.text().await {
+                                Ok(ref body) => {
+                                    debug!(status = ?status, headers = ?headers, body = body, "Invalid status code");
+                                }
+                                Err(error) => {
+                                    debug!(status = ?status, headers = ?headers, body = ?error, "Invalid status code (body not available)");
+                                }
+                            }
+                            Some(Err(anyhow::anyhow!("Invalid status code: {}", status)))
+                        }
+                        reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
+                            debug!(response = ?response, "Invalid content type");
+                            Some(Err(error.into()))
+                        }
+                        error => {
+                            debug!(error = %error, "Failed to receive chat completion event");
+                            Some(Err(error.into()))
+                        }
+                    },
                 }
             });
 
         Ok(Box::pin(stream.filter_map(|x| x)))
     }
 
-    async fn models(&self) -> Result<Vec<Model>> {
-        let response = self
+    async fn inner_models(&self) -> Result<Vec<Model>> {
+        let url = self.url("models")?;
+        debug!(url = %url, "Fetching models");
+        match self.fetch_models(url).await {
+            Err(err) => {
+                debug!(error = %err, "Failed to fetch models");
+                bail!(err)
+            }
+            Ok(response) => {
+                if self.provider.is_open_router() | self.provider.is_antinomy() {
+                    let data: Vec<OpenRouterModel> = serde_json::from_str(&response)?;
+                    Ok(data.into_iter().map(Into::into).collect())
+                } else {
+                    // TODO: This could fail for some providers
+                    let data: ListModelResponse = serde_json::from_str(&response)?;
+                    Ok(data.data.into_iter().map(Into::into).collect())
+                }
+            }
+        }
+    }
+
+    async fn fetch_models(&self, url: Url) -> Result<String, anyhow::Error> {
+        Ok(self
             .client
-            .get(self.url("models")?)
+            .get(url)
             .headers(self.headers())
             .send()
             .await?
             .error_for_status()
             .with_context(|| "Failed because of a non 200 status code".to_string())?
             .text()
-            .await?;
-        if self.provider.is_open_router() | self.provider.is_antinomy() {
-            let data: Vec<OpenRouterModel> = serde_json::from_str(&response)?;
-            Ok(data.into_iter().map(Into::into).collect())
-        } else {
-            // TODO: This could fail for some providers
-            let data: ListModelResponse = serde_json::from_str(&response)?;
-            Ok(data.data.into_iter().map(Into::into).collect())
-        }
+            .await?)
+    }
+}
+
+#[async_trait::async_trait]
+impl ProviderService for OpenRouter {
+    async fn chat(
+        &self,
+        model: &ModelId,
+        context: ChatContext,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        self.inner_chat(model, context).await
+    }
+
+    async fn models(&self) -> Result<Vec<Model>> {
+        self.inner_models().await
     }
 }
 
@@ -154,7 +179,7 @@ impl From<OpenRouterModel> for Model {
             id: value.id,
             name: value.name,
             description: value.description,
-            context_length: Some(value.context_length),
+            context_length: value.context_length,
         }
     }
 }

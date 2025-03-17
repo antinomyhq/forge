@@ -10,6 +10,7 @@ mod env;
 mod error;
 mod event;
 mod file;
+mod merge;
 mod message;
 mod model;
 mod orch;
@@ -17,6 +18,7 @@ mod point;
 mod provider;
 mod suggestion;
 mod summarize;
+mod system_context;
 mod template;
 mod tool;
 mod tool_call;
@@ -44,6 +46,7 @@ pub use point::*;
 pub use provider::*;
 pub use suggestion::*;
 pub use summarize::*;
+pub use system_context::*;
 pub use template::*;
 pub use tool::*;
 pub use tool_call::*;
@@ -76,20 +79,20 @@ pub trait ToolService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ConversationService: Send + Sync {
     async fn get(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>>;
+
     async fn create(&self, workflow: Workflow) -> anyhow::Result<ConversationId>;
+
     async fn inc_turn(&self, id: &ConversationId, agent: &AgentId) -> anyhow::Result<()>;
+
     async fn set_context(
         &self,
         id: &ConversationId,
         agent: &AgentId,
         context: Context,
     ) -> anyhow::Result<()>;
-    async fn insert_event(
-        &self,
-        conversation_id: &ConversationId,
-        event: Event,
-    ) -> anyhow::Result<()>;
+
     async fn get_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<Option<Value>>;
+
     async fn set_variable(
         &self,
         id: &ConversationId,
@@ -97,6 +100,12 @@ pub trait ConversationService: Send + Sync {
         value: Value,
     ) -> anyhow::Result<()>;
     async fn delete_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<bool>;
+
+    /// This is useful when you want to perform several operations on a
+    /// conversation atomically.
+    async fn update<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
+    where
+        F: FnOnce(&mut Conversation) -> T + Send;
 }
 
 #[async_trait::async_trait]
@@ -123,7 +132,7 @@ pub trait AttachmentService {
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
-pub trait App: Send + Sync + 'static {
+pub trait App: Send + Sync + 'static + Clone {
     type ToolService: ToolService;
     type ProviderService: ProviderService;
     type ConversationService: ConversationService;

@@ -1,17 +1,19 @@
 mod api;
 mod executor;
+mod forge_default;
 mod loader;
 mod suggestion;
 
 use std::path::Path;
 
 pub use api::*;
+pub use forge_default::create_default_workflow;
 pub use forge_domain::*;
 use forge_stream::MpscStream;
 use serde_json::Value;
 
 #[async_trait::async_trait]
-pub trait API {
+pub trait API: Sync + Send {
     /// Provides a list of files in the current working directory for auto
     /// completion
     async fn suggestions(&self) -> anyhow::Result<Vec<File>>;
