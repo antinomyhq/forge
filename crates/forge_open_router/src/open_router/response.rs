@@ -178,7 +178,9 @@ impl TryFrom<OpenRouterResponse> for ModelResponse {
                     }
                     Ok(response)
                 } else {
-                    Err(Error::EmptyContent)
+                    let default_response = ModelResponse::assistant(Content::full(""));
+                    Ok(default_response)
+                    //Err(Error::EmptyContent)
                 }
             }
             OpenRouterResponse::Failure { error } => Err(Error::Upstream(error)),
