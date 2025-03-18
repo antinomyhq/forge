@@ -15,6 +15,12 @@ pub enum Error {
 
     #[error("Invalid tool call arguments: {0}")]
     ToolCallArgument(serde_json::Error),
+    
+    #[error("Failed to parse fragmented tool call arguments: {error}. Fragments: {fragments}")]
+    ToolCallFragmentParse {
+        error: serde_json::Error,
+        fragments: String,
+    },
 
     #[error("Invalid tool call XML: {0}")]
     ToolCallParse(String),

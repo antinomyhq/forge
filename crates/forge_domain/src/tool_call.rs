@@ -133,7 +133,10 @@ impl ToolCallFull {
                             // Log the error but include details about what we were trying to parse
                             log::debug!("Failed to parse tool call arguments: {}", e);
                             log::debug!("Arguments JSON (raw): {}", args_json);
-                            return Err(Error::ToolCallArgument(e));
+                            return Err(Error::ToolCallFragmentParse {
+                                error: e,
+                                fragments: args_json,
+                            });
                         }
                     };
                     
