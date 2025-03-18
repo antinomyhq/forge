@@ -234,6 +234,43 @@ impl<F: API> UI<F> {
                     }
 
                     input = self.console.prompt(None).await?;
+                }                Command::Retry => {
+                    // Get the current conversation ID
+                    if let Some(conversation_id) = self.state.conversation_id.clone() {
+                        CONSOLE.writeln(
+                            TitleFormat::execute("Retrying the last conversation")
+                                .format(),
+                        )?;
+                        
+                        // Call the retry API
+                        match self.api.retry(conversation_id) {
+                            Ok(mut stream) => {
+                                if let Err(err) = self.handle_chat_stream(&mut stream).await {
+                                    CONSOLE.writeln(
+                                        TitleFormat::failed("Failed to retry")
+                                            .error(err.to_string())
+                                            .format(),
+                                    )?;
+                                }
+                            }
+                            Err(e) => {
+                                CONSOLE.writeln(
+                                    TitleFormat::failed("Failed to retry")
+                                        .error(e.to_string())
+                                        .format(),
+                                )?;
+                            }
+                        }
+                    } else {
+                        CONSOLE.writeln(
+                            TitleFormat::failed("No conversation to retry")
+                                .format(),
+                        )?;
+                    }
+                    
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                    continue;
                 }
             }
         }

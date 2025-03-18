@@ -136,6 +136,7 @@ impl ForgeCommandManager {
             "/act" => Ok(Command::Act),
             "/plan" => Ok(Command::Plan),
             "/help" => Ok(Command::Help),
+            "/retry" => Ok(Command::Retry),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -209,6 +210,9 @@ pub enum Command {
     /// Dumps the current conversation into a json file
     #[strum(props(usage = "Save conversation as JSON"))]
     Dump,
+    /// Retries the last conversation by reprocessing the last user message
+    #[strum(props(usage = "Retry the last conversation"))]
+    Retry,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
 }
@@ -225,6 +229,7 @@ impl Command {
             Command::Plan => "/plan",
             Command::Help => "/help",
             Command::Dump => "/dump",
+            Command::Retry => "/retry",
             Command::Custom(event) => &event.name,
         }
     }

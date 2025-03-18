@@ -30,6 +30,15 @@ pub trait API: Sync + Send {
         &self,
         chat: ChatRequest,
     ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>, anyhow::Error>>>;
+    
+    /// Retries the last user message in the conversation
+    /// 
+    /// This pulls the last user message from the conversation, converts it to a
+    /// ChatRequest, and reinitializes the Orchestrator to process it again.
+    fn retry(
+        &self, 
+        conversation_id: ConversationId
+    ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>, anyhow::Error>>>;
 
     /// Returns the current environment
     fn environment(&self) -> Environment;

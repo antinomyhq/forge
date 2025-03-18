@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 
@@ -17,6 +17,11 @@ impl<T> MpscStream<T> {
     {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         MpscStream { join_handle: tokio::spawn(f(tx)), receiver: rx }
+    }
+    
+    /// Get the next item in the stream
+    pub async fn next(&mut self) -> Option<T> {
+        StreamExt::next(self).await
     }
 }
 

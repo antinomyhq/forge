@@ -3,6 +3,7 @@ use std::sync::Arc;
 use forge_domain::{AgentMessage, App, ChatRequest, ChatResponse, Orchestrator};
 use forge_stream::MpscStream;
 
+#[derive(Clone)]
 pub struct ForgeExecutorService<F> {
     app: Arc<F>,
 }

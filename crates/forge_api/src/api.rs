@@ -29,7 +29,8 @@ impl<F: App + Infrastructure> ForgeAPI<F> {
             loader: ForgeLoaderService::new(app.clone()),
         }
     }
-}
+}#[cfg(test)]
+mod tests;
 
 impl ForgeAPI<ForgeApp<ForgeInfra>> {
     pub fn init(restricted: bool) -> Self {
@@ -58,6 +59,54 @@ impl<F: App + Infrastructure> API for ForgeAPI<F> {
         chat: ChatRequest,
     ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
         Ok(self.executor_service.chat(chat).await?)
+    }
+    
+    fn retry(
+        &self,
+        conversation_id: ConversationId,
+    ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
+        let app = self.app.clone();
+        let executor_service = self.executor_service.clone();
+        
+        Ok(MpscStream::spawn(move |tx| async move {
+            let conversation = match app.conversation_service().get(&conversation_id).await {
+                Ok(Some(conversation)) => conversation,
+                Ok(None) => {
+                    tx.send(Err(anyhow::anyhow!("Conversation not found"))).await.unwrap();
+                    return;
+                }
+                Err(e) => {
+                    tx.send(Err(anyhow::anyhow!("Failed to get conversation: {}", e))).await.unwrap();
+                    return;
+                }
+            };
+            
+            // Find the last user message event
+            let last_user_event = match conversation.events.iter().rev().find(|event| event.name == "message") {
+                Some(event) => event.clone(),
+                None => {
+                    tx.send(Err(anyhow::anyhow!("No message found to retry"))).await.unwrap();
+                    return;
+                }
+            };
+            
+            // Create a new chat request with the last user message
+            let chat_request = ChatRequest::new(last_user_event, conversation_id.clone());
+            
+            // Forward all messages from the executor to our sender
+            match executor_service.chat(chat_request).await {
+                Ok(mut stream) => {
+                    while let Some(message) = stream.next().await {
+                        if tx.send(message).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    tx.send(Err(e)).await.unwrap();
+                }
+            }
+        }))
     }
 
     async fn init(&self, workflow: Workflow) -> anyhow::Result<ConversationId> {
