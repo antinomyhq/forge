@@ -218,7 +218,7 @@ jobs:
         GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         FORGE_KEY: ${{ secrets.FORGE_KEY }}
   handle_pr_comment:
-    if: github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.issue.labels.*.name, 'forge-automate') || contains(github.event.issue.labels.*.name, 'forge-implement')) && !startsWith(github.event.comment.body, '/forge')
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.issue.labels.*.name, 'forge-automate') || contains(github.event.issue.labels.*.name, 'forge-implement')) && !startsWith(github.event.comment.body, '/forge') && github.actor != 'forge-by-antinomy[bot]'
     name: handle_pr_comment
     runs-on: ubuntu-latest
     steps:

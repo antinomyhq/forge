@@ -271,8 +271,9 @@ fn test_forge_automation() {
 
     // Handle regular PR comments job - runs when a regular comment is added to a PR
     // with the "forge-automate" or "forge-implement" label, excluding comments
-    // starting with "/forge"
-    let handle_pr_comment_condition = "github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.issue.labels.*.name, 'forge-automate') || contains(github.event.issue.labels.*.name, 'forge-implement')) && !startsWith(github.event.comment.body, '/forge')";
+    // starting with "/forge" and excluding comments made by the bot itself to
+    // prevent infinite loops
+    let handle_pr_comment_condition = "github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.issue.labels.*.name, 'forge-automate') || contains(github.event.issue.labels.*.name, 'forge-implement')) && !startsWith(github.event.comment.body, '/forge') && github.actor != 'forge-by-antinomy[bot]'";
 
     let handle_pr_comment_job = add_forge_cli_installation(
         add_pr_checkout_steps(
@@ -339,11 +340,12 @@ mod tests {
 
     #[test]
     fn test_pr_comment_condition() {
-        let condition = "github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.issue.labels.*.name, 'forge-automate') || contains(github.event.issue.labels.*.name, 'forge-implement')) && !startsWith(github.event.comment.body, '/forge')";
+        let condition = "github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.issue.labels.*.name, 'forge-automate') || contains(github.event.issue.labels.*.name, 'forge-implement')) && !startsWith(github.event.comment.body, '/forge') && github.actor != 'forge-by-antinomy[bot]'";
         assert!(condition.contains("github.event_name == 'issue_comment'"));
         assert!(condition.contains("github.event.issue.pull_request"));
         assert!(condition.contains("contains(github.event.issue.labels.*.name, 'forge-automate')"));
         assert!(condition.contains("!startsWith(github.event.comment.body, '/forge')"));
+        assert!(condition.contains("github.actor != 'forge-by-antinomy[bot]'"));
     }
 
     #[test]
