@@ -28,8 +28,6 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
 
 - [Installation](#installation)
   - [NPM](#npm)
-  - [Mac](#mac)
-  - [Linux](#linux)
 - [Get Started](#get-started)
 - [Features](#features)
   - [Complete Coding Agent](#complete-coding-agent)
@@ -68,7 +66,7 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
 
 ### NPM
 
-The quickest way to install Forge on any operating system is via npm:
+Install Forge globally using npm:
 
 ```bash
 # Install Forge globally using npm
@@ -77,31 +75,8 @@ npm install -g @antinomyhq/forge
 # Or run directly without installation using npx
 npx @antinomyhq/forge
 ```
-
 This method works on **Windows**, **macOS**, and **Linux**, providing a consistent installation experience across all platforms.
 
-### Mac
-
-Using Homebrew (macOS package manager):
-
-```bash
-# Add Code-Forge's package repository to Homebrew
-brew tap antinomyhq/code-forge
-# Install Code-Forge
-brew install code-forge
-```
-
-### Linux
-
-Choose either method to install:
-
-```bash
-# Using curl (common download tool)
-curl -L https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bash
-
-# Or using wget (alternative download tool)
-wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bash
-```
 
 ## Get Started
 
@@ -113,12 +88,12 @@ wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | b
 
    # Optional: Set a custom URL for OpenAI-compatible providers
    #OPENAI_URL=https://custom-openai-provider.com/v1
-   
+
    # Optional: Set a custom URL for Anthropic
    #ANTHROPIC_URL=https://custom-anthropic-provider.com/v1
-   ```
+````
 
-   _You can get a Key at [Open Router](https://openrouter.ai/)_
+_You can get a Key at [Open Router](https://openrouter.ai/)_
 
 2. Launch Code Forge: Type `@` and press `[tab]` to tag files. You can also use and define custom slash commands.
 
