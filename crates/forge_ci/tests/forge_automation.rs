@@ -238,7 +238,7 @@ fn test_forge_automation() {
 
     // Handle review comments job - runs when a review comment is added to a PR with
     // the "forge-automate" label
-    let handle_review_condition = "(github.event_name == 'pull_request_review_comment' || github.event_name == 'pull_request_review') && contains(github.event.pull_request.labels.*.name, 'forge-automate')";
+    let handle_review_condition = "(github.event_name == 'pull_request_review_comment' || github.event_name == 'pull_request_review') && (contains(github.event.pull_request.labels.*.name, 'forge-automate') || contains(github.event.pull_request.labels.*.name, 'forge-implement'))";
 
     let handle_review_job = add_forge_cli_installation(
         add_pr_checkout_steps(
