@@ -10,7 +10,7 @@ fn test_fragmented_tool_call_recovery() {
     // Simulate the exact error case from the reported issue
     let parts = [
         ToolCallPart {
-            call_id: Some(ToolCallId("toolu_vrtx_01VibciqALXHDEjsKRfWXTRt".to_string())),
+            call_id: Some(ToolCallId::new("toolu_vrtx_01VibciqALXHDEjsKRfWXTRt")),
             name: Some(ToolName::new("tool_forge_fs_create")),
             arguments_part: "".to_string(),
         },
@@ -84,7 +84,7 @@ fn test_error_handling_for_invalid_json() {
     // This test verifies the error handling for invalid JSON fragments
     let parts = [
         ToolCallPart {
-            call_id: Some(ToolCallId("call_1".to_string())),
+            call_id: Some(ToolCallId::new("call_1")),
             name: Some(ToolName::new("tool_forge_fs_create")),
             arguments_part: "{\"path\": \"test.txt\",".to_string(), // Invalid JSON (missing closing brace)
         },

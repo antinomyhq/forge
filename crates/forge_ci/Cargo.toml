@@ -8,3 +8,4 @@ gh-workflow-tailcall.workspace = true
 pretty_assertions.workspace = true
 serde_json.workspace = true
 indexmap.workspace = true
+forge_domain = { path = "../forge_domain" }
