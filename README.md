@@ -75,8 +75,8 @@ npm install -g @antinomyhq/forge
 # Or run directly without installation using npx
 npx @antinomyhq/forge
 ```
-This method works on **Windows**, **macOS**, and **Linux**, providing a consistent installation experience across all platforms.
 
+This method works on **Windows**, **macOS**, and **Linux**, providing a consistent installation experience across all platforms.
 
 ## Get Started
 
@@ -91,13 +91,13 @@ This method works on **Windows**, **macOS**, and **Linux**, providing a consiste
 
    # Optional: Set a custom URL for Anthropic
    #ANTHROPIC_URL=https://custom-anthropic-provider.com/v1
-````
+   ```
 
 _You can get a Key at [Open Router](https://openrouter.ai/)_
 
 2. Launch Code Forge: Type `@` and press `[tab]` to tag files. You can also use and define custom slash commands.
 
-   ![Code-Forge Demo](https://assets.antinomy.ai/images/forge_demo_2x.gif)
+ ![Code-Forge Demo](https://assets.antinomy.ai/images/forge_demo_2x.gif)
 
 ## Features
 
