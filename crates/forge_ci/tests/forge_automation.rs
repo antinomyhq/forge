@@ -10,11 +10,18 @@ fn generate_comment_body(emoji: &str, title: &str, message: &str) -> String {
     )
 }
 
-/// Generate a forge event JSON string
+/// Generate a forge event JSON string with proper escaping
 fn forge_event_json(event_name: &str, value_expr: &str) -> String {
+    let escaped_value = value_expr
+        .replace('\\', "\\\\") // Escape backslashes first
+        .replace('"', "\\\"")
+        .replace('\r', "\\r")
+        .replace('\n', "\\n")
+        .replace('\t', "\\t");
+
     format!(
-        "forge --event='{{\"{}\": \"{}\", \"value\": \"{}\"}}\'",
-        "name", event_name, value_expr
+        "forge --event='{{\"name\": \"{}\", \"value\": \"{}\"}}'",
+        event_name, escaped_value
     )
 }
 
@@ -156,7 +163,7 @@ fn test_forge_automation() {
                 ))),
         )
         .add_step(
-            Step::run(forge_event_json("revise_plan", "${{ github.event.issue.number }}|${{ github.event.comment.body }}"))
+            Step::run("forge --event='{\"name\": \"revise_plan\", \"value\": \"${{ github.event.issue.number }}|${{ toJSON(github.event.comment.body) }}\"}'")
                 .name("Run Forge to revise plan based on feedback")
                 .add_env(("GITHUB_TOKEN", "${{ steps.generate-token.outputs.token }}"))
                 .add_env(("FORGE_KEY", "${{ secrets.FORGE_KEY }}")),
@@ -294,5 +301,14 @@ mod tests {
         let condition = issue_comment_condition("test-label", "/test-command");
         assert!(condition.contains("test-label"));
         assert!(condition.contains("/test-command"));
+    }
+
+    #[test]
+    fn test_forge_event_json_with_special_chars() {
+        let json = forge_event_json("test_event", "test_value\r\nwith\tspecial\"chars");
+        assert_eq!(
+            json,
+            "forge --event='{\"name\": \"test_event\", \"value\": \"test_value\\r\\nwith\\tspecial\\\"chars\"}'"
+        );
     }
 }
