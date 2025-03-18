@@ -1,8 +1,9 @@
+use std::collections::HashMap;
+
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 use tracing as log;
 
 use super::tool_call_parser::parse;
@@ -99,20 +100,20 @@ impl ToolCallFull {
             if let Some(id) = &part.call_id {
                 current_id = id.as_str().to_string();
             }
-            
+
             let entry = calls_by_id.entry(current_id.clone()).or_default();
-            
+
             // Update name if present in this part
             if let Some(name) = &part.name {
                 entry.name = Some(name.clone());
             }
-            
+
             // Update call_id if present in this part
             if let Some(id) = &part.call_id {
                 entry.call_id = Some(id.clone());
             }
-            
-            // Always add argument parts (even if they're empty) 
+
+            // Always add argument parts (even if they're empty)
             if !part.arguments_part.is_empty() {
                 entry.arguments_parts.push(part.arguments_part.clone());
             }
@@ -120,12 +121,12 @@ impl ToolCallFull {
 
         // Second pass: Process each tool call with its collected data
         let mut tool_calls = Vec::new();
-        
+
         for (_, data) in calls_by_id {
             if let Some(tool_name) = data.name {
                 // Concatenate all argument fragments
                 let args_json = data.arguments_parts.join("");
-                
+
                 // Only try to parse if we have some argument data
                 if !args_json.is_empty() {
                     // Try to parse the arguments as JSON
@@ -141,7 +142,7 @@ impl ToolCallFull {
                             });
                         }
                     };
-                    
+
                     tool_calls.push(ToolCallFull {
                         name: tool_name,
                         call_id: data.call_id,
@@ -173,8 +174,9 @@ impl ToolCallFull {
 
 #[cfg(test)]
 mod tests {
+    
+
     use super::*;
-    use std::collections::HashMap;
 
     #[test]
     fn test_multiple_calls() {
@@ -246,10 +248,11 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
-    
+
     #[test]
     fn test_fragmented_json_arguments() {
-        // This test simulates the bug scenario where JSON is fragmented across multiple parts
+        // This test simulates the bug scenario where JSON is fragmented across multiple
+        // parts
         let input = [
             ToolCallPart {
                 call_id: Some(ToolCallId("call_1".to_string())),
