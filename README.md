@@ -93,7 +93,7 @@ This method works on **Windows**, **macOS**, and **Linux**, providing a consiste
    #ANTHROPIC_URL=https://custom-anthropic-provider.com/v1
    ```
 
-_You can get a Key at [Open Router](https://openrouter.ai/)_
+  _You can get a Key at [Open Router](https://openrouter.ai/)_
 
 2. Launch Code Forge: Type `@` and press `[tab]` to tag files. You can also use and define custom slash commands.
 
