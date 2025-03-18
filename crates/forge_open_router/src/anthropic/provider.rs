@@ -5,6 +5,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
+use tracing::debug;
 
 use super::request::Request;
 use super::response::{EventData, ListModelResponse};
@@ -68,9 +69,11 @@ impl ProviderService for Anthropic {
             .stream(true)
             .max_tokens(4000u64);
 
+        let url = self.url("/messages")?;
+        debug!(url = %url, model = %model, "Connecting Upstream");
         let es = self
             .client
-            .post(self.url("/messages")?)
+            .post(url)
             .headers(self.headers())
             .json(&request)
             .eventsource()?;
@@ -82,6 +85,7 @@ impl ProviderService for Anthropic {
                     Ok(event) => match event {
                         Event::Open => None,
                         Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
+                            debug!("Received completion from Upstream");
                             None
                         }
                         Event::Message(message) => Some(
@@ -97,26 +101,56 @@ impl ProviderService for Anthropic {
                                 }),
                         ),
                     },
-                    Err(reqwest_eventsource::Error::StreamEnded) => None,
-                    Err(err) => Some(Err(err.into())),
+                    Err(error) => match error {
+                        reqwest_eventsource::Error::StreamEnded => None,
+                        reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
+                            let headers = response.headers().clone();
+                            let status = response.status();
+                            match response.text().await {
+                                Ok(ref body) => {
+                                    debug!(status = ?status, headers = ?headers, body = body, "Invalid status code");
+                                }
+                                Err(error) => {
+                                    debug!(status = ?status, headers = ?headers, body = ?error, "Invalid status code (body not available)");
+                                }
+                            }
+                            Some(Err(anyhow::anyhow!("Invalid status code: {}", status)))
+                        }
+                        reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
+                            debug!(response = ?response, "Invalid content type");
+                            Some(Err(error.into()))
+                        }
+                        error => {
+                            debug!(error = %error, "Failed to receive chat completion event");
+                            Some(Err(error.into()))
+                        }
+                    },
                 }
             });
 
         Ok(Box::pin(stream.filter_map(|x| x)))
     }
     async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        let text = self
-            .client
-            .get(self.url("models")?)
-            .headers(self.headers())
-            .send()
-            .await?
-            .error_for_status()
-            .with_context(|| "Failed because of a non 200 status code".to_string())?
-            .text()
-            .await?;
-        let response: ListModelResponse = serde_json::from_str(&text)?;
-        Ok(response.data.into_iter().map(Into::into).collect())
+        let url = self.url("models")?;
+        debug!(url = %url, "Fetching models");
+
+        let result = self.client.get(url).headers(self.headers()).send().await;
+
+        match result {
+            Err(err) => {
+                debug!(error = %err, "Failed to fetch models");
+                anyhow::bail!(err)
+            }
+            Ok(response) => {
+                let text = response
+                    .error_for_status()
+                    .with_context(|| "Failed because of a non 200 status code".to_string())?
+                    .text()
+                    .await?;
+                let response: ListModelResponse = serde_json::from_str(&text)?;
+                Ok(response.data.into_iter().map(Into::into).collect())
+            }
+        }
     }
 }
 

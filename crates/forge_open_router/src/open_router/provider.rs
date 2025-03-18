@@ -82,6 +82,7 @@ impl OpenRouter {
                     Ok(event) => match event {
                         Event::Open => None,
                         Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
+                            debug!("Received completion from Upstream");
                             None
                         }
                         Event::Message(message) => Some(
