@@ -217,3 +217,36 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         FORGE_KEY: ${{ secrets.FORGE_KEY }}
+  handle_pr_comment:
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.issue.labels.*.name, 'forge-automate') || contains(github.event.issue.labels.*.name, 'forge-implement')) && !startsWith(github.event.comment.body, '/forge')
+    name: handle_pr_comment
+    runs-on: ubuntu-latest
+    steps:
+    - id: generate-token
+      uses: tibdex/github-app-token@v2
+      with:
+        private_key: ${{ secrets.FORGE_BOT_PRIVATE_KEY }}
+        app_id: ${{secrets.FORGE_BOT_APP_ID}}
+    - uses: actions/checkout@v4
+    - name: Fetch PR branch
+      run: git fetch origin pull/${{ github.event.issue.number }}/head:pr-${{ github.event.issue.number }}
+    - name: Checkout PR branch
+      run: git checkout pr-${{ github.event.issue.number }}
+    - name: Install Forge CLI
+      run: curl -L https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bash
+    - name: Add comment to PR about handling general comment
+      uses: peter-evans/create-or-update-comment@v4
+      with:
+        token: ${{ steps.generate-token.outputs.token }}
+        issue-number: ${{ github.event.issue.number }}
+        body: |-
+          💬 **Processing PR Comment** 💬
+
+          I'm analyzing and addressing your comment. I'll update the PR shortly with any needed changes You can track progress in the [GitHub Action run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+          .
+    - name: Run Forge to address PR comment
+      run: 'forge --event=''{"name": "fix-review-comment", "value": "${{ github.event.issue.number }}"}'''
+      env:
+        GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+        FORGE_KEY: ${{ secrets.FORGE_KEY }}
