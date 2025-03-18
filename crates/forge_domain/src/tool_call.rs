@@ -2,6 +2,8 @@ use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
+use tracing as log;
 
 use super::tool_call_parser::parse;
 use crate::{Error, Result, ToolName};
