@@ -79,43 +79,77 @@ impl ToolCallFull {
             return Ok(vec![]);
         }
 
-        let mut tool_name: Option<&ToolName> = None;
-        let mut tool_call_id = None;
-
-        let mut tool_calls = Vec::new();
-
-        let mut input = String::new();
-        for part in parts.iter() {
-            if let Some(value) = &part.call_id {
-                if let Some(tool_name) = tool_name {
-                    if !input.is_empty() {
-                        tool_calls.push(ToolCallFull {
-                            name: tool_name.clone(),
-                            call_id: tool_call_id,
-                            arguments: serde_json::from_str(&input)
-                                .map_err(Error::ToolCallArgument)?,
-                        });
-                        input.clear();
-                    }
-                }
-                tool_call_id = Some(value.clone());
-            }
-
-            if let Some(value) = &part.name {
-                tool_name = Some(value);
-            }
-
-            input.push_str(&part.arguments_part);
+        // Use a more structured approach to track tool calls
+        #[derive(Default)]
+        struct ToolCallData {
+            name: Option<ToolName>,
+            call_id: Option<ToolCallId>,
+            arguments_parts: Vec<String>,
         }
 
-        if !input.is_empty() {
-            if let Some(tool_name) = tool_name {
-                tool_calls.push(ToolCallFull {
-                    name: tool_name.clone(),
-                    call_id: tool_call_id,
-                    arguments: serde_json::from_str(&input).map_err(Error::ToolCallArgument)?,
-                });
-                input.clear();
+        // Group tool call parts by their call_id
+        let mut calls_by_id: HashMap<String, ToolCallData> = HashMap::new();
+        let mut current_id = "default_id".to_string();
+
+        // First pass: Group parts by ID and collect names and argument parts
+        for part in parts.iter() {
+            // If we find a new call_id, update our tracking
+            if let Some(id) = &part.call_id {
+                current_id = id.as_str().to_string();
+            }
+            
+            let entry = calls_by_id.entry(current_id.clone()).or_default();
+            
+            // Update name if present in this part
+            if let Some(name) = &part.name {
+                entry.name = Some(name.clone());
+            }
+            
+            // Update call_id if present in this part
+            if let Some(id) = &part.call_id {
+                entry.call_id = Some(id.clone());
+            }
+            
+            // Always add argument parts (even if they're empty) 
+            if !part.arguments_part.is_empty() {
+                entry.arguments_parts.push(part.arguments_part.clone());
+            }
+        }
+
+        // Second pass: Process each tool call with its collected data
+        let mut tool_calls = Vec::new();
+        
+        for (_, data) in calls_by_id {
+            if let Some(tool_name) = data.name {
+                // Concatenate all argument fragments
+                let args_json = data.arguments_parts.join("");
+                
+                // Only try to parse if we have some argument data
+                if !args_json.is_empty() {
+                    // Try to parse the arguments as JSON
+                    let arguments = match serde_json::from_str(&args_json) {
+                        Ok(args) => args,
+                        Err(e) => {
+                            // Log the error but include details about what we were trying to parse
+                            log::debug!("Failed to parse tool call arguments: {}", e);
+                            log::debug!("Arguments JSON (raw): {}", args_json);
+                            return Err(Error::ToolCallArgument(e));
+                        }
+                    };
+                    
+                    tool_calls.push(ToolCallFull {
+                        name: tool_name,
+                        call_id: data.call_id,
+                        arguments,
+                    });
+                } else {
+                    // Handle the case where we have a name but no arguments
+                    tool_calls.push(ToolCallFull {
+                        name: tool_name,
+                        call_id: data.call_id,
+                        arguments: Value::default(),
+                    });
+                }
             }
         }
 
@@ -135,6 +169,7 @@ impl ToolCallFull {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_multiple_calls() {
@@ -203,6 +238,50 @@ mod tests {
     fn test_empty_call_parts() {
         let actual = ToolCallFull::try_from_parts(&[]).unwrap();
         let expected = vec![];
+
+        assert_eq!(actual, expected);
+    }
+    
+    #[test]
+    fn test_fragmented_json_arguments() {
+        // This test simulates the bug scenario where JSON is fragmented across multiple parts
+        let input = [
+            ToolCallPart {
+                call_id: Some(ToolCallId("call_1".to_string())),
+                name: Some(ToolName::new("tool_forge_fs_create")),
+                arguments_part: "{\"path\": \"".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "/Users/test/".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "crates/forge_ci/".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "tests/ci.rs\",".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "\"content\": \"test content\"}".to_string(),
+            },
+        ];
+
+        let actual = ToolCallFull::try_from_parts(&input).unwrap();
+        let expected = vec![ToolCallFull {
+            call_id: Some(ToolCallId("call_1".to_string())),
+            name: ToolName::new("tool_forge_fs_create"),
+            arguments: serde_json::json!({
+                "path": "/Users/test/crates/forge_ci/tests/ci.rs",
+                "content": "test content"
+            }),
+        }];
 
         assert_eq!(actual, expected);
     }
