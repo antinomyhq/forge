@@ -101,7 +101,7 @@ jobs:
 
           .
     - name: Run Forge to revise plan based on feedback
-      run: 'forge --event=''{"name": "revise_plan", "value": "${{ github.event.issue.number }}|${{ github.event.comment.body }}"}'''
+      run: 'forge --event=''{"name": "revise_plan", "value": "${{ github.event.issue.number }}"}'''
       env:
         GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         FORGE_KEY: ${{ secrets.FORGE_KEY }}
