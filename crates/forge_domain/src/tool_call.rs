@@ -174,7 +174,6 @@ impl ToolCallFull {
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::*;
 
