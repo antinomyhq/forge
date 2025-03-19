@@ -2,10 +2,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::{EnvironmentService, ForgeApp, FsSnapshotService, Infrastructure};
+use forge_app::{EnvironmentService, ForgeApp, Infrastructure};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_snaps::{SnapshotInfo, SnapshotMetadata};
 use forge_stream::MpscStream;
 use serde_json::Value;
 
@@ -42,63 +41,6 @@ impl ForgeAPI<ForgeApp<ForgeInfra>> {
 
 #[async_trait::async_trait]
 impl<F: App + Infrastructure> API for ForgeAPI<F> {
-    async fn list_snapshots(&self, file_path: &Path) -> Result<Vec<SnapshotInfo>> {
-        self.app
-            .file_snapshot_service()
-            .list_snapshots(file_path)
-            .await
-    }
-
-    async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> Result<()> {
-        self.app
-            .file_snapshot_service()
-            .restore_by_timestamp(file_path, timestamp)
-            .await
-    }
-
-    async fn restore_by_index(&self, file_path: &Path, index: isize) -> Result<()> {
-        self.app
-            .file_snapshot_service()
-            .restore_by_index(file_path, index)
-            .await
-    }
-
-    async fn restore_previous(&self, file_path: &Path) -> Result<()> {
-        self.app
-            .file_snapshot_service()
-            .restore_previous(file_path)
-            .await
-    }
-
-    async fn get_snapshot_by_timestamp(
-        &self,
-        file_path: &Path,
-        timestamp: &str,
-    ) -> Result<SnapshotMetadata> {
-        self.app
-            .file_snapshot_service()
-            .get_snapshot_by_timestamp(file_path, timestamp)
-            .await
-    }
-
-    async fn get_snapshot_by_index(
-        &self,
-        file_path: &Path,
-        index: isize,
-    ) -> Result<SnapshotMetadata> {
-        self.app
-            .file_snapshot_service()
-            .get_snapshot_by_index(file_path, index)
-            .await
-    }
-
-    async fn purge_older_than(&self, days: u32) -> Result<usize> {
-        self.app
-            .file_snapshot_service()
-            .purge_older_than(days)
-            .await
-    }
-
     async fn suggestions(&self) -> Result<Vec<File>> {
         self.suggestion_service.suggestions().await
     }

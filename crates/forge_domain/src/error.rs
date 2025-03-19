@@ -36,6 +36,11 @@ pub enum Error {
 
     #[error("Conversation not found: {0}")]
     ConversationNotFound(ConversationId),
+
+    #[error("Missing description for agent: {0}")]
+    MissingAgentDescription(AgentId),
+    #[error("Missing model for agent: {0}")]
+    MissingModel(AgentId),
 }
 
 pub type Result<A> = std::result::Result<A, Error>;

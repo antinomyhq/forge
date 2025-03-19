@@ -4,18 +4,18 @@ use anyhow::Result;
 use colored::Colorize;
 use forge_api::{AgentMessage, ChatRequest, ChatResponse, ConversationId, Event, Model, API};
 use forge_display::TitleFormat;
-use forge_snaps::SnapshotInfo;
-use forge_tracker::EventKind;
 use lazy_static::lazy_static;
+use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
+use tracing::error;
 
 use crate::banner;
-use crate::cli::{Cli, Snapshot, SnapshotCommand};
+use crate::cli::Cli;
 use crate::console::CONSOLE;
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{Command, UserInput};
+use crate::model::{Command, ForgeCommandManager, UserInput};
 use crate::state::{Mode, UIState};
 
 // Event type constants moved to UI layer
@@ -28,10 +28,29 @@ lazy_static! {
     pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
+pub struct PartialEvent {
+    pub name: String,
+    pub value: String,
+}
+
+impl PartialEvent {
+    pub fn new(name: impl ToString, value: impl ToString) -> Self {
+        Self { name: name.to_string(), value: value.to_string() }
+    }
+}
+
+impl From<PartialEvent> for Event {
+    fn from(value: PartialEvent) -> Self {
+        Event::new(value.name, value.value)
+    }
+}
+
 pub struct UI<F> {
     state: UIState,
     api: Arc<F>,
     console: Console,
+    command: Arc<ForgeCommandManager>,
     cli: Cli,
     models: Option<Vec<Model>>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
@@ -86,24 +105,25 @@ impl<F: API> UI<F> {
 
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
         // Parse CLI arguments first to get flags
-
         let env = api.environment();
+        let command = Arc::new(ForgeCommandManager::default());
         Ok(Self {
             state: Default::default(),
             api,
-            console: Console::new(env.clone()),
+            console: Console::new(env.clone(), command.clone()),
             cli,
+            command,
             models: None,
             _guard: forge_tracker::init_tracing(env.log_path())?,
         })
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        if let Some(snapshot_command) = self.cli.snapshot.as_ref() {
-            return match snapshot_command {
-                Snapshot::Snapshot { sub_command } => self.handle_snaps(sub_command).await,
-            };
+        // Check for dispatch flag first
+        if let Some(dispatch_json) = self.cli.event.clone() {
+            return self.handle_dispatch(dispatch_json).await;
         }
+
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
@@ -112,7 +132,8 @@ impl<F: API> UI<F> {
         }
 
         // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
+        self.init_conversation().await?;
+        banner::display(self.command.command_names())?;
 
         // Get initial input from file or prompt
         let mut input = match &self.cli.command {
@@ -129,8 +150,9 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::New => {
-                    banner::display()?;
                     self.state = Default::default();
+                    self.init_conversation().await?;
+                    banner::display(self.command.command_names())?;
                     input = self.console.prompt(None).await?;
 
                     continue;
@@ -147,10 +169,18 @@ impl<F: API> UI<F> {
                 }
                 Command::Message(ref content) => {
                     let chat_result = match self.state.mode {
-                        Mode::Help => self.help_chat(content.clone()).await,
+                        Mode::Help => {
+                            self.dispatch_event(Self::create_user_help_query_event(content.clone()))
+                                .await
+                        }
                         _ => self.chat(content.clone()).await,
                     };
                     if let Err(err) = chat_result {
+                        tokio::spawn(
+                            TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{:?}", err))),
+                        );
+                        error!(error = ?err, "Chat request failed");
+
                         CONSOLE.writeln(TitleFormat::failed(format!("{:?}", err)).format())?;
                     }
                     let prompt_input = Some((&self.state).into());
@@ -193,192 +223,47 @@ impl<F: API> UI<F> {
 
                     input = self.console.prompt(None).await?;
                 }
+                Command::Custom(event) => {
+                    if let Err(e) = self.dispatch_event(event.into()).await {
+                        CONSOLE.writeln(
+                            TitleFormat::failed("Failed to execute the command.")
+                                .sub_title("Command Execution")
+                                .error(e.to_string())
+                                .format(),
+                        )?;
+                    }
+
+                    input = self.console.prompt(None).await?;
+                }
             }
         }
 
         Ok(())
     }
-    async fn handle_snaps(&self, snapshot_command: &SnapshotCommand) -> Result<()> {
-        match snapshot_command {
-            SnapshotCommand::List { path } => {
-                let snapshots: Vec<SnapshotInfo> = self.api.list_snapshots(path).await?;
-                if snapshots.is_empty() {
-                    CONSOLE.writeln(
-                        TitleFormat::failed("Snapshots")
-                            .sub_title("No snapshots found")
-                            .format(),
-                    )?;
-                    return Ok(());
-                }
 
-                CONSOLE.writeln(
-                    TitleFormat::success(format!("Found {} snapshots", snapshots.len())).format(),
-                )?;
-                CONSOLE.newline()?;
+    // Handle dispatching events from the CLI
+    async fn handle_dispatch(&mut self, json: String) -> Result<()> {
+        // Initialize the conversation
+        let conversation_id = self.init_conversation().await?;
 
-                for (i, snap) in snapshots.iter().enumerate() {
-                    // Create a title with the index and timestamp
-                    CONSOLE.writeln(
-                        TitleFormat::execute(format!("Snapshot #{}", i))
-                            .sub_title(format!("timestamp: {}", snap.timestamp))
-                            .format(),
-                    )?;
+        // Parse the JSON to determine the event name and value
+        let event: PartialEvent = serde_json::from_str(&json)?;
 
-                    // Display original path and snapshot path with proper formatting
-                    CONSOLE.writeln(format!(
-                        "{}: {}",
-                        "Original Path".bold(),
-                        snap.original_path.display()
-                    ))?;
-                    CONSOLE.writeln(format!(
-                        "{}: {}",
-                        "Snapshot Timestamp".bold(),
-                        snap.timestamp
-                    ))?;
-                    CONSOLE.writeln(format!("{}: {}", "Index".bold(), snap.index))?;
-                    CONSOLE.writeln(format!(
-                        "{}: '{}'",
-                        "Snapshot Path".bold(),
-                        snap.snapshot_path.display()
-                    ))?;
+        // Create the chat request with the event
+        let chat = ChatRequest::new(event.into(), conversation_id);
 
-                    // Add a separator between snapshots
-                    if i < snapshots.len() - 1 {
-                        CONSOLE.writeln("---".dimmed().to_string())?;
-                    }
-                }
-                Ok(())
-            }
-            SnapshotCommand::Restore { timestamp, path, index } => {
-                let result_title = TitleFormat::execute("Snapshot Restore");
-
-                if let Some(timestamp) = timestamp {
-                    CONSOLE.writeln(
-                        result_title
-                            .sub_title(format!("restoring by timestamp: {}", timestamp))
-                            .format(),
-                    )?;
-
-                    self.api
-                        .restore_by_timestamp(path, &timestamp.to_string())
-                        .await?;
-
-                    CONSOLE.writeln(
-                        TitleFormat::success("Restore Complete")
-                            .sub_title(format!("path: {}", path.display()))
-                            .format(),
-                    )?;
-                    return Ok(());
-                }
-
-                if let Some(index) = index {
-                    CONSOLE.writeln(
-                        result_title
-                            .sub_title(format!("restoring by index: {}", index))
-                            .format(),
-                    )?;
-
-                    self.api.restore_by_index(path, *index as isize).await?;
-
-                    CONSOLE.writeln(
-                        TitleFormat::success("Restore Complete")
-                            .sub_title(format!("path: {}", path.display()))
-                            .format(),
-                    )?;
-                    return Ok(());
-                }
-
-                CONSOLE.writeln(
-                    result_title
-                        .sub_title("restoring previous version")
-                        .format(),
-                )?;
-
-                self.api.restore_previous(path).await?;
-
-                CONSOLE.writeln(
-                    TitleFormat::success("Restore Complete")
-                        .sub_title(format!("path: {}", path.display()))
-                        .format(),
-                )?;
-                Ok(())
-            }
-            SnapshotCommand::Diff { path, timestamp, index } => {
-                let metadata = if let Some(timestamp) = timestamp {
-                    CONSOLE.writeln(
-                        TitleFormat::execute("Snapshot Diff")
-                            .sub_title(format!("comparing with timestamp: {}", timestamp))
-                            .format(),
-                    )?;
-
-                    self.api
-                        .get_snapshot_by_timestamp(path, &timestamp.to_string())
-                        .await?
-                } else if let Some(index) = index {
-                    CONSOLE.writeln(
-                        TitleFormat::execute("Snapshot Diff")
-                            .sub_title(format!("comparing with index: {}", index))
-                            .format(),
-                    )?;
-
-                    self.api
-                        .get_snapshot_by_index(path, *index as isize)
-                        .await?
-                } else {
-                    CONSOLE.writeln(
-                        TitleFormat::execute("Snapshot Diff")
-                            .sub_title("comparing with previous version")
-                            .format(),
-                    )?;
-
-                    self.api.get_snapshot_by_index(path, -1).await?
-                };
-
-                let prev_content = String::from_utf8_lossy(&metadata.content).to_string();
-                let cur_content = String::from_utf8(forge_fs::ForgeFS::read(path).await?)?;
-                let diff = forge_display::DiffFormat::format(
-                    "diff",
-                    path.to_path_buf(),
-                    &prev_content,
-                    &cur_content,
-                );
-
-                CONSOLE.writeln(diff)?;
-
-                Ok(())
-            }
-            SnapshotCommand::Purge { older_than } => {
-                let mut title = TitleFormat::execute("Purging Snapshots");
-                if *older_than == 0 {
-                    title = title.sub_title("of all time.".to_string());
-                } else {
-                    title = title.sub_title(format!("older than {} days", older_than));
-                }
-
-                CONSOLE.writeln(title.format())?;
-
-                let count = self.api.purge_older_than(*older_than).await?;
-
-                CONSOLE.writeln(
-                    TitleFormat::success("Purge Complete")
-                        .sub_title(format!("deleted {} snapshots", count))
-                        .format(),
-                )?;
-
-                Ok(())
-            }
-        }
+        // Process the event
+        let mut stream = self.api.chat(chat).await?;
+        self.handle_chat_stream(&mut stream).await
     }
 
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
             None => {
-                let conversation_id = self
-                    .api
-                    .init(self.api.load(self.cli.workflow.as_deref()).await?)
-                    .await?;
-
+                let workflow = self.api.load(self.cli.workflow.as_deref()).await?;
+                self.command.register_all(&workflow);
+                let conversation_id = self.api.init(workflow).await?;
                 self.state.conversation_id = Some(conversation_id.clone());
 
                 Ok(conversation_id)
@@ -389,15 +274,9 @@ impl<F: API> UI<F> {
     async fn chat(&mut self, content: String) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
-        // Determine if this is the first message or an update based on conversation
-        // history
-        let conversation = self.api.conversation(&conversation_id).await?;
-
         // Create a ChatRequest with the appropriate event type
-        let event = if conversation
-            .as_ref()
-            .is_none_or(|c| c.rfind_event(EVENT_USER_TASK_INIT).is_none())
-        {
+        let event = if self.state.is_first {
+            self.state.is_first = false;
             Self::create_task_init_event(content.clone())
         } else {
             Self::create_task_update_event(content.clone())
@@ -405,8 +284,6 @@ impl<F: API> UI<F> {
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
-
-        tokio::spawn(TRACKER.dispatch(EventKind::Prompt(content)));
 
         match self.api.chat(chat).await {
             Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
@@ -473,13 +350,7 @@ impl<F: API> UI<F> {
 
     fn handle_chat_response(&mut self, message: AgentMessage<ChatResponse>) -> Result<()> {
         match message.message {
-            ChatResponse::Text(text) => {
-                // Any agent that ends with "worker" is considered a worker agent.
-                // Worker agents don't print anything to the console.
-                if !message.agent.as_str().to_lowercase().ends_with("worker") {
-                    CONSOLE.write(&text)?;
-                }
-            }
+            ChatResponse::Text(text) => CONSOLE.write(&text)?,
             ChatResponse::ToolCallStart(_) => {
                 CONSOLE.newline()?;
                 CONSOLE.newline()?;
@@ -509,18 +380,11 @@ impl<F: API> UI<F> {
             }
         }
         Ok(())
-    } // Handle help chat in HELP mode
-    async fn help_chat(&mut self, content: String) -> Result<()> {
+    }
+
+    async fn dispatch_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
-
-        // Create a help query event
-        let event = Self::create_user_help_query_event(content.clone());
-
-        // Create the chat request with the help query event
         let chat = ChatRequest::new(event, conversation_id);
-
-        tokio::spawn(TRACKER.dispatch(EventKind::Prompt(content)));
-
         match self.api.chat(chat).await {
             Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
             Err(err) => Err(err),

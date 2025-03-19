@@ -1,49 +1,19 @@
 mod api;
 mod executor;
+mod forge_default;
 mod loader;
 mod suggestion;
 
 use std::path::Path;
 
 pub use api::*;
+pub use forge_default::create_default_workflow;
 pub use forge_domain::*;
 use forge_stream::MpscStream;
 use serde_json::Value;
 
 #[async_trait::async_trait]
 pub trait API: Sync + Send {
-    /// List snapshots for a file path
-    async fn list_snapshots(
-        &self,
-        file_path: &Path,
-    ) -> anyhow::Result<Vec<forge_snaps::SnapshotInfo>>;
-
-    /// Restore a file from a snapshot by timestamp
-    async fn restore_by_timestamp(&self, file_path: &Path, timestamp: &str) -> anyhow::Result<()>;
-
-    /// Restore a file from a snapshot by index
-    async fn restore_by_index(&self, file_path: &Path, index: isize) -> anyhow::Result<()>;
-
-    /// Restore a file from its previous snapshot
-    async fn restore_previous(&self, file_path: &Path) -> anyhow::Result<()>;
-
-    /// Get a snapshot by timestamp
-    async fn get_snapshot_by_timestamp(
-        &self,
-        file_path: &Path,
-        timestamp: &str,
-    ) -> anyhow::Result<forge_snaps::SnapshotMetadata>;
-
-    /// Get a snapshot by index
-    async fn get_snapshot_by_index(
-        &self,
-        file_path: &Path,
-        index: isize,
-    ) -> anyhow::Result<forge_snaps::SnapshotMetadata>;
-
-    /// Purge snapshots older than specified days
-    async fn purge_older_than(&self, days: u32) -> anyhow::Result<usize>;
-
     /// Provides a list of files in the current working directory for auto
     /// completion
     async fn suggestions(&self) -> anyhow::Result<Vec<File>>;

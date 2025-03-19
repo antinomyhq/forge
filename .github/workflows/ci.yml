@@ -288,5 +288,27 @@ jobs:
         ref: main
         token: ${{ secrets.HOMEBREW_ACCESS }}
     - run: GITHUB_TOKEN="${{ secrets.HOMEBREW_ACCESS }}" ./update-formula.sh ${{needs.draft_release.outputs.create_release_name }}
+  npm_release:
+    needs:
+    - draft_release
+    - build-release
+    - semantic_release
+    if: (startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    name: npm_release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: antinomyhq/npm-code-forge
+        ref: main
+        token: ${{ secrets.NPM_ACCESS }}
+    - run: ./update-package.sh ${{needs.draft_release.outputs.create_release_name}}
+      env:
+        AUTO_PUSH: 'true'
+        CI: 'true'
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

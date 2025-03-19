@@ -178,7 +178,8 @@ impl TryFrom<OpenRouterResponse> for ModelResponse {
                     }
                     Ok(response)
                 } else {
-                    Err(Error::EmptyContent)
+                    let default_response = ModelResponse::assistant(Content::full(""));
+                    Ok(default_response)
                 }
             }
             OpenRouterResponse::Failure { error } => Err(Error::Upstream(error)),
@@ -197,11 +198,11 @@ mod tests {
 
     impl Fixture {
         // check if the response is compatible with the OpenRouterResponse
-        fn test_response_compatibility(event: &str) -> bool {
-            let open_router_response = serde_json::from_str::<OpenRouterResponse>(event)
-                .with_context(|| "Failed to parse OpenRouter response")
-                .and_then(|message| {
-                    ChatCompletionMessage::try_from(message.clone())
+        fn test_response_compatibility(message: &str) -> bool {
+            let open_router_response = serde_json::from_str::<OpenRouterResponse>(message)
+                .with_context(|| format!("Failed to parse OpenRouter response: {}", message))
+                .and_then(|event| {
+                    ChatCompletionMessage::try_from(event.clone())
                         .with_context(|| "Failed to create completion message")
                 });
             open_router_response.is_ok()

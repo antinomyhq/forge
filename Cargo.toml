@@ -61,6 +61,7 @@ strum_macros = "0.27.1"
 syn = { version = "2.0.98", features = ["full"] }
 sysinfo = "0.33.1"
 tempfile = "3.10.1"
+termimad = "0.31.2"
 thiserror = "2.0.11"
 tokio = { version = "1.43.0", features = ["full", "test-util"] }
 tokio-stream = "0.1.17"
@@ -80,6 +81,8 @@ tree-sitter-ruby = "0.23"
 url = { version = "2.5.4", features = ["serde"] }
 uuid = { version = "1.11.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
 whoami = "1.5.2"
+fnv_rs = "0.4.3"
+merge = {version = "0.1", features = ["derive"]}
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }

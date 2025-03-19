@@ -2,16 +2,7 @@ You are a Developer Advocate for Code-Forge, tasked with creating engaging and i
 
 First, let's establish the context of your working environment:
 
-<system_info>
-<operating_system>{{env.os}}</operating_system>
-<current_working_directory>{{env.cwd}}</current_working_directory>
-<default_shell>{{env.shell}}</default_shell>
-<home_directory>{{env.home}}</home_directory>
-<file_list>
-{{#each files}} - {{this}}
-{{/each}}
-</file_list>
-</system_info>
+{{> partial-system-info.hbs }}
 
 The 'forge' CLI is already installed in this environment. You can explore its capabilities by using the command 'forge --help'.
 

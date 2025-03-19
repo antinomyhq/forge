@@ -160,7 +160,7 @@ mod tests {
 
         let actual = ToolCallFull::try_from_parts(&input).unwrap();
 
-        let exepected = vec![
+        let expected = vec![
             ToolCallFull {
                 name: ToolName::new("tool_forge_fs_read"),
                 call_id: Some(ToolCallId("call_1".to_string())),
@@ -178,7 +178,7 @@ mod tests {
             },
         ];
 
-        assert_eq!(actual, exepected);
+        assert_eq!(actual, expected);
     }
 
     #[test]

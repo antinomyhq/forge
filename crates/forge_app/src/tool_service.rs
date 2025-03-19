@@ -5,18 +5,21 @@ use forge_domain::{Tool, ToolCallFull, ToolDefinition, ToolName, ToolResult, Too
 use tokio::time::{timeout, Duration};
 use tracing::{debug, error};
 
+use crate::tools::ToolRegistry;
 use crate::Infrastructure;
 
 // Timeout duration for tool calls
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
+#[derive(Clone)]
 pub struct ForgeToolService {
-    tools: HashMap<ToolName, Tool>,
+    tools: Arc<HashMap<ToolName, Tool>>,
 }
 
 impl ForgeToolService {
     pub fn new<F: Infrastructure>(infra: Arc<F>) -> Self {
-        ForgeToolService::from_iter(crate::tools::tools(infra.clone()))
+        let registry = ToolRegistry::new(infra.clone());
+        ForgeToolService::from_iter(registry.tools())
     }
 }
 
@@ -27,7 +30,7 @@ impl FromIterator<Tool> for ForgeToolService {
             .map(|tool| (tool.definition.name.clone(), tool))
             .collect::<HashMap<_, _>>();
 
-        Self { tools }
+        Self { tools: Arc::new(tools) }
     }
 }
 

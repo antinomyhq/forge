@@ -21,12 +21,24 @@ impl std::fmt::Display for Mode {
 }
 
 /// State information for the UI
-#[derive(Default)]
 pub struct UIState {
     pub current_title: Option<String>,
     pub conversation_id: Option<ConversationId>,
     pub usage: Usage,
     pub mode: Mode,
+    pub is_first: bool,
+}
+
+impl Default for UIState {
+    fn default() -> Self {
+        Self {
+            current_title: Default::default(),
+            conversation_id: Default::default(),
+            usage: Default::default(),
+            mode: Default::default(),
+            is_first: true,
+        }
+    }
 }
 
 impl From<&UIState> for PromptInput {

@@ -6,7 +6,7 @@ use forge_tracker::VERSION;
 
 pub enum Section {
     Title(String),
-    Items(String, String),
+    Items(String, Option<String>),
 }
 
 pub struct Info {
@@ -23,9 +23,19 @@ impl Info {
         self
     }
 
-    pub fn add_item(mut self, key: impl ToString, value: impl ToString) -> Self {
-        self.sections
-            .push(Section::Items(key.to_string(), value.to_string()));
+    pub fn add_key(self, key: impl ToString) -> Self {
+        self.add_item(key, None::<String>)
+    }
+
+    pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
+        self.add_item(key, Some(value))
+    }
+
+    fn add_item(mut self, key: impl ToString, value: Option<impl ToString>) -> Self {
+        self.sections.push(Section::Items(
+            key.to_string(),
+            value.map(|a| a.to_string()),
+        ));
         self
     }
 
@@ -39,9 +49,9 @@ impl From<&Usage> for Info {
     fn from(usage: &Usage) -> Self {
         Info::new()
             .add_title("Usage".to_string())
-            .add_item("Prompt", usage.prompt_tokens)
-            .add_item("Completion", usage.completion_tokens)
-            .add_item("Total", usage.total_tokens)
+            .add_key_value("Prompt", usage.prompt_tokens)
+            .add_key_value("Completion", usage.completion_tokens)
+            .add_key_value("Total", usage.total_tokens)
     }
 }
 
@@ -49,16 +59,17 @@ impl From<&Environment> for Info {
     fn from(env: &Environment) -> Self {
         Info::new()
             .add_title("Environment")
-            .add_item("Version", VERSION)
-            .add_item("OS", &env.os)
-            .add_item("PID", env.pid)
-            .add_item("Working Directory", env.cwd.display())
-            .add_item("Shell", &env.shell)
+            .add_key_value("Version", VERSION)
+            .add_key_value("OS", &env.os)
+            .add_key_value("PID", env.pid)
+            .add_key_value("Working Directory", env.cwd.display())
+            .add_key_value("Shell", &env.shell)
             .add_title("Paths")
-            .add_item("Config", env.base_path.display())
-            .add_item("Logs", env.log_path().display())
-            .add_item("Database", env.db_path().display())
-            .add_item("History", env.history_path().display())
+            .add_key_value("Config", env.base_path.display())
+            .add_key_value("Logs", env.log_path().display())
+            .add_key_value("Database", env.db_path().display())
+            .add_key_value("History", env.history_path().display())
+            .add_item("Snapshot", Some(env.snapshot_path().display()))
     }
 }
 
@@ -71,7 +82,11 @@ impl fmt::Display for Info {
                     writeln!(f, "{}", title.bold().bright_yellow())?
                 }
                 Section::Items(key, value) => {
-                    writeln!(f, "{}: {}", key, value.dimmed())?;
+                    if let Some(value) = value {
+                        writeln!(f, "{}: {}", key, value.dimmed())?;
+                    } else {
+                        writeln!(f, "{}", key)?;
+                    }
                 }
             }
         }

@@ -15,6 +15,7 @@ use crate::Infrastructure;
 /// Type Parameters:
 /// - F: The infrastructure implementation that provides core services like
 ///   environment, file reading, vector indexing, and embedding.
+#[derive(Clone)]
 pub struct ForgeApp<F> {
     infra: Arc<F>,
     tool_service: Arc<ForgeToolService>,

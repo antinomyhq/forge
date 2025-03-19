@@ -18,7 +18,10 @@ impl<S> ForgeFileWriteService<S> {
 #[async_trait::async_trait]
 impl<S: FsSnapshotService> FsWriteService for ForgeFileWriteService<S> {
     async fn write(&self, path: &Path, contents: Bytes) -> Result<()> {
-        let _ = self.snaps.create_snapshot(path).await?;
+        if forge_fs::ForgeFS::exists(path) {
+            let _ = self.snaps.create_snapshot(path).await?;
+        }
+
         Ok(forge_fs::ForgeFS::write(path, contents.to_vec()).await?)
     }
 }

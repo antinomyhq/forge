@@ -5,7 +5,7 @@ use url::Url;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Provider {
     OpenAI { url: Url, key: Option<String> },
-    Anthropic { key: String },
+    Anthropic { url: Url, key: String },
 }
 
 impl Provider {
@@ -16,6 +16,16 @@ impl Provider {
                 *set_url = Url::parse(&url).unwrap();
             }
             Provider::Anthropic { .. } => {}
+        }
+    }
+
+    /// Sets the Anthropic URL if the provider is Anthropic
+    pub fn anthropic_url(&mut self, url: String) {
+        match self {
+            Provider::Anthropic { url: set_url, .. } => {
+                *set_url = Url::parse(&url).unwrap();
+            }
+            Provider::OpenAI { .. } => {}
         }
     }
 
@@ -41,13 +51,16 @@ impl Provider {
     }
 
     pub fn anthropic(key: &str) -> Provider {
-        Provider::Anthropic { key: key.into() }
+        Provider::Anthropic {
+            url: Url::parse(Provider::ANTHROPIC_URL).unwrap(),
+            key: key.into(),
+        }
     }
 
     pub fn key(&self) -> Option<&str> {
         match self {
             Provider::OpenAI { key, .. } => key.as_deref(),
-            Provider::Anthropic { key } => Some(key),
+            Provider::Anthropic { key, .. } => Some(key),
         }
     }
 }
@@ -62,7 +75,7 @@ impl Provider {
     pub fn to_base_url(&self) -> Url {
         match self {
             Provider::OpenAI { url, .. } => url.clone(),
-            Provider::Anthropic { .. } => Url::parse(Self::ANTHROPIC_URL).unwrap(),
+            Provider::Anthropic { url, .. } => url.clone(),
         }
     }
 
@@ -84,6 +97,13 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPENAI_URL),
             Provider::Anthropic { .. } => false,
+        }
+    }
+
+    pub fn is_anthropic(&self) -> bool {
+        match self {
+            Provider::OpenAI { .. } => false,
+            Provider::Anthropic { url, .. } => url.as_str().starts_with(Self::ANTHROPIC_URL),
         }
     }
 }

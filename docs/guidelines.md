@@ -36,3 +36,4 @@ permalink: /guidelines
 - Keep the boilerplate to a minimum.
 - Use words like `fixture`, `actual` and `expected` in test functions.
 - Fixtures should be generic and reusable.
+- Test should always be written in the same file as the source code.

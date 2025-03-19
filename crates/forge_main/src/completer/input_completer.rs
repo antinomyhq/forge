@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use forge_walker::Walker;
 use nu_ansi_term::{Color, Style};
@@ -6,16 +7,18 @@ use reedline::{Completer, Suggestion};
 
 use crate::completer::search_term::SearchTerm;
 use crate::completer::CommandCompleter;
+use crate::model::ForgeCommandManager;
 
 #[derive(Clone)]
 pub struct InputCompleter {
     walker: Walker,
+    command: CommandCompleter,
 }
 
 impl InputCompleter {
-    pub fn new(cwd: PathBuf) -> Self {
+    pub fn new(cwd: PathBuf, command_manager: Arc<ForgeCommandManager>) -> Self {
         let walker = Walker::max_all().cwd(cwd).skip_binary(true);
-        Self { walker }
+        Self { walker, command: CommandCompleter::new(command_manager) }
     }
 
     fn create_suggestion(path: String, name: &str, query: &str, span: reedline::Span) -> Suggestion {

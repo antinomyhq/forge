@@ -8,7 +8,7 @@ pub struct ForgeFileReadService;
 
 impl Default for ForgeFileReadService {
     fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -21,6 +21,6 @@ impl ForgeFileReadService {
 #[async_trait::async_trait]
 impl FsReadService for ForgeFileReadService {
     async fn read(&self, path: &Path) -> Result<Bytes> {
-        Ok(forge_fs::ForgeFS::read(path).await.map(Bytes::from)?)
+        Ok(Bytes::from(forge_fs::ForgeFS::read(path).await?))
     }
 }

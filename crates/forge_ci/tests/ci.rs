@@ -260,6 +260,35 @@ fn generate() {
             ),
     );
 
+    // npm release job
+    workflow = workflow.add_job(
+        "npm_release",
+        Job::new("npm_release")
+            .add_needs(draft_release_job.clone())
+            .add_needs(build_release_job.clone())
+            .add_needs(semantic_release_job.clone())
+            .cond(Expression::new("(startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')"))
+            .permissions(
+                Permissions::default()
+                    .contents(Level::Write)
+                    .pull_requests(Level::Write),
+            )
+            .runs_on("ubuntu-latest")
+            .add_step(
+                Step::uses("actions", "checkout", "v4")
+                    .add_with(("repository", "antinomyhq/npm-code-forge"))
+                    .add_with(("ref", "main"))
+                    .add_with(("token", "${{ secrets.NPM_ACCESS }}"))
+            )
+            // Make script executable and run it with token
+            .add_step(
+                Step::run("./update-package.sh ${{needs.draft_release.outputs.create_release_name}}")
+                .add_env(("AUTO_PUSH", "true"))
+                .add_env(("CI", "true"))
+                .add_env(("NPM_TOKEN", "${{ secrets.NPM_TOKEN }}")),
+            ),
+    );
+
     workflow.generate().unwrap();
 }
 #[test]

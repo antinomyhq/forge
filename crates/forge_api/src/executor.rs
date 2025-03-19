@@ -23,7 +23,7 @@ impl<F: App> ForgeExecutorService<F> {
             let tx = Arc::new(tx);
             let orch = Orchestrator::new(app, request.conversation_id, Some(tx.clone()));
 
-            match orch.dispatch(&request.event).await {
+            match orch.dispatch(request.event).await {
                 Ok(_) => {}
                 Err(err) => tx.send(Err(err)).await.unwrap(),
             }

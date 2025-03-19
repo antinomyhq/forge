@@ -1,34 +1,49 @@
-# YAML Variables
-advanced_model: &advanced_model anthropic/claude-3.7-sonnet
-efficiency_model: &efficiency_model anthropic/claude-3.5-haiku
+commands:
+  - name: commit
+    description: Analyzes and organizes code changes into meaningful, well-structured commits
+  - name: pull-request
+    description: Analyzes code changes, generates comprehensive PR descriptions with linked issues.
 
 variables:
   mode: ACT
+
+# Define model anchors with simpler, purpose-based names
+models:
+  # Role-based model definitions - easy to swap implementation
+  - &advanced_model anthropic/claude-3.7-sonnet
+  - &standard_model anthropic/claude-3.5-haiku
+  - &fast_model google/gemini-2.0-flash-thinking-exp:free
+
 agents:
-  - id: title_generation_worker
-    model: *efficiency_model
-    tool_supported: true
+  - tool_supported: true
+    id: title-generation
+    model: *standard_model
+    hide_content: true
+    system_prompt: "{{> system-prompt-title-generator.hbs }}"
+    user_prompt: <technical_content>{{event.value}}</technical_content>
     tools:
       - tool_forge_event_dispatch
     subscribe:
       - user_task_init
-    system_prompt: "{{> system-prompt-title-generator.hbs }}"
-    user_prompt: <technical_content>{{event.value}}</technical_content>
 
   - id: help_agent
-    model: google/gemini-2.0-flash-thinking-exp:free
+    model: *fast_model
+    system_prompt: "{{> system-prompt-help.hbs }}"
+    user_prompt: <query>{{event.value}}</query>
     tools:
       - tool_forge_fs_read
       - tool_forge_fs_create
     subscribe:
       - user_help_query
-    system_prompt: |
-      {{> system-prompt-help.hbs }}
-    user_prompt: <query>{{event.value}}</query>
 
-  - id: software-engineer
+  - tool_supported: true
+    id: software-engineer
     model: *advanced_model
-    tool_supported: true
+    system_prompt: "{{> system-prompt-engineer.hbs }}"
+    user_prompt: |-
+      <task>{{event.value}}</task>
+      <mode>{{variables.mode}}</mode>
+    ephemeral: false
     tools:
       - tool_forge_fs_read
       - tool_forge_fs_create
@@ -37,12 +52,120 @@ agents:
       - tool_forge_process_shell
       - tool_forge_net_fetch
       - tool_forge_fs_search
+      - tool_forge_display_show_user
     subscribe:
       - user_task_init
       - user_task_update
+    max_walker_depth: 1
+
+  - tool_supported: true
+    id: github-issue-planner
+    model: *advanced_model
+    system_prompt: "{{> system-prompt-github-issue-planner.hbs }}"
+    user_prompt: |-
+      <event>{{event.name}}</event>
+      <value>{{event.value}}</value>
+      <mode>PLAN</mode>
     ephemeral: false
+    tools:
+      - tool_forge_fs_read
+      - tool_forge_fs_create
+      - tool_forge_fs_remove
+      - tool_forge_fs_patch
+      - tool_forge_process_shell
+      - tool_forge_net_fetch
+      - tool_forge_fs_search
+      - tool_forge_event_dispatch
+    subscribe:
+      - fix_issue
     max_walker_depth: 4
-    system_prompt: "{{> system-prompt-engineer.hbs }}"
-    user_prompt: |
-      <task>{{event.value}}</task>
-      <mode>{{variables.mode}}</mode>
+
+  - tool_supported: true
+    id: github-pr-updater
+    model: *advanced_model
+    system_prompt: "{{> system-prompt-github-pr-updater.hbs }}"
+    user_prompt: |-
+      <event>{{event.name}}</event>
+      <value>{{event.value}}</value>
+      <mode>ACT</mode>
+    ephemeral: false
+    tools:
+      - tool_forge_fs_read
+      - tool_forge_fs_create
+      - tool_forge_fs_remove
+      - tool_forge_fs_patch
+      - tool_forge_process_shell
+      - tool_forge_net_fetch
+      - tool_forge_fs_search
+      - tool_forge_event_dispatch
+    subscribe:
+      - update_pr
+    max_walker_depth: 4
+
+  - tool_supported: true
+    id: github-review-handler
+    model: *advanced_model
+    system_prompt: "{{> system-prompt-github-review-handler.hbs }}"
+    user_prompt: |-
+      <event>{{event.name}}</event>
+      <value>{{event.value}}</value>
+      <mode>ACT</mode>
+    ephemeral: false
+    tools:
+      - tool_forge_fs_read
+      - tool_forge_fs_create
+      - tool_forge_fs_remove
+      - tool_forge_fs_patch
+      - tool_forge_process_shell
+      - tool_forge_net_fetch
+      - tool_forge_fs_search
+      - tool_forge_event_dispatch
+    subscribe:
+      - fix-review-comment
+    max_walker_depth: 4
+
+  - tool_supported: true
+    id: git-commit
+    hide_content: true
+    model: *advanced_model
+    ephemeral: true
+    system_prompt: "{{> system-prompt-git-commit.hbs }}"
+    user_prompt: "Go ahead and make the commit, {{event.value}}"
+    tools:
+      - tool_forge_process_shell
+    subscribe:
+      - commit
+
+  - tool_supported: true
+    id: github-plan-reviser
+    model: *advanced_model
+    system_prompt: "{{> system-prompt-github-plan-reviser.hbs }}"
+    user_prompt: |-
+      <event>{{event.name}}</event>
+      <value>{{event.value}}</value>
+      <mode>PLAN</mode>
+    ephemeral: false
+    tools:
+      - tool_forge_fs_read
+      - tool_forge_fs_create
+      - tool_forge_fs_remove
+      - tool_forge_fs_patch
+      - tool_forge_process_shell
+      - tool_forge_net_fetch
+      - tool_forge_fs_search
+      - tool_forge_event_dispatch
+    subscribe:
+      - revise_plan
+    max_walker_depth: 4
+
+  - tool_supported: true
+    id: github-pull-request-create
+    hide_content: true
+    model: *advanced_model
+    ephemeral: true
+    system_prompt: "{{> system-prompt-github-pull-request.hbs }}"
+    user_prompt: "Go ahead and create a PR"
+    tools:
+      - tool_forge_process_shell
+    subscribe:
+      - pull-request

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, Serialize, Setters)]
 pub struct Model {
     pub id: ModelId,
-    pub name: String,
+    pub name: Option<String>,
     pub description: Option<String>,
     pub context_length: Option<u64>,
     // TODO: add provider information to the model

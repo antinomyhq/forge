@@ -8,10 +8,11 @@ Best Practices:
 [![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
 [![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
 [![Discord](https://img.shields.io/discord/1044859667798568962?style=for-the-badge&cacheSeconds=120&logo=discord)](https://discord.gg/kRZBPpkgwq)
+[![CLA assistant](https://cla-assistant.io/readme/badge/antinomyhq/forge?style=for-the-badge)](https://cla-assistant.io/antinomyhq/forge)
 
 **Forge: AI-Enhanced Terminal Development Environment**
 
-![Code-Forge Demo](https://antinomy.ai/images/forge_demo_2x.gif)
+![Code-Forge Demo](https://assets.antinomy.ai/images/forge_demo_2x.gif)
 
 Forge is a comprehensive coding agent that integrates AI capabilities with your development environment, offering sophisticated assistance while maintaining the efficiency of your existing workflow.
 
@@ -27,8 +28,7 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
 **Table of Contents**
 
 - [Installation](#installation)
-  - [Mac](#mac)
-  - [Linux](#linux)
+  - [NPM](#npm)
 - [Get Started](#get-started)
 - [Features](#features)
   - [Complete Coding Agent](#complete-coding-agent)
@@ -36,51 +36,48 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
   - [Enhanced Security](#enhanced-security)
   - [Built-in Commands](#built-in-commands)
   - [Autocomplete](#autocomplete)
+  - [Image Upload](#image-upload)
   - [WYSIWYG Shell Experience](#wysiwyg-shell-experience)
   - [Command Interruption](#command-interruption)
   - [Operation Modes](#operation-modes)
     - [ACT Mode (Default)](#act-mode-default)
     - [PLAN Mode](#plan-mode)
   - [Application Logs](#application-logs)
+- [Provider Configuration](#provider-configuration)
+  - [Supported Providers](#supported-providers)
+  - [Custom Provider URLs](#custom-provider-urls)
 - [Custom Workflows and Multi-Agent Systems](#custom-workflows-and-multi-agent-systems)
   - [Creating Custom Workflows](#creating-custom-workflows)
+  - [Configuration Loading and Precedence](#configuration-loading-and-precedence)
   - [Workflow Configuration](#workflow-configuration)
     - [Event System](#event-system)
     - [Agent Tools](#agent-tools)
     - [Agent Configuration Options](#agent-configuration-options)
     - [Built-in Templates](#built-in-templates)
+    - [Custom Commands](#custom-commands)
     - [Example Workflow Configuration](#example-workflow-configuration)
-- [Provider Configuration](#provider-configuration)
-  - [Supported Providers](#supported-providers)
-  - [Custom Provider URLs](#custom-provider-urls)
+      - [Example 1: Using Event Value as Instructions](#example-1-using-event-value-as-instructions)
+      - [Example 2: Using Event Value as Data in a Template](#example-2-using-event-value-as-data-in-a-template)
+      - [Comparing the Two Approaches](#comparing-the-two-approaches)
 - [Why Shell?](#why-shell)
 - [Community](#community)
 - [Support Us](#support-us)
 
 ## Installation
 
-### Mac
+### NPM
 
-Using Homebrew (macOS package manager):
-
-```bash
-# Add Code-Forge's package repository to Homebrew
-brew tap antinomyhq/code-forge
-# Install Code-Forge
-brew install code-forge
-```
-
-### Linux
-
-Choose either method to install:
+Install Forge globally using npm:
 
 ```bash
-# Using curl (common download tool)
-curl -L https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bash
+# Install Forge globally using npm
+npm install -g @antinomyhq/forge
 
-# Or using wget (alternative download tool)
-wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | bash
+# Or run directly without installation using npx
+npx @antinomyhq/forge
 ```
+
+This method works on **Windows**, **macOS**, and **Linux**, providing a consistent installation experience across all platforms.
 
 ## Get Started
 
@@ -89,16 +86,19 @@ wget -qO- https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | b
    ```bash
    # Your API key for accessing AI models (see Environment Configuration section)
    OPENROUTER_API_KEY=<Enter your Open Router Key>
-   
+
    # Optional: Set a custom URL for OpenAI-compatible providers
-   #OPENAI_URL=https://custom-openai-provider.com/v1
+   OPENAI_URL=https://custom-openai-provider.com/v1
+   
+   # Optional: Set a custom URL for Anthropic
+   ANTHROPIC_URL=https://custom-anthropic-provider.com/v1
    ```
 
    _You can get a Key at [Open Router](https://openrouter.ai/)_
 
-2. Launch Code Forge:
+2. Launch Code Forge: Type `@` and press `[tab]` to tag files. You can also use and define custom slash commands.
 
-   ![Code-Forge Demo](https://antinomy.ai/images/forge_demo_2x.gif)
+   ![Code-Forge Demo](https://assets.antinomy.ai/images/forge_demo_2x.gif)
 
 ## Features
 
@@ -163,6 +163,16 @@ Boost your productivity with intelligent command completion:
 - Use Right Arrow to complete previously executed commands
 - Access command history with Up Arrow
 - Quick history search with Ctrl+R
+
+### Image Upload
+
+Easily incorporate images into your conversations:
+
+- Use the `@` special character to tag and upload images directly in your messages
+- Works with both relative and absolute paths:
+  - Relative path: `@screenshots/bug.png` to include an image from a subfolder
+  - Absolute path: `@/Users/username/Documents/diagrams/architecture.png`
+- Perfect for sharing screenshots, diagrams, or any visual context relevant to your development tasks
 
 ### WYSIWYG Shell Experience
 
@@ -290,6 +300,14 @@ OPENROUTER_API_KEY=your_openrouter_key_here
 OPENAI_URL=https://alternative-openrouter-endpoint.com/v1
 ```
 
+For Anthropic, you can customize the API endpoint URL by setting the `ANTHROPIC_URL` environment variable:
+
+```bash
+# Custom Anthropic endpoint
+ANTHROPIC_API_KEY=your_anthropic_key_here
+ANTHROPIC_URL=https://your-custom-anthropic-endpoint.com/v1
+```
+
 This is particularly useful when:
 
 - Using self-hosted models with OpenAI-compatible APIs
@@ -308,6 +326,21 @@ You can configure your own workflows by creating a YAML file and pointing to it 
 ```bash
 forge -w /path/to/your/workflow.yaml
 ```
+
+### Configuration Loading and Precedence
+
+Forge loads workflow configurations using the following precedence rules:
+
+1. **Explicit Path**: When a path is provided with the `-w` flag, Forge loads that configuration directly without any merging
+2. **Project Configuration**: If no explicit path is provided, Forge looks for `forge.yaml` in the current directory
+3. **Default Configuration**: An embedded default configuration is always available as a fallback
+
+When a project configuration exists in the current directory, Forge creates a merged configuration where:
+
+- Project settings in `forge.yaml` take precedence over default settings
+- Any settings not specified in the project configuration inherit from defaults
+
+This approach allows you to customize only the parts of the configuration you need while inheriting sensible defaults for everything else.
 
 ### Workflow Configuration
 
@@ -347,9 +380,21 @@ Each agent needs tools to perform tasks, configured in the `tools` field:
 - `tools` - List of tools the agent can use
 - `subscribe` - Events the agent listens to
 - `ephemeral` - If true, agent is destroyed after task completion
+- `custom_rules` - (Optional) Clear instructions or guidelines that define the rules for the agent. This section ensures the agent follows the desired processes and complies with any specific conditions or constraints set.
 - `tool_supported` - (Optional) Boolean flag that determines whether tools defined in the agent configuration are actually made available to the LLM. When set to `false`, tools are listed in the configuration but not included in AI model requests, causing the agent to format tool calls in XML rather than in the model's native format. Default: `true`.
 - `system_prompt` - (Optional) Instructions for how the agent should behave. While optional, it's recommended to provide clear instructions for best results.
 - `user_prompt` - (Optional) Format for user inputs. If not provided, the raw event value is used.
+
+**Example Agent Configuration:**
+
+```yaml
+agents:
+  - id: software-engineer
+    model: gpt-4
+    custom_rules: always ensure you compile and run tests before presenting to user
+    system_prompt: |
+      You are a software engineer...
+```
 
 #### Built-in Templates
 
@@ -363,7 +408,59 @@ Forge provides templates to simplify system prompt creation:
 
 Use these templates with the syntax: `{{> name-of-the-template.hbs }}`
 
+#### Custom Commands
+
+Forge allows you to define custom commands in your workflow configuration. These commands can be executed within the Forge CLI using the `/command_name` syntax.
+
+**Configuration Options:**
+
+- `name` - The name of the command (used as `/name` in the CLI)
+- `description` - A description of what the command does
+- `value` - (Optional) A default prompt value that will be used if no arguments are provided when executing the command
+
+**Example Custom Command Configuration:**
+
+```yaml
+commands:
+  - name: commit
+    description: Commit changes with a standard prefix
+    value: |
+      Understand the diff produced and commit using the 'conventional commit' standard
+
+  - name: branch
+    description: Create and checkout a new branch
+
+  - name: pull-request
+    description: Create a pull request with standard template
+    value: |
+      Understand the diff with respect to `main` and create a pull-request.
+      Ensure it follows 'conventional commit' standard.
+```
+
+With this configuration, users can type `/commit` in the Forge CLI to execute the commit command with the default instructions for handling commits using the conventional commit standard. If specific instructions are needed, they can be provided as an argument: `/commit Create a detailed commit message for the login feature`. Commands without a default value like `/branch` require an argument to be provided: `/branch feature/new-auth`.
+
+**How Custom Commands Work:**
+
+**How Custom Commands Work With the Event System:**
+
+When a custom command is executed in the Forge CLI, it follows a specific event flow:
+
+1. **Command Execution** - User types a command like `/commit feat: add user authentication`
+2. **Event Dispatch** - Forge dispatches an event with:
+   - Name: The command name (e.g., `commit`)
+   - Value: The provided argument or default value (e.g., `feat: add user authentication`)
+3. **Agent Subscription** - Any agent that has subscribed to this event name receives the event
+4. **Event Processing** - The agent processes the event according to its configuration
+
+For an agent to respond to a custom command, it must explicitly subscribe to the event with the same name as the command in its configuration. The agent can then use conditional logic in its user prompt to handle different types of events appropriately.
+
 #### Example Workflow Configuration
+
+Forge provides two main approaches for handling custom command events in agents. Below are examples of both approaches.
+
+##### Example 1: Using Event Value as Instructions
+
+In this approach, the event value itself contains complete instructions that are passed directly to the agent:
 
 ```yaml
 variables:
@@ -371,17 +468,19 @@ variables:
     advanced_model: &advanced_model anthropic/claude-3.7-sonnet
     efficiency_model: &efficiency_model anthropic/claude-3.5-haiku
 
-agents:
-  - id: title_generation_worker
-    model: *efficiency_model
-    tools:
-      - tool_forge_event_dispatch
-    subscribe:
-      - user_task_init
-    tool_supported: false # Force XML-based tool call formatting
-    system_prompt: "{{> system-prompt-title-generator.hbs }}"
-    user_prompt: <technical_content>{{event.value}}</technical_content>
+commands:
+  - name: commit
+    description: Commit changes with a standard prefix
+    value: |
+      Understand the diff produced and commit using the 'conventional commit' standard
 
+  - name: pull-request
+    description: Create a pull request with standard template
+    value: |
+      Understand the diff with respect to `main` and create a pull-request.
+      Ensure it follows 'conventional commit' standard.
+
+agents:
   - id: developer
     model: *advanced_model
     tools:
@@ -395,17 +494,82 @@ agents:
     subscribe:
       - user_task_init
       - user_task_update
+      - commit # Subscribe to the commit command event
+      - pull-request # Subscribe to the pull-request command event
     ephemeral: false
-    tool_supported: true # Use model's native tool call format (default)
+    tool_supported: true
     system_prompt: "{{> system-prompt-engineer.hbs }}"
     user_prompt: |
       <task>{{event.value}}</task>
 ```
 
-This example workflow creates two agents:
+In this example, the entire value from the event is passed directly as the task. The agent receives the complete instructions as they were defined in the command value or provided by the user.
 
-1. A title generation worker that creates meaningful titles for user conversations
-2. A developer agent that can perform comprehensive file and system operations
+##### Example 2: Using Event Value as Data in a Template
+
+In this approach, the event value is used as data within a template that formats different tasks based on the event name:
+
+```yaml
+variables:
+  models:
+    advanced_model: &advanced_model anthropic/claude-3.7-sonnet
+    efficiency_model: &efficiency_model anthropic/claude-3.5-haiku
+
+commands:
+  - name: commit
+    description: Create a git commit with the provided message
+
+  - name: pull-request
+    description: Create a pull request with the provided title
+
+agents:
+  - id: developer
+    model: *advanced_model
+    tools:
+      - tool_forge_fs_read
+      - tool_forge_fs_create
+      - tool_forge_fs_remove
+      - tool_forge_fs_patch
+      - tool_forge_process_shell
+      - tool_forge_net_fetch
+      - tool_forge_fs_search
+    subscribe:
+      - user_task_init
+      - user_task_update
+      - commit # Subscribe to the commit command event
+      - pull-request # Subscribe to the pull-request command event
+    ephemeral: false
+    tool_supported: true
+    system_prompt: "{{> system-prompt-engineer.hbs }}"
+    user_prompt: |
+      {{#if (eq event.name "commit")}}
+      <task>Create a git commit with the following message: {{event.value}}</task>
+      {{else if (eq event.name "pull-request")}}
+      <task>Create a pull request with the title: {{event.value}}</task>
+      {{else}}
+      <task>{{event.value}}</task>
+      {{/if}}
+```
+
+This example, the event value is a simpler string that gets embedded within a template. The template uses Handlebars conditional logic (`{{#if (eq event.name "commit")}}`) to format different tasks based on the event name. The event value is used as data within these task templates.
+
+##### Comparing the Two Approaches
+
+**Approach 1: Event Value as Instructions**
+
+- **Best for**: When the command itself represents a complete task or instruction set
+- **Flexibility**: Users can provide detailed, multi-line instructions via the command
+- **Implementation**: Simpler user_prompt template that just passes the event value through
+- **Example use case**: Complex operations where instructions vary significantly
+
+**Approach 2: Event Value as Data**
+
+- **Best for**: When commands follow predictable patterns with varying data points
+- **Structure**: More consistent task formatting across different command types
+- **Implementation**: More complex user_prompt template with conditional logic
+- **Example use case**: Standardized workflows like git operations with varying messages/titles
+
+You can choose the approach that best fits your specific workflow needs. For simple command structures, Approach 2 provides more consistency, while Approach 1 offers greater flexibility for complex operations.
 
 ## Why Shell?
 

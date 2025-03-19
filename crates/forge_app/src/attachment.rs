@@ -8,6 +8,7 @@ use forge_domain::{Attachment, AttachmentService, ContentType};
 use crate::{FsReadService, Infrastructure};
 // TODO: bring pdf support, pdf is just a collection of images.
 
+#[derive(Clone)]
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
@@ -70,7 +71,7 @@ pub mod tests {
     use forge_domain::{
         AttachmentService, ContentType, Environment, Point, Provider, Query, Suggestion,
     };
-    use forge_snaps::{SnapshotInfo, SnapshotMetadata};
+    use forge_snaps::Snapshot;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
@@ -165,23 +166,23 @@ pub mod tests {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct MockInfrastructure {
-        env_service: MockEnvironmentService,
-        file_service: MockFileService,
-        vector_index: MockVectorIndex,
-        embedding_service: MockEmbeddingService,
-        file_snapshot_service: MockSnapService,
+        env_service: Arc<MockEnvironmentService>,
+        file_service: Arc<MockFileService>,
+        vector_index: Arc<MockVectorIndex>,
+        embedding_service: Arc<MockEmbeddingService>,
+        file_snapshot_service: Arc<MockSnapService>,
     }
 
     impl MockInfrastructure {
         pub fn new() -> Self {
             Self {
-                env_service: MockEnvironmentService {},
-                file_service: MockFileService::new(),
-                vector_index: MockVectorIndex {},
-                embedding_service: MockEmbeddingService {},
-                file_snapshot_service: MockSnapService,
+                env_service: Arc::new(MockEnvironmentService {}),
+                file_service: Arc::new(MockFileService::new()),
+                vector_index: Arc::new(MockVectorIndex {}),
+                embedding_service: Arc::new(MockEmbeddingService {}),
+                file_snapshot_service: Arc::new(MockSnapService),
             }
         }
     }
@@ -233,47 +234,7 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsSnapshotService for MockSnapService {
-        fn snapshot_dir(&self) -> PathBuf {
-            unimplemented!()
-        }
-
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<SnapshotInfo> {
-            unimplemented!()
-        }
-
-        async fn list_snapshots(&self, _: &Path) -> anyhow::Result<Vec<SnapshotInfo>> {
-            unimplemented!()
-        }
-
-        async fn restore_by_timestamp(&self, _: &Path, _: &str) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-
-        async fn restore_by_index(&self, _: &Path, _: isize) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-
-        async fn restore_previous(&self, _: &Path) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-
-        async fn get_snapshot_by_timestamp(
-            &self,
-            _: &Path,
-            _: &str,
-        ) -> anyhow::Result<SnapshotMetadata> {
-            unimplemented!()
-        }
-
-        async fn get_snapshot_by_index(
-            &self,
-            _: &Path,
-            _: isize,
-        ) -> anyhow::Result<SnapshotMetadata> {
-            unimplemented!()
-        }
-
-        async fn purge_older_than(&self, _: u32) -> anyhow::Result<usize> {
+        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
             unimplemented!()
         }
     }

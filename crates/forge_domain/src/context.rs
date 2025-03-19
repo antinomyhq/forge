@@ -207,9 +207,9 @@ impl Context {
     }
 
     pub fn add_message(mut self, content: impl Into<ContextMessage>) -> Self {
-        let message = content.into();
-        debug!(message = ?message, "Adding message to context");
-        self.messages.push(message);
+        let content = content.into();
+        debug!(content = ?content, "Adding message to context");
+        self.messages.push(content);
 
         self
     }
