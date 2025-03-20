@@ -25,3 +25,5 @@ After receiving response, second message:
 <content>New content</content>
 </tool_forge_fs_create>
 </tool_call>
+
+the the function call MUST be wrapped in <tool_call> tags, and the tool name MUST be used as the enclosing tag. Each parameter must be enclosed within its own set of tags. If you need to make multiple tool calls, send them in separate messages. Do NOT use JSON format (e.g., `tool_name({"param": "value"})`). Do NOT mix formats in the same message
