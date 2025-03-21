@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_walker::Walker;
+use nu_ansi_term::{Color, Style};
 use reedline::{Completer, Suggestion};
 
 use crate::completer::search_term::SearchTerm;
@@ -19,47 +20,65 @@ impl InputCompleter {
         let walker = Walker::max_all().cwd(cwd).skip_binary(true);
         Self { walker, command: CommandCompleter::new(command_manager) }
     }
+
+    fn create_suggestion(path: String, name: &str, query: &str, span: reedline::Span) -> Suggestion {
+        let name_lower = name.to_lowercase();
+        let query_lower = query.to_lowercase();
+        
+        // Simple highlight function that works for both prefix and substring matches
+        let description = if query.is_empty() {
+            name.to_string()
+        } else if let Some(idx) = name_lower.find(&query_lower) {
+            let style = Style::new().on(Color::Green).fg(Color::Black).bold();
+            let end = idx + query.len();
+            format!(
+                "{}{}{}",
+                &name[..idx],
+                style.paint(&name[idx..end]),
+                &name[end..]
+            )
+        } else {
+            name.to_string()
+        };
+
+        Suggestion {
+            value: path,
+            description: Some(description),
+            style: None,
+            extra: Some(vec![
+                if name_lower.starts_with(&query_lower) { "prefix" } else { "substring" }.to_string()
+            ]),
+            span,
+            append_whitespace: true,
+        }
+    }
 }
 
 impl Completer for InputCompleter {
     fn complete(&mut self, line: &str, pos: usize) -> Vec<Suggestion> {
-        if line.starts_with("/") {
-            // if the line starts with '/' it's probably a command, so we delegate to the
-            // command completer.
-            let result = self.command.complete(line, pos);
-            if !result.is_empty() {
-                return result;
-            }
+        // Handle command completion
+        if line.starts_with('/') && !CommandCompleter.complete(line, pos).is_empty() {
+            return CommandCompleter.complete(line, pos);
         }
 
-        if let Some(query) = SearchTerm::new(line, pos).process() {
-            let files = self.walker.get_blocking().unwrap_or_default();
-            files
-                .into_iter()
-                .filter(|file| !file.is_dir())
-                .filter_map(|file| {
-                    if let Some(file_name) = file.file_name.as_ref() {
-                        let file_name_lower = file_name.to_lowercase();
-                        let query_lower = query.term.to_lowercase();
-                        if file_name_lower.contains(&query_lower) {
-                            Some(Suggestion {
-                                value: file.path,
-                                description: None,
-                                style: None,
-                                extra: None,
-                                span: query.span,
-                                append_whitespace: true,
-                            })
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        } else {
-            vec![]
-        }
+        // Handle file completion
+        let search_term = SearchTerm::new(line, pos);
+        let Some(query) = search_term.process() else {
+            return vec![];
+        };
+
+        let Ok(files) = self.walker.get_blocking() else {
+            return vec![];
+        };
+
+        files
+            .into_iter()
+            .filter(|file| !file.is_dir())
+            .filter_map(|file| {
+                let name = file.file_name.as_ref()?;
+                let matches = name.to_lowercase().contains(&query.term.to_lowercase());
+                matches.then(|| Self::create_suggestion(file.path, name, query.term, query.span))
+            })
+            .collect()
     }
 }
