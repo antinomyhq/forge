@@ -36,15 +36,19 @@ impl Completer for InputCompleter {
             let files = self.walker.get_blocking().unwrap_or_default();
             files
                 .into_iter()
-                .filter(|file| !file.is_dir())
                 .filter_map(|file| {
                     if let Some(file_name) = file.file_name.as_ref() {
                         let file_name_lower = file_name.to_lowercase();
                         let query_lower = query.term.to_lowercase();
-                        if file_name_lower.contains(&query_lower) {
+                        if file_name_lower.starts_with(&query_lower) {
+                            let description = if file.path.len() > file_name.len() {
+                                Some(file.path.to_string())
+                            } else {
+                                None
+                            };
                             Some(Suggestion {
                                 value: file.path,
-                                description: None,
+                                description,
                                 style: None,
                                 extra: None,
                                 span: query.span,
@@ -57,7 +61,7 @@ impl Completer for InputCompleter {
                         None
                     }
                 })
-                .collect()
+                .collect::<Vec<_>>()
         } else {
             vec![]
         }
