@@ -8,10 +8,20 @@ use futures::{Stream, StreamExt};
 use tokio::sync::RwLock;
 use tracing::debug;
 
+use crate::retry::{retry_with_backoff, RetryConfig};
 use crate::*;
 
 type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
-
+// Define a predicate that only retries tool call parsing errors
+fn should_retry(err: &anyhow::Error) -> bool {
+    if let Some(domain_err) = err.downcast_ref::<Error>() {
+        return matches!(
+            domain_err,
+            Error::ToolCallParse(_) | Error::ToolCallArgument(_)
+        );
+    }
+    false
+}
 #[derive(Debug, Clone)]
 pub struct AgentMessage<T> {
     pub agent: AgentId,
@@ -305,7 +315,12 @@ impl<A: App> Orchestrator<A> {
         Ok(())
     }
 
-    async fn init_agent_with_event(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
+    // Create a helper method with the core functionality
+    async fn init_agent_with_event_core(
+        &self,
+        agent_id: &AgentId,
+        event: &Event,
+    ) -> anyhow::Result<()> {
         let conversation = self.get_conversation().await?;
         debug!(
             conversation_id = %conversation.id,
@@ -408,6 +423,33 @@ impl<A: App> Orchestrator<A> {
         self.sync_conversation().await?;
 
         Ok(())
+    }
+
+    // Modified init_agent_with_event that uses retry mechanism with specific error
+    // predicate
+    async fn init_agent_with_event(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
+        // Clone variables for the retry closure
+        let agent_id_clone = agent_id.clone();
+        let event_clone = event.clone();
+        let self_clone = self.clone();
+
+        retry_with_backoff(
+            &format!("init_agent_with_event::{}", agent_id),
+            move || {
+                let agent_id = agent_id_clone.clone();
+                let event = event_clone.clone();
+                let orchestrator = self_clone.clone();
+
+                async move {
+                    orchestrator
+                        .init_agent_with_event_core(&agent_id, &event)
+                        .await
+                }
+            },
+            RetryConfig::default(),
+            should_retry,
+        )
+        .await
     }
 
     async fn init_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
