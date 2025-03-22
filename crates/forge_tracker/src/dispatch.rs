@@ -11,7 +11,7 @@ use tokio::time::Duration;
 use super::Result;
 use crate::can_track::can_track;
 use crate::collect::{posthog, Collect};
-use crate::{Event, EventKind};
+use crate::{Event, EventKind, ErrorDetails};
 
 const POSTHOG_API_SECRET: &str = match option_env!("POSTHOG_API_SECRET") {
     Some(val) => val,
@@ -93,6 +93,22 @@ impl Tracker {
             *guard = Some(email().await.into_iter().collect());
         }
         guard.clone().unwrap_or_default()
+    }
+
+    pub async fn dispatch_error(
+        &'static self,
+        error_type: String,
+        error_message: String,
+        context: String,
+        stack_trace: Option<String>,
+    ) -> Result<()> {
+        let error_details = ErrorDetails {
+            error_type,
+            error_message,
+            context,
+            stack_trace: stack_trace.unwrap_or_default(),
+        };
+        self.dispatch(EventKind::ErrorOccurred(error_details)).await
     }
 }
 

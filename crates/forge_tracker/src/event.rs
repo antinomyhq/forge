@@ -48,6 +48,15 @@ pub enum EventKind {
     Ping,
     Prompt(String),
     Error(String),
+    ErrorOccurred(ErrorDetails),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorDetails {
+    pub error_type: String,
+    pub error_message: String,
+    pub context: String,
+    pub stack_trace: String,
 }
 
 impl EventKind {
@@ -57,6 +66,7 @@ impl EventKind {
             Self::Ping => Name::from("ping".to_string()),
             Self::Prompt(_) => Name::from("prompt".to_string()),
             Self::Error(_) => Name::from("error".to_string()),
+            Self::ErrorOccurred(_) => Name::from("error_occured".to_string()),
         }
     }
     pub fn value(&self) -> String {
@@ -65,6 +75,7 @@ impl EventKind {
             Self::Ping => "".to_string(),
             Self::Prompt(content) => content.to_string(),
             Self::Error(content) => content.to_string(),
+            Self::ErrorOccurred(details) => serde_json::to_string(details).unwrap_or_default(),
         }
     }
 }
