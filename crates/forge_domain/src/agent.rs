@@ -121,7 +121,7 @@ pub struct Agent {
     pub custom_rules: Option<String>,
 }
 
-fn merge_subscription(base: &mut Option<Vec<String>>, other: Option<Vec<String>>) {
+fn merge_subscription<T>(base: &mut Option<Vec<T>>, other: Option<Vec<T>>) {
     if let Some(other) = other {
         if let Some(base) = base {
             base.extend(other);
@@ -381,27 +381,29 @@ mod tests {
     fn test_merge_subscribe() {
         // Base has no value, should take other's values
         let mut base = Agent::new("Base"); // no subscribe
-        let other = Agent::new("Other").subscribe(vec!["event2".to_string(), "event3".to_string()]);
+        let other = Agent::new("Other")
+            .subscribe(vec!["test/event2".to_string(), "test/event3".to_string()]);
         base.merge(other);
 
         // Should contain events from other
         let subscribe = base.subscribe.as_ref().unwrap();
         assert_eq!(subscribe.len(), 2);
-        assert!(subscribe.contains(&"event2".to_string()));
-        assert!(subscribe.contains(&"event3".to_string()));
+        assert!(subscribe.contains(&"test/event2".to_string()));
+        assert!(subscribe.contains(&"test/event3".to_string()));
 
         // Base has a value, should not be overwritten
-        let mut base =
-            Agent::new("Base").subscribe(vec!["event1".to_string(), "event2".to_string()]);
-        let other = Agent::new("Other").subscribe(vec!["event3".to_string(), "event4".to_string()]);
+        let mut base = Agent::new("Base")
+            .subscribe(vec!["test/event1".to_string(), "test/event2".to_string()]);
+        let other = Agent::new("Other")
+            .subscribe(vec!["test/event3".to_string(), "test/event4".to_string()]);
         base.merge(other);
 
         // Should have other's events
         let subscribe = base.subscribe.as_ref().unwrap();
         assert_eq!(subscribe.len(), 4);
-        assert!(subscribe.contains(&"event1".to_string()));
-        assert!(subscribe.contains(&"event2".to_string()));
-        assert!(subscribe.contains(&"event3".to_string()));
-        assert!(subscribe.contains(&"event4".to_string()));
+        assert!(subscribe.contains(&"test/event1".to_string()));
+        assert!(subscribe.contains(&"test/event2".to_string()));
+        assert!(subscribe.contains(&"test/event3".to_string()));
+        assert!(subscribe.contains(&"test/event4".to_string()));
     }
 }

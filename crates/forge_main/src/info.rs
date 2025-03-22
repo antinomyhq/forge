@@ -67,7 +67,6 @@ impl From<&Environment> for Info {
             .add_title("Paths")
             .add_key_value("Config", env.base_path.display())
             .add_key_value("Logs", env.log_path().display())
-            .add_key_value("Database", env.db_path().display())
             .add_key_value("History", env.history_path().display())
             .add_item("Snapshot", Some(env.snapshot_path().display()))
     }

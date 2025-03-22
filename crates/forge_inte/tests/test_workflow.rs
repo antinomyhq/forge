@@ -30,7 +30,7 @@ pub fn create_test_workflow() -> Workflow {
             ToolName::new("tool_forge_fs_read"),
             ToolName::new("tool_forge_fs_search"),
         ])
-        .subscribe(vec!["user_task_init".to_string()])
+        .subscribe(vec!["user/task_init".to_string()])
         .ephemeral(false)
         .system_prompt(Template::<SystemContext>::new(SYSTEM_PROMPT.trim()))
         .user_prompt(Template::<EventContext>::new(USER_PROMPT.trim()));

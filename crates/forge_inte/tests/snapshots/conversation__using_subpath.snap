@@ -1,0 +1,27 @@
+---
+source: crates/forge_inte/tests/conversation.rs
+expression: json
+snapshot_kind: text
+---
+{
+  "act/user/task_init": [
+    "title-generation",
+    "software-engineer"
+  ],
+  "act/user/task_update": [
+    "software-engineer"
+  ],
+  "help/user/task_init": [
+    "help_agent"
+  ],
+  "help/user/task_update": [
+    "help_agent"
+  ],
+  "plan/user/task_init": [
+    "title-generation",
+    "software-engineer"
+  ],
+  "plan/user/task_update": [
+    "software-engineer"
+  ]
+}
