@@ -30,7 +30,7 @@ async fn test_dispatch_error_without_stack_trace() {
     let result = TRACKER
         .dispatch_error(error_type, error_message, context, stack_trace)
         .await;
-    
+
     assert!(result.is_ok(), "Error dispatch failed: {:?}", result.err());
 }
 
@@ -44,8 +44,12 @@ async fn test_dispatch_error_with_empty_strings() {
     let result = TRACKER
         .dispatch_error(error_type, error_message, context, stack_trace)
         .await;
-    
-    assert!(result.is_ok(), "Error dispatch with empty strings failed: {:?}", result.err());
+
+    assert!(
+        result.is_ok(),
+        "Error dispatch with empty strings failed: {:?}",
+        result.err()
+    );
 }
 
 #[tokio::test]
@@ -59,7 +63,7 @@ async fn test_dispatch_multiple_errors() {
             Some("Network stack trace".to_string()),
         )
         .await;
-    
+
     // Second error
     let result2 = TRACKER
         .dispatch_error(
@@ -69,8 +73,11 @@ async fn test_dispatch_multiple_errors() {
             Some("Database stack trace".to_string()),
         )
         .await;
-    
-    assert!(result1.is_ok() && result2.is_ok(), "Multiple error dispatch failed");
+
+    assert!(
+        result1.is_ok() && result2.is_ok(),
+        "Multiple error dispatch failed"
+    );
 }
 
 #[tokio::test]
@@ -83,6 +90,10 @@ async fn test_dispatch_error_with_long_message() {
     let result = TRACKER
         .dispatch_error(error_type, error_message, context, stack_trace)
         .await;
-    
-    assert!(result.is_ok(), "Error dispatch with long message failed: {:?}", result.err());
+
+    assert!(
+        result.is_ok(),
+        "Error dispatch with long message failed: {:?}",
+        result.err()
+    );
 }

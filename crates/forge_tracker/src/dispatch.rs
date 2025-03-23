@@ -11,7 +11,7 @@ use tokio::time::Duration;
 use super::Result;
 use crate::can_track::can_track;
 use crate::collect::{posthog, Collect};
-use crate::{Event, EventKind, ErrorDetails};
+use crate::{ErrorDetails, Event, EventKind};
 
 const POSTHOG_API_SECRET: &str = match option_env!("POSTHOG_API_SECRET") {
     Some(val) => val,
