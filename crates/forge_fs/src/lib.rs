@@ -25,6 +25,13 @@ impl ForgeFS {
             .await
             .with_context(|| format!("Failed to write file {}", path.as_ref().display()))
     }
+
+    pub async fn read_utf8<T: AsRef<Path>>(path: T) -> Result<String> {
+        ForgeFS::read(path)
+            .await
+            .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
+    }
+
     pub async fn read<T: AsRef<Path>>(path: T) -> Result<Vec<u8>> {
         tokio::fs::read(path.as_ref())
             .await

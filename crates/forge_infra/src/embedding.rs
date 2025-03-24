@@ -1,6 +1,6 @@
 use anyhow::Context;
-use forge_app::EmbeddingService;
 use forge_domain::Environment;
+use forge_services::EmbeddingService;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 

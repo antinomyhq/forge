@@ -968,9 +968,9 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
- "forge_app",
  "forge_domain",
  "forge_infra",
+ "forge_services",
  "forge_snaps",
  "forge_stream",
  "forge_walker",
@@ -981,61 +981,7 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "tokio",
-]
-
-[[package]]
-name = "forge_app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.22.1",
- "bytes",
- "chrono",
- "derive_more 2.0.1",
- "derive_setters",
- "dissimilar",
- "forge_display",
- "forge_domain",
- "forge_open_router",
- "forge_snaps",
- "forge_tool_macros",
- "forge_walker",
- "futures",
- "glob",
- "handlebars",
- "html2md",
- "insta",
- "mockito",
- "moka2",
- "nom 8.0.0",
- "pretty_assertions",
- "regex",
- "reqwest 0.12.12",
- "rust-embed",
- "schemars",
- "serde",
- "serde_json",
- "strum 0.27.1",
- "strum_macros 0.27.1",
- "syn 2.0.98",
- "tempfile",
- "termimad",
- "thiserror 2.0.12",
- "tokio",
- "tokio-stream",
  "tracing",
- "tree-sitter",
- "tree-sitter-cpp",
- "tree-sitter-css",
- "tree-sitter-go",
- "tree-sitter-java",
- "tree-sitter-python",
- "tree-sitter-ruby",
- "tree-sitter-rust",
- "tree-sitter-scala",
- "tree-sitter-typescript",
- "uuid",
 ]
 
 [[package]]
@@ -1108,9 +1054,9 @@ dependencies = [
  "bytes",
  "dirs",
  "dotenv",
- "forge_app",
  "forge_domain",
  "forge_fs",
+ "forge_services",
  "forge_snaps",
  "qdrant-client",
  "reqwest 0.12.12",
@@ -1124,6 +1070,7 @@ name = "forge_inte"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dotenv",
  "forge_api",
  "forge_domain",
  "forge_tracker",
@@ -1134,7 +1081,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "forge_open_router"
+name = "forge_provider"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1156,6 +1103,61 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+]
+
+[[package]]
+name = "forge_services"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "derive_more 2.0.1",
+ "derive_setters",
+ "dissimilar",
+ "forge_display",
+ "forge_domain",
+ "forge_provider",
+ "forge_snaps",
+ "forge_tool_macros",
+ "forge_walker",
+ "futures",
+ "glob",
+ "handlebars",
+ "html2md",
+ "insta",
+ "mockito",
+ "moka2",
+ "nom 8.0.0",
+ "pretty_assertions",
+ "regex",
+ "reqwest 0.12.12",
+ "rust-embed",
+ "schemars",
+ "serde",
+ "serde_json",
+ "strum 0.27.1",
+ "strum_macros 0.27.1",
+ "syn 2.0.98",
+ "tempfile",
+ "termimad",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tree-sitter",
+ "tree-sitter-cpp",
+ "tree-sitter-css",
+ "tree-sitter-go",
+ "tree-sitter-java",
+ "tree-sitter-python",
+ "tree-sitter-ruby",
+ "tree-sitter-rust",
+ "tree-sitter-scala",
+ "tree-sitter-typescript",
+ "uuid",
 ]
 
 [[package]]

@@ -1,0 +1,25 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: "TempDir::normalize(&result)"
+---
+<file_content path="[TEMP_DIR]/test.txt">
+
+
+
+// New header
+
+
+
+function test() {
+    // Inside comment
+
+    let y = 2;
+
+
+    console.log(y);
+}
+
+
+
+// Updated footer
+</file_content>

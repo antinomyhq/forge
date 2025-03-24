@@ -1,0 +1,149 @@
+---
+source: crates/forge_services/src/tools/patch/apply_json.rs
+expression: test
+---
+PatchTest {
+    initial: "Hello World",
+    patches: [
+        Patch {
+            operation: PatchOperation {
+                search: "World",
+                operation: Replace,
+                content: "Forge",
+            },
+            result: Ok(
+                "Hello Forge",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "",
+                operation: Replace,
+                content: " bar",
+            },
+            result: Ok(
+                " bar",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "foo",
+                operation: Replace,
+                content: "baz",
+            },
+            result: Err(
+                "Could not find match for search text: foo",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "Hello",
+                operation: Replace,
+                content: "Hi",
+            },
+            result: Err(
+                "Could not find match for search text: Hello",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "Hello",
+                operation: Replace,
+                content: "你好",
+            },
+            result: Err(
+                "Could not find match for search text: Hello",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "World",
+                operation: Replace,
+                content: "🌍",
+            },
+            result: Err(
+                "Could not find match for search text: World",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "Hello",
+                operation: Prepend,
+                content: "    ",
+            },
+            result: Err(
+                "Could not find match for search text: Hello",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "World",
+                operation: Append,
+                content: "\n  New line",
+            },
+            result: Err(
+                "Could not find match for search text: World",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "Hello",
+                operation: Prepend,
+                content: "Greetings, ",
+            },
+            result: Err(
+                "Could not find match for search text: Hello",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "World",
+                operation: Append,
+                content: "!",
+            },
+            result: Err(
+                "Could not find match for search text: World",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "Hello",
+                operation: Swap,
+                content: "World",
+            },
+            result: Err(
+                "Could not find match for search text: Hello",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "",
+                operation: Prepend,
+                content: "Start: ",
+            },
+            result: Ok(
+                "Start:  bar",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "",
+                operation: Append,
+                content: " End",
+            },
+            result: Ok(
+                "Start:  bar End",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "",
+                operation: Replace,
+                content: "Completely New Content",
+            },
+            result: Ok(
+                "Completely New Content",
+            ),
+        },
+    ],
+}

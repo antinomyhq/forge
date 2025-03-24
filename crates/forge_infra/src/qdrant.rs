@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context};
-use forge_app::VectorIndex;
 use forge_domain::{Environment, Point, Query};
+use forge_services::VectorIndex;
 use qdrant_client::qdrant::{PointStruct, SearchPointsBuilder, UpsertPointsBuilder};
 use qdrant_client::{Payload, Qdrant};
 use serde::de::DeserializeOwned;

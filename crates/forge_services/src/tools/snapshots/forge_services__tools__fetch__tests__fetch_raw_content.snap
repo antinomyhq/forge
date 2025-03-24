@@ -1,0 +1,7 @@
+---
+source: crates/forge_services/src/tools/fetch.rs
+expression: normalized_result
+---
+Content type text/plain cannot be simplified to markdown, but here is the raw content:
+Contents of http://127.0.0.1:PORT/test.txt:
+This is raw text content

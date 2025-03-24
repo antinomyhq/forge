@@ -1,6 +1,0 @@
----
-source: crates/forge_app/src/tool_service.rs
-expression: result
-snapshot_kind: text
----
-<tool_result><tool_name>success_tool</tool_name><success><![CDATA[Success with input: "test input"]]></success></tool_result>

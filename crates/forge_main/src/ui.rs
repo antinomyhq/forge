@@ -350,7 +350,7 @@ impl<F: API> UI<F> {
 
     fn handle_chat_response(&mut self, message: AgentMessage<ChatResponse>) -> Result<()> {
         match message.message {
-            ChatResponse::Text(text) => CONSOLE.write(&text)?,
+            ChatResponse::Text(text) => CONSOLE.write(text.dimmed().to_string())?,
             ChatResponse::ToolCallStart(_) => {
                 CONSOLE.newline()?;
                 CONSOLE.newline()?;
@@ -370,7 +370,7 @@ impl<F: API> UI<F> {
                     CONSOLE.writeln(TitleFormat::success(tool_name).format())?;
                 }
             }
-            ChatResponse::Custom(event) => {
+            ChatResponse::Event(event) => {
                 if event.name == EVENT_TITLE {
                     self.state.current_title = Some(event.value);
                 }

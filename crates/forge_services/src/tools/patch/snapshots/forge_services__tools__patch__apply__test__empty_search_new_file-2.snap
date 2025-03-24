@@ -1,0 +1,5 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: final_content
+---
+New content

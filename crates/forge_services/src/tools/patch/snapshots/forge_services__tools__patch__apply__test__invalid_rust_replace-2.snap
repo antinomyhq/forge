@@ -1,0 +1,5 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: content
+---
+fn main() { let x =

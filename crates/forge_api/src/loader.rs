@@ -2,8 +2,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{FsReadService, Infrastructure};
 use forge_domain::Workflow;
+use forge_services::{FsReadService, Infrastructure};
 use merge::Merge;
 
 // Import the default configuration

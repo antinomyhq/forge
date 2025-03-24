@@ -1,0 +1,20 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: content3
+---
+// New header
+
+
+
+function test() {
+    // Inside comment
+
+    let y = 2;
+
+
+    console.log(y);
+}
+
+
+
+// Updated footer

@@ -11,5 +11,5 @@ pub enum ChatResponse {
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
     Usage(Usage),
-    Custom(Event),
+    Event(Event),
 }

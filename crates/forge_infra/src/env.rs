@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use forge_app::EnvironmentService;
 use forge_domain::{Environment, Provider};
+use forge_services::EnvironmentService;
 
 pub struct ForgeEnvironmentService {
     restricted: bool,

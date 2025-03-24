@@ -1,104 +1,57 @@
 use std::path::Path;
-use std::sync::Arc;
 
-use anyhow::Result;
-use forge_app::{EnvironmentService, ForgeApp, Infrastructure};
-use forge_domain::*;
-use forge_infra::ForgeInfra;
+pub use forge_domain::*;
 use forge_stream::MpscStream;
 use serde_json::Value;
 
-use crate::executor::ForgeExecutorService;
-use crate::loader::ForgeLoaderService;
-use crate::suggestion::ForgeSuggestionService;
-use crate::API;
-
-pub struct ForgeAPI<F> {
-    app: Arc<F>,
-    executor_service: ForgeExecutorService<F>,
-    suggestion_service: ForgeSuggestionService<F>,
-    loader: ForgeLoaderService<F>,
-}
-
-impl<F: App + Infrastructure> ForgeAPI<F> {
-    pub fn new(app: Arc<F>) -> Self {
-        Self {
-            app: app.clone(),
-            executor_service: ForgeExecutorService::new(app.clone()),
-            suggestion_service: ForgeSuggestionService::new(app.clone()),
-            loader: ForgeLoaderService::new(app.clone()),
-        }
-    }
-}
-
-impl ForgeAPI<ForgeApp<ForgeInfra>> {
-    pub fn init(restricted: bool) -> Self {
-        let infra = Arc::new(ForgeInfra::new(restricted));
-        let app = Arc::new(ForgeApp::new(infra));
-        ForgeAPI::new(app)
-    }
-}
-
 #[async_trait::async_trait]
-impl<F: App + Infrastructure> API for ForgeAPI<F> {
-    async fn suggestions(&self) -> Result<Vec<File>> {
-        self.suggestion_service.suggestions().await
-    }
+pub trait API: Sync + Send {
+    /// Provides a list of files in the current working directory for auto
+    /// completion
+    async fn suggestions(&self) -> anyhow::Result<Vec<File>>;
 
-    async fn tools(&self) -> Vec<ToolDefinition> {
-        self.app.tool_service().list()
-    }
+    /// Provides information about the tools available in the current
+    /// environment
+    async fn tools(&self) -> Vec<ToolDefinition>;
 
-    async fn models(&self) -> Result<Vec<Model>> {
-        Ok(self.app.provider_service().models().await?)
-    }
+    /// Provides a list of models available in the current environment
+    async fn models(&self) -> anyhow::Result<Vec<Model>>;
 
+    /// Executes a chat request and returns a stream of responses
     async fn chat(
         &self,
         chat: ChatRequest,
-    ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
-        Ok(self.executor_service.chat(chat).await?)
-    }
+    ) -> anyhow::Result<MpscStream<anyhow::Result<AgentMessage<ChatResponse>, anyhow::Error>>>;
 
-    async fn init(&self, workflow: Workflow) -> anyhow::Result<ConversationId> {
-        self.app.conversation_service().create(workflow).await
-    }
+    /// Returns the current environment
+    fn environment(&self) -> Environment;
 
-    fn environment(&self) -> Environment {
-        self.app.environment_service().get_environment().clone()
-    }
+    /// Creates a new conversation with the given workflow
+    async fn init(&self, workflow: Workflow) -> anyhow::Result<ConversationId>;
 
-    async fn load(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.loader.load(path).await
-    }
+    /// Loads a workflow configuration from the given path, current directory's
+    /// forge.yaml, or embedded default configuration in that order of
+    /// precedence
+    async fn load(&self, path: Option<&Path>) -> anyhow::Result<Workflow>;
 
+    /// Returns the conversation with the given ID
     async fn conversation(
         &self,
         conversation_id: &ConversationId,
-    ) -> anyhow::Result<Option<Conversation>> {
-        self.app.conversation_service().get(conversation_id).await
-    }
+    ) -> anyhow::Result<Option<Conversation>>;
 
+    /// Gets a variable from the conversation
     async fn get_variable(
         &self,
         conversation_id: &ConversationId,
         key: &str,
-    ) -> anyhow::Result<Option<Value>> {
-        self.app
-            .conversation_service()
-            .get_variable(conversation_id, key)
-            .await
-    }
+    ) -> anyhow::Result<Option<Value>>;
 
+    /// Sets a variable in the conversation
     async fn set_variable(
         &self,
         conversation_id: &ConversationId,
         key: String,
         value: Value,
-    ) -> anyhow::Result<()> {
-        self.app
-            .conversation_service()
-            .set_variable(conversation_id, key, value)
-            .await
-    }
+    ) -> anyhow::Result<()>;
 }

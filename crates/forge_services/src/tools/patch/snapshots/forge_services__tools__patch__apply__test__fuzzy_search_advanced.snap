@@ -1,0 +1,13 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: "TempDir::normalize(&result)"
+---
+<file_content path="[TEMP_DIR]/test.txt">
+class UserManager {
+  async findUser(id, options = {}) {
+    const user = await this.db.findOne({ userId: id, ...options });
+    if (!user) throw new Error('User not found');
+    return user;
+  }
+}
+</file_content>

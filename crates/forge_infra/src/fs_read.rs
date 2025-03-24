@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_app::FsReadService;
+use forge_services::FsReadService;
 
 pub struct ForgeFileReadService;
 

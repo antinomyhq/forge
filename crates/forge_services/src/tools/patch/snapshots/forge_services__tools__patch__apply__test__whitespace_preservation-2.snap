@@ -1,0 +1,7 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: final_content
+---
+    Hi World    
+  Test Line  
+   Goodbye World

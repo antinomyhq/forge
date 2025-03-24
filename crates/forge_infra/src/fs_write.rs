@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_app::{FsSnapshotService, FsWriteService};
+use forge_services::{FsSnapshotService, FsWriteService};
 
 pub struct ForgeFileWriteService<S> {
     snaps: Arc<S>,

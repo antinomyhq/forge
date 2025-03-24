@@ -1,0 +1,7 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: "TempDir::normalize(&result)"
+---
+<file_content path="[TEMP_DIR]/test.txt">
+New content
+</file_content>

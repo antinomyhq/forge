@@ -9,6 +9,5 @@ agents:
     custom_rules: |
       Follow the project guidelines as described in docs/guidelines.md
     max_walker_depth: 1024
-    hide_content: true
     subscribe:
       - fixme

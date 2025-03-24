@@ -1,0 +1,49 @@
+---
+source: crates/forge_services/src/tools/patch/apply_json.rs
+expression: test
+---
+PatchTest {
+    initial: "foo bar baz",
+    patches: [
+        Patch {
+            operation: PatchOperation {
+                search: "nonexistent",
+                operation: Replace,
+                content: "replaced",
+            },
+            result: Err(
+                "Could not find match for search text: nonexistent",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "foo-bar",
+                operation: Replace,
+                content: "replaced",
+            },
+            result: Err(
+                "Could not find match for search text: foo-bar",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "afoo",
+                operation: Replace,
+                content: "replaced",
+            },
+            result: Err(
+                "Could not find match for search text: afoo",
+            ),
+        },
+        Patch {
+            operation: PatchOperation {
+                search: "foo",
+                operation: Swap,
+                content: "nonexistent",
+            },
+            result: Err(
+                "Could not find swap target text: nonexistent",
+            ),
+        },
+    ],
+}

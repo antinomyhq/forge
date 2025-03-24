@@ -1,0 +1,8 @@
+---
+source: crates/forge_services/src/tool_service.rs
+expression: result
+---
+<tool_result><tool_name>failure_tool</tool_name><error><![CDATA[
+ERROR:
+Caused by: Tool call failed with simulated failure
+]]></error></tool_result>

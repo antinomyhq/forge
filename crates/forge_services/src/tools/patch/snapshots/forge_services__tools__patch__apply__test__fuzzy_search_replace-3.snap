@@ -1,0 +1,13 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: "TempDir::normalize(&result)"
+---
+<file_content path="[TEMP_DIR]/test.txt">
+function computeTotal(items, tax = 0) {
+  let total = 0.0;
+  for (const item of items) {
+    total += item.price * item.quantity;
+  }
+  return total;
+}
+</file_content>

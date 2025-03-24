@@ -1,0 +1,6 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: final_content
+---
+    First Line    
+    Last Line

@@ -1,0 +1,9 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: "TempDir::normalize(&result)"
+---
+<file_content
+  path="[TEMP_DIR]/test.rs"
+  syntax_checker_warning="Syntax error found in file with extension rs. Hint: Please retry in raw mode without HTML-encoding angle brackets.">
+fn main() { let x = 
+</file_content>

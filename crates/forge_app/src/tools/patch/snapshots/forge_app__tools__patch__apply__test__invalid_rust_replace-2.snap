@@ -1,6 +1,0 @@
----
-source: crates/forge_app/src/tools/patch/apply.rs
-expression: content
-snapshot_kind: text
----
-fn main() { let x =

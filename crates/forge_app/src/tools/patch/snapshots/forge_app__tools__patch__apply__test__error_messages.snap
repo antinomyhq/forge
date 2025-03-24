@@ -1,6 +1,0 @@
----
-source: crates/forge_app/src/tools/patch/apply.rs
-expression: err.to_string()
-snapshot_kind: text
----
-File not found at path: nonexistent.txt

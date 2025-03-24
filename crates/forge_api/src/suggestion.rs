@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::{EnvironmentService, Infrastructure};
 use forge_domain::{App, File};
+use forge_services::{EnvironmentService, Infrastructure};
 use forge_walker::Walker;
 
 pub struct ForgeSuggestionService<F> {

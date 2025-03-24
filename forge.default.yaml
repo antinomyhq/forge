@@ -12,11 +12,10 @@ models:
   # Role-based model definitions - easy to swap implementation
   - &advanced_model anthropic/claude-3.7-sonnet
   - &standard_model anthropic/claude-3.5-haiku
-  - &fast_model google/gemini-2.0-flash-thinking-exp:free
 
 agents:
-  - tool_supported: true
-    id: title-generation
+  - id: title-generation
+    tool_supported: true
     model: *standard_model
     hide_content: true
     system_prompt: "{{> system-prompt-title-generator.hbs }}"
@@ -27,17 +26,18 @@ agents:
       - user_task_init
 
   - id: help_agent
-    model: *fast_model
+    model: *advanced_model
+    hide_content: true
     system_prompt: "{{> system-prompt-help.hbs }}"
     user_prompt: <query>{{event.value}}</query>
+    tool_supported: true
     tools:
-      - tool_forge_fs_read
-      - tool_forge_fs_create
+      - tool_forge_display_show_user
     subscribe:
       - user_help_query
 
-  - tool_supported: true
-    id: software-engineer
+  - id: software-engineer
+    tool_supported: true
     model: *advanced_model
     system_prompt: "{{> system-prompt-engineer.hbs }}"
     user_prompt: |-
@@ -126,8 +126,8 @@ agents:
 
   - tool_supported: true
     id: git-commit
-    hide_content: true
     model: *advanced_model
+    hide_content: true    
     ephemeral: true
     system_prompt: "{{> system-prompt-git-commit.hbs }}"
     user_prompt: "Go ahead and make the commit, {{event.value}}"

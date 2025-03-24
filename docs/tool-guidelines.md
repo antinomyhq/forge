@@ -27,7 +27,7 @@ While you can include examples of how to use a tool in its description or in the
 
 ### 4. Register All Tools in the Registry
 
-Every tool must be registered in the `crates/forge_app/src/tools/registry.rs` file to be available for use. The `ToolRegistry::tools()` method returns all available tools configured with the given infrastructure.
+Every tool must be registered in the `crates/forge_services/src/tools/registry.rs` file to be available for use. The `ToolRegistry::tools()` method returns all available tools configured with the given infrastructure.
 
 ## Example Comparison
 

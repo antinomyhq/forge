@@ -1,0 +1,7 @@
+---
+source: crates/forge_services/src/tools/fs/fs_list.rs
+expression: "TempDir::normalize(&result)"
+---
+<file_list path="[TEMP_DIR]">
+<dir path="/">
+</file_list>

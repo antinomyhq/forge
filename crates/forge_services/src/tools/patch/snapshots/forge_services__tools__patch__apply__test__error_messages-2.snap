@@ -1,0 +1,5 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: io_err.to_string()
+---
+File operation failed: No such file or directory (os error 2)

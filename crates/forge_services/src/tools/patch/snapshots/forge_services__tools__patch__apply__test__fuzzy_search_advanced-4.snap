@@ -1,0 +1,13 @@
+---
+source: crates/forge_services/src/tools/patch/apply.rs
+expression: content2
+---
+class UserManager {
+  async findUser(id, options = {}) {
+    const user = await this.db.findOne({ userId: id, ...options });
+    if (!user) {
+      throw new UserNotFoundError(id);
+    }
+    return this.sanitizeUser(user);
+  }
+}

@@ -1,7 +1,0 @@
----
-source: crates/forge_app/src/tools/patch/apply.rs
-expression: final_content
-snapshot_kind: text
----
-    First Line    
-    Last Line

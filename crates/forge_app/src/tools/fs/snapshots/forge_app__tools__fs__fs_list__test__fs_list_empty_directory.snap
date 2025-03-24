@@ -1,8 +1,0 @@
----
-source: crates/forge_app/src/tools/fs/fs_list.rs
-expression: "TempDir::normalize(&result)"
-snapshot_kind: text
----
-<file_list path="[TEMP_DIR]">
-<dir path="/">
-</file_list>

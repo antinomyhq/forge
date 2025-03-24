@@ -2,8 +2,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::FsSnapshotService;
 use forge_domain::Environment;
+use forge_services::FsSnapshotService;
 use forge_snaps::Snapshot;
 
 pub struct ForgeFileSnapshotService {
