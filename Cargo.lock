@@ -971,6 +971,7 @@ dependencies = [
  "forge_domain",
  "forge_infra",
  "forge_services",
+ "forge_signal",
  "forge_snaps",
  "forge_stream",
  "forge_walker",
@@ -1158,6 +1159,13 @@ dependencies = [
  "tree-sitter-scala",
  "tree-sitter-typescript",
  "uuid",
+]
+
+[[package]]
+name = "forge_signal"
+version = "0.1.0"
+dependencies = [
+ "tokio",
 ]
 
 [[package]]

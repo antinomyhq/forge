@@ -91,6 +91,7 @@ forge_display = { path = "crates/forge_display" }
 forge_domain = { path = "crates/forge_domain" }
 forge_infra = { path = "crates/forge_infra" }
 forge_provider = { path = "crates/forge_provider" }
+forge_signal = { path = "crates/forge_signal" }
 forge_stream = { path = "crates/forge_stream" }
 forge_tool_macros = { path = "crates/forge_tool_macros" }
 forge_tracker = { path = "crates/forge_tracker" }
