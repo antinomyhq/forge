@@ -42,7 +42,8 @@ impl PartialEvent {
 
 impl From<PartialEvent> for Event {
     fn from(value: PartialEvent) -> Self {
-        Event::new(value.name, value.value)
+        let json_value = serde_json::Value::String(value.value);
+        Event::new(value.name, json_value)
     }
 }
 
@@ -93,14 +94,14 @@ impl<F: API> UI<F> {
     }
     // Helper functions for creating events with the specific event names
     fn create_task_init_event(content: impl ToString) -> Event {
-        Event::new(EVENT_USER_TASK_INIT, content)
+        Event::new(EVENT_USER_TASK_INIT, Value::String(content.to_string()))
     }
 
     fn create_task_update_event(content: impl ToString) -> Event {
-        Event::new(EVENT_USER_TASK_UPDATE, content)
+        Event::new(EVENT_USER_TASK_UPDATE, Value::String(content.to_string()))
     }
     fn create_user_help_query_event(content: impl ToString) -> Event {
-        Event::new(EVENT_USER_HELP_QUERY, content)
+        Event::new(EVENT_USER_HELP_QUERY, Value::String(content.to_string()))
     }
 
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
@@ -372,7 +373,7 @@ impl<F: API> UI<F> {
             }
             ChatResponse::Event(event) => {
                 if event.name == EVENT_TITLE {
-                    self.state.current_title = Some(event.value);
+                    self.state.current_title = Some(event.value.to_string());
                 }
             }
             ChatResponse::Usage(u) => {

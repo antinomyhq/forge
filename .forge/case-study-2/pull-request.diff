@@ -1,0 +1,2447 @@
+diff --git a/crates/forge_api/src/executor.rs b/crates/forge_api/src/executor.rs
+index 1c6c026d..64edc679 100644
+--- a/crates/forge_api/src/executor.rs
++++ b/crates/forge_api/src/executor.rs
+@@ -1,7 +1,7 @@
+ use std::sync::Arc;
+ 
+ use forge_domain::{
+-    AgentMessage, App, ChatRequest, ChatResponse, ConversationService, Orchestrator,
++    AgentMessage, ChatRequest, ChatResponse, ConversationService, Orchestrator, Services,
+ };
+ use forge_stream::MpscStream;
+ use tracing::error;
+@@ -9,13 +9,13 @@ use tracing::error;
+ pub struct ForgeExecutorService<F> {
+     app: Arc<F>,
+ }
+-impl<F: App> ForgeExecutorService<F> {
++impl<F: Services> ForgeExecutorService<F> {
+     pub fn new(infra: Arc<F>) -> Self {
+         Self { app: infra }
+     }
+ }
+ 
+-impl<F: App> ForgeExecutorService<F> {
++impl<F: Services> ForgeExecutorService<F> {
+     pub async fn chat(
+         &self,
+         request: ChatRequest,
+diff --git a/crates/forge_api/src/forge_api.rs b/crates/forge_api/src/forge_api.rs
+index e1e1380e..734e4d6e 100644
+--- a/crates/forge_api/src/forge_api.rs
++++ b/crates/forge_api/src/forge_api.rs
+@@ -20,7 +20,7 @@ pub struct ForgeAPI<F> {
+     loader: ForgeLoaderService<F>,
+ }
+ 
+-impl<F: App + Infrastructure> ForgeAPI<F> {
++impl<F: Services + Infrastructure> ForgeAPI<F> {
+     pub fn new(app: Arc<F>) -> Self {
+         Self {
+             app: app.clone(),
+@@ -40,7 +40,7 @@ impl ForgeAPI<ForgeServices<ForgeInfra>> {
+ }
+ 
+ #[async_trait::async_trait]
+-impl<F: App + Infrastructure> API for ForgeAPI<F> {
++impl<F: Services + Infrastructure> API for ForgeAPI<F> {
+     async fn suggestions(&self) -> Result<Vec<File>> {
+         self.suggestion_service.suggestions().await
+     }
+diff --git a/crates/forge_api/src/suggestion.rs b/crates/forge_api/src/suggestion.rs
+index 38c32c63..aca8c800 100644
+--- a/crates/forge_api/src/suggestion.rs
++++ b/crates/forge_api/src/suggestion.rs
+@@ -1,7 +1,7 @@
+ use std::sync::Arc;
+ 
+ use anyhow::Result;
+-use forge_domain::{App, File};
++use forge_domain::{File, Services};
+ use forge_services::{EnvironmentService, Infrastructure};
+ use forge_walker::Walker;
+ 
+@@ -9,13 +9,13 @@ pub struct ForgeSuggestionService<F> {
+     domain: Arc<F>,
+ }
+ 
+-impl<F: App> ForgeSuggestionService<F> {
++impl<F: Services> ForgeSuggestionService<F> {
+     pub fn new(domain: Arc<F>) -> Self {
+         Self { domain }
+     }
+ }
+ 
+-impl<F: App + Infrastructure> ForgeSuggestionService<F> {
++impl<F: Services + Infrastructure> ForgeSuggestionService<F> {
+     pub async fn suggestions(&self) -> Result<Vec<File>> {
+         let cwd = self
+             .domain
+diff --git a/crates/forge_domain/src/agent.rs b/crates/forge_domain/src/agent.rs
+index a3ac93d0..3b9f9250 100644
+--- a/crates/forge_domain/src/agent.rs
++++ b/crates/forge_domain/src/agent.rs
+@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
+ 
+ use crate::merge::Key;
+ use crate::template::Template;
+-use crate::{Error, EventContext, ModelId, Result, SystemContext, ToolDefinition, ToolName};
++use crate::{
++    Context, Error, EventContext, ModelId, Result, Role, SystemContext, ToolDefinition, ToolName,
++};
+ 
+ // Unique identifier for an agent
+ #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
+@@ -30,6 +32,106 @@ impl From<ToolName> for AgentId {
+     }
+ }
+ 
++/// Configuration for automatic context compaction
++#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters)]
++#[setters(strip_option, into)]
++pub struct Compact {
++    /// Number of most recent messages to preserve during compaction
++    /// These messages won't be considered for summarization
++    #[serde(default = "default_preserve_count")]
++    #[merge(strategy = crate::merge::std::overwrite)]
++    pub retention_window: usize,
++    /// Maximum number of tokens to keep after compaction
++    #[merge(strategy = crate::merge::option)]
++    pub max_tokens: Option<usize>,
++
++    /// Maximum number of tokens before triggering compaction
++    #[serde(skip_serializing_if = "Option::is_none")]
++    #[merge(strategy = crate::merge::option)]
++    pub token_threshold: Option<usize>,
++
++    /// Maximum number of conversation turns before triggering compaction
++    #[serde(skip_serializing_if = "Option::is_none")]
++    #[merge(strategy = crate::merge::option)]
++    pub turn_threshold: Option<usize>,
++
++    /// Maximum number of messages before triggering compaction
++    #[serde(skip_serializing_if = "Option::is_none")]
++    #[merge(strategy = crate::merge::option)]
++    pub message_threshold: Option<usize>,
++
++    /// Optional custom prompt template to use during compaction
++    #[serde(skip_serializing_if = "Option::is_none")]
++    #[merge(strategy = crate::merge::option)]
++    pub prompt: Option<String>,
++
++    /// Model ID to use for compaction, useful when compacting with a
++    /// cheaper/faster model
++    #[merge(strategy = crate::merge::std::overwrite)]
++    pub model: ModelId,
++    /// Optional tag name to extract content from when summarizing (e.g.,
++    /// "summary")
++    #[serde(skip_serializing_if = "Option::is_none")]
++    #[merge(strategy = crate::merge::option)]
++    pub summary_tag: Option<String>,
++}
++
++/// Default number of messages to preserve during compaction
++fn default_preserve_count() -> usize {
++    6
++}
++
++impl Compact {
++    /// Creates a new compaction configuration with the specified maximum token
++    /// limit
++    pub fn new(model: ModelId) -> Self {
++        Self {
++            max_tokens: None,
++            token_threshold: None,
++            turn_threshold: None,
++            message_threshold: None,
++            prompt: None,
++            summary_tag: None,
++            model,
++            retention_window: default_preserve_count(),
++        }
++    }
++
++    /// Determines if compaction should be triggered based on the current
++    /// context
++    pub fn should_compact(&self, context: &Context) -> bool {
++        // Check if any of the thresholds have been exceeded
++        if let Some(token_threshold) = self.token_threshold {
++            // Use the context's text representation to estimate token count
++            let token_count = estimate_token_count(&context.to_text());
++            if token_count >= token_threshold {
++                return true;
++            }
++        }
++
++        if let Some(turn_threshold) = self.turn_threshold {
++            if context
++                .messages
++                .iter()
++                .filter(|message| message.has_role(Role::User))
++                .count()
++                >= turn_threshold
++            {
++                return true;
++            }
++        }
++
++        if let Some(message_threshold) = self.message_threshold {
++            // Count messages directly from context
++            let msg_count = context.messages.len();
++            if msg_count >= message_threshold {
++                return true;
++            }
++        }
++
++        false
++    }
++}
+ #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters)]
+ #[setters(strip_option, into)]
+ pub struct Agent {
+@@ -94,11 +196,7 @@ pub struct Agent {
+     #[merge(strategy = crate::merge::option)]
+     pub tools: Option<Vec<ToolName>>,
+ 
+-    // Transformations to be applied to the agent's context
+-    #[serde(skip_serializing_if = "Option::is_none")]
+-    #[merge(strategy = crate::merge::option)]
+-    pub transforms: Option<Vec<Transform>>,
+-
++    // The transforms feature has been removed
+     /// Used to specify the events the agent is interested in    
+     #[serde(skip_serializing_if = "Option::is_none")]
+     #[merge(strategy = merge_subscription)]
+@@ -115,6 +213,11 @@ pub struct Agent {
+     #[merge(strategy = crate::merge::option)]
+     pub max_walker_depth: Option<usize>,
+ 
++    /// Configuration for automatic context compaction
++    #[serde(skip_serializing_if = "Option::is_none")]
++    #[merge(strategy = crate::merge::option)]
++    pub compact: Option<Compact>,
++
+     /// A set of custom rules that the agent should follow
+     #[serde(skip_serializing_if = "Option::is_none")]
+     #[merge(strategy = crate::merge::option)]
+@@ -144,10 +247,11 @@ impl Agent {
+             suggestions: None,
+             ephemeral: None,
+             tools: None,
+-            transforms: None,
++            // transforms field removed
+             subscribe: None,
+             max_turns: None,
+             max_walker_depth: None,
++            compact: None,
+             custom_rules: None,
+             hide_content: None,
+         }
+@@ -172,43 +276,17 @@ impl Key for Agent {
+     }
+ }
+ 
+-/// Transformations that can be applied to the agent's context before sending it
+-/// upstream to the provider.
+-#[derive(Debug, Clone, Serialize, Deserialize)]
+-#[serde(tag = "type", rename_all = "snake_case")]
+-pub enum Transform {
+-    /// Compresses multiple assistant messages into a single message
+-    Assistant {
+-        // Input template for the transformation
+-        input: String,
+-        // Output template after transformation
+-        output: String,
+-        // ID of the agent performing the transformation
+-        agent_id: AgentId,
+-        // Maximum token limit for the compressed message
+-        token_limit: usize,
+-    },
+-
+-    /// Works on the user prompt by enriching it with additional information
+-    User {
+-        // ID of the agent performing the transformation
+-        agent_id: AgentId,
+-        // Output template after transformation
+-        output: String,
+-        // Input template for the transformation
+-        input: String,
+-    },
+-
+-    /// Intercepts the context and performs an operation without changing the
+-    /// context
+-    PassThrough {
+-        // ID of the agent performing the pass-through
+-        agent_id: AgentId,
+-        // Input template for the transformation
+-        input: String,
+-    },
++/// Estimates the token count from a string representation
++/// This is a simple estimation that should be replaced with a more accurate
++/// tokenizer
++fn estimate_token_count(text: &str) -> usize {
++    // A very rough estimation that assumes ~4 characters per token on average
++    // In a real implementation, this should use a proper LLM-specific tokenizer
++    text.len() / 4
+ }
+ 
++// The Transform enum has been removed
++
+ #[cfg(test)]
+ mod hide_content_tests {
+     use pretty_assertions::assert_eq;
+@@ -329,54 +407,6 @@ mod tests {
+         assert!(tools.contains(&ToolName::new("tool4")));
+     }
+ 
+-    #[test]
+-    fn test_merge_transforms() {
+-        // Base has no value, should take other's values
+-        let mut base = Agent::new("Base"); // no transforms
+-        let transform2 = Transform::PassThrough {
+-            agent_id: AgentId::new("agent2"),
+-            input: "input2".to_string(),
+-        };
+-        let other = Agent::new("Other").transforms(vec![transform2]);
+-
+-        base.merge(other);
+-
+-        // Should contain transforms from the other agent
+-        let transforms = base.transforms.as_ref().unwrap();
+-        assert_eq!(transforms.len(), 1);
+-        if let Transform::PassThrough { agent_id, input } = &transforms[0] {
+-            assert_eq!(agent_id.as_str(), "agent2");
+-            assert_eq!(input, "input2");
+-        } else {
+-            panic!("Expected PassThrough transform");
+-        }
+-
+-        // Base has a value, should not be overwritten
+-        let transform1 = Transform::PassThrough {
+-            agent_id: AgentId::new("agent1"),
+-            input: "input1".to_string(),
+-        };
+-        let mut base = Agent::new("Base").transforms(vec![transform1]);
+-
+-        let transform2 = Transform::PassThrough {
+-            agent_id: AgentId::new("agent2"),
+-            input: "input2".to_string(),
+-        };
+-        let other = Agent::new("Other").transforms(vec![transform2]);
+-
+-        base.merge(other);
+-
+-        // Should have other's transforms
+-        let transforms = base.transforms.as_ref().unwrap();
+-        assert_eq!(transforms.len(), 1);
+-        if let Transform::PassThrough { agent_id, input } = &transforms[0] {
+-            assert_eq!(agent_id.as_str(), "agent2");
+-            assert_eq!(input, "input2");
+-        } else {
+-            panic!("Expected PassThrough transform");
+-        }
+-    }
+-
+     #[test]
+     fn test_merge_subscribe() {
+         // Base has no value, should take other's values
+diff --git a/crates/forge_domain/src/attachment.rs b/crates/forge_domain/src/attachment.rs
+new file mode 100644
+index 00000000..27d5f3cb
+--- /dev/null
++++ b/crates/forge_domain/src/attachment.rs
+@@ -0,0 +1,158 @@
++use std::collections::HashSet;
++
++#[derive(
++    Debug, schemars::JsonSchema, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash,
++)]
++pub struct Attachment {
++    pub content: String,
++    pub path: String,
++    pub content_type: ContentType,
++}
++
++#[derive(
++    Debug, schemars::JsonSchema, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash,
++)]
++pub enum ContentType {
++    Image,
++    Text,
++}
++
++impl Attachment {
++    /// Parses a string and extracts all file paths prefixed with "@".
++    /// File paths can contain spaces and are considered to extend until the
++    /// next whitespace. When a file path contains spaces, the entire path
++    /// should be wrapped in quotes.
++    pub fn parse_all<T: ToString>(v: T) -> HashSet<String> {
++        let v = v.to_string();
++        let mut paths = HashSet::new();
++        let mut i = 0;
++
++        while i < v.len() {
++            let remaining = &v[i..];
++
++            if let Some(pos) = remaining.find('@') {
++                i += pos + 1; // Move past the '@'
++
++                if i >= v.len() {
++                    break;
++                }
++
++                let path_start = i;
++                let path_end;
++
++                // Check if the path is quoted (for paths with spaces)
++                if i < v.len() && &v[i..i + 1] == "\"" {
++                    i += 1; // Move past the opening quote
++                    let path_start_after_quote = i;
++
++                    // Find the closing quote
++                    if let Some(end_quote) = v[i..].find('\"') {
++                        path_end = i + end_quote;
++                        let file_path = v[path_start_after_quote..path_end].to_string();
++
++                        // Add the file path to the set
++                        paths.insert(file_path);
++
++                        i = path_end + 1; // Move past the closing quote
++                    } else {
++                        // If no closing quote, consider the rest of the string as path
++                        path_end = v.len();
++                        let file_path = v[path_start_after_quote..path_end].to_string();
++
++                        // Add the file path to the set
++                        paths.insert(file_path);
++
++                        i = path_end;
++                    }
++                    continue; // Skip the common path handling code since we've
++                              // already added the attachment
++                } else {
++                    // For unquoted paths, the path extends until the next whitespace
++                    if let Some(end_pos) = v[i..].find(char::is_whitespace) {
++                        path_end = i + end_pos;
++                        i = path_end; // Move to the whitespace
++                    } else {
++                        // If no whitespace, consider the rest of the string as path
++                        path_end = v.len();
++                        i = path_end;
++                    }
++                }
++
++                let file_path = if path_start < path_end {
++                    v[path_start..path_end].to_string()
++                } else {
++                    continue;
++                };
++
++                // Add the file path to the set
++                paths.insert(file_path);
++            } else {
++                break;
++            }
++        }
++
++        paths
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn test_attachment_parse_all_empty() {
++        let text = String::from("No attachments here");
++        let attachments = Attachment::parse_all(text);
++        assert!(attachments.is_empty());
++    }
++
++    #[test]
++    fn test_attachment_parse_all_simple() {
++        let text = String::from("Check this file @/path/to/file.txt");
++        let paths = Attachment::parse_all(text);
++        assert_eq!(paths.len(), 1);
++
++        let path_found = paths.iter().next().unwrap();
++        assert_eq!(path_found, "/path/to/file.txt");
++    }
++
++    #[test]
++    fn test_attachment_parse_all_with_spaces() {
++        let text = String::from("Check this file @\"/path/with spaces/file.txt\"");
++        let paths = Attachment::parse_all(text);
++        assert_eq!(paths.len(), 1);
++
++        let path_found = paths.iter().next().unwrap();
++        assert_eq!(path_found, "/path/with spaces/file.txt");
++    }
++
++    #[test]
++    fn test_attachment_parse_all_multiple() {
++        let text = String::from(
++            "Check @/file1.txt and also @\"/path/with spaces/file2.txt\" and @/file3.txt",
++        );
++        let paths = Attachment::parse_all(text);
++        assert_eq!(paths.len(), 3);
++
++        assert!(paths.contains("/file1.txt"));
++        assert!(paths.contains("/path/with spaces/file2.txt"));
++        assert!(paths.contains("/file3.txt"));
++    }
++
++    #[test]
++    fn test_attachment_parse_all_at_end() {
++        let text = String::from("Check this file @");
++        let paths = Attachment::parse_all(text);
++        assert_eq!(paths.len(), 0);
++    }
++
++    #[test]
++    fn test_attachment_parse_all_unclosed_quote() {
++        let text = String::from("Check this file @\"/path/with spaces/unclosed");
++        let paths = Attachment::parse_all(text);
++        assert_eq!(paths.len(), 1);
++
++        let path_found = paths.iter().next().unwrap();
++        assert_eq!(path_found, "/path/with spaces/unclosed");
++    }
++}
+diff --git a/crates/forge_domain/src/compaction.rs b/crates/forge_domain/src/compaction.rs
+new file mode 100644
+index 00000000..3d201a56
+--- /dev/null
++++ b/crates/forge_domain/src/compaction.rs
+@@ -0,0 +1,617 @@
++use std::sync::Arc;
++
++use anyhow::Result;
++use futures::StreamExt;
++use tracing::debug;
++
++use crate::{
++    extract_tag_content, Agent, ChatCompletionMessage, Compact, Context, ContextMessage,
++    ProviderService, Role, Services, TemplateService,
++};
++
++/// Handles the compaction of conversation contexts to manage token usage
++#[derive(Clone)]
++pub struct ContextCompactor<Services> {
++    services: Arc<Services>,
++}
++
++impl<S: Services> ContextCompactor<S> {
++    /// Creates a new ContextCompactor instance
++    pub fn new(services: Arc<S>) -> Self {
++        Self { services }
++    }
++
++    /// Check if compaction is needed and compact the context if so
++    pub async fn compact_context(&self, agent: &Agent, context: Context) -> Result<Context> {
++        // Early return if compaction not needed
++
++        if let Some(ref compact) = agent.compact {
++            debug!(agent_id = %agent.id, "Context compaction triggered");
++
++            // Identify and compress the first compressible sequence
++            match identify_first_compressible_sequence(&context, compact.retention_window) {
++                Some(sequence) => {
++                    debug!(
++                        agent_id = %agent.id,
++                        sequence_start = sequence.0,
++                        sequence_end = sequence.1,
++                        "Compressing assistant message sequence"
++                    );
++                    self.compress_single_sequence(compact, context, sequence)
++                        .await
++                }
++                None => {
++                    debug!(agent_id = %agent.id, "No compressible sequences found");
++                    Ok(context)
++                }
++            }
++        } else {
++            Ok(context)
++        }
++    }
++
++    /// Compress a single identified sequence of assistant messages
++    async fn compress_single_sequence(
++        &self,
++        compact: &Compact,
++        mut context: Context,
++        sequence: (usize, usize),
++    ) -> Result<Context> {
++        let (start, end) = sequence;
++
++        // Extract the sequence to summarize
++        let sequence_messages = &context.messages[start..=end];
++
++        // Generate summary for this sequence
++        let summary = self
++            .generate_summary_for_sequence(compact, sequence_messages)
++            .await?;
++
++        // Log the summary for debugging
++        debug!(summary = %summary, "Created context compaction summary");
++
++        // Replace the sequence with a single summary message using splice
++        // This removes the sequence and inserts the summary message in-place
++        context.messages.splice(
++            start..=end,
++            std::iter::once(ContextMessage::assistant(summary, None)),
++        );
++
++        Ok(context)
++    }
++
++    /// Generate a summary for a specific sequence of assistant messages
++    async fn generate_summary_for_sequence(
++        &self,
++        compact: &Compact,
++        messages: &[ContextMessage],
++    ) -> Result<String> {
++        // Create a temporary context with just the sequence for summarization
++        let sequence_context = messages
++            .iter()
++            .fold(Context::default(), |ctx, msg| ctx.add_message(msg.clone()));
++
++        // Render the summarization prompt
++        let prompt = self
++            .services
++            .template_service()
++            .render_summarization(compact, &sequence_context)
++            .await?;
++
++        // Create a new context
++        let mut context = Context::default().add_message(ContextMessage::user(prompt));
++
++        // Set max_tokens for summary
++        if let Some(max_token) = compact.max_tokens {
++            context = context.max_tokens(max_token);
++        }
++
++        // Get summary from the provider
++        let response = self
++            .services
++            .provider_service()
++            .chat(&compact.model, context)
++            .await?;
++
++        self.collect_completion_stream_content(compact, response)
++            .await
++    }
++
++    /// Collects the content from a streaming ChatCompletionMessage response
++    /// and extracts text within the configured tag if present
++    async fn collect_completion_stream_content<T>(
++        &self,
++        compact: &Compact,
++        mut stream: T,
++    ) -> Result<String>
++    where
++        T: futures::Stream<Item = Result<ChatCompletionMessage>> + Unpin,
++    {
++        let mut result_content = String::new();
++
++        while let Some(message_result) = stream.next().await {
++            let message = message_result?;
++            if let Some(content) = message.content {
++                result_content.push_str(content.as_str());
++            }
++        }
++
++        // Extract content from within configured tags if present and if tag is
++        // configured
++        if let Some(tag_name) = &compact.summary_tag {
++            if let Some(extracted) = extract_tag_content(&result_content, tag_name) {
++                return Ok(extracted.to_string());
++            }
++        }
++
++        // If no tag extraction performed, return the original content
++        Ok(result_content)
++    }
++}
++
++/// Identifies the first sequence of compressible messages (assistant messages
++/// and tool results) that can be compressed (2+ consecutive messages)
++/// taking into account the preserve_last_n_messages setting from the agent
++fn identify_first_compressible_sequence(
++    context: &Context,
++    preserve_last_n: usize,
++) -> Option<(usize, usize)> {
++    // Get all compressible sequences, considering the preservation window
++    find_compressible_sequences(context, preserve_last_n)
++        .into_iter()
++        .next()
++}
++
++/// Determines if a message is compressible (assistant or tool result)
++fn is_compressible(message: &ContextMessage) -> bool {
++    message.has_role(Role::Assistant) || matches!(message, ContextMessage::ToolMessage(_))
++}
++
++/// Finds all valid compressible sequences in the context, respecting the
++/// preservation window
++fn find_compressible_sequences(context: &Context, preserve_last_n: usize) -> Vec<(usize, usize)> {
++    let messages = &context.messages;
++
++    // Calculate the index before which messages can be considered for compression
++    let compressible_end_idx = messages.len().saturating_sub(preserve_last_n);
++
++    // Early return if there are no messages available for compression
++    if compressible_end_idx == 0 {
++        return Vec::new();
++    }
++
++    // Find all sequences of compressible messages
++    find_sequences_by_predicate(&messages[0..compressible_end_idx], is_compressible)
++        .into_iter()
++        // Filter for sequences with at least 2 messages
++        .filter(|(start, end)| end > start)
++        .collect()
++}
++
++/// General-purpose function to find sequences of elements matching a predicate
++fn find_sequences_by_predicate<T, F>(elements: &[T], predicate: F) -> Vec<(usize, usize)>
++where
++    F: Fn(&T) -> bool,
++{
++    let mut sequences = Vec::new();
++    let mut current_sequence_start: Option<usize> = None;
++
++    // Iterate through all elements
++    for (i, element) in elements.iter().enumerate() {
++        if predicate(element) {
++            // Start a new sequence or continue current one
++            if current_sequence_start.is_none() {
++                current_sequence_start = Some(i);
++            }
++        } else {
++            // End of sequence - if we had one in progress, record it
++            if let Some(start) = current_sequence_start.take() {
++                sequences.push((start, i - 1));
++            }
++        }
++    }
++
++    // Check for a sequence that ends at the last element
++    if let Some(start) = current_sequence_start {
++        sequences.push((start, elements.len() - 1));
++    }
++
++    sequences
++}
++
++#[cfg(test)]
++mod tests {
++    use serde_json::json;
++
++    use super::*;
++    use crate::{ToolCallFull, ToolCallId, ToolName, ToolResult};
++
++    #[test]
++    fn test_identify_first_compressible_sequence() {
++        // Create a context with a sequence of assistant messages
++        let context = Context::default()
++            .add_message(ContextMessage::system("System message"))
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::assistant("Assistant message 1", None))
++            .add_message(ContextMessage::assistant("Assistant message 2", None))
++            .add_message(ContextMessage::assistant("Assistant message 3", None))
++            .add_message(ContextMessage::user("User message 2"))
++            .add_message(ContextMessage::assistant("Assistant message 4", None));
++
++        // The first sequence is from index 2 to 4 (assistant messages 1, 2, and 3)
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_some());
++
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 2);
++        assert_eq!(end, 4);
++    }
++
++    #[test]
++    fn test_no_compressible_sequence() {
++        // Create a context with no sequence of multiple assistant messages
++        let context = Context::default()
++            .add_message(ContextMessage::system("System message"))
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::assistant("Assistant message 1", None))
++            .add_message(ContextMessage::user("User message 2"))
++            .add_message(ContextMessage::assistant("Assistant message 2", None))
++            .add_message(ContextMessage::user("User message 3"))
++            .add_message(ContextMessage::assistant("Assistant message 3", None));
++
++        // There are no sequences of multiple assistant messages
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_none());
++    }
++
++    #[test]
++    fn test_sequence_at_end_of_context() {
++        // Create a context with a sequence at the end
++        let context = Context::default()
++            .add_message(ContextMessage::system("System message"))
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::assistant("Assistant message 1", None))
++            .add_message(ContextMessage::user("User message 2"))
++            .add_message(ContextMessage::assistant("Assistant message 2", None))
++            .add_message(ContextMessage::assistant("Assistant message 3", None));
++
++        // The sequence is at the end (indices 4-5)
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_some());
++
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 4);
++        assert_eq!(end, 5);
++    }
++
++    #[test]
++    fn test_identify_sequence_with_tool_calls() {
++        // Create a context with assistant messages containing tool calls
++        let tool_call = ToolCallFull {
++            name: ToolName::new("tool_forge_fs_read"),
++            call_id: Some(ToolCallId::new("call_123")),
++            arguments: json!({"path": "/test/path"}),
++        };
++
++        let context = Context::default()
++            .add_message(ContextMessage::system("System message"))
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::assistant(
++                "Assistant message with tool call",
++                Some(vec![tool_call.clone()]),
++            ))
++            .add_message(ContextMessage::assistant(
++                "Assistant message with another tool call",
++                Some(vec![tool_call.clone()]),
++            ))
++            .add_message(ContextMessage::user("User message 2"));
++
++        // The sequence is from index 2 to 3 (both assistant messages with tool calls)
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_some());
++
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 2);
++        assert_eq!(end, 3);
++    }
++
++    #[test]
++    fn test_identify_sequence_with_tool_results() {
++        // Create a context with assistant messages and tool results
++        let tool_call = ToolCallFull {
++            name: ToolName::new("tool_forge_fs_read"),
++            call_id: Some(ToolCallId::new("call_123")),
++            arguments: json!({"path": "/test/path"}),
++        };
++
++        let tool_result = ToolResult::new(ToolName::new("tool_forge_fs_read"))
++            .call_id(ToolCallId::new("call_123"))
++            .success(json!({"content": "File content"}).to_string());
++
++        let context = Context::default()
++            .add_message(ContextMessage::system("System message"))
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::assistant(
++                "Assistant message with tool call",
++                Some(vec![tool_call]),
++            ))
++            .add_message(ContextMessage::tool_result(tool_result))
++            .add_message(ContextMessage::assistant(
++                "Assistant follow-up message",
++                None,
++            ))
++            .add_message(ContextMessage::assistant("Another assistant message", None))
++            .add_message(ContextMessage::user("User message 2"));
++
++        // Now tool results are considered compressible
++        // The sequence is from index 2 to 5 (assistant + tool + 2 assistant messages)
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_some());
++
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 2);
++        assert_eq!(end, 5);
++    }
++
++    #[test]
++    fn test_mixed_assistant_and_tool_messages() {
++        // Create a context where we strictly alternate assistant/tool and user messages
++        let tool_call1 = ToolCallFull {
++            name: ToolName::new("tool_forge_fs_read"),
++            call_id: Some(ToolCallId::new("call_123")),
++            arguments: json!({"path": "/test/path1"}),
++        };
++
++        let tool_call2 = ToolCallFull {
++            name: ToolName::new("tool_forge_fs_search"),
++            call_id: Some(ToolCallId::new("call_456")),
++            arguments: json!({"path": "/test/path2", "regex": "pattern"}),
++        };
++
++        let tool_result1 = ToolResult::new(ToolName::new("tool_forge_fs_read"))
++            .call_id(ToolCallId::new("call_123"))
++            .success(json!({"content": "File content 1"}).to_string());
++
++        let tool_result2 = ToolResult::new(ToolName::new("tool_forge_fs_search"))
++            .call_id(ToolCallId::new("call_456"))
++            .success(json!({"matches": ["match1", "match2"]}).to_string());
++
++        // Create a context where we strictly alternate assistant and non-assistant
++        // messages to ensure no compressible sequence forms
++        let context = Context::default()
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::assistant(
++                "Assistant message with tool call",
++                Some(vec![tool_call1]),
++            ))
++            .add_message(ContextMessage::tool_result(tool_result1))
++            .add_message(ContextMessage::user("User follow-up question"))
++            .add_message(ContextMessage::assistant(
++                "Assistant with another tool call",
++                Some(vec![tool_call2]),
++            ))
++            .add_message(ContextMessage::tool_result(tool_result2))
++            .add_message(ContextMessage::user("User message 2"));
++
++        // With the new logic, we now have a compressible sequence from index 1-2
++        // (assistant + tool result)
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_some());
++
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 1);
++        assert_eq!(end, 2);
++    }
++
++    #[test]
++    fn test_consecutive_assistant_messages_with_tools() {
++        // Test when we have consecutive assistant messages with tool calls
++        // followed by tool results but the assistant messages themselves are
++        // consecutive
++        let tool_call1 = ToolCallFull {
++            name: ToolName::new("tool_forge_fs_read"),
++            call_id: Some(ToolCallId::new("call_123")),
++            arguments: json!({"path": "/test/path1"}),
++        };
++
++        let tool_call2 = ToolCallFull {
++            name: ToolName::new("tool_forge_fs_search"),
++            call_id: Some(ToolCallId::new("call_456")),
++            arguments: json!({"path": "/test/path2", "regex": "pattern"}),
++        };
++
++        let tool_result1 = ToolResult::new(ToolName::new("tool_forge_fs_read"))
++            .call_id(ToolCallId::new("call_123"))
++            .success(json!({"content": "File content 1"}).to_string());
++
++        let tool_result2 = ToolResult::new(ToolName::new("tool_forge_fs_search"))
++            .call_id(ToolCallId::new("call_456"))
++            .success(json!({"matches": ["match1", "match2"]}).to_string());
++
++        let context = Context::default()
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::assistant(
++                "Assistant message with tool call",
++                Some(vec![tool_call1.clone()]),
++            ))
++            .add_message(ContextMessage::assistant(
++                "Another assistant message",
++                Some(vec![tool_call2.clone()]),
++            ))
++            .add_message(ContextMessage::assistant("Third assistant message", None))
++            .add_message(ContextMessage::tool_result(tool_result1))
++            .add_message(ContextMessage::tool_result(tool_result2))
++            .add_message(ContextMessage::user("User message 2"));
++
++        // The sequence now includes both assistant messages and tool results (indices
++        // 1-5)
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_some());
++
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 1);
++        assert_eq!(end, 5);
++    }
++
++    #[test]
++    fn test_only_tool_results() {
++        // Test when we have just tool results in sequence
++        let tool_result1 = ToolResult::new(ToolName::new("tool_forge_fs_read"))
++            .call_id(ToolCallId::new("call_123"))
++            .success(json!({"content": "File content 1"}).to_string());
++
++        let tool_result2 = ToolResult::new(ToolName::new("tool_forge_fs_search"))
++            .call_id(ToolCallId::new("call_456"))
++            .success(json!({"matches": ["match1", "match2"]}).to_string());
++
++        let context = Context::default()
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::tool_result(tool_result1))
++            .add_message(ContextMessage::tool_result(tool_result2))
++            .add_message(ContextMessage::user("User message 2"));
++
++        // The sequence is the two tool results (indices 1-2)
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_some());
++
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 1);
++        assert_eq!(end, 2);
++    }
++
++    #[test]
++    fn test_mixed_assistant_and_single_tool() {
++        // Create a context with an assistant message and a tool result,
++        // but each preceded by user messages so they're not consecutive
++        let tool_call = ToolCallFull {
++            name: ToolName::new("tool_forge_fs_read"),
++            call_id: Some(ToolCallId::new("call_123")),
++            arguments: json!({"path": "/test/path"}),
++        };
++
++        let tool_result = ToolResult::new(ToolName::new("tool_forge_fs_read"))
++            .call_id(ToolCallId::new("call_123"))
++            .success(json!({"content": "File content 1"}).to_string());
++
++        let context = Context::default()
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::assistant(
++                "Assistant message with tool call",
++                Some(vec![tool_call]),
++            ))
++            .add_message(ContextMessage::user("User intermediate message"))
++            .add_message(ContextMessage::tool_result(tool_result))
++            .add_message(ContextMessage::user("User message 2"));
++
++        // No compressible sequence as each potential message is separated by a user
++        // message
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_none());
++    }
++    #[test]
++    fn test_preserve_last_n_messages() {
++        // Create a context with multiple sequences that could be compressed
++        let context = Context::default()
++            .add_message(ContextMessage::system("System message"))
++            .add_message(ContextMessage::user("User message 1"))
++            .add_message(ContextMessage::assistant("Assistant message 1", None)) // 2
++            .add_message(ContextMessage::assistant("Assistant message 2", None)) // 3
++            .add_message(ContextMessage::assistant("Assistant message 3", None)) // 4
++            .add_message(ContextMessage::user("User message 2")) // 5
++            .add_message(ContextMessage::assistant("Assistant message 4", None)) // 6
++            .add_message(ContextMessage::assistant("Assistant message 5", None)); // 7
++
++        // Without preservation, we'd compress messages 2-4
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_some());
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 2);
++        assert_eq!(end, 4);
++
++        // With preserve_last_n = 3, we should preserve the last 3 messages (indices 5,
++        // 6, 7) So we should still get the sequence at 2-4
++        let sequence = identify_first_compressible_sequence(&context, 3);
++        assert!(sequence.is_some());
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 2);
++        assert_eq!(end, 4);
++
++        // With preserve_last_n = 5, we should preserve indices 3-7
++        // So we should get no compressible sequence, since we can only consider indices
++        // 0-2
++        let sequence = identify_first_compressible_sequence(&context, 5);
++        assert!(sequence.is_none());
++
++        // With preserve_last_n = 8 (more than total messages), we should get no
++        // compressible sequence
++        let sequence = identify_first_compressible_sequence(&context, 8);
++        assert!(sequence.is_none());
++    }
++    #[test]
++    fn test_preserve_last_n_with_sequence_at_end() {
++        // Create a context with a sequence at the end
++        let context = Context::default()
++            .add_message(ContextMessage::system("System message")) // 0
++            .add_message(ContextMessage::user("User message 1")) // 1
++            .add_message(ContextMessage::assistant("Assistant message 1", None)) // 2
++            .add_message(ContextMessage::user("User message 2")) // 3
++            .add_message(ContextMessage::assistant("Assistant message 2", None)) // 4
++            .add_message(ContextMessage::assistant("Assistant message 3", None)) // 5
++            .add_message(ContextMessage::assistant("Assistant message 4", None)); // 6
++
++        // Without preservation, we'd compress the sequence at indices 4-6
++        let sequence = identify_first_compressible_sequence(&context, 0);
++        assert!(sequence.is_some());
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 4);
++        assert_eq!(end, 6);
++
++        // With preserve_last_n = 2, we should preserve indices 5-6
++        // So the compressible sequence should be index 4 only, which is not enough for
++        // compression
++        let sequence = identify_first_compressible_sequence(&context, 2);
++        assert!(sequence.is_none());
++
++        // With preserve_last_n = 1, we should preserve index 6
++        // So the compressible sequence should be indices 4-5
++        let sequence = identify_first_compressible_sequence(&context, 1);
++        assert!(sequence.is_some());
++        let (start, end) = sequence.unwrap();
++        assert_eq!(start, 4);
++        assert_eq!(end, 5);
++    }
++
++    #[test]
++    fn test_is_compressible() {
++        // Test assistant message
++        let assistant_message = ContextMessage::assistant("Test message", None);
++        assert!(is_compressible(&assistant_message));
++
++        // Test tool result
++        let tool_result = ContextMessage::tool_result(
++            ToolResult::new(ToolName::new("test_tool")).success("test result".to_string()),
++        );
++        assert!(is_compressible(&tool_result));
++
++        // Test user message (not compressible)
++        let user_message = ContextMessage::user("User message");
++        assert!(!is_compressible(&user_message));
++
++        // Test system message (not compressible)
++        let system_message = ContextMessage::system("System message");
++        assert!(!is_compressible(&system_message));
++    }
++
++    #[test]
++    fn test_find_sequences_by_predicate() {
++        // Test with a simple vector of numbers, finding sequences of even numbers
++        let numbers = vec![1, 2, 4, 6, 7, 8, 10, 11, 12];
++
++        let sequences = find_sequences_by_predicate(&numbers, |&n| n % 2 == 0);
++
++        assert_eq!(sequences.len(), 3);
++        assert_eq!(sequences[0], (1, 3)); // 2, 4, 6
++        assert_eq!(sequences[1], (5, 6)); // 8, 10
++        assert_eq!(sequences[2], (8, 8)); // 12
++    }
++}
+diff --git a/crates/forge_domain/src/context.rs b/crates/forge_domain/src/context.rs
+index 2730385b..f1b98d59 100644
+--- a/crates/forge_domain/src/context.rs
++++ b/crates/forge_domain/src/context.rs
+@@ -1,5 +1,3 @@
+-use std::collections::HashSet;
+-
+ use derive_more::derive::{Display, From};
+ use derive_setters::Setters;
+ use serde::{Deserialize, Serialize};
+@@ -8,104 +6,6 @@ use tracing::debug;
+ use super::{ToolCallFull, ToolResult};
+ use crate::{ToolChoice, ToolDefinition};
+ 
+-#[derive(
+-    Debug, schemars::JsonSchema, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash,
+-)]
+-pub struct Attachment {
+-    pub content: String,
+-    pub path: String,
+-    pub content_type: ContentType,
+-}
+-
+-impl Attachment {
+-    /// Parses a string and extracts all file paths prefixed with "@".
+-    /// File paths can contain spaces and are considered to extend until the
+-    /// next whitespace. When a file path contains spaces, the entire path
+-    /// should be wrapped in quotes.
+-    pub fn parse_all<T: ToString>(v: T) -> HashSet<String> {
+-        let v = v.to_string();
+-        let mut paths = HashSet::new();
+-        let mut i = 0;
+-
+-        while i < v.len() {
+-            let remaining = &v[i..];
+-
+-            if let Some(pos) = remaining.find('@') {
+-                i += pos + 1; // Move past the '@'
+-
+-                if i >= v.len() {
+-                    break;
+-                }
+-
+-                let path_start = i;
+-                let path_end;
+-
+-                // Check if the path is quoted (for paths with spaces)
+-                if i < v.len() && &v[i..i + 1] == "\"" {
+-                    i += 1; // Move past the opening quote
+-                    let path_start_after_quote = i;
+-
+-                    // Find the closing quote
+-                    if let Some(end_quote) = v[i..].find('\"') {
+-                        path_end = i + end_quote;
+-                        let file_path = v[path_start_after_quote..path_end].to_string();
+-
+-                        // Add the file path to the set
+-                        paths.insert(file_path);
+-
+-                        i = path_end + 1; // Move past the closing quote
+-                    } else {
+-                        // If no closing quote, consider the rest of the string as path
+-                        path_end = v.len();
+-                        let file_path = v[path_start_after_quote..path_end].to_string();
+-
+-                        // Add the file path to the set
+-                        paths.insert(file_path);
+-
+-                        i = path_end;
+-                    }
+-                    continue; // Skip the common path handling code since we've
+-                              // already added the attachment
+-                } else {
+-                    // For unquoted paths, the path extends until the next whitespace
+-                    if let Some(end_pos) = v[i..].find(char::is_whitespace) {
+-                        path_end = i + end_pos;
+-                        i = path_end; // Move to the whitespace
+-                    } else {
+-                        // If no whitespace, consider the rest of the string as path
+-                        path_end = v.len();
+-                        i = path_end;
+-                    }
+-                }
+-
+-                let file_path = if path_start < path_end {
+-                    v[path_start..path_end].to_string()
+-                } else {
+-                    continue;
+-                };
+-
+-                // Add the file path to the set
+-                paths.insert(file_path);
+-            } else {
+-                break;
+-            }
+-        }
+-
+-        paths
+-    }
+-}
+-
+-#[derive(
+-    Debug, schemars::JsonSchema, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash,
+-)]
+-pub enum ContentType {
+-    Image,
+-    Text,
+-}
+-
+-/// Represents a message being sent to the LLM provider
+-/// NOTE: ToolResults message are part of the larger Request object and not part
+-/// of the message.
+ #[derive(Clone, Debug, Deserialize, From, PartialEq, Serialize)]
+ #[serde(rename_all = "snake_case")]
+ pub enum ContextMessage {
+@@ -192,6 +92,8 @@ pub struct Context {
+     pub tools: Vec<ToolDefinition>,
+     #[serde(skip_serializing_if = "Option::is_none")]
+     pub tool_choice: Option<ToolChoice>,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub max_tokens: Option<usize>,
+ }
+ 
+ impl Context {
+@@ -295,63 +197,6 @@ mod tests {
+ 
+     use super::*;
+ 
+-    #[test]
+-    fn test_attachment_parse_all_empty() {
+-        let text = String::from("No attachments here");
+-        let attachments = Attachment::parse_all(text);
+-        assert!(attachments.is_empty());
+-    }
+-
+-    #[test]
+-    fn test_attachment_parse_all_simple() {
+-        let text = String::from("Check this file @/path/to/file.txt");
+-        let paths = Attachment::parse_all(text);
+-        assert_eq!(paths.len(), 1);
+-
+-        let path_found = paths.iter().next().unwrap();
+-        assert_eq!(path_found, "/path/to/file.txt");
+-    }
+-
+-    #[test]
+-    fn test_attachment_parse_all_with_spaces() {
+-        let text = String::from("Check this file @\"/path/with spaces/file.txt\"");
+-        let paths = Attachment::parse_all(text);
+-        assert_eq!(paths.len(), 1);
+-
+-        let path_found = paths.iter().next().unwrap();
+-        assert_eq!(path_found, "/path/with spaces/file.txt");
+-    }
+-
+-    #[test]
+-    fn test_attachment_parse_all_multiple() {
+-        let text = String::from(
+-            "Check @/file1.txt and also @\"/path/with spaces/file2.txt\" and @/file3.txt",
+-        );
+-        let paths = Attachment::parse_all(text);
+-        assert_eq!(paths.len(), 3);
+-
+-        assert!(paths.contains("/file1.txt"));
+-        assert!(paths.contains("/path/with spaces/file2.txt"));
+-        assert!(paths.contains("/file3.txt"));
+-    }
+-
+-    #[test]
+-    fn test_attachment_parse_all_at_end() {
+-        let text = String::from("Check this file @");
+-        let paths = Attachment::parse_all(text);
+-        assert_eq!(paths.len(), 0);
+-    }
+-
+-    #[test]
+-    fn test_attachment_parse_all_unclosed_quote() {
+-        let text = String::from("Check this file @\"/path/with spaces/unclosed");
+-        let paths = Attachment::parse_all(text);
+-        assert_eq!(paths.len(), 1);
+-
+-        let path_found = paths.iter().next().unwrap();
+-        assert_eq!(path_found, "/path/with spaces/unclosed");
+-    }
+-
+     #[test]
+     fn test_override_system_message() {
+         let request = Context::default()
+diff --git a/crates/forge_domain/src/lib.rs b/crates/forge_domain/src/lib.rs
+index b3596794..8af326a2 100644
+--- a/crates/forge_domain/src/lib.rs
++++ b/crates/forge_domain/src/lib.rs
+@@ -1,6 +1,8 @@
+ mod agent;
++mod attachment;
+ mod chat_request;
+ mod chat_response;
++mod compaction;
+ mod context;
+ mod conversation;
+ mod env;
+@@ -15,9 +17,9 @@ mod point;
+ mod provider;
+ mod services;
+ mod suggestion;
+-mod summarize;
+ mod system_context;
+ mod template;
++mod text_utils;
+ mod tool;
+ mod tool_call;
+ mod tool_call_parser;
+@@ -29,8 +31,10 @@ mod tool_usage;
+ mod workflow;
+ 
+ pub use agent::*;
++pub use attachment::*;
+ pub use chat_request::*;
+ pub use chat_response::*;
++pub use compaction::*;
+ pub use context::*;
+ pub use conversation::*;
+ pub use env::*;
+@@ -44,9 +48,9 @@ pub use point::*;
+ pub use provider::*;
+ pub use services::*;
+ pub use suggestion::*;
+-pub use summarize::*;
+ pub use system_context::*;
+ pub use template::*;
++pub use text_utils::*;
+ pub use tool::*;
+ pub use tool_call::*;
+ pub use tool_call_parser::*;
+diff --git a/crates/forge_domain/src/orch.rs b/crates/forge_domain/src/orch.rs
+index 26c8fac4..e566146c 100644
+--- a/crates/forge_domain/src/orch.rs
++++ b/crates/forge_domain/src/orch.rs
+@@ -8,6 +8,8 @@ use futures::{Stream, StreamExt};
+ use tokio::sync::RwLock;
+ use tracing::debug;
+ 
++use crate::compaction::ContextCompactor;
++use crate::services::Services;
+ use crate::*;
+ 
+ type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
+@@ -20,9 +22,10 @@ pub struct AgentMessage<T> {
+ 
+ #[derive(Clone)]
+ pub struct Orchestrator<App> {
+-    app: Arc<App>,
++    services: Arc<App>,
+     sender: Option<ArcSender>,
+     conversation: Arc<RwLock<Conversation>>,
++    compactor: ContextCompactor<App>,
+ }
+ 
+ struct ChatCompletionResult {
+@@ -30,15 +33,20 @@ struct ChatCompletionResult {
+     pub tool_calls: Vec<ToolCallFull>,
+ }
+ 
+-impl<A: App> Orchestrator<A> {
+-    pub fn new(app: Arc<A>, mut conversation: Conversation, sender: Option<ArcSender>) -> Self {
+-        // since this is a new request, we clear the queue
++impl<A: Services> Orchestrator<A> {
++    pub fn new(
++        services: Arc<A>,
++        mut conversation: Conversation,
++        sender: Option<ArcSender>,
++    ) -> Self {
++        // since self is a new request, we clear the queue
+         conversation.state.values_mut().for_each(|state| {
+             state.queue.clear();
+         });
+ 
+         Self {
+-            app,
++            compactor: ContextCompactor::new(services.clone()),
++            services,
+             sender,
+             conversation: Arc::new(RwLock::new(conversation)),
+         }
+@@ -79,7 +87,7 @@ impl<A: App> Orchestrator<A> {
+     }
+ 
+     fn init_default_tool_definitions(&self) -> Vec<ToolDefinition> {
+-        self.app.tool_service().list()
++        self.services.tool_service().list()
+     }
+ 
+     fn init_tool_definitions(&self, agent: &Agent) -> Vec<ToolDefinition> {
+@@ -105,7 +113,7 @@ impl<A: App> Orchestrator<A> {
+ 
+         if let Some(system_prompt) = &agent.system_prompt {
+             let system_message = self
+-                .app
++                .services
+                 .template_service()
+                 .render_system(agent, system_prompt)
+                 .await?;
+@@ -193,7 +201,7 @@ impl<A: App> Orchestrator<A> {
+         };
+ 
+         // Execute all initialization futures in parallel
+-        join_all(inactive_agents.iter().map(|id| self.init_agent(id)))
++        join_all(inactive_agents.iter().map(|id| self.wake_agent(id)))
+             .await
+             .into_iter()
+             .collect::<anyhow::Result<Vec<()>>>()?;
+@@ -213,74 +221,19 @@ impl<A: App> Orchestrator<A> {
+             self.dispatch_spawned(event).await?;
+             Ok(ToolResult::from(tool_call.clone()).success("Event Dispatched Successfully"))
+         } else {
+-            Ok(self.app.tool_service().call(tool_call.clone()).await)
++            Ok(self.services.tool_service().call(tool_call.clone()).await)
+         }
+     }
+ 
+-    #[async_recursion]
+-    async fn execute_transform(
+-        &self,
+-        transforms: &[Transform],
+-        mut context: Context,
+-    ) -> anyhow::Result<Context> {
+-        for transform in transforms.iter() {
+-            match transform {
+-                Transform::Assistant {
+-                    agent_id,
+-                    token_limit,
+-                    input: input_key,
+-                    output: output_key,
+-                } => {
+-                    let mut summarize = Summarize::new(&mut context, *token_limit);
+-                    while let Some(mut summary) = summarize.summarize() {
+-                        let input = Event::new(input_key, summary.get());
+-                        self.init_agent_with_event(agent_id, &input).await?;
+-
+-                        if let Some(value) = self.get_last_event(output_key).await? {
+-                            summary.set(serde_json::to_string(&value)?);
+-                        }
+-                    }
+-                }
+-                Transform::User { agent_id, input: input_key, output: output_key } => {
+-                    if let Some(ContextMessage::ContentMessage(ContentMessage {
+-                        role: Role::User,
+-                        content,
+-                        ..
+-                    })) = context.messages.last_mut()
+-                    {
+-                        let task = Event::new(input_key, content.clone());
+-                        self.init_agent_with_event(agent_id, &task).await?;
+-
+-                        if let Some(output) = self.get_last_event(output_key).await? {
+-                            let message = &output.value;
+-                            content
+-                                .push_str(&format!("\n<{output_key}>\n{message}\n</{output_key}>"));
+-                        }
+-                        debug!(content = %content, "Transforming user input");
+-                    }
+-                }
+-                Transform::PassThrough { agent_id, input: input_key } => {
+-                    let input = Event::new(input_key, context.to_text());
+-
+-                    // NOTE: Tap transformers will not modify the context
+-                    self.init_agent_with_event(agent_id, &input).await?;
+-                }
+-            }
+-        }
+-
+-        Ok(context)
+-    }
+-
+     async fn sync_conversation(&self) -> anyhow::Result<()> {
+         let conversation = self.conversation.read().await.clone();
+-        self.app.conversation_service().upsert(conversation).await?;
++        self.services
++            .conversation_service()
++            .upsert(conversation)
++            .await?;
+         Ok(())
+     }
+ 
+-    async fn get_last_event(&self, name: &str) -> anyhow::Result<Option<Event>> {
+-        Ok(self.conversation.read().await.rfind_event(name).cloned())
+-    }
+-
+     async fn get_conversation(&self) -> anyhow::Result<Conversation> {
+         Ok(self.conversation.read().await.clone())
+     }
+@@ -305,7 +258,7 @@ impl<A: App> Orchestrator<A> {
+         Ok(())
+     }
+ 
+-    async fn init_agent_with_event(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
++    async fn init_agent(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
+         let conversation = self.get_conversation().await?;
+         debug!(
+             conversation_id = %conversation.id,
+@@ -330,7 +283,7 @@ impl<A: App> Orchestrator<A> {
+ 
+             // Use the consolidated render_event method which handles suggestions and
+             // variables
+-            self.app
++            self.services
+                 .template_service()
+                 .render_event(agent, user_prompt, event, variables)
+                 .await?
+@@ -345,7 @@ impl<A: App> Orchestrator<A> {
+ 
+         // Process attachments
+         let attachments = self
+-            .app
++            .services
+             .attachment_service()
+             .attachments(&event.value)
+             .await?;
+@@ -368,15 +321,10 @@ impl<A: App> Orchestrator<A> {
+         self.set_context(&agent.id, context.clone()).await?;
+ 
+         loop {
+-            context = self
+-                .execute_transform(
+-                    agent.transforms.as_ref().map_or(&[], |t| t.as_slice()),
+-                    context,
+-                )
+-                .await?;
++            // Set context for the current loop iteration
+             self.set_context(&agent.id, context.clone()).await?;
+             let response = self
+-                .app
++                .services
+                 .provider_service()
+                 .chat(
+                     agent
+@@ -396,6 +344,9 @@ impl<A: App> Orchestrator<A> {
+                 .add_message(ContextMessage::assistant(content, Some(tool_calls)))
+                 .add_tool_results(tool_results.clone());
+ 
++            // Check if context requires compression
++            context = self.compactor.compact_context(agent, context).await?;
++
+             self.set_context(&agent.id, context.clone()).await?;
+             self.sync_conversation().await?;
+ 
+@@ -405,17 +356,18 @@ impl<A: App> Orchestrator<A> {
+         }
+ 
+         self.complete_turn(&agent.id).await?;
++
+         self.sync_conversation().await?;
+ 
+         Ok(())
+     }
+ 
+-    async fn init_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
++    async fn wake_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
+         while let Some(event) = {
+             let mut conversation = self.conversation.write().await;
+             conversation.poll_event(agent_id)
+         } {
+-            self.init_agent_with_event(agent_id, &event).await?;
++            self.init_agent(agent_id, &event).await?;
+         }
+ 
+         Ok(())
+diff --git a/crates/forge_domain/src/services.rs b/crates/forge_domain/src/services.rs
+index 0c40cb76..d7ee1fff 100644
+--- a/crates/forge_domain/src/services.rs
++++ b/crates/forge_domain/src/services.rs
+@@ -3,8 +3,8 @@ use std::collections::HashMap;
+ use serde_json::Value;
+ 
+ use crate::{
+-    Agent, Attachment, ChatCompletionMessage, Context, Conversation, ConversationId, Event,
+-    EventContext, Model, ModelId, ResultStream, SystemContext, Template, ToolCallFull,
++    Agent, Attachment, ChatCompletionMessage, Compact, Context, Conversation, ConversationId,
++    Event, EventContext, Model, ModelId, ResultStream, SystemContext, Template, ToolCallFull,
+     ToolDefinition, ToolResult, Workflow,
+ };
+ 
+@@ -66,6 +66,16 @@ pub trait TemplateService: Send + Sync {
+         event: &Event,
+         variables: &HashMap<String, Value>,
+     ) -> anyhow::Result<String>;
++
++    /// Renders a custom summarization prompt for context compaction
++    /// This takes a raw string template and renders it with information about
++    /// the compaction and the original context (which allows for more
++    /// sophisticated compaction templates)
++    async fn render_summarization(
++        &self,
++        compaction: &Compact,
++        context: &Context,
++    ) -> anyhow::Result<String>;
+ }
+ 
+ #[async_trait::async_trait]
+@@ -75,7 +85,7 @@ pub trait AttachmentService {
+ /// Core app trait providing access to services and repositories.
+ /// This trait follows clean architecture principles for dependency management
+ /// and service/repository composition.
+-pub trait App: Send + Sync + 'static + Clone {
++pub trait Services: Send + Sync + 'static + Clone {
+     type ToolService: ToolService;
+     type ProviderService: ProviderService;
+     type ConversationService: ConversationService;
+diff --git a/crates/forge_domain/src/summarize.rs b/crates/forge_domain/src/summarize.rs
+deleted file mode 100644
+index e7ff43d9..00000000
+--- a/crates/forge_domain/src/summarize.rs
++++ /dev/null
+@@ -1,93 +0,0 @@
+-//! Context Summarization:
+-//! - Break the conversation into "turns"
+-//! - A turn is a sequence of messages where the first message is a user message
+-//! - Summarization happens for each turn independently with the oldest turn
+-//!   getting the highest priority.
+-//! - Summarization is done by removing all assistant/tool messages within a
+-//!   turn and replacing it with a summary as an assistant message.
+-//! - If a turn summary isn't enough to hit the thresholds, then the next turn
+-//!   is summarized.
+-//! - If after summarization of all the turns the threshold is still not met,
+-//!   then all the turns have to summarized again (summary of summary)
+-//! - NOTE: User and System messages are never summarized
+-
+-use std::collections::VecDeque;
+-use std::ops::Range;
+-
+-use crate::{Context, ContextMessage, Role};
+-
+-pub struct Summarize<'context> {
+-    context: &'context mut Context,
+-    token_limit: usize,
+-    turns: VecDeque<Range<usize>>,
+-    // TODO: use a persistent cache to avoid re-summarizing
+-}
+-
+-impl<'context> Summarize<'context> {
+-    pub fn new(context: &'context mut Context, token_limit: usize) -> Self {
+-        let turns = turns(context);
+-        Self { context, token_limit, turns: turns.into() }
+-    }
+-
+-    fn replace(&mut self, content: impl ToString, range: Range<usize>) {
+-        // TODO: improve the quality of summary message
+-        let content = format!("\n<work_summary>\n{}\n</work_summary>", content.to_string());
+-        let message = ContextMessage::assistant(content, None);
+-        self.context.messages[range].fill(message);
+-    }
+-
+-    /// Get a replaceable item while the total token count is above the limit
+-    pub fn summarize(&mut self) -> Option<Summary<'_, 'context>> {
+-        let total = token_count(&self.context.to_text());
+-
+-        if total <= self.token_limit {
+-            return None;
+-        }
+-
+-        self.turns
+-            .pop_front()
+-            .map(|turn| Summary { summarize: self, next_turn: turn })
+-    }
+-}
+-
+-pub struct Summary<'this, 'context> {
+-    summarize: &'this mut Summarize<'context>,
+-    next_turn: Range<usize>,
+-}
+-
+-impl Summary<'_, '_> {
+-    pub fn set(&mut self, message: impl ToString) {
+-        self.summarize.replace(message, self.next_turn.clone());
+-    }
+-
+-    pub fn get(&self) -> String {
+-        Context::default()
+-            .messages(self.summarize.context.messages[self.next_turn.clone()].to_vec())
+-            .to_text()
+-    }
+-}
+-
+-// TODO: this is a quick hack to get a ballpark token count
+-fn token_count(text: &str) -> usize {
+-    text.split_whitespace().count() * 75 / 100
+-}
+-
+-fn turns(context: &Context) -> Vec<Range<usize>> {
+-    let starts = context
+-        .messages
+-        .iter()
+-        .enumerate()
+-        .filter(|(_, m)| m.has_role(Role::User))
+-        .map(|(i, _)| i);
+-
+-    let ends = starts
+-        .clone()
+-        .skip(1)
+-        .chain(std::iter::once(context.messages.len()))
+-        .map(|i| i - 1);
+-
+-    starts
+-        .zip(ends)
+-        .map(|(start, end)| start..end)
+-        .collect::<Vec<_>>()
+-}
+diff --git a/crates/forge_domain/src/text_utils.rs b/crates/forge_domain/src/text_utils.rs
+new file mode 100644
+index 00000000..a601332a
+--- /dev/null
++++ b/crates/forge_domain/src/text_utils.rs
+@@ -0,0 +1,73 @@
++/// Extracts content between the specified XML-style tags
++///
++/// # Arguments
++///
++/// * `text` - The text to extract content from
++/// * `tag_name` - The name of the XML tag (without angle brackets)
++///
++/// # Returns
++///
++/// * `Some(&str)` containing the extracted content if tags are found
++/// * `None` if the tags are not found
++///
++/// # Example
++///
++/// ```
++/// let text = "Some text <summary>This is the important part</summary> and more text";
++/// let extracted = extract_tag_content(text, "summary");
++/// assert_eq!(extracted, Some("This is the important part"));
++/// ```
++pub fn extract_tag_content<'a>(text: &'a str, tag_name: &str) -> Option<&'a str> {
++    let opening_tag = format!("<{}>", tag_name);
++    let closing_tag = format!("</{}>", tag_name);
++
++    if let Some(start_idx) = text.find(&opening_tag) {
++        if let Some(end_idx) = text.find(&closing_tag) {
++            let content_start = start_idx + opening_tag.len();
++            if content_start < end_idx {
++                return Some(text[content_start..end_idx].trim());
++            }
++        }
++    }
++
++    None
++}
++
++#[cfg(test)]
++mod tests {
++    use pretty_assertions::assert_eq;
++
++    use super::*;
++
++    #[test]
++    fn test_extract_tag_content() {
++        let fixture = "Some text <summary>This is the important part</summary> and more text";
++        let actual = extract_tag_content(fixture, "summary");
++        let expected = Some("This is the important part");
++        assert_eq!(actual, expected);
++    }
++
++    #[test]
++    fn test_extract_tag_content_no_tags() {
++        let fixture = "Some text without any tags";
++        let actual = extract_tag_content(fixture, "summary");
++        let expected = None;
++        assert_eq!(actual, expected);
++    }
++
++    #[test]
++    fn test_extract_tag_content_with_different_tag() {
++        let fixture = "Text with <custom>Custom content</custom> tags";
++        let actual = extract_tag_content(fixture, "custom");
++        let expected = Some("Custom content");
++        assert_eq!(actual, expected);
++    }
++
++    #[test]
++    fn test_extract_tag_content_with_malformed_tags() {
++        let fixture = "Text with <opening> but no closing tag";
++        let actual = extract_tag_content(fixture, "opening");
++        let expected = None;
++        assert_eq!(actual, expected);
++    }
++}
+diff --git a/crates/forge_provider/src/anthropic/provider.rs b/crates/forge_provider/src/anthropic/provider.rs
+index e4df5dfc..da8a6769 100644
+--- a/crates/forge_provider/src/anthropic/provider.rs
++++ b/crates/forge_provider/src/anthropic/provider.rs
+@@ -62,12 +62,11 @@ impl ProviderService for Anthropic {
+         model: &ModelId,
+         context: Context,
+     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+-        // TODO: depending on model, we've to set the max_tokens for request. for now,
+-        // we're setting it to 4000.
++        let max_tokens = context.max_tokens.unwrap_or(4000);
+         let request = Request::try_from(context)?
+             .model(model.as_str().to_string())
+             .stream(true)
+-            .max_tokens(4000u64);
++            .max_tokens(max_tokens as u64);
+ 
+         let url = self.url("/messages")?;
+         debug!(url = %url, model = %model, "Connecting Upstream");
+diff --git a/crates/forge_provider/src/open_router/request.rs b/crates/forge_provider/src/open_router/request.rs
+index 1c4a5c2c..e198eab7 100644
+--- a/crates/forge_provider/src/open_router/request.rs
++++ b/crates/forge_provider/src/open_router/request.rs
+@@ -222,7 +222,7 @@ impl From<Context> for OpenRouterRequest {
+             response_format: Default::default(),
+             stop: Default::default(),
+             stream: Default::default(),
+-            max_tokens: Default::default(),
++            max_tokens: request.max_tokens.map(|t| t as u32),
+             temperature: Default::default(),
+             tool_choice: request.tool_choice.map(|tc| tc.into()),
+             seed: Default::default(),
+diff --git a/crates/forge_provider/src/open_router/transformers/drop_tool_call.rs b/crates/forge_provider/src/open_router/transformers/drop_tool_call.rs
+index ea3f8c42..ecfb867b 100644
+--- a/crates/forge_provider/src/open_router/transformers/drop_tool_call.rs
++++ b/crates/forge_provider/src/open_router/transformers/drop_tool_call.rs
+@@ -59,6 +59,7 @@ mod tests {
+             ],
+             tools: vec![],
+             tool_choice: None,
++            max_tokens: None,
+         };
+ 
+         let request = OpenRouterRequest::from(context);
+diff --git a/crates/forge_provider/src/open_router/transformers/set_cache.rs b/crates/forge_provider/src/open_router/transformers/set_cache.rs
+index fe0c4219..a6c31e55 100644
+--- a/crates/forge_provider/src/open_router/transformers/set_cache.rs
++++ b/crates/forge_provider/src/open_router/transformers/set_cache.rs
+@@ -39,6 +39,7 @@ mod tests {
+             })],
+             tools: vec![],
+             tool_choice: None,
++            max_tokens: None,
+         };
+ 
+         let request =
+diff --git a/crates/forge_services/src/forge_services.rs b/crates/forge_services/src/forge_services.rs
+index 71c527f2..e8fa15f2 100644
+--- a/crates/forge_services/src/forge_services.rs
++++ b/crates/forge_services/src/forge_services.rs
+@@ -1,6 +1,6 @@
+ use std::sync::Arc;
+ 
+-use forge_domain::App;
++use forge_domain::Services;
+ 
+ use crate::attachment::ForgeChatRequest;
+ use crate::conversation::ForgeConversationService;
+@@ -39,7 +39,7 @@ impl<F: Infrastructure> ForgeServices<F> {
+     }
+ }
+ 
+-impl<F: Infrastructure> App for ForgeServices<F> {
++impl<F: Infrastructure> Services for ForgeServices<F> {
+     type ToolService = ForgeToolService;
+     type ProviderService = ForgeProviderService;
+     type ConversationService = ForgeConversationService;
+diff --git a/crates/forge_services/src/template.rs b/crates/forge_services/src/template.rs
+index 43677c3b..533940e4 100644
+--- a/crates/forge_services/src/template.rs
++++ b/crates/forge_services/src/template.rs
+@@ -3,7 +3,8 @@ use std::sync::Arc;
+ 
+ use chrono::Local;
+ use forge_domain::{
+-    Agent, Event, EventContext, Query, SystemContext, Template, TemplateService, ToolService,
++    Agent, Compact, Context, Event, EventContext, Query, SystemContext, Template, TemplateService,
++    ToolService,
+ };
+ use forge_walker::Walker;
+ use handlebars::Handlebars;
+@@ -129,4 +130,27 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
+             .hb
+             .render_template(prompt.template.as_str(), &event_context)?)
+     }
++
++    async fn render_summarization(
++        &self,
++        compaction: &Compact,
++        context: &Context,
++    ) -> anyhow::Result<String> {
++        let summary_tag = compaction.summary_tag.as_deref().unwrap_or("summary");
++
++        let ctx = serde_json::json!({
++            "context": context.to_text(),
++            "summary_tag": summary_tag
++        });
++
++        // Render the template with the context
++        let result = self.hb.render_template(
++            compaction
++                .prompt
++                .as_deref()
++                .unwrap_or("Summarize the following conversation:\n{{context}}"),
++            &ctx,
++        )?;
++        Ok(result)
++    }
+ }
+diff --git a/crates/forge_services/src/tools/patch/apply.rs b/crates/forge_services/src/tools/patch/apply.rs
+index f1187d8c..59b14112 100644
+--- a/crates/forge_services/src/tools/patch/apply.rs
++++ b/crates/forge_services/src/tools/patch/apply.rs
+@@ -192,9 +192,8 @@ impl<T: Infrastructure> ExecutableTool for ApplyPatch<T> {
+                 )
+             } else {
+                 format!(
+-                    "<file_content path=\"{}\">\n{}\n</file_content>\n",
+-                    input.path,
+-                    modified.trim_end()
++                    "<file_content\n  path=\"{}\" status=\"patched_successfully\" />\n",
++                    input.path
+                 )
+             };
+             anyhow::Ok(output)
+diff --git a/crates/forge_services/src/tools/patch/apply_json.rs b/crates/forge_services/src/tools/patch/apply_json.rs
+index 60c579b8..1156396c 100644
+--- a/crates/forge_services/src/tools/patch/apply_json.rs
++++ b/crates/forge_services/src/tools/patch/apply_json.rs
+@@ -236,9 +236,8 @@ fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
+         )
+     } else {
+         format!(
+-            "<file_content path=\"{}\">\n{}\n</file_content>\n",
+-            path,
+-            content.trim_end()
++            "<file_content\n  path=\"{}\" status=\"patched_successfully\" />\n",
++            path
+         )
+     }
+ }
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation-3.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation-3.snap
+index f0a0ff42..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation-3.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation-3.snap
+@@ -2,22 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-
+-
+-// Header comment
+-
+-
+-function test() {
+-    // Inside comment
+-
+-    let y = 2;
+-
+-
+-    console.log(y);
+-}
+-
+-
+-
+-// Updated footer
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation-5.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation-5.snap
+index 1d2b7123..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation-5.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation-5.snap
+@@ -2,24 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-
+-
+-
+-// New header
+-
+-
+-
+-function test() {
+-    // Inside comment
+-
+-    let y = 2;
+-
+-
+-    console.log(y);
+-}
+-
+-
+-
+-// Updated footer
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation.snap
+index 86a8a701..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__complex_newline_preservation.snap
+@@ -2,20 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-
+-
+-// Header comment
+-
+-
+-function test() {
+-    // Inside comment
+-
+-    let y = 2;
+-
+-
+-    console.log(y);
+-}
+-
+-// Footer comment
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__empty_block.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__empty_block.snap
+index 6bfb5b41..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__empty_block.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__empty_block.snap
+@@ -2,7 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-    First Line    
+-    Last Line
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__empty_search_new_file.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__empty_search_new_file.snap
+index a224fa07..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__empty_search_new_file.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__empty_search_new_file.snap
+@@ -2,6 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-New content
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_advanced-3.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_advanced-3.snap
+index 48228bc6..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_advanced-3.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_advanced-3.snap
+@@ -2,14 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-class UserManager {
+-  async findUser(id, options = {}) {
+-    const user = await this.db.findOne({ userId: id, ...options });
+-    if (!user) {
+-      throw new UserNotFoundError(id);
+-    }
+-    return this.sanitizeUser(user);
+-  }
+-}
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_advanced.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_advanced.snap
+index c10e82b9..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_advanced.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_advanced.snap
+@@ -2,12 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-class UserManager {
+-  async findUser(id, options = {}) {
+-    const user = await this.db.findOne({ userId: id, ...options });
+-    if (!user) throw new Error('User not found');
+-    return user;
+-  }
+-}
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_replace-3.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_replace-3.snap
+index 55e4a2a8..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_replace-3.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_replace-3.snap
+@@ -2,12 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-function computeTotal(items, tax = 0) {
+-  let total = 0.0;
+-  for (const item of items) {
+-    total += item.price * item.quantity;
+-  }
+-  return total;
+-}
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_replace.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_replace.snap
+index d293917c..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_replace.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__fuzzy_search_replace.snap
+@@ -2,12 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-function calculateTotal(items) {
+-  let total = 0;
+-  for (const item of items) {
+-    total += item.price * item.quantity;
+-  }
+-  return total;
+-}
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__multiple_blocks.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__multiple_blocks.snap
+index 0b4b46e6..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__multiple_blocks.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__multiple_blocks.snap
+@@ -2,8 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-    New First    
+-  Middle Line  
+-    New Last
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__valid_rust_replace.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__valid_rust_replace.snap
+index f2cef396..ad2d27a0 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__valid_rust_replace.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__valid_rust_replace.snap
+@@ -2,6 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.rs">
+-fn main() { let x = 42; let y = x * 2; }
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.rs" status="patched_successfully" />
+diff --git a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__whitespace_preservation.snap b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__whitespace_preservation.snap
+index 5b20b000..a7c11d0e 100644
+--- a/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__whitespace_preservation.snap
++++ b/crates/forge_services/src/tools/patch/snapshots/forge_services__tools__patch__apply__test__whitespace_preservation.snap
+@@ -2,8 +2,5 @@
+ source: crates/forge_services/src/tools/patch/apply.rs
+ expression: "TempDir::normalize(&result)"
+ ---
+-<file_content path="[TEMP_DIR]/test.txt">
+-    Hi World    
+-  Test Line  
+-   Goodbye World
+-</file_content>
++<file_content
++  path="[TEMP_DIR]/test.txt" status="patched_successfully" />
+diff --git a/forge.yaml b/forge.yaml
+index 5cc4f1ec..f7eafd92 100644
+--- a/forge.yaml
++++ b/forge.yaml
+@@ -6,8 +6,48 @@ commands:
+ 
+ agents:
+   - id: software-engineer
+-    custom_rules: |
+-      Follow the project guidelines as described in docs/guidelines.md
+     max_walker_depth: 1024
+     subscribe:
+       - fixme
++    compact:
++      max_tokens: 2000
++      token_threshold: 60000
++      model: google/gemini-2.0-flash-001
++      prompt: "{{> system-prompt-context-summarizer.hbs }}"
++    custom_rules: |
++      Handling Errors:
++
++      - Use `anyhow::Result` for error handling in services and repositories.
++      - Create domain errors using `thiserror`.
++      - Never implement `From` for converting domain errors, manually convert them
++
++      Writing Tests:
++
++      - All tests should be written in three discrete steps:
++
++        ```rust
++        use pretty_assertions::assert_eq; // Always use pretty assertions
++
++        fn test_foo() {
++            let fixture = ...; // Instantiate a fixture for the test
++            let actual = ...; // Use the fixture to write a test
++            let expected = ...; // Define a hand written expected result
++            assert_eq!(actual, expected); // Assert that the actual result matches the expected result
++        }
++        ```
++
++      - Use `pretty_assertions` for better error messages.
++      - Use fixtures to create test data.
++      - Use `assert_eq!` for equality checks.
++      - Use `assert!(...)` for boolean checks.
++      - Use unwraps in test functions and anyhow::Result in fixtures.
++      - Keep the boilerplate to a minimum.
++      - Use words like `fixture`, `actual` and `expected` in test functions.
++      - Fixtures should be generic and reusable.
++      - Test should always be written in the same file as the source code.
++
++      Verification:
++      - run the following command to format and validate if the code is working:
++        ```
++        cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
++        ```
+new file mode 100644
+index 00000000..58caccd9
+--- /dev/null
++++ b/templates/system-prompt-context-summarizer.hbs
+@@ -0,0 +1,166 @@
++You are Forge, an advanced context summarization assistant designed to analyze and summarize complex information. Your primary function is to help users understand, organize, and effectively utilize provided context. You excel at distilling intricate details into clear, structured summaries and identifying information gaps that require clarification.
++
++Here's the context you need to analyze:
++
++<context>
++{{context}}
++</context>
++
++Please follow these steps to process and summarize the given context:
++
++1. Carefully read and analyze the provided context.
++
++2. Organize your analysis within the following framework:
++
++   a) Primary Objective:
++      Determine the user's main goal and success criteria. Format as follows:
++      <objective>
++      Primary User Objective:
++      - [Concise statement of what the user is trying to accomplish]
++
++      Success Criteria:
++      - [List of specific outcomes that would fulfill the user's objective]
++      - [Additional criteria for success]
++
++      Constraints or Requirements:
++      - [Any limitations or specific requirements mentioned by the user]
++      - [Additional constraints]
++      </objective>
++
++   b) Initial Information Assessment:
++      Categorize and inventory the provided information. Format as follows:
++      <assessment>
++      Information Types Present:
++      - [List the types of information provided (code, documentation, logs, etc.)]
++
++      Information Coverage:
++      - [Evaluate the completeness of the provided information]
++
++      Key Elements:
++      - [Identify the most important elements in the context]
++      </assessment>
++
++   c) File Changes Tracking:
++      Keep a detailed record of all file changes. Format as follows:
++      <file_changes>
++      Files Created:
++      - [Path to file 1] - [Brief description of purpose]
++      - [Path to file 2] - [Brief description of purpose]
++
++      Files Modified:
++      - [Path to file 1] - [Nature of modifications]
++      - [Path to file 2] - [Nature of modifications]
++
++      Files Deleted:
++      - [Path to file 1] - [Reason for deletion]
++      - [Path to file 2] - [Reason for deletion]
++      </file_changes>
++
++   d) Assistant Actions Log:
++      Document all significant actions taken. Format as follows:
++      <action_log>
++      1. [Timestamp or sequence number] - [Description of action taken]
++         - Reason: [Why this action was necessary]
++         - Outcome: [Result of the action]
++
++      2. [Timestamp or sequence number] - [Description of action taken]
++         - Reason: [Why this action was necessary]
++         - Outcome: [Result of the action]
++      </action_log>
++
++   e) Structured Summary:
++      Synthesize the information into a clear, hierarchical summary. Format as follows:
++      <{{summary_tag}}>
++      ## Context Overview
++      [High-level summary of the entire context in 2-3 sentences]
++
++      ## Key Components
++      1. [First major component/topic]
++         - [Important detail]
++         - [Important detail]
++      2. [Second major component/topic]
++         - [Important detail]
++         - [Important detail]
++
++      ## Relationships and Dependencies
++      [Describe how different elements relate to each other]
++
++      ## Technical Details
++      [Summarize important technical specifics]
++      </{{summary_tag}}>
++
++   f) User Feedback Collection:
++      Track all feedback and instructions from the user. Format as follows:
++      <user_feedback>
++      Initial Request:
++      - [Original user request verbatim]
++
++      Clarifications Provided:
++      - [User response to question 1] - [How this impacts understanding]
++      - [User response to question 2] - [How this impacts understanding]
++
++      Direction Changes:
++      - [Any pivots or changes in direction requested by user]
++
++      Preferences Expressed:
++      - [Specific preferences mentioned by the user]
++      </user_feedback>
++
++   g) Information Gaps Analysis:
++      Identify missing information that would be valuable. Format as follows:
++      <gaps>
++      Critical Information Gaps:
++      - [First piece of missing information that's essential]
++      - [Second piece of missing information that's essential]
++
++      Helpful Additional Context:
++      - [First piece of information that would be helpful but not critical]
++      - [Second piece of information that would be helpful but not critical]
++      </gaps>
++
++   h) Clarifying Questions:
++      Form specific, targeted questions to fill information gaps. Format as follows:
++      <questions>
++      Essential Questions:
++      1. [First critical question that addresses a key gap]
++      2. [Second critical question that addresses a key gap]
++
++      Follow-up Questions:
++      3. [First question to improve understanding of a specific area]
++      4. [Second question to improve understanding of a specific area]
++      </questions>
++
++   i) Current Status Assessment:
++      Provide a snapshot of the current state. Format as follows:
++      <status>
++      Progress Summary:
++      - [Brief assessment of progress toward the primary objective]
++
++      Blockers:
++      - [Any issues preventing progress]
++
++      Next Steps:
++      - [Immediate next actions to be taken]
++      </status>
++
++3. Before providing your final output, show your thought process and reasoning for each section of the framework inside <cognitive_workflow> tags. Be thorough in your analysis; it's okay for this section to be quite long. For each section:
++   - Document your reasoning process
++   - List out key information from the context that supports your analysis
++   - For the Information Gaps Analysis, explain why each piece of missing information is important
++
++4. After completing your analysis, present the summary to the user in a clear, well-formatted manner, following the structure outlined above. Ensure that the final summary is wrapped in the <{{summary_tag}}> tags as shown in section (e).
++
++5. Focus on the most important clarifying questions to fill any critical information gaps.
++
++6. If the user provides answers to your clarifying questions, update your summary and relevant sections accordingly.
++
++Remember to adhere to these guidelines:
++- Be specific and avoid vague statements
++- Include all relevant information in your summary
++- Structure information logically with clear headings
++- Focus on information directly related to the user's needs
++- Use plain language and define technical terms when needed
++- Ask specific, targeted questions rather than open-ended ones
++- Maintain clear records of all files changed and actions taken
++
++Begin your analysis of the provided context, showing your thought process in <cognitive_workflow> tags before presenting each section of the framework.
+\ No newline at end of file
+diff --git a/templates/system-prompt-engineer.hbs b/templates/system-prompt-engineer.hbs
+index 2a7618e3..ba4b6915 100644
+--- a/templates/system-prompt-engineer.hbs
++++ b/templates/system-prompt-engineer.hbs
+@@ -97,7 +97,7 @@ First, begin with preliminary analysis inside `<analysis>` tags:
+ <analysis>
+ Repository Information: [Use the github CLI command]   
+ Project Structure: [Summary of project structure] 
+-Files Read: [List of files]
++Files Read: [List of relevant files to read]
+ Git Status: [Branch, uncommitted changes]
+ Compilation Status: [Success/Failure with details]
+ Test Status: [Test outcomes]

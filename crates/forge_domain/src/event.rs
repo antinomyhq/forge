@@ -12,14 +12,14 @@ use crate::{NamedTool, ToolCallFull, ToolDefinition, ToolName};
 pub struct Event {
     pub id: String,
     pub name: String,
-    pub value: String,
+    pub value: Value,
     pub timestamp: String,
 }
 
 #[derive(Debug, JsonSchema, Deserialize, Serialize, Clone)]
 pub struct EventMessage {
     pub name: String,
-    pub value: String,
+    pub value: Value,
 }
 
 impl From<EventMessage> for Event {
@@ -71,15 +71,10 @@ impl Event {
         message.map(|message| message.into())
     }
 
-    pub fn new(name: impl ToString, value: impl ToString) -> Self {
+    pub fn new(name: impl ToString, value: impl Into<Value>) -> Self {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
 
-        Self {
-            id,
-            name: name.to_string(),
-            value: value.to_string(),
-            timestamp,
-        }
+        Self { id, name: name.to_string(), value: value.into(), timestamp }
     }
 }

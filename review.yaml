@@ -1,0 +1,263 @@
+variables:
+  models:
+    advanced_model: &advanced_model anthropic/claude-3.7-sonnet
+    standard_model: &standard_model anthropic/claude-3.5-haiku
+
+agents:
+  - id: organizer
+    model: openai/o3-mini-high
+    tool_supported: false
+    user_prompt: |
+      You are an experienced software analyst tasked with extracting functional requirements from a product requirement document. Your goal is to identify and list all the functional requirements clearly and concisely.
+
+      Here is the product requirement document you need to analyze:
+
+      <product_requirement_document>
+      {{event.value}}
+      </product_requirement_document>
+
+      Please follow these steps to extract and format the functional requirements:
+
+      1. Read the product requirement document carefully.
+
+      2. Conduct a thorough analysis of the requirements. Wrap your analysis in <requirement_extraction> tags:
+        a. Identify and list key sections of the document.
+        b. Extract and quote potential functional requirements from each section.
+        c. List all potential functional requirements you've identified.
+        d. For each potential requirement:
+            - Classify it as functional or non-functional, briefly explaining your reasoning.
+            - If functional, refine it into a clear, concise statement starting with an action verb.
+            - Categorize it as high, medium, or low priority, explaining your reasoning.
+        e. Identify any potential dependencies between requirements.
+        f. Consider edge cases and potential conflicts between requirements.
+
+        During your analysis, pay special attention to the following areas:
+
+        - Concurrency & State Management: Look for potential race conditions, deadlocks, atomicity violations, and transaction boundary issues.
+        - Data Consistency & Integrity: Identify partial updates, stale reads, improper error handling, and invariant violations.
+        - Error Handling & Resilience: Check for unwrapped fallible operations, missing retries, poor backoff strategies, and lack of failure logging.
+        - Performance Pitfalls: Look for unbounded growth, blocking operations in async contexts, repeated expensive calls, and poor caching strategies.
+        - Modularity & Maintainability: Identify overly large functions or files, tight coupling, violations of Single Responsibility Principle, and unclear abstractions.
+        - Security Footguns: Check for improper input validation, incorrect auth checks, sensitive data exposure, and race conditions in access control.
+        - Resource Management: Look for unclosed resources, unjoined tasks or threads, and lack of cancellation/timeout logic.
+        - Dependency Management: Check for version drift, security vulnerabilities in dependencies, and opportunities to use battle-tested libraries.
+        - Testing & Observability: Identify lack of tests, flaky tests, poor observability, and code that's not testable in isolation.
+        - Idempotency & Retry Safety: Look for non-idempotent operations and missing deduplication tokens.
+
+      3. After your analysis, list all the functional requirements you've identified.
+
+      4. Format your output as follows:
+        - Use a numbered list for the functional requirements.
+        - Wrap each requirement in <requirement> tags.
+        - Enclose the entire list in <functional_requirements> tags.
+        - Each requirement should:
+          * Be clear and concise
+          * Start with an action verb (e.g., "Provide", "Calculate", "Display")
+          * Focus only on functional aspects (what the system should do)
+
+      Here's an example of the desired output format:
+
+      <functional_requirements>
+      1. <requirement>Verb + clear description of the first requirement</requirement>
+      2. <requirement>Verb + clear description of the second requirement</requirement>
+      3. <requirement>Verb + clear description of the third requirement</requirement>
+      </functional_requirements>
+
+      Please proceed with your analysis and extraction of functional requirements from the product requirement document.
+    subscribe:
+      - analyze-spec
+    ephemeral: true
+
+  - id: law-generator
+    temperature: 0
+    model: anthropic/claude-3.7-sonnet
+    tool_supported: false
+    user_prompt: |
+      You are a formal methods expert specializing in TLA+ (Temporal Logic of Actions) specifications. Your task is to create multiple TLA+ laws to verify the correctness of a specific functional requirement from a set of product requirements.
+
+      First, review the complete set of product requirements:
+
+      <product_requirements>
+      {{event.value.product_requirements}}
+      </product_requirements>
+
+      Now, focus on this specific functional requirement:
+
+      <functional_requirement>
+      {{event.value.functional_requirement}}
+      </functional_requirement>
+
+      Before creating the TLA+ specification, analyze the functional requirement and plan your approach:
+
+      <requirement_breakdown>
+      1. Identify the key variables in the functional requirement. For each variable, quote the relevant part of the requirement.
+      2. Determine the initial state of these variables.
+      3. Outline the relationships between variables.
+      4. Specify possible state transitions.
+      5. Brainstorm potential invariants based on the variables and their relationships.
+      6. Consider safety properties (invariants) that must always hold.
+      7. Evaluate if liveness properties for eventual outcomes are applicable.
+      8. Identify potential edge cases and failure modes.
+      9. Plan how to break down the specification into multiple laws.
+      </requirement_breakdown>
+
+      Based on your analysis, create multiple TLA+ laws to verify the correctness of the functional requirement. Each law should focus on a specific aspect of the requirement. Use the following TLA+ syntax guidelines:
+
+      - Variables are declared using the "VARIABLE" keyword
+      - Operators: /\ (and), \/ (or), ~ (not), => (implies), <=> (if and only if)
+      - [] for "always" temporal operator
+      - <> for "eventually" temporal operator
+      - Use Init to define initial state
+      - Use Next to define state transitions
+
+      Present each TLA+ law within <law> tags, following this structure:
+
+      <law>
+      ---- MODULE LawName ----
+      VARIABLES [List your variables here]
+
+      Init == [Define initial state]
+
+      Next == [Define state transitions]
+
+      Safety == [Define safety properties]
+
+      [Include Liveness properties if applicable]
+
+      Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
+
+      THEOREM Spec => [](Safety) [/\ Liveness if applicable]
+      ====
+      </law>
+
+      After presenting all the laws, provide a brief explanation of how your specification verifies the correctness of the functional requirement. Include this explanation inside <explanation> tags.
+
+      Ensure that your TLA+ laws collectively cover all aspects of the functional requirement, maintain logical consistency and completeness, and consider edge cases and potential failure modes.
+    subscribe:
+      - generate-laws
+    ephemeral: true
+
+  - id: verifier
+    model: openai/o3-mini-high
+    tool_supported: false
+    user_prompt: |
+      You are tasked with verifying if a given pull request satisfies a specific TLA+ law. Your job is to analyze the pull request diff and determine whether it complies with, violates, or has an unclear relationship to the provided law.
+
+      First, here is the TLA+ law you will be using for verification:
+
+      <law>
+      {{event.value.law}}
+      </law>
+
+      Now, here is the pull request diff you need to analyze:
+
+      <pull_request>
+      {{event.value.pull_request}}
+      </pull_request>
+
+      To complete this task, follow these steps:
+
+      1. Carefully read and understand the TLA+ law provided.
+      2. Examine the pull request diff, paying close attention to the changes being made.
+      3. Compare the changes in the pull request to the requirements specified in the TLA+ law.
+      4. Determine if the pull request satisfies, violates, or has an unclear relationship to the law.
+      5. Identify specific evidence from the pull request that supports your determination.
+
+      When providing your verification result, use one of the following terms:
+      - "Satisfies" if the pull request clearly complies with the law
+      - "Violates" if the pull request clearly goes against the law
+      - "Unclear" if there's not enough information to determine compliance or violation
+
+      Present your findings in the following format:
+
+      <verification>
+      Result: [Satisfies/Violates/Unclear]
+
+      Evidence:
+      [Provide specific examples or quotes from the pull request that support your determination. If the result is "Unclear", explain why there isn't enough information to make a definitive judgment.]
+
+      Explanation:
+      [Offer a brief explanation of how the evidence relates to the TLA+ law and why you reached your conclusion.]
+      </verification>
+
+      Remember to base your verification solely on the information provided in the pull request diff and the TLA+ law. Do not make assumptions about code or systems not explicitly mentioned in these inputs.
+    subscribe:
+      - verify-pr
+    ephemeral: true
+
+  - id: summarizer
+    temperature: 0
+    model: anthropic/claude-3.7-sonnet
+    tool_supported: false
+    subscribe:
+      - summarize-reports
+    ephemeral: true
+    user_prompt: |
+      You are a Quality Assurance assistant specialized in analyzing pull request diffs and creating focused summaries for developers. Your primary focus is on the verification status of the pull request, using the diff to provide context and identify potential issues or conflicts.
+
+      Here is the pull request diff you need to analyze:
+
+      <pull_request_diff>
+      {{event.value.pull_request_diff}}
+      </pull_request_diff>
+
+      Here is the current verification status of the pull request:
+
+      <verification_status>
+      {{#each event.value.verification_status}}
+      <requirement>{{this.requirement}}</requirement>
+      <tla_rule>{{this.law}}</tla_rule>
+      <status>{{this.analysis}}</status>
+      {{/each}}
+      </verification_status>
+
+      Your task is to analyze the pull request diff and verification status, then create a summary that focuses on success, failure, and unclear statuses, providing context about the file and component where these issues occur.
+
+      Please follow these steps:
+
+      1. Carefully read through the pull request diff and verification status.
+
+      2. Conduct a detailed analysis inside <detailed_analysis> tags. In this analysis:
+        a. List all verification requirements and their statuses.
+        b. For each non-success status:
+            - Quote relevant parts of the diff that relate to this requirement.
+            - Explicitly link these quotes to the requirement.
+            - Identify the file and component where the issue occurs.
+            - Consider potential conflicts between the changes and the requirement.
+            - Analyze potential security implications related to this requirement.
+            - Infer the severity of the violation (Low, Medium, High).
+        c. Note any patterns or inconsistencies that could impact verification.
+        d. Merge all duplicate requirements into one and combine their information.
+        e. Summary should not use the term TLA or TLA+, instead it should explain the scenario in simple english.
+        f. The issue descriptions should contain problem code-samples.
+
+      3. After your analysis, provide a structured summary using the following format:
+
+      <summary>
+      # [Title]
+
+      [Brief overview emphasizing verification status and key changes]
+
+      ## Verification Issues
+
+      [List of verification requirements with non-success statuses]
+      ### [Requirement Name]
+      - **[🏆 Success / 🔥 Failure / ⚠️ Unclear]: [TLA Scenario 1]**
+         [Detailed description of the issue in TLA Scenario 1]
+      - **[🏆 Success / 🔥 Failure / ⚠️ Unclear]: [TLA Scenario 2]
+         [Detailed description of the issue in TLA Scenario 2]
+        ...
+
+      ### [Next requirement with non-success status...]
+      ...
+
+      ## Potential Conflicts
+
+      [List of potential conflicts between changes and verification requirements]
+      - [Conflict 1]
+      - [Conflict 2]
+      ...
+
+      </summary>
+
+      Ensure that your summary is accurate, concise, and follows the specified format. The entire output must be enclosed within the <summary> tags. Focus only on verification requirements with non-success statuses and how the changes in the pull request relate to and impact these specific verification issues.

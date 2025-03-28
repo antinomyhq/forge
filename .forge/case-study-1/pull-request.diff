@@ -1,0 +1,204 @@
+diff --git a/src/task.rs b/src/task.rs
+index 8f2a391..c4d2391 100644
+--- a/src/task.rs
++++ b/src/task.rs
+@@ -1,15 +1,17 @@
++use serde::{Deserialize, Serialize};
++
++#[derive(Debug, Clone, Serialize, Deserialize)]
+ pub struct Task {
+     pub id: u32,
+     pub title: String,
+     pub done: bool,
+ }
+ 
+ impl Task {
+     pub fn new(id: u32, title: &str) -> Self {
+         Task {
+             id,
+             title: title.to_string(),
+             done: false,
+         }
+     }
++
++    pub fn mark_done(&mut self) {
++        self.done = true;
++    }
+ }
+
+diff --git a/src/email.rs b/src/email.rs
+new file mode 100644
+index 0000000..c4d2391
+--- /dev/null
++++ b/src/email.rs
+@@ -0,0 +1,52 @@
++use anyhow::Result;
++use lettre::message::header::ContentType;
++use lettre::transport::smtp::authentication::Credentials;
++use lettre::{Message, SmtpTransport, Transport};
++use std::env;
++
++use crate::task::Task;
++
++pub struct EmailNotifier {
++    smtp_server: String,
++    smtp_port: u16,
++    username: String,
++    password: String,
++    from_email: String,
++    to_email: String,
++}
++
++impl EmailNotifier {
++    pub fn from_env() -> Result<Self> {
++        Ok(Self {
++            smtp_server: env::var("SMTP_SERVER")?,
++            smtp_port: env::var("SMTP_PORT")?.parse()?,
++            username: env::var("SMTP_USERNAME")?,
++            password: env::var("SMTP_PASSWORD")?,
++            from_email: env::var("FROM_EMAIL")?,
++            to_email: env::var("TO_EMAIL")?,
++        })
++    }
++
++    pub fn notify_completion(&self, task: &Task) -> Result<()> {
++        let email = Message::builder()
++            .from(self.from_email.parse()?)
++            .to(self.to_email.parse()?)
++            .subject("Task Completed")
++            .header(ContentType::TEXT_PLAIN)
++            .body(format!(
++                "Task #{} has been marked as done:\n\nTitle: {}",
++                task.id, task.title
++            ))?;
++
++        let creds = Credentials::new(
++            self.username.clone(),
++            self.password.clone(),
++        );
++
++        let mailer = SmtpTransport::relay(&self.smtp_server)?
++            .port(self.smtp_port)
++            .credentials(creds)
++            .build();
++
++        mailer.send(&email)?;
++        Ok(())
++    }
++}
+
+diff --git a/src/task_manager.rs b/src/task_manager.rs
+index 9a12f91..e4d2391 100644
+--- a/src/task_manager.rs
++++ b/src/task_manager.rs
+@@ -1,10 +1,13 @@
++use crate::email::EmailNotifier;
+ use crate::task::Task;
+ 
+ pub struct TaskManager {
+     tasks: Vec<Task>,
++    email_notifier: Option<EmailNotifier>,
+ }
+ 
+ impl TaskManager {
+     pub fn new() -> Self {
+         Self {
+             tasks: Vec::new(),
++            email_notifier: None,
+         }
+     }
+ 
++    pub fn with_email() -> anyhow::Result<Self> {
++        Ok(Self {
++            tasks: Vec::new(),
++            email_notifier: Some(EmailNotifier::from_env()?),
++        })
++    }
++
+     pub fn mark_done(&mut self, id: u32) -> Result<Task, TaskError> {
+         if let Some(task) = self.tasks.iter_mut().find(|t| t.id == id) {
+             if task.done {
+@@ -13,7 +16,14 @@ impl TaskManager {
+                     "Task with ID {} is already done", id
+                 )));
+             }
+-            task.done = true;
++            
++            
++            if let Some(notifier) = &self.email_notifier {
++                let _ = notifier.notify_completion(task);
++            }
++
++            task.mark_done();
+             
+             Ok(task.clone())
+         } else {
+@@ -23,6 +33,7 @@ impl TaskManager {
+     }
+ }
+
+diff --git a/src/main.rs b/src/main.rs
+index a2f9b23..e4d2391 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,6 +1,8 @@
+ use std::process;
+ 
+ mod task;
++mod email;
++
+ use task_manager::TaskManager;
+ 
+ fn main() {
+@@ -8,7 +10,14 @@ fn main() {
+         std::process::exit(1);
+     }
+ 
+-    let mut task_manager = TaskManager::new();
++    let mut task_manager = match TaskManager::with_email() {
++        Ok(tm) => tm,
++        Err(_) => {
++            eprintln!("Warning: Email notifications disabled - environment variables not set");
++            TaskManager::new()
++        }
++    };
+ 
+     let command = &args[1];
+     match command.as_str() {
+@@ -42,7 +51,12 @@ fn main() {
+             };
+             
+             match task_manager.mark_done(task_id) {
+-                Ok(task) => println!("Task marked as done: {}. {}", task.id, task.title),
++                Ok(task) => {
++                    println!("✓ Task marked as done: {}. {}", task.id, task.title);
++                    if task_manager.email_notifier.is_some() {
++                        println!("📧 Completion notification sent");
++                    }
++                },
+                 Err(e) => {
+                     eprintln!("❌ Error: {}", e);
+                     process::exit(1);
+@@ -54,6 +68,19 @@ fn main() {
+         }
+     }
+ }
++
++diff --git a/Cargo.toml b/Cargo.toml
+index e69de29..c4d2391 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -0,0 +1,14 @@
++[package]
++name = "todo-cli"
++version = "0.1.0"
++edition = "2021"
++
++[dependencies]
++anyhow = "1.0"
++lettre = "0.11"
++serde = { version = "1.0", features = ["derive"] }
++serde_json = "1.0"
++
++[dev-dependencies]
++mockall = "0.12"

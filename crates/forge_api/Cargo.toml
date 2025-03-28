@@ -17,6 +17,7 @@ serde_json.workspace = true
 merge.workspace = true
 bytes.workspace = true
 tracing.workspace = true
+futures-util = "0.3"
 
 [dev-dependencies]
 tempfile.workspace = true
