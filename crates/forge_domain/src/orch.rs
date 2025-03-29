@@ -6,6 +6,8 @@ use async_recursion::async_recursion;
 use futures::future::join_all;
 use futures::{Stream, StreamExt};
 use tokio::sync::RwLock;
+use tokio_retry::strategy::{jitter, ExponentialBackoff};
+use tokio_retry::RetryIf;
 use tracing::debug;
 
 use crate::compaction::ContextCompactor;
@@ -14,6 +16,52 @@ use crate::*;
 
 type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
 
+// Maximum number of retry attempts for retryable operations
+const MAX_RETRY_ATTEMPTS: usize = 3;
+
+// Helper function that combines retry condition check with logging
+fn check_and_log_retry_condition(
+    err: &anyhow::Error,
+    attempt: usize,
+    max_attempts: usize,
+    operation_name: &str,
+) -> bool {
+    let is_retriable = if let Some(domain_err) = err.downcast_ref::<Error>() {
+        matches!(
+            domain_err,
+            Error::ToolCallParse(_) | Error::ToolCallArgument(_) | Error::ToolCallMissingName
+        )
+    } else {
+        false
+    };
+
+    if !is_retriable {
+        tracing::error!(
+            operation = %operation_name,
+            error = ?err,
+            "Operation failed with non-retryable error"
+        );
+    } else if attempt >= max_attempts {
+        tracing::warn!(
+            operation = %operation_name,
+            attempts = attempt,
+            error = ?err,
+            "Operation failed after {} retries (max: {})",
+            attempt - 1,
+            max_attempts
+        );
+    } else {
+        debug!(
+            operation = %operation_name,
+            attempt = attempt,
+            max_attempts = max_attempts,
+            error = ?err,
+            "Retrying operation"
+        );
+    }
+
+    is_retriable
+}
 #[derive(Debug, Clone)]
 pub struct AgentMessage<T> {
     pub agent: AgentId,
@@ -26,6 +74,7 @@ pub struct Orchestrator<App> {
     sender: Option<ArcSender>,
     conversation: Arc<RwLock<Conversation>>,
     compactor: ContextCompactor<App>,
+    retry_strategy: std::iter::Take<tokio_retry::strategy::ExponentialBackoff>,
 }
 
 struct ChatCompletionResult {
@@ -49,6 +98,9 @@ impl<A: Services> Orchestrator<A> {
             services,
             sender,
             conversation: Arc::new(RwLock::new(conversation)),
+            retry_strategy: ExponentialBackoff::from_millis(200)
+                .factor(2)
+                .take(MAX_RETRY_ATTEMPTS),
         }
     }
 
@@ -259,6 +311,7 @@ impl<A: Services> Orchestrator<A> {
         Ok(())
     }
 
+    // Create a helper method with the core functionality
     async fn init_agent(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
         let conversation = self.get_conversation().await?;
         debug!(
@@ -367,12 +420,88 @@ impl<A: Services> Orchestrator<A> {
         Ok(())
     }
 
+    // Modified init_agent_with_event that uses tokio_retry for retry mechanism
+    // Now takes retry_strategy and operation_name as arguments
+    async fn init_retriable_agent_with_event<I>(
+        &self,
+        agent_id: &AgentId,
+        event: &Event,
+        retry_strategy: I,
+        operation_name: String,
+    ) -> anyhow::Result<()>
+    where
+        I: IntoIterator<Item = std::time::Duration> + Clone,
+    {
+        // Clone variables for the retry closure
+        let agent_id_clone = agent_id.clone();
+        let event_clone = event.clone();
+        let self_clone = self.clone();
+
+        // Clone operation name for all uses
+        let op_name_for_success_log = operation_name.clone();
+
+        // Define the operation to retry
+        let operation_name_clone = operation_name.clone();
+        let operation = || {
+            let agent_id = agent_id_clone.clone();
+            let event = event_clone.clone();
+            let orchestrator = self_clone.clone();
+            let op_name = operation_name_clone.clone();
+
+            async move {
+                let result = orchestrator.init_agent(&agent_id, &event).await;
+                if let Err(ref err) = result {
+                    // Log the error but don't handle it yet
+                    debug!(
+                        operation = %op_name,
+                        error = ?err,
+                        "Operation failed, may retry"
+                    );
+                }
+                result
+            }
+        };
+
+        // Track attempt count for logging
+        let mut attempt = 0;
+
+        // Create a retry condition function that uses our abstracted should_retry
+        let retry_condition = move |err: &anyhow::Error| {
+            attempt += 1;
+            check_and_log_retry_condition(err, attempt, MAX_RETRY_ATTEMPTS, &operation_name)
+        };
+
+        // Use RetryIf to retry the operation with the condition
+        let result = RetryIf::spawn(retry_strategy, operation, retry_condition).await;
+
+        // Log success if we succeeded after retries
+        if result.is_ok() && attempt > 0 {
+            tracing::info!(
+                operation = %op_name_for_success_log,
+                attempts = attempt + 1,
+                "Operation succeeded after {} retries",
+                attempt
+            );
+        }
+
+        result.with_context(|| format!("Failed to initialize agent {}", agent_id))
+    }
+
     async fn wake_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
         while let Some(event) = {
             let mut conversation = self.conversation.write().await;
             conversation.poll_event(agent_id)
         } {
-            self.init_agent(agent_id, &event).await?;
+            // Create operation name for this call
+            let operation_name = format!("init_agent_with_event::{}", agent_id);
+
+            self.init_retriable_agent_with_event(
+                agent_id,
+                &event,
+                self.retry_strategy.clone().map(jitter),
+                operation_name,
+            )
+            .await?;
         }
 
         Ok(())

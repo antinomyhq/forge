@@ -79,6 +79,7 @@ tree-sitter-go = "0.23"
 tree-sitter-cpp = "0.23"
 tree-sitter-ruby = "0.23"
 url = { version = "2.5.4", features = ["serde"] }
+tokio-retry = "0.3.0"
 uuid = { version = "1.11.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
 whoami = "1.5.2"
 fnv_rs = "0.4.3"
