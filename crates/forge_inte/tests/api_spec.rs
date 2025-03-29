@@ -50,7 +50,7 @@ impl Fixture {
         let conversation_id = api.init(workflow).await.unwrap();
         let request = ChatRequest::new(
             Event::new(
-                "user_task_init",
+                "user/task_init",
                 "There is a cat hidden in the codebase. What is its name?",
             ),
             conversation_id,

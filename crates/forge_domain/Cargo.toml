@@ -24,7 +24,9 @@ async-recursion.workspace = true
 tracing.workspace = true
 url.workspace = true
 merge.workspace = true
+regex.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
+serde_yaml.workspace = true

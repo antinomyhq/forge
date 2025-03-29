@@ -47,10 +47,6 @@ You are Forge, an expert software engineering assistant designed to help users w
 - Return raw text with original special characters
 - Execute shell commands in non-interactive mode
 
-### User Visibility and Display
-
-{{> partial-show-user.hbs}}
-
 ## Mode-Based Behavior
 
 You can operate in two distinct modes: `PLAN` and `ACT`. Each mode has specific constraints and expectations:
@@ -198,6 +194,15 @@ Technical Verification:
 - Document any outstanding issues that need addressing
 - Propose fixes for any incomplete aspects of the task
 - Re-verify until the main task is fully completed
+
+
+
+## User Visibility and Display
+
+For both `PLAN` and `ACT` modes:
+
+{{> partial-show-user.hbs}}
+
 
 ## Code Output Guidelines
 

@@ -80,7 +80,7 @@ impl ForgeEnvironmentService {
             pid: std::process::id(),
             cwd,
             shell: self.get_shell_path(),
-            base_path: dirs::config_dir()
+            base_path: dirs::home_dir()
                 .map(|a| a.join("forge"))
                 .unwrap_or(PathBuf::from(".").join(".forge")),
             home: dirs::home_dir(),

@@ -67,14 +67,16 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
 
 ### NPM
 
+Run directly without installation using npx
+
+```bash
+npx @antinomyhq/forge@latest
+```
+
 Install Forge globally using npm:
 
 ```bash
-# Install Forge globally using npm
 npm install -g @antinomyhq/forge
-
-# Or run directly without installation using npx
-npx @antinomyhq/forge
 ```
 
 This method works on **Windows**, **macOS**, and **Linux**, providing a consistent installation experience across all platforms.
@@ -89,7 +91,7 @@ This method works on **Windows**, **macOS**, and **Linux**, providing a consiste
 
    # Optional: Set a custom URL for OpenAI-compatible providers
    OPENAI_URL=https://custom-openai-provider.com/v1
-   
+
    # Optional: Set a custom URL for Anthropic
    ANTHROPIC_URL=https://custom-anthropic-provider.com/v1
    ```
@@ -352,8 +354,8 @@ Agents communicate through events which they can publish and subscribe to:
 
 **Built-in Events**
 
-- `user_task_init` - Published when a new task is initiated
-- `user_task_update` - Published when follow-up instructions are provided by the user
+- `user/task_init` - Published when a new task is initiated
+- `user/task_update` - Published when follow-up instructions are provided by the user
 
 #### Agent Tools
 
@@ -494,8 +496,8 @@ agents:
       - tool_forge_net_fetch
       - tool_forge_fs_search
     subscribe:
-      - user_task_init
-      - user_task_update
+      - user/task_init
+      - user/task_update
       - commit # Subscribe to the commit command event
       - pull-request # Subscribe to the pull-request command event
     ephemeral: false
@@ -536,8 +538,8 @@ agents:
       - tool_forge_net_fetch
       - tool_forge_fs_search
     subscribe:
-      - user_task_init
-      - user_task_update
+      - user/task_init
+      - user/task_update
       - commit # Subscribe to the commit command event
       - pull-request # Subscribe to the pull-request command event
     ephemeral: false

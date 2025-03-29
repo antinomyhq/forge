@@ -15,3 +15,5 @@ forge_domain.workspace = true
 
 [dependencies]
 dotenv.workspace = true
+pretty_assertions.workspace = true
+insta.workspace = true

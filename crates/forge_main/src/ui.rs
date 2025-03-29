@@ -19,10 +19,12 @@ use crate::model::{Command, ForgeCommandManager, UserInput};
 use crate::state::{Mode, UIState};
 
 // Event type constants moved to UI layer
-pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
-pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
-pub const EVENT_USER_HELP_QUERY: &str = "user_help_query";
-pub const EVENT_TITLE: &str = "title";
+// Event names will be prefixed with the current mode (act/, plan/, or help/)
+// during dispatch For example: "act/user/task_init", "plan/user/task_update",
+// "help/user/task_init", etc.
+pub const EVENT_USER_TASK_INIT: &str = "task_init";
+pub const EVENT_USER_TASK_UPDATE: &str = "task_update";
+pub const EVENT_TITLE: &str = "ui/title";
 
 lazy_static! {
     pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
@@ -91,16 +93,20 @@ impl<F: API> UI<F> {
 
         Ok(())
     }
-    // Helper functions for creating events with the specific event names
-    fn create_task_init_event<V: Into<Value>>(content: V) -> Event {
-        Event::new(EVENT_USER_TASK_INIT, content)
-    }
 
-    fn create_task_update_event<V: Into<Value>>(content: V) -> Event {
-        Event::new(EVENT_USER_TASK_UPDATE, content)
-    }
-    fn create_user_help_query_event<V: Into<Value>>(content: V) -> Event {
-        Event::new(EVENT_USER_HELP_QUERY, content)
+    // Helper method to create events with mode prefix
+    fn create_user_event(&mut self, content: impl Into<Value>) -> Event {
+        let mode = self.state.mode.to_string().to_lowercase();
+        let author = "user".to_string();
+
+        let name = if self.state.is_first {
+            self.state.is_first = false;
+            EVENT_USER_TASK_INIT
+        } else {
+            EVENT_USER_TASK_UPDATE
+        };
+
+        Event::new(format!("{mode}/{author}/{name}"), content)
     }
 
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
@@ -121,13 +127,15 @@ impl<F: API> UI<F> {
     pub async fn run(&mut self) -> Result<()> {
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
-            return self.handle_dispatch(dispatch_json).await;
+            let event: PartialEvent = serde_json::from_str(&dispatch_json)?;
+            return self.chat(event.into()).await;
         }
 
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
-            self.chat(prompt).await?;
+            let event = self.create_user_event(prompt);
+            self.chat(event).await?;
             return Ok(());
         }
 
@@ -168,13 +176,9 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::Message(ref content) => {
-                    let chat_result = match self.state.mode {
-                        Mode::Help => {
-                            self.dispatch_event(Self::create_user_help_query_event(content.clone()))
-                                .await
-                        }
-                        _ => self.chat(content.clone()).await,
-                    };
+                    let content_clone = content.clone();
+                    let event = self.create_user_event(content_clone);
+                    let chat_result = self.chat(event).await;
                     if let Err(err) = chat_result {
                         tokio::spawn(
                             TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{:?}", err))),
@@ -224,7 +228,7 @@ impl<F: API> UI<F> {
                     input = self.console.prompt(None).await?;
                 }
                 Command::Custom(event) => {
-                    if let Err(e) = self.dispatch_event(event.into()).await {
+                    if let Err(e) = self.chat(event.into()).await {
                         CONSOLE.writeln(
                             TitleFormat::failed("Failed to execute the command.")
                                 .sub_title("Command Execution")
@@ -241,22 +245,6 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
-    // Handle dispatching events from the CLI
-    async fn handle_dispatch(&mut self, json: String) -> Result<()> {
-        // Initialize the conversation
-        let conversation_id = self.init_conversation().await?;
-
-        // Parse the JSON to determine the event name and value
-        let event: PartialEvent = serde_json::from_str(&json)?;
-
-        // Create the chat request with the event
-        let chat = ChatRequest::new(event.into(), conversation_id);
-
-        // Process the event
-        let mut stream = self.api.chat(chat).await?;
-        self.handle_chat_stream(&mut stream).await
-    }
-
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
@@ -268,26 +256,6 @@ impl<F: API> UI<F> {
 
                 Ok(conversation_id)
             }
-        }
-    }
-
-    async fn chat(&mut self, content: String) -> Result<()> {
-        let conversation_id = self.init_conversation().await?;
-
-        // Create a ChatRequest with the appropriate event type
-        let event = if self.state.is_first {
-            self.state.is_first = false;
-            Self::create_task_init_event(content.clone())
-        } else {
-            Self::create_task_update_event(content.clone())
-        };
-
-        // Create the chat request with the event
-        let chat = ChatRequest::new(event, conversation_id);
-
-        match self.api.chat(chat).await {
-            Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
-            Err(err) => Err(err),
         }
     }
 
@@ -382,12 +350,10 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
-    async fn dispatch_event(&mut self, event: Event) -> Result<()> {
+    async fn chat(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
         let chat = ChatRequest::new(event, conversation_id);
-        match self.api.chat(chat).await {
-            Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
-            Err(err) => Err(err),
-        }
+        let mut stream = self.api.chat(chat).await?;
+        self.handle_chat_stream(&mut stream).await
     }
 }
