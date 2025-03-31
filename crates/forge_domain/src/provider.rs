@@ -13,7 +13,11 @@ impl Provider {
     pub fn open_ai_url(&mut self, url: String) {
         match self {
             Provider::OpenAI { url: set_url, .. } => {
-                *set_url = Url::parse(&url).unwrap();
+                if url.ends_with("/") {
+                    *set_url = Url::parse(&url).unwrap();
+                } else {
+                    *set_url = Url::parse(&format!("{}/", url)).unwrap();
+                }
             }
             Provider::Anthropic { .. } => {}
         }
@@ -23,7 +27,11 @@ impl Provider {
     pub fn anthropic_url(&mut self, url: String) {
         match self {
             Provider::Anthropic { url: set_url, .. } => {
-                *set_url = Url::parse(&url).unwrap();
+                if url.ends_with("/") {
+                    *set_url = Url::parse(&url).unwrap();
+                } else {
+                    *set_url = Url::parse(&format!("{}/", url)).unwrap();
+                }
             }
             Provider::OpenAI { .. } => {}
         }
