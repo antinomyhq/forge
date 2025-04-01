@@ -142,12 +142,9 @@ mod tests {
             } else {
                 "/bin/sh".to_string()
             },
-            provider: Provider::anthropic("test-key"),
             base_path: PathBuf::new(),
-            qdrant_key: None,
-            qdrant_cluster: None,
             pid: std::process::id(),
-            openai_key: None,
+            provider: Provider::anthropic("test-key"),
         }
     }
 

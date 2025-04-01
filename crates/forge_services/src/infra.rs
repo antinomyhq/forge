@@ -2,7 +2,6 @@ use std::path::Path;
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_domain::{Point, Query, Suggestion};
 use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
@@ -39,17 +38,6 @@ pub trait FileRemoveService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait VectorIndex<T>: Send + Sync {
-    async fn store(&self, point: Point<T>) -> anyhow::Result<()>;
-    async fn search(&self, query: Query) -> anyhow::Result<Vec<Point<T>>>;
-}
-
-#[async_trait::async_trait]
-pub trait EmbeddingService: Send + Sync {
-    async fn embed(&self, text: &str) -> anyhow::Result<Vec<f32>>;
-}
-
-#[async_trait::async_trait]
 pub trait FsMetaService: Send + Sync {
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool>;
     async fn exists(&self, path: &Path) -> anyhow::Result<bool>;
@@ -71,23 +59,19 @@ pub trait FsSnapshotService: Send + Sync {
 }
 
 pub trait Infrastructure: Send + Sync + Clone + 'static {
-    type EmbeddingService: EmbeddingService;
     type EnvironmentService: EnvironmentService;
     type FsMetaService: FsMetaService;
     type FsReadService: FsReadService;
     type FsRemoveService: FileRemoveService;
     type FsSnapshotService: FsSnapshotService;
     type FsWriteService: FsWriteService;
-    type VectorIndex: VectorIndex<Suggestion>;
     type FsCreateDirsService: FsCreateDirsService;
 
-    fn embedding_service(&self) -> &Self::EmbeddingService;
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn file_meta_service(&self) -> &Self::FsMetaService;
     fn file_read_service(&self) -> &Self::FsReadService;
     fn file_remove_service(&self) -> &Self::FsRemoveService;
     fn file_snapshot_service(&self) -> &Self::FsSnapshotService;
     fn file_write_service(&self) -> &Self::FsWriteService;
-    fn vector_index(&self) -> &Self::VectorIndex;
     fn create_dirs_service(&self) -> &Self::FsCreateDirsService;
 }

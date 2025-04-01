@@ -71,8 +71,6 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     type EnvironmentService = F::EnvironmentService;
     type FsReadService = F::FsReadService;
     type FsWriteService = F::FsWriteService;
-    type VectorIndex = F::VectorIndex;
-    type EmbeddingService = F::EmbeddingService;
     type FsMetaService = F::FsMetaService;
     type FsSnapshotService = F::FsSnapshotService;
     type FsRemoveService = F::FsRemoveService;
@@ -88,14 +86,6 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
 
     fn file_write_service(&self) -> &Self::FsWriteService {
         self.infra.file_write_service()
-    }
-
-    fn vector_index(&self) -> &Self::VectorIndex {
-        self.infra.vector_index()
-    }
-
-    fn embedding_service(&self) -> &Self::EmbeddingService {
-        self.infra.embedding_service()
     }
 
     fn file_meta_service(&self) -> &Self::FsMetaService {

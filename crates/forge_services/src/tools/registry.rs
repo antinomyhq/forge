@@ -42,13 +42,13 @@ pub mod tests {
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
-    use forge_domain::{Environment, Point, Provider, Query, Suggestion};
+    use forge_domain::{Environment, Provider};
     use forge_snaps::Snapshot;
 
     use super::*;
     use crate::{
-        EmbeddingService, FileRemoveService, FsCreateDirsService, FsMetaService, FsReadService,
-        FsSnapshotService, FsWriteService, VectorIndex,
+        FileRemoveService, FsCreateDirsService, FsMetaService, FsReadService, FsSnapshotService,
+        FsWriteService,
     };
 
     /// Create a default test environment
@@ -64,10 +64,7 @@ pub mod tests {
                     "/bin/sh".to_string()
                 },
                 base_path: PathBuf::new(),
-                qdrant_key: Default::default(),
-                qdrant_cluster: Default::default(),
                 pid: std::process::id(),
-                openai_key: Default::default(),
                 provider: Provider::anthropic("test-key"),
             },
         }
@@ -85,18 +82,12 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl EmbeddingService for Stub {
-        async fn embed(&self, _text: &str) -> anyhow::Result<Vec<f32>> {
-            unimplemented!()
-        }
-    }
-
-    #[async_trait::async_trait]
     impl EnvironmentService for Stub {
         fn get_environment(&self) -> Environment {
             self.env.clone()
         }
     }
+
     #[async_trait::async_trait]
     impl FsReadService for Stub {
         async fn read(&self, _path: &Path) -> anyhow::Result<Bytes> {
@@ -107,16 +98,6 @@ pub mod tests {
     #[async_trait::async_trait]
     impl FsWriteService for Stub {
         async fn write(&self, _: &Path, _: Bytes) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-    }
-    #[async_trait::async_trait]
-    impl VectorIndex<Suggestion> for Stub {
-        async fn store(&self, _information: Point<Suggestion>) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-
-        async fn search(&self, _query: Query) -> anyhow::Result<Vec<Point<Suggestion>>> {
             unimplemented!()
         }
     }
@@ -163,8 +144,6 @@ pub mod tests {
         type FsReadService = Stub;
         type FsWriteService = Stub;
         type FsRemoveService = Stub;
-        type VectorIndex = Stub;
-        type EmbeddingService = Stub;
         type FsMetaService = Stub;
         type FsSnapshotService = Stub;
         type FsCreateDirsService = Stub;
@@ -181,14 +160,6 @@ pub mod tests {
             self
         }
 
-        fn vector_index(&self) -> &Self::VectorIndex {
-            self
-        }
-
-        fn embedding_service(&self) -> &Self::EmbeddingService {
-            self
-        }
-
         fn file_meta_service(&self) -> &Self::FsMetaService {
             self
         }
@@ -196,6 +167,7 @@ pub mod tests {
         fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
             self
         }
+
         fn file_remove_service(&self) -> &Self::FsRemoveService {
             self
         }

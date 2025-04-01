@@ -20,16 +20,10 @@ pub struct Environment {
     pub home: Option<PathBuf>,
     /// The shell being used.
     pub shell: String,
-    /// The Qdrant API Key
-    pub qdrant_key: Option<String>,
-    /// The Qdrant Cluster
-    pub qdrant_cluster: Option<String>,
     /// The base path relative to which everything else stored.
     pub base_path: PathBuf,
     /// Resolved provider based on the environment configuration.    
     pub provider: Provider,
-    /// The OpenAI API key required to use embedding models.
-    pub openai_key: Option<String>,
 }
 
 impl Environment {

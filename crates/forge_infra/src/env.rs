@@ -84,10 +84,6 @@ impl ForgeEnvironmentService {
                 .map(|a| a.join("forge"))
                 .unwrap_or(PathBuf::from(".").join(".forge")),
             home: dirs::home_dir(),
-
-            qdrant_key: std::env::var("QDRANT_KEY").ok(),
-            qdrant_cluster: std::env::var("QDRANT_CLUSTER").ok(),
-            openai_key: std::env::var("OPENAI_API_KEY").ok(),
             provider,
         }
     }

@@ -61,24 +61,21 @@ impl<F: Infrastructure> AttachmentService for ForgeChatRequest<F> {
 
 #[cfg(test)]
 pub mod tests {
-    use core::str;
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_domain::{
-        AttachmentService, ContentType, Environment, Point, Provider, Query, Suggestion,
-    };
+    use forge_domain::{AttachmentService, ContentType, Environment, Provider};
     use forge_snaps::Snapshot;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
-        EmbeddingService, EnvironmentService, FileRemoveService, FsCreateDirsService,
-        FsMetaService, FsReadService, FsSnapshotService, FsWriteService, Infrastructure,
-        VectorIndex,
+        EnvironmentService, FileRemoveService, FsCreateDirsService, FsMetaService, FsReadService,
+        FsSnapshotService, FsWriteService, Infrastructure,
     };
+
     #[derive(Debug)]
     pub struct MockEnvironmentService {}
 
@@ -91,10 +88,7 @@ pub mod tests {
                 cwd: PathBuf::from("/test"),
                 home: Some(PathBuf::from("/home/test")),
                 shell: "bash".to_string(),
-                qdrant_key: None,
-                qdrant_cluster: None,
                 base_path: PathBuf::from("/base"),
-                openai_key: None,
                 provider: Provider::open_router("test-key"),
             }
         }
@@ -143,35 +137,11 @@ pub mod tests {
             }
         }
     }
-    #[derive(Debug)]
-    pub struct MockVectorIndex {}
-
-    #[async_trait::async_trait]
-    impl VectorIndex<Suggestion> for MockVectorIndex {
-        async fn store(&self, _point: Point<Suggestion>) -> anyhow::Result<()> {
-            Ok(())
-        }
-
-        async fn search(&self, _query: Query) -> anyhow::Result<Vec<Point<Suggestion>>> {
-            Ok(vec![])
-        }
-    }
-    #[derive(Debug)]
-    pub struct MockEmbeddingService {}
-
-    #[async_trait::async_trait]
-    impl EmbeddingService for MockEmbeddingService {
-        async fn embed(&self, _text: &str) -> anyhow::Result<Vec<f32>> {
-            Ok(vec![0.1, 0.2, 0.3])
-        }
-    }
 
     #[derive(Debug, Clone)]
     pub struct MockInfrastructure {
         env_service: Arc<MockEnvironmentService>,
         file_service: Arc<MockFileService>,
-        vector_index: Arc<MockVectorIndex>,
-        embedding_service: Arc<MockEmbeddingService>,
         file_snapshot_service: Arc<MockSnapService>,
     }
 
@@ -180,8 +150,6 @@ pub mod tests {
             Self {
                 env_service: Arc::new(MockEnvironmentService {}),
                 file_service: Arc::new(MockFileService::new()),
-                vector_index: Arc::new(MockVectorIndex {}),
-                embedding_service: Arc::new(MockEmbeddingService {}),
                 file_snapshot_service: Arc::new(MockSnapService),
             }
         }
@@ -265,8 +233,6 @@ pub mod tests {
         type FsReadService = MockFileService;
         type FsWriteService = MockFileService;
         type FsRemoveService = MockFileService;
-        type VectorIndex = MockVectorIndex;
-        type EmbeddingService = MockEmbeddingService;
         type FsMetaService = MockFileService;
         type FsCreateDirsService = MockFileService;
         type FsSnapshotService = MockSnapService;
@@ -281,14 +247,6 @@ pub mod tests {
 
         fn file_write_service(&self) -> &Self::FsWriteService {
             &self.file_service
-        }
-
-        fn vector_index(&self) -> &Self::VectorIndex {
-            &self.vector_index
-        }
-
-        fn embedding_service(&self) -> &Self::EmbeddingService {
-            &self.embedding_service
         }
 
         fn file_meta_service(&self) -> &Self::FsMetaService {
