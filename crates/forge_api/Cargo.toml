@@ -7,6 +7,7 @@ edition = "2021"
 anyhow.workspace = true
 async-trait.workspace = true
 forge_domain.workspace = true
+forge_signal.workspace = true
 forge_stream.workspace = true
 forge_services.workspace = true
 forge_walker.workspace = true
