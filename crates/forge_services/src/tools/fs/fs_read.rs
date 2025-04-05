@@ -8,6 +8,10 @@ use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+use crate::range_handler::{
+    count_lines, determine_display_range, format_content_with_range, RangePreference,
+    DEFAULT_LINE_LIMIT,
+};
 use crate::tools::utils::{assert_absolute_path, format_display_path};
 use crate::{EnvironmentService, FsReadService, Infrastructure};
 
@@ -15,6 +19,10 @@ use crate::{EnvironmentService, FsReadService, Infrastructure};
 pub struct FSReadInput {
     /// The path of the file to read, always provide absolute paths.
     pub path: String,
+    /// Start line for reading file content (optional)
+    pub range_start: Option<usize>,
+    /// End line for reading file content (optional)
+    pub range_end: Option<usize>,
 }
 
 /// Reads file contents at specified path. Use for analyzing code, config files,
@@ -58,7 +66,10 @@ impl<F: Infrastructure> ExecutableTool for FSRead<F> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        // Use the infrastructure to read the file
+        // First, check if a specific range was requested
+        let has_range = input.range_start.is_some() || input.range_end.is_some();
+
+        // Read the file content
         let bytes = self
             .0
             .file_read_service()
@@ -74,13 +85,49 @@ impl<F: Infrastructure> ExecutableTool for FSRead<F> {
             )
         })?;
 
+        // Count total lines
+        let total_lines = count_lines(&content);
+
+        // Format the display path (for output message)
+        let display_path = self.format_display_path(path)?;
+
+        // Prepare output with metadata and standardized format
+        let output = if has_range || total_lines > DEFAULT_LINE_LIMIT {
+            // Use the new common formatter with appropriate options
+            format_content_with_range(
+                &content,
+                Some(&input.path),
+                "file",
+                RangePreference::First, // fs_read always shows the first part of file
+                None,
+                false, // Don't store file content in temp file since it's already on disk
+            )?
+        } else {
+            // Simple output for small files with no range specified
+            content
+        };
+
         // Display a message about the file being read
         let title = "read";
-        let display_path = self.format_display_path(path)?;
-        let message = TitleFormat::success(title).sub_title(display_path);
-        println!("{}", message);
+        let message = if total_lines > DEFAULT_LINE_LIMIT {
+            let (start, end) = if has_range {
+                determine_display_range(total_lines, input.range_start, input.range_end)
+            } else {
+                (1, DEFAULT_LINE_LIMIT) // Default for fs_read is to show first
+                                        // part
+            };
+            format!(
+                "read range {}-{} of {} lines from {}",
+                start, end, total_lines, display_path
+            )
+        } else {
+            format!("read {} lines from {}", total_lines, display_path)
+        };
 
-        Ok(content)
+        let formatted_message = TitleFormat::success(title).sub_title(message);
+        println!("{}", formatted_message);
+
+        Ok(output)
     }
 }
 
@@ -99,7 +146,9 @@ mod test {
     async fn test_with_mock(path: &str) -> anyhow::Result<String> {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_read = FSRead::new(infra);
-        fs_read.call(FSReadInput { path: path.to_string() }).await
+        fs_read
+            .call(FSReadInput { path: path.to_string(), range_start: None, range_end: None })
+            .await
     }
 
     #[tokio::test]

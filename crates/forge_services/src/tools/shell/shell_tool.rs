@@ -7,8 +7,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 
-use super::executor::Output;
-use crate::tools::shell::executor::CommandExecutor;
+use super::executor::{CommandExecutor, Output};
+use crate::range_handler::{format_content_with_range, RangePreference};
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ShellInput {
@@ -19,6 +19,10 @@ pub struct ShellInput {
 }
 
 /// Formats command output by wrapping non-empty stdout/stderr in XML tags.
+/// Handles large outputs by truncating and adding metadata about displayed
+/// range. For large outputs, stores the complete output in a temporary file and
+/// includes the file path in the response. By default, displays the last part
+/// of stdout/stderr instead of the first part.
 /// stderr is commonly used for warnings and progress info, so success is
 /// determined by exit status, not stderr presence. Returns Ok(output) on
 /// success or Err(output) on failure, with a status message if both streams are
@@ -26,15 +30,36 @@ pub struct ShellInput {
 fn format_output(output: Output) -> anyhow::Result<String> {
     let mut formatted_output = String::new();
 
+    // Process stdout if not empty
     if !output.stdout.trim().is_empty() {
-        formatted_output.push_str(&format!("<stdout>{}</stdout>", output.stdout));
+        // Use the common formatter with Last preference (show the end of output)
+        let stdout_formatted = format_content_with_range(
+            &output.stdout,
+            None,
+            "stdout",
+            RangePreference::Last, // Shell tool shows the last part of output
+            None,
+            true, // Store in temp file for shell output
+        )?;
+        formatted_output.push_str(&stdout_formatted);
     }
 
+    // Process stderr if not empty
     if !output.stderr.trim().is_empty() {
         if !formatted_output.is_empty() {
             formatted_output.push('\n');
         }
-        formatted_output.push_str(&format!("<stderr>{}</stderr>", output.stderr));
+
+        // Use the common formatter with Last preference (show the end of output)
+        let stderr_formatted = format_content_with_range(
+            &output.stderr,
+            None,
+            "stderr",
+            RangePreference::Last, // Shell tool shows the last part of output
+            None,
+            true, // Store in temp file for shell output
+        )?;
+        formatted_output.push_str(&stderr_formatted);
     }
 
     let result = if formatted_output.is_empty() {
@@ -129,6 +154,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::range_handler::DEFAULT_LINE_LIMIT;
 
     /// Create a default test environment
     fn test_env() -> Environment {
@@ -171,7 +197,7 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(result.contains("<stdout>Hello, World!\n</stdout>"));
+        assert!(result.contains("<stdout>\nHello, World!\n</stdout>"));
     }
 
     #[tokio::test]
@@ -192,7 +218,7 @@ mod tests {
 
         assert_eq!(
             result,
-            "<stdout>to stdout\n</stdout>\n<stderr>to stderr\n</stderr>"
+            "<stdout>\nto stdout\n</stdout>\n<stderr>\nto stderr\n</stderr>"
         );
     }
 
@@ -209,7 +235,7 @@ mod tests {
 
         assert_eq!(
             result,
-            "<stdout>to stdout\n</stdout>\n<stderr>to stderr\n</stderr>"
+            "<stdout>\nto stdout\n</stdout>\n<stderr>\nto stderr\n</stderr>"
         );
     }
 
@@ -229,7 +255,10 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(result, format!("<stdout>{}\n</stdout>", temp_dir.display()));
+        assert_eq!(
+            result,
+            format!("<stdout>\n{}\n</stdout>", temp_dir.display())
+        );
     }
 
     #[tokio::test]
@@ -290,10 +319,9 @@ mod tests {
             })
             .await
             .unwrap();
-
         assert_eq!(
             result,
-            format!("<stdout>{}\n</stdout>", current_dir.display())
+            format!("<stdout>\n{}\n</stdout>", current_dir.display())
         );
     }
 
@@ -307,7 +335,7 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(result, format!("<stdout>first\nsecond\n</stdout>"));
+        assert_eq!(result, format!("<stdout>\nfirst\nsecond\n</stdout>"));
     }
 
     #[tokio::test]
@@ -338,6 +366,104 @@ mod tests {
 
         assert!(result.contains("executed successfully"));
         assert!(!result.contains("failed"));
+    }
+
+    #[tokio::test]
+    async fn test_shell_large_output() {
+        let shell = Shell::new(test_env());
+
+        // Generate significantly more lines than DEFAULT_LINE_LIMIT
+        let num_lines = DEFAULT_LINE_LIMIT * 2;
+        let command = if cfg!(target_os = "windows") {
+            // Windows command to generate a large output
+            format!("for /L %%i in (1,1,{}) do @echo Line %%i", num_lines)
+        } else {
+            // Unix command to generate a large output
+            format!("for i in $(seq 1 {}); do echo Line $i; done", num_lines)
+        };
+
+        let result = shell
+            .call(ShellInput { command, cwd: env::current_dir().unwrap() })
+            .await
+            .unwrap();
+
+        // The output should be truncated and include range metadata
+        assert!(result.contains("displayed-range"));
+        assert!(result.contains("total-lines"));
+        assert!(result.contains("complete-log-output"));
+
+        // Check that we're showing the LAST part of the output now
+        let start = num_lines - DEFAULT_LINE_LIMIT + 1;
+        let end = num_lines;
+        assert!(result.contains(&format!(
+            "displayed-range=\"{}-{}\" total-lines=\"{}\"",
+            start, end, num_lines
+        )));
+        // Verify the content includes the last lines but not lines before the range
+        assert!(!result.contains("Line 1\n"));
+        assert!(result.contains(&format!("Line {}", DEFAULT_LINE_LIMIT + 1)));
+        assert!(result.contains(&format!("Line {}", num_lines)));
+
+        // Verify the log file path is included and exists
+        assert!(result.contains("complete-log-output=\""));
+        let path_start =
+            result.find("complete-log-output=\"").unwrap() + "complete-log-output=\"".len();
+        let path_end = result[path_start..].find("\"").unwrap() + path_start;
+        let log_path = &result[path_start..path_end];
+
+        assert!(std::path::Path::new(log_path).exists());
+    }
+
+    #[tokio::test]
+    async fn test_shell_large_stderr_output() {
+        let shell = Shell::new(test_env());
+
+        // Generate significantly more lines than DEFAULT_LINE_LIMIT
+        let num_lines = DEFAULT_LINE_LIMIT * 2;
+        let command = if cfg!(target_os = "windows") {
+            // Windows command to generate large stderr output with successful exit code
+            format!(
+                "for /L %%i in (1,1,{}) do @echo Error Line %%i 1>&2 && exit /b 0",
+                num_lines
+            )
+        } else {
+            // Unix command to generate large stderr output with successful exit code
+            format!(
+                "for i in $(seq 1 {}); do echo \"Error Line $i\" >&2; done && exit 0",
+                num_lines
+            )
+        };
+
+        let result = shell
+            .call(ShellInput { command, cwd: env::current_dir().unwrap() })
+            .await
+            .unwrap();
+
+        // The stderr output should be truncated and include range metadata
+        assert!(result.contains("displayed-range"));
+        assert!(result.contains("total-lines"));
+        assert!(result.contains("complete-log-output"));
+
+        // Check that we're showing the LAST part of the output now
+        let start = num_lines - DEFAULT_LINE_LIMIT + 1;
+        let end = num_lines;
+        assert!(result.contains(&format!(
+            "displayed-range=\"{}-{}\" total-lines=\"{}\"",
+            start, end, num_lines
+        )));
+
+        // Verify the content includes the last lines but not lines before the range
+        assert!(!result.contains("Error Line 1\n"));
+        assert!(result.contains(&format!("Error Line {}", DEFAULT_LINE_LIMIT + 1)));
+        assert!(result.contains(&format!("Error Line {}", num_lines)));
+
+        // Verify the log file path is included and exists
+        let path_start =
+            result.find("complete-log-output=\"").unwrap() + "complete-log-output=\"".len();
+        let path_end = result[path_start..].find("\"").unwrap() + path_start;
+        let log_path = &result[path_start..path_end];
+
+        assert!(std::path::Path::new(log_path).exists());
     }
 
     #[tokio::test]

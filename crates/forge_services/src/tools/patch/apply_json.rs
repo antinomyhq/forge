@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use strum_macros::AsRefStr;
 use thiserror::Error;
 use tokio::fs;
 
+use crate::range_handler::{format_content_with_range, RangePreference};
 // No longer using dissimilar for fuzzy matching
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
@@ -228,19 +230,25 @@ impl<F: Infrastructure> ApplyPatchJson<F> {
 }
 
 /// Format the modified content as XML with optional syntax warning
-fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
+fn format_output(path: &str, content: &str, warning: Option<&str>) -> anyhow::Result<String> {
+    let mut attrs = None;
+
+    // Add warning attribute if present
     if let Some(w) = warning {
-        format!(
-            "<file_content\n  path=\"{}\"\n  syntax_checker_warning=\"{}\">\n{}</file_content>\n",
-            path, w, content
-        )
-    } else {
-        format!(
-            "<file_content path=\"{}\">\n{}\n</file_content>\n",
-            path,
-            content.trim_end()
-        )
+        let mut attrs_map = BTreeMap::new();
+        attrs_map.insert("syntax_checker_warning".to_string(), w.to_string());
+        attrs = Some(attrs_map);
     }
+
+    // Use the common formatter with First preference (show the beginning of file)
+    format_content_with_range(
+        content,
+        Some(path),
+        "file_content",
+        RangePreference::First,
+        attrs,
+        false, // No need to store in temp file since it's already on disk
+    )
 }
 
 #[async_trait::async_trait]
@@ -269,7 +277,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
                 &patch.content,
             )?;
 
-            // Generate diff between old and new content
+            // Generate diff between old and new content for console display
             let diff =
                 DiffFormat::format("patch", path.to_path_buf(), &old_content, &current_content);
             println!("{}", diff);
@@ -289,7 +297,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
             path.to_string_lossy().as_ref(),
             &current_content,
             warning.as_deref(),
-        );
+        )?;
 
         // Return the final result
         Ok(result)

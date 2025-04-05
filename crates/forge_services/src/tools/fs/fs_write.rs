@@ -9,6 +9,7 @@ use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+use crate::range_handler::{count_lines, extract_line_range, DEFAULT_LINE_LIMIT};
 use crate::tools::syn;
 use crate::tools::utils::{assert_absolute_path, format_display_path};
 use crate::{EnvironmentService, FsMetaService, FsReadService, FsWriteService, Infrastructure};
@@ -86,14 +87,28 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
         let file_exists = self.0.file_meta_service().is_file(path).await?;
 
         // If file exists and overwrite flag is not set, return an error with the
-        // existing content
+        // existing content (with truncation for large files)
         if file_exists && !input.overwrite {
             let existing_content =
                 String::from_utf8(self.0.file_read_service().read(path).await?.to_vec())?;
+
+            // Check if this is a large file
+            let line_count = count_lines(&existing_content);
+            let content = if line_count > DEFAULT_LINE_LIMIT {
+                // Create a truncated preview for large files
+                let preview = extract_line_range(&existing_content, 1, DEFAULT_LINE_LIMIT)?;
+                format!(
+                    "<file displayed-range=\"1-{}\" total-lines=\"{}\" path=\"{}\">\n{}\n</file>",
+                    DEFAULT_LINE_LIMIT, line_count, input.path, preview
+                )
+            } else {
+                existing_content
+            };
+
             return Err(anyhow::anyhow!(
                 "File already exists at {}. If you need to overwrite it, set overwrite to true.\n\nExisting content:\n{}",
                 input.path,
-                existing_content
+                content
             ));
         }
 
