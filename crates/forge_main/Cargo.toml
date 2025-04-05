@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 clap.workspace = true
 forge_api.workspace = true
+forge_domain.workspace = true
 forge_walker.workspace = true
 forge_display.workspace = true
 forge_tracker.workspace = true
@@ -27,10 +28,16 @@ tracing-subscriber.workspace = true
 chrono.workspace = true
 serde_json.workspace = true
 serde.workspace = true
+serde_yaml.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 base64.workspace = true
+inquire = { workspace = true }
+dotenv = { workspace = true }
+dotenv_rs = { workspace = true }
+async-recursion = { workspace = true }
 
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
+tempfile.workspace = true

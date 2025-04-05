@@ -39,4 +39,5 @@ Cargo.lock
 .fastembed_cache/
 *.log*
 *-dump.json
+.forge
 

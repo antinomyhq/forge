@@ -64,7 +64,7 @@ impl Default for ForgeCommandManager {
 
 impl ForgeCommandManager {
     fn default_commands() -> Vec<ForgeCommand> {
-        Command::iter()
+        let commands = Command::iter()
             .filter(|command| !matches!(command, Command::Message(_)))
             .filter(|command| !matches!(command, Command::Custom(_)))
             .map(|command| ForgeCommand {
@@ -72,7 +72,11 @@ impl ForgeCommandManager {
                 description: command.usage().to_string(),
                 value: None,
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+
+        // Model configuration commands have been removed
+
+        commands
     }
 
     /// Registers multiple commands to the manager.
@@ -167,6 +171,7 @@ impl ForgeCommandManager {
             "/act" => Ok(Command::Act),
             "/plan" => Ok(Command::Plan),
             "/help" => Ok(Command::Help),
+            "/configure" => Ok(Command::Configure),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -230,6 +235,15 @@ pub enum Command {
     /// Dumps the current conversation into a json file
     #[strum(props(usage = "Save conversation as JSON"))]
     Dump,
+    /// Apply configuration changes (reload model settings) without starting a
+    /// new conversation
+    #[strum(props(usage = "Apply configuration changes"))]
+    ApplyConfig,
+
+    /// Configure provider, API keys, and model settings through interactive
+    /// menu
+    #[strum(props(usage = "Configure provider and model settings"))]
+    Configure,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
 }
@@ -246,6 +260,8 @@ impl Command {
             Command::Plan => "/plan",
             Command::Help => "/help",
             Command::Dump => "/dump",
+            Command::ApplyConfig => "/apply-config",
+            Command::Configure => "/configure",
             Command::Custom(event) => &event.name,
         }
     }

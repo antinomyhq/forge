@@ -10,13 +10,13 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 use tracing::error;
 
-use crate::banner;
 use crate::cli::Cli;
 use crate::console::CONSOLE;
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager, UserInput};
 use crate::state::{Mode, UIState};
+use crate::{banner, commands};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -222,6 +222,39 @@ impl<F: API> UI<F> {
                     CONSOLE.writeln(info.to_string())?;
 
                     input = self.console.prompt(None).await?;
+                }
+                Command::ApplyConfig => {
+                    // Load a fresh workflow with updated configuration
+                    // Reset conversation ID to force reloading
+                    self.state.conversation_id = None;
+
+                    // Initialize new conversation with updated config
+                    let _new_id = self.init_conversation().await?;
+
+                    // Prompt for next command
+                    let prompt_input = Some((&self.state).into());
+                    input = self.console.prompt(prompt_input).await?;
+                    continue;
+                }
+                Command::Configure => {
+                    if let Err(err) = commands::handle_configure(self.api.as_ref()).await {
+                        CONSOLE.writeln(
+                            TitleFormat::failed("Failed to configure settings.")
+                                .sub_title("Configuration")
+                                .error(err.to_string())
+                                .format(),
+                        )?;
+                    }
+
+                    // Configure modifies config, so we should reload
+                    // Reset conversation ID to force reloading
+                    self.state.conversation_id = None;
+
+                    // Initialize new conversation with updated config
+                    let _new_id = self.init_conversation().await?;
+
+                    input = self.console.prompt(None).await?;
+                    continue;
                 }
                 Command::Custom(event) => {
                     if let Err(e) = self.dispatch_event(event.into()).await {
