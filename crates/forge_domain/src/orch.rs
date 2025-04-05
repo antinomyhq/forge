@@ -20,7 +20,7 @@ type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatR
 // Maximum number of retry attempts for retryable operations
 const MAX_RETRY_ATTEMPTS: usize = 3;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AgentMessage<T> {
     pub agent: AgentId,
     pub message: T,
