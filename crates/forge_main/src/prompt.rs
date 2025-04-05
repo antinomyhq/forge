@@ -10,7 +10,7 @@ use crate::state::Mode;
 
 // Constants
 const AI_INDICATOR: &str = "⚡";
-const MULTILINE_INDICATOR: &str = "::: ";
+const MULTILINE_INDICATOR: &str = "";
 const RIGHT_CHEVRON: &str = "❯";
 
 /// Very Specialized Prompt for the Agent Chat
