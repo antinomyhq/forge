@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use forge_domain::RetryConfig;
 use forge_services::{EnvironmentService, Infrastructure};
 
 use crate::env::ForgeEnvironmentService;
@@ -75,5 +76,11 @@ impl Infrastructure for ForgeInfra {
 
     fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
         &self.create_dirs_service
+    }
+
+    // Default implementation for RetryConfig
+    /// Returns a default RetryConfig for use in the application
+    fn default_retry_config(&self) -> RetryConfig {
+        RetryConfig::default()
     }
 }

@@ -1,6 +1,11 @@
+use std::time::Duration;
+
 use anyhow::Context as _;
 use derive_builder::Builder;
-use forge_domain::{ChatCompletionMessage, Context, Model, ModelId, ProviderService, ResultStream};
+use forge_domain::{
+    ChatCompletionMessage, Context, Model, ModelId, ProviderService, ResultStream, RetryConfig,
+    RETRY_STATUS_CODES,
+};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
@@ -9,6 +14,7 @@ use tracing::{debug, error};
 
 use super::request::Request;
 use super::response::{EventData, ListModelResponse};
+use crate::retry::StatusCodeRetryPolicy;
 
 #[derive(Clone, Builder)]
 pub struct Anthropic {
@@ -16,6 +22,8 @@ pub struct Anthropic {
     api_key: String,
     base_url: Url,
     anthropic_version: String,
+    #[builder(default = "RetryConfig::default()")]
+    retry_config: RetryConfig,
 }
 
 impl Anthropic {
@@ -70,13 +78,25 @@ impl ProviderService for Anthropic {
 
         let url = self.url("/messages")?;
         debug!(url = %url, model = %model, "Connecting Upstream");
-        let es = self
+        let mut es = self
             .client
             .post(url)
             .headers(self.headers())
             .json(&request)
             .eventsource()?;
+        let status_codes = self
+            .retry_config
+            .retry_status_codes
+            .clone()
+            .unwrap_or_else(|| RETRY_STATUS_CODES.to_vec());
 
+        es.set_retry_policy(Box::new(StatusCodeRetryPolicy::new(
+            Duration::from_millis(self.retry_config.initial_backoff_ms.unwrap_or(200)),
+            self.retry_config.backoff_factor.unwrap_or(2) as f64,
+            None, // No maximum duration
+            self.retry_config.max_retry_attempts,
+            status_codes,
+        )));
         let stream = es
             .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
             .then(|event| async {
@@ -169,6 +189,7 @@ mod tests {
             .base_url(Url::parse("https://api.anthropic.com/v1/").unwrap())
             .anthropic_version("v1".to_string())
             .api_key("sk-some-key".to_string())
+            .retry_config(RetryConfig::default())
             .build()
             .unwrap();
         assert_eq!(

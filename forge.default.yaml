@@ -14,7 +14,9 @@ retry:
   # Backoff multiplication factor for each retry attempt
   backoff_factor: 2
   # Maximum number of retry attempts
-  max_retry_attempts: 3
+  max_retry_attempts: 3 
+  # Status codes that should trigger retry
+  retry_status_codes: [429, 500, 502, 503, 504]
 
 # Define model anchors with simpler, purpose-based names
 models:

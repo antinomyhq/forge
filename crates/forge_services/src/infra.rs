@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use bytes::Bytes;
+use forge_domain::RetryConfig;
 use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
@@ -74,4 +75,9 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     fn file_snapshot_service(&self) -> &Self::FsSnapshotService;
     fn file_write_service(&self) -> &Self::FsWriteService;
     fn create_dirs_service(&self) -> &Self::FsCreateDirsService;
+
+    /// Get the default retry configuration for providers
+    fn default_retry_config(&self) -> RetryConfig {
+        RetryConfig::default()
+    }
 }

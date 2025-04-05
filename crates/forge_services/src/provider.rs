@@ -22,7 +22,10 @@ impl ForgeProviderService {
             .get_environment()
             .provider
             .clone();
-        Self { client: Arc::new(Client::new(provider).unwrap()) }
+        let retry_config = infra.default_retry_config();
+        Self {
+            client: Arc::new(Client::new(provider, retry_config).unwrap()),
+        }
     }
 }
 
