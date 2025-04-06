@@ -1,5 +1,6 @@
 mod banner;
 mod cli;
+mod commands;
 mod completer;
 mod console;
 mod editor;
