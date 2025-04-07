@@ -82,8 +82,8 @@ tokio-retry = "0.3.0"
 uuid = { version = "1.11.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
 whoami = "1.5.2"
 fnv_rs = "0.4.3"
-merge = {version = "0.1", features = ["derive"]}
-rmcp = {version = "0.1.5", features = ["client", "default", "transport-sse"]}
+merge = { version = "0.1", features = ["derive"] }
+rmcp = { version = "0.1.5", features = ["client", "transport-sse" ] }
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }

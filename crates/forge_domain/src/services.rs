@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use rmcp::model::CallToolResult;
-use rmcp::Service;
+use rmcp::model::{CallToolResult, InitializeRequestParam};
+use rmcp::{RoleClient, Service};
 use rmcp::service::{RunningService, ServiceRole};
 
 use serde_json::Value;
@@ -88,11 +88,13 @@ pub trait EnvironmentService: Send + Sync {
     fn get_environment(&self) -> Environment;
 }
 
+pub enum RunnableService {
+    Http(RunningService<RoleClient, InitializeRequestParam>),
+    Fs(RunningService<RoleClient, ()>),
+}
+
 #[async_trait::async_trait]
 pub trait McpService: Send + Sync {
-    type Role: ServiceRole;
-    type Service: Service<Self::Role>;
-    
     async fn init_mcp(&self, config: McpConfig) -> anyhow::Result<()>;
     
     /// List tools
@@ -111,7 +113,7 @@ pub trait McpService: Send + Sync {
     async fn stop_all_servers(&self) -> anyhow::Result<()>;
     
     /// Get server
-    async fn get_service(&self, tool_name: &str) -> anyhow::Result<Arc<RunningService<Self::Role, Self::Service>>>;
+    async fn get_service(&self, tool_name: &str) -> anyhow::Result<Arc<RunnableService>>;
     
     /// Call tool
     async fn call_tool(&self, tool_name: &str, arguments: Value) -> anyhow::Result<CallToolResult>;

@@ -1,4 +1,6 @@
 use std::sync::Arc;
+use rmcp::Service;
+use rmcp::service::ServiceRole;
 
 use forge_domain::Services;
 
@@ -7,7 +9,6 @@ use crate::conversation::ForgeConversationService;
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
-use crate::tools::mcp_service::ForgeMcpService;
 use crate::Infrastructure;
 use crate::mcp::ForgeMcpService;
 
@@ -50,7 +51,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type TemplateService = ForgeTemplateService<F, ForgeToolService>;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
-    type McpService = ForgeMcpService<Role, Service>;
+    type McpService = ForgeMcpService<impl ServiceRole, impl Service<impl ServiceRole>>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service

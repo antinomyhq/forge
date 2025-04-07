@@ -8,7 +8,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 
-use super::Result;
+use super::{Result, VERSION};
 use crate::can_track::can_track;
 use crate::collect::{posthog, Collect};
 use crate::{Event, EventKind};
@@ -16,11 +16,6 @@ use crate::{Event, EventKind};
 const POSTHOG_API_SECRET: &str = match option_env!("POSTHOG_API_SECRET") {
     Some(val) => val,
     None => "dev",
-};
-
-const VERSION: &str = match option_env!("APP_VERSION") {
-    Some(val) => val,
-    None => env!("CARGO_PKG_VERSION"),
 };
 
 const PARAPHRASE: &str = "forge_key";

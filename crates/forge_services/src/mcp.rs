@@ -2,27 +2,27 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use anyhow::Context;
 
-use rmcp::{Service, ServiceExt};
-use rmcp::model::{CallToolRequestParam, CallToolResult, ClientInfo, Implementation};
+use rmcp::{RoleClient, Service, ServiceExt};
+use rmcp::model::{CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::service::{RunningService, ServiceRole};
 use serde_json::Value;
 use tokio::sync::Mutex;
 
-use forge_domain::{McpConfig, McpHttpServerConfig, McpService, ToolDefinition, ToolName, VERSION};
+use forge_domain::{McpConfig, McpHttpServerConfig, McpService, RunnableService, ToolDefinition, ToolName, VERSION};
 
-struct ServerHolder<Role: ServiceRole, Service: Service<Role>> {
-    client: Arc<RunningService<Role, Service>>,
+struct ServerHolder {
+    client: Arc<RunnableService>,
     tool_definition: ToolDefinition,
     server_name: String,
 }
 
 /// Currently just a placeholder structure, to be implemented
 /// when we add actual server functionality.
-pub struct ForgeMcpService<Role: ServiceRole, Service: Service<Role>> {
-    servers: Arc<Mutex<HashMap<ToolName, ServerHolder<Role, Service>>>>,
+pub struct ForgeMcpService {
+    servers: Arc<Mutex<HashMap<ToolName, ServerHolder>>>,
 }
 
-impl<R: ServiceRole, S: Service<R>> ForgeMcpService<R, S> {
+impl ForgeMcpService {
     pub fn new() -> Self {
         Self {
             servers: Arc::new(Mutex::new(HashMap::new())),
@@ -41,10 +41,7 @@ impl<R: ServiceRole, S: Service<R>> ForgeMcpService<R, S> {
 }
 
 #[async_trait::async_trait]
-impl<R: ServiceRole, S: Service<R>> McpService for ForgeMcpService<R, S> {
-    type Role = R;
-    type Service = S;
-
+impl McpService for ForgeMcpService {
     async fn init_mcp(&self, config: McpConfig) -> anyhow::Result<()> {
         if let Some(servers) = config.http {
             servers
@@ -88,7 +85,7 @@ impl<R: ServiceRole, S: Service<R>> McpService for ForgeMcpService<R, S> {
             .map_err(|e| anyhow::anyhow!("Failed to serve client: {e}"))?;
 
         let tools = client.list_tools(None).await.map_err(|e| anyhow::anyhow!("Failed to list tools: {e}"))?;
-        let client = Arc::new(client);
+        let client = Arc::new(RunnableService::Http(client));
 
         let mut lock = self.servers.lock().await;
         for tool in tools.tools.into_iter() {
@@ -137,7 +134,7 @@ impl<R: ServiceRole, S: Service<R>> McpService for ForgeMcpService<R, S> {
         Ok(())
     }
 
-    async fn get_service(&self, tool_name: &str) -> anyhow::Result<Arc<RunningService<Self::Role, Self::Service>>> {
+    async fn get_service(&self, tool_name: &str) -> anyhow::Result<Arc<RunnableService>> {
         let servers = self.servers.lock().await;
         if let Some(server) = servers.get(&ToolName::new(tool_name)) {
             Ok(server.client.clone())
