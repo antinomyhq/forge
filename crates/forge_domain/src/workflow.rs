@@ -16,11 +16,10 @@ pub struct McpConfig {
     /// MCP HTTP servers
     #[merge(strategy = crate::merge::option)]
     pub http: Option<HashMap<String, McpHttpServerConfig>>,
-    
+
     /// MCP servers
     #[merge(strategy = crate::merge::option)]
     pub fs: Option<HashMap<String, McpFsServerConfig>>,
-    
     // /// Filesystem roots that client can access
     // #[merge(strategy = crate::merge::vec::append)]
     // #[serde(default)]
@@ -32,12 +31,12 @@ pub struct McpFsServerConfig {
     /// Command to execute for starting this MCP server
     #[merge(strategy = crate::merge::std::overwrite)]
     pub command: String,
-    
+
     /// Arguments to pass to the command
     #[merge(strategy = crate::merge::vec::append)]
     #[serde(default)]
     pub args: Vec<String>,
-    
+
     /// Environment variables to pass to the command
     #[merge(strategy = crate::merge::option)]
     pub env: Option<HashMap<String, String>>,
@@ -58,7 +57,7 @@ pub struct McpRoot {
     /// URI of the filesystem root (file:// URI)
     #[merge(strategy = crate::merge::std::overwrite)]
     pub uri: String,
-    
+
     /// Display name for the root
     #[merge(strategy = crate::merge::option)]
     pub name: Option<String>,
@@ -76,7 +75,7 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::vec::append)]
     #[serde(default)]
     pub commands: Vec<Command>,
-    
+
     /// Model Context Protocol (MCP) configuration
     #[merge(strategy = crate::merge::option)]
     pub mcp: Option<McpConfig>,

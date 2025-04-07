@@ -1,13 +1,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use rmcp::{RoleClient, ServiceError};
 use rmcp::model::{CallToolRequestParam, CallToolResult, InitializeRequestParam};
 use rmcp::service::{QuitReason, RunningService};
+use rmcp::{RoleClient, ServiceError};
 use serde_json::Value;
 use tokio::task::JoinError;
 
-use crate::{Agent, Attachment, ChatCompletionMessage, Compact, Context, Conversation, ConversationId, Environment, Event, EventContext, McpConfig, McpHttpServerConfig, Model, ModelId, ResultStream, SystemContext, Template, ToolCallFull, ToolDefinition, ToolResult, Workflow};
+use crate::{
+    Agent, Attachment, ChatCompletionMessage, Compact, Context, Conversation, ConversationId,
+    Environment, Event, EventContext, McpConfig, McpHttpServerConfig, Model, ModelId, ResultStream,
+    SystemContext, Template, ToolCallFull, ToolDefinition, ToolResult, Workflow,
+};
 
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {
@@ -95,7 +99,10 @@ pub enum RunnableService {
 }
 
 impl RunnableService {
-    pub async fn call_tool(&self, params: CallToolRequestParam) -> Result<CallToolResult, ServiceError> {
+    pub async fn call_tool(
+        &self,
+        params: CallToolRequestParam,
+    ) -> Result<CallToolResult, ServiceError> {
         match self {
             RunnableService::Http(service) => service.call_tool(params).await,
             RunnableService::Fs(service) => service.call_tool(params).await,
@@ -112,25 +119,29 @@ impl RunnableService {
 #[async_trait::async_trait]
 pub trait McpService: Send + Sync {
     async fn init_mcp(&self, config: McpConfig) -> anyhow::Result<()>;
-    
+
     /// List tools
     async fn list_tools(&self) -> anyhow::Result<Vec<ToolDefinition>>;
-    
+
     /// Check if an MCP server is running
     async fn is_server_running(&self, server_name: &str) -> anyhow::Result<bool>;
-    
+
     /// Start a specific MCP server
-    async fn start_http_server(&self, server_name: &str, config: McpHttpServerConfig) -> anyhow::Result<()>;
-    
+    async fn start_http_server(
+        &self,
+        server_name: &str,
+        config: McpHttpServerConfig,
+    ) -> anyhow::Result<()>;
+
     /// Stop a specific MCP server
     async fn stop_server(&self, server_name: &str) -> anyhow::Result<()>;
-    
+
     /// Stop all MCP servers
     async fn stop_all_servers(&self) -> anyhow::Result<()>;
-    
+
     /// Get server
     async fn get_service(&self, tool_name: &str) -> anyhow::Result<Arc<RunnableService>>;
-    
+
     /// Call tool
     async fn call_tool(&self, tool_name: &str, arguments: Value) -> anyhow::Result<CallToolResult>;
 }

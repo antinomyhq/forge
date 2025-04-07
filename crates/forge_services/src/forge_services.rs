@@ -4,11 +4,11 @@ use forge_domain::Services;
 
 use crate::attachment::ForgeChatRequest;
 use crate::conversation::ForgeConversationService;
-use crate::Infrastructure;
 use crate::mcp::ForgeMcpService;
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
+use crate::Infrastructure;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -74,7 +74,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
     }
-    
+
     fn mcp_service(&self) -> &Self::McpService {
         &self.mcp_service
     }
