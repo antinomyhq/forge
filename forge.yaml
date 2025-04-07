@@ -52,3 +52,10 @@ agents:
         ```
         cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
         ```
+mcp:
+  http:
+    foo:
+      url: https://api.example.com/foo
+
+    bar:
+        url: https://api.example.com/bar

@@ -1,12 +1,12 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use rmcp::model::CallToolResult;
+use rmcp::Service;
+use rmcp::service::{RunningService, ServiceRole};
 
 use serde_json::Value;
 
-use crate::{
-    Agent, Attachment, ChatCompletionMessage, Compact, Context, Conversation, ConversationId,
-    Environment, Event, EventContext, Model, ModelId, ResultStream, SystemContext, Template,
-    ToolCallFull, ToolDefinition, ToolResult, Workflow,
-};
+use crate::{Agent, Attachment, ChatCompletionMessage, Compact, Context, Conversation, ConversationId, Environment, Event, EventContext, McpConfig, McpFsServerConfig, McpHttpServerConfig, Model, ModelId, ResultStream, SystemContext, Template, ToolCallFull, ToolDefinition, ToolResult, Workflow};
 
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {
@@ -88,6 +88,35 @@ pub trait EnvironmentService: Send + Sync {
     fn get_environment(&self) -> Environment;
 }
 
+#[async_trait::async_trait]
+pub trait McpService: Send + Sync {
+    type Role: ServiceRole;
+    type Service: Service<Self::Role>;
+    
+    async fn init_mcp(&self, config: McpConfig) -> anyhow::Result<()>;
+    
+    /// List tools
+    async fn list_tools(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    
+    /// Check if an MCP server is running
+    async fn is_server_running(&self, server_name: &str) -> anyhow::Result<bool>;
+    
+    /// Start a specific MCP server
+    async fn start_http_server(&self, server_name: &str, config: McpHttpServerConfig) -> anyhow::Result<()>;
+    
+    /// Stop a specific MCP server
+    async fn stop_server(&self, server_name: &str) -> anyhow::Result<()>;
+    
+    /// Stop all MCP servers
+    async fn stop_all_servers(&self) -> anyhow::Result<()>;
+    
+    /// Get server
+    async fn get_service(&self, tool_name: &str) -> anyhow::Result<Arc<RunningService<Self::Role, Self::Service>>>;
+    
+    /// Call tool
+    async fn call_tool(&self, tool_name: &str, arguments: Value) -> anyhow::Result<CallToolResult>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -98,6 +127,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
     type EnvironmentService: EnvironmentService;
+    type McpService: McpService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -105,4 +135,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
     fn environment_service(&self) -> &Self::EnvironmentService;
+    fn mcp_service(&self) -> &Self::McpService;
 }

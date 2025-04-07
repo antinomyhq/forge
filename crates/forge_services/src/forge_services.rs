@@ -7,7 +7,9 @@ use crate::conversation::ForgeConversationService;
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
+use crate::tools::mcp_service::ForgeMcpService;
 use crate::Infrastructure;
+use crate::mcp::ForgeMcpService;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -23,6 +25,7 @@ pub struct ForgeServices<F> {
     conversation_service: ForgeConversationService,
     prompt_service: ForgeTemplateService<F, ForgeToolService>,
     attachment_service: ForgeChatRequest<F>,
+    mcp_service: ForgeMcpService,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
@@ -35,6 +38,7 @@ impl<F: Infrastructure> ForgeServices<F> {
             prompt_service: ForgeTemplateService::new(infra.clone(), tool_service.clone()),
             tool_service,
             attachment_service: ForgeChatRequest::new(infra),
+            mcp_service: ForgeMcpService::new(),
         }
     }
 }
@@ -46,6 +50,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type TemplateService = ForgeTemplateService<F, ForgeToolService>;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
+    type McpService = ForgeMcpService<Role, Service>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -69,6 +74,10 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
+    }
+    
+    fn mcp_service(&self) -> &Self::McpService {
+        &self.mcp_service
     }
 }
 

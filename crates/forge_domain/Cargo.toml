@@ -25,6 +25,7 @@ tracing.workspace = true
 url.workspace = true
 merge.workspace = true
 tokio-retry = { workspace = true }
+rmcp.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
