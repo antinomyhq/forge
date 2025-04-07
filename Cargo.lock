@@ -2875,8 +2875,7 @@ dependencies = [
 [[package]]
 name = "rmcp"
 version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33a0110d28bd076f39e14bfd5b0340216dd18effeb5d02b43215944cc3e5c751"
+source = "git+https://github.com/ssddOnTop/rust-sdk/?branch=fix%2Focational-compilation-error-with-schemars#087ee757beeaa9fd5e92b54e9447c7eb8c9aabce"
 dependencies = [
  "base64 0.21.7",
  "chrono",
@@ -2899,8 +2898,7 @@ dependencies = [
 [[package]]
 name = "rmcp-macros"
 version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6e2b2fd7497540489fa2db285edd43b7ed14c49157157438664278da6e42a7a"
+source = "git+https://github.com/ssddOnTop/rust-sdk/?branch=fix%2Focational-compilation-error-with-schemars#087ee757beeaa9fd5e92b54e9447c7eb8c9aabce"
 dependencies = [
  "proc-macro2",
  "quote",

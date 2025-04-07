@@ -1,16 +1,14 @@
 use std::sync::Arc;
-use rmcp::Service;
-use rmcp::service::ServiceRole;
 
 use forge_domain::Services;
 
 use crate::attachment::ForgeChatRequest;
 use crate::conversation::ForgeConversationService;
+use crate::Infrastructure;
+use crate::mcp::ForgeMcpService;
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
-use crate::Infrastructure;
-use crate::mcp::ForgeMcpService;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -51,7 +49,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type TemplateService = ForgeTemplateService<F, ForgeToolService>;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
-    type McpService = ForgeMcpService<impl ServiceRole, impl Service<impl ServiceRole>>;
+    type McpService = ForgeMcpService;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service

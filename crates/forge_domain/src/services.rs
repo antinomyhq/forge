@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use rmcp::model::{CallToolResult, InitializeRequestParam};
-use rmcp::{RoleClient, Service};
-use rmcp::service::{RunningService, ServiceRole};
 
+use rmcp::{RoleClient, ServiceError};
+use rmcp::model::{CallToolRequestParam, CallToolResult, InitializeRequestParam};
+use rmcp::service::{QuitReason, RunningService};
 use serde_json::Value;
+use tokio::task::JoinError;
 
-use crate::{Agent, Attachment, ChatCompletionMessage, Compact, Context, Conversation, ConversationId, Environment, Event, EventContext, McpConfig, McpFsServerConfig, McpHttpServerConfig, Model, ModelId, ResultStream, SystemContext, Template, ToolCallFull, ToolDefinition, ToolResult, Workflow};
+use crate::{Agent, Attachment, ChatCompletionMessage, Compact, Context, Conversation, ConversationId, Environment, Event, EventContext, McpConfig, McpHttpServerConfig, Model, ModelId, ResultStream, SystemContext, Template, ToolCallFull, ToolDefinition, ToolResult, Workflow};
 
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {
@@ -91,6 +92,21 @@ pub trait EnvironmentService: Send + Sync {
 pub enum RunnableService {
     Http(RunningService<RoleClient, InitializeRequestParam>),
     Fs(RunningService<RoleClient, ()>),
+}
+
+impl RunnableService {
+    pub async fn call_tool(&self, params: CallToolRequestParam) -> Result<CallToolResult, ServiceError> {
+        match self {
+            RunnableService::Http(service) => service.call_tool(params).await,
+            RunnableService::Fs(service) => service.call_tool(params).await,
+        }
+    }
+    pub async fn cancel(self) -> Result<QuitReason, JoinError> {
+        match self {
+            RunnableService::Http(service) => service.cancel().await,
+            RunnableService::Fs(service) => service.cancel().await,
+        }
+    }
 }
 
 #[async_trait::async_trait]

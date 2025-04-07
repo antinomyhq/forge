@@ -1,10 +1,10 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
-use anyhow::Context;
 
-use rmcp::{RoleClient, Service, ServiceExt};
-use rmcp::model::{CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam};
-use rmcp::service::{RunningService, ServiceRole};
+use anyhow::Context;
+use rmcp::model::{CallToolRequestParam, CallToolResult, ClientInfo, Implementation};
+use rmcp::ServiceExt;
 use serde_json::Value;
 use tokio::sync::Mutex;
 
@@ -18,6 +18,7 @@ struct ServerHolder {
 
 /// Currently just a placeholder structure, to be implemented
 /// when we add actual server functionality.
+#[derive(Clone)]
 pub struct ForgeMcpService {
     servers: Arc<Mutex<HashMap<ToolName, ServerHolder>>>,
 }
@@ -44,7 +45,7 @@ impl ForgeMcpService {
 impl McpService for ForgeMcpService {
     async fn init_mcp(&self, config: McpConfig) -> anyhow::Result<()> {
         if let Some(servers) = config.http {
-            servers
+            let results: Vec<anyhow::Result<()>> = futures::future::join_all(servers
                 .iter()
                 .map(|(server_name, server)| {
                     let server_config = server.clone();
@@ -55,9 +56,12 @@ impl McpService for ForgeMcpService {
                         self.start_http_server(&server_name, server_config).await?;
                         Ok(())
                     }
-                })
-                .collect::<anyhow::Result<Vec<_>>>()
-                .await?;
+                }).collect::<Vec<_>>()).await;
+            for i in results {
+                if let Err(e) = i {
+                    tracing::error!("Failed to start server: {e}");
+                }
+            }
         }
 
         Ok(())
@@ -97,7 +101,7 @@ impl McpService for ForgeMcpService {
                         client: client.clone(),
                         tool_definition: ToolDefinition {
                             name: tool_name,
-                            description: tool.description.to_string(),
+                            description: tool.description.unwrap_or_default().to_string(),
                             input_schema: serde_json::from_str(&serde_json::to_string(&tool.input_schema)?)?,
                             output_schema: None,
                         },
@@ -111,10 +115,11 @@ impl McpService for ForgeMcpService {
     }
 
     async fn stop_server(&self, server_name: &str) -> anyhow::Result<()> {
-        let mut servers = self.servers.lock().await;
+        let servers = self.servers.lock().await;
         let tool_names = servers.iter().filter(|(_, s)| s.server_name == server_name).map(|(k, _)| k.clone()).collect::<Vec<_>>();
+        
         if tool_names.is_empty() {
-            return anyhow::bail!("No server found with name {server_name}");
+            return Err(anyhow::anyhow!("No server found with name {}", server_name));
         }
         let mut lock = self.servers.lock().await;
         for tool_name in tool_names {
@@ -129,7 +134,8 @@ impl McpService for ForgeMcpService {
     async fn stop_all_servers(&self) -> anyhow::Result<()> {
         let mut servers = self.servers.lock().await;
         for (name, server) in servers.drain() {
-            server.cancel().await.map_err(|e| anyhow::anyhow!("Failed to stop server {name}: {e}"))?;
+            Arc::into_inner(server.client).context(anyhow::anyhow!("Failed to stop server {name}"))?
+                .cancel().await.map_err(|e| anyhow::anyhow!("Failed to stop server {name}: {e}"))?;
         }
         Ok(())
     }
@@ -146,10 +152,10 @@ impl McpService for ForgeMcpService {
     async fn call_tool(&self, tool_name: &str, arguments: Value) -> anyhow::Result<CallToolResult> {
         let servers = self.servers.lock().await;
         if let Some(server) = servers.get(&ToolName::new(tool_name)) {
-            server.client.call_tool(CallToolRequestParam {
-                name: tool_name.to_string(),
-                arguments: Some(arguments),
-            }).await
+            Ok(server.client.call_tool(CallToolRequestParam {
+                name: Cow::Owned(tool_name.to_string()),
+                arguments: arguments.as_object().cloned(),
+            }).await?)
         } else {
             Err(anyhow::anyhow!("Server not found"))
         }
