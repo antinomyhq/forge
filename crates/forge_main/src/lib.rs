@@ -12,6 +12,6 @@ mod prompt;
 mod state;
 mod ui;
 
+pub use auto_update::update_forge_in_background;
 pub use cli::Cli;
 pub use ui::UI;
-pub use auto_update::update_forge_in_background;

@@ -1,5 +1,6 @@
-use anyhow::Result;
 use std::process::Stdio;
+
+use anyhow::Result;
 use tokio::process::Command;
 
 /// Runs npm update in the background, failing silently
@@ -37,12 +38,13 @@ async fn perform_update() -> Result<()> {
 
 /// Sends an event to the tracker when an update fails
 async fn send_update_failure_event(error_msg: &str) -> anyhow::Result<()> {
-    use forge_tracker::{EventKind, Tracker};
     use std::sync::OnceLock;
+
+    use forge_tracker::{EventKind, Tracker};
 
     // Use a static tracker instance to solve the lifetime issue
     static TRACKER: OnceLock<Tracker> = OnceLock::new();
-    let tracker = TRACKER.get_or_init(|| Tracker::default());
+    let tracker = TRACKER.get_or_init(Tracker::default);
 
     // Ignore the result since we are failing silently
     // This is safe because we're using a static tracker with 'static lifetime
