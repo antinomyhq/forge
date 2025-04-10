@@ -5,7 +5,7 @@ use merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{Agent, AgentId};
+use crate::{Agent, AgentId, ModelId};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]
 #[setters(strip_option)]
@@ -19,6 +19,10 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::vec::append)]
     #[serde(default)]
     pub commands: Vec<Command>,
+
+    #[merge(strategy = crate::merge::option)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelId>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]

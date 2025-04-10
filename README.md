@@ -11,38 +11,113 @@ Forge is a comprehensive coding agent that integrates AI capabilities with your 
 
 ## 🚀 Installation
 
-### NPM
-
 Install Forge globally using npm:
 
 ```bash
-# Install Forge globally using npm
 npm install -g @antinomyhq/forge
+```
 
-# Or run directly without installation using npx
+Or run directly without installation using npx:
+
+```bash
 npx @antinomyhq/forge
 ```
 
-This method works on **Windows**, **macOS**, and **Linux**, providing a consistent installation experience across all platforms. 💻
+This method works on **Windows**, **macOS**, and **Linux**, providing a consistent installation experience across all platforms.
 
-## 🏁 Get Started
+## 🔌 Provider Configuration
 
-1. Create a `.env` file in your home directory with your API credentials:
+Forge requires two configuration files in your project directory:
+
+1. A `.env` file with your API credentials
+2. A `forge.yaml` file specifying additional settings
+
+Below are setup instructions for each supported provider:
+
+### OpenRouter (Recommended)
+
+```bash
+# .env
+OPENROUTER_API_KEY=<your_openrouter_api_key>
+```
+
+_No changes in `forge.yaml` is required_
+
+### OpenAI
+
+```bash
+# .env
+OPENAI_API_KEY=<your_openai_api_key>
+```
+
+```yaml
+# forge.yaml
+model: o3-mini-high
+```
+
+### Anthropic
+
+```bash
+# .env
+ANTHROPIC_API_KEY=<your_anthropic_api_key>
+```
+
+```yaml
+# forge.yaml
+model: claude-3.7-sonnet
+```
+
+### Google Vertex AI
+
+```bash
+# .env
+PROJECT_ID=<your_project_id>
+LOCATION=<your_location>
+OPENAI_API_KEY=<vertex_ai_key>
+OPENAI_URL=https://${LOCATION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${LOCATION}/endpoints/openapi
+```
+
+```yaml
+# forge.yaml
+model: publishers/anthropic/models/claude-3-7-sonnet
+```
+
+### OpenAI-Compatible Providers
+
+```bash
+# .env
+OPENAI_API_KEY=<your_provider_api_key>
+OPENAI_URL=<your_provider_url>
+```
+
+```yaml
+# forge.yaml
+model: <provider-specific-model>
+```
+
+### Amazon Bedrock
+
+To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedrock Access Gateway](https://github.com/aws-samples/bedrock-access-gateway):
+
+1. **Set up Bedrock Access Gateway**:
+
+   - Follow the deployment steps in the [Bedrock Access Gateway repo](https://github.com/aws-samples/bedrock-access-gateway)
+   - Create your own API key in Secrets Manager
+   - Deploy the CloudFormation stack
+   - Note your API Base URL from the CloudFormation outputs
+
+2. **Create these files in your project directory**:
 
    ```bash
-   # Your API key for accessing AI models
-   OPENROUTER_API_KEY=<Enter your Open Router Key>
-
-   # Optional: Set a custom URL for OpenAI-compatible providers
-   OPENAI_URL=https://custom-openai-provider.com/v1
-   
-   # Optional: Set a custom URL for Anthropic
-   ANTHROPIC_URL=https://custom-anthropic-provider.com/v1
+   # .env
+   OPENAI_API_KEY=<your_bedrock_gateway_api_key>
+   OPENAI_URL=<your_bedrock_gateway_base_url>
    ```
 
-   _You can get a Key at [Open Router](https://openrouter.ai/)_ 🔑
-
-2. Launch Code Forge: Type `@` and press `[tab]` to tag files. You can also use and define custom slash commands. 🖥️
+   ```yaml
+   # forge.yaml
+   model: anthropic.claude-3-opus
+   ```
 
 ## 📚 Documentation
 

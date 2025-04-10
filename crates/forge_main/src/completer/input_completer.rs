@@ -49,7 +49,7 @@ impl Completer for InputCompleter {
                                 style: None,
                                 extra: None,
                                 span: query.span,
-                                append_whitespace: false,
+                                append_whitespace: true,
                             })
                         } else {
                             None
