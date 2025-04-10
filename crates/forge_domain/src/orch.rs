@@ -11,14 +11,13 @@ use tokio_retry::strategy::{jitter, ExponentialBackoff};
 use tokio_retry::RetryIf;
 use tracing::debug;
 
-// Use retry_config default values directly in this file
 use crate::compaction::ContextCompactor;
 use crate::services::Services;
 use crate::*;
 
 type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AgentMessage<T> {
     pub agent: AgentId,
     pub message: T,

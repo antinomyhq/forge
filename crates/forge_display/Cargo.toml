@@ -10,6 +10,7 @@ chrono.workspace = true
 similar.workspace = true
 console.workspace = true
 regex.workspace = true
+serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 insta.workspace = true

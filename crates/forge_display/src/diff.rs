@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 use console::{style, Style};
+use serde::Serialize;
 use similar::{ChangeTag, TextDiff};
 
 use crate::TitleFormat;
@@ -15,6 +16,33 @@ impl fmt::Display for Line {
             Some(idx) => write!(f, "{:<4}", idx + 1),
         }
     }
+}
+
+#[derive(Serialize)]
+pub struct DiffHunk {
+    pub old_start: usize,
+    pub old_lines: usize,
+    pub new_start: usize,
+    pub new_lines: usize,
+    pub changes: Vec<DiffChange>,
+}
+
+#[derive(Serialize)]
+pub struct DiffChange {
+    pub tag: String,
+    pub old_index: Option<usize>,
+    pub new_index: Option<usize>,
+    pub content: String,
+}
+
+#[derive(Serialize)]
+pub struct DiffJson {
+    pub op_name: String,
+    pub path: String,
+    pub unified_diff: String,
+    pub hunks: Vec<DiffHunk>,
+    pub has_changes: bool,
+    pub file_type: String,
 }
 
 pub struct DiffFormat;
@@ -64,6 +92,125 @@ impl DiffFormat {
         }
         output
     }
+
+    pub fn format_json(op_name: &str, path: PathBuf, old: &str, new: &str) -> DiffJson {
+        let diff = TextDiff::from_lines(old, new);
+        let ops = diff.grouped_ops(3);
+
+        // Get the unified diff format as well
+        let unified_diff = Self::format(op_name, path.clone(), old, new);
+
+        let has_changes = !ops.is_empty();
+
+        // Extract file extension to determine file type for syntax highlighting
+        let file_extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+
+        let file_type = match file_extension {
+            "js" => "javascript",
+            "ts" => "typescript",
+            "tsx" => "tsx",
+            "jsx" => "jsx",
+            "py" => "python",
+            "rs" => "rust",
+            "go" => "go",
+            "java" => "java",
+            "kt" => "kotlin",
+            "swift" => "swift",
+            "c" | "cpp" | "cc" | "h" | "hpp" => "cpp",
+            "cs" => "csharp",
+            "php" => "php",
+            "rb" => "ruby",
+            "scala" => "scala",
+            "html" | "htm" => "html",
+            "css" => "css",
+            "scss" | "sass" => "scss",
+            "json" => "json",
+            "md" => "markdown",
+            "yaml" | "yml" => "yaml",
+            "toml" => "toml",
+            "xml" => "xml",
+            "sh" | "bash" => "bash",
+            _ => "plaintext",
+        }
+        .to_string();
+
+        // Convert ops to hunks
+        let mut hunks = Vec::new();
+
+        for group in ops.iter() {
+            let mut changes = Vec::new();
+
+            // Find the start and end positions for the hunk
+            let mut old_start = usize::MAX;
+            let mut old_end = 0;
+            let mut new_start = usize::MAX;
+            let mut new_end = 0;
+
+            for op in group {
+                for change in diff.iter_inline_changes(op) {
+                    if let Some(idx) = change.old_index() {
+                        old_start = old_start.min(idx);
+                        old_end = old_end.max(idx);
+                    }
+                    if let Some(idx) = change.new_index() {
+                        new_start = new_start.min(idx);
+                        new_end = new_end.max(idx);
+                    }
+
+                    let tag = match change.tag() {
+                        ChangeTag::Delete => "delete",
+                        ChangeTag::Insert => "insert",
+                        ChangeTag::Equal => "equal",
+                    }
+                    .to_string();
+
+                    let mut content = String::new();
+                    for (_, value) in change.iter_strings_lossy() {
+                        content.push_str(&value);
+                    }
+
+                    changes.push(DiffChange {
+                        tag,
+                        old_index: change.old_index(),
+                        new_index: change.new_index(),
+                        content,
+                    });
+                }
+            }
+
+            if old_start == usize::MAX {
+                old_start = 0;
+            }
+            if new_start == usize::MAX {
+                new_start = 0;
+            }
+
+            hunks.push(DiffHunk {
+                old_start,
+                old_lines: if old_end >= old_start {
+                    old_end - old_start + 1
+                } else {
+                    0
+                },
+                new_start,
+                new_lines: if new_end >= new_start {
+                    new_end - new_start + 1
+                } else {
+                    0
+                },
+                changes,
+            });
+        }
+
+        DiffJson {
+            op_name: op_name.to_string(),
+            path: path.display().to_string(),
+            unified_diff,
+            hunks,
+            has_changes,
+            file_type,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -104,5 +251,40 @@ mod tests {
         let diff = DiffFormat::format("diff", "abc.txt".into(), old, new);
         let clean_diff = strip_ansi_codes(&diff);
         assert_snapshot!(clean_diff);
+    }
+
+    #[test]
+    fn test_json_diff_format() {
+        let old = "line 1\nline 2\nline 3\nline 5\nline 6\nline 7";
+        let new = "line 1\nmodified line\nline 3\nline 5\nnew line 6\nline 7";
+
+        let diff_json = DiffFormat::format_json("diff", "test.rs".into(), old, new);
+
+        assert_eq!(diff_json.op_name, "diff");
+        assert_eq!(diff_json.path, "test.rs");
+        assert_eq!(diff_json.file_type, "rust");
+        assert!(diff_json.has_changes);
+        assert!(!diff_json.hunks.is_empty());
+
+        // Check the first hunk
+        let hunk = &diff_json.hunks[0];
+        assert!(hunk
+            .changes
+            .iter()
+            .any(|c| c.tag == "delete" && c.content.contains("line 2")));
+        assert!(hunk
+            .changes
+            .iter()
+            .any(|c| c.tag == "insert" && c.content.contains("modified line")));
+    }
+
+    #[test]
+    fn test_json_diff_no_changes() {
+        let content = "line 1\nline 2\nline 3";
+        let diff_json = DiffFormat::format_json("diff", "test.js".into(), content, content);
+
+        assert_eq!(diff_json.file_type, "javascript");
+        assert!(!diff_json.has_changes);
+        assert!(diff_json.hunks.is_empty());
     }
 }

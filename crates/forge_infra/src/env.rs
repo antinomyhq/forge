@@ -1,9 +1,12 @@
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use forge_domain::{Environment, Provider, RetryConfig};
 
 pub struct ForgeEnvironmentService {
     restricted: bool,
+    // Track the current working directory with interior mutability
+    current_cwd: Mutex<Option<PathBuf>>,
 }
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
@@ -15,7 +18,7 @@ impl ForgeEnvironmentService {
     /// * `unrestricted` - If true, use unrestricted shell mode (sh/bash) If
     ///   false, use restricted shell mode (rbash)
     pub fn new(restricted: bool) -> Self {
-        Self { restricted }
+        Self { restricted, current_cwd: Mutex::new(None) }
     }
 
     /// Get path to appropriate shell based on platform and mode
@@ -34,7 +37,8 @@ impl ForgeEnvironmentService {
     /// Resolves the provider key and provider from environment variables
     ///
     /// Returns a tuple of (provider_key, provider)
-    /// Panics if no API key is found in the environment
+    /// Returns a default provider if no API key is found in the environment
+    /// instead of panicking
     fn resolve_provider(&self) -> Provider {
         let keys: [ProviderSearch; 4] = [
             ("FORGE_KEY", Box::new(Provider::antinomy)),
@@ -66,7 +70,20 @@ impl ForgeEnvironmentService {
                     provider
                 })
             })
-            .unwrap_or_else(|| panic!("No API key found. Please set one of: {}", env_variables))
+            .unwrap_or_else(|| {
+                // Instead of panicking, return a default provider
+                // In a desktop app context, we should show a UI for entering keys
+                // FIXME: Handle this more gracefully in the future
+                eprintln!(
+                    "No API key found in environment variables. Expected one of: {}",
+                    env_variables
+                );
+                eprintln!("Using default OpenAI provider. Please set API keys in environment.");
+
+                // Return a default provider with empty key - this will fail on API calls
+                // but won't crash the application startup
+                Provider::openai("")
+            })
     }
 
     /// Resolves retry configuration from environment variables or returns
@@ -109,8 +126,18 @@ impl ForgeEnvironmentService {
     }
 
     fn get(&self) -> Environment {
-        dotenv::dotenv().ok();
-        let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
+        // Environment loading is now done at application startup
+        // to avoid needing permissions to access the filesystem for dotenv
+
+        // Use the custom cwd if set, otherwise use the current directory
+        let cwd = {
+            let custom_cwd = self.current_cwd.lock().unwrap();
+            match &*custom_cwd {
+                Some(path) => path.clone(),
+                None => std::env::current_dir().unwrap_or(PathBuf::from(".")),
+            }
+        };
+
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
 
@@ -130,6 +157,22 @@ impl ForgeEnvironmentService {
 }
 
 impl forge_domain::EnvironmentService for ForgeEnvironmentService {
+    fn set_cwd(&self, cwd: PathBuf) -> anyhow::Result<()> {
+        // Validate that the directory exists and is accessible
+        if !cwd.is_dir() {
+            return Err(anyhow::anyhow!(
+                "Path is not a directory: {}",
+                cwd.display()
+            ));
+        }
+
+        // Update the custom cwd
+        let mut custom_cwd = self.current_cwd.lock().unwrap();
+        *custom_cwd = Some(cwd);
+
+        Ok(())
+    }
+
     fn get_environment(&self) -> Environment {
         self.get()
     }

@@ -64,7 +64,6 @@ agents:
       - tool_forge_process_shell
       - tool_forge_net_fetch
       - tool_forge_fs_search
-      - tool_forge_display_show_user
       - tool_forge_fs_undo
     subscribe:
       - user_task_init

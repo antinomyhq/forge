@@ -26,6 +26,9 @@ pub trait API: Sync + Send {
     /// Returns the current environment
     fn environment(&self) -> Environment;
 
+    /// Updates the current working directory in the environment
+    fn update_cwd(&self, cwd: std::path::PathBuf) -> anyhow::Result<()>;
+
     /// Creates a new conversation with the given workflow
     async fn init(&self, workflow: Workflow) -> anyhow::Result<ConversationId>;
 

@@ -258,21 +258,13 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
 
         // Apply each patch sequentially
         for patch in input.patches {
-            // Save the old content before modification for diff generation
-            let old_content = current_content.clone();
-
-            // Apply the replacement
+            // Apply the replacement without saving old content
             current_content = apply_replacement(
                 current_content,
                 &patch.search,
                 &patch.operation,
                 &patch.content,
             )?;
-
-            // Generate diff between old and new content
-            let diff =
-                DiffFormat::format("patch", path.to_path_buf(), &old_content, &current_content);
-            println!("{}", diff);
         }
 
         // Write final content to file after all patches are applied
@@ -280,19 +272,36 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
             .file_write_service()
             .write(path, Bytes::from(current_content.clone()))
             .await?;
+        // FIXME: this needs to be fixed its a hack
+        // Generate diff in JSON format
+        let json_diff = DiffFormat::format_json(
+            "patch",
+            path.to_path_buf(),
+            &fs::read_to_string(path).await?,
+            &current_content,
+        );
+
+        // Generate traditional console diff for the terminal
+        let diff = DiffFormat::format(
+            "patch",
+            path.to_path_buf(),
+            &fs::read_to_string(path).await?,
+            &current_content,
+        );
+        println!("{}", diff);
 
         // Check for syntax errors
         let warning = syn::validate(path, &current_content).map(|e| e.to_string());
 
-        // Format the output
-        let result = format_output(
-            path.to_string_lossy().as_ref(),
-            &current_content,
-            warning.as_deref(),
-        );
-
-        // Return the final result
-        Ok(result)
+        // Return the JSON diff as the result
+        return Ok(serde_json::to_string(&json_diff).unwrap_or_else(|_| {
+            // Fallback to the regular output if JSON serialization fails
+            format_output(
+                path.to_string_lossy().as_ref(),
+                &current_content,
+                warning.as_deref(),
+            )
+        }));
     }
 }
 

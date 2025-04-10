@@ -5,8 +5,6 @@ use bytes::Bytes;
 use forge_domain::EnvironmentService;
 use forge_snaps::Snapshot;
 
-/// Repository for accessing system environment information
-/// This uses the EnvironmentService trait from forge_domain
 /// A service for reading files from the filesystem.
 ///
 /// This trait provides an abstraction over file reading operations, allowing

@@ -85,6 +85,8 @@ pub trait AttachmentService {
 }
 
 pub trait EnvironmentService: Send + Sync {
+    /// Set the current working directory
+    fn set_cwd(&self, cwd: std::path::PathBuf) -> anyhow::Result<()>;
     fn get_environment(&self) -> Environment;
 }
 

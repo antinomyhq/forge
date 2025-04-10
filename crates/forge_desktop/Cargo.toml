@@ -1,0 +1,24 @@
+[package]
+name = "forge_desktop"
+version = "0.1.0"
+edition = "2021"
+description = "Desktop interface for Code Forge"
+authors = ["Forge Team"]
+publish = false
+
+# This is a meta-package that depends on the actual Tauri application
+# in src-tauri. 
+
+[dependencies]
+# The Tauri application in src-tauri is included as a path dependency
+# This allows the main workspace to reference forge_desktop
+# while the actual implementation is in src-tauri
+forge_desktop_impl = { path = "src-tauri" }
+
+# Workspace dependencies
+forge_api.workspace=true
+tokio.workspace =true
+tauri-plugin-dialog = "2.2.1"
+
+[features]
+default = []

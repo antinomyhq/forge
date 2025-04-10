@@ -84,6 +84,10 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl EnvironmentService for Stub {
+        fn set_cwd(&self, _cwd: std::path::PathBuf) -> anyhow::Result<()> {
+            Ok(())
+        }
+
         fn get_environment(&self) -> Environment {
             self.env.clone()
         }

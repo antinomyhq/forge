@@ -1,0 +1,50 @@
+/* Add these styles to your global CSS file (index.css) */
+
+/* TipTap editor styles */
+.ProseMirror {
+  outline: none;
+  min-height: 2rem;
+  max-height: 8rem;
+  overflow-y: auto;
+  word-break: break-word;
+  color: hsl(var(--foreground));
+}
+
+.ProseMirror p {
+  color: hsl(var(--foreground));
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  float: left;
+  pointer-events: none;
+  height: 0;
+}
+
+/* Dark mode specific overrides */
+.dark .ProseMirror {
+  color: white;
+}
+
+.dark .ProseMirror p {
+  color: white;
+}
+
+.dark .ProseMirror p.is-editor-empty:first-child::before {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Ensure proper spacing around file tags */
+.ProseMirror [data-file-tag] {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-right: 4px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+/* Prevent cursor inside file tag */
+.ProseMirror [data-file-tag] * {
+  cursor: default;
+}
