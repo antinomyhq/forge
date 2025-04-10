@@ -13,6 +13,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 use tracing::error;
 
+use crate::auto_update::update_forge_in_background;
 use crate::banner;
 use crate::cli::Cli;
 use crate::console::CONSOLE;
@@ -122,6 +123,9 @@ impl<F: API> UI<F> {
     }
 
     pub async fn run(&mut self) -> Result<()> {
+        // Trigger auto-update in the background
+        update_forge_in_background();
+
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
             return self.handle_dispatch(dispatch_json).await;

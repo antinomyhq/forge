@@ -1,3 +1,4 @@
+mod auto_update;
 mod banner;
 mod cli;
 mod completer;
@@ -11,5 +12,6 @@ mod prompt;
 mod state;
 mod ui;
 
+pub use auto_update::update_forge_in_background;
 pub use cli::Cli;
 pub use ui::UI;
