@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use super::marker::{DIVIDER, REPLACE, SEARCH};
 use super::parse::{self, PatchBlock};
+use crate::range_handler::{count_lines, extract_line_range, DEFAULT_LINE_LIMIT};
 use crate::tools::syn;
 use crate::tools::utils::assert_absolute_path;
 use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};
@@ -31,6 +32,37 @@ pub struct ApplyPatchInput {
     /// Multiple SEARCH/REPLACE blocks separated by newlines, defining changes
     /// to make to the file.
     pub diff: String,
+}
+
+/// Format the modified content as XML with optional syntax warning
+fn format_output(path: &str, content: &str, warning: Option<&str>) -> anyhow::Result<String> {
+    let line_count = count_lines(content);
+
+    // Determine content to display and build base attributes
+    let (display_content, attrs) = if line_count <= DEFAULT_LINE_LIMIT {
+        (content.trim_end().to_string(), format!("path=\"{}\"", path))
+    } else {
+        (
+            extract_line_range(content, 1, DEFAULT_LINE_LIMIT)?,
+            format!(
+                "\n  path=\"{}\"\n  displayed-range=\"1-{}\"\n  total-lines=\"{}\"",
+                path, DEFAULT_LINE_LIMIT, line_count
+            ),
+        )
+    };
+
+    // Add warning attribute if present
+    let attributes = if let Some(w) = warning {
+        format!("{}\n  syntax_checker_warning=\"{}\"", attrs, w)
+    } else {
+        attrs
+    };
+
+    // Format the final XML output
+    Ok(format!(
+        "<file_content {}>\n{}\n</file_content>\n",
+        attributes, display_content
+    ))
 }
 
 pub struct ApplyPatch<T>(Arc<T>);
@@ -175,31 +207,23 @@ impl<T: Infrastructure> ExecutableTool for ApplyPatch<T> {
         let result = async {
             let modified = apply_patches(old_content.clone(), blocks).await?;
 
-            self.0.file_write_service()
+            self.0
+                .file_write_service()
                 .write(Path::new(&input.path), modified.clone().into())
                 .await?;
             // .map_err(Error::FileOperation)?;
 
             let syntax_warning = syn::validate(&input.path, &modified);
 
-            // Handle syntax warning and build output
-            let output = if let Some(warning) = syntax_warning {
-                format!(
-                    "<file_content\n  path=\"{}\"\n  syntax_checker_warning=\"{}\">\n{}</file_content>\n",
-                    input.path,
-                    warning,
-                    modified
-                )
-            } else {
-                format!(
-                    "<file_content path=\"{}\">\n{}\n</file_content>\n",
-                    input.path,
-                    modified.trim_end()
-                )
-            };
+            // Format the output with the new format_output function
+            let output = format_output(
+                &input.path,
+                &modified,
+                syntax_warning.map(|e| e.to_string()).as_deref(),
+            )?;
             anyhow::Ok(output)
         }
-            .await?;
+        .await?;
 
         // record the content of the file after applying the patch
         let new_content = String::from_utf8(
