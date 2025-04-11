@@ -11,8 +11,8 @@ import StatusBar from "@/components/StatusBar";
 import DirectoryView from "@/components/DirectoryView";
 import FileViewer from "@/components/FileViewerModal";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ThemeProvider } from "next-themes";
-import { Loader2, PanelLeft } from "lucide-react";
+import { ThemeProvider, useTheme } from "next-themes";
+import { PanelLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   ResizableHandle,
@@ -20,14 +20,16 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
+import { ClerkProvider, SignedIn, SignedOut } from "@clerk/clerk-react";
+import { dark } from "@clerk/themes";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from 'sonner';
 
-// Component for the loading screen
-const LoadingScreen: React.FC = () => (
-  <div className="h-screen w-full flex flex-col items-center justify-center">
-    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-    <p className="text-muted-foreground">Loading...</p>
-  </div>
-);
+import { LoginPage } from "./components/Login";
+import { SignUpPage } from "./components/SignUp";
+import { InvitationPage } from "./components/Invitation";
+import { LoadingScreen } from "./components/LoadingScreen";
+import { InvitedOnly } from "./components/InvitedOnly";
 
 // Component for the chat interface
 const ChatInterface: React.FC = () => {
@@ -92,13 +94,50 @@ const AppContent: React.FC = () => {
   return <ChatInterface />;
 };
 
+// Wrap the Clerk provider with theme awareness
+const ThemedClerkProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { theme, resolvedTheme, forcedTheme } = useTheme();
+  const currentTheme = theme || resolvedTheme || forcedTheme;
+
+  return (
+    <ClerkProvider
+      afterSignOutUrl="/sign-in"
+      signUpUrl="/sign-up"
+      signInUrl="/sign-in"
+      signInForceRedirectUrl="/"
+      signUpForceRedirectUrl="/"
+      appearance={{
+        baseTheme: currentTheme === "dark" ? dark : undefined,
+      }}
+      publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
+      {children}
+    </ClerkProvider>
+  );
+};
+
 function App() {
   return (
-    <ThemeProvider attribute="class">
-      <TooltipProvider>
-        <AppContent />
-        <FileViewer />
-      </TooltipProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true} storageKey="ui-theme">
+      <ThemedClerkProvider>
+        <TooltipProvider>
+          <BrowserRouter>
+            <SignedOut>
+              <Routes>
+                <Route path="/sign-in" element={<LoginPage />} />
+                <Route path="/sign-up" element={<SignUpPage />} />
+                <Route path="/*" element={<Navigate to="/sign-in" replace />} />
+              </Routes>
+            </SignedOut>
+            <SignedIn>
+              <Routes>
+                <Route path="/*" element={<InvitedOnly><FileViewer /><AppContent /></InvitedOnly>} />
+                <Route path="/invitation" element={<InvitationPage />} />
+              </Routes>
+            </SignedIn>
+          </BrowserRouter>
+        </TooltipProvider>
+        <Toaster richColors position="top-right" />
+      </ThemedClerkProvider>
     </ThemeProvider>
   );
 }

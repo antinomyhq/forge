@@ -9,6 +9,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { PlusCircle, Download, Settings2 } from "lucide-react";
+import CustomUserButton from './CustomUserButton';
 
 const ConversationHeader: React.FC = () => {
   const { conversationTitle, newConversation, exportConversation } =
@@ -62,6 +63,7 @@ const ConversationHeader: React.FC = () => {
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <Settings2 className="h-4 w-4" />
             </Button>
+            <CustomUserButton />
           </div>
         </div>
       </CardHeader>

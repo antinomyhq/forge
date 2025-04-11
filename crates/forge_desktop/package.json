@@ -10,6 +10,8 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.26.1",
+    "@clerk/themes": "^2.2.30",
     "@hookform/resolvers": "^5.0.1",
     "@radix-ui/react-avatar": "^1.1.3",
     "@radix-ui/react-dialog": "^1.1.6",
@@ -39,7 +41,9 @@
     "react-hook-form": "^7.55.0",
     "react-markdown": "^9.0.1",
     "react-resizable-panels": "^2.1.7",
+    "react-router-dom": "^7.5.0",
     "react-syntax-highlighter": "^15.5.0",
+    "sonner": "^2.0.3",
     "styled-components": "6.1.17",
     "tailwind-merge": "^3.1.0",
     "zustand": "^5.0.3"

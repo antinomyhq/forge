@@ -1,10 +1,28 @@
 <!doctype html>
-<html lang="en" class="light">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/tauri.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark">
     <title>Forge Desktop</title>
+    <script>
+      // Initialize theme
+      (function() {
+        // Check for saved theme preference or system preference
+        const storedTheme = localStorage.getItem('ui-theme');
+        const theme = storedTheme || 
+          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        
+        // Apply theme class to document
+        document.documentElement.classList.add(theme);
+        
+        // Set background color to prevent flash
+        if (theme === 'dark') {
+          document.documentElement.style.backgroundColor = '#09090b'; // Match your dark theme background
+        }
+      })();
+    </script>
   </head>
 
   <body>
