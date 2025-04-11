@@ -46,7 +46,7 @@ export const useDirectoryStore = create<DirectoryState>()(
       // Initial state
       directoryTree: null,
       isLoading: false,
-      isVisible: false, // Hidden by default
+      isVisible: true, // Visible by default
       panelWidth: 25, // Default width in pixels
       expandedPaths: new Set<string>(), // Set of expanded directory paths
       error: null,
@@ -144,7 +144,7 @@ export const useDirectoryStore = create<DirectoryState>()(
       name: "forge-directory-storage",
       // Only persist these fields
       partialize: (state) => ({
-        isVisible: state.isVisible,
+        isVisible: true, // Always persist as true for storage
         panelWidth: state.panelWidth,
         // Convert Set to array for storage and back
         expandedPaths: Array.from(state.expandedPaths),

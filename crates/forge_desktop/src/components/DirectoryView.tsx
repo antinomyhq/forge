@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
   FolderOpen,
-  RefreshCw,
   AlertCircle,
   Loader2,
   Files,
@@ -18,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { DiffModalView } from "./DiffModalView";
 import { Badge } from "./ui/badge";
 
+// DirectoryView is now used within FloatingDirectoryView
 const DirectoryView: React.FC = () => {
   const { directoryTree, isLoading, error, loadDirectoryStructure } =
     useDirectoryStore();
@@ -50,20 +50,10 @@ const DirectoryView: React.FC = () => {
 
   // Auto-switching logic could be further refined based on UX requirements
 
-  // Function to handle refresh button click
-  const handleRefresh = () => {
-    if (currentProject && currentProject.path) {
-      loadDirectoryStructure(currentProject.path);
-    }
-  };
-
   // Render empty state if no project is selected
   if (!currentProject) {
     return (
       <div className="flex flex-col h-full">
-        <div className="p-3 border-b border-border/50 flex items-center justify-between">
-          <div className="font-medium">Project Explorer</div>
-        </div>
         <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-4">
           <div className="text-center">
             <FolderOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -78,9 +68,6 @@ const DirectoryView: React.FC = () => {
   if (isLoading && selectedTab === "files") {
     return (
       <div className="flex flex-col h-full">
-        <div className="p-3 border-b border-border/50 flex items-center justify-between">
-          <div className="font-medium">Project Explorer</div>
-        </div>
         <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-4">
           <div className="text-center">
             <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin" />
@@ -92,16 +79,7 @@ const DirectoryView: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-border/50 flex items-center justify-between">
-        <div className="font-medium">Project Explorer</div>
-        {selectedTab === "files" && (
-          <Button variant="ghost" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-
+    <div className="flex flex-col h-full overflow-hidden">
       <Tabs
         value={selectedTab}
         onValueChange={setSelectedTab}

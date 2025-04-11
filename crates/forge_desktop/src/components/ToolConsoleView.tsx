@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useForgeStore } from "@/stores/ForgeStore";
 import { formatDistanceToNow } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +9,9 @@ import {
   ChevronUp,
   ClipboardCopy,
   Clock,
+  Terminal,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,7 +66,7 @@ interface EnhancedToolCall {
 const ToolCallItem: React.FC<{ toolCall: EnhancedToolCall }> = ({
   toolCall,
 }) => {
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   // Format timestamp as relative time (e.g., "2 minutes ago")
   const relativeTime = formatDistanceToNow(toolCall.timestamp, {
@@ -183,7 +186,16 @@ const ToolCallItem: React.FC<{ toolCall: EnhancedToolCall }> = ({
 
 const ToolConsoleView: React.FC = () => {
   const { toolCalls } = useForgeStore();
-  const toolConsoleRef = React.useRef<HTMLDivElement>(null);
+  const toolConsoleRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState<boolean>(() => {
+    return localStorage.getItem("toolConsoleOpen") === "true";
+  });
+  const [height, setHeight] = useState<number>(() => {
+    return Number(localStorage.getItem("toolConsoleHeight")) || 250;
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartY = useRef<number | null>(null);
+  const startHeight = useRef<number>(height);
 
   // Enhanced tool calls with timestamps and extracted file paths
   const enhancedToolCalls: EnhancedToolCall[] = toolCalls.map((tool) => {
@@ -216,9 +228,18 @@ const ToolConsoleView: React.FC = () => {
     {} as Record<string, EnhancedToolCall[]>,
   );
 
+  // Save settings to localStorage
+  useEffect(() => {
+    localStorage.setItem("toolConsoleOpen", isOpen ? "true" : "false");
+  }, [isOpen]);
+
+  useEffect(() => {
+    localStorage.setItem("toolConsoleHeight", height.toString());
+  }, [height]);
+
   // Scroll to bottom on new tool calls
-  React.useEffect(() => {
-    if (toolConsoleRef.current) {
+  useEffect(() => {
+    if (toolConsoleRef.current && isOpen) {
       const viewport = toolConsoleRef.current.querySelector(
         "[data-radix-scroll-area-viewport]",
       );
@@ -226,41 +247,130 @@ const ToolConsoleView: React.FC = () => {
         viewport.scrollTop = viewport.scrollHeight;
       }
     }
-  }, [toolCalls.length]);
+  }, [toolCalls.length, isOpen]);
+
+  // Auto-open console on error
+  useEffect(() => {
+    if (toolsByType.errors && toolsByType.errors.length > 0) {
+      const lastErrorTime = toolsByType.errors[0].timestamp.getTime();
+      const lastCheckTime = parseInt(localStorage.getItem("lastErrorCheckTime") || "0");
+      
+      if (lastErrorTime > lastCheckTime) {
+        setIsOpen(true);
+        localStorage.setItem("lastErrorCheckTime", Date.now().toString());
+      }
+    }
+  }, [toolsByType.errors]);
+
+  // Handle mouse events for resizing
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragStartY.current = e.clientY;
+    startHeight.current = height;
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging && dragStartY.current !== null) {
+        const deltaY = dragStartY.current - e.clientY;
+        const newHeight = Math.max(150, Math.min(500, startHeight.current + deltaY));
+        setHeight(newHeight);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      dragStartY.current = null;
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
 
   return (
-    <div className="tool-console flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-2 border-b">
-        <h3 className="text-sm font-medium">Tool Console</h3>
-        <div className="flex space-x-2">
-          {toolsByType.errors && toolsByType.errors.length > 0 && (
-            <Badge variant="destructive" className="h-5">
-              {toolsByType.errors.length} Error
-              {toolsByType.errors.length > 1 ? "s" : ""}
-            </Badge>
-          )}
-          {toolsByType.success && toolsByType.success.length > 0 && (
-            <Badge
-              variant="outline"
-              className="h-5 bg-green-100 dark:bg-green-900/20"
-            >
-              {toolsByType.success.length} Success
-            </Badge>
-          )}
-        </div>
-      </div>
+    <div className="z-10 w-full">
 
-      <ScrollArea className="flex-1 p-2" ref={toolConsoleRef}>
-        {sortedToolCalls.length > 0 ? (
-          sortedToolCalls.map((tool) => (
-            <ToolCallItem key={tool.id} toolCall={tool} />
-          ))
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-            No tool calls yet
+      {/* Resize handle - only visible when console is open */}
+      {isOpen && (
+        <div 
+          className={`w-full h-1 bg-border hover:bg-primary cursor-ns-resize ${isDragging ? 'bg-primary' : ''}`}
+          onMouseDown={handleMouseDown}
+        />
+      )}
+      
+      <div 
+        className="w-full h-full bg-background border-t border-border shadow-md overflow-hidden"
+        style={{ 
+          height: isOpen ? `${height}px` : '40px'
+        }}
+      >
+        {/* Header bar - always visible */}
+        <div 
+          className="flex items-center justify-between px-4 py-2 border-b cursor-pointer"
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          <div className="flex items-center">
+            <Terminal className="h-4 w-4 mr-2" />
+            <h3 className="text-sm font-medium">Tool Console</h3>
+            
+            <div className="flex space-x-2 ml-4">
+              {toolsByType.errors && toolsByType.errors.length > 0 && (
+                <Badge variant="destructive" className="h-5">
+                  {toolsByType.errors.length} Error
+                  {toolsByType.errors.length > 1 ? "s" : ""}
+                </Badge>
+              )}
+              {toolsByType.success && toolsByType.success.length > 0 && (
+                <Badge
+                  variant="outline"
+                  className="h-5 bg-green-100 dark:bg-green-900/20"
+                >
+                  {toolsByType.success.length} Success
+                </Badge>
+              )}
+            </div>
           </div>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(!isOpen);
+            }}
+          >
+            {isOpen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+        </div>
+
+        {/* Content area - only visible when open */}
+        {isOpen && (
+          <ScrollArea 
+            className="flex-1 p-2" 
+            style={{ height: `calc(${height}px - 41px)` }}
+            ref={toolConsoleRef}
+          >
+            {sortedToolCalls.length > 0 ? (
+              sortedToolCalls.map((tool) => (
+                <ToolCallItem key={tool.id} toolCall={tool} />
+              ))
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                No tool calls yet
+              </div>
+            )}
+          </ScrollArea>
         )}
-      </ScrollArea>
+      </div>
     </div>
   );
 };
