@@ -62,7 +62,7 @@ sysinfo = "0.33.1"
 tempfile = "3.10.1"
 termimad = "0.31.2"
 thiserror = "2.0.11"
-tokio = { version = "1.43.0", features = ["full", "test-util"] }
+tokio = { version = "1.44.2", features = ["full", "test-util"] }
 tokio-stream = "0.1.17"
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
