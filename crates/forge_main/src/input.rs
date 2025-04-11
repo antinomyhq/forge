@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use forge_api::Environment;
 use forge_display::TitleFormat;
-use tokio::fs;
+use forge_fs::ForgeFS;
 
 use crate::console::CONSOLE;
 use crate::editor::{ForgeEditor, ReadResult};
@@ -30,7 +30,7 @@ impl UserInput for Console {
     type PromptInput = ForgePrompt;
     async fn upload<P: Into<PathBuf> + Send>(&self, path: P) -> anyhow::Result<Command> {
         let path = path.into();
-        let content = fs::read_to_string(&path).await?.trim().to_string();
+        let content = ForgeFS::read_to_string(&path).await?.trim().to_string();
 
         CONSOLE.writeln(content.clone())?;
         Ok(Command::Message(content))

@@ -1,9 +1,0 @@
-pub mod css;
-pub mod java;
-pub mod javascript;
-pub mod misc;
-pub mod python;
-pub mod rust;
-pub mod scala;
-pub mod tsx;
-pub mod typescript;

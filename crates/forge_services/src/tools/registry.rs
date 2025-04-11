@@ -24,6 +24,7 @@ impl<F: Infrastructure> ToolRegistry<F> {
         vec![
             FSRead::new(self.infra.clone()).into(),
             FSWrite::new(self.infra.clone()).into(),
+            PlanWrite::new(self.infra.clone()).into(),
             FSRemove::new(self.infra.clone()).into(),
             FSList::default().into(),
             FSFind::new(self.infra.clone()).into(),

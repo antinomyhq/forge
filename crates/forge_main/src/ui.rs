@@ -364,7 +364,7 @@ impl<F: API> UI<F> {
                 let path = format!("{path}-dump.json");
 
                 let content = serde_json::to_string_pretty(&conversation)?;
-                tokio::fs::write(path.as_str(), content).await?;
+                ForgeFS::write(path.as_str(), content).await?;
 
                 CONSOLE.writeln(
                     TitleFormat::success("dump")
