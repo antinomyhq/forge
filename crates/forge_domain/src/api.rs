@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use forge_stream::MpscStream;
 use serde_json::Value;
 
@@ -39,7 +37,7 @@ pub trait API: Sync + Send {
     /// Loads a workflow configuration from the given path, current directory's
     /// forge.yaml, or embedded default configuration in that order of
     /// precedence
-    async fn load(&self, path: Option<&Path>) -> anyhow::Result<Workflow>;
+    async fn load(&self) -> anyhow::Result<Workflow>;
 
     /// Returns the conversation with the given ID
     async fn conversation(

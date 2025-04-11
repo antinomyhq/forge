@@ -11,7 +11,7 @@ use crate::{Agent, AgentId, ModelId};
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters)]
-#[setters(strip_option)]
+#[setters(strip_option, into)]
 pub struct Workflow {
     /// Agents that are part of this workflow
     #[merge(strategy = crate::merge::vec::unify_by_key)]
@@ -58,6 +58,47 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub temperature: Option<Temperature>,
+
+    /// Model Context Protocol (MCP) configuration
+    #[merge(strategy = crate::merge::option)]
+    pub mcp: Option<McpConfig>,
+}
+
+/// MCP client configuration
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]
+#[serde(rename_all = "camelCase")]
+#[setters(strip_option)]
+pub struct McpConfig {
+    /// MCP HTTP servers
+    #[merge(strategy = crate::merge::option)]
+    pub http: Option<HashMap<String, McpHttpServerConfig>>,
+
+    /// MCP servers
+    #[merge(strategy = crate::merge::option)]
+    pub fs: Option<HashMap<String, McpFsServerConfig>>,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge)]
+pub struct McpFsServerConfig {
+    /// Command to execute for starting this MCP server
+    #[merge(strategy = crate::merge::std::overwrite)]
+    pub command: String,
+
+    /// Arguments to pass to the command
+    #[merge(strategy = crate::merge::vec::append)]
+    #[serde(default)]
+    pub args: Vec<String>,
+
+    /// Environment variables to pass to the command
+    #[merge(strategy = crate::merge::option)]
+    pub env: Option<HashMap<String, String>>,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge)]
+pub struct McpHttpServerConfig {
+    /// Url of the MCP server
+    #[merge(strategy = crate::merge::std::overwrite)]
+    pub url: String,
 }
 
 impl Default for Workflow {

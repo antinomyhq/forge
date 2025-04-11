@@ -24,8 +24,7 @@ impl<F: Services> ForgeExecutorService<F> {
         let conversation = app
             .conversation_service()
             .find(&request.conversation_id)
-            .await
-            .unwrap_or_default()
+            .await?
             .expect("conversation for the request should've been created at this point.");
 
         Ok(MpscStream::spawn(move |tx| async move {

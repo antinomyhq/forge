@@ -275,7 +275,7 @@ impl<F: API> UI<F> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
             None => {
-                let config = self.api.load(self.cli.workflow.as_deref()).await?;
+                let config = self.api.load().await?;
 
                 // Get the mode from the config
                 let mode = config
