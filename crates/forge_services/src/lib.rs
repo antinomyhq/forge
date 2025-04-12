@@ -3,6 +3,7 @@ mod conversation;
 mod forge_services;
 mod infra;
 mod provider;
+mod range_handler;
 mod template;
 mod tool_service;
 mod tools;
