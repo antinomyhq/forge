@@ -51,3 +51,6 @@ agents:
         ```
         cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
         ```
+      
+      Writing Domain Types:
+      - Use `derive_setters` to derive setters and use the `strip_option` and the `into` attributes on the struct types.

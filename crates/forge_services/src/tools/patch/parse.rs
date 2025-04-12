@@ -276,7 +276,6 @@ mod test {
             "{SEARCH}\nfirst block\n{DIVIDER}\nreplacement\n{REPLACE}\n{SEARCH}\nsecond block\n{DIVIDER}missing_newline"
         );
         let result = parse_blocks(&diff);
-        println!("{:?}", result);
         assert!(matches!(
             result.unwrap_err(),
             Error::Block { position: 2, kind: Kind::Incomplete }

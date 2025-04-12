@@ -39,6 +39,7 @@ pub enum Error {
 
     #[error("Missing description for agent: {0}")]
     MissingAgentDescription(AgentId),
+
     #[error("Missing model for agent: {0}")]
     MissingModel(AgentId),
 }

@@ -2,7 +2,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use forge_display::TitleFormat;
-use forge_domain::{EnvironmentService, ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{
+    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -63,7 +65,7 @@ pub struct UndoInput {
 #[async_trait::async_trait]
 impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
     type Input = UndoInput;
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -74,7 +76,7 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
 
         // Display a message about the file being undone
         let message = TitleFormat::success("undo").sub_title(display_path.clone());
-        println!("{}", message.format());
+        context.send_text(message.format()).await?;
 
         Ok(format!(
             "Successfully undid last operation on path: {}",
@@ -103,7 +105,10 @@ mod tests {
 
         // Act
         let result = undo
-            .call(UndoInput { path: test_path.to_string_lossy().to_string() })
+            .call(
+                ToolCallContext::default(),
+                UndoInput { path: test_path.to_string_lossy().to_string() },
+            )
             .await;
 
         // Assert

@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_display::{GrepFormat, TitleFormat};
-use forge_domain::{EnvironmentService, ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{
+    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+};
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
@@ -109,12 +111,13 @@ impl<F: Infrastructure> FSFind<F> {
         Ok(TitleFormat::execute("search").sub_title(sub_title))
     }
 
-    async fn call(&self, input: FSFindInput) -> anyhow::Result<String> {
+    async fn call(&self, context: ToolCallContext, input: FSFindInput) -> anyhow::Result<String> {
         let dir = Path::new(&input.path);
         assert_absolute_path(dir)?;
 
         let title_format = self.create_title(&input)?;
-        println!("{}", title_format.format());
+
+        context.send_text(title_format.format()).await?;
 
         if !dir.exists() {
             return Err(anyhow::anyhow!("Directory '{}' does not exist", input.path));
@@ -200,7 +203,7 @@ impl<F: Infrastructure> FSFind<F> {
             formatted_output = formatted_output.regex(regex);
         }
 
-        println!("{}", formatted_output.format());
+        context.send_text(formatted_output.format()).await?;
         Ok(matches.join("\n"))
     }
 }
@@ -226,8 +229,8 @@ impl<F> NamedTool for FSFind<F> {
 impl<F: Infrastructure> ExecutableTool for FSFind<F> {
     type Input = FSFindInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
-        self.call(input).await
+    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+        self.call(context, input).await
     }
 }
 
@@ -257,11 +260,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: Some("test".to_string()),
-                file_pattern: None,
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: Some("test".to_string()),
+                    file_pattern: None,
+                },
+            )
             .await
             .unwrap();
 
@@ -285,11 +291,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: Some("test".to_string()),
-                file_pattern: Some("*.rs".to_string()),
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: Some("test".to_string()),
+                    file_pattern: Some("*.rs".to_string()),
+                },
+            )
             .await
             .unwrap();
 
@@ -315,11 +324,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: None,
-                file_pattern: Some("test*.txt".to_string()),
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: None,
+                    file_pattern: Some("test*.txt".to_string()),
+                },
+            )
             .await
             .unwrap();
 
@@ -342,11 +354,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: Some("test".to_string()),
-                file_pattern: None,
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: Some("test".to_string()),
+                    file_pattern: None,
+                },
+            )
             .await
             .unwrap();
 
@@ -375,11 +390,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: Some("test".to_string()),
-                file_pattern: None,
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: Some("test".to_string()),
+                    file_pattern: None,
+                },
+            )
             .await
             .unwrap();
 
@@ -404,11 +422,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: Some("test".to_string()),
-                file_pattern: None,
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: Some("test".to_string()),
+                    file_pattern: None,
+                },
+            )
             .await
             .unwrap();
 
@@ -429,11 +450,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: Some("nonexistent".to_string()),
-                file_pattern: None,
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: Some("nonexistent".to_string()),
+                    file_pattern: None,
+                },
+            )
             .await
             .unwrap();
 
@@ -454,11 +478,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: None,
-                file_pattern: None,
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: None,
+                    file_pattern: None,
+                },
+            )
             .await
             .unwrap();
 
@@ -475,11 +502,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: temp_dir.path().to_string_lossy().to_string(),
-                regex: Some("[invalid".to_string()),
-                file_pattern: None,
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: Some("[invalid".to_string()),
+                    file_pattern: None,
+                },
+            )
             .await;
 
         assert!(result.is_err());
@@ -494,11 +524,14 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_search = FSFind::new(infra);
         let result = fs_search
-            .call(FSFindInput {
-                path: "relative/path".to_string(),
-                regex: Some("test".to_string()),
-                file_pattern: None,
-            })
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: "relative/path".to_string(),
+                    regex: Some("test".to_string()),
+                    file_pattern: None,
+                },
+            )
             .await;
 
         assert!(result.is_err());

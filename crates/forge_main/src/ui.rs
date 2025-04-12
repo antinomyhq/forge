@@ -7,20 +7,19 @@ use forge_api::{
 };
 use forge_display::TitleFormat;
 use forge_fs::ForgeFS;
-use lazy_static::lazy_static;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 use tracing::error;
 
 use crate::auto_update::update_forge;
-use crate::banner;
 use crate::cli::Cli;
 use crate::console::CONSOLE;
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{Command, ForgeCommandManager, UserInput};
+use crate::model::{Command, ForgeCommandManager};
 use crate::state::{Mode, UIState};
+use crate::{banner, TRACKER};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -28,10 +27,6 @@ pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
 pub const EVENT_USER_HELP_QUERY: &str = "user_help_query";
 pub const EVENT_USER_COMPACT_INIT: &str = "user_compact_init";
 pub const EVENT_TITLE: &str = "title";
-
-lazy_static! {
-    pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
-}
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
 pub struct PartialEvent {
@@ -131,9 +126,6 @@ impl<F: API> UI<F> {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        // Trigger auto-update in the background
-        let join = tokio::spawn(update_forge());
-
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
             return self.handle_dispatch(dispatch_json).await;
@@ -217,6 +209,14 @@ impl<F: API> UI<F> {
                     continue;
                 }
                 Command::Exit => {
+                    CONSOLE.writeln(
+                        TitleFormat::execute("exit")
+                            .sub_title("initializing graceful shutdown... thank you!")
+                            .format(),
+                    )?;
+
+                    update_forge().await;
+
                     break;
                 }
                 Command::Models => {
@@ -294,7 +294,6 @@ impl<F: API> UI<F> {
             }
         }
 
-        join.await.expect("Failed to upgrade forge. Please update manually using `npm update -g @antinomyhq/forge`");
         Ok(())
     }
 
@@ -429,7 +428,13 @@ impl<F: API> UI<F> {
 
     fn handle_chat_response(&mut self, message: AgentMessage<ChatResponse>) -> Result<()> {
         match message.message {
-            ChatResponse::Text(text) => CONSOLE.write(text.dimmed().to_string())?,
+            ChatResponse::Text { text: content, is_complete } => {
+                if is_complete {
+                    CONSOLE.writeln(&content)?;
+                } else {
+                    CONSOLE.write(content.dimmed().to_string())?;
+                }
+            }
             ChatResponse::ToolCallStart(_) => {
                 CONSOLE.newline()?;
                 CONSOLE.newline()?;

@@ -62,7 +62,7 @@ impl Fixture {
             .with_context(|| "Failed to initialize chat")
             .unwrap()
             .filter_map(|message| match message.unwrap() {
-                AgentMessage { message: ChatResponse::Text(text), .. } => Some(text),
+                AgentMessage { message: ChatResponse::Text { text, .. }, .. } => Some(text),
                 _ => None,
             })
             .collect::<Vec<_>>()

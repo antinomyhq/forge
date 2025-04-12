@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -37,7 +37,7 @@ impl<T> NamedTool for FSRemove<T> {
 impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
     type Input = FSRemoveInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(&self, _context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -87,7 +87,10 @@ mod test {
 
         let fs_remove = FSRemove::new(infra.clone());
         let result = fs_remove
-            .call(FSRemoveInput { path: file_path.to_string_lossy().to_string() })
+            .call(
+                ToolCallContext::default(),
+                FSRemoveInput { path: file_path.to_string_lossy().to_string() },
+            )
             .await
             .unwrap();
 
@@ -103,7 +106,10 @@ mod test {
 
         let fs_remove = FSRemove::new(infra);
         let result = fs_remove
-            .call(FSRemoveInput { path: nonexistent_file.to_string_lossy().to_string() })
+            .call(
+                ToolCallContext::default(),
+                FSRemoveInput { path: nonexistent_file.to_string_lossy().to_string() },
+            )
             .await;
 
         assert!(result.is_err());
@@ -130,7 +136,10 @@ mod test {
 
         let fs_remove = FSRemove::new(infra.clone());
         let result = fs_remove
-            .call(FSRemoveInput { path: dir_path.to_string_lossy().to_string() })
+            .call(
+                ToolCallContext::default(),
+                FSRemoveInput { path: dir_path.to_string_lossy().to_string() },
+            )
             .await;
 
         assert!(result.is_err());
@@ -150,7 +159,10 @@ mod test {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_remove = FSRemove::new(infra);
         let result = fs_remove
-            .call(FSRemoveInput { path: "relative/path.txt".to_string() })
+            .call(
+                ToolCallContext::default(),
+                FSRemoveInput { path: "relative/path.txt".to_string() },
+            )
             .await;
 
         assert!(result.is_err());

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Context;
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -32,7 +32,7 @@ impl NamedTool for FSFileInfo {
 impl ExecutableTool for FSFileInfo {
     type Input = FSFileInfoInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(&self, _context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -58,7 +58,10 @@ mod test {
 
         let fs_info = FSFileInfo;
         let result = fs_info
-            .call(FSFileInfoInput { path: file_path.to_string_lossy().to_string() })
+            .call(
+                ToolCallContext::default(),
+                FSFileInfoInput { path: file_path.to_string_lossy().to_string() },
+            )
             .await
             .unwrap();
 
@@ -75,7 +78,10 @@ mod test {
 
         let fs_info = FSFileInfo;
         let result = fs_info
-            .call(FSFileInfoInput { path: dir_path.to_string_lossy().to_string() })
+            .call(
+                ToolCallContext::default(),
+                FSFileInfoInput { path: dir_path.to_string_lossy().to_string() },
+            )
             .await
             .unwrap();
 
@@ -91,7 +97,10 @@ mod test {
 
         let fs_info = FSFileInfo;
         let result = fs_info
-            .call(FSFileInfoInput { path: nonexistent_path.to_string_lossy().to_string() })
+            .call(
+                ToolCallContext::default(),
+                FSFileInfoInput { path: nonexistent_path.to_string_lossy().to_string() },
+            )
             .await;
 
         assert!(result.is_err());
@@ -101,7 +110,10 @@ mod test {
     async fn test_fs_file_info_relative_path() {
         let fs_info = FSFileInfo;
         let result = fs_info
-            .call(FSFileInfoInput { path: "relative/path.txt".to_string() })
+            .call(
+                ToolCallContext::default(),
+                FSFileInfoInput { path: "relative/path.txt".to_string() },
+            )
             .await;
 
         assert!(result.is_err());

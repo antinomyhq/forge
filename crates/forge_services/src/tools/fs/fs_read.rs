@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_display::TitleFormat;
-use forge_domain::{EnvironmentService, ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{
+    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -54,7 +56,7 @@ impl<F> NamedTool for FSRead<F> {
 impl<F: Infrastructure> ExecutableTool for FSRead<F> {
     type Input = FSReadInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -78,7 +80,7 @@ impl<F: Infrastructure> ExecutableTool for FSRead<F> {
         let title = "read";
         let display_path = self.format_display_path(path)?;
         let message = TitleFormat::success(title).sub_title(display_path);
-        println!("{}", message);
+        context.send_text(message.format()).await?;
 
         Ok(content)
     }
@@ -99,7 +101,12 @@ mod test {
     async fn test_with_mock(path: &str) -> anyhow::Result<String> {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_read = FSRead::new(infra);
-        fs_read.call(FSReadInput { path: path.to_string() }).await
+        fs_read
+            .call(
+                ToolCallContext::default(),
+                FSReadInput { path: path.to_string() },
+            )
+            .await
     }
 
     #[tokio::test]

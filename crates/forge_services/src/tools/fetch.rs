@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use forge_display::TitleFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription};
+use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription};
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 use schemars::JsonSchema;
@@ -90,7 +90,12 @@ impl Fetch {
         Ok(())
     }
 
-    async fn fetch_url(&self, url: &Url, force_raw: bool) -> Result<(String, String)> {
+    async fn fetch_url(
+        &self,
+        url: &Url,
+        context: &ToolCallContext,
+        force_raw: bool,
+    ) -> Result<(String, String)> {
         self.check_robots_txt(url).await?;
 
         let response = self
@@ -100,13 +105,9 @@ impl Fetch {
             .await
             .map_err(|e| anyhow!("Failed to fetch URL {}: {}", url, e))?;
 
-        println!(
-            "{}",
-            TitleFormat::execute(format!("GET {}", response.status()))
-                .sub_title(url.as_str())
-                .to_string()
-                .as_str()
-        );
+        let title_format =
+            TitleFormat::execute(format!("GET {}", response.status())).sub_title(url.as_str());
+        context.send_text(title_format.format()).await?;
 
         if !response.status().is_success() {
             return Err(anyhow!(
@@ -151,11 +152,13 @@ impl Fetch {
 impl ExecutableTool for Fetch {
     type Input = FetchInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
         let url = Url::parse(&input.url)
             .with_context(|| format!("Failed to parse URL: {}", input.url))?;
 
-        let (content, prefix) = self.fetch_url(&url, input.raw.unwrap_or(false)).await?;
+        let (content, prefix) = self
+            .fetch_url(&url, &context, input.raw.unwrap_or(false))
+            .await?;
 
         let original_length = content.len();
         let start_index = input.start_index.unwrap_or(0);
@@ -232,7 +235,7 @@ mod tests {
             raw: Some(false),
         };
 
-        let result = fetch.call(input).await.unwrap();
+        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
         let normalized_result = normalize_port(result);
         insta::assert_snapshot!(normalized_result);
     }
@@ -263,7 +266,7 @@ mod tests {
             raw: Some(true),
         };
 
-        let result = fetch.call(input).await.unwrap();
+        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
         let normalized_result = normalize_port(result);
         insta::assert_snapshot!(normalized_result);
     }
@@ -295,7 +298,7 @@ mod tests {
             raw: None,
         };
 
-        let result = fetch.call(input).await;
+        let result = fetch.call(ToolCallContext::default(), input).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -332,7 +335,7 @@ mod tests {
             raw: Some(true),
         };
 
-        let result = fetch.call(input).await.unwrap();
+        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
         let normalized_result = normalize_port(result);
         assert!(normalized_result.contains("A".repeat(5000).as_str()));
         assert!(normalized_result.contains("start_index of 5000"));
@@ -345,7 +348,7 @@ mod tests {
             raw: Some(true),
         };
 
-        let result = fetch.call(input).await.unwrap();
+        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
         let normalized_result = normalize_port(result);
         assert!(normalized_result.contains("B".repeat(5000).as_str()));
     }
@@ -362,7 +365,7 @@ mod tests {
             raw: None,
         };
 
-        let result = rt.block_on(fetch.call(input));
+        let result = rt.block_on(fetch.call(ToolCallContext::default(), input));
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("parse"));
@@ -388,7 +391,7 @@ mod tests {
             raw: None,
         };
 
-        let result = fetch.call(input).await;
+        let result = fetch.call(ToolCallContext::default(), input).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("404"));
     }

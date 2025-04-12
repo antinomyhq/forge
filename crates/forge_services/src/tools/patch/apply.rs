@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::bail;
 use dissimilar::Chunk;
 use forge_display::DiffFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolDescription, ToolName};
+use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use thiserror::Error;
@@ -152,7 +152,7 @@ async fn apply_patches(content: String, blocks: Vec<PatchBlock>) -> Result<Strin
 impl<T: Infrastructure> ExecutableTool for ApplyPatch<T> {
     type Input = ApplyPatchInput;
 
-    async fn call(&self, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -213,7 +213,7 @@ impl<T: Infrastructure> ExecutableTool for ApplyPatch<T> {
 
         // Generate diff between old and new content
         let diff = DiffFormat::format("patch", path.to_path_buf(), &old_content, &new_content);
-        println!("{}", diff);
+        context.send_text(diff.clone()).await?;
 
         Ok(result)
     }
@@ -262,10 +262,13 @@ mod test {
 
         let fs_replace = ApplyPatch::new(Arc::new(MockInfrastructure::new()));
         let result = fs_replace
-            .call(ApplyPatchInput {
-                path: nonexistent.to_string_lossy().to_string(),
-                diff: format!("{SEARCH}\nHello\n{DIVIDER}\nWorld\n{REPLACE}\n"),
-            })
+            .call(
+                ToolCallContext::default(),
+                ApplyPatchInput {
+                    path: nonexistent.to_string_lossy().to_string(),
+                    diff: format!("{SEARCH}\nHello\n{DIVIDER}\nWorld\n{REPLACE}\n"),
+                },
+            )
             .await;
 
         assert!(result.unwrap_err().to_string().contains("File not found"));
@@ -281,13 +284,16 @@ mod test {
 
         let fs_replace = ApplyPatch::new(infra.clone());
         let result = fs_replace
-            .call(ApplyPatchInput {
-                path: file_path.to_string_lossy().to_string(),
-                diff: format!(
-                    "{SEARCH}\n    Hello World    \n{DIVIDER}\n    Hi World    \n{REPLACE}\n"
-                )
-                .to_string(),
-            })
+            .call(
+                ToolCallContext::default(),
+                ApplyPatchInput {
+                    path: file_path.to_string_lossy().to_string(),
+                    diff: format!(
+                        "{SEARCH}\n    Hello World    \n{DIVIDER}\n    Hi World    \n{REPLACE}\n"
+                    )
+                    .to_string(),
+                },
+            )
             .await
             .unwrap();
 
@@ -314,10 +320,13 @@ mod test {
 
         let fs_replace = ApplyPatch::new(infra.clone());
         let result = fs_replace
-            .call(ApplyPatchInput {
-                path: file_path.to_string_lossy().to_string(),
-                diff: format!("{SEARCH}\n{DIVIDER}\nNew content\n{REPLACE}\n").to_string(),
-            })
+            .call(
+                ToolCallContext::default(),
+                ApplyPatchInput {
+                    path: file_path.to_string_lossy().to_string(),
+                    diff: format!("{SEARCH}\n{DIVIDER}\nNew content\n{REPLACE}\n").to_string(),
+                },
+            )
             .await
             .unwrap();
 
@@ -347,7 +356,10 @@ mod test {
         let diff = format!("{SEARCH}\n    First Line    \n{DIVIDER}\n    New First    \n{REPLACE}\n{SEARCH}\n    Last Line    \n{DIVIDER}\n    New Last    \n{REPLACE}\n").to_string();
 
         let result = fs_replace
-            .call(ApplyPatchInput { path: file_path.to_string_lossy().to_string(), diff })
+            .call(
+                ToolCallContext::default(),
+                ApplyPatchInput { path: file_path.to_string_lossy().to_string(), diff },
+            )
             .await
             .unwrap();
 
@@ -377,7 +389,10 @@ mod test {
         let fs_replace = ApplyPatch::new(infra.clone());
         let diff = format!("{SEARCH}\n  Middle Line  \n{DIVIDER}\n{REPLACE}\n");
         let result = fs_replace
-            .call(ApplyPatchInput { path: file_path.to_string_lossy().to_string(), diff })
+            .call(
+                ToolCallContext::default(),
+                ApplyPatchInput { path: file_path.to_string_lossy().to_string(), diff },
+            )
             .await
             .unwrap();
 
@@ -409,7 +424,7 @@ mod test {
 
         // Test 1: Replace content while preserving surrounding newlines
         let result = fs_replace
-            .call(ApplyPatchInput {
+            .call(ToolCallContext::default(), ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: format!("{SEARCH}\n    let x = 1;\n\n\n    console.log(x);\n{DIVIDER}\n    let y = 2;\n\n\n    console.log(y);\n{REPLACE}\n").to_string(),
             })
@@ -430,7 +445,7 @@ mod test {
 
         // Test 2: Replace block with different newline pattern
         let result = fs_replace
-            .call(ApplyPatchInput {
+            .call(ToolCallContext::default(), ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: format!(
                     "{SEARCH}\n\n// Footer comment\n\n\n{DIVIDER}\n\n\n\n// Updated footer\n\n{REPLACE}\n"
@@ -454,7 +469,7 @@ mod test {
 
         // Test 3: Replace with empty lines preservation
         let result = fs_replace
-            .call(ApplyPatchInput {
+            .call(ToolCallContext::default(), ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: format!(
                     "{SEARCH}\n\n\n// Header comment\n\n\n{DIVIDER}\n\n\n\n// New header\n\n\n\n{REPLACE}\n"
@@ -496,7 +511,7 @@ mod test {
         let fs_replace = ApplyPatch::new(infra.clone());
         // Search with different casing, spacing, and variable names
         let result = fs_replace
-            .call(ApplyPatchInput {
+            .call(ToolCallContext::default(), ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: format!("{SEARCH}\n  for (const itm of items) {{\n    total += itm.price;\n{DIVIDER}\n  for (const item of items) {{\n    total += item.price * item.quantity;\n{REPLACE}\n").to_string(),
             })
@@ -517,7 +532,7 @@ mod test {
 
         // Test fuzzy matching with more variations
         let result = fs_replace
-            .call(ApplyPatchInput {
+            .call(ToolCallContext::default(), ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: format!("{SEARCH}\nfunction calculateTotal(items) {{\n  let total = 0;\n{DIVIDER}\nfunction computeTotal(items, tax = 0) {{\n  let total = 0.0;\n{REPLACE}\n").to_string(),
             })
@@ -555,7 +570,7 @@ mod test {
         let fs_replace = ApplyPatch::new(infra.clone());
         // Search with structural similarities but different variable names and spacing
         let result = fs_replace
-            .call(ApplyPatchInput {
+            .call(ToolCallContext::default(), ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: format!("{SEARCH}\n  async getUserById(userId) {{\n    const user = await db.findOne({{ id: userId }});\n{DIVIDER}\n  async findUser(id, options = {{}}) {{\n    const user = await this.db.findOne({{ userId: id, ...options }});\n{REPLACE}\n").to_string(),
             })
@@ -576,7 +591,7 @@ mod test {
 
         // Test fuzzy matching with error handling changes
         let result = fs_replace
-            .call(ApplyPatchInput {
+            .call(ToolCallContext::default(), ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: format!("{SEARCH}\n    if (!user) throw new Error('User not found');\n    return user;\n{DIVIDER}\n    if (!user) {{\n      throw new UserNotFoundError(id);\n    }}\n    return this.sanitizeUser(user);\n{REPLACE}\n").to_string(),
             })
@@ -606,7 +621,7 @@ mod test {
 
         let fs_replace = ApplyPatch::new(infra.clone());
         let result = fs_replace
-            .call(ApplyPatchInput {
+            .call(ToolCallContext::default(), ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: format!(
                     "{SEARCH}\nfn main() {{ let x = 42; }}\n{DIVIDER}\nfn main() {{ let x = \n{REPLACE}\n"
@@ -639,7 +654,7 @@ mod test {
 
         let fs_replace = ApplyPatch::new(infra.clone());
         let result = fs_replace
-            .call(ApplyPatchInput {
+            .call(ToolCallContext::default(), ApplyPatchInput {
                 path: file_path.to_string_lossy().to_string(),
                 diff: format!("{SEARCH}\nfn main() {{ let x = 42; }}\n{DIVIDER}\nfn main() {{ let x = 42; let y = x * 2; }}\n{REPLACE}\n").to_string(),
             })
@@ -662,10 +677,13 @@ mod test {
     async fn test_patch_relative_path() {
         let fs_replace = ApplyPatch::new(Arc::new(MockInfrastructure::new()));
         let result = fs_replace
-            .call(ApplyPatchInput {
-                path: "relative/path.txt".to_string(),
-                diff: format!("{SEARCH}\ntest\n{DIVIDER}\nreplacement\n{REPLACE}\n"),
-            })
+            .call(
+                ToolCallContext::default(),
+                ApplyPatchInput {
+                    path: "relative/path.txt".to_string(),
+                    diff: format!("{SEARCH}\ntest\n{DIVIDER}\nreplacement\n{REPLACE}\n"),
+                },
+            )
             .await;
 
         assert!(result.is_err());

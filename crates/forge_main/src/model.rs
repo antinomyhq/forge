@@ -1,7 +1,5 @@
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use async_trait::async_trait;
 use forge_api::{Model, Workflow};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -254,36 +252,6 @@ impl Command {
     pub fn usage(&self) -> &str {
         self.get_str("usage").unwrap()
     }
-}
-
-/// A trait for handling user input in the application.
-///
-/// This trait defines the core functionality needed for processing
-/// user input, whether it comes from a command line interface,
-/// GUI, or file system.
-#[async_trait]
-pub trait UserInput {
-    type PromptInput;
-    /// Read content from a file and convert it to the input type.
-    ///
-    /// # Arguments
-    /// * `path` - The path to the file to read
-    ///
-    /// # Returns
-    /// * `Ok(Input)` - Successfully read and parsed file content
-    /// * `Err` - Failed to read or parse file
-    async fn upload<P: Into<PathBuf> + Send>(&self, path: P) -> anyhow::Result<Command>;
-
-    /// Prompts for user input with optional help text and initial value.
-    ///
-    /// # Arguments
-    /// * `help_text` - Optional help text to display with the prompt
-    /// * `initial_text` - Optional initial text to populate the input with
-    ///
-    /// # Returns
-    /// * `Ok(Input)` - Successfully processed input
-    /// * `Err` - An error occurred during input processing
-    async fn prompt(&self, input: Option<Self::PromptInput>) -> anyhow::Result<Command>;
 }
 
 #[cfg(test)]
