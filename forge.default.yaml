@@ -3,6 +3,8 @@ commands:
     description: Analyzes and organizes code changes into meaningful, well-structured commits
   - name: pull-request
     description: Analyzes code changes, generates comprehensive PR descriptions with linked issues.
+  - name: compact
+    description: Summarizes the current conversation context to reduce token usage
 
 variables:
   mode: ACT
@@ -69,6 +71,7 @@ agents:
     subscribe:
       - user_task_init
       - user_task_update
+      - user_compact_init
     max_walker_depth: 1
 
   - tool_supported: true

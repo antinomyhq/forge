@@ -26,6 +26,7 @@ use crate::state::{Mode, UIState};
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
 pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
 pub const EVENT_USER_HELP_QUERY: &str = "user_help_query";
+pub const EVENT_USER_COMPACT_INIT: &str = "user_compact_init";
 pub const EVENT_TITLE: &str = "title";
 
 lazy_static! {
@@ -103,6 +104,10 @@ impl<F: API> UI<F> {
     }
     fn create_user_help_query_event<V: Into<Value>>(content: V) -> Event {
         Event::new(EVENT_USER_HELP_QUERY, content)
+    }
+    
+    fn create_user_compact_init_event<V: Into<Value>>(content: V) -> Event {
+        Event::new(EVENT_USER_COMPACT_INIT, content)
     }
 
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
@@ -237,13 +242,51 @@ impl<F: API> UI<F> {
                     input = self.prompt().await?;
                 }
                 Command::Custom(event) => {
-                    if let Err(e) = self.dispatch_event(event.into()).await {
-                        CONSOLE.writeln(
-                            TitleFormat::failed("Failed to execute the command.")
-                                .sub_title("Command Execution")
-                                .error(e.to_string())
-                                .format(),
-                        )?;
+                    // Special handling for the compact command
+                    if event.name == "compact" {
+                        // Get the current conversation context
+                        let conversation_id = self.init_conversation().await?;
+                        
+                        // Create a compact event with the entire context
+                        let compact_event = Self::create_user_compact_init_event(event.value);
+                        
+                        // Create the chat request with the event
+                        let chat = ChatRequest::new(compact_event, conversation_id);
+                        
+                        // Process the compact request
+                        match self.api.chat(chat).await {
+                            Ok(mut stream) => {
+                                CONSOLE.writeln(
+                                    TitleFormat::success("Compacting conversation context")
+                                        .sub_title("This may take a moment...")
+                                        .format(),
+                                )?;
+                                self.handle_chat_stream(&mut stream).await?;
+                                CONSOLE.writeln(
+                                    TitleFormat::success("Context compaction complete")
+                                        .sub_title("Conversation context has been summarized")
+                                        .format(),
+                                )?;
+                            }
+                            Err(e) => {
+                                CONSOLE.writeln(
+                                    TitleFormat::failed("Failed to compact context")
+                                        .sub_title("Context Compaction")
+                                        .error(e.to_string())
+                                        .format(),
+                                )?;
+                            }
+                        }
+                    } else {
+                        // Handle other custom commands
+                        if let Err(e) = self.dispatch_event(event.into()).await {
+                            CONSOLE.writeln(
+                                TitleFormat::failed("Failed to execute the command.")
+                                    .sub_title("Command Execution")
+                                    .error(e.to_string())
+                                    .format(),
+                            )?;
+                        }
                     }
 
                     input = self.prompt().await?;

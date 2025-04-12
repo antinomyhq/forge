@@ -15,6 +15,7 @@ Forge offers several built-in commands to enhance your interaction:
 - `/dump` - Save the current conversation in JSON format to a file for reference
 - `/act` - Switch to ACT mode (default), allowing Forge to execute commands and implement changes
 - `/plan` - Switch to PLAN mode, where Forge analyzes and plans but doesn't modify files
+- `/compact` - Summarize the current conversation context to reduce token usage
 
 ## Usage
 
