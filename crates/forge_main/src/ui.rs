@@ -105,7 +105,7 @@ impl<F: API> UI<F> {
     fn create_user_help_query_event<V: Into<Value>>(content: V) -> Event {
         Event::new(EVENT_USER_HELP_QUERY, content)
     }
-    
+
     fn create_user_compact_init_event<V: Into<Value>>(content: V) -> Event {
         Event::new(EVENT_USER_COMPACT_INIT, content)
     }
@@ -246,13 +246,13 @@ impl<F: API> UI<F> {
                     if event.name == "compact" {
                         // Get the current conversation context
                         let conversation_id = self.init_conversation().await?;
-                        
+
                         // Create a compact event with the entire context
                         let compact_event = Self::create_user_compact_init_event(event.value);
-                        
+
                         // Create the chat request with the event
                         let chat = ChatRequest::new(compact_event, conversation_id);
-                        
+
                         // Process the compact request
                         match self.api.chat(chat).await {
                             Ok(mut stream) => {
