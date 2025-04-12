@@ -1,0 +1,29 @@
+[package]
+name = "forge_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+forge_api = { path = "../forge_api" }
+forge_domain = { path = "../forge_domain" }
+forge_stream = { path = "../forge_stream" }
+forge_infra = { path = "../forge_infra" }
+forge_services = { path = "../forge_services" }
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+futures = "0.3"
+async-trait = "0.1"
+tower = "0.4"
+http = "1.0"
+http-body-util = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4.4", features = ["derive"] }
+
+[dev-dependencies]
+tokio-test = "0.4"

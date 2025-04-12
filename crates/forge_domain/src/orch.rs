@@ -18,17 +18,7 @@ use crate::*;
 
 type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
 
-#[derive(Debug, Clone)]
-pub struct AgentMessage<T> {
-    pub agent: AgentId,
-    pub message: T,
-}
-
-impl<T> AgentMessage<T> {
-    pub fn new(agent: AgentId, message: T) -> Self {
-        Self { agent, message }
-    }
-}
+use crate::agent::AgentMessage;
 
 #[derive(Clone)]
 pub struct Orchestrator<App> {

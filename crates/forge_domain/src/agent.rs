@@ -13,6 +13,17 @@ use crate::{
     Context, Error, EventContext, ModelId, Result, Role, SystemContext, ToolDefinition, ToolName,
 };
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMessage<T> {
+    pub agent: AgentId,
+    pub message: T,
+}
+
+impl<T> AgentMessage<T> {
+    pub fn new(agent: AgentId, message: T) -> Self {
+        Self { agent, message }
+    }
+}
 // Unique identifier for an agent
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
