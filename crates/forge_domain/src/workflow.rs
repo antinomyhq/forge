@@ -15,6 +15,7 @@ use crate::{Agent, AgentId, ModelId};
 pub struct Workflow {
     /// Agents that are part of this workflow
     #[merge(strategy = crate::merge::vec::unify_by_key)]
+    #[serde(default)]
     pub agents: Vec<Agent>,
 
     /// Variables that can be used in templates
