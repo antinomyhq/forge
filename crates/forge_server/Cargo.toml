@@ -1,0 +1,32 @@
+[package]
+name = "forge_server"
+version = "0.1.0"
+edition = "2021"
+description = "JSON-RPC server for Forge API"
+license = "MIT"
+
+[dependencies]
+# Workspace dependencies
+anyhow.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Internal crates
+forge_api.workspace = true
+forge_domain.workspace = true
+forge_infra.workspace = true
+forge_services.workspace = true
+forge_stream.workspace = true
+
+# JSON-RPC dependencies
+jsonrpc-core = "18.0.0"
+jsonrpc-stdio-server = "18.0.0"
+
+# Other dependencies
+uuid = { version = "1.6.1", features = ["v4", "serde"] }
+ctrlc = { version = "3.4.1", features = ["termination"] }

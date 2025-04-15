@@ -18,7 +18,7 @@ use crate::*;
 
 type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AgentMessage<T> {
     pub agent: AgentId,
     pub message: T,
