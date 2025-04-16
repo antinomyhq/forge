@@ -54,3 +54,6 @@ agents:
       
       Writing Domain Types:
       - Use `derive_setters` to derive setters and use the `strip_option` and the `into` attributes on the struct types.
+
+      Refactoring:
+      - If asked to fix failing tests, always confirm whether to update the implementation or the tests.
