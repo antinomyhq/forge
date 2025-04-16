@@ -5,9 +5,9 @@ edition = "2021"
 
 [dependencies]
 regex.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["full"] }
 tokio-stream.workspace = true
-reqwest.workspace = true
+reqwest = { workspace = true, features = ["json"] }
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
@@ -21,7 +21,23 @@ forge_domain.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
+http.workspace = true
+env_logger = "0.10.0"
+log = "0.4.20"
 
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
+tempfile.workspace = true
+
+[[bin]]
+name = "record_mocks"
+path = "src/bin/record_mocks.rs"
+
+[[bin]]
+name = "update_mocks"
+path = "src/bin/update_mocks.rs"
+
+[[bin]]
+name = "record_integration_test_mocks"
+path = "src/bin/record_integration_test_mocks.rs"

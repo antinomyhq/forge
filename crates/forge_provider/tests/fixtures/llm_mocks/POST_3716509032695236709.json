@@ -1,0 +1,46 @@
+{
+  "status": 401,
+  "headers": [
+    [
+      "date",
+      "Wed, 16 Apr 2025 12:35:13 GMT"
+    ],
+    [
+      "content-type",
+      "application/json"
+    ],
+    [
+      "content-length",
+      "60"
+    ],
+    [
+      "connection",
+      "keep-alive"
+    ],
+    [
+      "access-control-allow-origin",
+      "*"
+    ],
+    [
+      "x-clerk-auth-message",
+      "Invalid JWT form. A JWT consists of three parts separated by dots. (reason=token-invalid, token-carrier=header)"
+    ],
+    [
+      "x-clerk-auth-reason",
+      "token-invalid"
+    ],
+    [
+      "x-clerk-auth-status",
+      "signed-out"
+    ],
+    [
+      "server",
+      "cloudflare"
+    ],
+    [
+      "cf-ray",
+      "9313b8a6ba00c1c2-BLR"
+    ]
+  ],
+  "body": "{\"error\":{\"message\":\"No auth credentials found\",\"code\":401}}"
+}
