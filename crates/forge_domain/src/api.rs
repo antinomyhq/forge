@@ -47,11 +47,13 @@ pub trait API: Sync + Send {
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>>;
 
-    /// Compacts the context of the main agent for the given conversation
+    /// Compacts the context of the main agent for the given conversation and
+    /// persists it. Returns metrics about the compaction (original vs.
+    /// compacted tokens and messages).
     async fn compact_conversation(
         &self,
         conversation_id: &ConversationId,
-    ) -> anyhow::Result<Conversation>;
+    ) -> anyhow::Result<CompactionResult>;
 
     // TODO: This function can be remove since we now have the upsert_conversation
     /// Gets a variable from the conversation

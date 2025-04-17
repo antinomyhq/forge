@@ -148,12 +148,18 @@ impl<F: API> UI<F> {
             match input {
                 Command::Compact => {
                     let conversation_id = self.init_conversation().await?;
-                    let compacted = self.api.compact_conversation(&conversation_id).await?;
-                    // Update the conversation with the compacted version
-                    self.api.upsert_conversation(compacted).await?;
+                    let compaction_result = self.api.compact_conversation(&conversation_id).await?;
+
+                    // Calculate percentage reduction
+                    let token_reduction = compaction_result.token_reduction_percentage();
+                    let message_reduction = compaction_result.message_reduction_percentage();
+
                     CONSOLE.writeln(
-                        TitleFormat::success("compact")
-                            .sub_title("context compacted")
+                        TitleFormat::execute("compact")
+                            .sub_title(format!(
+                                "context size reduced by {:.1}% (tokens), {:.1}% (messages)",
+                                token_reduction, message_reduction
+                            ))
                             .format(),
                     )?;
                     input = self.prompt().await?;

@@ -73,12 +73,14 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         self.app.conversation_service().upsert(conversation).await
     }
 
-    /// Returns a compacted version of the conversation without persisting
-    /// changes
+    /// Compacts the context of the main agent for the given conversation and
+    /// persists it. Returns metrics about the compaction (original vs.
+    /// compacted tokens and messages).
     async fn compact_conversation(
         &self,
         conversation_id: &ConversationId,
-    ) -> anyhow::Result<Conversation> {
+    ) -> anyhow::Result<CompactionResult> {
+        // Fetch the conversation
         let mut conversation = self
             .app
             .conversation_service()
@@ -86,6 +88,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
 
+        // Identify the main agent and extract existing context
         let main_agent_id = AgentId::new(Conversation::MAIN_AGENT_NAME);
         let agent = conversation.get_agent(&main_agent_id)?;
         let context = conversation
@@ -94,14 +97,35 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .and_then(|s| s.context.clone())
             .unwrap_or_default();
 
+        // Compute original metrics
+        let original_tokens = context.estimate_token_count() as usize;
+        let original_messages = context.messages.len();
+
+        // Perform compaction
         let compactor = ContextCompactor::new(self.app.clone());
-        let new_context = compactor.compact_context(agent, context, None).await?;
+        let new_context = compactor
+            .compact_context(agent, context.clone(), None)
+            .await?;
+
+        // Compute compacted metrics
+        let compacted_tokens = new_context.estimate_token_count() as usize;
+        let compacted_messages = new_context.messages.len();
+
+        // Persist the updated context
         conversation
             .state
             .entry(main_agent_id.clone())
             .or_default()
-            .context = Some(new_context);
-        Ok(conversation)
+            .context = Some(new_context.clone());
+        self.app.conversation_service().upsert(conversation).await?;
+
+        // Return metrics
+        Ok(CompactionResult::new(
+            original_tokens,
+            compacted_tokens,
+            original_messages,
+            compacted_messages,
+        ))
     }
 
     fn environment(&self) -> Environment {

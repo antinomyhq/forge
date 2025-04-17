@@ -203,6 +203,17 @@ impl Context {
 
         format!("<chat_history>{}</chat_history>", lines)
     }
+
+    /// Estimates the token count for this context using a simple approximation
+    ///
+    /// This method uses a basic character-to-token ratio to approximate tokens.
+    /// For more accurate token counts, a proper model-specific tokenizer should
+    /// be used.
+    pub fn estimate_token_count(&self) -> u64 {
+        // Call the standalone function from agent.rs with the text representation of
+        // this context
+        crate::estimate_token_count(&self.to_text())
+    }
 }
 
 #[cfg(test)]
@@ -243,5 +254,21 @@ mod tests {
             request.messages[0],
             ContextMessage::system("A system message")
         );
+    }
+
+    #[test]
+    fn test_estimate_token_count() {
+        // Create a context with some messages
+        let context = Context::default()
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User message"))
+            .add_message(ContextMessage::assistant("Assistant message", None));
+
+        // Get the token count
+        let token_count = context.estimate_token_count();
+
+        // Validate the token count is reasonable
+        // The exact value will depend on the implementation of estimate_token_count
+        assert!(token_count > 0, "Token count should be greater than 0");
     }
 }
