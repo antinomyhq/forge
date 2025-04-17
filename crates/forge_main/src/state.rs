@@ -27,7 +27,6 @@ impl std::fmt::Display for Mode {
 /// State information for the UI
 #[derive(Default, Clone)]
 pub struct UIState {
-    pub current_title: Option<String>,
     pub conversation_id: Option<ConversationId>,
     pub usage: Usage,
     pub mode: Mode,
@@ -38,7 +37,6 @@ pub struct UIState {
 impl UIState {
     pub fn new(mode: Mode) -> Self {
         Self {
-            current_title: Default::default(),
             conversation_id: Default::default(),
             usage: Default::default(),
             mode,
@@ -51,7 +49,6 @@ impl UIState {
 impl From<UIState> for ForgePrompt {
     fn from(state: UIState) -> Self {
         ForgePrompt {
-            title: state.current_title,
             usage: Some(state.usage),
             mode: state.mode,
             model: state.model,

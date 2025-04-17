@@ -28,7 +28,6 @@ use crate::{banner, TRACKER};
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
 pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
 pub const EVENT_USER_HELP_QUERY: &str = "user_help_query";
-pub const EVENT_TITLE: &str = "title";
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
 pub struct PartialEvent {
@@ -404,15 +403,7 @@ impl<F: API> UI<F> {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-                let path = self
-                    .state
-                    .current_title
-                    .as_ref()
-                    .map_or(format!("{timestamp}"), |title| {
-                        format!("{timestamp}-{title}")
-                    });
-
-                let path = format!("{path}-dump.json");
+                let path = format!("{timestamp}-dump.json");
 
                 let content = serde_json::to_string_pretty(&conversation)?;
                 tokio::fs::write(path.as_str(), content).await?;
@@ -462,11 +453,8 @@ impl<F: API> UI<F> {
                     CONSOLE.writeln(TitleFormat::success(tool_name).format())?;
                 }
             }
-            ChatResponse::Event(event) => {
-                if event.name == EVENT_TITLE {
-                    self.state.current_title =
-                        Some(event.value.as_str().unwrap_or_default().to_string());
-                }
+            ChatResponse::Event(_event) => {
+                // Event handling removed
             }
             ChatResponse::Usage(u) => {
                 self.state.usage = u;
