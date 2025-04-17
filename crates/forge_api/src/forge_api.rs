@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Result;
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{ForgeServices, Infrastructure};
+use forge_services::{CommandExecutorService, ForgeServices, Infrastructure};
 use forge_stream::MpscStream;
 use serde_json::Value;
 
@@ -63,7 +63,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
     async fn init<W: Into<Workflow> + Send + Sync>(
         &self,
         workflow: W,
-    ) -> anyhow::Result<ConversationId> {
+    ) -> anyhow::Result<Conversation> {
         self.app
             .conversation_service()
             .create(workflow.into())
@@ -72,6 +72,16 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
         self.app.conversation_service().upsert(conversation).await
+    }
+
+    async fn compact_conversation(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<CompactionResult> {
+        self.app
+            .conversation_service()
+            .compact_conversation(conversation_id)
+            .await
     }
 
     fn environment(&self) -> Environment {
@@ -112,6 +122,17 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         self.app
             .conversation_service()
             .set_variable(conversation_id, key, value)
+            .await
+    }
+
+    async fn execute_shell_command(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<CommandOutput> {
+        self.app
+            .command_executor_service()
+            .execute_command(command.to_string(), working_dir)
             .await
     }
 }

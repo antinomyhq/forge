@@ -1,4 +1,4 @@
-use forge_api::{ConversationId, Usage};
+use forge_api::{ConversationId, Model, ModelId, Usage};
 use serde::Deserialize;
 
 use crate::prompt::ForgePrompt;
@@ -23,24 +23,27 @@ impl std::fmt::Display for Mode {
     }
 }
 
+//TODO: UIState and ForgePrompt seem like the same thing and can be merged
 /// State information for the UI
 #[derive(Default, Clone)]
 pub struct UIState {
-    pub current_title: Option<String>,
     pub conversation_id: Option<ConversationId>,
     pub usage: Usage,
     pub mode: Mode,
     pub is_first: bool,
+    pub model: Option<ModelId>,
+    pub cached_models: Option<Vec<Model>>,
 }
 
 impl UIState {
     pub fn new(mode: Mode) -> Self {
         Self {
-            current_title: Default::default(),
             conversation_id: Default::default(),
             usage: Default::default(),
             mode,
             is_first: true,
+            model: Default::default(),
+            cached_models: Default::default(),
         }
     }
 }
@@ -48,9 +51,9 @@ impl UIState {
 impl From<UIState> for ForgePrompt {
     fn from(state: UIState) -> Self {
         ForgePrompt {
-            title: state.current_title,
             usage: Some(state.usage),
             mode: state.mode,
+            model: state.model,
         }
     }
 }

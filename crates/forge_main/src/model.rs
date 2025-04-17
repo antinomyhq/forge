@@ -65,6 +65,7 @@ impl ForgeCommandManager {
         Command::iter()
             .filter(|command| !matches!(command, Command::Message(_)))
             .filter(|command| !matches!(command, Command::Custom(_)))
+            .filter(|command| !matches!(command, Command::Shell(_)))
             .map(|command| ForgeCommand {
                 name: command.name().to_string(),
                 description: command.usage().to_string(),
@@ -151,20 +152,33 @@ impl ForgeCommandManager {
 
     pub fn parse(&self, input: &str) -> anyhow::Result<Command> {
         let trimmed = input.trim();
+
+        // Check if it's a shell command (starts with !)
+        if trimmed.starts_with("!") {
+            let command = trimmed
+                .strip_prefix("!")
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            return Ok(Command::Shell(command));
+        }
+
+        // Check if it's a system command (starts with /)
         let is_command = trimmed.starts_with("/");
         if !is_command {
             return Ok(Command::Message(trimmed.to_string()));
         }
 
         match trimmed {
+            "/compact" => Ok(Command::Compact),
             "/new" => Ok(Command::New),
             "/info" => Ok(Command::Info),
             "/exit" => Ok(Command::Exit),
-            "/models" => Ok(Command::Models),
             "/dump" => Ok(Command::Dump),
             "/act" => Ok(Command::Act),
             "/plan" => Ok(Command::Plan),
             "/help" => Ok(Command::Help),
+            "/model" => Ok(Command::Model),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -195,6 +209,10 @@ impl ForgeCommandManager {
 /// - File content
 #[derive(Debug, Clone, PartialEq, Eq, EnumProperty, EnumIter)]
 pub enum Command {
+    /// Compact the conversation context. This can be triggered with the
+    /// '/compact' command.
+    #[strum(props(usage = "Compact the conversation context"))]
+    Compact,
     /// Start a new conversation while preserving history.
     /// This can be triggered with the '/new' command.
     #[strum(props(usage = "Start a new conversation"))]
@@ -210,9 +228,6 @@ pub enum Command {
     /// Exit the application without any further action.
     #[strum(props(usage = "Exit the application"))]
     Exit,
-    /// Lists the models available for use.
-    #[strum(props(usage = "List available models"))]
-    Models,
     /// Switch to "act" mode.
     /// This can be triggered with the '/act' command.
     #[strum(props(usage = "Enable implementation mode with code changes"))]
@@ -228,23 +243,33 @@ pub enum Command {
     /// Dumps the current conversation into a json file
     #[strum(props(usage = "Save conversation as JSON"))]
     Dump,
+    /// Switch or select the active model
+    /// This can be triggered with the '/model' command.
+    #[strum(props(usage = "Switch to a different model"))]
+    Model,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
+    /// Executes a native shell command.
+    /// This can be triggered with commands starting with '!' character.
+    #[strum(props(usage = "Execute a native shell command"))]
+    Shell(String),
 }
 
 impl Command {
     pub fn name(&self) -> &str {
         match self {
+            Command::Compact => "/compact",
             Command::New => "/new",
             Command::Message(_) => "/message",
             Command::Info => "/info",
             Command::Exit => "/exit",
-            Command::Models => "/models",
             Command::Act => "/act",
             Command::Plan => "/plan",
             Command::Help => "/help",
             Command::Dump => "/dump",
+            Command::Model => "/model",
             Command::Custom(event) => &event.name,
+            Command::Shell(_) => "!shell",
         }
     }
 
@@ -394,5 +419,63 @@ mod tests {
 
         // Verify - provided value should override default
         assert_eq!(result, Some(String::from("provided_value")));
+    }
+    #[test]
+    fn test_parse_shell_command() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("!ls -la").unwrap();
+
+        // Verify
+        match result {
+            Command::Shell(cmd) => assert_eq!(cmd, "ls -la"),
+            _ => panic!("Expected Shell command, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_parse_shell_command_empty() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("!").unwrap();
+
+        // Verify
+        match result {
+            Command::Shell(cmd) => assert_eq!(cmd, ""),
+            _ => panic!("Expected Shell command, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_parse_shell_command_with_whitespace() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("!   echo 'test'   ").unwrap();
+
+        // Verify
+        match result {
+            Command::Shell(cmd) => assert_eq!(cmd, "echo 'test'"),
+            _ => panic!("Expected Shell command, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_shell_command_not_in_default_commands() {
+        // Setup
+        let manager = ForgeCommandManager::default();
+        let commands = manager.list();
+
+        // The shell command should not be included
+        let contains_shell = commands.iter().any(|cmd| cmd.name == "!shell");
+        assert!(
+            !contains_shell,
+            "Shell command should not be in default commands"
+        );
     }
 }

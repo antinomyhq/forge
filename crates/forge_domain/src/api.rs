@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use forge_stream::MpscStream;
 use serde_json::Value;
@@ -32,7 +32,7 @@ pub trait API: Sync + Send {
     async fn init<W: Into<Workflow> + Send + Sync>(
         &self,
         config: W,
-    ) -> anyhow::Result<ConversationId>;
+    ) -> anyhow::Result<Conversation>;
 
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
@@ -48,6 +48,15 @@ pub trait API: Sync + Send {
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>>;
 
+    /// Compacts the context of the main agent for the given conversation and
+    /// persists it. Returns metrics about the compaction (original vs.
+    /// compacted tokens and messages).
+    async fn compact_conversation(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<CompactionResult>;
+
+    // TODO: This function can be remove since we now have the upsert_conversation
     /// Gets a variable from the conversation
     async fn get_variable(
         &self,
@@ -55,6 +64,7 @@ pub trait API: Sync + Send {
         key: &str,
     ) -> anyhow::Result<Option<Value>>;
 
+    // TODO: This function can be remove since we now have the upsert_conversation
     /// Sets a variable in the conversation
     async fn set_variable(
         &self,
@@ -62,4 +72,11 @@ pub trait API: Sync + Send {
         key: String,
         value: Value,
     ) -> anyhow::Result<()>;
+
+    /// Executes a shell command using the shell tool infrastructure
+    async fn execute_shell_command(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<CommandOutput>;
 }

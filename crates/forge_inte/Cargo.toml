@@ -9,7 +9,7 @@ forge_api.workspace = true
 futures.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
-serde_yaml.workspace = true
+serde_yml.workspace = true
 forge_tracker.workspace = true
 forge_domain.workspace = true
 

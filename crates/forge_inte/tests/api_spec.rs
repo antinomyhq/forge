@@ -48,7 +48,7 @@ impl Fixture {
         });
 
         // initialize the conversation by storing the workflow.
-        let conversation_id = api.init(workflow.clone()).await.unwrap();
+        let conversation_id = api.init(workflow.clone()).await.unwrap().id;
         let request = ChatRequest::new(
             Event::new(
                 "user_task_init",

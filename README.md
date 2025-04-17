@@ -1,49 +1,203 @@
+<h1 align="center">⚒️ Forge: AI-Enhanced Terminal Development Environment</h1>
+<p align="center">A comprehensive coding agent that integrates AI capabilities with your development environment</p>
+
+<p align="center"><code>npm install -g @antinomyhq/forge</code></p>
+
 [![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
 [![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
 [![Discord](https://img.shields.io/discord/1044859667798568962?style=for-the-badge&cacheSeconds=120&logo=discord)](https://discord.gg/kRZBPpkgwq)
 [![CLA assistant](https://cla-assistant.io/readme/badge/antinomyhq/forge?style=for-the-badge)](https://cla-assistant.io/antinomyhq/forge)
 
-# ⚒️ Forge: AI-Enhanced Terminal Development Environment
-
 ![Code-Forge Demo](https://assets.antinomy.ai/images/forge_demo_2x.gif)
 
-Forge is a comprehensive coding agent that integrates AI capabilities with your development environment, offering sophisticated assistance while maintaining the efficiency of your existing workflow. ✨
+---
 
-## 🚀 Installation
+<details>
+<summary><strong>Table&nbsp;of&nbsp;Contents</strong></summary>
 
-Install Forge globally using npm:
+- [Quickstart](#quickstart)
+- [Usage Examples](#usage-examples)
+- [Interactive Mode Examples](#interactive-mode-examples)
+- [Why Forge?](#why-forge)
+- [Command-Line Options](#command-line-options)
+- [Advanced Configuration](#advanced-configuration)
+  - [Provider Configuration](#provider-configuration)
+  - [forge.yaml Configuration Options](#forgeyaml-configuration-options)
+- [Documentation](#documentation)
+- [Community](#community)
+- [Support Us](#support-us)
+
+</details>
+
+---
+
+## Quickstart
+
+Install globally:
 
 ```bash
 npm install -g @antinomyhq/forge
 ```
 
-Or run directly without installation using npx:
-
-```bash
-npx @antinomyhq/forge
-```
-
-This method works on **Windows**, **macOS**, and **Linux**, providing a consistent installation experience across all platforms.
-
-## 🔌 Provider Configuration
-
-Forge requires two configuration files in your project directory:
-
-1. A `.env` file with your API credentials
-2. A `forge.yaml` file specifying additional settings
-
-Below are setup instructions for each supported provider:
-
-### OpenRouter (Recommended)
+Set up your OpenRouter API key:
 
 ```bash
 # .env
 OPENROUTER_API_KEY=<your_openrouter_api_key>
 ```
 
-_No changes in `forge.yaml` is required_
+> **Note:** You can get an API key by signing up at [OpenRouter](https://openrouter.ai/)
 
-### OpenAI
+Run Forge in interactive mode:
+
+```bash
+forge
+```
+
+That's it! Forge is now ready to assist you with your development tasks.
+
+---
+
+## Usage Examples
+
+Forge can be used in different ways depending on your needs. Here are some common usage patterns:
+
+| Command                                                    | Description                                                                                                   |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `forge`                                                    | Start Forge in interactive mode. This opens a prompt where you can have a conversation with the AI assistant. |
+| `forge -p "Explain how this React component works"`        | Process a single prompt without entering interactive mode                                                     |
+| `forge -p "Generate unit tests for utils/format.js"`       | Ask Forge to generate tests for a specific file                                                               |
+| `forge -p "Refactor this function to improve performance"` | Request code optimization with a specific goal                                                                |
+| `forge -c commands.txt`                                    | Execute commands from a file, then continue in interactive mode                                               |
+| `forge --workflow custom-workflow.yaml`                    | Execute a custom workflow                                                                                     |
+| `forge --verbose`                                          | Run with verbose output to see additional debugging information                                               |
+
+> **Note:** Unlike some other AI tools, Forge doesn't support direct prompting without flags. Always use the `-p` or `--prompt` flag when providing a direct prompt.
+
+---
+
+## Interactive Mode Examples
+
+When you run `forge` with no arguments, you enter interactive mode, which is the most flexible way to use Forge. Here are some examples of what you can do in an interactive session:
+
+### Code Understanding
+
+```
+> Can you explain how the authentication system works in this codebase?
+```
+
+Forge will analyze your project's structure, identify authentication-related files, and provide a detailed explanation of the authentication flow, including the relationships between different components.
+
+### Implementing New Features
+
+```
+> I need to add a dark mode toggle to our React application. How should I approach this?
+```
+
+Forge will suggest the best approach based on your current codebase, explain the steps needed, and even scaffold the necessary components and styles for you.
+
+### Debugging Assistance
+
+```
+> I'm getting this error: "TypeError: Cannot read property 'map' of undefined". What might be causing it?
+```
+
+Forge will analyze the error, suggest potential causes based on your code, and propose different solutions to fix the issue.
+
+### Code Reviews
+
+```
+> Please review the code in src/components/UserProfile.js and suggest improvements
+```
+
+Forge will analyze the code, identify potential issues, and suggest improvements for readability, performance, security, and maintainability.
+
+### Learning New Technologies
+
+```
+> I want to integrate GraphQL into this Express application. Can you explain how to get started?
+```
+
+Forge will provide a tailored tutorial on integrating GraphQL with Express, using your specific project structure as context.
+
+### Database Schema Design
+
+```
+> I need to design a database schema for a blog with users, posts, comments, and categories
+```
+
+Forge will suggest an appropriate schema design, including tables/collections, relationships, indexes, and constraints based on your project's existing database technology.
+
+### Refactoring Legacy Code
+
+```
+> Help me refactor this class-based component to use React Hooks
+```
+
+Forge can help modernize your codebase by walking you through refactoring steps and implementing them with your approval.
+
+### Git Operations
+
+```
+> I need to merge branch 'feature/user-profile' into main but there are conflicts
+```
+
+Forge can guide you through resolving git conflicts, explaining the differences and suggesting the best way to reconcile them.
+
+---
+
+## Why Forge?
+
+Forge is designed for developers who want to enhance their workflow with AI assistance while maintaining full control over their development environment.
+
+- **Zero configuration** - Just add your API key and you're ready to go
+- **Seamless integration** - Works right in your terminal, where you already work
+- **Multi-provider support** - Use OpenAI, Anthropic, or other LLM providers
+- **Secure by design** - Your code stays on your machine
+- **Open-source** - Transparent, extensible, and community-driven
+
+Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
+
+---
+
+## Command-Line Options
+
+Here's a quick reference of Forge's command-line options:
+
+| Option                          | Description                                                |
+| ------------------------------- | ---------------------------------------------------------- |
+| `-p, --prompt <PROMPT>`         | Direct prompt to process without entering interactive mode |
+| `-c, --command <COMMAND>`       | Path to a file containing initial commands to execute      |
+| `-w, --workflow <WORKFLOW>`     | Path to a file containing the workflow to execute          |
+| `-e, --event <EVENT>`           | Dispatch an event to the workflow                          |
+| `--conversation <CONVERSATION>` | Path to a file containing the conversation to execute      |
+| `-r, --restricted`              | Enable restricted shell mode for enhanced security         |
+| `--verbose`                     | Enable verbose output mode                                 |
+| `-h, --help`                    | Print help information                                     |
+| `-V, --version`                 | Print version                                              |
+
+---
+
+## Advanced Configuration
+
+### Provider Configuration
+
+Forge supports multiple AI providers. Below are setup instructions for each supported provider:
+
+<details>
+<summary><strong>OpenRouter (Recommended)</strong></summary>
+
+```bash
+# .env
+OPENROUTER_API_KEY=<your_openrouter_api_key>
+```
+
+_No changes in `forge.yaml` required_
+
+</details>
+
+<details>
+<summary><strong>OpenAI</strong></summary>
 
 ```bash
 # .env
@@ -55,7 +209,10 @@ OPENAI_API_KEY=<your_openai_api_key>
 model: o3-mini-high
 ```
 
-### Anthropic
+</details>
+
+<details>
+<summary><strong>Anthropic</strong></summary>
 
 ```bash
 # .env
@@ -67,7 +224,10 @@ ANTHROPIC_API_KEY=<your_anthropic_api_key>
 model: claude-3.7-sonnet
 ```
 
-### Google Vertex AI
+</details>
+
+<details>
+<summary><strong>Google Vertex AI</strong></summary>
 
 ```bash
 # .env
@@ -82,7 +242,10 @@ OPENAI_URL=https://${LOCATION}-aiplatform.googleapis.com/v1beta1/projects/${PROJ
 model: publishers/anthropic/models/claude-3-7-sonnet
 ```
 
-### OpenAI-Compatible Providers
+</details>
+
+<details>
+<summary><strong>OpenAI-Compatible Providers</strong></summary>
 
 ```bash
 # .env
@@ -95,7 +258,10 @@ OPENAI_URL=<your_provider_url>
 model: <provider-specific-model>
 ```
 
-### Amazon Bedrock
+</details>
+
+<details>
+<summary><strong>Amazon Bedrock</strong></summary>
 
 To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedrock Access Gateway](https://github.com/aws-samples/bedrock-access-gateway):
 
@@ -119,9 +285,14 @@ To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedroc
    model: anthropic.claude-3-opus
    ```
 
-### Advanced Configuration Options
+   </details>
 
-#### `custom_rules`
+### forge.yaml Configuration Options
+
+The `forge.yaml` file supports several advanced configuration options that let you customize Forge's behavior.
+
+<details>
+<summary><strong>Custom Rules</strong></summary>
 
 Add your own guidelines that all agents should follow when generating responses.
 
@@ -133,11 +304,12 @@ custom_rules: |
   3. Follow our team's naming convention: camelCase for variables, PascalCase for classes.
 ```
 
-The `forge.yaml` file supports several advanced configuration options that let you customize Forge's behavior. Here's a comprehensive list of available fields:
+</details>
 
-#### `commands`
+<details>
+<summary><strong>Commands</strong></summary>
 
-Define custom commands that as shortcuts for repetitive prompts:
+Define custom commands as shortcuts for repetitive prompts:
 
 ```yaml
 # forge.yaml
@@ -147,7 +319,10 @@ commands:
     prompt: "Please refactor this code to improve readability and performance"
 ```
 
-#### `model`
+</details>
+
+<details>
+<summary><strong>Model</strong></summary>
 
 Specify the default AI model to use for all agents in the workflow.
 
@@ -156,7 +331,10 @@ Specify the default AI model to use for all agents in the workflow.
 model: "claude-3.7-sonnet"
 ```
 
-#### `max_walker_depth`
+</details>
+
+<details>
+<summary><strong>Max Walker Depth</strong></summary>
 
 Control how deeply Forge traverses your project directory structure when gathering context.
 
@@ -165,7 +343,10 @@ Control how deeply Forge traverses your project directory structure when gatheri
 max_walker_depth: 3 # Limit directory traversal to 3 levels deep
 ```
 
-#### `temperature`
+</details>
+
+<details>
+<summary><strong>Temperature</strong></summary>
 
 Adjust the creativity and randomness in AI responses. Lower values (0.0-0.3) produce more focused, deterministic outputs, while higher values (0.7-2.0) generate more diverse and creative results.
 
@@ -174,19 +355,27 @@ Adjust the creativity and randomness in AI responses. Lower values (0.0-0.3) pro
 temperature: 0.7 # Balanced creativity and focus
 ```
 
-## 📚 Documentation
+</details>
+
+---
+
+## Documentation
 
 For comprehensive documentation on all features and capabilities, please visit the [documentation site](https://github.com/antinomyhq/forge/tree/main/docs).
 
-## 🤝 Community
+---
 
-Join our vibrant Discord community to connect with other Code-Forge users and contributors, get help with your projects, share ideas, and provide feedback! 🌟
+## Community
+
+Join our vibrant Discord community to connect with other Forge users and contributors, get help with your projects, share ideas, and provide feedback!
 
 [![Discord](https://img.shields.io/discord/1044859667798568962?style=for-the-badge&cacheSeconds=120&logo=discord)](https://discord.gg/kRZBPpkgwq)
 
-## ⭐ Support Us
+---
 
-Your support drives Code-Forge's continued evolution! By starring our GitHub repository, you:
+## Support Us
+
+Your support drives Forge's continued evolution! By starring our GitHub repository, you:
 
 - Help others discover this powerful tool 🔍
 - Motivate our development team 💪

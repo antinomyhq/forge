@@ -1,59 +1,63 @@
 commands:
   - name: fixme
     description: Looks for all the fixme comments in the code and attempts to fix them
-    value: |
+    prompt: |-
       Find all the FIXME comments in source-code files and attempt to fix them.
-agents:
-  - id: software-engineer
-    max_walker_depth: 1024
-    subscribe:
-      - fixme
-    custom_rules: |
-      Handling Errors:
+  - name: pr-description
+    description: Updates the description of the PR
+    prompt: |-
+      - I have created a Pull Request with all the accepted changes
+      - Understand the current PR deeply using the GH CLI and update the PR title and description
+      - Make sure the title follows conventional commits standard
+      - Top-level summary should contain 2-3 lines about the core functionality improvements
+max_walker_depth: 1024
+custom_rules: |-
+  Handling Errors:
 
-      - Use `anyhow::Result` for error handling in services and repositories.
-      - Create domain errors using `thiserror`.
-      - Never implement `From` for converting domain errors, manually convert them
+  - Use `anyhow::Result` for error handling in services and repositories.
+  - Create domain errors using `thiserror`.
+  - Never implement `From` for converting domain errors, manually convert them
 
-      Writing Tests:
+  Writing Tests:
 
-      - All tests should be written in three discrete steps:
+  - All tests should be written in three discrete steps:
 
-        ```rust
-        use pretty_assertions::assert_eq; // Always use pretty assertions
+    ```rust
+    use pretty_assertions::assert_eq; // Always use pretty assertions
 
-        fn test_foo() {
-            let fixture = ...; // Instantiate a fixture for the test
-            let actual = ...; // Use the fixture to write a test
-            let expected = ...; // Define a hand written expected result
-            assert_eq!(actual, expected); // Assert that the actual result matches the expected result
-        }
-        ```
+    fn test_foo() {
+        let fixture = ...; // Instantiate a fixture for the test
+        let actual = ...; // Use the fixture to write a test
+        let expected = ...; // Define a hand written expected result
+        assert_eq!(actual, expected); // Assert that the actual result matches the expected result
+    }
+    ```
 
-      - Use `pretty_assertions` for better error messages.
-      - Use fixtures to create test data.
-      - Use `assert_eq!` for equality checks.
-      - Use `assert!(...)` for boolean checks.
-      - Use unwraps in test functions and anyhow::Result in fixtures.
-      - Keep the boilerplate to a minimum.
-      - Use words like `fixture`, `actual` and `expected` in test functions.
-      - Fixtures should be generic and reusable.
-      - Test should always be written in the same file as the source code.
+  - Use `pretty_assertions` for better error messages.
+  - Use fixtures to create test data.
+  - Use `assert_eq!` for equality checks.
+  - Use `assert!(...)` for boolean checks.
+  - Use unwraps in test functions and anyhow::Result in fixtures.
+  - Keep the boilerplate to a minimum.
+  - Use words like `fixture`, `actual` and `expected` in test functions.
+  - Fixtures should be generic and reusable.
+  - Test should always be written in the same file as the source code.
 
-      Running Tests:
-      - We use `insta` to run tests:
-      ```
-      cargo insta test --accept --unreferenced=delete       
-      ```
-      
-      Verification:
-      - run the following command to format and validate if the code is working:
-        ```
-        cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
-        ```
-      
-      Writing Domain Types:
-      - Use `derive_setters` to derive setters and use the `strip_option` and the `into` attributes on the struct types.
+  Running Tests:
+  - We use `insta` to run tests:
+  ```
+  cargo insta test --accept --unreferenced=delete       
+  ```
 
-      Refactoring:
-      - If asked to fix failing tests, always confirm whether to update the implementation or the tests.
+  Verification:
+  - run the following command to format and validate if the code is working:
+    ```
+    cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
+    ```
+
+  Writing Domain Types:
+  - Use `derive_setters` to derive setters and use the `strip_option` and the `into` attributes on the struct types.
+
+
+  Refactoring:
+  - If asked to fix failing tests, always confirm whether to update the implementation or the tests.

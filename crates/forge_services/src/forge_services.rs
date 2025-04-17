@@ -3,6 +3,7 @@ use std::sync::Arc;
 use forge_domain::Services;
 
 use crate::attachment::ForgeChatRequest;
+use crate::compaction::ForgeCompactionService;
 use crate::conversation::ForgeConversationService;
 use crate::mcp::ForgeMcpService;
 use crate::provider::ForgeProviderService;
@@ -20,23 +21,44 @@ use crate::Infrastructure;
 pub struct ForgeServices<F> {
     infra: Arc<F>,
     tool_service: Arc<ForgeToolService<ForgeMcpService>>,
-    provider_service: ForgeProviderService,
-    conversation_service: ForgeConversationService,
-    prompt_service: ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>,
-    attachment_service: ForgeChatRequest<F>,
+    provider_service: Arc<ForgeProviderService>,
+    conversation_service: Arc<
+        ForgeConversationService<
+            ForgeCompactionService<ForgeTemplateService<F, ForgeToolService>, ForgeProviderService>,
+        >,
+    >,
+    template_service: Arc<ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>>,
+    attachment_service: Arc<ForgeChatRequest<F>>,
+    compaction_service: Arc<
+        ForgeCompactionService<ForgeTemplateService<F, ForgeToolService>, ForgeProviderService>,
+    >,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let mcp_service = Arc::new(ForgeMcpService::new());
         let tool_service = Arc::new(ForgeToolService::new(infra.clone(), mcp_service));
+        let template_service = Arc::new(ForgeTemplateService::new(
+            infra.clone(),
+            tool_service.clone(),
+        ));
+        let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
+        let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
+        let compaction_service = Arc::new(ForgeCompactionService::new(
+            template_service.clone(),
+            provider_service.clone(),
+        ));
+
+        let conversation_service =
+            Arc::new(ForgeConversationService::new(compaction_service.clone()));
         Self {
-            infra: infra.clone(),
-            provider_service: ForgeProviderService::new(infra.clone()),
-            conversation_service: ForgeConversationService::new(),
-            prompt_service: ForgeTemplateService::new(infra.clone(), tool_service.clone()),
+            infra,
+            conversation_service,
             tool_service,
-            attachment_service: ForgeChatRequest::new(infra.clone()),
+            attachment_service,
+            compaction_service,
+            provider_service,
+            template_service,
         }
     }
 }
@@ -44,10 +66,11 @@ impl<F: Infrastructure> ForgeServices<F> {
 impl<F: Infrastructure> Services for ForgeServices<F> {
     type ToolService = ForgeToolService<ForgeMcpService>;
     type ProviderService = ForgeProviderService;
-    type ConversationService = ForgeConversationService;
-    type TemplateService = ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>;
+    type ConversationService = ForgeConversationService<Self::CompactionService>;
+    type TemplateService = ForgeTemplateService<F, Self::ToolService>;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
+    type CompactionService = ForgeCompactionService<Self::TemplateService, Self::ProviderService>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -62,7 +85,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     }
 
     fn template_service(&self) -> &Self::TemplateService {
-        &self.prompt_service
+        &self.template_service
     }
 
     fn attachment_service(&self) -> &Self::AttachmentService {
@@ -71,6 +94,10 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
+    }
+
+    fn compaction_service(&self) -> &Self::CompactionService {
+        self.compaction_service.as_ref()
     }
 }
 
@@ -82,6 +109,7 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     type FsSnapshotService = F::FsSnapshotService;
     type FsRemoveService = F::FsRemoveService;
     type FsCreateDirsService = F::FsCreateDirsService;
+    type CommandExecutorService = F::CommandExecutorService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
@@ -109,5 +137,9 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
 
     fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
         self.infra.create_dirs_service()
+    }
+
+    fn command_executor_service(&self) -> &Self::CommandExecutorService {
+        self.infra.command_executor_service()
     }
 }

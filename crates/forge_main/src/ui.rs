@@ -3,10 +3,14 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, API,
+    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
+    API,
 };
 use forge_display::TitleFormat;
 use forge_fs::ForgeFS;
+use inquire::error::InquireError;
+use inquire::ui::{RenderConfig, Styled};
+use inquire::Select;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
@@ -25,7 +29,6 @@ use crate::{banner, TRACKER};
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
 pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
 pub const EVENT_USER_HELP_QUERY: &str = "user_help_query";
-pub const EVENT_TITLE: &str = "title";
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
 pub struct PartialEvent {
@@ -51,12 +54,22 @@ pub struct UI<F> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    models: Option<Vec<Model>>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
 
 impl<F: API> UI<F> {
+    /// Retrieve available models, using cache if present
+    async fn get_models(&mut self) -> Result<Vec<Model>> {
+        if let Some(models) = &self.state.cached_models {
+            Ok(models.clone())
+        } else {
+            let models = self.api.models().await?;
+            self.state.cached_models = Some(models.clone());
+            Ok(models)
+        }
+    }
+
     // Set the current mode and update conversation variable
     async fn handle_mode_change(&mut self, mode: Mode) -> Result<()> {
         // Set the mode variable in the conversation if a conversation exists
@@ -110,7 +123,6 @@ impl<F: API> UI<F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            models: None,
             _guard: forge_tracker::init_tracing(env.log_path())?,
         })
     }
@@ -145,6 +157,25 @@ impl<F: API> UI<F> {
 
         loop {
             match input {
+                Command::Compact => {
+                    let conversation_id = self.init_conversation().await?;
+                    let compaction_result = self.api.compact_conversation(&conversation_id).await?;
+
+                    // Calculate percentage reduction
+                    let token_reduction = compaction_result.token_reduction_percentage();
+                    let message_reduction = compaction_result.message_reduction_percentage();
+
+                    CONSOLE.writeln(
+                        TitleFormat::execute("compact")
+                            .sub_title(format!(
+                                "context size reduced by {:.1}% (tokens), {:.1}% (messages)",
+                                token_reduction, message_reduction
+                            ))
+                            .format(),
+                    )?;
+                    input = self.prompt().await?;
+                    continue;
+                }
                 Command::Dump => {
                     self.handle_dump().await?;
                     input = self.prompt().await?;
@@ -214,28 +245,7 @@ impl<F: API> UI<F> {
 
                     break;
                 }
-                Command::Models => {
-                    let models = if let Some(models) = self.models.as_ref() {
-                        models
-                    } else {
-                        match self.api.models().await {
-                            Ok(models) => {
-                                self.models = Some(models);
-                                self.models.as_ref().unwrap()
-                            }
-                            Err(err) => {
-                                CONSOLE
-                                    .writeln(TitleFormat::failed(format!("{:?}", err)).format())?;
-                                input = self.prompt().await?;
-                                continue;
-                            }
-                        }
-                    };
-                    let info: Info = models.as_slice().into();
-                    CONSOLE.writeln(info.to_string())?;
 
-                    input = self.prompt().await?;
-                }
                 Command::Custom(event) => {
                     if let Err(e) = self.dispatch_event(event.into()).await {
                         CONSOLE.writeln(
@@ -248,7 +258,88 @@ impl<F: API> UI<F> {
 
                     input = self.prompt().await?;
                 }
+                Command::Model => {
+                    self.handle_model_selection().await?;
+                    input = self.prompt().await?;
+                    continue;
+                }
+                Command::Shell(ref command) => {
+                    // Execute the shell command using the existing infrastructure
+                    // Get the working directory from the environment service instead of std::env
+                    let cwd = self.api.environment().cwd;
+
+                    // Execute the command
+                    let _ = self.api.execute_shell_command(command, cwd).await;
+
+                    input = self.prompt().await?;
+                    continue;
+                }
             }
+        }
+
+        Ok(())
+    }
+
+    // Helper method to handle model selection and update the conversation
+    async fn handle_model_selection(&mut self) -> Result<()> {
+        // Fetch available models
+        let models = self.get_models().await?;
+
+        // Create list of model IDs for selection
+        let model_ids: Vec<ModelId> = models.into_iter().map(|m| m.id).collect();
+
+        // Create a custom render config with the specified icons
+        let render_config = RenderConfig::default()
+            .with_scroll_up_prefix(Styled::new("⇡"))
+            .with_scroll_down_prefix(Styled::new("⇣"))
+            .with_highlighted_option_prefix(Styled::new("➤"));
+
+        // Find the index of the current model
+        let starting_cursor = self
+            .state
+            .model
+            .as_ref()
+            .and_then(|current| model_ids.iter().position(|id| id == current))
+            .unwrap_or(0);
+
+        // Use inquire to select a model, with the current model pre-selected
+        let model = match Select::new("Select a model:", model_ids)
+            .with_help_message("Use arrow keys to navigate and Enter to select")
+            .with_render_config(render_config)
+            .with_starting_cursor(starting_cursor)
+            .prompt()
+        {
+            Ok(model) => model,
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                return Ok(())
+            }
+            Err(err) => return Err(err.into()),
+        };
+
+        // Get the conversation to update
+        let conversation_id = self.init_conversation().await?;
+
+        if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
+            // Update the model in the conversation
+            conversation.set_main_model(model.clone())?;
+
+            // Upsert the updated conversation
+            self.api.upsert_conversation(conversation).await?;
+
+            // Update the UI state with the new model
+            self.state.model = Some(model.clone());
+
+            CONSOLE.writeln(
+                TitleFormat::success("model")
+                    .sub_title(format!("switched to: {}", model))
+                    .format(),
+            )?;
+        } else {
+            CONSOLE.writeln(
+                TitleFormat::failed("model")
+                    .error("Failed to update model: conversation not found")
+                    .format(),
+            )?;
         }
 
         Ok(())
@@ -287,6 +378,7 @@ impl<F: API> UI<F> {
                 self.state = UIState::new(mode);
                 self.command.register_all(&config);
 
+                // We need to try and get the conversation ID first before fetching the model
                 if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation = serde_json::from_str(
                         ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
@@ -294,13 +386,15 @@ impl<F: API> UI<F> {
                     .context("Failed to parse Conversation")?;
 
                     let conversation_id = conversation.id.clone();
+                    self.state.model = Some(conversation.main_model()?);
                     self.state.conversation_id = Some(conversation_id.clone());
                     self.api.upsert_conversation(conversation).await?;
                     Ok(conversation_id)
                 } else {
-                    let conversation_id = self.api.init(config.clone()).await?;
-                    self.state.conversation_id = Some(conversation_id.clone());
-                    Ok(conversation_id)
+                    let conversation = self.api.init(config.clone()).await?;
+                    self.state.model = Some(conversation.main_model()?);
+                    self.state.conversation_id = Some(conversation.id.clone());
+                    Ok(conversation.id)
                 }
             }
         }
@@ -353,15 +447,7 @@ impl<F: API> UI<F> {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-                let path = self
-                    .state
-                    .current_title
-                    .as_ref()
-                    .map_or(format!("{timestamp}"), |title| {
-                        format!("{timestamp}-{title}")
-                    });
-
-                let path = format!("{path}-dump.json");
+                let path = format!("{timestamp}-dump.json");
 
                 let content = serde_json::to_string_pretty(&conversation)?;
                 tokio::fs::write(path.as_str(), content).await?;
@@ -387,7 +473,7 @@ impl<F: API> UI<F> {
         match message.message {
             ChatResponse::Text { text: content, is_complete } => {
                 if is_complete {
-                    CONSOLE.writeln(&content)?;
+                    CONSOLE.writeln(content.trim())?;
                 } else {
                     CONSOLE.write(content.dimmed().to_string())?;
                 }
@@ -411,11 +497,8 @@ impl<F: API> UI<F> {
                     CONSOLE.writeln(TitleFormat::success(tool_name).format())?;
                 }
             }
-            ChatResponse::Event(event) => {
-                if event.name == EVENT_TITLE {
-                    self.state.current_title =
-                        Some(event.value.as_str().unwrap_or_default().to_string());
-                }
+            ChatResponse::Event(_event) => {
+                // Event handling removed
             }
             ChatResponse::Usage(u) => {
                 self.state.usage = u;

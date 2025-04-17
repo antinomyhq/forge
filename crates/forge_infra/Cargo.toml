@@ -17,3 +17,4 @@ serde_json.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 bytes.workspace = true
+pretty_assertions.workspace = true

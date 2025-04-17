@@ -12,7 +12,6 @@ use tokio_retry::RetryIf;
 use tracing::debug;
 
 // Use retry_config default values directly in this file
-use crate::compaction::ContextCompactor;
 use crate::services::Services;
 use crate::*;
 
@@ -31,11 +30,10 @@ impl<T> AgentMessage<T> {
 }
 
 #[derive(Clone)]
-pub struct Orchestrator<App> {
-    services: Arc<App>,
+pub struct Orchestrator<Services> {
+    services: Arc<Services>,
     sender: Option<ArcSender>,
     conversation: Arc<RwLock<Conversation>>,
-    compactor: ContextCompactor<App>,
     retry_strategy: std::iter::Take<tokio_retry::strategy::ExponentialBackoff>,
 }
 
@@ -62,7 +60,6 @@ impl<A: Services> Orchestrator<A> {
             .take(env.retry_config.max_retry_attempts);
 
         Self {
-            compactor: ContextCompactor::new(services.clone()),
             services,
             sender,
             retry_strategy,
@@ -385,7 +382,8 @@ impl<A: Services> Orchestrator<A> {
             // Check if context requires compression
             // Only pass prompt_tokens for compaction decision
             context = self
-                .compactor
+                .services
+                .compaction_service()
                 .compact_context(
                     agent,
                     context,

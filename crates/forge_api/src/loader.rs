@@ -55,7 +55,7 @@ impl<F: Infrastructure> ForgeLoaderService<F> {
     /// Loads a workflow from a specific file path
     async fn load_from_explicit_path(&self, path: &Path) -> anyhow::Result<Workflow> {
         let content = String::from_utf8(self.0.file_read_service().read(path).await?.to_vec())?;
-        let workflow: Workflow = serde_yaml::from_str(&content)
+        let workflow: Workflow = serde_yml::from_str(&content)
             .with_context(|| format!("Failed to parse workflow from {}", path.display()))?;
         Ok(workflow)
     }
@@ -73,7 +73,7 @@ impl<F: Infrastructure> ForgeLoaderService<F> {
         )?;
 
         let project_workflow: Workflow =
-            serde_yaml::from_str(&project_content).with_context(|| {
+            serde_yml::from_str(&project_content).with_context(|| {
                 format!(
                     "Failed to parse project workflow: {}",
                     project_path.display()

@@ -7,8 +7,8 @@ use serde_json::Value;
 use tokio::task::JoinError;
 
 use crate::{
-    Agent, Attachment, ChatCompletionMessage, Compact, Context, Conversation, ConversationId,
-    Environment, Event, EventContext, McpConfig, Model, ModelId, ResultStream, SystemContext,
+    Agent, Attachment, ChatCompletionMessage, Compact, CompactionResult, Context, Conversation,
+    ConversationId, Environment, Event, EventContext, McpConfig, Model, ModelId, ResultStream, SystemContext,
     Template, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 
@@ -59,12 +59,22 @@ pub trait ToolService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait CompactionService: Send + Sync {
+    async fn compact_context(
+        &self,
+        agent: &Agent,
+        context: Context,
+        prompt_tokens: Option<usize>,
+    ) -> anyhow::Result<Context>;
+}
+
+#[async_trait::async_trait]
 pub trait ConversationService: Send + Sync {
     async fn find(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>>;
 
     async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()>;
 
-    async fn create(&self, workflow: Workflow) -> anyhow::Result<ConversationId>;
+    async fn create(&self, workflow: Workflow) -> anyhow::Result<Conversation>;
 
     async fn get_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<Option<Value>>;
 
@@ -81,6 +91,11 @@ pub trait ConversationService: Send + Sync {
     async fn update<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send;
+
+    /// Compacts the context of the main agent for the given conversation and
+    /// persists it. Returns metrics about the compaction (original vs.
+    /// compacted tokens and messages).
+    async fn compact_conversation(&self, id: &ConversationId) -> anyhow::Result<CompactionResult>;
 }
 
 #[async_trait::async_trait]
@@ -130,6 +145,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
     type EnvironmentService: EnvironmentService;
+    type CompactionService: CompactionService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -137,4 +153,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
     fn environment_service(&self) -> &Self::EnvironmentService;
+    fn compaction_service(&self) -> &Self::CompactionService;
 }

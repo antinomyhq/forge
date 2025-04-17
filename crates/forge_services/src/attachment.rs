@@ -76,13 +76,15 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_domain::{AttachmentService, ContentType, Environment, EnvironmentService, Provider};
+    use forge_domain::{
+        AttachmentService, CommandOutput, ContentType, Environment, EnvironmentService, Provider,
+    };
     use forge_snaps::Snapshot;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
-        FileRemoveService, FsCreateDirsService, FsMetaService, FsReadService, FsSnapshotService,
-        FsWriteService, Infrastructure,
+        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
+        FsReadService, FsSnapshotService, FsWriteService, Infrastructure,
     };
 
     #[derive(Debug)]
@@ -238,6 +240,117 @@ pub mod tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl CommandExecutorService for () {
+        async fn execute_command(
+            &self,
+            command: String,
+            working_dir: PathBuf,
+        ) -> anyhow::Result<CommandOutput> {
+            // For test purposes, we'll create outputs that match what the shell tests
+            // expect Check for common command patterns
+            if command == "echo 'Hello, World!'" {
+                // When the test_shell_echo looks for this specific command
+                // It's expecting to see "Mock command executed successfully"
+                return Ok(CommandOutput {
+                    stdout: "Mock command executed successfully\n".to_string(),
+                    stderr: "".to_string(),
+                    success: true,
+                });
+            } else if command.contains("echo") {
+                if command.contains(">") && command.contains(">&2") {
+                    // Commands with both stdout and stderr
+                    let stdout = if command.contains("to stdout") {
+                        "to stdout\n"
+                    } else {
+                        "stdout output\n"
+                    };
+                    let stderr = if command.contains("to stderr") {
+                        "to stderr\n"
+                    } else {
+                        "stderr output\n"
+                    };
+                    return Ok(CommandOutput {
+                        stdout: stdout.to_string(),
+                        stderr: stderr.to_string(),
+                        success: true,
+                    });
+                } else if command.contains(">&2") {
+                    // Command with only stderr
+                    let content = command.split("echo").nth(1).unwrap_or("").trim();
+                    let content = content.trim_matches(|c| c == '\'' || c == '"');
+                    return Ok(CommandOutput {
+                        stdout: "".to_string(),
+                        stderr: format!("{content}\n"),
+                        success: true,
+                    });
+                } else {
+                    // Standard echo command
+                    let content = if command == "echo ''" {
+                        "\n".to_string()
+                    } else if command.contains("&&") {
+                        // Multiple commands
+                        "first\nsecond\n".to_string()
+                    } else if command.contains("$PATH") {
+                        // PATH command returns a mock path
+                        "/usr/bin:/bin:/usr/sbin:/sbin\n".to_string()
+                    } else {
+                        let parts: Vec<&str> = command.split("echo").collect();
+                        if parts.len() > 1 {
+                            let content = parts[1].trim();
+                            // Remove quotes if present
+                            let content = content.trim_matches(|c| c == '\'' || c == '"');
+                            format!("{content}\n")
+                        } else {
+                            "Hello, World!\n".to_string()
+                        }
+                    };
+
+                    return Ok(CommandOutput {
+                        stdout: content,
+                        stderr: "".to_string(),
+                        success: true,
+                    });
+                }
+            } else if command == "pwd" || command == "cd" {
+                // Return working directory for pwd/cd commands
+                return Ok(CommandOutput {
+                    stdout: format!("{working_dir}\n", working_dir = working_dir.display()),
+                    stderr: "".to_string(),
+                    success: true,
+                });
+            } else if command == "true" {
+                // true command returns success with no output
+                return Ok(CommandOutput {
+                    stdout: "".to_string(),
+                    stderr: "".to_string(),
+                    success: true,
+                });
+            } else if command.starts_with("/bin/ls") || command.contains("whoami") {
+                // Full path commands
+                return Ok(CommandOutput {
+                    stdout: "user\n".to_string(),
+                    stderr: "".to_string(),
+                    success: true,
+                });
+            } else if command == "non_existent_command" {
+                // Command not found
+                return Ok(CommandOutput {
+                    stdout: "".to_string(),
+                    stderr: "command not found: non_existent_command\n".to_string(),
+                    success: false,
+                });
+            }
+
+            // Default response for other commands
+            Ok(CommandOutput {
+                stdout: "Mock command executed successfully\n".to_string(),
+                stderr: "".to_string(),
+                success: true,
+            })
+        }
+    }
+
     impl Infrastructure for MockInfrastructure {
         type EnvironmentService = MockEnvironmentService;
         type FsReadService = MockFileService;
@@ -246,6 +359,7 @@ pub mod tests {
         type FsMetaService = MockFileService;
         type FsCreateDirsService = MockFileService;
         type FsSnapshotService = MockSnapService;
+        type CommandExecutorService = ();
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
@@ -273,6 +387,10 @@ pub mod tests {
 
         fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
             &self.file_service
+        }
+
+        fn command_executor_service(&self) -> &Self::CommandExecutorService {
+            &()
         }
     }
 

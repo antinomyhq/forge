@@ -3,24 +3,24 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use forge_domain::{
+    extract_tag_content, Agent, ChatCompletionMessage, Compact, CompactionService, Context,
+    ContextMessage, ProviderService, Role, TemplateService,
+};
 use futures::StreamExt;
 use tracing::{debug, info};
 
-use crate::{
-    extract_tag_content, Agent, ChatCompletionMessage, Compact, Context, ContextMessage,
-    ProviderService, Role, Services, TemplateService,
-};
-
 /// Handles the compaction of conversation contexts to manage token usage
 #[derive(Clone)]
-pub struct ContextCompactor<Services> {
-    services: Arc<Services>,
+pub struct ForgeCompactionService<T, P> {
+    template: Arc<T>,
+    provider: Arc<P>,
 }
 
-impl<S: Services> ContextCompactor<S> {
+impl<T: TemplateService, P: ProviderService> ForgeCompactionService<T, P> {
     /// Creates a new ContextCompactor instance
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+    pub fn new(template: Arc<T>, provider: Arc<P>) -> Self {
+        Self { template, provider }
     }
 
     /// Check if compaction is needed and compact the context if so
@@ -92,6 +92,12 @@ impl<S: Services> ContextCompactor<S> {
             "Created context compaction summary"
         );
 
+        let summary = format!(
+            r#"Continuing from a prior analysis. Below is a compacted summary of the ongoing session. Use this summary as authoritative context for your reasoning and decision-making. You do not need to repeat or reanalyze it unless specifically asked: <summary>{}</summary> Proceed based on this context.
+        "#,
+            summary
+        );
+
         // Replace the sequence with a single summary message using splice
         // This removes the sequence and inserts the summary message in-place
         context.messages.splice(
@@ -115,8 +121,7 @@ impl<S: Services> ContextCompactor<S> {
 
         // Render the summarization prompt
         let prompt = self
-            .services
-            .template_service()
+            .template
             .render_summarization(compact, &sequence_context)
             .await?;
 
@@ -129,11 +134,7 @@ impl<S: Services> ContextCompactor<S> {
         }
 
         // Get summary from the provider
-        let response = self
-            .services
-            .provider_service()
-            .chat(&compact.model, context)
-            .await?;
+        let response = self.provider.chat(&compact.model, context).await?;
 
         self.collect_completion_stream_content(compact, response)
             .await
@@ -141,13 +142,13 @@ impl<S: Services> ContextCompactor<S> {
 
     /// Collects the content from a streaming ChatCompletionMessage response
     /// and extracts text within the configured tag if present
-    async fn collect_completion_stream_content<T>(
+    async fn collect_completion_stream_content<F>(
         &self,
         compact: &Compact,
-        mut stream: T,
+        mut stream: F,
     ) -> Result<String>
     where
-        T: futures::Stream<Item = Result<ChatCompletionMessage>> + Unpin,
+        F: futures::Stream<Item = Result<ChatCompletionMessage>> + Unpin,
     {
         let mut result_content = String::new();
 
@@ -238,13 +239,26 @@ fn find_sequence(context: &Context, preserve_last_n: usize) -> Option<(usize, us
     }
 }
 
+#[async_trait::async_trait]
+impl<T: TemplateService, P: ProviderService> CompactionService for ForgeCompactionService<T, P> {
+    async fn compact_context(
+        &self,
+        agent: &Agent,
+        context: Context,
+        prompt_tokens: Option<usize>,
+    ) -> anyhow::Result<Context> {
+        // Call the compact_context method
+        self.compact_context(agent, context, prompt_tokens).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use forge_domain::{ToolCallFull, ToolCallId, ToolName, ToolResult};
     use pretty_assertions::assert_eq;
     use serde_json::json;
 
     use super::*;
-    use crate::{ToolCallFull, ToolCallId, ToolName, ToolResult};
 
     #[test]
     fn test_identify_first_compressible_sequence() {
