@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 use crate::{
-    Agent, Attachment, ChatCompletionMessage, Compact, Context, Conversation, ConversationId,
-    Environment, Event, EventContext, Model, ModelId, ResultStream, SystemContext, Template,
-    ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
+    Agent, Attachment, ChatCompletionMessage, Compact, CompactionResult, Context, Conversation,
+    ConversationId, Environment, Event, EventContext, Model, ModelId, ResultStream, SystemContext,
+    Template, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -59,6 +59,11 @@ pub trait ConversationService: Send + Sync {
     async fn update<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send;
+
+    /// Compacts the context of the main agent for the given conversation and
+    /// persists it. Returns metrics about the compaction (original vs.
+    /// compacted tokens and messages).
+    async fn compact_conversation(&self, id: &ConversationId) -> anyhow::Result<CompactionResult>;
 }
 
 #[async_trait::async_trait]

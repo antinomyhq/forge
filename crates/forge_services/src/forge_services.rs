@@ -21,7 +21,11 @@ pub struct ForgeServices<F> {
     infra: Arc<F>,
     tool_service: Arc<ForgeToolService>,
     provider_service: Arc<ForgeProviderService>,
-    conversation_service: Arc<ForgeConversationService>,
+    conversation_service: Arc<
+        ForgeConversationService<
+            ForgeCompactionService<ForgeTemplateService<F, ForgeToolService>, ForgeProviderService>,
+        >,
+    >,
     template_service: Arc<ForgeTemplateService<F, ForgeToolService>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
     compaction_service: Arc<
@@ -37,12 +41,14 @@ impl<F: Infrastructure> ForgeServices<F> {
             tool_service.clone(),
         ));
         let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
-        let conversation_service = Arc::new(ForgeConversationService::new());
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
         let compaction_service = Arc::new(ForgeCompactionService::new(
             template_service.clone(),
             provider_service.clone(),
         ));
+
+        let conversation_service =
+            Arc::new(ForgeConversationService::new(compaction_service.clone()));
         Self {
             infra,
             conversation_service,
@@ -58,7 +64,7 @@ impl<F: Infrastructure> ForgeServices<F> {
 impl<F: Infrastructure> Services for ForgeServices<F> {
     type ToolService = ForgeToolService;
     type ProviderService = ForgeProviderService;
-    type ConversationService = ForgeConversationService;
+    type ConversationService = ForgeConversationService<Self::CompactionService>;
     type TemplateService = ForgeTemplateService<F, Self::ToolService>;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
