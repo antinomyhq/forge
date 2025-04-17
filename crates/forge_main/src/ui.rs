@@ -310,7 +310,9 @@ impl<F: API> UI<F> {
             .prompt()
         {
             Ok(model) => model,
-            Err(InquireError::OperationCanceled) => return Ok(()),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                return Ok(())
+            }
             Err(err) => return Err(err.into()),
         };
 
