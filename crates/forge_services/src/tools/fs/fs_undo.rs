@@ -14,13 +14,8 @@ use crate::tools::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
 
 /// Reverts the most recent file operation (create/modify/delete) on a specific
-/// file. Use this tool when you need to recover from mistaken file changes or
-/// undesired modifications. It restores the file to its state before the last
-/// operation performed by another tool_forge_fs_* tool. The tool ONLY undoes
-/// changes made by Forge tools and can't revert changes made outside Forge or
-/// multiple operations at once. Each call undoes only the most recent change
-/// for the specified file. Returns a success message on completion or an error
-/// if no previous snapshot exists or if the path is invalid.
+/// file. Use this tool when you need to recover from incorrect file changes or
+/// if a revert is requested by the user.
 #[derive(Default, ToolDescription)]
 pub struct FsUndo<F>(Arc<F>);
 
