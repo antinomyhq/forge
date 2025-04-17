@@ -73,7 +73,8 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         self.app.conversation_service().upsert(conversation).await
     }
 
-    /// Returns a compacted version of the conversation without persisting changes
+    /// Returns a compacted version of the conversation without persisting
+    /// changes
     async fn compact_conversation(
         &self,
         conversation_id: &ConversationId,
@@ -84,7 +85,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .find(conversation_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
-        
+
         let main_agent_id = AgentId::new(Conversation::MAIN_AGENT_NAME);
         let agent = conversation.get_agent(&main_agent_id)?;
         let context = conversation
@@ -92,10 +93,14 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .get(&main_agent_id)
             .and_then(|s| s.context.clone())
             .unwrap_or_default();
-        
+
         let compactor = ContextCompactor::new(self.app.clone());
         let new_context = compactor.compact_context(agent, context, None).await?;
-        conversation.state.entry(main_agent_id.clone()).or_default().context = Some(new_context);
+        conversation
+            .state
+            .entry(main_agent_id.clone())
+            .or_default()
+            .context = Some(new_context);
         Ok(conversation)
     }
 
