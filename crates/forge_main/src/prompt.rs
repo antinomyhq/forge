@@ -27,9 +27,9 @@ pub struct ForgePrompt {
 impl Prompt for ForgePrompt {
     fn render_prompt_left(&self) -> Cow<str> {
         // Pre-compute styles to avoid repeated style creation
-        let white_bold = Style::new().fg(Color::White).bold();
-        let cyan = Style::new().fg(Color::Cyan);
-        let yellow = Style::new().fg(Color::LightYellow);
+        let mode_style = Style::new().fg(Color::White).bold();
+        let folder_style = Style::new().fg(Color::Cyan);
+        let branch_style = Style::new().fg(Color::LightGreen);
 
         // Get current directory
         let current_dir = env::current_dir()
@@ -51,16 +51,16 @@ impl Prompt for ForgePrompt {
         let _ = write!(
             result,
             "{} {}",
-            white_bold.paint(self.mode.to_string()),
-            cyan.paint(&current_dir)
+            mode_style.paint(self.mode.to_string()),
+            folder_style.paint(&current_dir)
         );
 
         // Only append branch info if present
         if let Some(branch) = branch_opt {
-            let _ = write!(result, " {} ", yellow.paint(branch));
+            let _ = write!(result, " {} ", branch_style.paint(branch));
         }
 
-        let _ = write!(result, "\n{} ", yellow.paint(RIGHT_CHEVRON));
+        let _ = write!(result, "\n{} ", branch_style.paint(RIGHT_CHEVRON));
 
         Cow::Owned(result)
     }

@@ -263,6 +263,17 @@ impl<F: API> UI<F> {
                     input = self.prompt().await?;
                     continue;
                 }
+                Command::Shell(ref command) => {
+                    // Execute the shell command using the existing infrastructure
+                    // Get the working directory from the environment service instead of std::env
+                    let cwd = self.api.environment().cwd;
+
+                    // Execute the command
+                    let _ = self.api.execute_shell_command(command, cwd).await;
+
+                    input = self.prompt().await?;
+                    continue;
+                }
             }
         }
 

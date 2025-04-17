@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use forge_stream::MpscStream;
 use serde_json::Value;
@@ -71,4 +71,11 @@ pub trait API: Sync + Send {
         key: String,
         value: Value,
     ) -> anyhow::Result<()>;
+
+    /// Executes a shell command using the shell tool infrastructure
+    async fn execute_shell_command(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<CommandOutput>;
 }

@@ -65,6 +65,7 @@ impl ForgeCommandManager {
         Command::iter()
             .filter(|command| !matches!(command, Command::Message(_)))
             .filter(|command| !matches!(command, Command::Custom(_)))
+            .filter(|command| !matches!(command, Command::Shell(_)))
             .map(|command| ForgeCommand {
                 name: command.name().to_string(),
                 description: command.usage().to_string(),
@@ -151,6 +152,18 @@ impl ForgeCommandManager {
 
     pub fn parse(&self, input: &str) -> anyhow::Result<Command> {
         let trimmed = input.trim();
+
+        // Check if it's a shell command (starts with !)
+        if trimmed.starts_with("!") {
+            let command = trimmed
+                .strip_prefix("!")
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            return Ok(Command::Shell(command));
+        }
+
+        // Check if it's a system command (starts with /)
         let is_command = trimmed.starts_with("/");
         if !is_command {
             return Ok(Command::Message(trimmed.to_string()));
@@ -236,6 +249,10 @@ pub enum Command {
     Model,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
+    /// Executes a native shell command.
+    /// This can be triggered with commands starting with '!' character.
+    #[strum(props(usage = "Execute a native shell command"))]
+    Shell(String),
 }
 
 impl Command {
@@ -252,11 +269,213 @@ impl Command {
             Command::Dump => "/dump",
             Command::Model => "/model",
             Command::Custom(event) => &event.name,
+            Command::Shell(_) => "!shell",
         }
     }
 
     /// Returns the usage description for the command.
     pub fn usage(&self) -> &str {
         self.get_str("usage").unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_command_value_with_provided_value() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+        let command = ForgeCommand {
+            name: String::from("/test"),
+            description: String::from("Test command"),
+            value: None,
+        };
+        let parts = vec!["arg1", "arg2"];
+
+        // Execute
+        let result = cmd_manager.extract_command_value(&command, &parts);
+
+        // Verify
+        assert_eq!(result, Some(String::from("arg1 arg2")));
+    }
+
+    #[test]
+    fn test_extract_command_value_with_empty_parts_default_value() {
+        // Setup
+        let cmd_manager = ForgeCommandManager {
+            commands: Arc::new(Mutex::new(vec![ForgeCommand {
+                name: String::from("/test"),
+                description: String::from("Test command"),
+                value: Some(String::from("default_value")),
+            }])),
+        };
+        let command = ForgeCommand {
+            name: String::from("/test"),
+            description: String::from("Test command"),
+            value: None,
+        };
+        let parts: Vec<&str> = vec![];
+
+        // Execute
+        let result = cmd_manager.extract_command_value(&command, &parts);
+
+        // Verify
+        assert_eq!(result, Some(String::from("default_value")));
+    }
+
+    #[test]
+    fn test_extract_command_value_with_empty_string_parts() {
+        // Setup
+        let cmd_manager = ForgeCommandManager {
+            commands: Arc::new(Mutex::new(vec![ForgeCommand {
+                name: String::from("/test"),
+                description: String::from("Test command"),
+                value: Some(String::from("default_value")),
+            }])),
+        };
+        let command = ForgeCommand {
+            name: String::from("/test"),
+            description: String::from("Test command"),
+            value: None,
+        };
+        let parts = vec![""];
+
+        // Execute
+        let result = cmd_manager.extract_command_value(&command, &parts);
+
+        // Verify - should use default as the provided value is empty
+        assert_eq!(result, Some(String::from("default_value")));
+    }
+
+    #[test]
+    fn test_extract_command_value_with_whitespace_parts() {
+        // Setup
+        let cmd_manager = ForgeCommandManager {
+            commands: Arc::new(Mutex::new(vec![ForgeCommand {
+                name: String::from("/test"),
+                description: String::from("Test command"),
+                value: Some(String::from("default_value")),
+            }])),
+        };
+        let command = ForgeCommand {
+            name: String::from("/test"),
+            description: String::from("Test command"),
+            value: None,
+        };
+        let parts = vec!["  "];
+
+        // Execute
+        let result = cmd_manager.extract_command_value(&command, &parts);
+
+        // Verify - should use default as the provided value is just whitespace
+        assert_eq!(result, Some(String::from("default_value")));
+    }
+
+    #[test]
+    fn test_extract_command_value_no_default_no_provided() {
+        // Setup
+        let cmd_manager = ForgeCommandManager {
+            commands: Arc::new(Mutex::new(vec![ForgeCommand {
+                name: String::from("/test"),
+                description: String::from("Test command"),
+                value: None,
+            }])),
+        };
+        let command = ForgeCommand {
+            name: String::from("/test"),
+            description: String::from("Test command"),
+            value: None,
+        };
+        let parts: Vec<&str> = vec![];
+
+        // Execute
+        let result = cmd_manager.extract_command_value(&command, &parts);
+
+        // Verify - should be None as there's no default and no provided value
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extract_command_value_provided_overrides_default() {
+        // Setup
+        let cmd_manager = ForgeCommandManager {
+            commands: Arc::new(Mutex::new(vec![ForgeCommand {
+                name: String::from("/test"),
+                description: String::from("Test command"),
+                value: Some(String::from("default_value")),
+            }])),
+        };
+        let command = ForgeCommand {
+            name: String::from("/test"),
+            description: String::from("Test command"),
+            value: None,
+        };
+        let parts = vec!["provided_value"];
+
+        // Execute
+        let result = cmd_manager.extract_command_value(&command, &parts);
+
+        // Verify - provided value should override default
+        assert_eq!(result, Some(String::from("provided_value")));
+    }
+    #[test]
+    fn test_parse_shell_command() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("!ls -la").unwrap();
+
+        // Verify
+        match result {
+            Command::Shell(cmd) => assert_eq!(cmd, "ls -la"),
+            _ => panic!("Expected Shell command, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_parse_shell_command_empty() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("!").unwrap();
+
+        // Verify
+        match result {
+            Command::Shell(cmd) => assert_eq!(cmd, ""),
+            _ => panic!("Expected Shell command, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_parse_shell_command_with_whitespace() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("!   echo 'test'   ").unwrap();
+
+        // Verify
+        match result {
+            Command::Shell(cmd) => assert_eq!(cmd, "echo 'test'"),
+            _ => panic!("Expected Shell command, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_shell_command_not_in_default_commands() {
+        // Setup
+        let manager = ForgeCommandManager::default();
+        let commands = manager.list();
+
+        // The shell command should not be included
+        let contains_shell = commands.iter().any(|cmd| cmd.name == "!shell");
+        assert!(
+            !contains_shell,
+            "Shell command should not be in default commands"
+        );
     }
 }

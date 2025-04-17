@@ -101,6 +101,7 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     type FsSnapshotService = F::FsSnapshotService;
     type FsRemoveService = F::FsRemoveService;
     type FsCreateDirsService = F::FsCreateDirsService;
+    type CommandExecutorService = F::CommandExecutorService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
@@ -128,5 +129,9 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
 
     fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
         self.infra.create_dirs_service()
+    }
+
+    fn command_executor_service(&self) -> &Self::CommandExecutorService {
+        self.infra.command_executor_service()
     }
 }

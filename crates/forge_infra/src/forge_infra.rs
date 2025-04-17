@@ -4,6 +4,7 @@ use forge_domain::EnvironmentService;
 use forge_services::Infrastructure;
 
 use crate::env::ForgeEnvironmentService;
+use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
 use crate::fs_meta::ForgeFileMetaService;
 use crate::fs_read::ForgeFileReadService;
@@ -20,6 +21,7 @@ pub struct ForgeInfra {
     file_meta_service: Arc<ForgeFileMetaService>,
     file_remove_service: Arc<ForgeFileRemoveService<ForgeFileSnapshotService>>,
     create_dirs_service: Arc<ForgeCreateDirsService>,
+    command_executor_service: Arc<ForgeCommandExecutorService>,
 }
 
 impl ForgeInfra {
@@ -37,6 +39,7 @@ impl ForgeInfra {
             environment_service,
             file_snapshot_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
+            command_executor_service: Arc::new(ForgeCommandExecutorService::new(restricted)),
         }
     }
 }
@@ -49,6 +52,7 @@ impl Infrastructure for ForgeInfra {
     type FsSnapshotService = ForgeFileSnapshotService;
     type FsRemoveService = ForgeFileRemoveService<ForgeFileSnapshotService>;
     type FsCreateDirsService = ForgeCreateDirsService;
+    type CommandExecutorService = ForgeCommandExecutorService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         &self.environment_service
@@ -76,5 +80,9 @@ impl Infrastructure for ForgeInfra {
 
     fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
         &self.create_dirs_service
+    }
+
+    fn command_executor_service(&self) -> &Self::CommandExecutorService {
+        &self.command_executor_service
     }
 }

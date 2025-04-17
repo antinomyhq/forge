@@ -16,9 +16,21 @@ Forge offers several built-in commands to enhance your interaction:
 - `/act` - Switch to ACT mode (default), allowing Forge to execute commands and implement changes
 - `/plan` - Switch to PLAN mode, where Forge analyzes and plans but doesn't modify files
 
+## Native Shell Commands
+
+Forge allows you to execute native shell commands directly from the CLI by prefixing them with `!`:
+
+```
+!ls -la
+!git status
+!npm install
+```
+
+These commands will be executed in your current working directory, and their output will be displayed in the console.
+
 ## Usage
 
-These commands can be entered directly in the Forge CLI by typing the command name preceded by a forward slash.
+These commands can be entered directly in the Forge CLI by typing the command name preceded by a forward slash (for built-in commands) or an exclamation mark (for native shell commands).
 
 Example:
 ```

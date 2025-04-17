@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_domain::{EnvironmentService, Tool};
+use forge_domain::Tool;
 
 use super::fetch::Fetch;
 use super::fs::*;
@@ -20,7 +20,6 @@ impl<F: Infrastructure> ToolRegistry<F> {
 
     /// Returns all available tools configured with the given infrastructure
     pub fn tools(&self) -> Vec<Tool> {
-        let env = self.infra.environment_service().get_environment();
         vec![
             FSRead::new(self.infra.clone()).into(),
             FSWrite::new(self.infra.clone()).into(),
@@ -30,7 +29,7 @@ impl<F: Infrastructure> ToolRegistry<F> {
             FSFileInfo.into(),
             FsUndo::new(self.infra.clone()).into(),
             ApplyPatchJson::new(self.infra.clone()).into(),
-            Shell::new(env.clone()).into(),
+            Shell::new(self.infra.clone()).into(),
             Fetch::default().into(),
             ShowUser.into(),
         ]
@@ -42,13 +41,13 @@ pub mod tests {
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
-    use forge_domain::{Environment, Provider};
+    use forge_domain::{CommandOutput, Environment, EnvironmentService, Provider};
     use forge_snaps::Snapshot;
 
     use super::*;
     use crate::{
-        FileRemoveService, FsCreateDirsService, FsMetaService, FsReadService, FsSnapshotService,
-        FsWriteService,
+        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
+        FsReadService, FsSnapshotService, FsWriteService,
     };
 
     /// Create a default test environment
@@ -140,6 +139,13 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl CommandExecutorService for Stub {
+        async fn execute_command(&self, _: String, _: PathBuf) -> anyhow::Result<CommandOutput> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
     impl Infrastructure for Stub {
         type EnvironmentService = Stub;
         type FsReadService = Stub;
@@ -148,6 +154,7 @@ pub mod tests {
         type FsMetaService = Stub;
         type FsSnapshotService = Stub;
         type FsCreateDirsService = Stub;
+        type CommandExecutorService = Stub;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             self
@@ -174,6 +181,10 @@ pub mod tests {
         }
 
         fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
+            self
+        }
+
+        fn command_executor_service(&self) -> &Self::CommandExecutorService {
             self
         }
     }

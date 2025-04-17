@@ -1,10 +1,10 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Result;
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{ForgeServices, Infrastructure};
+use forge_services::{CommandExecutorService, ForgeServices, Infrastructure};
 use forge_stream::MpscStream;
 use serde_json::Value;
 
@@ -167,6 +167,17 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         self.app
             .conversation_service()
             .set_variable(conversation_id, key, value)
+            .await
+    }
+
+    async fn execute_shell_command(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<CommandOutput> {
+        self.app
+            .command_executor_service()
+            .execute_command(command.to_string(), working_dir)
             .await
     }
 }
