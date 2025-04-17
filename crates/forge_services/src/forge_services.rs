@@ -24,13 +24,19 @@ pub struct ForgeServices<F> {
     provider_service: Arc<ForgeProviderService>,
     conversation_service: Arc<
         ForgeConversationService<
-            ForgeCompactionService<ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>, ForgeProviderService>,
+            ForgeCompactionService<
+                ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>,
+                ForgeProviderService,
+            >,
         >,
     >,
     template_service: Arc<ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
     compaction_service: Arc<
-        ForgeCompactionService<ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>, ForgeProviderService>,
+        ForgeCompactionService<
+            ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>,
+            ForgeProviderService,
+        >,
     >,
 }
 

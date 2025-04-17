@@ -8,8 +8,8 @@ use tokio::task::JoinError;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, Compact, CompactionResult, Context, Conversation,
-    ConversationId, Environment, Event, EventContext, McpConfig, Model, ModelId, ResultStream, SystemContext,
-    Template, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
+    ConversationId, Environment, Event, EventContext, McpConfig, Model, ModelId, ResultStream,
+    SystemContext, Template, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 
 pub enum RunnableService {
