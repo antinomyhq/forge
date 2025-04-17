@@ -3,7 +3,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, ModelId, API,
+    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
+    API,
 };
 use forge_display::TitleFormat;
 use forge_fs::ForgeFS;
@@ -28,7 +29,6 @@ use crate::{banner, TRACKER};
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
 pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
 pub const EVENT_USER_HELP_QUERY: &str = "user_help_query";
-pub const EVENT_TITLE: &str = "title";
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
 pub struct PartialEvent {
@@ -59,6 +59,17 @@ pub struct UI<F> {
 }
 
 impl<F: API> UI<F> {
+    /// Retrieve available models, using cache if present
+    async fn get_models(&mut self) -> Result<Vec<Model>> {
+        if let Some(models) = &self.state.cached_models {
+            Ok(models.clone())
+        } else {
+            let models = self.api.models().await?;
+            self.state.cached_models = Some(models.clone());
+            Ok(models)
+        }
+    }
+
     // Set the current mode and update conversation variable
     async fn handle_mode_change(&mut self, mode: Mode) -> Result<()> {
         // Set the mode variable in the conversation if a conversation exists
@@ -261,7 +272,7 @@ impl<F: API> UI<F> {
     // Helper method to handle model selection and update the conversation
     async fn handle_model_selection(&mut self) -> Result<()> {
         // Fetch available models
-        let models = self.api.models().await?;
+        let models = self.get_models().await?;
 
         // Create list of model IDs for selection
         let model_ids: Vec<ModelId> = models.into_iter().map(|m| m.id).collect();
@@ -423,15 +434,7 @@ impl<F: API> UI<F> {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-                let path = self
-                    .state
-                    .current_title
-                    .as_ref()
-                    .map_or(format!("{timestamp}"), |title| {
-                        format!("{timestamp}-{title}")
-                    });
-
-                let path = format!("{path}-dump.json");
+                let path = format!("{timestamp}-dump.json");
 
                 let content = serde_json::to_string_pretty(&conversation)?;
                 tokio::fs::write(path.as_str(), content).await?;
@@ -481,11 +484,8 @@ impl<F: API> UI<F> {
                     CONSOLE.writeln(TitleFormat::success(tool_name).format())?;
                 }
             }
-            ChatResponse::Event(event) => {
-                if event.name == EVENT_TITLE {
-                    self.state.current_title =
-                        Some(event.value.as_str().unwrap_or_default().to_string());
-                }
+            ChatResponse::Event(_event) => {
+                // Event handling removed
             }
             ChatResponse::Usage(u) => {
                 self.state.usage = u;

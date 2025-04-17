@@ -19,7 +19,6 @@ const RIGHT_CHEVRON: &str = "❯";
 #[derive(Clone, Default, Setters)]
 #[setters(strip_option, borrow_self)]
 pub struct ForgePrompt {
-    pub title: Option<String>,
     pub usage: Option<Usage>,
     pub mode: Mode,
     pub model: Option<ModelId>,
@@ -69,11 +68,6 @@ impl Prompt for ForgePrompt {
     fn render_prompt_right(&self) -> Cow<str> {
         // Use a string buffer with pre-allocation to reduce allocations
         let mut result = String::with_capacity(32);
-
-        // Append title if present
-        if let Some(title) = self.title.as_ref() {
-            let _ = write!(result, "{} ", title);
-        }
 
         // Start with bracket and version
         let _ = write!(result, "[{}", VERSION);
@@ -199,20 +193,7 @@ mod tests {
     }
 
     #[test]
-    fn test_render_prompt_right_with_title_and_usage() {
-        let usage = Usage { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-        let mut prompt = ForgePrompt::default();
-        prompt.usage(usage);
-        prompt.title("test-title".to_string());
-
-        let actual = prompt.render_prompt_right();
-        assert!(actual.contains("test-title"));
-        assert!(actual.contains(&VERSION.to_string()));
-        assert!(actual.contains("30"));
-    }
-
-    #[test]
-    fn test_render_prompt_right_with_usage_no_title() {
+    fn test_render_prompt_right_with_usage() {
         let usage = Usage { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
         let mut prompt = ForgePrompt::default();
         prompt.usage(usage);
@@ -228,24 +209,6 @@ mod tests {
         let actual = prompt.render_prompt_right();
         assert!(actual.contains(&VERSION.to_string()));
         assert!(actual.contains("0"));
-    }
-
-    #[test]
-    fn test_render_prompt_indicator_with_title() {
-        let mut prompt = ForgePrompt::default();
-        prompt.title("test".to_string());
-
-        let actual = prompt.render_prompt_indicator(reedline::PromptEditMode::Default);
-        let expected = "";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_render_prompt_indicator_without_title() {
-        let prompt = ForgePrompt::default();
-        let actual = prompt.render_prompt_indicator(reedline::PromptEditMode::Default);
-        let expected = "";
-        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -308,21 +271,6 @@ mod tests {
         prompt.model(ModelId::new("gpt-4-turbo"));
 
         let actual = prompt.render_prompt_right();
-        assert!(actual.contains("gpt-4-turbo"));
-        assert!(actual.contains(&VERSION.to_string()));
-        assert!(actual.contains("30"));
-    }
-
-    #[test]
-    fn test_render_prompt_right_with_all_options() {
-        let usage = Usage { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-        let mut prompt = ForgePrompt::default();
-        prompt.usage(usage);
-        prompt.title("test-title".to_string());
-        prompt.model(ModelId::new("gpt-4-turbo"));
-
-        let actual = prompt.render_prompt_right();
-        assert!(actual.contains("test-title"));
         assert!(actual.contains("gpt-4-turbo"));
         assert!(actual.contains(&VERSION.to_string()));
         assert!(actual.contains("30"));
