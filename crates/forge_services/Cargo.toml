@@ -42,8 +42,6 @@ base64.workspace = true
 strum_macros.workspace = true
 bytes.workspace = true
 termimad.workspace = true
-serde_yaml.workspace = true
-merge.workspace = true
 rmcp.workspace = true
 
 [dev-dependencies]
@@ -51,5 +49,4 @@ insta.workspace = true
 mockito.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
-uuid.workspace = true
 tokio-util.workspace = true
