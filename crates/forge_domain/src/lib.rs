@@ -3,7 +3,6 @@ mod api;
 mod attachment;
 mod chat_request;
 mod chat_response;
-mod compaction;
 mod compaction_result;
 
 mod context;
@@ -41,7 +40,6 @@ pub use api::*;
 pub use attachment::*;
 pub use chat_request::*;
 pub use chat_response::*;
-pub use compaction::*;
 pub use compaction_result::*;
 pub use context::*;
 pub use conversation::*;

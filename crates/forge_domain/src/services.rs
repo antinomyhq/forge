@@ -27,6 +27,16 @@ pub trait ToolService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait CompactionService: Send + Sync {
+    async fn compact_context(
+        &self,
+        agent: &Agent,
+        context: Context,
+        prompt_tokens: Option<usize>,
+    ) -> anyhow::Result<Context>;
+}
+
+#[async_trait::async_trait]
 pub trait ConversationService: Send + Sync {
     async fn find(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>>;
 
@@ -98,6 +108,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
     type EnvironmentService: EnvironmentService;
+    type CompactionService: CompactionService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -105,4 +116,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
     fn environment_service(&self) -> &Self::EnvironmentService;
+    fn compaction_service(&self) -> &Self::CompactionService;
 }

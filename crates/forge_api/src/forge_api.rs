@@ -102,8 +102,9 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         let original_messages = context.messages.len();
 
         // Perform compaction
-        let compactor = ContextCompactor::new(self.app.clone());
-        let new_context = compactor
+        let new_context = self
+            .app
+            .compaction_service()
             .compact_context(agent, context.clone(), None)
             .await?;
 

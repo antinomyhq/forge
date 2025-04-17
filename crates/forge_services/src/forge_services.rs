@@ -3,6 +3,7 @@ use std::sync::Arc;
 use forge_domain::Services;
 
 use crate::attachment::ForgeChatRequest;
+use crate::compaction::ForgeCompactionService;
 use crate::conversation::ForgeConversationService;
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
@@ -19,22 +20,37 @@ use crate::Infrastructure;
 pub struct ForgeServices<F> {
     infra: Arc<F>,
     tool_service: Arc<ForgeToolService>,
-    provider_service: ForgeProviderService,
-    conversation_service: ForgeConversationService,
-    prompt_service: ForgeTemplateService<F, ForgeToolService>,
-    attachment_service: ForgeChatRequest<F>,
+    provider_service: Arc<ForgeProviderService>,
+    conversation_service: Arc<ForgeConversationService>,
+    template_service: Arc<ForgeTemplateService<F, ForgeToolService>>,
+    attachment_service: Arc<ForgeChatRequest<F>>,
+    compaction_service: Arc<
+        ForgeCompactionService<ForgeTemplateService<F, ForgeToolService>, ForgeProviderService>,
+    >,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let tool_service = Arc::new(ForgeToolService::new(infra.clone()));
+        let template_service = Arc::new(ForgeTemplateService::new(
+            infra.clone(),
+            tool_service.clone(),
+        ));
+        let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
+        let conversation_service = Arc::new(ForgeConversationService::new());
+        let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
+        let compaction_service = Arc::new(ForgeCompactionService::new(
+            template_service.clone(),
+            provider_service.clone(),
+        ));
         Self {
-            infra: infra.clone(),
-            provider_service: ForgeProviderService::new(infra.clone()),
-            conversation_service: ForgeConversationService::new(),
-            prompt_service: ForgeTemplateService::new(infra.clone(), tool_service.clone()),
+            infra,
+            conversation_service,
             tool_service,
-            attachment_service: ForgeChatRequest::new(infra),
+            attachment_service,
+            compaction_service,
+            provider_service,
+            template_service,
         }
     }
 }
@@ -43,9 +59,10 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type ToolService = ForgeToolService;
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService;
-    type TemplateService = ForgeTemplateService<F, ForgeToolService>;
+    type TemplateService = ForgeTemplateService<F, Self::ToolService>;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
+    type CompactionService = ForgeCompactionService<Self::TemplateService, Self::ProviderService>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -60,7 +77,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     }
 
     fn template_service(&self) -> &Self::TemplateService {
-        &self.prompt_service
+        &self.template_service
     }
 
     fn attachment_service(&self) -> &Self::AttachmentService {
@@ -69,6 +86,10 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
+    }
+
+    fn compaction_service(&self) -> &Self::CompactionService {
+        self.compaction_service.as_ref()
     }
 }
 
