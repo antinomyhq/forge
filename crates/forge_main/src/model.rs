@@ -157,6 +157,7 @@ impl ForgeCommandManager {
         }
 
         match trimmed {
+            "/compact" => Ok(Command::Compact),
             "/new" => Ok(Command::New),
             "/info" => Ok(Command::Info),
             "/exit" => Ok(Command::Exit),
@@ -195,6 +196,10 @@ impl ForgeCommandManager {
 /// - File content
 #[derive(Debug, Clone, PartialEq, Eq, EnumProperty, EnumIter)]
 pub enum Command {
+    /// Compact the conversation context. This can be triggered with the
+    /// '/compact' command.
+    #[strum(props(usage = "Compact the conversation context"))]
+    Compact,
     /// Start a new conversation while preserving history.
     /// This can be triggered with the '/new' command.
     #[strum(props(usage = "Start a new conversation"))]
@@ -236,6 +241,7 @@ pub enum Command {
 impl Command {
     pub fn name(&self) -> &str {
         match self {
+            Command::Compact => "/compact",
             Command::New => "/new",
             Command::Message(_) => "/message",
             Command::Info => "/info",

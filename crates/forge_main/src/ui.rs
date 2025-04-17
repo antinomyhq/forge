@@ -146,6 +146,19 @@ impl<F: API> UI<F> {
 
         loop {
             match input {
+                Command::Compact => {
+                    let conversation_id = self.init_conversation().await?;
+                    let compacted = self.api.compact_conversation(&conversation_id).await?;
+                    // Update the conversation with the compacted version
+                    self.api.upsert_conversation(compacted).await?;
+                    CONSOLE.writeln(
+                        TitleFormat::success("compact")
+                            .sub_title("context compacted")
+                            .format(),
+                    )?;
+                    input = self.prompt().await?;
+                    continue;
+                }
                 Command::Dump => {
                     self.handle_dump().await?;
                     input = self.prompt().await?;
