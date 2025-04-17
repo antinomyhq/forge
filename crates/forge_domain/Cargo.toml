@@ -26,7 +26,7 @@ tracing.workspace = true
 url.workspace = true
 merge.workspace = true
 tokio-retry = { workspace = true }
-serde_yaml.workspace = true
+serde_yml.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

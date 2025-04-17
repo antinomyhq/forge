@@ -3,10 +3,13 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, API,
+    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, ModelId, API,
 };
 use forge_display::TitleFormat;
 use forge_fs::ForgeFS;
+use inquire::error::InquireError;
+use inquire::ui::{RenderConfig, Styled};
+use inquire::Select;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
@@ -51,7 +54,6 @@ pub struct UI<F> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    models: Option<Vec<Model>>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
@@ -110,7 +112,6 @@ impl<F: API> UI<F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            models: None,
             _guard: forge_tracker::init_tracing(env.log_path())?,
         })
     }
@@ -214,28 +215,7 @@ impl<F: API> UI<F> {
 
                     break;
                 }
-                Command::Models => {
-                    let models = if let Some(models) = self.models.as_ref() {
-                        models
-                    } else {
-                        match self.api.models().await {
-                            Ok(models) => {
-                                self.models = Some(models);
-                                self.models.as_ref().unwrap()
-                            }
-                            Err(err) => {
-                                CONSOLE
-                                    .writeln(TitleFormat::failed(format!("{:?}", err)).format())?;
-                                input = self.prompt().await?;
-                                continue;
-                            }
-                        }
-                    };
-                    let info: Info = models.as_slice().into();
-                    CONSOLE.writeln(info.to_string())?;
 
-                    input = self.prompt().await?;
-                }
                 Command::Custom(event) => {
                     if let Err(e) = self.dispatch_event(event.into()).await {
                         CONSOLE.writeln(
@@ -248,7 +228,75 @@ impl<F: API> UI<F> {
 
                     input = self.prompt().await?;
                 }
+                Command::Model => {
+                    self.handle_model_selection().await?;
+                    input = self.prompt().await?;
+                    continue;
+                }
             }
+        }
+
+        Ok(())
+    }
+
+    // Helper method to handle model selection and update the conversation
+    async fn handle_model_selection(&mut self) -> Result<()> {
+        // Fetch available models
+        let models = self.api.models().await?;
+
+        // Create list of model IDs for selection
+        let model_ids: Vec<ModelId> = models.into_iter().map(|m| m.id).collect();
+
+        // Create a custom render config with the specified icons
+        let render_config = RenderConfig::default()
+            .with_scroll_up_prefix(Styled::new("⇡"))
+            .with_scroll_down_prefix(Styled::new("⇣"))
+            .with_highlighted_option_prefix(Styled::new("➤"));
+
+        // Find the index of the current model
+        let starting_cursor = self
+            .state
+            .model
+            .as_ref()
+            .and_then(|current| model_ids.iter().position(|id| id == current))
+            .unwrap_or(0);
+
+        // Use inquire to select a model, with the current model pre-selected
+        let model = match Select::new("Select a model:", model_ids)
+            .with_help_message("Use arrow keys to navigate and Enter to select")
+            .with_render_config(render_config)
+            .with_starting_cursor(starting_cursor)
+            .prompt()
+        {
+            Ok(model) => model,
+            Err(InquireError::OperationCanceled) => return Ok(()),
+            Err(err) => return Err(err.into()),
+        };
+
+        // Get the conversation to update
+        let conversation_id = self.init_conversation().await?;
+
+        if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
+            // Update the model in the conversation
+            conversation.set_main_model(model.clone())?;
+
+            // Upsert the updated conversation
+            self.api.upsert_conversation(conversation).await?;
+
+            // Update the UI state with the new model
+            self.state.model = Some(model.clone());
+
+            CONSOLE.writeln(
+                TitleFormat::success("model")
+                    .sub_title(format!("switched to: {}", model))
+                    .format(),
+            )?;
+        } else {
+            CONSOLE.writeln(
+                TitleFormat::failed("model")
+                    .error("Failed to update model: conversation not found")
+                    .format(),
+            )?;
         }
 
         Ok(())
@@ -287,6 +335,7 @@ impl<F: API> UI<F> {
                 self.state = UIState::new(mode);
                 self.command.register_all(&config);
 
+                // We need to try and get the conversation ID first before fetching the model
                 if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation = serde_json::from_str(
                         ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
@@ -294,13 +343,15 @@ impl<F: API> UI<F> {
                     .context("Failed to parse Conversation")?;
 
                     let conversation_id = conversation.id.clone();
+                    self.state.model = Some(conversation.main_model()?);
                     self.state.conversation_id = Some(conversation_id.clone());
                     self.api.upsert_conversation(conversation).await?;
-                    Ok(conversation_id.clone())
-                } else {
-                    let conversation_id = self.api.init(config.clone()).await?;
-                    self.state.conversation_id = Some(conversation_id.clone());
                     Ok(conversation_id)
+                } else {
+                    let conversation = self.api.init(config.clone()).await?;
+                    self.state.model = Some(conversation.main_model()?);
+                    self.state.conversation_id = Some(conversation.id.clone());
+                    Ok(conversation.id)
                 }
             }
         }
@@ -387,7 +438,7 @@ impl<F: API> UI<F> {
         match message.message {
             ChatResponse::Text { text: content, is_complete } => {
                 if is_complete {
-                    CONSOLE.writeln(&content)?;
+                    CONSOLE.writeln(content.trim())?;
                 } else {
                     CONSOLE.write(content.dimmed().to_string())?;
                 }

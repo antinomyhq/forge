@@ -1,15 +1,20 @@
 use std::process::Stdio;
 
 use anyhow::Result;
-use forge_tracker::EventKind;
+use forge_tracker::{EventKind, VERSION};
 use tokio::process::Command;
 
 use crate::TRACKER;
 
 /// Runs npm update in the background, failing silently
 pub async fn update_forge() {
-    // Spawn a new task that won't block the main application
+    // Check if version is development version, in which case we skip the update
+    if VERSION.contains("dev") || VERSION == "0.1.0" {
+        // Skip update for development version 0.1.0
+        return;
+    }
 
+    // Spawn a new task that won't block the main application
     if let Err(err) = perform_update().await {
         // Send an event to the tracker on failure
         // We don't need to handle this result since we're failing silently

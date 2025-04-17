@@ -46,11 +46,14 @@ impl ConversationService for ForgeConversationService {
         Ok(())
     }
 
-    async fn create(&self, workflow: Workflow) -> Result<ConversationId> {
+    async fn create(&self, workflow: Workflow) -> Result<Conversation> {
         let id = ConversationId::generate();
         let conversation = Conversation::new(id.clone(), workflow);
-        self.workflows.lock().await.insert(id.clone(), conversation);
-        Ok(id)
+        self.workflows
+            .lock()
+            .await
+            .insert(id.clone(), conversation.clone());
+        Ok(conversation)
     }
 
     async fn get_variable(&self, id: &ConversationId, key: &str) -> Result<Option<Value>> {

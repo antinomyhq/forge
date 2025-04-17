@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{Agent, AgentId, Context, Error, Event, Result, Workflow};
+use crate::{Agent, AgentId, Context, Error, Event, ModelId, Result, Workflow};
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -48,6 +48,37 @@ pub struct AgentState {
 
 impl Conversation {
     pub const MAIN_AGENT_NAME: &str = "software-engineer";
+
+    /// Returns the model of the main agent
+    ///
+    /// # Errors
+    /// - `AgentUndefined` if the main agent doesn't exist
+    /// - `NoModelDefined` if the main agent doesn't have a model defined
+    pub fn main_model(&self) -> Result<ModelId> {
+        let agent = self.get_agent(&AgentId::new(Self::MAIN_AGENT_NAME))?;
+        agent
+            .model
+            .clone()
+            .ok_or(Error::NoModelDefined(agent.id.clone()))
+    }
+    /// Sets the model of the main agent
+    ///
+    /// # Errors
+    /// - `AgentUndefined` if the main agent doesn't exist
+    pub fn set_main_model(&mut self, model: ModelId) -> Result<()> {
+        // Find the main agent and update its model
+        let agent_pos = self
+            .agents
+            .iter()
+            .position(|a| a.id.as_str() == Self::MAIN_AGENT_NAME)
+            .ok_or_else(|| Error::AgentUndefined(AgentId::new(Self::MAIN_AGENT_NAME)))?;
+
+        // Update the model
+        self.agents[agent_pos].model = Some(model);
+
+        Ok(())
+    }
+
     pub fn new(id: ConversationId, workflow: Workflow) -> Self {
         let mut agents = Vec::new();
 
@@ -235,7 +266,7 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::{Agent, Command, ModelId, Temperature, Workflow};
+    use crate::{Agent, Command, Error, ModelId, Temperature, Workflow};
 
     #[test]
     fn test_conversation_new_with_empty_workflow() {
@@ -499,5 +530,134 @@ mod tests {
         assert!(subscriptions.contains(&"cmd1".to_string()));
         assert!(subscriptions.contains(&"cmd2".to_string()));
         assert_eq!(subscriptions.len(), 3);
+    }
+
+    #[test]
+    fn test_main_model_success() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let mut main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        main_agent.model = Some(ModelId::new("test-model"));
+
+        let workflow = Workflow {
+            agents: vec![main_agent],
+            variables: HashMap::new(),
+            commands: Vec::new(),
+            model: None,
+            max_walker_depth: None,
+            custom_rules: None,
+            temperature: None,
+        };
+
+        let conversation = super::Conversation::new(id, workflow);
+
+        // Act
+        let model_id = conversation.main_model().unwrap();
+
+        // Assert
+        assert_eq!(model_id, ModelId::new("test-model"));
+    }
+
+    #[test]
+    fn test_main_model_agent_not_found() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let agent = Agent::new("some-other-agent");
+
+        let workflow = Workflow {
+            agents: vec![agent],
+            variables: HashMap::new(),
+            commands: Vec::new(),
+            model: None,
+            max_walker_depth: None,
+            custom_rules: None,
+            temperature: None,
+        };
+
+        let conversation = super::Conversation::new(id, workflow);
+
+        // Act
+        let result = conversation.main_model();
+
+        // Assert
+        assert!(matches!(result, Err(Error::AgentUndefined(_))));
+    }
+
+    #[test]
+    fn test_main_model_no_model_defined() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        // No model defined for the agent
+
+        let workflow = Workflow {
+            agents: vec![main_agent],
+            variables: HashMap::new(),
+            commands: Vec::new(),
+            model: None,
+            max_walker_depth: None,
+            custom_rules: None,
+            temperature: None,
+        };
+
+        let conversation = super::Conversation::new(id, workflow);
+
+        // Act
+        let result = conversation.main_model();
+
+        // Assert
+        assert!(matches!(result, Err(Error::NoModelDefined(_))));
+    }
+    #[test]
+    fn test_set_main_model_success() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        // Initially no model defined
+
+        let workflow = Workflow {
+            agents: vec![main_agent],
+            variables: HashMap::new(),
+            commands: Vec::new(),
+            model: None,
+            max_walker_depth: None,
+            custom_rules: None,
+            temperature: None,
+        };
+
+        let mut conversation = super::Conversation::new(id, workflow);
+
+        // Act
+        let result = conversation.set_main_model(ModelId::new("new-model"));
+
+        // Assert
+        assert!(result.is_ok());
+        let model = conversation.main_model().unwrap();
+        assert_eq!(model, ModelId::new("new-model"));
+    }
+
+    #[test]
+    fn test_set_main_model_agent_not_found() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let agent = Agent::new("some-other-agent");
+
+        let workflow = Workflow {
+            agents: vec![agent],
+            variables: HashMap::new(),
+            commands: Vec::new(),
+            model: None,
+            max_walker_depth: None,
+            custom_rules: None,
+            temperature: None,
+        };
+
+        let mut conversation = super::Conversation::new(id, workflow);
+
+        // Act
+        let result = conversation.set_main_model(ModelId::new("new-model"));
+
+        // Assert
+        assert!(matches!(result, Err(Error::AgentUndefined(_))));
     }
 }

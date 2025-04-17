@@ -42,6 +42,9 @@ pub enum Error {
 
     #[error("Missing model for agent: {0}")]
     MissingModel(AgentId),
+
+    #[error("No model defined for agent: {0}")]
+    NoModelDefined(AgentId),
 }
 
 pub type Result<A> = std::result::Result<A, Error>;

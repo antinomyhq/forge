@@ -32,7 +32,7 @@ pub trait ConversationService: Send + Sync {
 
     async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()>;
 
-    async fn create(&self, workflow: Workflow) -> anyhow::Result<ConversationId>;
+    async fn create(&self, workflow: Workflow) -> anyhow::Result<Conversation>;
 
     async fn get_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<Option<Value>>;
 

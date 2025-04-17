@@ -11,6 +11,10 @@ forge_walker.workspace = true
 forge_display.workspace = true
 forge_tracker.workspace = true
 forge_snaps.workspace = true
+inquire.workspace = true
+serde_yml.workspace = true
+
+
 forge_fs.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true

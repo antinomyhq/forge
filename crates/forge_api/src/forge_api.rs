@@ -62,7 +62,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
     async fn init<W: Into<Workflow> + Send + Sync>(
         &self,
         workflow: W,
-    ) -> anyhow::Result<ConversationId> {
+    ) -> anyhow::Result<Conversation> {
         self.app
             .conversation_service()
             .create(workflow.into())

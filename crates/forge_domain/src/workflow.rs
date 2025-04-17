@@ -15,12 +15,12 @@ use crate::{Agent, AgentId, ModelId};
 pub struct Workflow {
     /// Agents that are part of this workflow
     #[merge(strategy = crate::merge::vec::unify_by_key)]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub agents: Vec<Agent>,
 
     /// Variables that can be used in templates
     #[merge(strategy = crate::merge::hashmap)]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub variables: HashMap<String, Value>,
 
     /// Commands that can be used to interact with the workflow
@@ -63,7 +63,7 @@ pub struct Workflow {
 
 impl Default for Workflow {
     fn default() -> Self {
-        serde_yaml::from_str(include_str!("../../../forge.default.yaml")).unwrap()
+        serde_yml::from_str(include_str!("../../../forge.default.yaml")).unwrap()
     }
 }
 

@@ -31,7 +31,7 @@ pub trait API: Sync + Send {
     async fn init<W: Into<Workflow> + Send + Sync>(
         &self,
         config: W,
-    ) -> anyhow::Result<ConversationId>;
+    ) -> anyhow::Result<Conversation>;
 
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
@@ -47,6 +47,7 @@ pub trait API: Sync + Send {
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>>;
 
+    // TODO: This function can be remove since we now have the upsert_conversation
     /// Gets a variable from the conversation
     async fn get_variable(
         &self,
@@ -54,6 +55,7 @@ pub trait API: Sync + Send {
         key: &str,
     ) -> anyhow::Result<Option<Value>>;
 
+    // TODO: This function can be remove since we now have the upsert_conversation
     /// Sets a variable in the conversation
     async fn set_variable(
         &self,
