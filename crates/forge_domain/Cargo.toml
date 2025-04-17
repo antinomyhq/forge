@@ -23,6 +23,7 @@ tokio-stream.workspace = true
 uuid.workspace = true
 async-recursion.workspace = true
 tracing.workspace = true
+url.workspace = true
 merge.workspace = true
 tokio-retry = { workspace = true }
 rmcp.workspace = true

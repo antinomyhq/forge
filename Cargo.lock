@@ -970,6 +970,7 @@ dependencies = [
  "tokio-retry",
  "tokio-stream",
  "tracing",
+ "url",
  "uuid",
 ]
 
