@@ -3,15 +3,33 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpConfig, RunnableService, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
+    McpConfig, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
     ToolResult, ToolService, VERSION,
 };
 use futures::FutureExt;
-use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, ListToolsResult};
+use rmcp::model::{CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam, ListToolsResult};
 use rmcp::transport::TokioChildProcess;
-use rmcp::ServiceExt;
+use rmcp::{RoleClient, ServiceError, ServiceExt};
+use rmcp::service::RunningService;
 use tokio::process::Command;
 use tokio::sync::Mutex;
+
+enum RunnableService {
+    Http(RunningService<RoleClient, InitializeRequestParam>),
+    Fs(RunningService<RoleClient, ()>),
+}
+
+impl RunnableService {
+    async fn call_tool(
+        &self,
+        params: CallToolRequestParam,
+    ) -> Result<CallToolResult, ServiceError> {
+        match self {
+            RunnableService::Http(service) => service.call_tool(params).await,
+            RunnableService::Fs(service) => service.call_tool(params).await,
+        }
+    }
+}
 
 struct ServerHolder {
     name: String,
