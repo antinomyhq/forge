@@ -1,3 +1,4 @@
+mod mock_helper;
 mod test_workflow;
 use std::env;
 use std::path::PathBuf;
@@ -12,7 +13,19 @@ const MAX_RETRIES: usize = 5;
 /// Check if API tests should run based on environment variable
 fn should_run_api_tests() -> bool {
     dotenv::dotenv().ok();
+    
+    // If FORGE_OFFLINE_MODE is set, we can run tests without RUN_API_TESTS
+    if env::var("FORGE_OFFLINE_MODE").unwrap_or_default() == "true" {
+        return true;
+    }
+    
+    // Otherwise, check if RUN_API_TESTS is set
     dbg!(env::var("RUN_API_TESTS")).is_ok()
+}
+
+/// Check if we should update the mock cache
+fn should_update_mock_cache() -> bool {
+    env::var("FORGE_UPDATE_MOCK_CACHE").unwrap_or_default() == "true"
 }
 
 /// Test fixture for API testing that supports parallel model validation
@@ -102,19 +115,41 @@ macro_rules! generate_model_test {
     ($model:expr) => {
         #[tokio::test]
         async fn test_find_cat_name() {
-            if !should_run_api_tests() {
+            // Set up mock environment if needed
+            let use_mock = env::var("FORGE_MOCK_PROVIDER").unwrap_or_default() == "true";
+            let offline_mode = env::var("FORGE_OFFLINE_MODE").unwrap_or_default() == "true";
+            
+            // If we're not in offline mode and RUN_API_TESTS is not set, skip the test
+            if !offline_mode && !should_run_api_tests() {
                 println!(
                     "Skipping API test for {} as RUN_API_TESTS is not set to 'true'",
                     $model
                 );
                 return;
             }
+            
+            // If we're not already using mock, set it up
+            let cleanup_needed = if !use_mock {
+                if offline_mode {
+                    mock_helper::setup_offline_environment();
+                } else {
+                    mock_helper::setup_mock_environment(should_update_mock_cache());
+                }
+                true
+            } else {
+                false
+            };
 
             let fixture = Fixture::new(ModelId::new($model));
 
             let result = fixture
                 .test_single_model(|response| response.to_lowercase().contains("juniper"))
                 .await;
+                
+            // Clean up environment if we set it up
+            if cleanup_needed {
+                mock_helper::cleanup_environment();
+            }
 
             assert!(result.is_ok(), "Test failure for {}: {:?}", $model, result);
         }

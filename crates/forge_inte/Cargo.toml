@@ -6,6 +6,7 @@ edition = "2021"
 [dev-dependencies]
 anyhow.workspace = true
 forge_api.workspace = true
+forge_provider.workspace = true
 futures.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
