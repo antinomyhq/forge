@@ -99,7 +99,7 @@ impl<C: CompactionService> ConversationService for ForgeConversationService<C> {
         // Perform compaction
         let new_context = self
             .compaction_service
-            .compact_context(agent, context.clone(), None)
+            .compact_context(agent, context.clone())
             .await?;
 
         // Compute compacted metrics

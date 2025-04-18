@@ -32,12 +32,7 @@ pub trait ToolService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait CompactionService: Send + Sync {
-    async fn compact_context(
-        &self,
-        agent: &Agent,
-        context: Context,
-        prompt_tokens: Option<usize>,
-    ) -> anyhow::Result<Context>;
+    async fn compact_context(&self, agent: &Agent, context: Context) -> anyhow::Result<Context>;
 }
 
 #[async_trait::async_trait]

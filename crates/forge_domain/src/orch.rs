@@ -379,17 +379,18 @@ impl<A: Services> Orchestrator<A> {
                 .await?;
             let ChatCompletionResult { tool_calls, content, usage } =
                 self.collect_messages(agent, response).await?;
-            // Check if context requires compression
-            // Only pass prompt_tokens for compaction decision
-            context = self
-                .services
-                .compaction_service()
-                .compact_context(
-                    agent,
-                    context,
-                    usage.map(|usage| usage.prompt_tokens as usize),
-                )
-                .await?;
+
+            // Check if context requires compression and decide to compact
+            if agent.should_compact(&context, usage.map(|usage| usage.prompt_tokens as usize)) {
+                debug!(agent_id = %agent.id, "Compaction needed, applying compaction");
+                context = self
+                    .services
+                    .compaction_service()
+                    .compact_context(agent, context)
+                    .await?;
+            } else {
+                debug!(agent_id = %agent.id, "Compaction not needed");
+            }
 
             // Get all tool results using the helper function
             let tool_results = self.get_all_tool_results(agent, &tool_calls).await?;

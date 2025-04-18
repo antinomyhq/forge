@@ -23,27 +23,10 @@ impl<T: TemplateService, P: ProviderService> ForgeCompactionService<T, P> {
         Self { template, provider }
     }
 
-    /// Check if compaction is needed and compact the context if so
-    pub async fn compact_context(
-        &self,
-        agent: &Agent,
-        context: Context,
-        prompt_tokens: Option<usize>,
-    ) -> Result<Context> {
-        // Early return if compaction not needed
-        debug!(
-            agent_id = %agent.id,
-            compact = ?agent.compact,
-            tokens = ?prompt_tokens,
-            "Checking for context compaction"
-        );
+    /// Apply compaction to the context if requested
+    pub async fn compact_context(&self, agent: &Agent, context: Context) -> Result<Context> {
+        // Return early if agent doesn't have compaction configured
         if let Some(ref compact) = agent.compact {
-            // Ensure that compaction conditions are met
-            if !compact.should_compact(&context, prompt_tokens) {
-                debug!(agent_id = %agent.id, "Compaction not needed");
-                return Ok(context);
-            }
-
             debug!(agent_id = %agent.id, "Context compaction triggered");
 
             // Identify and compress the first compressible sequence
@@ -241,14 +224,10 @@ fn find_sequence(context: &Context, preserve_last_n: usize) -> Option<(usize, us
 
 #[async_trait::async_trait]
 impl<T: TemplateService, P: ProviderService> CompactionService for ForgeCompactionService<T, P> {
-    async fn compact_context(
-        &self,
-        agent: &Agent,
-        context: Context,
-        prompt_tokens: Option<usize>,
-    ) -> anyhow::Result<Context> {
-        // Call the compact_context method
-        self.compact_context(agent, context, prompt_tokens).await
+    async fn compact_context(&self, agent: &Agent, context: Context) -> anyhow::Result<Context> {
+        // Call the compact_context method without passing prompt_tokens
+        // since the decision logic has been moved to the orchestrator
+        self.compact_context(agent, context).await
     }
 }
 

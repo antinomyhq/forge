@@ -291,6 +291,15 @@ impl Agent {
         Ok(ToolDefinition::new(self.id.as_str().to_string())
             .description(self.description.clone().unwrap()))
     }
+    /// Checks if compaction should be applied
+    pub fn should_compact(&self, context: &Context, prompt_tokens: Option<usize>) -> bool {
+        // Return false if compaction is not configured
+        if let Some(compact) = &self.compact {
+            compact.should_compact(context, prompt_tokens)
+        } else {
+            false
+        }
+    }
 }
 
 impl Key for Agent {
