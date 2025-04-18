@@ -21,7 +21,6 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-
 enum RunnableService {
     Http(RunningService<RoleClient, InitializeRequestParam>),
     Fs(RunningService<RoleClient, ()>),
