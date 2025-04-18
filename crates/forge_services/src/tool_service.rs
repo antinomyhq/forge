@@ -15,7 +15,7 @@ use crate::Infrastructure;
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Clone)]
-pub struct ForgeToolService<M: ToolService + ?Sized = dyn ToolService> {
+pub struct ForgeToolService<M> {
     tools: Arc<HashMap<ToolName, Tool>>,
     mcp_service: Arc<M>,
 }
