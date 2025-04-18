@@ -39,17 +39,16 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
         &self,
         context: ToolCallContext,
         call: ToolCallFull,
-        mcp: HashMap<String, McpConfig>,
     ) -> anyhow::Result<ToolResult> {
         let name = call.name.clone();
         if !self
             .tools
             .values()
             .any(|v| v.definition.name.eq(&call.name))
-            && !mcp.is_empty()
+            && !context.mcp.is_empty()
         {
             debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
-            return self.mcp_service.call(context, call, mcp).await;
+            return self.mcp_service.call(context, call).await;
         }
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
@@ -140,7 +139,6 @@ mod test {
             &self,
             _: ToolCallContext,
             call: ToolCallFull,
-            _: HashMap<String, McpConfig>,
         ) -> anyhow::Result<ToolResult> {
             Ok(ToolResult {
                 name: call.name,
@@ -231,7 +229,7 @@ mod test {
         };
 
         let result = service
-            .call(ToolCallContext::default(), call, Default::default())
+            .call(ToolCallContext::default(), call)
             .await
             .unwrap();
         insta::assert_snapshot!(result);
@@ -247,7 +245,7 @@ mod test {
         };
 
         let result = service
-            .call(ToolCallContext::default(), call, Default::default())
+            .call(ToolCallContext::default(), call)
             .await
             .unwrap();
         insta::assert_snapshot!(result);
@@ -263,7 +261,7 @@ mod test {
         };
 
         let result = service
-            .call(ToolCallContext::default(), call, Default::default())
+            .call(ToolCallContext::default(), call)
             .await
             .unwrap();
         insta::assert_snapshot!(result);
@@ -320,7 +318,7 @@ mod test {
         test::time::advance(Duration::from_secs(305)).await;
 
         let result = service
-            .call(ToolCallContext::default(), call, Default::default())
+            .call(ToolCallContext::default(), call)
             .await
             .unwrap();
 

@@ -180,16 +180,11 @@ impl ToolService for ForgeMcpService {
             Ok(vec![])
         }
     }
-    async fn call(
-        &self,
-        _: ToolCallContext,
-        call: ToolCallFull,
-        mcp: HashMap<String, McpConfig>,
-    ) -> anyhow::Result<ToolResult> {
-        if mcp.is_empty() {
+    async fn call(&self, ctx: ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolResult> {
+        if ctx.mcp.is_empty() {
             return Err(anyhow::anyhow!("MCP config not defined in the workspace."));
         }
-        self.init_mcp(mcp)
+        self.init_mcp(ctx.mcp)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to init mcp: {e}"))?;
 
@@ -304,13 +299,12 @@ mod tests {
 
         let one = mcp
             .call(
-                ToolCallContext::default(),
+                ToolCallContext::default().mcp(workflow.mcp.clone().unwrap()),
                 ToolCallFull {
                     name: ToolName::new("test-forgestrip-increment"),
                     call_id: None,
                     arguments: serde_json::json!({}),
                 },
-                workflow.mcp.clone().unwrap(),
             )
             .await
             .unwrap();
@@ -318,13 +312,13 @@ mod tests {
         assert_eq!(content[0].as_text().unwrap().text, "1");
         let two = mcp
             .call(
-                ToolCallContext::default(),
+                ToolCallContext::default()
+                    .mcp(workflow.mcp.unwrap()),
                 ToolCallFull {
                     name: ToolName::new("test-forgestrip-increment"),
                     call_id: None,
                     arguments: serde_json::json!({}),
                 },
-                workflow.mcp.unwrap(),
             )
             .await
             .unwrap();

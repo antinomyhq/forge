@@ -52,7 +52,6 @@ pub trait ToolService: Send + Sync {
         &self,
         context: ToolCallContext,
         call: ToolCallFull,
-        workflow: HashMap<String, McpConfig>,
     ) -> anyhow::Result<ToolResult>;
     async fn list(&self, mcp: HashMap<String, McpConfig>) -> anyhow::Result<Vec<ToolDefinition>>;
     fn usage_prompt(&self) -> String;

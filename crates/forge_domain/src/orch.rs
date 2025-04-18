@@ -263,9 +263,9 @@ impl<A: Services> Orchestrator<A> {
                 .call(
                     ToolCallContext::default()
                         .sender(self.sender.clone())
-                        .agent_id(agent.id.clone()),
+                        .agent_id(agent.id.clone())
+                        .mcp(self.conversation.read().await.mcp.clone()),
                     tool_call.clone(),
-                    self.conversation.read().await.mcp.clone(),
                 )
                 .await
         }
