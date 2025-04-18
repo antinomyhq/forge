@@ -102,25 +102,31 @@ impl<A: Services> Orchestrator<A> {
         Ok(())
     }
 
-    fn init_default_tool_definitions(&self) -> Vec<ToolDefinition> {
-        self.services.tool_service().list()
+    async fn init_default_tool_definitions(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.services
+            .tool_service()
+            .list(self.conversation.read().await.mcp.clone())
+            .await
     }
 
-    fn init_tool_definitions(&self, agent: &Agent) -> Vec<ToolDefinition> {
+    async fn init_tool_definitions(&self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
         let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
-        let mut forge_tools = self.init_default_tool_definitions();
+        let mut forge_tools = self.init_default_tool_definitions().await?;
 
         // Adding Event tool to the list of tool definitions
         forge_tools.push(Event::tool_definition());
 
-        forge_tools
+        Ok(forge_tools
             .into_iter()
-            .filter(|tool| allowed.contains(&tool.name))
-            .collect::<Vec<_>>()
+            // TODO: need a better way to avoid filtering mcp tools
+            .filter(|tool| {
+                tool.name.as_str().contains("-forgestrip-") || allowed.contains(&tool.name)
+            })
+            .collect::<Vec<_>>())
     }
 
     async fn init_agent_context(&self, agent: &Agent) -> anyhow::Result<Context> {
-        let tool_defs = self.init_tool_definitions(agent);
+        let tool_defs = self.init_tool_definitions(agent).await?;
 
         // Use the agent's tool_supported flag directly instead of querying the provider
         let tool_supported = agent.tool_supported.unwrap_or_default();
@@ -252,16 +258,16 @@ impl<A: Services> Orchestrator<A> {
             self.dispatch_spawned(event).await?;
             Ok(ToolResult::from(tool_call.clone()).success("Event Dispatched Successfully"))
         } else {
-            Ok(self
-                .services
+            self.services
                 .tool_service()
                 .call(
                     ToolCallContext::default()
                         .sender(self.sender.clone())
-                        .agent_id(agent.id.clone()),
+                        .agent_id(agent.id.clone())
+                        .mcp(self.conversation.read().await.mcp.clone()),
                     tool_call.clone(),
                 )
-                .await)
+                .await
         }
     }
 

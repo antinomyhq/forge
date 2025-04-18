@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use derive_setters::Setters;
 use tokio::sync::mpsc::Sender;
 
-use crate::{AgentId, AgentMessage, ChatResponse};
+use crate::{AgentId, AgentMessage, ChatResponse, McpConfig};
 
 /// Type alias for Arc<Sender<Result<AgentMessage<ChatResponse>>>>
 type ArcSender = Arc<Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
@@ -15,6 +16,7 @@ pub struct ToolCallContext {
     #[setters(strip_option)]
     pub agent_id: Option<AgentId>,
     pub sender: Option<ArcSender>,
+    pub mcp: HashMap<String, McpConfig>,
 }
 
 impl ToolCallContext {

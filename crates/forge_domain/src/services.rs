@@ -4,8 +4,8 @@ use serde_json::Value;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, Compact, CompactionResult, Context, Conversation,
-    ConversationId, Environment, Event, EventContext, Model, ModelId, ResultStream, SystemContext,
-    Template, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
+    ConversationId, Environment, Event, EventContext, McpConfig, Model, ModelId, ResultStream,
+    SystemContext, Template, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -21,8 +21,12 @@ pub trait ProviderService: Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait ToolService: Send + Sync {
     // TODO: should take `call` by reference
-    async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult;
-    fn list(&self) -> Vec<ToolDefinition>;
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        call: ToolCallFull,
+    ) -> anyhow::Result<ToolResult>;
+    async fn list(&self, mcp: HashMap<String, McpConfig>) -> anyhow::Result<Vec<ToolDefinition>>;
     fn usage_prompt(&self) -> String;
 }
 

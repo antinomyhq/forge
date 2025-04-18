@@ -6,12 +6,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::temperature::Temperature;
-use crate::{Agent, AgentId, ModelId};
+use crate::{Agent, AgentId, McpConfig, ModelId};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters)]
-#[setters(strip_option)]
+#[setters(strip_option, into)]
 pub struct Workflow {
     /// Agents that are part of this workflow
     #[merge(strategy = crate::merge::vec::unify_by_key)]
@@ -59,6 +59,11 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub temperature: Option<Temperature>,
+
+    /// Model Context Protocol (MCP) configuration
+    #[merge(strategy = crate::merge::option)]
+    #[serde(rename = "mcpServers")]
+    pub mcp: Option<HashMap<String, McpConfig>>,
 }
 
 impl Default for Workflow {

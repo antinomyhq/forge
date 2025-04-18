@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{Agent, AgentId, Context, Error, Event, ModelId, Result, Workflow};
+use crate::{Agent, AgentId, Context, Error, Event, McpConfig, ModelId, Result, Workflow};
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -36,6 +36,7 @@ pub struct Conversation {
     pub variables: HashMap<String, Value>,
     pub agents: Vec<Agent>,
     pub events: Vec<Event>,
+    pub mcp: HashMap<String, McpConfig>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -122,6 +123,7 @@ impl Conversation {
             variables: workflow.variables.clone(),
             agents,
             events: Default::default(),
+            mcp: workflow.mcp.unwrap_or_default(),
         }
     }
 
@@ -280,6 +282,7 @@ mod tests {
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
+            mcp: None,
         };
 
         // Act
@@ -302,15 +305,7 @@ mod tests {
         variables.insert("key1".to_string(), json!("value1"));
         variables.insert("key2".to_string(), json!(42));
 
-        let workflow = Workflow {
-            agents: Vec::new(),
-            variables: variables.clone(),
-            commands: Vec::new(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-        };
+        let workflow = Workflow::default().variables(variables.clone());
 
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow);
@@ -327,15 +322,12 @@ mod tests {
         let agent1 = Agent::new("agent1");
         let agent2 = Agent::new("agent2");
 
-        let workflow = Workflow {
-            agents: vec![agent1, agent2],
-            variables: HashMap::new(),
-            commands: Vec::new(),
-            model: Some(ModelId::new("test-model")),
-            max_walker_depth: Some(5),
-            custom_rules: Some("Be helpful".to_string()),
-            temperature: Some(Temperature::new(0.7).unwrap()),
-        };
+        let workflow = Workflow::default()
+            .agents(vec![agent1, agent2])
+            .model(ModelId::new("test-model"))
+            .max_walker_depth(5usize)
+            .custom_rules("Be helpful")
+            .temperature(Temperature::new(0.7).unwrap());
 
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow);
@@ -367,15 +359,12 @@ mod tests {
         // Agent without specific settings
         let agent2 = Agent::new("agent2");
 
-        let workflow = Workflow {
-            agents: vec![agent1, agent2],
-            variables: HashMap::new(),
-            commands: Vec::new(),
-            model: Some(ModelId::new("default-model")),
-            max_walker_depth: Some(5),
-            custom_rules: Some("Default rules".to_string()),
-            temperature: Some(Temperature::new(0.7).unwrap()),
-        };
+        let workflow = Workflow::default()
+            .agents(vec![agent1, agent2])
+            .model(ModelId::new("default-model"))
+            .max_walker_depth(5usize)
+            .custom_rules("Default rules")
+            .temperature(Temperature::new(0.7).unwrap());
 
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow);
@@ -430,15 +419,9 @@ mod tests {
             },
         ];
 
-        let workflow = Workflow {
-            agents: vec![main_agent, other_agent],
-            variables: HashMap::new(),
-            commands: commands.clone(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-        };
+        let workflow = Workflow::default()
+            .agents(vec![main_agent, other_agent])
+            .commands(commands.clone());
 
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow);
@@ -510,6 +493,7 @@ mod tests {
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
+            mcp: None,
         };
 
         // Act
@@ -547,6 +531,7 @@ mod tests {
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
+            mcp: None,
         };
 
         let conversation = super::Conversation::new(id, workflow);
@@ -572,6 +557,7 @@ mod tests {
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
+            mcp: None,
         };
 
         let conversation = super::Conversation::new(id, workflow);
@@ -598,6 +584,7 @@ mod tests {
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
+            mcp: None,
         };
 
         let conversation = super::Conversation::new(id, workflow);
@@ -623,6 +610,7 @@ mod tests {
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
+            mcp: None,
         };
 
         let mut conversation = super::Conversation::new(id, workflow);
@@ -650,6 +638,7 @@ mod tests {
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
+            mcp: None,
         };
 
         let mut conversation = super::Conversation::new(id, workflow);

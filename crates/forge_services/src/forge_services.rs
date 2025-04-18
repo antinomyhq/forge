@@ -5,6 +5,7 @@ use forge_domain::Services;
 use crate::attachment::ForgeChatRequest;
 use crate::compaction::ForgeCompactionService;
 use crate::conversation::ForgeConversationService;
+use crate::mcp::ForgeMcpService;
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
@@ -19,23 +20,30 @@ use crate::Infrastructure;
 #[derive(Clone)]
 pub struct ForgeServices<F> {
     infra: Arc<F>,
-    tool_service: Arc<ForgeToolService>,
+    tool_service: Arc<ForgeToolService<ForgeMcpService>>,
     provider_service: Arc<ForgeProviderService>,
     conversation_service: Arc<
         ForgeConversationService<
-            ForgeCompactionService<ForgeTemplateService<F, ForgeToolService>, ForgeProviderService>,
+            ForgeCompactionService<
+                ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>,
+                ForgeProviderService,
+            >,
         >,
     >,
-    template_service: Arc<ForgeTemplateService<F, ForgeToolService>>,
+    template_service: Arc<ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
     compaction_service: Arc<
-        ForgeCompactionService<ForgeTemplateService<F, ForgeToolService>, ForgeProviderService>,
+        ForgeCompactionService<
+            ForgeTemplateService<F, ForgeToolService<ForgeMcpService>>,
+            ForgeProviderService,
+        >,
     >,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        let tool_service = Arc::new(ForgeToolService::new(infra.clone()));
+        let mcp_service = Arc::new(ForgeMcpService::new());
+        let tool_service = Arc::new(ForgeToolService::new(infra.clone(), mcp_service));
         let template_service = Arc::new(ForgeTemplateService::new(
             infra.clone(),
             tool_service.clone(),
@@ -62,7 +70,7 @@ impl<F: Infrastructure> ForgeServices<F> {
 }
 
 impl<F: Infrastructure> Services for ForgeServices<F> {
-    type ToolService = ForgeToolService;
+    type ToolService = ForgeToolService<ForgeMcpService>;
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService<Self::CompactionService>;
     type TemplateService = ForgeTemplateService<F, Self::ToolService>;
