@@ -73,14 +73,14 @@ impl<F: API> UI<F> {
     // Set the current mode and update conversation variable
     async fn handle_mode_change(&mut self, mode: Mode) -> Result<()> {
         // Set the mode variable in the conversation if a conversation exists
-        let conversation = self.init_conversation().await?;
+        let conversation_id = self.init_conversation().await?;
 
         // Override the mode that was reset by the conversation
         self.state.mode = mode.clone();
 
         self.api
             .set_variable(
-                &conversation,
+                &conversation_id,
                 "mode".to_string(),
                 Value::from(mode.to_string()),
             )
@@ -348,13 +348,13 @@ impl<F: API> UI<F> {
     // Handle dispatching events from the CLI
     async fn handle_dispatch(&mut self, json: String) -> Result<()> {
         // Initialize the conversation
-        let conversation = self.init_conversation().await?;
+        let conversation_id = self.init_conversation().await?;
 
         // Parse the JSON to determine the event name and value
         let event: PartialEvent = serde_json::from_str(&json)?;
 
         // Create the chat request with the event
-        let chat = ChatRequest::new(event.into(), conversation);
+        let chat = ChatRequest::new(event.into(), conversation_id);
 
         // Process the event
         let mut stream = self.api.chat(chat).await?;
@@ -362,8 +362,8 @@ impl<F: API> UI<F> {
     }
 
     async fn init_conversation(&mut self) -> Result<ConversationId> {
-        match self.state.conversation_id.as_ref() {
-            Some(id) => Ok(id.clone()),
+        match self.state.conversation_id {
+            Some(ref id) => Ok(id.clone()),
             None => {
                 let config = self.api.load(self.cli.workflow.as_deref()).await?;
 
@@ -401,7 +401,7 @@ impl<F: API> UI<F> {
     }
 
     async fn chat(&mut self, content: String) -> Result<()> {
-        let conversation = self.init_conversation().await?;
+        let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
         let event = if self.state.is_first {
@@ -412,7 +412,7 @@ impl<F: API> UI<F> {
         };
 
         // Create the chat request with the event
-        let chat = ChatRequest::new(event, conversation);
+        let chat = ChatRequest::new(event, conversation_id);
 
         match self.api.chat(chat).await {
             Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
@@ -508,8 +508,8 @@ impl<F: API> UI<F> {
     }
 
     async fn dispatch_event(&mut self, event: Event) -> Result<()> {
-        let conversation = self.init_conversation().await?;
-        let chat = ChatRequest::new(event, conversation);
+        let conversation_id = self.init_conversation().await?;
+        let chat = ChatRequest::new(event, conversation_id);
         match self.api.chat(chat).await {
             Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
             Err(err) => Err(err),
