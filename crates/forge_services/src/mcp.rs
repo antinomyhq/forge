@@ -312,8 +312,7 @@ mod tests {
         assert_eq!(content[0].as_text().unwrap().text, "1");
         let two = mcp
             .call(
-                ToolCallContext::default()
-                    .mcp(workflow.mcp.unwrap()),
+                ToolCallContext::default().mcp(workflow.mcp.unwrap()),
                 ToolCallFull {
                     name: ToolName::new("test-forgestrip-increment"),
                     call_id: None,

@@ -135,11 +135,7 @@ mod test {
 
     #[async_trait::async_trait]
     impl ToolService for MockMcpTool {
-        async fn call(
-            &self,
-            _: ToolCallContext,
-            call: ToolCallFull,
-        ) -> anyhow::Result<ToolResult> {
+        async fn call(&self, _: ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolResult> {
             Ok(ToolResult {
                 name: call.name,
                 call_id: None,
