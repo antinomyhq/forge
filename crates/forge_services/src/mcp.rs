@@ -182,10 +182,9 @@ impl ForgeMcpService {
         http_results
             .into_iter()
             .flatten()
-            .map(|e| e.err())
-            .flatten()
+            .filter_map(|e| e.err())
             .next()
-            .map_or(Ok(()), |e| Err(e))
+            .map_or(Ok(()), Err)
     }
 }
 
