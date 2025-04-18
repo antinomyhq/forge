@@ -3,14 +3,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpConfig, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
-    ToolResult, ToolService, VERSION,
+    McpConfig, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
+    VERSION,
 };
 use futures::FutureExt;
-use rmcp::model::{CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam, ListToolsResult};
+use rmcp::model::{
+    CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam,
+    ListToolsResult,
+};
+use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceError, ServiceExt};
-use rmcp::service::RunningService;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -172,12 +175,13 @@ impl ForgeMcpService {
         )
         .await;
 
-        for i in http_results.into_iter().flatten() {
-            if let Err(e) = i {
-                tracing::error!("Failed to connect server: {e}");
-            }
-        }
-        Ok(())
+        http_results
+            .into_iter()
+            .flatten()
+            .map(|e| e.err())
+            .flatten()
+            .next()
+            .map_or(Ok(()), |e| Err(e))
     }
 }
 
