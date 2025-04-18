@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use forge_domain::{
     McpConfig, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
-    VERSION,
 };
 use futures::FutureExt;
 use rmcp::model::{
@@ -16,6 +15,12 @@ use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceError, ServiceExt};
 use tokio::process::Command;
 use tokio::sync::Mutex;
+
+const VERSION: &str = match option_env!("APP_VERSION") {
+    Some(val) => val,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
 
 enum RunnableService {
     Http(RunningService<RoleClient, InitializeRequestParam>),
