@@ -10,6 +10,7 @@ pub struct TitleFormat {
     pub title: String,
     pub sub_title: Option<String>,
     pub error: Option<String>,
+    pub is_user_action: bool,
 }
 
 pub trait TitleExt {
@@ -32,12 +33,23 @@ impl TitleFormat {
             title: title.into(),
             error: None,
             sub_title: Default::default(),
+            is_user_action: false,
         }
     }
+
+    /// Create a status for executing a tool
+    pub fn action(title: impl Into<String>) -> Self {
+        Self::new(title).is_user_action(true)
+    }
+
     pub fn format(&self) -> String {
         let mut buf = String::new();
-        buf.push_str(format!("{} ", "⏺".blue()).as_str());
-        let mut title = self.title.to_case(Case::Title).white().bold();
+        if self.is_user_action {
+            buf.push_str(format!("{} ", "⏺".yellow()).as_str());
+        } else {
+            buf.push_str(format!("{} ", "⏺".blue()).as_str());
+        }
+        let mut title = self.title.to_case(Case::Sentence).bold();
 
         if self.error.is_some() {
             title = title.red().bold();

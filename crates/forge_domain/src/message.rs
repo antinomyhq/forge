@@ -19,8 +19,7 @@ pub struct Usage {
 #[setters(into, strip_option)]
 pub struct ChatCompletionMessage {
     pub content: Option<Content>,
-    // TODO: rename to tool_calls (plural)
-    pub tool_call: Vec<ToolCall>,
+    pub tool_calls: Vec<ToolCall>,
     pub finish_reason: Option<FinishReason>,
     pub usage: Option<Usage>,
 }
@@ -93,12 +92,12 @@ impl ChatCompletionMessage {
     }
 
     pub fn add_tool_call(mut self, call_tool: impl Into<ToolCall>) -> Self {
-        self.tool_call.push(call_tool.into());
+        self.tool_calls.push(call_tool.into());
         self
     }
 
     pub fn extend_calls(mut self, calls: Vec<impl Into<ToolCall>>) -> Self {
-        self.tool_call.extend(calls.into_iter().map(Into::into));
+        self.tool_calls.extend(calls.into_iter().map(Into::into));
         self
     }
 

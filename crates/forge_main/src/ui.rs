@@ -88,16 +88,11 @@ impl<F: API> UI<F> {
 
         // Print a mode-specific message
         let mode_message = match self.state.mode {
-            Mode::Act => "mode - executes commands and makes file changes",
-            Mode::Plan => "mode - plans actions without making changes",
+            Mode::Act => "Switched to 'ACT' mode",
+            Mode::Plan => "Switched to 'PLAN' mode",
         };
 
-        println!(
-            "{}",
-            TitleFormat::new(mode.to_string())
-                .sub_title(mode_message)
-                .format()
-        );
+        println!("{}", TitleFormat::action(mode_message).format());
 
         Ok(())
     }
@@ -165,12 +160,11 @@ impl<F: API> UI<F> {
                     let token_reduction = compaction_result.token_reduction_percentage();
                     let message_reduction = compaction_result.message_reduction_percentage();
 
-                    let content = TitleFormat::new("compact")
-                        .sub_title(format!(
-                            "context size reduced by {:.1}% (tokens), {:.1}% (messages)",
-                            token_reduction, message_reduction
-                        ))
-                        .format();
+                    let content = TitleFormat::action(format!(
+                        "Context size reduced by {:.1}% (tokens), {:.1}% (messages)",
+                        token_reduction, message_reduction
+                    ))
+                    .format();
                     self.spinner.stop(Some(content))?;
                 }
                 Command::Dump => {
@@ -196,7 +190,7 @@ impl<F: API> UI<F> {
 
                         println!(
                             "{}",
-                            TitleFormat::new("error")
+                            TitleFormat::action("error")
                                 .error(format!("{:?}", err))
                                 .format()
                         );
@@ -222,7 +216,7 @@ impl<F: API> UI<F> {
                     if let Err(e) = self.dispatch_event(event.into()).await {
                         println!(
                             "{}",
-                            TitleFormat::new("Failed to execute the command.")
+                            TitleFormat::action("Failed to execute the command")
                                 .sub_title("Command Execution")
                                 .error(e.to_string())
                                 .format()
@@ -300,16 +294,7 @@ impl<F: API> UI<F> {
 
             println!(
                 "{}",
-                TitleFormat::new("model")
-                    .sub_title(format!("switched to: {}", model))
-                    .format()
-            );
-        } else {
-            println!(
-                "{}",
-                TitleFormat::new("model")
-                    .error("Failed to update model: conversation not found")
-                    .format()
+                TitleFormat::action(format!("Switched to model: {}", model)).format()
             );
         }
 
@@ -439,15 +424,15 @@ impl<F: API> UI<F> {
 
                 println!(
                     "{}",
-                    TitleFormat::new("dump")
-                        .sub_title(format!("path: {path}"))
+                    TitleFormat::action("Conversation dump created".to_string())
+                        .sub_title(path.to_string())
                         .format()
                 );
             } else {
                 println!(
                     "{}",
-                    TitleFormat::new("dump")
-                        .error("conversation not found")
+                    TitleFormat::action("Could not create dump")
+                        .error("Conversation not found")
                         .sub_title(format!("conversation_id: {conversation_id}"))
                         .format()
                 );
