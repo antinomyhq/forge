@@ -38,16 +38,15 @@ impl Transformer for SetCache {
 #[cfg(test)]
 mod tests {
     use forge_domain::{ContentMessage, Context, ContextMessage, Role};
+    use pretty_assertions::assert_eq;
 
     use super::*;
-    use pretty_assertions::assert_eq;
 
     fn create_test_context(message: impl ToString) -> Vec<usize> {
         let context = Context {
             messages: message
                 .to_string()
                 .chars()
-                .into_iter()
                 .map(|c| match c {
                     's' => ContextMessage::ContentMessage(ContentMessage {
                         role: Role::System,
