@@ -1,3 +1,7 @@
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use anyhow::Context;
 use forge_domain::{
     ConversationId, ConversationService, McpConfig, ToolCallContext, ToolCallFull, ToolDefinition,
@@ -11,9 +15,6 @@ use rmcp::model::{
 use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceError, ServiceExt};
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -251,30 +252,80 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use forge_domain::{McpConfig, ToolCallContext, ToolCallFull, ToolName, ToolService, Workflow};
+    use forge_domain::{
+        CompactionResult, Conversation, ConversationId, ConversationService, McpConfig,
+        ToolCallContext, ToolCallFull, ToolName, ToolService, Workflow,
+    };
     use rmcp::model::{CallToolResult, Content};
     use rmcp::transport::SseServer;
     use rmcp::{tool, ServerHandler};
+    use serde_json::Value;
     use tokio::sync::Mutex;
     use tokio_util::sync::CancellationToken;
 
     use crate::mcp::ForgeMcpService;
 
-    struct MockLoaderService {
+    struct MockCommunicationService {
         workflow: Workflow,
     }
 
-    impl MockLoaderService {
-        fn from_http<I: IntoIterator<Item = (String, McpConfig)>>(configs: I) -> Self {
-            Self {
-                workflow: Workflow::default().mcp(configs.into_iter().collect::<HashMap<_, _>>()),
-            }
+    impl MockCommunicationService {
+        fn new(workflow: Workflow) -> Self {
+            Self { workflow }
         }
     }
 
-    impl MockLoaderService {
-        async fn load(&self) -> anyhow::Result<Workflow> {
-            Ok(self.workflow.clone())
+    #[async_trait::async_trait]
+    impl ConversationService for MockCommunicationService {
+        async fn find(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>> {
+            Ok(Some(Conversation {
+                id: id.clone(),
+                archived: false,
+                state: Default::default(),
+                variables: Default::default(),
+                agents: vec![],
+                events: vec![],
+                mcp: self.workflow.mcp.clone().unwrap_or_default(),
+            }))
+        }
+
+        async fn upsert(&self, _: Conversation) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn create(&self, _: Workflow) -> anyhow::Result<Conversation> {
+            unimplemented!()
+        }
+
+        async fn get_variable(&self, _: &ConversationId, _: &str) -> anyhow::Result<Option<Value>> {
+            unimplemented!()
+        }
+
+        async fn set_variable(
+            &self,
+            _: &ConversationId,
+            _: String,
+            _: Value,
+        ) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn delete_variable(&self, _: &ConversationId, _: &str) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+
+        async fn update<F, T>(&self, _: &ConversationId, _: F) -> anyhow::Result<T>
+        where
+            F: FnOnce(&mut Conversation) -> T + Send,
+        {
+            unimplemented!()
+        }
+
+        async fn compact_conversation(
+            &self,
+            _: &ConversationId,
+        ) -> anyhow::Result<CompactionResult> {
+            unimplemented!()
         }
     }
 
@@ -315,16 +366,17 @@ mod tests {
     async fn test_increment() {
         let ct = start_server().await.unwrap();
 
-        let mut map = HashMap::new();
-        map.insert(
+        let mut mcp = HashMap::new();
+        mcp.insert(
             "test".to_string(),
             McpConfig::default().url(format!("http://{MOCK_URL}/sse")),
         );
-        let loader = MockLoaderService::from_http(map);
-        let workflow = loader.load().await.unwrap();
+        let workflow = Workflow::default().mcp(mcp);
 
-        let mcp = ForgeMcpService::new();
-        let tools = mcp.list().await.unwrap();
+        let convo = MockCommunicationService::new(workflow.clone());
+
+        let mcp = ForgeMcpService::new(Arc::new(convo));
+        let tools = mcp.list(&ConversationId::generate()).await.unwrap();
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0].name.strip_prefix(), "increment");
 
