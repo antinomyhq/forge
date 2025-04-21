@@ -60,22 +60,6 @@ impl MessageContent {
             _ => self,
         }
     }
-
-    pub fn count_cache_parts(&self) -> usize {
-        match self {
-            MessageContent::Text(_) => 0,
-            MessageContent::Parts(parts) => parts
-                .iter()
-                .filter(|part| {
-                    if let ContentPart::Text { cache_control, .. } = part {
-                        cache_control.is_some()
-                    } else {
-                        false
-                    }
-                })
-                .count(),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
