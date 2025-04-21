@@ -190,7 +190,8 @@ impl ForgeMcpService {
 
 #[async_trait::async_trait]
 impl ToolService for ForgeMcpService {
-    async fn list(&self, mcp: HashMap<String, McpConfig>) -> anyhow::Result<Vec<ToolDefinition>> {
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        let mcp = HashMap::default(); // FIXME: This should be replaced with actual mcp config
         if !mcp.is_empty() {
             self.init_mcp(mcp)
                 .await
@@ -318,7 +319,7 @@ mod tests {
         let workflow = loader.load().await.unwrap();
 
         let mcp = ForgeMcpService::new();
-        let tools = mcp.list(workflow.mcp.clone().unwrap()).await.unwrap();
+        let tools = mcp.list().await.unwrap();
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0].name.strip_prefix(), "increment");
 

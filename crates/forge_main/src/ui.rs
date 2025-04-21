@@ -208,7 +208,7 @@ impl<F: API> UI<F> {
                 }
                 Command::Tools => {
                     use crate::tools_display::format_tools;
-                    let tools = self.api.tools().await;
+                    let tools = self.api.tools().await?;
                     let output = format_tools(&tools);
                     println!("{}", output);
                 }

@@ -106,11 +106,10 @@ impl<A: Services> Orchestrator<A> {
                 .call(
                     ToolCallContext::default()
                         .sender(self.sender.clone())
-                        .agent_id(agent.id.clone())
-                        .mcp(conversation.mcp.clone()),
+                        .agent_id(agent.id.clone()),
                     tool_call.clone(),
                 )
-                .await;
+                .await?;
 
             // Send the end notification
             self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
@@ -305,14 +304,14 @@ impl<A: Services> Orchestrator<A> {
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
             agent
-                .init_context(self.services.tool_service().list())
+                .init_context(self.services.tool_service().list().await?)
                 .await?
         } else {
             match conversation.context(&agent.id) {
                 Some(context) => context.clone(),
                 None => {
                     agent
-                        .init_context(self.services.tool_service().list())
+                        .init_context(self.services.tool_service().list().await?)
                         .await?
                 }
             }

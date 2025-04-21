@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use forge_stream::MpscStream;
@@ -14,7 +13,7 @@ pub trait API: Sync + Send {
 
     /// Provides information about the tools available in the current
     /// environment
-    async fn tools(&self, mcp: HashMap<String, McpConfig>) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>>;
 
     /// Provides a list of models available in the current environment
     async fn models(&self) -> anyhow::Result<Vec<Model>>;

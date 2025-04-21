@@ -334,7 +334,7 @@ mod tests {
         let workflow = Workflow::new()
             .agents(vec![agent1, agent2])
             .model(ModelId::new("test-model"))
-            .max_walker_depth(5)
+            .max_walker_depth(5usize)
             .custom_rules("Be helpful".to_string())
             .temperature(Temperature::new(0.7).unwrap())
             .tool_supported(true);
@@ -374,7 +374,7 @@ mod tests {
         let workflow = Workflow::new()
             .agents(vec![agent1, agent2])
             .model(ModelId::new("default-model"))
-            .max_walker_depth(5)
+            .max_walker_depth(5usize)
             .custom_rules("Default rules".to_string())
             .temperature(Temperature::new(0.7).unwrap())
             .tool_supported(true);

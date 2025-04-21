@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpConfig, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult,
-    ToolService,
+    Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
 };
 use tokio::time::{timeout, Duration};
 use tracing::{debug, error};
@@ -90,7 +89,7 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
         Ok(result)
     }
 
-    async fn list(&self, mcp: HashMap<String, McpConfig>) -> anyhow::Result<Vec<ToolDefinition>> {
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         let mut tools: Vec<_> = self
             .tools
             .values()
@@ -99,7 +98,7 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
 
         // Sorting is required to ensure system prompts are exactly the same
         tools.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        let mcp_tools = self.mcp_service.list(mcp).await?;
+        let mcp_tools = self.mcp_service.list().await?;
         tools.extend(mcp_tools);
 
         Ok(tools)
@@ -143,7 +142,7 @@ mod test {
                 is_error: true,
             })
         }
-        async fn list(&self, _: HashMap<String, McpConfig>) -> anyhow::Result<Vec<ToolDefinition>> {
+        async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
             Ok(vec![])
         }
 

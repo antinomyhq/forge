@@ -4,8 +4,8 @@ use serde_json::Value;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, Compact, CompactionResult, Context, Conversation,
-    ConversationId, Environment, Event, EventContext, McpConfig, Model, ModelId, ResultStream,
-    SystemContext, Template, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
+    ConversationId, Environment, Event, EventContext, Model, ModelId, ResultStream, SystemContext,
+    Template, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
