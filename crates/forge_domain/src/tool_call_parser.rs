@@ -448,7 +448,7 @@ mod tests {
     fn test_unrecognized_closing_tags() {
         let input = "<tool_call><foo><p></abc></p></tool_call>";
 
-        let action = parse(&input).unwrap();
+        let action = parse(input).unwrap();
         let expected = vec![ToolCallFull {
             name: ToolName::new("foo"),
             call_id: None,
