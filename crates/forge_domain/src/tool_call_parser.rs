@@ -61,16 +61,8 @@ fn parse_tool_call(input: &str) -> IResult<&str, ToolCallParsed> {
     // Match all the arguments with whitespace
     let (input, args) = parse_args(input)?;
 
-    // Match closing tags: </tool_name>
-    let (input, _) = multispace0(input)?; // Handle whitespace before closing tag
-    let (input, _) = tag("</").parse(input)?;
-    let (input, _) = tag(name).parse(input)?;
-    let (input, _) = tag(">").parse(input)?;
-    let (input, _) = multispace0(input)?; // Handle whitespace after closing tag
-
-    // Match </tool_call> and any whitespace
-    let (input, _) = tag("</tool_call>").parse(input)?;
-    let (input, _) = multispace0(input)?; // Handle trailing whitespace and newlines
+    // Ignore everything until the closing tag
+    let (input, _) = take_until("</tool_call>").parse(input)?;
 
     Ok((
         input,
@@ -256,7 +248,7 @@ mod tests {
                 <file_pattern>**/*.md</file_pattern>
                 <path>/Users/amit/code-forge</path>
                 <regex>cat</regex>
-                </tool_forge_fs_search>
+                
                 </tool_call>"#;
 
         let action = parse(str).unwrap();
@@ -436,6 +428,19 @@ mod tests {
             name: ToolName::new("foo"),
             call_id: None,
             arguments: serde_json::from_str(r#"{"p1":"\nabc\n"}"#).unwrap(),
+        }];
+        assert_eq!(action, expected);
+    }
+
+    #[test]
+    fn test_parse_missing_closing() {
+        let input = "<tool_call><foo><p>abc</p></tool_call>";
+
+        let action = parse(&input).unwrap();
+        let expected = vec![ToolCallFull {
+            name: ToolName::new("foo"),
+            call_id: None,
+            arguments: serde_json::from_str(r#"{"p":"abc"}"#).unwrap(),
         }];
         assert_eq!(action, expected);
     }
