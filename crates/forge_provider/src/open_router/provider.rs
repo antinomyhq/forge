@@ -81,16 +81,15 @@ impl OpenRouter {
         request = ProviderPipeline::new(&self.provider).transform(request);
 
         let url = self.url("chat/completions")?;
-        let cache_breakpoints: usize = request
-            .messages
-            .iter()
-            .flatten()
-            .flat_map(|msg| msg.content.as_ref())
-            .map(|msg| msg.count_cache_parts())
-            .sum();
-        
-        debug!(url = %url, model = %model, cache_breakpoints = %cache_breakpoints, "Connecting Upstream");
-        
+
+        debug!(
+            url = %url,
+            model = %model,
+            message_count = %request.message_count(),
+            message_cache_count = %request.message_cache_count(),
+            "Connecting Upstream"
+        );
+
         let mut es = self
             .client
             .post(url.clone())
