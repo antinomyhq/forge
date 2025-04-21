@@ -99,14 +99,15 @@ impl Workflow {
     /// scratch.
     pub fn new() -> Self {
         Self {
-            agents: Vec::new(),
-            variables: HashMap::new(),
-            commands: Vec::new(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-            tool_supported: None,
+            agents: Default::default(),
+            variables: Default::default(),
+            commands: Default::default(),
+            model: Default::default(),
+            max_walker_depth: Default::default(),
+            custom_rules: Default::default(),
+            temperature: Default::default(),
+            tool_supported: Default::default(),
+            mcp: Default::default(),
         }
     }
 
