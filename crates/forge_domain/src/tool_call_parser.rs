@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use nom::bytes::complete::{tag, take_until, take_while1};
 use nom::character::complete::multispace0;
@@ -12,7 +12,7 @@ use crate::{Error, ToolName};
 #[derive(Debug, PartialEq)]
 pub struct ToolCallParsed {
     pub name: String,
-    pub args: HashMap<String, String>,
+    pub args: BTreeMap<String, String>,
 }
 
 // Allow alphanumeric and underscore characters
@@ -25,21 +25,18 @@ fn parse_identifier(input: &str) -> IResult<&str, &str> {
 }
 
 fn parse_arg(input: &str) -> IResult<&str, (&str, &str)> {
-    let (input, _) = multispace0(input)?;
-    let (input, _) = tag("<").parse(input)?;
+    let (input, _) = take_until("<").and(tag("<")).parse(input)?;
     let (input, key) = parse_identifier(input)?;
     let (input, _) = tag(">").parse(input)?;
-    let (input, value) = take_until("</").parse(input)?;
-    let (input, _) = tag("</").parse(input)?;
-    let (input, _) = tag(key).parse(input)?;
-    let (input, _) = tag(">").parse(input)?;
-    let (input, _) = multispace0(input)?;
+    let close = format!("</{key}>");
+    let (input, value) = take_until(close.as_str()).parse(input)?;
+    let (input, _) = tag(close.as_str()).parse(input)?;
     Ok((input, (key, value)))
 }
 
 fn parse_args(input: &str) -> IResult<&str, HashMap<String, String>> {
-    let mut arg_parser = many0(parse_arg);
-    let (input, args) = arg_parser.parse(input)?;
+    let (input, args) = many0(parse_arg).parse(input)?;
+
     let mut map = HashMap::new();
     for (key, value) in args {
         map.insert(key.to_string(), value.to_string());
@@ -60,17 +57,6 @@ fn parse_tool_call(input: &str) -> IResult<&str, ToolCallParsed> {
 
     // Match all the arguments with whitespace
     let (input, args) = parse_args(input)?;
-
-    // Match closing tags: </tool_name>
-    let (input, _) = multispace0(input)?; // Handle whitespace before closing tag
-    let (input, _) = tag("</").parse(input)?;
-    let (input, _) = tag(name).parse(input)?;
-    let (input, _) = tag(">").parse(input)?;
-    let (input, _) = multispace0(input)?; // Handle whitespace after closing tag
-
-    // Match </tool_call> and any whitespace
-    let (input, _) = tag("</tool_call>").parse(input)?;
-    let (input, _) = multispace0(input)?; // Handle trailing whitespace and newlines
 
     Ok((
         input,
@@ -166,6 +152,8 @@ pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -174,12 +162,12 @@ mod tests {
     // Test helpers
     struct ToolCallBuilder {
         name: String,
-        args: HashMap<String, String>,
+        args: BTreeMap<String, String>,
     }
 
     impl ToolCallBuilder {
         fn new(name: &str) -> Self {
-            Self { name: name.to_string(), args: HashMap::new() }
+            Self { name: name.to_string(), args: Default::default() }
         }
 
         fn arg(mut self, key: &str, value: &str) -> Self {
@@ -256,7 +244,7 @@ mod tests {
                 <file_pattern>**/*.md</file_pattern>
                 <path>/Users/amit/code-forge</path>
                 <regex>cat</regex>
-                </tool_forge_fs_search>
+                
                 </tool_call>"#;
 
         let action = parse(str).unwrap();
@@ -436,6 +424,45 @@ mod tests {
             name: ToolName::new("foo"),
             call_id: None,
             arguments: serde_json::from_str(r#"{"p1":"\nabc\n"}"#).unwrap(),
+        }];
+        assert_eq!(action, expected);
+    }
+
+    #[test]
+    fn test_parse_missing_closing() {
+        let input = "<tool_call><foo><p>abc</p></tool_call>";
+
+        let action = parse(input).unwrap();
+        let expected = vec![ToolCallFull {
+            name: ToolName::new("foo"),
+            call_id: None,
+            arguments: serde_json::from_str(r#"{"p":"abc"}"#).unwrap(),
+        }];
+        assert_eq!(action, expected);
+    }
+
+    #[test]
+    fn test_parse_missing_closing_outer() {
+        let input = "<tool_call><foo><p>abc</p></foo>";
+
+        let action = parse(input).unwrap();
+        let expected = vec![ToolCallFull {
+            name: ToolName::new("foo"),
+            call_id: None,
+            arguments: serde_json::from_str(r#"{"p":"abc"}"#).unwrap(),
+        }];
+        assert_eq!(action, expected);
+    }
+
+    #[test]
+    fn test_unrecognized_closing_tags() {
+        let input = "<tool_call><foo><p></abc></p></tool_call>";
+
+        let action = parse(input).unwrap();
+        let expected = vec![ToolCallFull {
+            name: ToolName::new("foo"),
+            call_id: None,
+            arguments: serde_json::from_str(r#"{"p":"</abc>"}"#).unwrap(),
         }];
         assert_eq!(action, expected);
     }

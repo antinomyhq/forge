@@ -58,6 +58,20 @@ impl MessageContent {
             _ => self,
         }
     }
+
+    #[cfg(test)]
+    pub fn is_cached(&self) -> bool {
+        match self {
+            MessageContent::Text(_) => false,
+            MessageContent::Parts(parts) => parts.iter().any(|part| {
+                if let ContentPart::Text { cache_control, .. } = part {
+                    cache_control.is_some()
+                } else {
+                    false
+                }
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -172,6 +186,26 @@ pub struct OpenRouterRequest {
     pub parallel_tool_calls: Option<bool>,
 }
 
+impl OpenRouterRequest {
+    pub fn message_count(&self) -> usize {
+        self.messages
+            .as_ref()
+            .map(|messages| messages.len())
+            .unwrap_or(0)
+    }
+
+    pub fn message_cache_count(&self) -> usize {
+        self.messages
+            .iter()
+            .flatten()
+            .flat_map(|a| a.content.as_ref())
+            .enumerate()
+            .map(|(i, _)| i)
+            .max()
+            .unwrap_or(0)
+    }
+}
+
 /// ref: https://openrouter.ai/docs/transforms
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub enum Transform {
@@ -236,7 +270,7 @@ impl From<Context> for OpenRouterRequest {
             min_p: Default::default(),
             top_a: Default::default(),
             prediction: Default::default(),
-            transforms: Some(vec![Transform::default()]),
+            transforms: Default::default(),
             models: Default::default(),
             route: Default::default(),
             provider: Default::default(),

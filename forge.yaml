@@ -12,6 +12,7 @@ commands:
       - Top-level summary should contain 2-3 lines about the core functionality improvements
 max_walker_depth: 1024
 tool_supported: false
+temperature: 0
 custom_rules: |-
   Handling Errors:
 

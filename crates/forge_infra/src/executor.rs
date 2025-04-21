@@ -1,21 +1,26 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use forge_domain::{CommandOutput, Environment};
 use forge_services::CommandExecutorService;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
+use tokio::sync::Mutex;
 
 /// Service for executing shell commands
 #[derive(Clone, Debug)]
 pub struct ForgeCommandExecutorService {
     restricted: bool,
     env: Environment,
+
+    // Mutex to ensure that only one command is executed at a time
+    ready: Arc<Mutex<()>>,
 }
 
 impl ForgeCommandExecutorService {
     pub fn new(restricted: bool, env: Environment) -> Self {
-        Self { restricted, env }
+        Self { restricted, env, ready: Arc::new(Mutex::new(())) }
     }
 
     fn prepare_command(&self, command_str: &str, working_dir: &Path) -> Command {
@@ -69,6 +74,8 @@ impl ForgeCommandExecutorService {
         command: String,
         working_dir: &Path,
     ) -> anyhow::Result<CommandOutput> {
+        let ready = self.ready.lock().await;
+
         let mut command = self.prepare_command(&command, working_dir);
 
         // Spawn the command
@@ -87,6 +94,7 @@ impl ForgeCommandExecutorService {
         // Drop happens after `try_join` due to <https://github.com/tokio-rs/tokio/issues/4309>
         drop(stdout_pipe);
         drop(stderr_pipe);
+        drop(ready);
 
         Ok(CommandOutput {
             stdout: String::from_utf8_lossy(&stdout_buffer).into_owned(),

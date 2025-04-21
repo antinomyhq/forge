@@ -25,23 +25,36 @@ Here's a correct example structure:
 
 Example of correct multi-step tool usage:
 
-First message:
 ```
+First message to read file_a:
 <tool_call>
 <tool_forge_fs_read>
-<path>/path/to/file</path>
+<path>/path/to/file_a</path>
 </tool_forge_fs_read>
 </tool_call>
-```
 
-After receiving response from the user, second message:
-```
+User response for the first message:
+<tool_result>
+<tool_forge_fs_create>  
+<success>[success message]</success>
+</tool_forge_fs_create>
+<tool_result>
+
+
+Second request to read file_b:
 <tool_call>
 <tool_forge_fs_create>
-<path>/path/to/file</path>
+<path>/path/to/file_b</path>
 <content>New content</content>
 </tool_forge_fs_create>
 </tool_call>
+
+User response for the second message:
+<tool_result>
+<tool_forge_fs_create>  
+<success>[success message]</success>
+</tool_forge_fs_create>
+<tool_result>
 ```
 
 Important:
@@ -50,6 +63,8 @@ Important:
 - Do NOT use JSON format (e.g., `tool_name({"param": "value"})`)
 - Do NOT mix formats in the same message
 - If you need to make multiple tool calls, send them in separate messages
+- Tool results will be wrapped in a `tool_result` tag by the user
+- Do not assume a tool call succeeded without a tool_result
 
 Before using a tool, ensure all required parameters are available. 
 If any required parameters are missing, do not attempt to use the tool.
