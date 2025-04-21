@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context as AnyhowContext;
 use async_recursion::async_recursion;
+use chrono::Local;
+use forge_walker::Walker;
 use futures::future::join_all;
 use futures::{Stream, StreamExt};
 use serde_json::Value;
@@ -10,7 +12,6 @@ use tokio::sync::RwLock;
 use tokio_retry::strategy::{jitter, ExponentialBackoff};
 use tokio_retry::RetryIf;
 use tracing::debug;
-
 // Use retry_config default values directly in this file
 use crate::services::Services;
 use crate::*;
@@ -143,11 +144,32 @@ impl<A: Services> Orchestrator<A> {
         variables: &HashMap<String, Value>,
     ) -> anyhow::Result<Context> {
         Ok(if let Some(system_prompt) = &agent.system_prompt {
+            let env = self.services.environment_service().get_environment();
+            let walker = Walker::max_all().max_depth(agent.max_walker_depth.unwrap_or(1));
+            let mut files = walker
+                .cwd(env.cwd.clone())
+                .get()
+                .await?
+                .into_iter()
+                .map(|f| f.path)
+                .collect::<Vec<_>>();
+            files.sort();
+
+            let current_time = Local::now().format("%Y-%m-%d %H:%M:%S %:z").to_string();
+            let ctx = SystemContext {
+                current_time,
+                env: Some(env),
+                tool_information: Some(self.services.tool_service().usage_prompt()),
+                tool_supported: agent.tool_supported.unwrap_or_default(),
+                files,
+                custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
+                variables: variables.clone(),
+            };
+
             let system_message = self
                 .services
                 .template_service()
-                .render_system(agent, system_prompt, variables)
-                .await?;
+                .render(system_prompt.template.as_str(), &ctx)?;
 
             context.set_first_system_message(system_message)
         } else {
@@ -426,12 +448,11 @@ impl<A: Services> Orchestrator<A> {
         event: &Event,
     ) -> anyhow::Result<Context> {
         let content = if let Some(user_prompt) = &agent.user_prompt {
-            // Use the consolidated render_event method which handles suggestions and
-            // variables
+            let event_context = EventContext::new(event.clone()).variables(variables.clone());
+            debug!(event_context = ?event_context, "Event context");
             self.services
                 .template_service()
-                .render_event(agent, user_prompt, event, variables)
-                .await?
+                .render(user_prompt.template.as_str(), &event_context)?
         } else {
             // Use the raw event value as content if no user_prompt is provided
             event.value.to_string()

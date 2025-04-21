@@ -27,9 +27,9 @@ tracing.workspace = true
 url.workspace = true
 merge.workspace = true
 tokio-retry = { workspace = true }
-rmcp.workspace = true
 serde_yml.workspace = true
 forge_template.workspace = true
+forge_walker.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

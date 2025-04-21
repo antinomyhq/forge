@@ -1,10 +1,14 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use forge_domain::{TemplateService, ToolService};
+use crate::Infrastructure;
+use forge_domain::{
+    Agent, Compact, Context, Event, EventContext, SystemContext, Template, TemplateService,
+    ToolService,
+};
 use handlebars::Handlebars;
 use rust_embed::Embed;
-
-use crate::Infrastructure;
+use serde_json::Value;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -34,6 +38,33 @@ impl<F, T> ForgeTemplateService<F, T> {
 
 #[async_trait::async_trait]
 impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService<F, T> {
+    async fn render_system(
+        &self,
+        _agent: &Agent,
+        _prompt: &Template<SystemContext>,
+        _variables: &HashMap<String, Value>,
+    ) -> anyhow::Result<String> {
+        unimplemented!()
+    }
+
+    async fn render_event(
+        &self,
+        _agent: &Agent,
+        _prompt: &Template<EventContext>,
+        _event: &Event,
+        _variables: &HashMap<String, Value>,
+    ) -> anyhow::Result<String> {
+        unimplemented!()
+    }
+
+    async fn render_summarization(
+        &self,
+        _compaction: &Compact,
+        _context: &Context,
+    ) -> anyhow::Result<String> {
+        unimplemented!()
+    }
+
     fn render(
         &self,
         template: impl ToString,
