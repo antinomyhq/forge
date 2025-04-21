@@ -60,6 +60,20 @@ impl MessageContent {
             _ => self,
         }
     }
+
+    #[cfg(test)]
+    pub fn is_cached(&self) -> bool {
+        match self {
+            MessageContent::Text(_) => false,
+            MessageContent::Parts(parts) => parts.iter().any(|part| {
+                if let ContentPart::Text { cache_control, .. } = part {
+                    cache_control.is_some()
+                } else {
+                    false
+                }
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
