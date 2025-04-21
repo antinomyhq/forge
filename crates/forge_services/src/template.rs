@@ -7,7 +7,6 @@ use handlebars::Handlebars;
 use rust_embed::Embed;
 use serde_json::Value;
 
-use crate::Infrastructure;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -16,6 +15,12 @@ struct Templates;
 #[derive(Clone)]
 pub struct ForgeTemplateService {
     hb: Handlebars<'static>,
+}
+
+impl Default for ForgeTemplateService {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ForgeTemplateService {
