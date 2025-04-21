@@ -11,6 +11,12 @@ use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::Infrastructure;
 
+// Type aliases to reduce complexity
+type CompactionServiceType = ForgeCompactionService<ForgeTemplateService, ForgeProviderService>;
+type ConversationServiceType = ForgeConversationService<CompactionServiceType>;
+type McpServiceType = ForgeMcpService<ConversationServiceType>;
+type ToolServiceType = ForgeToolService<McpServiceType>;
+
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
 ///
@@ -20,24 +26,12 @@ use crate::Infrastructure;
 #[derive(Clone)]
 pub struct ForgeServices<F> {
     infra: Arc<F>,
-    tool_service: Arc<
-        ForgeToolService<
-            ForgeMcpService<
-                ForgeConversationService<
-                    ForgeCompactionService<ForgeTemplateService, ForgeProviderService>,
-                >,
-            >,
-        >,
-    >,
+    tool_service: Arc<ToolServiceType>,
     provider_service: Arc<ForgeProviderService>,
-    conversation_service: Arc<
-        ForgeConversationService<
-            ForgeCompactionService<ForgeTemplateService, ForgeProviderService>,
-        >,
-    >,
+    conversation_service: Arc<ConversationServiceType>,
     template_service: Arc<ForgeTemplateService>,
     attachment_service: Arc<ForgeChatRequest<F>>,
-    compaction_service: Arc<ForgeCompactionService<ForgeTemplateService, ForgeProviderService>>,
+    compaction_service: Arc<CompactionServiceType>,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
