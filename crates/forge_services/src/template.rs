@@ -1,9 +1,8 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use forge_domain::{
-    Agent, Compact, Context, Event, EventContext, SystemContext, Template, TemplateService,
-    ToolService,
+    Agent, Compact, Context, Event, EventContext, SystemContext, Template, TemplateService
+    ,
 };
 use handlebars::Handlebars;
 use rust_embed::Embed;
@@ -16,16 +15,12 @@ use crate::Infrastructure;
 struct Templates;
 
 #[derive(Clone)]
-pub struct ForgeTemplateService<F, T> {
+pub struct ForgeTemplateService {
     hb: Handlebars<'static>,
-    #[allow(dead_code)]
-    infra: Arc<F>,
-    #[allow(dead_code)]
-    tool_service: Arc<T>,
 }
 
-impl<F, T> ForgeTemplateService<F, T> {
-    pub fn new(infra: Arc<F>, tool_service: Arc<T>) -> Self {
+impl ForgeTemplateService {
+    pub fn new() -> Self {
         let mut hb = Handlebars::new();
         hb.set_strict_mode(true);
         hb.register_escape_fn(|str| str.to_string());
@@ -33,12 +28,12 @@ impl<F, T> ForgeTemplateService<F, T> {
         // Register all partial templates
         hb.register_embed_templates::<Templates>().unwrap();
 
-        Self { hb, infra, tool_service }
+        Self { hb }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService<F, T> {
+impl TemplateService for ForgeTemplateService {
     async fn render_system(
         &self,
         _agent: &Agent,
