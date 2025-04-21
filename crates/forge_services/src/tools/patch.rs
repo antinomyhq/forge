@@ -288,9 +288,6 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
             &current_content,
         );
 
-        // Output diff either to sender or println
-        context.send_text(diff).await?;
-
         // Write final content to file after all patches are applied
         self.0
             .file_write_service()
@@ -303,9 +300,12 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
         // Format the output
         let result = format_output(
             path.to_string_lossy().as_ref(),
-            &current_content,
+            console::strip_ansi_codes(&diff).as_ref(),
             warning.as_deref(),
         );
+
+        // Output diff either to sender or println
+        context.send_text(diff).await?;
 
         // Return the final result
         Ok(result)
