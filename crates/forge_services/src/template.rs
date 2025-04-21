@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::Infrastructure;
 use forge_domain::{
     Agent, Compact, Context, Event, EventContext, SystemContext, Template, TemplateService,
     ToolService,
@@ -9,6 +8,8 @@ use forge_domain::{
 use handlebars::Handlebars;
 use rust_embed::Embed;
 use serde_json::Value;
+
+use crate::Infrastructure;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
