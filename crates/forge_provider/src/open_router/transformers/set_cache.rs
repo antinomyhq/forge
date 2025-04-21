@@ -22,7 +22,7 @@ impl Transformer for SetCache {
                 }
             }
 
-            for pos in cache_positions.into_iter().rev().take(2) {
+            for pos in cache_positions.into_iter().rev().skip(2).take(2) {
                 if let Some(ref content) = messages[pos].content {
                     messages[pos].content = Some(content.clone().cached());
                 }
@@ -37,12 +37,14 @@ impl Transformer for SetCache {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use forge_domain::{ContentMessage, Context, ContextMessage, Role};
     use pretty_assertions::assert_eq;
 
     use super::*;
 
-    fn create_test_context(message: impl ToString) -> Vec<usize> {
+    fn create_test_context(message: impl ToString) -> String {
         let context = Context {
             messages: message
                 .to_string()
@@ -76,7 +78,8 @@ mod tests {
 
         let request = OpenRouterRequest::from(context);
         let request = SetCache.transform(request);
-        request
+        let mut output = String::new();
+        let sequences = request
             .messages
             .into_iter()
             .flatten()
@@ -84,29 +87,42 @@ mod tests {
             .enumerate()
             .filter(|(_, m)| m.is_cached())
             .map(|(i, _)| i)
-            .collect::<Vec<_>>()
+            .collect::<HashSet<usize>>();
+
+        for (i, c) in message.to_string().chars().enumerate() {
+            if sequences.contains(&i) {
+                output.push_str("[");
+            }
+            output.push_str(c.to_string().as_str())
+        }
+
+        output
     }
 
     #[test]
     fn test_transformation() {
         let actual = create_test_context("suu");
-        let expected = vec![1];
+        let expected = "suu";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suua");
-        let expected = vec![1];
+        let expected = "suua";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuau");
-        let expected = vec![1, 4];
+        let expected = "suuau";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuauu");
-        let expected = vec![1, 4];
+        let expected = "suuauu";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuauuaaau");
-        let expected = vec![4, 9];
+        let expected = "s[uuauuaaau";
+        assert_eq!(actual, expected);
+
+        let actual = create_test_context("suuauuaaauauau");
+        let expected = "suua[uuaaa[uauau";
         assert_eq!(actual, expected);
     }
 }
