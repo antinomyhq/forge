@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+regex.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
@@ -28,6 +29,7 @@ merge.workspace = true
 tokio-retry = { workspace = true }
 rmcp.workspace = true
 serde_yml.workspace = true
+forge_template.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

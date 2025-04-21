@@ -5,7 +5,6 @@ use forge_api::Environment;
 use forge_display::TitleFormat;
 use tokio::fs;
 
-use crate::console::CONSOLE;
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{Command, ForgeCommandManager};
 use crate::prompt::ForgePrompt;
@@ -30,13 +29,11 @@ impl Console {
         let path = path.into();
         let content = fs::read_to_string(&path).await?.trim().to_string();
 
-        CONSOLE.writeln(content.clone())?;
+        println!("{}", content.clone());
         Ok(Command::Message(content))
     }
 
     pub async fn prompt(&self, prompt: Option<ForgePrompt>) -> anyhow::Result<Command> {
-        CONSOLE.writeln("")?;
-
         let mut engine = ForgeEditor::new(self.env.clone(), self.command.clone());
         let prompt: ForgePrompt = prompt.unwrap_or_default();
 
@@ -51,11 +48,10 @@ impl Console {
                     match self.command.parse(&text) {
                         Ok(command) => return Ok(command),
                         Err(e) => {
-                            CONSOLE.writeln(
-                                TitleFormat::failed("command")
-                                    .sub_title(e.to_string())
-                                    .format(),
-                            )?;
+                            println!(
+                                "{}",
+                                TitleFormat::new("command").error(e.to_string()).format()
+                            );
                         }
                     }
                 }

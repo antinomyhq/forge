@@ -1,4 +1,5 @@
 use std::cmp::max;
+use std::collections::HashSet;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -10,7 +11,8 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, Error, EventContext, ModelId, Result, Role, SystemContext, ToolDefinition, ToolName,
+    Context, Error, Event, EventContext, ModelId, Result, Role, SystemContext, ToolDefinition,
+    ToolName,
 };
 
 // Unique identifier for an agent
@@ -299,6 +301,29 @@ impl Agent {
         } else {
             false
         }
+    }
+
+    pub async fn init_context(&self, mut forge_tools: Vec<ToolDefinition>) -> Result<Context> {
+        let allowed = self.tools.iter().flatten().collect::<HashSet<_>>();
+
+        // Adding Event tool to the list of tool definitions
+        forge_tools.push(Event::tool_definition());
+
+        let tool_defs = forge_tools
+            .into_iter()
+            .filter(|tool| allowed.contains(&tool.name))
+            .collect::<Vec<_>>();
+
+        // Use the agent's tool_supported flag directly instead of querying the provider
+        let tool_supported = self.tool_supported.unwrap_or_default();
+
+        let context = Context::default();
+
+        Ok(context.extend_tools(if tool_supported {
+            tool_defs
+        } else {
+            Vec::new()
+        }))
     }
 }
 

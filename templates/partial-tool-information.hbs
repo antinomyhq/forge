@@ -11,6 +11,38 @@ Tool Use Formatting Rules:
 3. Each tool call must be wrapped in `<tool_call>` tags.
 4. The actual tool name (e.g., tool_forge_fs_read) must be used as the enclosing tag.
 5. Each parameter must be enclosed within its own set of tags.
+Here's a correct example structure:
+
+```
+
+<tool_call>
+<tool_forge_fs_read>
+<path>/path/to/file</path>
+<recursive>true</recursive>
+</tool_forge_fs_read>
+</tool_call>
+```
+
+Example of correct multi-step tool usage:
+
+First message:
+```
+<tool_call>
+<tool_forge_fs_read>
+<path>/path/to/file</path>
+</tool_forge_fs_read>
+</tool_call>
+```
+
+After receiving response from the user, second message:
+```
+<tool_call>
+<tool_forge_fs_create>
+<path>/path/to/file</path>
+<content>New content</content>
+</tool_forge_fs_create>
+</tool_call>
+```
 
 Important:
 
@@ -19,9 +51,8 @@ Important:
 - Do NOT mix formats in the same message
 - If you need to make multiple tool calls, send them in separate messages
 
-{{> partial-tool-examples.hbs }}
-
-Before using a tool, ensure all required parameters are available. If any required parameters are missing, do not attempt to use the tool.
+Before using a tool, ensure all required parameters are available. 
+If any required parameters are missing, do not attempt to use the tool.
 
 <available_tools>{{tool_information}}</available_tools>
 </tool_information>

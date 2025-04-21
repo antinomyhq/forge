@@ -29,14 +29,11 @@ fn parse_arg(input: &str) -> IResult<&str, (&str, &str)> {
     let (input, _) = tag("<").parse(input)?;
     let (input, key) = parse_identifier(input)?;
     let (input, _) = tag(">").parse(input)?;
-    let (input, _) = multispace0(input)?; // Handle whitespace after opening tag
-
     let (input, value) = take_until("</").parse(input)?;
     let (input, _) = tag("</").parse(input)?;
     let (input, _) = tag(key).parse(input)?;
     let (input, _) = tag(">").parse(input)?;
     let (input, _) = multispace0(input)?;
-
     Ok((input, (key, value)))
 }
 
@@ -45,12 +42,7 @@ fn parse_args(input: &str) -> IResult<&str, HashMap<String, String>> {
     let (input, args) = arg_parser.parse(input)?;
     let mut map = HashMap::new();
     for (key, value) in args {
-        // Clean up any extraneous whitespace in values, including indentation and
-        // newlines
-        map.insert(
-            key.to_string(),
-            value.split_whitespace().collect::<Vec<_>>().join(" "),
-        );
+        map.insert(key.to_string(), value.to_string());
     }
     Ok((input, map))
 }
@@ -84,10 +76,7 @@ fn parse_tool_call(input: &str) -> IResult<&str, ToolCallParsed> {
         input,
         ToolCallParsed {
             name: name.to_string(),
-            args: args
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v.trim().to_string()))
-                .collect(),
+            args: args.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
         },
     ))
 }
@@ -434,6 +423,19 @@ mod tests {
             name: ToolName::new("tool_forge_fs_search"),
             call_id: None,
             arguments: serde_json::from_str(r#"{"path":"/test/path","regex":"test"}"#).unwrap(),
+        }];
+        assert_eq!(action, expected);
+    }
+
+    #[test]
+    fn test_parse_with_newlines() {
+        let input = ["<tool_call><foo><p1>", "abc", "</p1></foo></tool_call>"].join("\n");
+
+        let action = parse(&input).unwrap();
+        let expected = vec![ToolCallFull {
+            name: ToolName::new("foo"),
+            call_id: None,
+            arguments: serde_json::from_str(r#"{"p1":"\nabc\n"}"#).unwrap(),
         }];
         assert_eq!(action, expected);
     }

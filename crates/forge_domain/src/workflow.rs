@@ -60,6 +60,14 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::option)]
     pub temperature: Option<Temperature>,
 
+    /// Flag to enable/disable tool support for all agents in this workflow.
+    /// If not specified, each agent's individual setting will be used.
+    /// Default is false (tools disabled) when not specified.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub tool_supported: Option<bool>,
+
     /// Model Context Protocol (MCP) configuration
     #[merge(strategy = crate::merge::option)]
     #[serde(rename = "mcpServers")]
@@ -86,6 +94,22 @@ pub struct Command {
 }
 
 impl Workflow {
+    /// Creates a new empty workflow with all fields set to their empty state.
+    /// This is useful for testing where you want to build a workflow from
+    /// scratch.
+    pub fn new() -> Self {
+        Self {
+            agents: Vec::new(),
+            variables: HashMap::new(),
+            commands: Vec::new(),
+            model: None,
+            max_walker_depth: None,
+            custom_rules: None,
+            temperature: None,
+            tool_supported: None,
+        }
+    }
+
     fn find_agent(&self, id: &AgentId) -> Option<&Agent> {
         self.agents.iter().find(|a| a.id == *id)
     }
@@ -93,5 +117,80 @@ impl Workflow {
     pub fn get_agent(&self, id: &AgentId) -> crate::Result<&Agent> {
         self.find_agent(id)
             .ok_or_else(|| crate::Error::AgentUndefined(id.clone()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_workflow_new_creates_empty_workflow() {
+        // Arrange
+
+        // Act
+        let actual = Workflow::new();
+
+        // Assert
+        assert!(actual.agents.is_empty());
+        assert!(actual.variables.is_empty());
+        assert!(actual.commands.is_empty());
+        assert_eq!(actual.model, None);
+        assert_eq!(actual.max_walker_depth, None);
+        assert_eq!(actual.custom_rules, None);
+        assert_eq!(actual.temperature, None);
+        assert_eq!(actual.tool_supported, None);
+    }
+
+    #[test]
+    fn test_workflow_with_tool_supported() {
+        // Arrange
+        let fixture = r#"
+        {
+            "tool_supported": true,
+            "agents": [
+                {
+                    "id": "test-agent",
+                    "description": "Test agent"
+                }
+            ]
+        }
+        "#;
+
+        // Act
+        let actual: Workflow = serde_json::from_str(fixture).unwrap();
+
+        // Assert
+        assert_eq!(actual.tool_supported, Some(true));
+    }
+
+    #[test]
+    fn test_workflow_merge_tool_supported() {
+        // Fixture
+        let mut base = Workflow::new();
+
+        let other = Workflow::new().tool_supported(true);
+
+        // Act
+        base.merge(other);
+
+        // Assert
+        assert_eq!(base.tool_supported, Some(true));
+    }
+
+    #[test]
+    fn test_workflow_merge_tool_supported_with_existing() {
+        // Fixture
+        let mut base = Workflow::new().tool_supported(false);
+
+        let other = Workflow::new().tool_supported(true);
+
+        // Act
+        base.merge(other);
+
+        // Assert
+        assert_eq!(base.tool_supported, Some(true));
     }
 }

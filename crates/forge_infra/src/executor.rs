@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use forge_domain::CommandOutput;
+use forge_domain::{CommandOutput, Environment};
 use forge_services::CommandExecutorService;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
@@ -10,11 +10,12 @@ use tokio::process::Command;
 #[derive(Clone, Debug)]
 pub struct ForgeCommandExecutorService {
     restricted: bool,
+    env: Environment,
 }
 
 impl ForgeCommandExecutorService {
-    pub fn new(restricted: bool) -> Self {
-        Self { restricted }
+    pub fn new(restricted: bool, env: Environment) -> Self {
+        Self { restricted, env }
     }
 
     fn prepare_command(&self, command_str: &str, working_dir: &Path) -> Command {
@@ -23,7 +24,7 @@ impl ForgeCommandExecutorService {
         let shell = if self.restricted && !is_windows {
             "rbash"
         } else {
-            "bash"
+            self.env.shell.as_str()
         };
         let mut command = Command::new(shell);
 
@@ -67,19 +68,11 @@ impl ForgeCommandExecutorService {
         &self,
         command: String,
         working_dir: &Path,
-        color_env_vars: Option<Vec<(String, String)>>,
     ) -> anyhow::Result<CommandOutput> {
-        let mut cmd = self.prepare_command(&command, working_dir);
-
-        // Add any additional color environment variables
-        if let Some(vars) = color_env_vars {
-            for (key, value) in vars {
-                cmd.env(key, value);
-            }
-        }
+        let mut command = self.prepare_command(&command, working_dir);
 
         // Spawn the command
-        let mut child = cmd.spawn()?;
+        let mut child = command.spawn()?;
 
         let mut stdout_pipe = child.stdout.take();
         let mut stderr_pipe = child.stderr.take();
@@ -133,20 +126,33 @@ impl CommandExecutorService for ForgeCommandExecutorService {
         command: String,
         working_dir: PathBuf,
     ) -> anyhow::Result<CommandOutput> {
-        self.execute_command_internal(command, &working_dir, None)
-            .await
+        self.execute_command_internal(command, &working_dir).await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::Provider;
     use pretty_assertions::assert_eq;
 
     use super::*;
 
+    fn test_env() -> Environment {
+        Environment {
+            os: "test".to_string(),
+            pid: 12345,
+            cwd: PathBuf::from("/test"),
+            home: Some(PathBuf::from("/home/test")),
+            shell: "bash".to_string(),
+            base_path: PathBuf::from("/base"),
+            provider: Provider::open_router("test-key"),
+            retry_config: Default::default(),
+        }
+    }
+
     #[tokio::test]
     async fn test_command_executor() {
-        let fixture = ForgeCommandExecutorService::new(false);
+        let fixture = ForgeCommandExecutorService::new(false, test_env());
         let cmd = "echo 'hello world'";
         let dir = ".";
 

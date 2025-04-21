@@ -70,7 +70,7 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
         let display_path = self.format_display_path(path)?;
 
         // Display a message about the file being undone
-        let message = TitleFormat::success("undo").sub_title(display_path.clone());
+        let message = TitleFormat::new("undo").title(display_path.clone());
         context.send_text(message.format()).await?;
 
         Ok(format!(

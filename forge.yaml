@@ -11,6 +11,7 @@ commands:
       - Make sure the title follows conventional commits standard
       - Top-level summary should contain 2-3 lines about the core functionality improvements
 max_walker_depth: 1024
+tool_supported: false
 custom_rules: |-
   Handling Errors:
 
@@ -27,7 +28,7 @@ custom_rules: |-
 
     fn test_foo() {
         let fixture = ...; // Instantiate a fixture for the test
-        let actual = ...; // Use the fixture to write a test
+        let actual = ...; // Execute the fixture to create an output
         let expected = ...; // Define a hand written expected result
         assert_eq!(actual, expected); // Assert that the actual result matches the expected result
     }

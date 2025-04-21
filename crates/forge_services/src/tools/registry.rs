@@ -6,7 +6,6 @@ use super::fetch::Fetch;
 use super::fs::*;
 use super::patch::*;
 use super::shell::Shell;
-use super::show_user::ShowUser;
 use crate::Infrastructure;
 
 pub struct ToolRegistry<F> {
@@ -31,7 +30,6 @@ impl<F: Infrastructure> ToolRegistry<F> {
             ApplyPatchJson::new(self.infra.clone()).into(),
             Shell::new(self.infra.clone()).into(),
             Fetch::default().into(),
-            ShowUser.into(),
         ]
     }
 }

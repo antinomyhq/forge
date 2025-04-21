@@ -34,6 +34,22 @@ pub fn extract_tag_content<'a>(text: &'a str, tag_name: &str) -> Option<&'a str>
     None
 }
 
+/// Removes content within specific XML-style tags from text
+pub fn remove_tag_content(text: &str, tag_names: &[&str]) -> String {
+    let mut result = text.to_string();
+
+    for tag_name in tag_names {
+        let pattern = format!("<{}>[\\s\\S]*?</{}>", tag_name, tag_name);
+
+        // Create regex to match tag content including nested tags
+        if let Ok(regex) = regex::Regex::new(&pattern) {
+            result = regex.replace_all(&result, "").to_string();
+        }
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -69,6 +85,40 @@ mod tests {
         let fixture = "Text with <opening> but no closing tag";
         let actual = extract_tag_content(fixture, "opening");
         let expected = None;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_remove_tag_content() {
+        let fixture = "Regular text <thinking>Internal thoughts</thinking> more text";
+        let actual = remove_tag_content(fixture, &["thinking"]);
+        let expected = "Regular text  more text";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_remove_multiple_tag_content() {
+        let fixture =
+            "Text <thinking>thoughts</thinking> and <analysis>deep analysis</analysis> end";
+        let actual = remove_tag_content(fixture, &["thinking", "analysis"]);
+        let expected = "Text  and  end";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_remove_nested_tag_content() {
+        let fixture =
+            "Text <thinking>thoughts <analysis>deep analysis</analysis> more</thinking> end";
+        let actual = remove_tag_content(fixture, &["thinking"]);
+        let expected = "Text  end";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_remove_non_existent_tag_content() {
+        let fixture = "Just regular text with no tags";
+        let actual = remove_tag_content(fixture, &["thinking"]);
+        let expected = "Just regular text with no tags";
         assert_eq!(actual, expected);
     }
 }

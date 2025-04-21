@@ -79,7 +79,7 @@ impl<F: Infrastructure> ExecutableTool for FSRead<F> {
         // Display a message about the file being read
         let title = "read";
         let display_path = self.format_display_path(path)?;
-        let message = TitleFormat::success(title).sub_title(display_path);
+        let message = TitleFormat::new(title).sub_title(display_path);
         context.send_text(message.format()).await?;
 
         Ok(content)
@@ -127,7 +127,7 @@ mod test {
 
         // Display a message - just for testing
         let title = "read";
-        let message = TitleFormat::success(title).sub_title(path.display().to_string());
+        let message = TitleFormat::new(title).sub_title(path.display().to_string());
         println!("{}", message);
 
         // Assert the content matches

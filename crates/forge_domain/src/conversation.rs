@@ -100,6 +100,10 @@ impl Conversation {
                 agent.model = Some(model);
             }
 
+            if let Some(tool_supported) = workflow.tool_supported {
+                agent.tool_supported = Some(tool_supported);
+            }
+
             if agent.id.as_str() == Conversation::MAIN_AGENT_NAME {
                 let commands = workflow
                     .commands
@@ -192,6 +196,20 @@ impl Conversation {
         self.variables.remove(key).is_some()
     }
 
+    /// Generates an HTML representation of the conversation
+    ///
+    /// This method uses Handlebars to render the conversation as HTML
+    /// from the template file, including all agents, events, and variables.
+    ///
+    /// # Errors
+    /// - If the template file cannot be found or read
+    /// - If the Handlebars template registration fails
+    /// - If the template rendering fails
+    pub fn to_html(&self) -> String {
+        // Instead of using Handlebars, we now use our Element DSL
+        crate::conversation_html::render_conversation_html(self)
+    }
+
     /// Add an event to the queue of subscribed agents
     pub fn insert_event(&mut self, event: Event) -> &mut Self {
         let subscribed_agents = self.subscriptions(&event.name);
@@ -274,16 +292,7 @@ mod tests {
     fn test_conversation_new_with_empty_workflow() {
         // Arrange
         let id = super::ConversationId::generate();
-        let workflow = Workflow {
-            agents: Vec::new(),
-            variables: HashMap::new(),
-            commands: Vec::new(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-            mcp: None,
-        };
+        let workflow = Workflow::new();
 
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow);
@@ -305,7 +314,7 @@ mod tests {
         variables.insert("key1".to_string(), json!("value1"));
         variables.insert("key2".to_string(), json!(42));
 
-        let workflow = Workflow::default().variables(variables.clone());
+        let workflow = Workflow::new().variables(variables.clone());
 
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow);
@@ -322,12 +331,13 @@ mod tests {
         let agent1 = Agent::new("agent1");
         let agent2 = Agent::new("agent2");
 
-        let workflow = Workflow::default()
+        let workflow = Workflow::new()
             .agents(vec![agent1, agent2])
             .model(ModelId::new("test-model"))
-            .max_walker_depth(5usize)
-            .custom_rules("Be helpful")
-            .temperature(Temperature::new(0.7).unwrap());
+            .max_walker_depth(5)
+            .custom_rules("Be helpful".to_string())
+            .temperature(Temperature::new(0.7).unwrap())
+            .tool_supported(true);
 
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow);
@@ -341,6 +351,7 @@ mod tests {
             assert_eq!(agent.max_walker_depth, Some(5));
             assert_eq!(agent.custom_rules, Some("Be helpful".to_string()));
             assert_eq!(agent.temperature, Some(Temperature::new(0.7).unwrap()));
+            assert_eq!(agent.tool_supported, Some(true));
         }
     }
 
@@ -350,21 +361,23 @@ mod tests {
         let id = super::ConversationId::generate();
 
         // Agent with specific settings
-        let mut agent1 = Agent::new("agent1");
-        agent1.model = Some(ModelId::new("agent1-model"));
-        agent1.max_walker_depth = Some(10);
-        agent1.custom_rules = Some("Agent1 specific rules".to_string());
-        agent1.temperature = Some(Temperature::new(0.3).unwrap());
+        let agent1 = Agent::new("agent1")
+            .model(ModelId::new("agent1-model"))
+            .max_walker_depth(10_usize)
+            .custom_rules("Agent1 specific rules".to_string())
+            .temperature(Temperature::new(0.3).unwrap())
+            .tool_supported(false);
 
         // Agent without specific settings
         let agent2 = Agent::new("agent2");
 
-        let workflow = Workflow::default()
+        let workflow = Workflow::new()
             .agents(vec![agent1, agent2])
             .model(ModelId::new("default-model"))
-            .max_walker_depth(5usize)
-            .custom_rules("Default rules")
-            .temperature(Temperature::new(0.7).unwrap());
+            .max_walker_depth(5)
+            .custom_rules("Default rules".to_string())
+            .temperature(Temperature::new(0.7).unwrap())
+            .tool_supported(true);
 
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow);
@@ -382,6 +395,7 @@ mod tests {
         assert_eq!(agent1.max_walker_depth, Some(5));
         assert_eq!(agent1.custom_rules, Some("Default rules".to_string()));
         assert_eq!(agent1.temperature, Some(Temperature::new(0.7).unwrap()));
+        assert_eq!(agent1.tool_supported, Some(true)); // Workflow setting overrides agent setting
 
         // Check that agent2 got the workflow defaults
         let agent2 = conversation
@@ -393,6 +407,8 @@ mod tests {
         assert_eq!(agent2.max_walker_depth, Some(5));
         assert_eq!(agent2.custom_rules, Some("Default rules".to_string()));
         assert_eq!(agent2.temperature, Some(Temperature::new(0.7).unwrap()));
+        assert_eq!(agent2.tool_supported, Some(true)); // Workflow setting is
+                                                       // applied
     }
 
     #[test]
@@ -419,7 +435,7 @@ mod tests {
             },
         ];
 
-        let workflow = Workflow::default()
+        let workflow = Workflow::new()
             .agents(vec![main_agent, other_agent])
             .commands(commands.clone());
 
@@ -485,16 +501,9 @@ mod tests {
             },
         ];
 
-        let workflow = Workflow {
-            agents: vec![main_agent],
-            variables: HashMap::new(),
-            commands: commands.clone(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-            mcp: None,
-        };
+        let workflow = Workflow::new()
+            .agents(vec![main_agent])
+            .commands(commands.clone());
 
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow);
@@ -520,19 +529,10 @@ mod tests {
     fn test_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
-        let mut main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
-        main_agent.model = Some(ModelId::new("test-model"));
+        let main_agent =
+            Agent::new(super::Conversation::MAIN_AGENT_NAME).model(ModelId::new("test-model"));
 
-        let workflow = Workflow {
-            agents: vec![main_agent],
-            variables: HashMap::new(),
-            commands: Vec::new(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-            mcp: None,
-        };
+        let workflow = Workflow::new().agents(vec![main_agent]);
 
         let conversation = super::Conversation::new(id, workflow);
 
@@ -549,16 +549,7 @@ mod tests {
         let id = super::ConversationId::generate();
         let agent = Agent::new("some-other-agent");
 
-        let workflow = Workflow {
-            agents: vec![agent],
-            variables: HashMap::new(),
-            commands: Vec::new(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-            mcp: None,
-        };
+        let workflow = Workflow::new().agents(vec![agent]);
 
         let conversation = super::Conversation::new(id, workflow);
 
@@ -576,16 +567,7 @@ mod tests {
         let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
         // No model defined for the agent
 
-        let workflow = Workflow {
-            agents: vec![main_agent],
-            variables: HashMap::new(),
-            commands: Vec::new(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-            mcp: None,
-        };
+        let workflow = Workflow::new().agents(vec![main_agent]);
 
         let conversation = super::Conversation::new(id, workflow);
 
@@ -602,16 +584,7 @@ mod tests {
         let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
         // Initially no model defined
 
-        let workflow = Workflow {
-            agents: vec![main_agent],
-            variables: HashMap::new(),
-            commands: Vec::new(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-            mcp: None,
-        };
+        let workflow = Workflow::new().agents(vec![main_agent]);
 
         let mut conversation = super::Conversation::new(id, workflow);
 
@@ -630,16 +603,7 @@ mod tests {
         let id = super::ConversationId::generate();
         let agent = Agent::new("some-other-agent");
 
-        let workflow = Workflow {
-            agents: vec![agent],
-            variables: HashMap::new(),
-            commands: Vec::new(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-            mcp: None,
-        };
+        let workflow = Workflow::new().agents(vec![agent]);
 
         let mut conversation = super::Conversation::new(id, workflow);
 
@@ -648,5 +612,67 @@ mod tests {
 
         // Assert
         assert!(matches!(result, Err(Error::AgentUndefined(_))));
+    }
+
+    #[test]
+    fn test_conversation_new_applies_tool_supported_to_agents() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let agent1 = Agent::new("agent1");
+        let agent2 = Agent::new("agent2");
+
+        let workflow = Workflow::new()
+            .agents(vec![agent1, agent2])
+            .tool_supported(true);
+
+        // Act
+        let conversation = super::Conversation::new(id.clone(), workflow);
+
+        // Assert
+        assert_eq!(conversation.agents.len(), 2);
+
+        // Check that workflow tool_supported setting was applied to all agents
+        for agent in &conversation.agents {
+            assert_eq!(agent.tool_supported, Some(true));
+        }
+    }
+
+    #[test]
+    fn test_conversation_new_respects_agent_specific_tool_supported() {
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        // Agent with specific setting
+        let agent1 = Agent::new("agent1").tool_supported(false);
+
+        // Agent without specific setting
+        let agent2 = Agent::new("agent2");
+
+        let workflow = Workflow::new()
+            .agents(vec![agent1, agent2])
+            .tool_supported(true);
+
+        // Act
+        let conversation = super::Conversation::new(id.clone(), workflow);
+
+        // Assert
+        assert_eq!(conversation.agents.len(), 2);
+
+        // Check that workflow settings were applied correctly
+        // For agent1, the workflow setting should override the agent-specific setting
+        let agent1 = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "agent1")
+            .unwrap();
+        assert_eq!(agent1.tool_supported, Some(true));
+
+        // For agent2, the workflow setting should be applied
+        let agent2 = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "agent2")
+            .unwrap();
+        assert_eq!(agent2.tool_supported, Some(true));
     }
 }

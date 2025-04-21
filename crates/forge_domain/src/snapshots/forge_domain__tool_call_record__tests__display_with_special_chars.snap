@@ -1,0 +1,6 @@
+---
+source: crates/forge_domain/src/tool_call_record.rs
+expression: record.to_string()
+snapshot_kind: text
+---
+<tool_result tool="test_tool"><arguments><html>"<div>Test</div>"</html><text>"Special chars: < > & ' \""</text></arguments><result><content><![CDATA[Result with <tags> & special "characters"]]></content></result></tool_result>

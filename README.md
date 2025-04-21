@@ -56,29 +56,9 @@ forge
 
 That's it! Forge is now ready to assist you with your development tasks.
 
----
-
 ## Usage Examples
 
 Forge can be used in different ways depending on your needs. Here are some common usage patterns:
-
-| Command                                                    | Description                                                                                                   |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `forge`                                                    | Start Forge in interactive mode. This opens a prompt where you can have a conversation with the AI assistant. |
-| `forge -p "Explain how this React component works"`        | Process a single prompt without entering interactive mode                                                     |
-| `forge -p "Generate unit tests for utils/format.js"`       | Ask Forge to generate tests for a specific file                                                               |
-| `forge -p "Refactor this function to improve performance"` | Request code optimization with a specific goal                                                                |
-| `forge -c commands.txt`                                    | Execute commands from a file, then continue in interactive mode                                               |
-| `forge --workflow custom-workflow.yaml`                    | Execute a custom workflow                                                                                     |
-| `forge --verbose`                                          | Run with verbose output to see additional debugging information                                               |
-
-> **Note:** Unlike some other AI tools, Forge doesn't support direct prompting without flags. Always use the `-p` or `--prompt` flag when providing a direct prompt.
-
----
-
-## Interactive Mode Examples
-
-When you run `forge` with no arguments, you enter interactive mode, which is the most flexible way to use Forge. Here are some examples of what you can do in an interactive session:
 
 ### Code Understanding
 
@@ -144,8 +124,6 @@ Forge can help modernize your codebase by walking you through refactoring steps 
 
 Forge can guide you through resolving git conflicts, explaining the differences and suggesting the best way to reconcile them.
 
----
-
 ## Why Forge?
 
 Forge is designed for developers who want to enhance their workflow with AI assistance while maintaining full control over their development environment.
@@ -157,8 +135,6 @@ Forge is designed for developers who want to enhance their workflow with AI assi
 - **Open-source** - Transparent, extensible, and community-driven
 
 Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
-
----
 
 ## Command-Line Options
 
@@ -176,7 +152,6 @@ Here's a quick reference of Forge's command-line options:
 | `-h, --help`                    | Print help information                                     |
 | `-V, --version`                 | Print version                                              |
 
----
 
 ## Advanced Configuration
 

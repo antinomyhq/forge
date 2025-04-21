@@ -1,0 +1,6 @@
+---
+source: crates/forge_domain/src/tool_call_record.rs
+expression: record.to_string()
+snapshot_kind: text
+---
+<tool_result tool="fs_read"><arguments><path>"/example/file.txt"</path></arguments><result><content><![CDATA[Contents of the file]]></content></result></tool_result>

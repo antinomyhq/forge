@@ -1,8 +1,12 @@
 use std::fmt;
+use std::path::{Path, PathBuf};
 
 use colored::Colorize;
 use forge_api::{Environment, Usage};
 use forge_tracker::VERSION;
+
+use crate::model::ForgeCommandManager;
+use crate::state::UIState;
 
 pub enum Section {
     Title(String),
@@ -57,19 +61,48 @@ impl From<&Usage> for Info {
 
 impl From<&Environment> for Info {
     fn from(env: &Environment) -> Self {
+        // Get the current git branch
+        let branch_info = match get_git_branch() {
+            Some(branch) => branch,
+            None => "(not in a git repository)".to_string(),
+        };
+
         Info::new()
             .add_title("Environment")
             .add_key_value("Version", VERSION)
-            .add_key_value("OS", &env.os)
-            .add_key_value("PID", env.pid)
-            .add_key_value("Working Directory", env.cwd.display())
+            .add_key_value(
+                "Working Directory",
+                format_path_zsh_style(&env.home, &env.cwd),
+            )
             .add_key_value("Shell", &env.shell)
+            .add_key_value("Git Branch", branch_info)
             .add_title("Paths")
-            .add_key_value("Config", env.base_path.display())
-            .add_key_value("Logs", env.log_path().display())
-            .add_key_value("Database", env.db_path().display())
-            .add_key_value("History", env.history_path().display())
-            .add_item("Snapshot", Some(env.snapshot_path().display()))
+            .add_key_value("Logs", format_path_zsh_style(&env.home, &env.log_path()))
+            .add_key_value(
+                "History",
+                format_path_zsh_style(&env.home, &env.history_path()),
+            )
+            .add_key_value(
+                "Checkpoints",
+                format_path_zsh_style(&env.home, &env.snapshot_path()),
+            )
+    }
+}
+
+impl From<&UIState> for Info {
+    fn from(value: &UIState) -> Self {
+        let mut info = Info::new().add_title("Model");
+
+        if let Some(model) = &value.model {
+            info = info.add_key_value("Current", model);
+        }
+
+        info = info
+            .add_key_value("Prompt Tokens", value.usage.prompt_tokens)
+            .add_key_value("Completion Tokens", value.usage.completion_tokens)
+            .add_key_value("Total Tokens", value.usage.total_tokens);
+
+        info
     }
 }
 
@@ -79,11 +112,11 @@ impl fmt::Display for Info {
             match section {
                 Section::Title(title) => {
                     writeln!(f)?;
-                    writeln!(f, "{}", title.bold().bright_yellow())?
+                    writeln!(f, "{}", title.to_uppercase().bold().dimmed())?
                 }
                 Section::Items(key, value) => {
                     if let Some(value) = value {
-                        writeln!(f, "{}: {}", key, value.dimmed())?;
+                        writeln!(f, "{}: {}", key.bright_cyan().bold(), value)?;
                     } else {
                         writeln!(f, "{}", key)?;
                     }
@@ -93,6 +126,59 @@ impl fmt::Display for Info {
         Ok(())
     }
 }
+/// Formats a path in zsh style, replacing home directory with ~
+fn format_path_zsh_style(home: &Option<PathBuf>, path: &Path) -> String {
+    if let Some(home) = home {
+        if let Ok(rel_path) = path.strip_prefix(home) {
+            return format!("~/{}", rel_path.display());
+        }
+    }
+    path.display().to_string()
+}
 
-// The display_info function has been removed and its implementation will be
-// inlined in the caller
+/// Gets the current git branch name if available
+fn get_git_branch() -> Option<String> {
+    // First check if we're in a git repository
+    let git_check = std::process::Command::new("git")
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .ok()?;
+
+    if !git_check.status.success() || git_check.stdout.is_empty() {
+        return None;
+    }
+
+    // If we are in a git repo, get the branch
+    let output = std::process::Command::new("git")
+        .args(["branch", "--show-current"])
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        String::from_utf8(output.stdout)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    } else {
+        None
+    }
+}
+
+/// Create an info instance for available commands from a ForgeCommandManager
+impl From<&ForgeCommandManager> for Info {
+    fn from(command_manager: &ForgeCommandManager) -> Self {
+        let mut info = Info::new().add_title("Commands");
+
+        for command in command_manager.list() {
+            info = info.add_key_value(command.name, command.description);
+        }
+
+        info = info
+            .add_title("Keyboard Shortcuts")
+            .add_key_value("<CTRL+C>", "Interrupt current operation")
+            .add_key_value("<CTRL+D>", "Quit Forge interactive shell")
+            .add_key_value("<OPT+ENTER>", "Insert new line (multiline input)");
+
+        info
+    }
+}

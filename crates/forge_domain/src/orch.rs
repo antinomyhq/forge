@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Context as AnyhowContext;
@@ -16,6 +16,23 @@ use crate::services::Services;
 use crate::*;
 
 type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
+// Tags to filter as defined in system prompt
+const THINKING_TAGS: &[&str] = &[
+    "thinking",
+    "analysis",
+    "action_plan",
+    "execution",
+    "verification",
+    "forge_analysis",
+    "forge_query_analysis",
+    "pr_preparation",
+    "thought_process",
+    "exploration_and_discovery",
+    "content_plan",
+    "creation",
+    "review",
+    "tool_call",
+];
 
 #[derive(Debug, Clone)]
 pub struct AgentMessage<T> {
@@ -73,19 +90,37 @@ impl<A: Services> Orchestrator<A> {
         &self,
         agent: &Agent,
         tool_calls: &[ToolCallFull],
-    ) -> anyhow::Result<Vec<ToolResult>> {
-        let mut tool_results = Vec::new();
+    ) -> anyhow::Result<Vec<ToolCallRecord>> {
+        // Always process tool calls sequentially
+        let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
-        for tool_call in tool_calls.iter() {
+        for tool_call in tool_calls {
+            // Send the start notification
             self.send(agent, ChatResponse::ToolCallStart(tool_call.clone()))
                 .await?;
-            let tool_result = self.execute_tool(agent, tool_call).await?;
-            tool_results.push(tool_result.clone());
-            self.send(agent, ChatResponse::ToolCallEnd(tool_result))
+
+            // Execute the tool
+            let tool_result = self
+                .services
+                .tool_service()
+                .call(
+                    ToolCallContext::default()
+                        .sender(self.sender.clone())
+                        .agent_id(agent.id.clone())
+                        .mcp(conversation.mcp.clone()),
+                    tool_call.clone(),
+                )
+                .await;
+
+            // Send the end notification
+            self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
                 .await?;
+
+            // Add the result to our collection
+            tool_call_records.push(ToolCallRecord { tool_call: tool_call.clone(), tool_result });
         }
 
-        Ok(tool_results)
+        Ok(tool_call_records)
     }
 
     async fn send(&self, agent: &Agent, message: ChatResponse) -> anyhow::Result<()> {
@@ -100,44 +135,6 @@ impl<A: Services> Orchestrator<A> {
             }
         }
         Ok(())
-    }
-
-    async fn init_default_tool_definitions(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        self.services
-            .tool_service()
-            .list(self.conversation.read().await.mcp.clone())
-            .await
-    }
-
-    async fn init_tool_definitions(&self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
-        let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
-        let mut forge_tools = self.init_default_tool_definitions().await?;
-
-        // Adding Event tool to the list of tool definitions
-        forge_tools.push(Event::tool_definition());
-
-        Ok(forge_tools
-            .into_iter()
-            // TODO: need a better way to avoid filtering mcp tools
-            .filter(|tool| {
-                tool.name.as_str().contains("-forgestrip-") || allowed.contains(&tool.name)
-            })
-            .collect::<Vec<_>>())
-    }
-
-    async fn init_agent_context(&self, agent: &Agent) -> anyhow::Result<Context> {
-        let tool_defs = self.init_tool_definitions(agent).await?;
-
-        // Use the agent's tool_supported flag directly instead of querying the provider
-        let tool_supported = agent.tool_supported.unwrap_or_default();
-
-        let context = Context::default();
-
-        Ok(context.extend_tools(if tool_supported {
-            tool_defs
-        } else {
-            Vec::new()
-        }))
     }
 
     async fn set_system_prompt(
@@ -174,7 +171,11 @@ impl<A: Services> Orchestrator<A> {
             if let Some(content) = message.content {
                 self.send(
                     agent,
-                    ChatResponse::Text { text: content.as_str().to_string(), is_complete: false },
+                    ChatResponse::Text {
+                        text: content.as_str().to_string(),
+                        is_complete: false,
+                        is_md: false,
+                    },
                 )
                 .await?;
             }
@@ -193,36 +194,48 @@ impl<A: Services> Orchestrator<A> {
             .collect::<Vec<_>>()
             .join("");
 
-        // From Complete (incase streaming is disabled)
-        let mut tool_calls: Vec<ToolCallFull> = messages
-            .iter()
-            .flat_map(|message| message.tool_call.iter())
-            .filter_map(|message| message.as_full().cloned())
-            .collect::<Vec<_>>();
+        self.send(
+            agent,
+            ChatResponse::Text {
+                text: remove_tag_content(&content, THINKING_TAGS)
+                    .as_str()
+                    .to_string(),
+                is_complete: true,
+                is_md: true,
+            },
+        )
+        .await?;
 
-        // From partial tool calls
-        let tool_call_parts = messages
+        // Extract all tool calls in a fully declarative way with combined sources
+        // Start with complete tool calls (for non-streaming mode)
+        let initial_tool_calls: Vec<ToolCallFull> = messages
             .iter()
-            .filter_map(|message| message.tool_call.first())
-            .clone()
+            .flat_map(|message| &message.tool_calls)
+            .filter_map(|tool_call| tool_call.as_full().cloned())
+            .collect();
+
+        // Get partial tool calls
+        let tool_call_parts: Vec<ToolCallPart> = messages
+            .iter()
+            .flat_map(|message| &message.tool_calls)
             .filter_map(|tool_call| tool_call.as_partial().cloned())
-            .collect::<Vec<_>>();
+            .collect();
 
-        tool_calls.extend(
-            ToolCallFull::try_from_parts(&tool_call_parts)
-                .with_context(|| format!("Failed to parse tool call: {:?}", tool_call_parts))?,
-        );
+        // Process partial tool calls
+        let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts)
+            .with_context(|| format!("Failed to parse tool call: {:?}", tool_call_parts))?;
 
-        // From XML
-        tool_calls.extend(ToolCallFull::try_from_xml(&content)?);
+        // Process XML tool calls
+        let xml_tool_calls = ToolCallFull::try_from_xml(&content)?;
+
+        // Combine all sources of tool calls
+        let tool_calls: Vec<ToolCallFull> = initial_tool_calls
+            .into_iter()
+            .chain(partial_tool_calls)
+            .chain(xml_tool_calls)
+            .collect();
 
         Ok(ChatCompletionResult { content, tool_calls, usage: request_usage })
-    }
-
-    pub async fn dispatch_spawned(&self, event: Event) -> anyhow::Result<()> {
-        let this = self.clone();
-        let _ = tokio::spawn(async move { this.dispatch(event).await }).await?;
-        Ok(())
     }
 
     pub async fn dispatch(&self, event: Event) -> anyhow::Result<()> {
@@ -245,32 +258,6 @@ impl<A: Services> Orchestrator<A> {
 
         Ok(())
     }
-
-    #[async_recursion]
-    async fn execute_tool(
-        &self,
-        agent: &Agent,
-        tool_call: &ToolCallFull,
-    ) -> anyhow::Result<ToolResult> {
-        if let Some(event) = Event::parse(tool_call) {
-            self.send(agent, ChatResponse::Event(event.clone())).await?;
-
-            self.dispatch_spawned(event).await?;
-            Ok(ToolResult::from(tool_call.clone()).success("Event Dispatched Successfully"))
-        } else {
-            self.services
-                .tool_service()
-                .call(
-                    ToolCallContext::default()
-                        .sender(self.sender.clone())
-                        .agent_id(agent.id.clone())
-                        .mcp(self.conversation.read().await.mcp.clone()),
-                    tool_call.clone(),
-                )
-                .await
-        }
-    }
-
     async fn sync_conversation(&self) -> anyhow::Result<()> {
         let conversation = self.conversation.read().await.clone();
         self.services
@@ -317,11 +304,17 @@ impl<A: Services> Orchestrator<A> {
         let agent = conversation.get_agent(agent_id)?;
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
-            self.init_agent_context(agent).await?
+            agent
+                .init_context(self.services.tool_service().list())
+                .await?
         } else {
             match conversation.context(&agent.id) {
                 Some(context) => context.clone(),
-                None => self.init_agent_context(agent).await?,
+                None => {
+                    agent
+                        .init_context(self.services.tool_service().list())
+                        .await?
+                }
             }
         };
 
@@ -337,30 +330,32 @@ impl<A: Services> Orchestrator<A> {
             context = context.temperature(temperature);
         }
 
-        // Process attachments
+        // Process attachments in a more declarative way
         let attachments = self
             .services
             .attachment_service()
             .attachments(&event.value.to_string())
             .await?;
 
-        for attachment in attachments.into_iter() {
-            match attachment.content_type {
-                ContentType::Image => {
-                    context = context.add_message(ContextMessage::Image(attachment.content));
+        // Process each attachment and fold the results into the context
+        context = attachments
+            .into_iter()
+            .fold(context.clone(), |ctx, attachment| {
+                match attachment.content_type {
+                    ContentType::Image => {
+                        ctx.add_message(ContextMessage::Image(attachment.content))
+                    }
+                    ContentType::Text => {
+                        let content = format!(
+                            "<file_content path=\"{}\">{}</file_content>",
+                            attachment.path, attachment.content
+                        );
+                        ctx.add_message(ContextMessage::user(content))
+                    }
                 }
-                ContentType::Text => {
-                    let content = format!(
-                        "<file_content path=\"{}\">{}</file_content>",
-                        attachment.path, attachment.content
-                    );
-                    context = context.add_message(ContextMessage::user(content));
-                }
-            }
-        }
+            });
 
         self.set_context(&agent.id, context.clone()).await?;
-
         loop {
             // Set context for the current loop iteration
             self.set_context(&agent.id, context.clone()).await?;
@@ -377,6 +372,7 @@ impl<A: Services> Orchestrator<A> {
                 .provider_service()
                 .chat(model_id, context.clone())
                 .await?;
+
             let ChatCompletionResult { tool_calls, content, usage } =
                 self.collect_messages(agent, response).await?;
 
@@ -392,23 +388,32 @@ impl<A: Services> Orchestrator<A> {
                 debug!(agent_id = %agent.id, "Compaction not needed");
             }
 
-            // Get all tool results using the helper function
-            let tool_results = self.get_all_tool_results(agent, &tool_calls).await?;
+            let tool_call_count = tool_calls.is_empty();
 
-            context = context
-                .add_message(ContextMessage::assistant(content, Some(tool_calls)))
-                .add_tool_results(tool_results.clone());
+            debug!(
+                agent_id = %agent.id,
+                tool_call_count = tool_call_count,
+                "Tool call count: {}",
+                tool_call_count
+            );
 
+            // Process tool calls and update context
+            context = context.append_message(
+                content,
+                self.get_all_tool_results(agent, &tool_calls).await?,
+                agent.tool_supported.unwrap_or_default(),
+            );
+
+            // Update context in the conversation
             self.set_context(&agent.id, context.clone()).await?;
             self.sync_conversation().await?;
 
-            if tool_results.is_empty() {
+            if tool_call_count {
                 break;
             }
         }
 
         self.complete_turn(&agent.id).await?;
-
         self.sync_conversation().await?;
 
         Ok(())
@@ -417,7 +422,6 @@ impl<A: Services> Orchestrator<A> {
     async fn set_user_prompt(
         &self,
         mut context: Context,
-
         agent: &Agent,
         variables: &HashMap<String, Value>,
         event: &Event,

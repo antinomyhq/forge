@@ -26,7 +26,7 @@ impl DiffFormat {
 
         let mut output = format!(
             "{}\n\n",
-            TitleFormat::success(op_name).sub_title(path.display().to_string())
+            TitleFormat::new(op_name).sub_title(path.display().to_string())
         );
 
         if ops.is_empty() {

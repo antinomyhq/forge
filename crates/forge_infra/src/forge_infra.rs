@@ -39,7 +39,10 @@ impl ForgeInfra {
             environment_service,
             file_snapshot_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
-            command_executor_service: Arc::new(ForgeCommandExecutorService::new(restricted)),
+            command_executor_service: Arc::new(ForgeCommandExecutorService::new(
+                restricted,
+                env.clone(),
+            )),
         }
     }
 }

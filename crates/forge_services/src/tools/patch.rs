@@ -1,9 +1,11 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_display::DiffFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName};
+use forge_domain::{
+    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,7 +15,7 @@ use tokio::fs;
 
 // No longer using dissimilar for fuzzy matching
 use crate::tools::syn;
-use crate::tools::utils::assert_absolute_path;
+use crate::tools::utils::{assert_absolute_path, format_display_path};
 use crate::{FsWriteService, Infrastructure};
 
 // Removed fuzzy matching threshold as we only use exact matching now
@@ -183,27 +185,21 @@ pub enum Operation {
 
 #[derive(Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct ApplyPatchJsonInput {
+pub struct Input {
+    /// The path to the file to modify
+    pub path: String,
+
     /// The text to search for in the source. If empty, operation applies to the
     /// end of the file.
     pub search: String,
 
-    /// The operation to perform on the matched text
+    /// The operation to perform on the matched text. Possible options are only
+    /// 'prepend', 'append', 'replace', and 'swap'.
     pub operation: Operation,
 
     /// The content to use for the operation (replacement text, text to
     /// prepend/append, or target text for swap operations)
     pub content: String,
-}
-
-#[derive(Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct Input {
-    /// The path to the file to modify
-    pub path: String,
-
-    /// List of patch operations to apply in sequence
-    pub patches: Vec<ApplyPatchJsonInput>,
 }
 
 /// Modifies files with targeted text operations on matched patterns. Supports
@@ -224,6 +220,20 @@ impl<F: Infrastructure> NamedTool for ApplyPatchJson<F> {
 impl<F: Infrastructure> ApplyPatchJson<F> {
     pub fn new(input: Arc<F>) -> Self {
         Self(input)
+    }
+
+    /// Formats a path for display, converting absolute paths to relative when
+    /// possible
+    ///
+    /// If the path starts with the current working directory, returns a
+    /// relative path. Otherwise, returns the original absolute path.
+    fn format_display_path(&self, path: &Path) -> anyhow::Result<String> {
+        // Get the current working directory
+        let env = self.0.environment_service().get_environment();
+        let cwd = env.cwd.as_path();
+
+        // Use the shared utility function
+        format_display_path(path, cwd)
     }
 }
 
@@ -247,8 +257,8 @@ fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
 impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
     type Input = Input;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
-        let path = Path::new(&input.path);
+    async fn call(&self, context: ToolCallContext, patch: Self::Input) -> anyhow::Result<String> {
+        let path = Path::new(&patch.path);
         assert_absolute_path(path)?;
 
         // Read the original content once
@@ -256,26 +266,30 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
             .await
             .map_err(Error::FileOperation)?;
 
-        // Apply each patch sequentially
-        for patch in input.patches {
-            // Save the old content before modification for diff generation
-            let old_content = current_content.clone();
+        // Save the old content before modification for diff generation
+        let old_content = current_content.clone();
 
-            // Apply the replacement
-            current_content = apply_replacement(
-                current_content,
-                &patch.search,
-                &patch.operation,
-                &patch.content,
-            )?;
+        // Apply the replacement
+        current_content = apply_replacement(
+            current_content,
+            &patch.search,
+            &patch.operation,
+            &patch.content,
+        )?;
 
-            // Generate diff between old and new content
-            let diff =
-                DiffFormat::format("patch", path.to_path_buf(), &old_content, &current_content);
+        // Format the display path for output
+        let display_path = self.format_display_path(path)?;
 
-            // Output diff either to sender or println
-            context.send_text(diff).await?;
-        }
+        // Generate diff between old and new content
+        let diff = DiffFormat::format(
+            "patch",
+            PathBuf::from(display_path),
+            &old_content,
+            &current_content,
+        );
+
+        // Output diff either to sender or println
+        context.send_text(diff).await?;
 
         // Write final content to file after all patches are applied
         self.0
@@ -302,6 +316,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
 mod test {
 
     use super::*;
+    use crate::tools::utils::TempDir;
 
     // Enhanced test helper for running multiple operations
     #[derive(Debug)]
@@ -463,4 +478,26 @@ mod test {
     }
 
     // The previous individual tests are removed since they're now consolidated
+
+    #[tokio::test]
+    async fn test_format_display_path() {
+        use std::sync::Arc;
+
+        use crate::attachment::tests::MockInfrastructure;
+
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+
+        // Create a mock infrastructure with controlled cwd
+        let infra = Arc::new(MockInfrastructure::new());
+        let patch_tool = ApplyPatchJson::new(infra);
+
+        // Test with a mock path
+        let display_path = patch_tool.format_display_path(Path::new(&file_path));
+
+        // Since MockInfrastructure has a fixed cwd of "/test",
+        // and our temp path won't start with that, we expect the full path
+        assert!(display_path.is_ok());
+        assert_eq!(display_path.unwrap(), file_path.display().to_string());
+    }
 }

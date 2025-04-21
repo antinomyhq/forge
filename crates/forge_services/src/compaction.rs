@@ -1,5 +1,3 @@
-// FIXME: compaction should be expose as a service via forge_app instead of
-// being core to the domain.
 use std::sync::Arc;
 
 use anyhow::Result;

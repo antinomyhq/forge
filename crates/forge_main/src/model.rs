@@ -102,15 +102,6 @@ impl ForgeCommandManager {
             .cloned()
     }
 
-    pub fn command_names(&self) -> Vec<String> {
-        self.commands
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|command| command.name.clone())
-            .collect::<Vec<_>>()
-    }
-
     /// Lists all registered commands.
     pub fn list(&self) -> Vec<ForgeCommand> {
         self.commands.lock().unwrap().clone()
@@ -151,34 +142,45 @@ impl ForgeCommandManager {
     }
 
     pub fn parse(&self, input: &str) -> anyhow::Result<Command> {
-        let trimmed = input.trim();
-
         // Check if it's a shell command (starts with !)
-        if trimmed.starts_with("!") {
-            let command = trimmed
-                .strip_prefix("!")
-                .unwrap_or_default()
-                .trim()
-                .to_string();
-            return Ok(Command::Shell(command));
+        if input.trim().starts_with("!") {
+            return Ok(Command::Shell(
+                input
+                    .strip_prefix("!")
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string(),
+            ));
         }
+
+        let mut tokens = input.trim().split_ascii_whitespace();
+        let command = tokens.next().unwrap();
+        let parameters = tokens.collect::<Vec<_>>();
 
         // Check if it's a system command (starts with /)
-        let is_command = trimmed.starts_with("/");
+        let is_command = command.starts_with("/");
         if !is_command {
-            return Ok(Command::Message(trimmed.to_string()));
+            return Ok(Command::Message(input.to_string()));
         }
 
-        match trimmed {
+        // TODO: Can leverage Clap to parse commands and provide correct error messages
+        match command {
             "/compact" => Ok(Command::Compact),
             "/new" => Ok(Command::New),
             "/info" => Ok(Command::Info),
             "/exit" => Ok(Command::Exit),
-            "/dump" => Ok(Command::Dump),
+            "/dump" => {
+                if !parameters.is_empty() && parameters[0] == "html" {
+                    Ok(Command::Dump(Some("html".to_string())))
+                } else {
+                    Ok(Command::Dump(None))
+                }
+            }
             "/act" => Ok(Command::Act),
             "/plan" => Ok(Command::Plan),
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
+            "/tools" => Ok(Command::Tools),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -240,13 +242,17 @@ pub enum Command {
     /// This can be triggered with the '/help' command.
     #[strum(props(usage = "Enable help mode for tool questions"))]
     Help,
-    /// Dumps the current conversation into a json file
-    #[strum(props(usage = "Save conversation as JSON"))]
-    Dump,
+    /// Dumps the current conversation into a json file or html file
+    #[strum(props(usage = "Save conversation as JSON or HTML (use /dump html for HTML format)"))]
+    Dump(Option<String>),
     /// Switch or select the active model
     /// This can be triggered with the '/model' command.
     #[strum(props(usage = "Switch to a different model"))]
     Model,
+    /// List all available tools with their descriptions and schema
+    /// This can be triggered with the '/tools' command.
+    #[strum(props(usage = "List all available tools with their descriptions and schema"))]
+    Tools,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
     /// Executes a native shell command.
@@ -266,8 +272,9 @@ impl Command {
             Command::Act => "/act",
             Command::Plan => "/plan",
             Command::Help => "/help",
-            Command::Dump => "/dump",
+            Command::Dump(_) => "/dump",
             Command::Model => "/model",
+            Command::Tools => "/tools",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
         }

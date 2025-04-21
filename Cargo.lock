@@ -869,11 +869,14 @@ dependencies = [
  "chrono",
  "clap",
  "colored 3.0.0",
+ "convert_case",
  "derive_setters",
  "forge_api",
  "forge_display",
+ "forge_domain",
  "forge_fs",
  "forge_snaps",
+ "forge_spinner",
  "forge_tracker",
  "forge_walker",
  "inquire",
@@ -934,12 +937,14 @@ dependencies = [
  "chrono",
  "colored 3.0.0",
  "console",
+ "convert_case",
  "derive_setters",
  "insta",
  "pretty_assertions",
  "regex",
  "similar",
  "strip-ansi-escapes",
+ "termimad",
 ]
 
 [[package]]
@@ -953,12 +958,17 @@ dependencies = [
  "derive_more 2.0.1",
  "derive_setters",
  "forge_stream",
+ "forge_template",
  "futures",
  "insta",
  "merge",
  "nom 8.0.0",
  "pretty_assertions",
+<<<<<<< HEAD
  "rmcp",
+=======
+ "regex",
+>>>>>>> cfe1021b8ec241f66937372314d4bdde5e1d0fd8
  "schemars",
  "serde",
  "serde_json",
@@ -1075,7 +1085,6 @@ dependencies = [
  "serde_json",
  "strum_macros 0.27.1",
  "tempfile",
- "termimad",
  "thiserror 2.0.12",
  "tokio",
  "tokio-util",
@@ -1111,11 +1120,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_spinner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "colored 3.0.0",
+ "indicatif",
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "forge_stream"
 version = "0.1.0"
 dependencies = [
  "futures",
  "tokio",
+]
+
+[[package]]
+name = "forge_template"
+version = "0.1.0"
+dependencies = [
+ "derive_more 2.0.1",
+ "html-escape",
+ "pretty_assertions",
 ]
 
 [[package]]
@@ -1460,6 +1488,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest",
+]
+
+[[package]]
+name = "html-escape"
+version = "0.2.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d1ad449764d627e22bfd7cd5e8868264fc9236e07c752972b4080cd351cb476"
+dependencies = [
+ "utf8-width",
 ]
 
 [[package]]
@@ -1847,6 +1884,19 @@ dependencies = [
  "equivalent",
  "hashbrown",
  "serde",
+]
+
+[[package]]
+name = "indicatif"
+version = "0.17.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "183b3088984b400f4cfac3620d5e076c84da5364016b4f49473de574b2586235"
+dependencies = [
+ "console",
+ "number_prefix",
+ "portable-atomic",
+ "unicode-width 0.2.0",
+ "web-time",
 ]
 
 [[package]]
@@ -2299,6 +2349,12 @@ checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "number_prefix"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "object"
@@ -4091,6 +4147,12 @@ name = "utf16_iter"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8232dd3cdaed5356e0f716d285e4b40b932ac434100fe9b7e0e8e935b9e6246"
+
+[[package]]
+name = "utf8-width"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86bd8d4e895da8537e5315b8254664e6b769c4ff3db18321b297a1e7004392e3"
 
 [[package]]
 name = "utf8_iter"

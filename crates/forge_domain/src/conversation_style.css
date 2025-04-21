@@ -1,0 +1,105 @@
+body {
+  font-family: monospace;
+  line-height: 1.6;
+  color: #333;
+  font-size: 1em;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+summary {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3 {
+  color: #2c3e50;
+}
+
+h1 {
+  border-bottom: 2px solid #eee;
+  padding-bottom: 10px;
+}
+
+.section {
+  padding: 20px;
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+}
+
+.agent,
+.event,
+.variable {
+  padding: 15px;
+  background-color: white;
+  border: 1px solid #ddd;
+}
+
+.agent-header,
+.event-header {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #eee;
+}
+
+pre {
+  padding: 10px;
+  overflow-x: auto;
+}
+
+code {
+  font-family: monospace;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 8px;
+  text-align: left;
+}
+
+th {
+  background-color: #f2f2f2;
+}
+
+.message-card {
+  padding: 15px;
+  border: 1px solid #ddd;
+}
+
+.message-system {
+  background-color: #f8f9fa;
+}
+
+.message-user {
+  background-color: #e9f5ff;
+}
+
+.message-assistant {
+  background-color: #f0f7e6;
+}
+
+.message-tool {
+  background-color: #fff8e6;
+}
+
+.tool-call,
+.tool-result {
+  background-color: #f5f5f5;
+}
+
+.tool-choice {
+  padding: 5px 10px;
+  background-color: #eef;
+  display: inline-block;
+}
+
+.context-section {
+  padding-top: 15px;
+}

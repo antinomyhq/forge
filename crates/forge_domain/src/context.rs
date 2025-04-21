@@ -5,7 +5,7 @@ use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
-use crate::{ToolChoice, ToolDefinition};
+use crate::{ToolCallRecord, ToolChoice, ToolDefinition};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -213,6 +213,49 @@ impl Context {
         // Call the standalone function from agent.rs with the text representation of
         // this context
         crate::estimate_token_count(&self.to_text())
+    }
+
+    /// Will append a message to the context. If the model supports tools, it
+    /// will append the tool calls and results to the message. If the model
+    /// does not support tools, it will append the tool calls and results as
+    /// separate messages.
+    pub fn append_message(
+        mut self,
+        content: impl ToString,
+        tool_records: Vec<ToolCallRecord>,
+        tool_supported: bool,
+    ) -> Self {
+        if tool_supported {
+            self.add_message(ContextMessage::assistant(
+                content,
+                Some(
+                    tool_records
+                        .iter()
+                        .map(|record| record.tool_call.clone())
+                        .collect::<Vec<_>>(),
+                ),
+            ))
+            .add_tool_results(
+                tool_records
+                    .iter()
+                    .map(|record| record.tool_result.clone())
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            self = self.add_message(ContextMessage::assistant(content, None));
+            if tool_records.is_empty() {
+                return self;
+            }
+            let content = tool_records.iter().fold(String::new(), |mut acc, result| {
+                if !acc.is_empty() {
+                    acc.push_str("\n\n");
+                }
+                acc.push_str(result.to_string().as_str());
+                acc
+            });
+
+            self.add_message(ContextMessage::user(content))
+        }
     }
 }
 

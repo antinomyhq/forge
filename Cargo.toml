@@ -47,7 +47,10 @@ proc-macro2 = "1.0"
 quote = "1.0"
 reedline = "0.38.0"
 regex = "1.11.1"
-reqwest = { version = "0.12.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12.12", features = [
+    "json",
+    "rustls-tls",
+], default-features = false }
 reqwest-eventsource = "0.6.0"
 rust-embed = "8.5.0"
 schemars = "0.8.21"
@@ -80,10 +83,15 @@ tree-sitter-cpp = "0.23"
 tree-sitter-ruby = "0.23"
 url = { version = "2.5.4", features = ["serde"] }
 tokio-retry = "0.3.0"
-uuid = { version = "1.11.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
+uuid = { version = "1.11.0", features = [
+    "v4",
+    "fast-rng",
+    "macro-diagnostics",
+    "serde",
+] }
 whoami = "1.5.2"
 fnv_rs = "0.4.3"
-merge = { version = "0.1", features = ["derive"] }
+merge = {  version = "0.1", features = ["derive"]  }
 rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a97917cd7584c4220815194bcb28b648147a3d8", features = ["client", "transport-sse", "transport-child-process", "transport-sse-server"] }
 hex = "0.4.3"
 tokio-util = "0.7.14"
@@ -101,3 +109,5 @@ forge_tracker = { path = "crates/forge_tracker" }
 forge_walker = { path = "crates/forge_walker" }
 forge_fs = { path = "crates/forge_fs" }
 forge_snaps = { path = "crates/forge_snaps" }
+forge_spinner = { path = "crates/forge_spinner" }
+forge_template = { path = "crates/forge_template" }

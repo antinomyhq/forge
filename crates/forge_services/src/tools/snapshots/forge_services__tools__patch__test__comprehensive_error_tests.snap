@@ -1,6 +1,7 @@
 ---
-source: crates/forge_services/src/tools/patch/apply_json.rs
+source: crates/forge_services/src/tools/patch.rs
 expression: test
+snapshot_kind: text
 ---
 PatchTest {
     initial: "foo bar baz",

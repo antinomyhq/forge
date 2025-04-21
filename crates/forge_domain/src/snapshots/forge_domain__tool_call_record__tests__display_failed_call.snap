@@ -1,0 +1,9 @@
+---
+source: crates/forge_domain/src/tool_call_record.rs
+expression: record.to_string()
+snapshot_kind: text
+---
+<tool_result tool="fs_write"><arguments><content>"Example content"</content><overwrite>false</overwrite><path>"/path/to/file.txt"</path></arguments><result><error><![CDATA[
+ERROR:
+Caused by: Permission denied
+]]></error></result></tool_result>
