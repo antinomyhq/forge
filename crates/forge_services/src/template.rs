@@ -7,7 +7,6 @@ use handlebars::Handlebars;
 use rust_embed::Embed;
 use serde_json::Value;
 
-
 #[derive(Embed)]
 #[folder = "../../templates/"]
 struct Templates;
