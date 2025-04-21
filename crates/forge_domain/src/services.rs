@@ -67,6 +67,7 @@ pub trait ConversationService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait TemplateService: Send + Sync {
+    #[deprecated(note = "Use `render` instead")]
     async fn render_system(
         &self,
         agent: &Agent,
@@ -74,6 +75,7 @@ pub trait TemplateService: Send + Sync {
         variables: &HashMap<String, Value>,
     ) -> anyhow::Result<String>;
 
+    #[deprecated(note = "Use `render` instead")]
     async fn render_event(
         &self,
         agent: &Agent,
@@ -86,10 +88,17 @@ pub trait TemplateService: Send + Sync {
     /// This takes a raw string template and renders it with information about
     /// the compaction and the original context (which allows for more
     /// sophisticated compaction templates)
+    #[deprecated(note = "Use `render` instead")]
     async fn render_summarization(
         &self,
         compaction: &Compact,
         context: &Context,
+    ) -> anyhow::Result<String>;
+
+    fn render(
+        &self,
+        template: impl ToString,
+        object: &impl serde::Serialize,
     ) -> anyhow::Result<String>;
 }
 

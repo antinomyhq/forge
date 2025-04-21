@@ -131,4 +131,14 @@ impl<F: Infrastructure, T: ToolService> TemplateService for ForgeTemplateService
         )?;
         Ok(result)
     }
+
+    fn render(
+        &self,
+        template: impl ToString,
+        object: &impl serde::Serialize,
+    ) -> anyhow::Result<String> {
+        let template = template.to_string();
+        let rendered = self.hb.render(&template, object)?;
+        Ok(rendered)
+    }
 }
