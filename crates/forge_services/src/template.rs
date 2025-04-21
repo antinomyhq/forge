@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use forge_domain::{
-    Agent, Compact, Context, Event, EventContext, SystemContext, Template, TemplateService
-    ,
+    Agent, Compact, Context, Event, EventContext, SystemContext, Template, TemplateService,
 };
 use handlebars::Handlebars;
 use rust_embed::Embed;
