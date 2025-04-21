@@ -58,9 +58,6 @@ fn parse_tool_call(input: &str) -> IResult<&str, ToolCallParsed> {
     // Match all the arguments with whitespace
     let (input, args) = parse_args(input)?;
 
-    // Ignore everything until the closing tag
-    let (input, _) = take_until("</tool_call>").parse(input)?;
-
     Ok((
         input,
         ToolCallParsed {
@@ -434,6 +431,19 @@ mod tests {
     #[test]
     fn test_parse_missing_closing() {
         let input = "<tool_call><foo><p>abc</p></tool_call>";
+
+        let action = parse(input).unwrap();
+        let expected = vec![ToolCallFull {
+            name: ToolName::new("foo"),
+            call_id: None,
+            arguments: serde_json::from_str(r#"{"p":"abc"}"#).unwrap(),
+        }];
+        assert_eq!(action, expected);
+    }
+
+    #[test]
+    fn test_parse_missing_closing_outer() {
+        let input = "<tool_call><foo><p>abc</p></foo>";
 
         let action = parse(input).unwrap();
         let expected = vec![ToolCallFull {
