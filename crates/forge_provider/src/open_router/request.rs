@@ -258,7 +258,7 @@ impl From<Context> for OpenRouterRequest {
             min_p: Default::default(),
             top_a: Default::default(),
             prediction: Default::default(),
-            transforms: Some(vec![Transform::default()]),
+            transforms: Default::default(),
             models: Default::default(),
             route: Default::default(),
             provider: Default::default(),
