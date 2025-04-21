@@ -26,7 +26,7 @@ pub trait ToolService: Send + Sync {
         context: ToolCallContext,
         call: ToolCallFull,
     ) -> anyhow::Result<ToolResult>;
-    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>>;
     fn usage_prompt(&self) -> String;
 }
 

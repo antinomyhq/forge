@@ -1,9 +1,7 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::sync::Arc;
-
+use anyhow::Context;
 use forge_domain::{
-    McpConfig, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
+    ConversationId, ConversationService, McpConfig, ToolCallContext, ToolCallFull, ToolDefinition,
+    ToolName, ToolResult, ToolService,
 };
 use futures::FutureExt;
 use rmcp::model::{
@@ -13,6 +11,9 @@ use rmcp::model::{
 use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceError, ServiceExt};
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -47,19 +48,17 @@ struct ServerHolder {
 /// Currently just a placeholder structure, to be implemented
 /// when we add actual server functionality.
 #[derive(Clone)]
-pub struct ForgeMcpService {
+pub struct ForgeMcpService<C> {
     servers: Arc<Mutex<HashMap<ToolName, ServerHolder>>>,
+    conversation_service: Arc<C>,
 }
 
-impl Default for ForgeMcpService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ForgeMcpService {
-    pub fn new() -> Self {
-        Self { servers: Arc::new(Mutex::new(HashMap::new())) }
+impl<C: ConversationService> ForgeMcpService<C> {
+    pub fn new(conversation_service: Arc<C>) -> Self {
+        Self {
+            servers: Arc::new(Mutex::new(HashMap::new())),
+            conversation_service,
+        }
     }
     pub fn client_info() -> ClientInfo {
         ClientInfo {
@@ -189,23 +188,7 @@ impl ForgeMcpService {
 }
 
 #[async_trait::async_trait]
-impl ToolService for ForgeMcpService {
-    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        let mcp = HashMap::default(); // FIXME: This should be replaced with actual mcp config
-        if !mcp.is_empty() {
-            self.init_mcp(mcp)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to init mcp: {e}"))?;
-            self.servers
-                .lock()
-                .await
-                .iter()
-                .map(|(_, server)| Ok(server.tool_definition.clone()))
-                .collect()
-        } else {
-            Ok(vec![])
-        }
-    }
+impl<C: ConversationService> ToolService for ForgeMcpService<C> {
     async fn call(&self, ctx: ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolResult> {
         if ctx.mcp.is_empty() {
             return Err(anyhow::anyhow!("MCP config not defined in the workspace."));
@@ -233,6 +216,28 @@ impl ToolService for ForgeMcpService {
             })
         } else {
             Err(anyhow::anyhow!("Server not found"))
+        }
+    }
+    async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
+        let mcp = self
+            .conversation_service
+            .find(conversation_id)
+            .await?
+            .context("Failed to find conversation")?
+            .mcp;
+
+        if !mcp.is_empty() {
+            self.init_mcp(mcp)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to init mcp: {e}"))?;
+            self.servers
+                .lock()
+                .await
+                .iter()
+                .map(|(_, server)| Ok(server.tool_definition.clone()))
+                .collect()
+        } else {
+            Ok(vec![])
         }
     }
 

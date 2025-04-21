@@ -13,7 +13,7 @@ pub trait API: Sync + Send {
 
     /// Provides information about the tools available in the current
     /// environment
-    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn tools(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>>;
 
     /// Provides a list of models available in the current environment
     async fn models(&self) -> anyhow::Result<Vec<Model>>;

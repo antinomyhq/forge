@@ -327,14 +327,14 @@ impl<A: Services> Orchestrator<A> {
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
             agent
-                .init_context(self.services.tool_service().list().await?)
+                .init_context(self.services.tool_service().list(&conversation.id).await?)
                 .await?
         } else {
             match conversation.context(&agent.id) {
                 Some(context) => context.clone(),
                 None => {
                     agent
-                        .init_context(self.services.tool_service().list().await?)
+                        .init_context(self.services.tool_service().list(&conversation.id).await?)
                         .await?
                 }
             }

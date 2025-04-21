@@ -44,8 +44,8 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         self.suggestion_service.suggestions().await
     }
 
-    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        self.app.tool_service().list().await
+    async fn tools(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.app.tool_service().list(conversation_id).await
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
