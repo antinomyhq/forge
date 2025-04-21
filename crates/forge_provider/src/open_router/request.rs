@@ -1,3 +1,5 @@
+use std::usize;
+
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use forge_domain::{
@@ -56,6 +58,22 @@ impl MessageContent {
                 cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             }]),
             _ => self,
+        }
+    }
+
+    pub fn count_cache_parts(&self) -> usize {
+        match self {
+            MessageContent::Text(_) => 0,
+            MessageContent::Parts(parts) => parts
+                .iter()
+                .filter(|part| {
+                    if let ContentPart::Text { cache_control, .. } = part {
+                        cache_control.is_some()
+                    } else {
+                        false
+                    }
+                })
+                .count(),
         }
     }
 }

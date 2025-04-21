@@ -73,15 +73,24 @@ impl OpenRouter {
     async fn inner_chat(
         &self,
         model: &ModelId,
-        request: ChatContext,
+        context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let mut request = OpenRouterRequest::from(request)
+        let mut request = OpenRouterRequest::from(context)
             .model(model.clone())
             .stream(true);
         request = ProviderPipeline::new(&self.provider).transform(request);
 
         let url = self.url("chat/completions")?;
-        debug!(url = %url, model = %model, "Connecting Upstream");
+        let cache_breakpoints: usize = request
+            .messages
+            .iter()
+            .flatten()
+            .flat_map(|msg| msg.content.as_ref())
+            .map(|msg| msg.count_cache_parts())
+            .sum();
+        
+        debug!(url = %url, model = %model, cache_breakpoints = %cache_breakpoints, "Connecting Upstream");
+        
         let mut es = self
             .client
             .post(url.clone())
