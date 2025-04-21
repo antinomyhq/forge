@@ -15,9 +15,10 @@ impl Transformer for SetCache {
                         cache_positions.push(i);
                     }
                     last_was_user = true;
-                } else if message.role == OpenRouterRole::Assistant
-                    || message.role == OpenRouterRole::System
-                {
+                } else if message.role == OpenRouterRole::Assistant {
+                    last_was_user = false;
+                } else if message.role == OpenRouterRole::System {
+                    cache_positions.push(i);
                     last_was_user = false;
                 }
             }
@@ -110,15 +111,15 @@ mod tests {
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuau");
-        let expected = "suuau";
+        let expected = "[suuau";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuauu");
-        let expected = "suuauu";
+        let expected = "[suuauu";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuauuaaau");
-        let expected = "s[uuauuaaau";
+        let expected = "[s[uuauuaaau";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuauuaaauauau");
