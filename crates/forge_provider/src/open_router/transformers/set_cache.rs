@@ -92,7 +92,7 @@ mod tests {
 
         for (i, c) in message.to_string().chars().enumerate() {
             if sequences.contains(&i) {
-                output.push_str("[");
+                output.push('[');
             }
             output.push_str(c.to_string().as_str())
         }
