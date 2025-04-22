@@ -243,11 +243,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
         todo!()
     }
 
-    fn has_tool(&self, name: &ToolName) -> bool {
-        todo!()
-    }
-
-    fn get_tool(&self, name: &ToolName) -> Option<&Tool> {
+    fn find_tool(&self, _name: &ToolName) -> Option<&Tool> {
         todo!()
     }
 }
@@ -265,12 +261,8 @@ impl<C: ConversationService> ToolService for ForgeMcpService<C> {
         self.usage_prompt()
     }
 
-    fn has_tool(&self, name: &ToolName) -> bool {
-        self.has_tool(name)
-    }
-
-    fn get_tool(&self, _name: &ToolName) -> Option<&Tool> {
-        self.get_tool(name)
+    fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
+        self.find_tool(name)
     }
 }
 
@@ -281,7 +273,7 @@ mod tests {
 
     use forge_domain::{
         CompactionResult, Conversation, ConversationId, ConversationService, McpConfig,
-        ToolCallContext, ToolCallFull, ToolName, ToolService, Workflow,
+        ToolCallContext, ToolCallFull, ToolName, Workflow,
     };
     use rmcp::model::{CallToolResult, Content};
     use rmcp::transport::SseServer;
@@ -450,7 +442,7 @@ mod tests {
 
         // MCP service doesn't store tools locally, so get_tool should always return
         // None
-        let tool = mcp_service.get_tool(&ToolName::new("any-tool"));
+        let tool = mcp_service.find_tool(&ToolName::new("any-tool"));
         assert!(tool.is_none());
     }
 }
