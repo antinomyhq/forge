@@ -448,7 +448,8 @@ mod tests {
         let convo = MockCommunicationService::new(workflow);
         let mcp_service = ForgeMcpService::new(Arc::new(convo));
 
-        // MCP service doesn't store tools locally, so get_tool should always return None
+        // MCP service doesn't store tools locally, so get_tool should always return
+        // None
         let tool = mcp_service.get_tool(&ToolName::new("any-tool"));
         assert!(tool.is_none());
     }

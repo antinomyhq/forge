@@ -1,4 +1,3 @@
-
 use forge_domain::TemplateService;
 use handlebars::Handlebars;
 use rust_embed::Embed;
