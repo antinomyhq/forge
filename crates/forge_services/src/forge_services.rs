@@ -28,9 +28,7 @@ pub struct ForgeServices<F> {
     >,
     template_service: Arc<ForgeTemplateService>,
     attachment_service: Arc<ForgeChatRequest<F>>,
-    compaction_service: Arc<
-        ForgeCompactionService<ForgeTemplateService, ForgeProviderService>,
-    >,
+    compaction_service: Arc<ForgeCompactionService<ForgeTemplateService, ForgeProviderService>>,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
