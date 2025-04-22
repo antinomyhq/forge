@@ -186,10 +186,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
             .next()
             .map_or(Ok(()), Err)
     }
-}
 
-#[async_trait::async_trait]
-impl<C: ConversationService> ToolService for ForgeMcpService<C> {
     async fn call(&self, ctx: ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolResult> {
         if ctx.mcp.is_empty() {
             return Err(anyhow::anyhow!("MCP config not defined in the workspace."));
@@ -245,6 +242,28 @@ impl<C: ConversationService> ToolService for ForgeMcpService<C> {
     fn usage_prompt(&self) -> String {
         todo!()
     }
+
+    fn has_tool(&self, name: &ToolName) -> bool {
+        todo!()
+    }
+}
+
+#[async_trait::async_trait]
+impl<C: ConversationService> ToolService for ForgeMcpService<C> {
+    async fn call(&self, ctx: ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolResult> {
+        self.call(ctx, call).await
+    }
+    async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.list(conversation_id).await
+    }
+
+    fn usage_prompt(&self) -> String {
+        self.usage_prompt()
+    }
+
+    fn has_tool(&self, name: &ToolName) -> bool {
+        self.has_tool(name)
+    }
 }
 
 #[cfg(test)]
@@ -254,7 +273,7 @@ mod tests {
 
     use forge_domain::{
         CompactionResult, Conversation, ConversationId, ConversationService, McpConfig,
-        ToolCallContext, ToolCallFull, ToolName, ToolService, Workflow,
+        ToolCallContext, ToolCallFull, ToolName, Workflow,
     };
     use rmcp::model::{CallToolResult, Content};
     use rmcp::transport::SseServer;

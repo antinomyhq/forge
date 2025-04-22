@@ -17,7 +17,7 @@ const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 #[derive(Clone)]
 pub struct ForgeToolService<M> {
     tools: Arc<HashMap<ToolName, Tool>>,
-    mcp_service: Arc<M>,
+    mcp: Arc<M>,
 }
 
 impl<M: ToolService + 'static> ForgeToolService<M> {
@@ -29,12 +29,10 @@ impl<M: ToolService + 'static> ForgeToolService<M> {
             .map(|tool| (tool.definition.name.clone(), tool))
             .collect::<HashMap<_, _>>();
 
-        Self { tools: Arc::new(tools), mcp_service: mcp }
+        Self { tools: Arc::new(tools), mcp }
     }
-}
 
-#[async_trait::async_trait]
-impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
+    // Private method to handle tool calls
     async fn call(
         &self,
         context: ToolCallContext,
@@ -48,17 +46,11 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
             && !context.mcp.is_empty()
         {
             debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
-            return self.mcp_service.call(context, call).await;
+            return self.mcp.call(context, call).await;
         }
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
-        let mut available_tools = self
-            .tools
-            .keys()
-            .map(|name| name.as_str())
-            .collect::<Vec<_>>();
 
-        available_tools.sort();
         let output = match self.tools.get(&name) {
             Some(tool) => {
                 // Wrap tool call with timeout
@@ -71,11 +63,7 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
                     )),
                 }
             }
-            None => Err(anyhow::anyhow!(
-                "No tool with name '{}' was found. Please try again with one of these tools {}",
-                name.as_str(),
-                available_tools.join(", ")
-            )),
+            None => Err(anyhow::anyhow!(self.get_tool_not_found_error(name))),
         };
 
         let result = match output {
@@ -90,6 +78,23 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
         Ok(result)
     }
 
+    fn get_tool_not_found_error(&self, name: ToolName) -> String {
+        let mut available_tools = self
+            .tools
+            .keys()
+            .map(|name| name.as_str())
+            .collect::<Vec<_>>();
+
+        available_tools.sort();
+
+        format!(
+            "No tool with name '{}' was found. Please try again with one of these tools {}",
+            name.as_str(),
+            available_tools.join(", ")
+        )
+    }
+
+    // Private method to list available tools
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
         let mut tools: Vec<_> = self
             .tools
@@ -99,12 +104,13 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
 
         // Sorting is required to ensure system prompts are exactly the same
         tools.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        let mcp_tools = self.mcp_service.list(conversation_id).await?;
+        let mcp_tools = self.mcp.list(conversation_id).await?;
         tools.extend(mcp_tools);
 
         Ok(tools)
     }
 
+    // Private method to generate usage prompt
     fn usage_prompt(&self) -> String {
         let mut tools: Vec<_> = self.tools.values().collect();
         tools.sort_by(|a, b| a.definition.name.as_str().cmp(b.definition.name.as_str()));
@@ -119,6 +125,29 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
                 acc.push_str(tool.definition.usage_prompt().to_string().as_str());
                 acc
             })
+    }
+}
+
+#[async_trait::async_trait]
+impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        call: ToolCallFull,
+    ) -> anyhow::Result<ToolResult> {
+        self.call(context, call).await
+    }
+
+    async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.list(conversation_id).await
+    }
+
+    fn usage_prompt(&self) -> String {
+        self.usage_prompt()
+    }
+
+    fn has_tool(&self, name: &ToolName) -> bool {
+        self.tools.contains_key(name) || self.mcp.has_tool(name)
     }
 }
 
@@ -151,7 +180,11 @@ mod test {
         }
 
         fn usage_prompt(&self) -> String {
-            todo!()
+            "No tools available".to_string()
+        }
+
+        fn has_tool(&self, _name: &ToolName) -> bool {
+            false
         }
     }
 
@@ -212,10 +245,7 @@ mod test {
             .map(|tool| (tool.definition.name.clone(), tool))
             .collect::<HashMap<_, _>>();
 
-        ForgeToolService::<MockMcpTool> {
-            tools: Arc::new(tools),
-            mcp_service: Arc::new(MockMcpTool),
-        }
+        ForgeToolService::<MockMcpTool> { tools: Arc::new(tools), mcp: Arc::new(MockMcpTool) }
     }
 
     #[tokio::test]
@@ -305,7 +335,7 @@ mod test {
                     .map(|tool| (tool.definition.name.clone(), tool))
                     .collect(),
             ),
-            mcp_service: Arc::new(MockMcpTool),
+            mcp: Arc::new(MockMcpTool),
         };
         let call = ToolCallFull {
             name: ToolName::new("slow_tool"),
