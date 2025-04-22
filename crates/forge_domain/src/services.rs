@@ -1,11 +1,9 @@
-use std::collections::HashMap;
 
 use serde_json::Value;
 
 use crate::{
-    Agent, Attachment, ChatCompletionMessage, Compact, CompactionResult, Context, Conversation,
-    ConversationId, Environment, Event, EventContext, Model, ModelId, ResultStream, SystemContext,
-    Template, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
+    Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
+    ConversationId, Environment, Model, ModelId, ResultStream, ToolCallContext, ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -67,34 +65,6 @@ pub trait ConversationService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait TemplateService: Send + Sync {
-    #[deprecated(note = "Use `render` instead")]
-    async fn render_system(
-        &self,
-        agent: &Agent,
-        prompt: &Template<SystemContext>,
-        variables: &HashMap<String, Value>,
-    ) -> anyhow::Result<String>;
-
-    #[deprecated(note = "Use `render` instead")]
-    async fn render_event(
-        &self,
-        agent: &Agent,
-        prompt: &Template<EventContext>,
-        event: &Event,
-        variables: &HashMap<String, Value>,
-    ) -> anyhow::Result<String>;
-
-    /// Renders a custom summarization prompt for context compaction
-    /// This takes a raw string template and renders it with information about
-    /// the compaction and the original context (which allows for more
-    /// sophisticated compaction templates)
-    #[deprecated(note = "Use `render` instead")]
-    async fn render_summarization(
-        &self,
-        compaction: &Compact,
-        context: &Context,
-    ) -> anyhow::Result<String>;
-
     fn render(
         &self,
         template: impl ToString,
