@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::temperature::Temperature;
-use crate::{Agent, AgentId, McpConfig, ModelId};
+use crate::{Agent, AgentId, McpServers, ModelId};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -71,7 +71,7 @@ pub struct Workflow {
     /// Model Context Protocol (MCP) configuration
     #[merge(strategy = crate::merge::option)]
     #[serde(rename = "mcpServers")]
-    pub mcp: Option<HashMap<String, McpConfig>>,
+    pub mcp_servers: Option<McpServers>,
 }
 
 impl Default for Workflow {
@@ -107,7 +107,7 @@ impl Workflow {
             custom_rules: Default::default(),
             temperature: Default::default(),
             tool_supported: Default::default(),
-            mcp: Default::default(),
+            mcp_servers: Default::default(),
         }
     }
 

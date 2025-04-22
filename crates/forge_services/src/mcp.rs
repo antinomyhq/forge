@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_domain::{
-    ConversationId, ConversationService, McpConfig, Tool, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolName, ToolResult, ToolService,
+    ConversationId, ConversationService, McpServerConfig, McpServers, Tool, ToolCallContext,
+    ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
 };
 use futures::FutureExt;
 use rmcp::model::{
@@ -82,7 +82,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
     async fn connect_stdio_server(
         &self,
         server_name: &str,
-        config: McpConfig,
+        config: McpServerConfig,
     ) -> anyhow::Result<()> {
         let command = config
             .command
@@ -112,7 +112,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
     async fn connect_http_server(
         &self,
         server_name: &str,
-        config: McpConfig,
+        config: McpServerConfig,
     ) -> anyhow::Result<()> {
         let url = config
             .url
@@ -126,7 +126,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
 
         Ok(())
     }
-    async fn init_mcp(&self, mcp: HashMap<String, McpConfig>) -> anyhow::Result<()> {
+    async fn init_mcp(&self, mcp: McpServers) -> anyhow::Result<()> {
         let http_results: Vec<Option<anyhow::Result<()>>> = futures::future::join_all(
             mcp.iter()
                 .map(|(server_name, server)| async move {
@@ -157,10 +157,10 @@ impl<C: ConversationService> ForgeMcpService<C> {
     }
 
     async fn call(&self, ctx: ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolResult> {
-        if ctx.mcp.is_empty() {
+        if ctx.mcp_servers.is_empty() {
             return Err(anyhow::anyhow!("MCP config not defined in the workspace."));
         }
-        self.init_mcp(ctx.mcp).await?;
+        self.init_mcp(ctx.mcp_servers).await?;
 
         let tool_name = ToolName::new(call.name);
         let servers = self.servers.lock().await;
@@ -192,7 +192,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
             .find(conversation_id)
             .await?
             .context("Failed to find conversation")?
-            .mcp;
+            .mcp_servers;
 
         if !mcp.is_empty() {
             self.init_mcp(mcp)
@@ -269,7 +269,7 @@ mod tests {
     use std::sync::Arc;
 
     use forge_domain::{
-        CompactionResult, Conversation, ConversationId, ConversationService, McpConfig,
+        CompactionResult, Conversation, ConversationId, ConversationService, McpServerConfig,
         ToolCallContext, ToolCallFull, ToolName, Workflow,
     };
     use rmcp::model::{CallToolResult, Content};
@@ -301,7 +301,7 @@ mod tests {
                 variables: Default::default(),
                 agents: vec![],
                 events: vec![],
-                mcp: self.workflow.mcp.clone().unwrap_or_default(),
+                mcp_servers: self.workflow.mcp_servers.clone().unwrap_or_default(),
             }))
         }
 
@@ -385,9 +385,9 @@ mod tests {
         let mut mcp = HashMap::new();
         mcp.insert(
             "test".to_string(),
-            McpConfig::default().url(format!("http://{MOCK_URL}/sse")),
+            McpServerConfig::default().url(format!("http://{MOCK_URL}/sse")),
         );
-        let workflow = Workflow::default().mcp(mcp);
+        let workflow = Workflow::default().mcp_servers(mcp);
 
         let convo = MockCommunicationService::new(workflow.clone());
 
@@ -398,7 +398,7 @@ mod tests {
 
         let one = mcp
             .call(
-                ToolCallContext::default().mcp(workflow.mcp.clone().unwrap()),
+                ToolCallContext::default().mcp_servers(workflow.mcp_servers.clone().unwrap()),
                 ToolCallFull {
                     name: ToolName::new("test-forgestrip-increment"),
                     call_id: None,
@@ -411,7 +411,7 @@ mod tests {
         assert_eq!(content[0].as_text().unwrap().text, "1");
         let two = mcp
             .call(
-                ToolCallContext::default().mcp(workflow.mcp.unwrap()),
+                ToolCallContext::default().mcp_servers(workflow.mcp_servers.unwrap()),
                 ToolCallFull {
                     name: ToolName::new("test-forgestrip-increment"),
                     call_id: None,
@@ -431,9 +431,9 @@ mod tests {
         let mut mcp = HashMap::new();
         mcp.insert(
             "test".to_string(),
-            McpConfig::default().url("http://example.com"),
+            McpServerConfig::default().url("http://example.com"),
         );
-        let workflow = Workflow::default().mcp(mcp);
+        let workflow = Workflow::default().mcp_servers(mcp);
         let convo = MockCommunicationService::new(workflow);
         let mcp_service = ForgeMcpService::new(Arc::new(convo));
 

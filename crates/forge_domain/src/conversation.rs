@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{Agent, AgentId, Context, Error, Event, McpConfig, ModelId, Result, Workflow};
+use crate::{Agent, AgentId, Context, Error, Event, McpServers, ModelId, Result, Workflow};
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -36,7 +36,7 @@ pub struct Conversation {
     pub variables: HashMap<String, Value>,
     pub agents: Vec<Agent>,
     pub events: Vec<Event>,
-    pub mcp: HashMap<String, McpConfig>,
+    pub mcp_servers: McpServers,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -127,7 +127,7 @@ impl Conversation {
             variables: workflow.variables.clone(),
             agents,
             events: Default::default(),
-            mcp: workflow.mcp.unwrap_or_default(),
+            mcp_servers: McpServers::default(),
         }
     }
 
