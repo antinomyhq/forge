@@ -39,19 +39,10 @@ impl<M: ToolService + 'static> ForgeToolService<M> {
         call: ToolCallFull,
     ) -> anyhow::Result<ToolResult> {
         let name = call.name.clone();
-        if !self
-            .tools
-            .values()
-            .any(|v| v.definition.name.eq(&call.name))
-            && !context.mcp.is_empty()
-        {
-            debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
-            return self.mcp.call(context, call).await;
-        }
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
 
-        let output = match self.tools.get(&name) {
+        let output = match self.find_tool(&name) {
             Some(tool) => {
                 // Wrap tool call with timeout
                 match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
@@ -111,9 +102,10 @@ impl<M: ToolService + 'static> ForgeToolService<M> {
     // Private method to generate usage prompt
     fn usage_prompt(&self) -> String {
         let mut tools: Vec<_> = self.tools.values().collect();
+
         tools.sort_by(|a, b| a.definition.name.as_str().cmp(b.definition.name.as_str()));
 
-        tools
+        let mut prompt = tools
             .iter()
             .enumerate()
             .fold("".to_string(), |mut acc, (i, tool)| {
@@ -122,7 +114,17 @@ impl<M: ToolService + 'static> ForgeToolService<M> {
                 acc.push_str(". ");
                 acc.push_str(tool.definition.usage_prompt().to_string().as_str());
                 acc
-            })
+            });
+
+        // Append MCP tools
+        prompt.push_str("\n\n");
+        prompt.push_str(self.mcp.usage_prompt().as_str());
+
+        prompt
+    }
+
+    fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
+        self.tools.get(name).or_else(|| self.mcp.find_tool(name))
     }
 }
 
@@ -144,12 +146,8 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
         self.usage_prompt()
     }
 
-    fn has_tool(&self, name: &ToolName) -> bool {
-        self.tools.contains_key(name)
-    }
-
-    fn get_tool(&self, name: &ToolName) -> Option<&Tool> {
-        self.tools.get(name)
+    fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
+        self.find_tool(name)
     }
 }
 
@@ -185,11 +183,7 @@ mod test {
             todo!()
         }
 
-        fn has_tool(&self, _name: &ToolName) -> bool {
-            false
-        }
-
-        fn get_tool(&self, _name: &ToolName) -> Option<&Tool> {
+        fn find_tool(&self, _name: &ToolName) -> Option<&Tool> {
             None
         }
     }
@@ -307,7 +301,7 @@ mod test {
         let service = new_tool_service();
 
         // Test getting an existing tool
-        let success_tool = service.get_tool(&ToolName::new("success_tool"));
+        let success_tool = service.find_tool(&ToolName::new("success_tool"));
         assert!(success_tool.is_some());
         assert_eq!(
             success_tool.unwrap().definition.name.as_str(),
@@ -315,7 +309,7 @@ mod test {
         );
 
         // Test getting a non-existent tool
-        let nonexistent_tool = service.get_tool(&ToolName::new("nonexistent_tool"));
+        let nonexistent_tool = service.find_tool(&ToolName::new("nonexistent_tool"));
         assert!(nonexistent_tool.is_none());
     }
 
