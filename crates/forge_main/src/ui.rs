@@ -140,7 +140,7 @@ impl<F: API> UI<F> {
         }
 
         // Display the banner in dimmed colors since we're in interactive mode
-        let conversation_id = self.init_conversation().await?;
+        self.init_conversation().await?;
         banner::display()?;
 
         // Get initial input from file or prompt
@@ -208,6 +208,7 @@ impl<F: API> UI<F> {
                 }
                 Command::Tools => {
                     use crate::tools_display::format_tools;
+                    let conversation_id = self.init_conversation().await?;
                     let tools = self.api.tools(&conversation_id).await?;
                     let output = format_tools(&tools);
                     println!("{}", output);
