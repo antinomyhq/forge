@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_domain::{
-    ConversationId, ConversationService, McpConfig, ToolCallContext, ToolCallFull, ToolDefinition,
-    ToolName, ToolResult, ToolService,
+    ConversationId, ConversationService, McpConfig, Tool, ToolCallContext, ToolCallFull,
+    ToolDefinition, ToolName, ToolResult, ToolService,
 };
 use futures::FutureExt;
 use rmcp::model::{
@@ -246,6 +246,10 @@ impl<C: ConversationService> ForgeMcpService<C> {
     fn has_tool(&self, name: &ToolName) -> bool {
         todo!()
     }
+
+    fn get_tool(&self, name: &ToolName) -> Option<&Tool> {
+        todo!()
+    }
 }
 
 #[async_trait::async_trait]
@@ -264,6 +268,10 @@ impl<C: ConversationService> ToolService for ForgeMcpService<C> {
     fn has_tool(&self, name: &ToolName) -> bool {
         self.has_tool(name)
     }
+
+    fn get_tool(&self, _name: &ToolName) -> Option<&Tool> {
+        self.get_tool(name)
+    }
 }
 
 #[cfg(test)]
@@ -273,7 +281,7 @@ mod tests {
 
     use forge_domain::{
         CompactionResult, Conversation, ConversationId, ConversationService, McpConfig,
-        ToolCallContext, ToolCallFull, ToolName, Workflow,
+        ToolCallContext, ToolCallFull, ToolName, ToolService, Workflow,
     };
     use rmcp::model::{CallToolResult, Content};
     use rmcp::transport::SseServer;
@@ -427,5 +435,21 @@ mod tests {
 
         assert_eq!(content[0].as_text().unwrap().text, "2");
         ct.cancel();
+    }
+
+    #[tokio::test]
+    async fn test_get_tool() {
+        let mut mcp = HashMap::new();
+        mcp.insert(
+            "test".to_string(),
+            McpConfig::default().url("http://example.com"),
+        );
+        let workflow = Workflow::default().mcp(mcp);
+        let convo = MockCommunicationService::new(workflow);
+        let mcp_service = ForgeMcpService::new(Arc::new(convo));
+
+        // MCP service doesn't store tools locally, so get_tool should always return None
+        let tool = mcp_service.get_tool(&ToolName::new("any-tool"));
+        assert!(tool.is_none());
     }
 }

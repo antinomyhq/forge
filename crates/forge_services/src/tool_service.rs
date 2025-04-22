@@ -63,7 +63,21 @@ impl<M: ToolService + 'static> ForgeToolService<M> {
                     )),
                 }
             }
-            None => Err(anyhow::anyhow!(self.get_tool_not_found_error(name))),
+            None => {
+                let mut available_tools = self
+                    .tools
+                    .keys()
+                    .map(|name| name.as_str())
+                    .collect::<Vec<_>>();
+
+                available_tools.sort();
+
+                Err(anyhow::anyhow!(
+                    "No tool with name '{}' was found. Please try again with one of these tools {}",
+                    name.as_str(),
+                    available_tools.join(", ")
+                ))
+            }
         };
 
         let result = match output {
@@ -76,22 +90,6 @@ impl<M: ToolService + 'static> ForgeToolService<M> {
 
         debug!(result = ?result, "Tool call result");
         Ok(result)
-    }
-
-    fn get_tool_not_found_error(&self, name: ToolName) -> String {
-        let mut available_tools = self
-            .tools
-            .keys()
-            .map(|name| name.as_str())
-            .collect::<Vec<_>>();
-
-        available_tools.sort();
-
-        format!(
-            "No tool with name '{}' was found. Please try again with one of these tools {}",
-            name.as_str(),
-            available_tools.join(", ")
-        )
     }
 
     // Private method to list available tools
@@ -147,7 +145,11 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
     }
 
     fn has_tool(&self, name: &ToolName) -> bool {
-        self.tools.contains_key(name) || self.mcp.has_tool(name)
+        self.tools.contains_key(name)
+    }
+
+    fn get_tool(&self, name: &ToolName) -> Option<&Tool> {
+        self.tools.get(name)
     }
 }
 
@@ -180,11 +182,15 @@ mod test {
         }
 
         fn usage_prompt(&self) -> String {
-            "No tools available".to_string()
+            todo!()
         }
 
         fn has_tool(&self, _name: &ToolName) -> bool {
             false
+        }
+
+        fn get_tool(&self, _name: &ToolName) -> Option<&Tool> {
+            None
         }
     }
 
@@ -294,6 +300,23 @@ mod test {
             .await
             .unwrap();
         insta::assert_snapshot!(result);
+    }
+
+    #[tokio::test]
+    async fn test_get_tool() {
+        let service = new_tool_service();
+
+        // Test getting an existing tool
+        let success_tool = service.get_tool(&ToolName::new("success_tool"));
+        assert!(success_tool.is_some());
+        assert_eq!(
+            success_tool.unwrap().definition.name.as_str(),
+            "success_tool"
+        );
+
+        // Test getting a non-existent tool
+        let nonexistent_tool = service.get_tool(&ToolName::new("nonexistent_tool"));
+        assert!(nonexistent_tool.is_none());
     }
 
     // Mock tool that simulates a long-running task

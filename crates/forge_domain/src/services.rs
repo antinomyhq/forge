@@ -1,7 +1,9 @@
 use serde_json::Value;
 
 use crate::{
-    Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation, ConversationId, Environment, Model, ModelId, ResultStream, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow
+    Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
+    ConversationId, Environment, Model, ModelId, ResultStream, Tool, ToolCallContext, ToolCallFull,
+    ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -25,6 +27,7 @@ pub trait ToolService: Send + Sync {
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>>;
     fn usage_prompt(&self) -> String;
     fn has_tool(&self, name: &ToolName) -> bool;
+    fn get_tool(&self, name: &ToolName) -> Option<&Tool>;
 }
 
 #[async_trait::async_trait]
