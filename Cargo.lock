@@ -946,6 +946,7 @@ dependencies = [
  "derive_setters",
  "forge_stream",
  "forge_template",
+ "forge_walker",
  "futures",
  "insta",
  "merge",

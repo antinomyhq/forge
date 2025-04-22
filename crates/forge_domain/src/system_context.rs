@@ -29,9 +29,6 @@ pub struct SystemContext {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<String>,
 
-    // README content to provide project context to the agent
-    pub readme: String,
-
     #[serde(skip_serializing_if = "String::is_empty")]
     pub custom_rules: String,
 

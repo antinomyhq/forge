@@ -23,23 +23,20 @@ pub struct ForgeServices<F> {
     provider_service: Arc<ForgeProviderService>,
     conversation_service: Arc<
         ForgeConversationService<
-            ForgeCompactionService<ForgeTemplateService<F, ForgeToolService>, ForgeProviderService>,
+            ForgeCompactionService<ForgeTemplateService, ForgeProviderService>,
         >,
     >,
-    template_service: Arc<ForgeTemplateService<F, ForgeToolService>>,
+    template_service: Arc<ForgeTemplateService>,
     attachment_service: Arc<ForgeChatRequest<F>>,
     compaction_service: Arc<
-        ForgeCompactionService<ForgeTemplateService<F, ForgeToolService>, ForgeProviderService>,
+        ForgeCompactionService<ForgeTemplateService, ForgeProviderService>,
     >,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let tool_service = Arc::new(ForgeToolService::new(infra.clone()));
-        let template_service = Arc::new(ForgeTemplateService::new(
-            infra.clone(),
-            tool_service.clone(),
-        ));
+        let template_service = Arc::new(ForgeTemplateService::new());
         let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
         let compaction_service = Arc::new(ForgeCompactionService::new(
@@ -65,7 +62,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type ToolService = ForgeToolService;
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService<Self::CompactionService>;
-    type TemplateService = ForgeTemplateService<F, Self::ToolService>;
+    type TemplateService = ForgeTemplateService;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
     type CompactionService = ForgeCompactionService<Self::TemplateService, Self::ProviderService>;

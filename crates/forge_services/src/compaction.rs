@@ -101,10 +101,19 @@ impl<T: TemplateService, P: ProviderService> ForgeCompactionService<T, P> {
             .fold(Context::default(), |ctx, msg| ctx.add_message(msg.clone()));
 
         // Render the summarization prompt
-        let prompt = self
-            .template
-            .render_summarization(compact, &sequence_context)
-            .await?;
+        let summary_tag = compact.summary_tag.as_ref().cloned().unwrap_or_default();
+        let ctx = serde_json::json!({
+            "context": sequence_context.to_text(),
+            "summary_tag": summary_tag
+        });
+
+        let prompt = self.template.render(
+            compact
+                .prompt
+                .as_deref()
+                .unwrap_or("{{> system-prompt-context-summarizer.hbs}}"),
+            &ctx,
+        )?;
 
         // Create a new context
         let mut context = Context::default().add_message(ContextMessage::user(prompt));
