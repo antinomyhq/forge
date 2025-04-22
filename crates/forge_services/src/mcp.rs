@@ -15,6 +15,7 @@ use rmcp::model::{
 use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceError, ServiceExt};
+use schemars::schema::RootSchema;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -40,17 +41,11 @@ impl RunnableService {
     }
 }
 
-struct ServerHolder {
-    name: String,
-    client: Arc<RunnableService>,
-    tool_definition: ToolDefinition,
-}
-
 /// Currently just a placeholder structure, to be implemented
 /// when we add actual server functionality.
 #[derive(Clone)]
 pub struct ForgeMcpService<C> {
-    servers: Arc<Mutex<HashMap<ToolName, ServerHolder>>>,
+    servers: Arc<Mutex<HashMap<ToolName, Server>>>,
     conversation_service: Arc<C>,
 }
 
@@ -77,22 +72,8 @@ impl<C: ConversationService> ForgeMcpService<C> {
     ) -> anyhow::Result<()> {
         let mut lock = self.servers.lock().await;
         for tool in tools.tools.into_iter() {
-            let tool_name = ToolName::prefixed(server_name, tool.name);
-            lock.insert(
-                tool_name.clone(),
-                ServerHolder {
-                    name: server_name.to_string(),
-                    client: client.clone(),
-                    tool_definition: ToolDefinition {
-                        name: tool_name,
-                        description: tool.description.unwrap_or_default().to_string(),
-                        input_schema: serde_json::from_str(&serde_json::to_string(
-                            &tool.input_schema,
-                        )?)?,
-                        output_schema: None,
-                    },
-                },
-            );
+            let server = Server::new(server_name.to_string(), tool.clone(), client.clone())?;
+            lock.insert(server.tool_definition.name.clone(), server);
         }
 
         Ok(())
@@ -152,7 +133,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
                     if self
                         .servers
                         .lock()
-                        .map(|v| v.values().any(|v| v.name.eq(server_name)))
+                        .map(|v| v.values().any(|v| v.server_name.eq(server_name)))
                         .await
                     {
                         None
@@ -252,6 +233,33 @@ impl<C: ConversationService> ToolService for ForgeMcpService<C> {
 
     fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
         self.find_tool(name)
+    }
+}
+
+struct Server {
+    server_name: String,
+    client: Arc<RunnableService>,
+    tool_definition: ToolDefinition,
+}
+
+impl Server {
+    pub fn new(
+        server_name: String,
+        tool: rmcp::model::Tool,
+        client: Arc<RunnableService>,
+    ) -> anyhow::Result<Self> {
+        let name = ToolName::prefixed(server_name.clone(), tool.name);
+        let input_schema: RootSchema = serde_json::from_value(serde_json::Value::Object(
+            tool.input_schema.as_ref().clone(),
+        ))?;
+
+        Ok(Self {
+            client,
+            tool_definition: ToolDefinition::new(name)
+                .description(tool.description.unwrap_or_default().to_string())
+                .input_schema(input_schema),
+            server_name,
+        })
     }
 }
 
