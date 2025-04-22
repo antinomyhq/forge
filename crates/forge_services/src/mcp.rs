@@ -136,24 +136,12 @@ impl<C: ConversationService> ForgeMcpService<C> {
         let url = config
             .url
             .ok_or_else(|| anyhow::anyhow!("URL is required for HTTP server"))?;
-        let transport = rmcp::transport::SseTransport::start(url)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to connect server: {e}"))?;
-
-        let client = Self::client_info()
-            .serve(transport)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to serve client: {e}"))?;
-
-        let tools = client
-            .list_tools(None)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to list tools: {e}"))?;
+        let transport = rmcp::transport::SseTransport::start(url).await?;
+        let client = Self::client_info().serve(transport).await?;
+        let tools = client.list_tools(None).await?;
         let client = Arc::new(RunnableService::Http(client));
-
         self.insert_tools(server_name, tools, client.clone())
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to insert tools: {e}"))?;
+            .await?;
 
         Ok(())
     }
@@ -191,9 +179,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
         if ctx.mcp.is_empty() {
             return Err(anyhow::anyhow!("MCP config not defined in the workspace."));
         }
-        self.init_mcp(ctx.mcp)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to init mcp: {e}"))?;
+        self.init_mcp(ctx.mcp).await?;
 
         let tool_name = ToolName::new(call.name);
         let servers = self.servers.lock().await;
@@ -213,7 +199,10 @@ impl<C: ConversationService> ForgeMcpService<C> {
                 is_error: result.is_error.unwrap_or_default(),
             })
         } else {
-            Err(anyhow::anyhow!("Server not found"))
+            Err(anyhow::anyhow!(
+                "MCP server {} not found",
+                tool_name.as_str()
+            ))
         }
     }
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
