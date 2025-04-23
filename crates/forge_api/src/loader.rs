@@ -28,14 +28,13 @@ impl<F> ForgeLoaderService<F> {
 
 impl<F: Infrastructure> ForgeLoaderService<F> {
     /// Loads the workflow from the given path.
-    /// If a path is provided, uses that workflow directly without merging.
+    /// If a path is provided, uses that workflow and merges with defaults
     /// If no path is provided:
     ///   - Loads from current directory's forge.yaml merged with defaults (if
     ///     forge.yaml exists)
     ///   - Falls back to embedded default if forge.yaml doesn't exist
     ///
-    /// When merging, the project's forge.yaml values take precedence over
-    /// defaults.
+    /// When merging, the custom workflow values take precedence over defaults.
     pub async fn load(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         // Determine the workflow source
         let source = match path {
@@ -46,42 +45,25 @@ impl<F: Infrastructure> ForgeLoaderService<F> {
 
         // Load the workflow based on its source
         match source {
-            WorkflowSource::ExplicitPath(path) => self.load_from_explicit_path(path).await,
+            WorkflowSource::ExplicitPath(path) => self.load_and_merge_workflow(path).await,
             WorkflowSource::Default => Ok(Workflow::default()),
-            WorkflowSource::ProjectConfig => self.load_with_project_config().await,
+            WorkflowSource::ProjectConfig => {
+                self.load_and_merge_workflow(Path::new("forge.yaml")).await
+            }
         }
     }
 
-    /// Loads a workflow from a specific file path
-    async fn load_from_explicit_path(&self, path: &Path) -> anyhow::Result<Workflow> {
+    /// Loads a workflow from a specific file path and merges it with the
+    /// default workflow
+    async fn load_and_merge_workflow(&self, path: &Path) -> anyhow::Result<Workflow> {
+        // Load the custom workflow
         let content = String::from_utf8(self.0.file_read_service().read(path).await?.to_vec())?;
-        let workflow: Workflow = serde_yml::from_str(&content)
+        let custom_workflow: Workflow = serde_yml::from_str(&content)
             .with_context(|| format!("Failed to parse workflow from {}", path.display()))?;
-        Ok(workflow)
-    }
 
-    /// Loads workflow by merging project config with default workflow
-    async fn load_with_project_config(&self) -> anyhow::Result<Workflow> {
-        let project_path = Path::new("forge.yaml").canonicalize()?;
-
-        let project_content = String::from_utf8(
-            self.0
-                .file_read_service()
-                .read(project_path.as_path())
-                .await?
-                .to_vec(),
-        )?;
-
-        let project_workflow: Workflow =
-            serde_yml::from_str(&project_content).with_context(|| {
-                format!(
-                    "Failed to parse project workflow: {}",
-                    project_path.display()
-                )
-            })?;
-        // Merge workflows with project taking precedence
+        // Create a default workflow and merge with the custom one
         let mut merged_workflow = Workflow::default();
-        merged_workflow.merge(project_workflow);
+        merged_workflow.merge(custom_workflow);
         Ok(merged_workflow)
     }
 }
