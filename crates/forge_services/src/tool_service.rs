@@ -139,7 +139,9 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
     }
 
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
-        self.list(conversation_id).await
+        Ok(self.list(conversation_id).await?.into_iter().chain(
+            self.mcp.list(conversation_id).await?.into_iter(),
+        ).collect::<Vec<_>>())
     }
 
     fn usage_prompt(&self) -> String {

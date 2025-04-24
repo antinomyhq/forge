@@ -127,7 +127,7 @@ impl Conversation {
             variables: workflow.variables.clone(),
             agents,
             events: Default::default(),
-            mcp_servers: McpServers::default(),
+            mcp_servers: workflow.mcp_servers.unwrap_or_default(),
         }
     }
 
