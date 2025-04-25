@@ -53,6 +53,9 @@ agents:
     user_prompt: |-
       <task>{{event.value}}</task>
       <current_time>{{current_time}}</current_time>
+      Only create new plans or update existing ones.
+      Do not modify, create, or delete any code files.
+      
     ephemeral: false
     tools:
       - forge_tool_fs_read
