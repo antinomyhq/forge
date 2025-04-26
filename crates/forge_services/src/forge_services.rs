@@ -28,7 +28,11 @@ pub struct ForgeServices<F> {
     infra: Arc<F>,
     tool_service: Arc<ToolServiceType>,
     provider_service: Arc<ForgeProviderService>,
-    conversation_service: Arc<ConversationServiceType>,
+    conversation_service: Arc<
+        ForgeConversationService<
+            ForgeCompactionService<ForgeTemplateService, ForgeProviderService>,
+        >,
+    >,
     template_service: Arc<ForgeTemplateService>,
     attachment_service: Arc<ForgeChatRequest<F>>,
     compaction_service: Arc<CompactionServiceType>,

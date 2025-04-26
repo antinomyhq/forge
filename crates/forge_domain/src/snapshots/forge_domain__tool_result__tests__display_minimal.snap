@@ -1,5 +1,6 @@
 ---
 source: crates/forge_domain/src/tool_result.rs
 expression: result.to_string()
+snapshot_kind: text
 ---
-<tool_result><tool_name>test_tool</tool_name><success><![CDATA[]]></success></tool_result>
+<forge_tool_result><forge_tool_name>test_tool</forge_tool_name><success><![CDATA[]]></success></forge_tool_result>

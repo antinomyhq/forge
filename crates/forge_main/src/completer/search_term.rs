@@ -60,7 +60,7 @@ mod tests {
                     let (a, b) = line.split_at(i);
                     TermSpec {
                         pos: i,
-                        input: format!("{}[{}", a, b),
+                        input: format!("{a}[{b}"),
                         output: output.as_ref().map(|term| term.term.to_string()),
                         span_start: output.as_ref().map(|term| term.span.start),
                         span_end: output.as_ref().map(|term| term.span.end),

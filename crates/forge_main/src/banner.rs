@@ -23,13 +23,13 @@ pub fn display() -> io::Result<()> {
         banner.push_str(
             format!(
                 "\n{}{}",
-                format!("{:>width$} ", key, width = max_width).dimmed(),
+                format!("{key:>max_width$} ").dimmed(),
                 value.cyan()
             )
             .as_str(),
         );
     }
 
-    println!("{}\n", banner);
+    println!("{banner}\n");
     Ok(())
 }

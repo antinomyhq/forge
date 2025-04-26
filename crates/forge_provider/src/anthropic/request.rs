@@ -135,7 +135,7 @@ impl From<String> for Content {
             Some((media_type, data)) => Content::Image {
                 source: ImageSource {
                     type_: "base64".to_string(),
-                    media_type: Some(format!("image/{}", media_type)),
+                    media_type: Some(format!("image/{media_type}")),
                     data: Some(data),
                     url: None,
                 },

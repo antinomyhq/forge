@@ -11,7 +11,6 @@ similar.workspace = true
 console.workspace = true
 regex.workspace = true
 termimad.workspace = true
-convert_case.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

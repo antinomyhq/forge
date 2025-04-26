@@ -70,7 +70,7 @@ impl SnapshotService {
         // Retrieve the latest snapshot path
         let snapshot_path = Self::find_recent_snapshot(&snapshot_dir)
             .await?
-            .context(format!("No valid snapshots found for {:?}", path))?;
+            .context(format!("No valid snapshots found for {path:?}"))?;
 
         // Restore the content
         let content = ForgeFS::read(&snapshot_path).await?;

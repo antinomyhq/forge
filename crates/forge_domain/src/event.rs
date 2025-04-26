@@ -51,7 +51,7 @@ impl EventContext {
 
 impl NamedTool for Event {
     fn tool_name() -> ToolName {
-        ToolName::new("tool_forge_event_dispatch")
+        ToolName::new("forge_tool_event_dispatch")
     }
 }
 

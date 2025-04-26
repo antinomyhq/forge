@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::Context as AnyhowContext;
@@ -18,23 +18,6 @@ use crate::services::Services;
 use crate::*;
 
 type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
-// Tags to filter as defined in system prompt
-const THINKING_TAGS: &[&str] = &[
-    "thinking",
-    "analysis",
-    "action_plan",
-    "execution",
-    "verification",
-    "forge_analysis",
-    "forge_query_analysis",
-    "pr_preparation",
-    "thought_process",
-    "exploration_and_discovery",
-    "content_plan",
-    "creation",
-    "review",
-    "tool_call",
-];
 
 #[derive(Debug, Clone)]
 pub struct AgentMessage<T> {
@@ -138,6 +121,17 @@ impl<A: Services> Orchestrator<A> {
         Ok(())
     }
 
+    /// Get the allowed tools for an agent
+    fn get_allowed_tools(&self, agent: &Agent) -> Vec<ToolDefinition> {
+        let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
+        self.services
+            .tool_service()
+            .list()
+            .into_iter()
+            .filter(|tool| allowed.contains(&tool.name))
+            .collect()
+    }
+
     async fn set_system_prompt(
         &self,
         context: Context,
@@ -157,10 +151,16 @@ impl<A: Services> Orchestrator<A> {
             files.sort();
 
             let current_time = Local::now().format("%Y-%m-%d %H:%M:%S %:z").to_string();
+
+            let tool_information = match agent.tool_supported.unwrap_or_default() {
+                true => None,
+                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)).to_string()),
+            };
+
             let ctx = SystemContext {
                 current_time,
                 env: Some(env),
-                tool_information: Some(self.services.tool_service().usage_prompt()),
+                tool_information,
                 tool_supported: agent.tool_supported.unwrap_or_default(),
                 files,
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
@@ -181,27 +181,55 @@ impl<A: Services> Orchestrator<A> {
     async fn collect_messages(
         &self,
         agent: &Agent,
-        mut response: impl Stream<Item = std::result::Result<ChatCompletionMessage, anyhow::Error>>
-            + std::marker::Unpin,
+        mut response: impl Stream<Item = anyhow::Result<ChatCompletionMessage>> + std::marker::Unpin,
     ) -> anyhow::Result<ChatCompletionResult> {
         let mut messages = Vec::new();
         let mut request_usage: Option<Usage> = None;
+        let mut content = String::new();
+        let mut xml_tool_calls = None;
+        let mut tool_interrupted = false;
+
+        // Only interrupt the loop for XML tool calls if tool_supported is false
+        let should_interrupt_for_xml = !agent.tool_supported.unwrap_or_default();
 
         while let Some(message) = response.next().await {
             let message = message?;
             messages.push(message.clone());
-            if let Some(content) = message.content {
+
+            // Process content
+            if let Some(content_part) = message.content.clone() {
+                let content_part = content_part.as_str().to_string();
+
+                content.push_str(&content_part);
+
+                // Send partial content to the client
                 self.send(
                     agent,
-                    ChatResponse::Text {
-                        text: content.as_str().to_string(),
-                        is_complete: false,
-                        is_md: false,
-                    },
+                    ChatResponse::Text { text: content_part, is_complete: false, is_md: false },
                 )
                 .await?;
+
+                // Check for XML tool calls in the content, but only interrupt if tool_supported
+                // is false
+                if should_interrupt_for_xml {
+                    // Use match instead of ? to avoid propagating errors
+                    if let Some(tool_call) = ToolCallFull::try_from_xml(&content)
+                        .ok()
+                        .into_iter()
+                        .flatten()
+                        .next()
+                    {
+                        xml_tool_calls = Some(tool_call);
+                        tool_interrupted = true;
+
+                        // Break the loop since we found an XML tool call and tool_supported is
+                        // false
+                        break;
+                    }
+                }
             }
 
+            // Process usage information
             if let Some(usage) = message.usage {
                 request_usage = Some(usage.clone());
                 debug!(usage = ?usage, "Usage");
@@ -209,17 +237,33 @@ impl<A: Services> Orchestrator<A> {
             }
         }
 
-        let content = messages
+        // Get the full content from all messages
+        let mut content = messages
             .iter()
             .flat_map(|m| m.content.iter())
             .map(|content| content.as_str())
             .collect::<Vec<_>>()
             .join("");
 
+        if tool_interrupted && !content.trim().ends_with("</forge_tool_call>") {
+            if let Some((i, right)) = content.rmatch_indices("</forge_tool_call>").next() {
+                content.truncate(i + right.len());
+
+                // Add a comment for the assistant to signal interruption
+                content.push('\n');
+                content.push_str("<forge_feedback>");
+                content.push_str(
+                    "Response interrupted by tool result. Use only one tool at the end of the message",
+                 );
+                content.push_str("</forge_feedback>");
+            }
+        }
+
+        // Send the complete message
         self.send(
             agent,
             ChatResponse::Text {
-                text: remove_tag_content(&content, THINKING_TAGS)
+                text: remove_tag_with_prefix(&content, "forge_")
                     .as_str()
                     .to_string(),
                 is_complete: true,
@@ -245,10 +289,7 @@ impl<A: Services> Orchestrator<A> {
 
         // Process partial tool calls
         let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts)
-            .with_context(|| format!("Failed to parse tool call: {:?}", tool_call_parts))?;
-
-        // Process XML tool calls
-        let xml_tool_calls = ToolCallFull::try_from_xml(&content)?;
+            .with_context(|| format!("Failed to parse tool call: {tool_call_parts:?}"))?;
 
         // Combine all sources of tool calls
         let tool_calls: Vec<ToolCallFull> = initial_tool_calls
@@ -326,17 +367,11 @@ impl<A: Services> Orchestrator<A> {
         let agent = conversation.get_agent(agent_id)?;
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
-            agent
-                .init_context(self.services.tool_service().list(&conversation.id).await?)
-                .await?
+            agent.init_context(self.get_allowed_tools(agent)).await?
         } else {
             match conversation.context(&agent.id) {
                 Some(context) => context.clone(),
-                None => {
-                    agent
-                        .init_context(self.services.tool_service().list(&conversation.id).await?)
-                        .await?
-                }
+                None => agent.init_context(self.get_allowed_tools(agent)).await?,
             }
         };
 

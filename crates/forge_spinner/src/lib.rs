@@ -103,11 +103,11 @@ impl SpinnerManager {
 
             // Then print the message if provided
             if let Some(msg) = message {
-                println!("{}", msg);
+                println!("{msg}");
             }
         } else if let Some(message) = message {
             // If there's no spinner but we have a message, just print it
-            println!("{}", message);
+            println!("{message}");
         }
 
         self.start_time = None;

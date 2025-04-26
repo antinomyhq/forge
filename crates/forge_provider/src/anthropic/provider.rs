@@ -136,7 +136,7 @@ impl ProviderService for Anthropic {
                         reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
                             let status_code = response.status();
                             debug!(response = ?response, "Invalid content type");
-                            Some(Err(anyhow::anyhow!(error).context(format!("Http Status: {}", status_code))))
+                            Some(Err(anyhow::anyhow!(error).context(format!("Http Status: {status_code}" ))))
                         }
                         error => {
                             debug!(error = %error, "Failed to receive chat completion event");

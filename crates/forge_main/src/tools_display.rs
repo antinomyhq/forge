@@ -21,7 +21,7 @@ pub fn format_tools(tools: &[ToolDefinition]) -> String {
             out.push('\n');
         }
 
-        out.push_str(&format!("{}\n{}\n{}\n", name, description, schema));
+        out.push_str(&format!("{name}\n{description}\n{schema}\n"));
     }
 
     out

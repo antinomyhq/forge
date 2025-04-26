@@ -26,8 +26,8 @@ pub fn create_test_workflow() -> Workflow {
         .model(ModelId::new("anthropic/claude-3.5-sonnet"))
         .tool_supported(true)
         .tools(vec![
-            ToolName::new("tool_forge_fs_read"),
-            ToolName::new("tool_forge_fs_search"),
+            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("forge_tool_fs_search"),
         ])
         .subscribe(vec!["user_task_init".to_string()])
         .ephemeral(false)

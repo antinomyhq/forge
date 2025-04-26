@@ -13,7 +13,7 @@ fn main() {
         .unwrap_or_else(|_| "0.0.0-dev".to_string());
 
     // Make version available to the application
-    println!("cargo:rustc-env=CARGO_PKG_VERSION={}", version);
+    println!("cargo:rustc-env=CARGO_PKG_VERSION={version}");
 
     // Make version available to the application
     println!("cargo:rustc-env=CARGO_PKG_NAME=forge");

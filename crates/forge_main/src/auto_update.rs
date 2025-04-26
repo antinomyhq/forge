@@ -18,7 +18,7 @@ pub async fn update_forge() {
     if let Err(err) = perform_update().await {
         // Send an event to the tracker on failure
         // We don't need to handle this result since we're failing silently
-        let _ = send_update_failure_event(&format!("Auto update failed: {}", err)).await;
+        let _ = send_update_failure_event(&format!("Auto update failed: {err}")).await;
     }
 }
 

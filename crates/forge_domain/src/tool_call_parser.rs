@@ -46,22 +46,28 @@ fn parse_args(input: &str) -> IResult<&str, HashMap<String, String>> {
 
 fn parse_tool_call(input: &str) -> IResult<&str, ToolCallParsed> {
     let (input, _) = multispace0(input)?; // Handle leading whitespace and newlines
-    let (input, _) = tag("<tool_call>").parse(input)?;
-    let (input, _) = multispace0(input)?; // Handle whitespace after <tool_call>
+    let (input, _) = tag("<forge_tool_call>").parse(input)?;
+    let (input, _) = multispace0(input)?; // Handle whitespace after <forge_tool_call>
 
-    // Match the tool name tags: <tool_name>
+    // Match the tool name tags: <forge_tool_name>
     let (input, _) = tag("<").parse(input)?;
-    let (input, name) = parse_identifier(input)?;
+    let (input, tool_name) = parse_identifier(input)?;
     let (input, _) = tag(">").parse(input)?;
     let (input, _) = multispace0(input)?;
 
     // Match all the arguments with whitespace
     let (input, args) = parse_args(input)?;
 
+    // Match closing tag
+    let (input, _) = multispace0(input)?;
+    let (input, _) = tag(format!("</{tool_name}>").as_str()).parse(input)?;
+    let (input, _) = multispace0(input)?;
+    let (input, _) = tag("</forge_tool_call>").parse(input)?;
+
     Ok((
         input,
         ToolCallParsed {
-            name: name.to_string(),
+            name: tool_name.to_string(),
             args: args.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
         },
     ))
@@ -69,7 +75,7 @@ fn parse_tool_call(input: &str) -> IResult<&str, ToolCallParsed> {
 
 fn find_next_tool_call(input: &str) -> IResult<&str, &str> {
     // Find the next occurrence of a tool call opening tag
-    let (remaining, _) = take_until("<tool_call>").parse(input)?;
+    let (remaining, _) = take_until("<forge_tool_call>").parse(input)?;
     Ok((remaining, ""))
 }
 
@@ -176,7 +182,7 @@ mod tests {
         }
 
         fn build_xml(&self) -> String {
-            let mut xml = String::from("<tool_call>");
+            let mut xml = String::from("<forge_tool_call>");
             xml.push_str(&format!("<{}>", self.name));
             let args: Vec<_> = self.args.iter().collect();
             for (idx, (key, value)) in args.iter().enumerate() {
@@ -188,7 +194,7 @@ mod tests {
                     if idx < args.len() - 1 { " " } else { "" }
                 ));
             }
-            xml.push_str(&format!("</{}></tool_call>", self.name));
+            xml.push_str(&format!("</{}></forge_tool_call>", self.name));
             xml
         }
 
@@ -231,31 +237,28 @@ mod tests {
     #[test]
     fn test_actual_llm_respone() {
         // Test with real LLM response including newlines and indentation
-        let str = r#"To find the cat hidden in the codebase, I will use the `tool_forge_fs_search` to grep for the string "cat" in all markdown files except those in the `docs` directory.
+        let str = r#"To find the cat hidden in the codebase, I will use the `forge_tool_fs_search` to grep for the string "cat" in all markdown files except those in the `docs` directory.
                 <analysis>
                 Files Read: */*.md
                 Git Status: Not applicable, as we are not dealing with version control changes.
                 Compilation Status: Not applicable, as this is a text search.
                 Test Status: Not applicable, as this is a text search.
                 </analysis>
+                Let's check the implementation in the fs_read.rs file:
 
-                <tool_call>
-                <tool_forge_fs_search>
-                <file_pattern>**/*.md</file_pattern>
-                <path>/Users/amit/code-forge</path>
-                <regex>cat</regex>
-                
-                </tool_call>"#;
+                <forge_tool_call>
+                <forge_tool_fs_read>
+                <path>/a/b/c.txt</path>
+                </forge_tool_fs_read>
+                </forge_tool_call>
+                "#;
 
         let action = parse(str).unwrap();
 
         let expected = vec![ToolCallFull {
-            name: ToolName::new("tool_forge_fs_search"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: None,
-            arguments: serde_json::from_str(
-                r#"{"file_pattern":"**/*.md","path":"/Users/amit/code-forge","regex":"cat"}"#,
-            )
-            .unwrap(),
+            arguments: serde_json::from_str(r#"{"path":"/a/b/c.txt"}"#).unwrap(),
         }];
         assert_eq!(action, expected);
     }
@@ -404,11 +407,11 @@ mod tests {
 
     #[test]
     fn test_parse_new_tool_call_format() {
-        let input = r#"<tool_call><tool_forge_fs_search><path>/test/path</path><regex>test</regex></tool_forge_fs_search></tool_call>"#;
+        let input = r#"<forge_tool_call><forge_tool_fs_search><path>/test/path</path><regex>test</regex></forge_tool_fs_search></forge_tool_call>"#;
 
         let action = parse(input).unwrap();
         let expected = vec![ToolCallFull {
-            name: ToolName::new("tool_forge_fs_search"),
+            name: ToolName::new("forge_tool_fs_search"),
             call_id: None,
             arguments: serde_json::from_str(r#"{"path":"/test/path","regex":"test"}"#).unwrap(),
         }];
@@ -417,52 +420,18 @@ mod tests {
 
     #[test]
     fn test_parse_with_newlines() {
-        let input = ["<tool_call><foo><p1>", "abc", "</p1></foo></tool_call>"].join("\n");
+        let input = [
+            "<forge_tool_call><foo><p1>",
+            "abc",
+            "</p1></foo></forge_tool_call>",
+        ]
+        .join("\n");
 
         let action = parse(&input).unwrap();
         let expected = vec![ToolCallFull {
             name: ToolName::new("foo"),
             call_id: None,
             arguments: serde_json::from_str(r#"{"p1":"\nabc\n"}"#).unwrap(),
-        }];
-        assert_eq!(action, expected);
-    }
-
-    #[test]
-    fn test_parse_missing_closing() {
-        let input = "<tool_call><foo><p>abc</p></tool_call>";
-
-        let action = parse(input).unwrap();
-        let expected = vec![ToolCallFull {
-            name: ToolName::new("foo"),
-            call_id: None,
-            arguments: serde_json::from_str(r#"{"p":"abc"}"#).unwrap(),
-        }];
-        assert_eq!(action, expected);
-    }
-
-    #[test]
-    fn test_parse_missing_closing_outer() {
-        let input = "<tool_call><foo><p>abc</p></foo>";
-
-        let action = parse(input).unwrap();
-        let expected = vec![ToolCallFull {
-            name: ToolName::new("foo"),
-            call_id: None,
-            arguments: serde_json::from_str(r#"{"p":"abc"}"#).unwrap(),
-        }];
-        assert_eq!(action, expected);
-    }
-
-    #[test]
-    fn test_unrecognized_closing_tags() {
-        let input = "<tool_call><foo><p></abc></p></tool_call>";
-
-        let action = parse(input).unwrap();
-        let expected = vec![ToolCallFull {
-            name: ToolName::new("foo"),
-            call_id: None,
-            arguments: serde_json::from_str(r#"{"p":"</abc>"}"#).unwrap(),
         }];
         assert_eq!(action, expected);
     }

@@ -19,10 +19,7 @@ fn forge_event_json(event_name: &str, value_expr: &str) -> String {
         .replace('\n', "\\n")
         .replace('\t', "\\t");
 
-    format!(
-        "forge --event='{{\"name\": \"{}\", \"value\": \"{}\"}}'",
-        event_name, escaped_value
-    )
+    format!("forge --event='{{\"name\": \"{event_name}\", \"value\": \"{escaped_value}\"}}'")
 }
 
 /// Get the appropriate issue/PR number based on event context
@@ -54,8 +51,7 @@ fn add_forge_cli_installation(job: Job) -> Job {
 /// Generate condition for issue_comment with label and comment prefix
 fn issue_comment_condition(label: &str, comment_prefix: &str) -> String {
     format!(
-        "github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.issue.labels.*.name, '{}') && startsWith(github.event.comment.body, '{}')",
-        label, comment_prefix
+        "github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.issue.labels.*.name, '{label}') && startsWith(github.event.comment.body, '{comment_prefix}')"
     )
 }
 
@@ -63,12 +59,11 @@ fn issue_comment_condition(label: &str, comment_prefix: &str) -> String {
 fn add_pr_checkout_steps(job: Job, pr_number_expr: &str) -> Job {
     job.add_step(
         Step::run(format!(
-            "git fetch origin pull/{}/head:pr-{}",
-            pr_number_expr, pr_number_expr
+            "git fetch origin pull/{pr_number_expr}/head:pr-{pr_number_expr}"
         ))
         .name("Fetch PR branch"),
     )
-    .add_step(Step::run(format!("git checkout pr-{}", pr_number_expr)).name("Checkout PR branch"))
+    .add_step(Step::run(format!("git checkout pr-{pr_number_expr}")).name("Checkout PR branch"))
 }
 
 #[test]

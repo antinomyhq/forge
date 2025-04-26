@@ -80,7 +80,7 @@ impl<I: Infrastructure> Shell<I> {
 
 impl<I> NamedTool for Shell<I> {
     fn tool_name() -> ToolName {
-        ToolName::new("tool_forge_process_shell")
+        ToolName::new("forge_tool_process_shell")
     }
 }
 
@@ -93,7 +93,7 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
         if input.command.trim().is_empty() {
             bail!("Command string is empty or contains only whitespace".to_string());
         }
-        let title_format = TitleFormat::new(format!("execute [{}]", self.env.shell.as_str()))
+        let title_format = TitleFormat::new(format!("Execute [{}]", self.env.shell.as_str()))
             .sub_title(&input.command);
 
         context.send_text(title_format.format()).await?;
@@ -242,8 +242,7 @@ mod tests {
 
         assert!(
             matches_pattern,
-            "Error message '{}' did not match any expected patterns for this platform: {:?}",
-            err, COMMAND_NOT_FOUND_PATTERNS
+            "Error message '{err}' did not match any expected patterns for this platform: {COMMAND_NOT_FOUND_PATTERNS:?}"
         );
     }
 

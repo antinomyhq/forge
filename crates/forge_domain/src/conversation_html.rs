@@ -76,7 +76,7 @@ fn create_agents_section(conversation: &Conversation) -> Element {
                 agent
                     .model
                     .as_ref()
-                    .map(|model| Element::new("span").text(format!("Model: {}", model))),
+                    .map(|model| Element::new("span").text(format!("Model: {model}"))),
             );
 
         let mut agent_div = Element::new("div.agent").append(agent_header);
@@ -118,19 +118,18 @@ fn create_agents_section(conversation: &Conversation) -> Element {
         // Add temperature if available
         if let Some(temperature) = &agent.temperature {
             agent_div =
-                agent_div.append(Element::new("p").text(format!("Temperature: {}", temperature)));
+                agent_div.append(Element::new("p").text(format!("Temperature: {temperature}")));
         }
 
         // Add max turns if available
         if let Some(max_turns) = agent.max_turns {
-            agent_div =
-                agent_div.append(Element::new("p").text(format!("Max Turns: {}", max_turns)));
+            agent_div = agent_div.append(Element::new("p").text(format!("Max Turns: {max_turns}")));
         }
 
         // Add max walker depth if available
         if let Some(max_walker_depth) = agent.max_walker_depth {
             agent_div = agent_div
-                .append(Element::new("p").text(format!("Max Walker Depth: {}", max_walker_depth)));
+                .append(Element::new("p").text(format!("Max Walker Depth: {max_walker_depth}")));
         }
 
         section.append(agent_div)
@@ -180,8 +179,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                             let role_lowercase = content_message.role.to_string().to_lowercase();
 
                             let message_div = Element::new(format!(
-                                "details.message-card.message-{}",
-                                role_lowercase
+                                "details.message-card.message-{role_lowercase}"
                             ))
                             .append(
                                 Element::new("summary")
@@ -238,7 +236,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                             // Image message
                             Element::new("div.message-card.message-user")
                                 .append(Element::new("strong").text("Image Attachment"))
-                                .append(Element::new("p").text(format!("URL: {}", url)))
+                                .append(Element::new("p").text(format!("URL: {url}")))
                         }
                     }),
                 );
@@ -269,7 +267,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                             .append(tool.output_schema.as_ref().map(|schema| {
                                 Element::new("pre").append(
                                     Element::new("strong")
-                                        .text(format!("Output Schema: {:?}", schema)),
+                                        .text(format!("Output Schema: {schema:?}")),
                                 )
                             }))
                             .append(tool.output_schema.as_ref().map(|schema| {
@@ -297,7 +295,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                     context_with_tool_choice.append(
                         Element::new("p")
                             .append(Element::new("strong").text("Max Tokens: "))
-                            .text(format!("{}", max_tokens)),
+                            .text(format!("{max_tokens}")),
                     )
                 } else {
                     context_with_tool_choice
@@ -308,7 +306,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                     context_with_max_tokens.append(
                         Element::new("p")
                             .append(Element::new("strong").text("Temperature: "))
-                            .text(format!("{}", temperature)),
+                            .text(format!("{temperature}")),
                     )
                 } else {
                     context_with_max_tokens

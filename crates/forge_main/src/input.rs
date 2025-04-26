@@ -50,7 +50,7 @@ impl Console {
                         Err(e) => {
                             println!(
                                 "{}",
-                                TitleFormat::new("command").error(e.to_string()).format()
+                                TitleFormat::new("Command").error(e.to_string()).format()
                             );
                         }
                     }

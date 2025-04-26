@@ -176,7 +176,7 @@ impl Context {
                     if let Some(tool_calls) = &message.tool_calls {
                         for call in tool_calls {
                             lines.push_str(&format!(
-                                "<tool_call name=\"{}\"><![CDATA[{}]]></tool_call>",
+                                "<forge_tool_call name=\"{}\"><![CDATA[{}]]></forge_tool_call>",
                                 call.name.as_str(),
                                 serde_json::to_string(&call.arguments).unwrap()
                             ));
@@ -189,19 +189,19 @@ impl Context {
                     lines.push_str("<message role=\"tool\">");
 
                     lines.push_str(&format!(
-                        "<tool_result name=\"{}\"><![CDATA[{}]]></tool_result>",
+                        "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
                         result.name.as_str(),
                         serde_json::to_string(&result.content).unwrap()
                     ));
                     lines.push_str("</message>");
                 }
                 ContextMessage::Image(url) => {
-                    lines.push_str(format!("<file_attachment path=\"{}\">", url).as_str());
+                    lines.push_str(format!("<file_attachment path=\"{url}\">").as_str());
                 }
             }
         }
 
-        format!("<chat_history>{}</chat_history>", lines)
+        format!("<chat_history>{lines}</chat_history>")
     }
 
     /// Estimates the token count for this context using a simple approximation

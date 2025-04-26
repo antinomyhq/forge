@@ -73,7 +73,7 @@ impl Prompt for ForgePrompt {
         let mut result = String::with_capacity(32);
 
         // Start with bracket and version
-        let _ = write!(result, "[{}", VERSION);
+        let _ = write!(result, "[{VERSION}");
 
         // Append model if available
         if let Some(model) = self.model.as_ref() {
@@ -82,7 +82,7 @@ impl Prompt for ForgePrompt {
                 .split('/')
                 .next_back()
                 .unwrap_or_else(|| model.as_str());
-            let _ = write!(result, "/{}", formatted_model);
+            let _ = write!(result, "/{formatted_model}");
         }
 
         // Append usage info
@@ -91,7 +91,7 @@ impl Prompt for ForgePrompt {
             .as_ref()
             .unwrap_or(&Usage::default())
             .total_tokens;
-        let _ = write!(result, "/{}", usage);
+        let _ = write!(result, "/{usage}");
         let _ = write!(result, "]");
 
         // Apply styling once at the end
@@ -125,7 +125,7 @@ impl Prompt for ForgePrompt {
 
         // Handle empty search term more elegantly
         if history_search.term.is_empty() {
-            let _ = write!(result, "({}reverse-search) ", prefix);
+            let _ = write!(result, "({prefix}reverse-search) ");
         } else {
             let _ = write!(
                 result,

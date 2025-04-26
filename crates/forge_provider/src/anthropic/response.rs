@@ -111,7 +111,7 @@ pub enum ErrorData {
 impl Display for ErrorData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorData::OverloadedError { message } => write!(f, "OverloadedError: {}", message),
+            ErrorData::OverloadedError { message } => write!(f, "OverloadedError: {message}"),
         }
     }
 }
@@ -294,7 +294,7 @@ mod tests {
         ];
         for (name, input, expected) in tests {
             let actual: Event = serde_json::from_str(input).unwrap();
-            assert_eq!(actual, expected, "test failed for event data: {}", name);
+            assert_eq!(actual, expected, "test failed for event data: {name}");
         }
     }
 

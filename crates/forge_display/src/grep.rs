@@ -81,7 +81,7 @@ impl GrepFormat {
 
     /// Format a single line with colorization and consistent padding
     fn format_line(&self, num: &str, content: &str, padding: usize) -> String {
-        let num = style(format!("{:>padding$}: ", num, padding = padding)).dim();
+        let num = style(format!("{num:>padding$}: ")).dim();
 
         // Format the content with highlighting if regex is available
         let line = match self.regex {
@@ -99,7 +99,7 @@ impl GrepFormat {
             None => content.to_string(),
         };
 
-        format!("{}{}\n", num, line)
+        format!("{num}{line}\n")
     }
 
     /// Format a group of lines for a single file
@@ -114,7 +114,7 @@ impl GrepFormat {
             .into_iter()
             .map(|(num, content)| self.format_line(num, content, max_num_width))
             .collect::<String>();
-        format!("{}\n{}", file_header, formatted_lines)
+        format!("{file_header}\n{formatted_lines}")
     }
 
     /// Handle raw file paths (entries without line:content format)
@@ -216,7 +216,7 @@ mod tests {
     impl Display for GrepSuite {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
             for spec in &self.0 {
-                writeln!(f, "{}", spec)?;
+                writeln!(f, "{spec}")?;
             }
             Ok(())
         }

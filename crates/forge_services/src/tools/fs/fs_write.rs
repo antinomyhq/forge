@@ -61,7 +61,7 @@ impl<F: Infrastructure> FSWrite<F> {
 
 impl<F> NamedTool for FSWrite<F> {
     fn tool_name() -> ToolName {
-        ToolName::new("tool_forge_fs_create")
+        ToolName::new("forge_tool_fs_create")
     }
 }
 
@@ -126,7 +126,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
 
         // record the file content after they're modified
         let new_content = String::from_utf8(self.0.file_read_service().read(path).await?.to_vec())?;
-        let title = if file_exists { "overwrite" } else { "create" };
+        let title = if file_exists { "Overwrite" } else { "Create" };
 
         // Use the formatted path for display
         let formatted_path = self.format_display_path(path)?;

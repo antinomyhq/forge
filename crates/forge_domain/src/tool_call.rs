@@ -141,18 +141,18 @@ mod tests {
         let input = [
             ToolCallPart {
                 call_id: Some(ToolCallId("call_1".to_string())),
-                name: Some(ToolName::new("tool_forge_fs_read")),
+                name: Some(ToolName::new("forge_tool_fs_read")),
                 arguments_part: "{\"path\": \"crates/forge_services/src/fixtures/mascot.md\"}"
                     .to_string(),
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_2".to_string())),
-                name: Some(ToolName::new("tool_forge_fs_read")),
+                name: Some(ToolName::new("forge_tool_fs_read")),
                 arguments_part: "{\"path\": \"docs/onboarding.md\"}".to_string(),
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_3".to_string())),
-                name: Some(ToolName::new("tool_forge_fs_read")),
+                name: Some(ToolName::new("forge_tool_fs_read")),
                 arguments_part: "{\"path\": \"crates/forge_services/src/service/service.md\"}"
                     .to_string(),
             },
@@ -162,17 +162,17 @@ mod tests {
 
         let expected = vec![
             ToolCallFull {
-                name: ToolName::new("tool_forge_fs_read"),
+                name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_1".to_string())),
                 arguments: serde_json::json!({"path": "crates/forge_services/src/fixtures/mascot.md"}),
             },
             ToolCallFull {
-                name: ToolName::new("tool_forge_fs_read"),
+                name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_2".to_string())),
                 arguments: serde_json::json!({"path": "docs/onboarding.md"}),
             },
             ToolCallFull {
-                name: ToolName::new("tool_forge_fs_read"),
+                name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_3".to_string())),
                 arguments: serde_json::json!({"path": "crates/forge_services/src/service/service.md"}),
             },
@@ -185,14 +185,14 @@ mod tests {
     fn test_single_tool_call() {
         let input = [ToolCallPart {
             call_id: Some(ToolCallId("call_1".to_string())),
-            name: Some(ToolName::new("tool_forge_fs_read")),
+            name: Some(ToolName::new("forge_tool_fs_read")),
             arguments_part: "{\"path\": \"docs/onboarding.md\"}".to_string(),
         }];
 
         let actual = ToolCallFull::try_from_parts(&input).unwrap();
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             arguments: serde_json::json!({"path": "docs/onboarding.md"}),
         }];
 

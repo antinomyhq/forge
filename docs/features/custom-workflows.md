@@ -51,17 +51,17 @@ Each agent needs tools to perform tasks, configured in the `tools` field:
 
 **Built-in Tools**
 
-- `tool_forge_fs_read` - Read from the filesystem
-- `tool_forge_fs_create` - Create or overwrite files
-- `tool_forge_fs_remove` - Remove files
-- `tool_forge_fs_search` - Search for patterns in files
-- `tool_forge_fs_list` - List files in a directory
-- `tool_forge_fs_info` - Get file metadata
-- `tool_forge_process_shell` - Execute shell commands
-- `tool_forge_process_think` - Perform internal reasoning
-- `tool_forge_net_fetch` - Fetch data from the internet
-- `tool_forge_event_dispatch` - Dispatch events to other agents
-- `tool_forge_fs_patch` - Patch existing files
+- `forge_tool_fs_read` - Read from the filesystem
+- `forge_tool_fs_create` - Create or overwrite files
+- `forge_tool_fs_remove` - Remove files
+- `forge_tool_fs_search` - Search for patterns in files
+- `forge_tool_fs_list` - List files in a directory
+- `forge_tool_fs_info` - Get file metadata
+- `forge_tool_process_shell` - Execute shell commands
+- `forge_tool_process_think` - Perform internal reasoning
+- `forge_tool_net_fetch` - Fetch data from the internet
+- `forge_tool_event_dispatch` - Dispatch events to other agents
+- `forge_tool_fs_patch` - Patch existing files
 
 ### Custom Commands
 

@@ -498,11 +498,7 @@ mod tests {
             });
 
             let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
-            assert!(
-                agent.is_ok(),
-                "Valid temperature {} should deserialize",
-                temp
-            );
+            assert!(agent.is_ok(), "Valid temperature {temp} should deserialize");
             assert_eq!(agent.unwrap().temperature.unwrap().value(), temp);
         }
 
@@ -517,14 +513,12 @@ mod tests {
             let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
             assert!(
                 agent.is_err(),
-                "Invalid temperature {} should fail deserialization",
-                temp
+                "Invalid temperature {temp} should fail deserialization"
             );
             let err = agent.unwrap_err().to_string();
             assert!(
                 err.contains("temperature must be between 0.0 and 2.0"),
-                "Error should mention valid range: {}",
-                err
+                "Error should mention valid range: {err}"
             );
         }
 

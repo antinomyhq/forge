@@ -39,14 +39,14 @@ Install globally:
 npm install -g @antinomyhq/forge
 ```
 
-Set up your OpenRouter API key:
+Sign up at [Antinomy.ai](https://antinomy.ai/app/) to enable the Forge provider.
+
+Then set up your Forge provider key:
 
 ```bash
 # .env
-OPENROUTER_API_KEY=<your_openrouter_api_key>
+FORGE_KEY=ForgeKey
 ```
-
-> **Note:** You can get an API key by signing up at [OpenRouter](https://openrouter.ai/)
 
 Run Forge in interactive mode:
 
@@ -60,69 +60,85 @@ That's it! Forge is now ready to assist you with your development tasks.
 
 Forge can be used in different ways depending on your needs. Here are some common usage patterns:
 
-### Code Understanding
+<details>
+<summary><strong>Code Understanding</strong></summary>
 
 ```
 > Can you explain how the authentication system works in this codebase?
 ```
 
 Forge will analyze your project's structure, identify authentication-related files, and provide a detailed explanation of the authentication flow, including the relationships between different components.
+</details>
 
-### Implementing New Features
+<details>
+<summary><strong>Implementing New Features</strong></summary>
 
 ```
 > I need to add a dark mode toggle to our React application. How should I approach this?
 ```
 
 Forge will suggest the best approach based on your current codebase, explain the steps needed, and even scaffold the necessary components and styles for you.
+</details>
 
-### Debugging Assistance
+<details>
+<summary><strong>Debugging Assistance</strong></summary>
 
 ```
 > I'm getting this error: "TypeError: Cannot read property 'map' of undefined". What might be causing it?
 ```
 
 Forge will analyze the error, suggest potential causes based on your code, and propose different solutions to fix the issue.
+</details>
 
-### Code Reviews
+<details>
+<summary><strong>Code Reviews</strong></summary>
 
 ```
 > Please review the code in src/components/UserProfile.js and suggest improvements
 ```
 
 Forge will analyze the code, identify potential issues, and suggest improvements for readability, performance, security, and maintainability.
+</details>
 
-### Learning New Technologies
+<details>
+<summary><strong>Learning New Technologies</strong></summary>
 
 ```
 > I want to integrate GraphQL into this Express application. Can you explain how to get started?
 ```
 
 Forge will provide a tailored tutorial on integrating GraphQL with Express, using your specific project structure as context.
+</details>
 
-### Database Schema Design
+<details>
+<summary><strong>Database Schema Design</strong></summary>
 
 ```
 > I need to design a database schema for a blog with users, posts, comments, and categories
 ```
 
 Forge will suggest an appropriate schema design, including tables/collections, relationships, indexes, and constraints based on your project's existing database technology.
+</details>
 
-### Refactoring Legacy Code
+<details>
+<summary><strong>Refactoring Legacy Code</strong></summary>
 
 ```
 > Help me refactor this class-based component to use React Hooks
 ```
 
 Forge can help modernize your codebase by walking you through refactoring steps and implementing them with your approval.
+</details>
 
-### Git Operations
+<details>
+<summary><strong>Git Operations</strong></summary>
 
 ```
 > I need to merge branch 'feature/user-profile' into main but there are conflicts
 ```
 
 Forge can guide you through resolving git conflicts, explaining the differences and suggesting the best way to reconcile them.
+</details>
 
 ## Why Forge?
 
@@ -152,7 +168,6 @@ Here's a quick reference of Forge's command-line options:
 | `-h, --help`                    | Print help information                                     |
 | `-V, --version`                 | Print version                                              |
 
-
 ## Advanced Configuration
 
 ### Provider Configuration
@@ -160,7 +175,24 @@ Here's a quick reference of Forge's command-line options:
 Forge supports multiple AI providers. Below are setup instructions for each supported provider:
 
 <details>
-<summary><strong>OpenRouter (Recommended)</strong></summary>
+<summary><strong>Antinomy.ai (Recommended)</strong></summary>
+
+```bash
+# .env
+FORGE_KEY=ForgeKey
+```
+
+To use Antinomy's provider with Forge:
+1. Visit [https://antinomy.ai/app/](https://antinomy.ai/app/)
+2. Login with your existing credentials or create a new account
+3. Once logged in, your account will automatically enable the Forge Provider
+
+_No changes in `forge.yaml` required_
+
+</details>
+
+<details>
+<summary><strong>OpenRouter</strong></summary>
 
 ```bash
 # .env
@@ -231,6 +263,22 @@ OPENAI_URL=<your_provider_url>
 ```yaml
 # forge.yaml
 model: <provider-specific-model>
+```
+
+</details>
+
+<details>
+<summary><strong>Groq</strong></summary>
+
+```bash
+# .env
+OPENAI_API_KEY=<your_groq_api_key>
+OPENAI_URL=https://api.groq.com/openai/v1
+```
+
+```yaml
+# forge.yaml
+model: deepseek-r1-distill-llama-70b
 ```
 
 </details>

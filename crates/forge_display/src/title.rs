@@ -1,7 +1,6 @@
 use std::fmt::{self, Display, Formatter};
 
 use colored::Colorize;
-use convert_case::{Case, Casing};
 use derive_setters::Setters;
 
 #[derive(Clone, Setters)]
@@ -39,30 +38,50 @@ impl TitleFormat {
 
     /// Create a status for executing a tool
     pub fn action(title: impl Into<String>) -> Self {
-        Self::new(title).is_user_action(true)
+        Self {
+            title: title.into(),
+            error: None,
+            sub_title: Default::default(),
+            is_user_action: true,
+        }
     }
 
     pub fn format(&self) -> String {
         let mut buf = String::new();
+
         if self.is_user_action {
             buf.push_str(format!("{} ", "⏺".yellow()).as_str());
         } else {
-            buf.push_str(format!("{} ", "⏺".dimmed()).as_str());
+            buf.push_str(format!("{} ", "⏺".cyan()).as_str());
         }
-        let mut title = self.title.to_case(Case::Sentence).dimmed();
+
+        // Add timestamp at the beginning if this is not a user action
+        #[cfg(not(test))]
+        {
+            use chrono::Local;
+
+            buf.push_str(
+                format!("[{}] ", Local::now().format("%H:%M:%S.%3f"))
+                    .dimmed()
+                    .to_string()
+                    .as_str(),
+            );
+        }
+
+        let mut title = self.title.dimmed();
 
         if self.error.is_some() {
             title = title.red().bold();
         }
 
-        buf.push_str(&format!("{}", title));
+        buf.push_str(&format!("{title}"));
 
         if let Some(ref sub_title) = self.sub_title {
             buf.push_str(&format!(" {}", sub_title.dimmed()).to_string());
         }
 
         if let Some(ref error) = self.error {
-            buf.push_str(&format!(" {}", error).to_string());
+            buf.push_str(&format!(" {error}").to_string());
         }
 
         buf

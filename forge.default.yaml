@@ -11,33 +11,59 @@ agents:
   - id: software-engineer
     compact:
       max_tokens: 2000
-      token_threshold: 180000
+      token_threshold: 120000
       model: *advanced_model
       retention_window: 6
       message_threshold: 200
       prompt: "{{> system-prompt-context-summarizer.hbs }}"
-    tool_supported: true
+    tool_supported: false
     model: *advanced_model
     system_prompt: |-
-      {{#if (eq variables.mode "PLAN") }}
-      {{> system-prompt-engineer-plan.hbs }}
-      {{else}}
       {{> system-prompt-engineer-act.hbs }}
-      {{/if}}
     user_prompt: |-
       <task>{{event.value}}</task>
       <current_time>{{current_time}}</current_time>
     ephemeral: false
     tools:
-      - tool_forge_fs_read
-      - tool_forge_fs_create
-      - tool_forge_fs_remove
-      - tool_forge_fs_patch
-      - tool_forge_process_shell
-      - tool_forge_net_fetch
-      - tool_forge_fs_search
-      - tool_forge_fs_undo
+      - forge_tool_fs_read
+      - forge_tool_fs_create
+      - forge_tool_fs_remove
+      - forge_tool_fs_patch
+      - forge_tool_process_shell
+      - forge_tool_net_fetch
+      - forge_tool_fs_search
+      - forge_tool_fs_undo
     subscribe:
-      - user_task_init
-      - user_task_update
+      - act/user_task_init
+      - act/user_task_update
+    max_walker_depth: 1
+
+  - id: software-designer
+    compact:
+      max_tokens: 2000
+      token_threshold: 120000
+      model: *advanced_model
+      retention_window: 6
+      message_threshold: 200
+      prompt: "{{> system-prompt-context-summarizer.hbs }}"
+    tool_supported: false
+    model: *advanced_model
+    system_prompt: |-
+      {{> system-prompt-engineer-plan.hbs }}
+    user_prompt: |-
+      <task>{{event.value}}</task>
+      <current_time>{{current_time}}</current_time>
+      Only create new plans or update existing ones.
+      Do not modify, create, or delete any code files.
+      
+    ephemeral: false
+    tools:
+      - forge_tool_fs_read
+      - forge_tool_net_fetch
+      - forge_tool_fs_search
+      - forge_tool_fs_create
+      - forge_tool_fs_patch
+    subscribe:
+      - plan/user_task_init
+      - plan/user_task_update
     max_walker_depth: 1

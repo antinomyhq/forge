@@ -19,7 +19,7 @@ pub trait Transformer {
         Self: Sized,
     {
         let regex =
-            Regex::new(pattern).unwrap_or_else(|_| panic!("Invalid regex pattern {}", pattern));
+            Regex::new(pattern).unwrap_or_else(|_| panic!("Invalid regex pattern {pattern}"));
 
         self.when(move |req| {
             req.model

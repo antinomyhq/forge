@@ -41,7 +41,7 @@ pub fn derive_description(input: TokenStream) -> TokenStream {
 
     // Join all lines with a space (or newline, if you prefer)
     if doc_lines.is_empty() {
-        panic!("No doc comment found for {}", name);
+        panic!("No doc comment found for {name}");
     }
     let doc_string = doc_lines.join("\n").trim().to_string();
 

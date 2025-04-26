@@ -55,7 +55,7 @@ impl OpenRouter {
         if let Some(ref api_key) = self.provider.key() {
             headers.insert(
                 AUTHORIZATION,
-                HeaderValue::from_str(&format!("Bearer {}", api_key)).unwrap(),
+                HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
             );
         }
         headers.insert("X-Title", HeaderValue::from_static("forge"));
@@ -145,7 +145,7 @@ impl OpenRouter {
                         reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
                             let status_code = response.status();
                             debug!(response = ?response, "Invalid content type");
-                            Some(Err(anyhow::anyhow!(error).context(format!("Http Status: {}", status_code))))
+                            Some(Err(anyhow::anyhow!(error).context(format!("Http Status: {status_code}" ))))
 
                         }
                         error => {

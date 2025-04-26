@@ -52,7 +52,7 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
             _ => None,
         }) {
             let base_64_encoded = base64::engine::general_purpose::STANDARD.encode(read);
-            let content = format!("data:image/{};base64,{}", img_extension, base_64_encoded);
+            let content = format!("data:image/{img_extension};base64,{base_64_encoded}");
             Ok(Attachment { content, path, content_type: ContentType::Image })
         } else {
             let content = String::from_utf8(read.to_vec())?;
@@ -439,7 +439,7 @@ pub mod tests {
             base64::engine::general_purpose::STANDARD.encode("mock-binary-content");
         assert_eq!(
             attachment.content,
-            format!("data:image/png;base64,{}", expected_base64)
+            format!("data:image/png;base64,{expected_base64}")
         );
     }
 
@@ -465,7 +465,7 @@ pub mod tests {
         let expected_base64 = base64::engine::general_purpose::STANDARD.encode("mock-jpeg-content");
         assert_eq!(
             attachment.content,
-            format!("data:image/jpeg;base64,{}", expected_base64)
+            format!("data:image/jpeg;base64,{expected_base64}")
         );
     }
 

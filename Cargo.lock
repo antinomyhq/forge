@@ -449,9 +449,9 @@ dependencies = [
 
 [[package]]
 name = "crokey"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "520e83558f4c008ac06fa6a86e5c1d4357be6f994cce7434463ebcdaadf47bb1"
+checksum = "c5ff945e42bb93d29b10ba509970066a269903a932f0ea07d99d8621f97e90d7"
 dependencies = [
  "crokey-proc_macros",
  "crossterm 0.28.1",
@@ -462,15 +462,15 @@ dependencies = [
 
 [[package]]
 name = "crokey-proc_macros"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "370956e708a1ce65fe4ac5bb7185791e0ece7485087f17736d54a23a0895049f"
+checksum = "665f2180fd82d0ba2bf3deb45fafabb18f23451024ff71ee47f6bfdfb4bbe09e"
 dependencies = [
  "crossterm 0.28.1",
  "proc-macro2",
  "quote",
  "strict",
- "syn 1.0.109",
+ "syn 2.0.98",
 ]
 
 [[package]]
@@ -931,7 +931,6 @@ dependencies = [
  "chrono",
  "colored 3.0.0",
  "console",
- "convert_case",
  "derive_setters",
  "insta",
  "pretty_assertions",
@@ -3630,9 +3629,9 @@ dependencies = [
 
 [[package]]
 name = "termimad"
-version = "0.31.2"
+version = "0.31.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8e19c6dbf107bec01d0e216bb8219485795b7d75328e4fa5ef2756c1be4f8dc"
+checksum = "7301d9c2c4939c97f25376b70d3c13311f8fefdee44092fc361d2a98adc2cbb6"
 dependencies = [
  "coolor",
  "crokey",
@@ -3640,7 +3639,7 @@ dependencies = [
  "lazy-regex",
  "minimad",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "unicode-width 0.1.14",
 ]
 

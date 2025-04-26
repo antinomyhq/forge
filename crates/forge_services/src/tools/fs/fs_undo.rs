@@ -43,7 +43,7 @@ impl<F: Infrastructure> FsUndo<F> {
 
 impl<F> NamedTool for FsUndo<F> {
     fn tool_name() -> ToolName {
-        ToolName::new("tool_forge_fs_undo")
+        ToolName::new("forge_tool_fs_undo")
     }
 }
 
@@ -70,12 +70,11 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
         let display_path = self.format_display_path(path)?;
 
         // Display a message about the file being undone
-        let message = TitleFormat::new("undo").sub_title(display_path.clone());
+        let message = TitleFormat::new("Undo").sub_title(display_path.clone());
         context.send_text(message.format()).await?;
 
         Ok(format!(
-            "Successfully undid last operation on path: {}",
-            display_path
+            "Successfully undid last operation on path: {display_path}"
         ))
     }
 }
@@ -122,7 +121,7 @@ mod tests {
     async fn test_tool_name() {
         assert_eq!(
             FsUndo::<Stub>::tool_name().as_str(),
-            "tool_forge_fs_undo",
+            "forge_tool_fs_undo",
             "Tool name should match expected value"
         );
     }

@@ -189,7 +189,7 @@ impl Walker {
 
             // Ensure directory paths end with '/' for is_dir() function
             let path_string = if is_dir {
-                format!("{}/", path_string)
+                format!("{path_string}/")
             } else {
                 path_string
             };
@@ -240,7 +240,7 @@ mod tests {
             let mut current = dir.path().to_path_buf();
 
             for i in 0..depth {
-                current = current.join(format!("level{}", i));
+                current = current.join(format!("level{i}"));
                 fs::create_dir(&current)?;
                 File::create(current.join(file_name))?.write_all(b"test")?;
             }
@@ -256,7 +256,7 @@ mod tests {
             fs::create_dir(&files_dir)?;
 
             for i in 0..count {
-                File::create(files_dir.join(format!("{}{}.txt", prefix, i)))?.write_all(b"test")?;
+                File::create(files_dir.join(format!("{prefix}{i}.txt")))?.write_all(b"test")?;
             }
             Ok((dir, files_dir))
         }

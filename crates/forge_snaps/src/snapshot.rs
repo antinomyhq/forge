@@ -90,7 +90,7 @@ impl Snapshot {
             .format("%Y-%m-%d_%H-%M-%S-%9f")
             .to_string();
 
-        let filename = format!("{}.snap", formatted_time);
+        let filename = format!("{formatted_time}.snap");
         let path = PathBuf::from(self.path_hash()).join(PathBuf::from(filename));
         if let Some(cwd) = cwd {
             cwd.join(path)

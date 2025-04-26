@@ -63,7 +63,7 @@ impl Element {
 
         result.push_str(&format!("<{}", self.name));
         for (key, value) in &self.attr {
-            result.push_str(&format!(" {}=\"{}\"", key, value));
+            result.push_str(&format!(" {key}=\"{value}\""));
         }
         result.push('>');
 

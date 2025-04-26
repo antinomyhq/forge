@@ -78,7 +78,7 @@ mod tests {
         let old = "Hello World\nThis is a test\nThird line\nFourth line";
         let new = "Hello World\nThis is a modified test\nNew line\nFourth line";
         let diff = DiffFormat::format("diff", "example.txt".into(), old, new);
-        println!("\nColor Output Test:\n{}", diff);
+        println!("\nColor Output Test:\n{diff}");
     }
 
     #[test]

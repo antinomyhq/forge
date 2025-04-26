@@ -1,0 +1,19 @@
+---
+source: crates/forge_domain/src/tool_usage.rs
+expression: prompt
+snapshot_kind: text
+---
+1. forge_tool_mango:
+Description: This is a mango tool
+Usage:
+<forge_tool_call>
+<forge_tool_mango>
+<param1>
+<!-- required -->
+<!-- This is parameter 1 -->
+</param1>
+<param2>
+<!-- This is parameter 2 -->
+</param2>
+</forge_tool_mango>
+</forge_tool_call>

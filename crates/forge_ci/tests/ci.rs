@@ -15,7 +15,7 @@ fn apt_get_install(packages: &[&str]) -> String {
         "sudo apt-get update && \\\nsudo apt-get install -y \\\n{}",
         packages
             .iter()
-            .map(|pkg| format!("  {}", pkg))
+            .map(|pkg| format!("  {pkg}"))
             .collect::<Vec<_>>()
             .join(" \\\n")
     )

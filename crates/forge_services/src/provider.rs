@@ -37,7 +37,7 @@ impl ProviderService for ForgeProviderService {
         self.client
             .chat(model, request)
             .await
-            .with_context(|| format!("Failed to chat with model: {}", model))
+            .with_context(|| format!("Failed to chat with model: {model}"))
     }
 
     async fn models(&self) -> Result<Vec<Model>> {

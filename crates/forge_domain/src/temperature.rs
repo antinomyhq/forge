@@ -22,8 +22,7 @@ impl Temperature {
             Ok(Self(value))
         } else {
             Err(format!(
-                "temperature must be between 0.0 and 2.0, got {}",
-                value
+                "temperature must be between 0.0 and 2.0, got {value}"
             ))
         }
     }
@@ -33,7 +32,7 @@ impl Temperature {
     /// # Safety
     /// This function should only be used when the value is known to be valid
     pub fn new_unchecked(value: f32) -> Self {
-        debug_assert!(Self::is_valid(value), "invalid temperature: {}", value);
+        debug_assert!(Self::is_valid(value), "invalid temperature: {value}");
         Self(value)
     }
 
@@ -93,8 +92,7 @@ impl<'de> Deserialize<'de> for Temperature {
             Ok(Self(value))
         } else {
             Err(Error::custom(format!(
-                "temperature must be between 0.0 and 2.0, got {}",
-                value
+                "temperature must be between 0.0 and 2.0, got {value}"
             )))
         }
     }
@@ -113,7 +111,7 @@ mod tests {
         let valid_temps = [0.0, 0.5, 1.0, 1.5, 2.0];
         for temp in valid_temps {
             let result = Temperature::new(temp);
-            assert!(result.is_ok(), "Temperature {} should be valid", temp);
+            assert!(result.is_ok(), "Temperature {temp} should be valid");
             assert_eq!(result.unwrap().value(), temp);
         }
 
@@ -121,7 +119,7 @@ mod tests {
         let invalid_temps = [-0.1, 2.1, 3.0, -1.0, 10.0];
         for temp in invalid_temps {
             let result = Temperature::new(temp);
-            assert!(result.is_err(), "Temperature {} should be invalid", temp);
+            assert!(result.is_err(), "Temperature {temp} should be invalid");
             assert!(
                 result
                     .unwrap_err()
@@ -142,11 +140,10 @@ mod tests {
             let float_val = num.as_f64().unwrap();
             assert!(
                 (float_val - 0.7).abs() < 0.001,
-                "Expected approximately 0.7, got {}",
-                float_val
+                "Expected approximately 0.7, got {float_val}"
             );
         } else {
-            panic!("Expected a number, got {:?}", json);
+            panic!("Expected a number, got {json:?}");
         }
     }
 
@@ -159,8 +156,7 @@ mod tests {
             let temp: Result<Temperature, _> = serde_json::from_value(json);
             assert!(
                 temp.is_ok(),
-                "Valid temperature {} should deserialize",
-                temp_value
+                "Valid temperature {temp_value} should deserialize"
             );
             assert_eq!(temp.unwrap().value(), temp_value);
         }
@@ -172,14 +168,12 @@ mod tests {
             let temp: Result<Temperature, _> = serde_json::from_value(json);
             assert!(
                 temp.is_err(),
-                "Invalid temperature {} should fail deserialization",
-                temp_value
+                "Invalid temperature {temp_value} should fail deserialization"
             );
             let err = temp.unwrap_err().to_string();
             assert!(
                 err.contains("temperature must be between 0.0 and 2.0"),
-                "Error should mention valid range: {}",
-                err
+                "Error should mention valid range: {err}"
             );
         }
     }
@@ -208,8 +202,7 @@ mod tests {
         let err = test_struct.unwrap_err().to_string();
         assert!(
             err.contains("temperature must be between 0.0 and 2.0"),
-            "Error should mention valid range: {}",
-            err
+            "Error should mention valid range: {err}"
         );
     }
 }

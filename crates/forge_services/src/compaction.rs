@@ -74,9 +74,8 @@ impl<T: TemplateService, P: ProviderService> ForgeCompactionService<T, P> {
         );
 
         let summary = format!(
-            r#"Continuing from a prior analysis. Below is a compacted summary of the ongoing session. Use this summary as authoritative context for your reasoning and decision-making. You do not need to repeat or reanalyze it unless specifically asked: <summary>{}</summary> Proceed based on this context.
-        "#,
-            summary
+            r#"Continuing from a prior analysis. Below is a compacted summary of the ongoing session. Use this summary as authoritative context for your reasoning and decision-making. You do not need to repeat or reanalyze it unless specifically asked: <summary>{summary}</summary> Proceed based on this context.
+        "#
         );
 
         // Replace the sequence with a single summary message using splice
@@ -305,7 +304,7 @@ mod tests {
     fn test_identify_sequence_with_tool_calls() {
         // Create a context with assistant messages containing tool calls
         let tool_call = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path"}),
         };
@@ -336,12 +335,12 @@ mod tests {
     fn test_identify_sequence_with_tool_results() {
         // Create a context with assistant messages and tool results
         let tool_call = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path"}),
         };
 
-        let tool_result = ToolResult::new(ToolName::new("tool_forge_fs_read"))
+        let tool_result = ToolResult::new(ToolName::new("forge_tool_fs_read"))
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content"}).to_string());
 
@@ -373,22 +372,22 @@ mod tests {
     fn test_mixed_assistant_and_tool_messages() {
         // Create a context with mixed assistant and tool messages
         let tool_call1 = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path1"}),
         };
 
         let tool_call2 = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_search"),
+            name: ToolName::new("forge_tool_fs_search"),
             call_id: Some(ToolCallId::new("call_456")),
             arguments: json!({"path": "/test/path2", "regex": "pattern"}),
         };
 
-        let tool_result1 = ToolResult::new(ToolName::new("tool_forge_fs_read"))
+        let tool_result1 = ToolResult::new(ToolName::new("forge_tool_fs_read"))
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content 1"}).to_string());
 
-        let tool_result2 = ToolResult::new(ToolName::new("tool_forge_fs_search"))
+        let tool_result2 = ToolResult::new(ToolName::new("forge_tool_fs_search"))
             .call_id(ToolCallId::new("call_456"))
             .success(json!({"matches": ["match1", "match2"]}).to_string());
 
@@ -423,22 +422,22 @@ mod tests {
         // followed by tool results but the assistant messages themselves are
         // consecutive
         let tool_call1 = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path1"}),
         };
 
         let tool_call2 = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_search"),
+            name: ToolName::new("forge_tool_fs_search"),
             call_id: Some(ToolCallId::new("call_456")),
             arguments: json!({"path": "/test/path2", "regex": "pattern"}),
         };
 
-        let tool_result1 = ToolResult::new(ToolName::new("tool_forge_fs_read"))
+        let tool_result1 = ToolResult::new(ToolName::new("forge_tool_fs_read"))
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content 1"}).to_string());
 
-        let tool_result2 = ToolResult::new(ToolName::new("tool_forge_fs_search"))
+        let tool_result2 = ToolResult::new(ToolName::new("forge_tool_fs_search"))
             .call_id(ToolCallId::new("call_456"))
             .success(json!({"matches": ["match1", "match2"]}).to_string());
 
@@ -470,11 +469,11 @@ mod tests {
     #[test]
     fn test_only_tool_results() {
         // Test when we have just tool results in sequence
-        let tool_result1 = ToolResult::new(ToolName::new("tool_forge_fs_read"))
+        let tool_result1 = ToolResult::new(ToolName::new("forge_tool_fs_read"))
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content 1"}).to_string());
 
-        let tool_result2 = ToolResult::new(ToolName::new("tool_forge_fs_search"))
+        let tool_result2 = ToolResult::new(ToolName::new("forge_tool_fs_search"))
             .call_id(ToolCallId::new("call_456"))
             .success(json!({"matches": ["match1", "match2"]}).to_string());
 
@@ -495,12 +494,12 @@ mod tests {
         // Create a context with an assistant message and a tool result that are not
         // directly connected
         let tool_call = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path"}),
         };
 
-        let tool_result = ToolResult::new(ToolName::new("tool_forge_fs_read"))
+        let tool_result = ToolResult::new(ToolName::new("forge_tool_fs_read"))
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content 1"}).to_string());
 
@@ -598,12 +597,12 @@ mod tests {
     #[test]
     fn test_preserve_tool_call_atomicity() {
         let tool_calls = Some(vec![ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: None,
             arguments: json!({"path": "/test/path"}),
         }]);
 
-        let tool_results = vec![ToolResult::new(ToolName::new("tool_forge_fs_read"))
+        let tool_results = vec![ToolResult::new(ToolName::new("forge_tool_fs_read"))
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content 1"}).to_string())];
 
@@ -687,12 +686,12 @@ mod tests {
         // Create a context with a mixed conversation including user messages, assistant
         // messages, tool calls, and tool results
         let tool_call = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path"}),
         };
 
-        let tool_result = ToolResult::new(ToolName::new("tool_forge_fs_read"))
+        let tool_result = ToolResult::new(ToolName::new("forge_tool_fs_read"))
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content"}).to_string());
 
@@ -749,7 +748,7 @@ mod tests {
     fn test_assistant_message_with_tool_call_at_end() {
         // Test case where the last message has a tool call and needs special handling
         let tool_call = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path"}),
         };
@@ -805,7 +804,7 @@ mod tests {
         // Test edge case: max_len becomes 0 after tool call adjustment
         // Create a context with 2 messages where the second one has a tool call
         let tool_call = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path"}),
         };
@@ -846,7 +845,7 @@ mod tests {
         // Case 1: preserve_last_n = 1, total messages = 2, with the last message having
         // a tool call
         let tool_call = ToolCallFull {
-            name: ToolName::new("tool_forge_fs_read"),
+            name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path"}),
         };

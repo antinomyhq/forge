@@ -66,7 +66,7 @@ impl ForgeEnvironmentService {
                     provider
                 })
             })
-            .unwrap_or_else(|| panic!("No API key found. Please set one of: {}", env_variables))
+            .unwrap_or_else(|| panic!("No API key found. Please set one of: {env_variables}"))
     }
 
     /// Resolves retry configuration from environment variables or returns

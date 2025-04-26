@@ -80,9 +80,9 @@ fn apply_replacement(
     if search.is_empty() {
         return match operation {
             // Append to the end of the file
-            Operation::Append => Ok(format!("{}{}", source, content)),
+            Operation::Append => Ok(format!("{source}{content}")),
             // Prepend to the beginning of the file
-            Operation::Prepend => Ok(format!("{}{}", content, source)),
+            Operation::Prepend => Ok(format!("{content}{source}")),
             // Replace is equivalent to completely replacing the file
             Operation::Replace => Ok(content.to_string()),
             // Swap doesn't make sense with empty search - keep source unchanged
@@ -206,14 +206,14 @@ pub struct Input {
 /// prepend, append, replace, swap, delete operations on first pattern
 /// occurrence. Ideal for precise changes to configs, code, or docs while
 /// preserving context. Not suitable for complex refactoring or modifying all
-/// pattern occurrences - use tool_forge_fs_create instead for complete
+/// pattern occurrences - use forge_tool_fs_create instead for complete
 /// rewrites. Fails if search pattern isn't found.
 #[derive(ToolDescription)]
 pub struct ApplyPatchJson<F>(Arc<F>);
 
 impl<F: Infrastructure> NamedTool for ApplyPatchJson<F> {
     fn tool_name() -> ToolName {
-        ToolName::new("tool_forge_fs_patch")
+        ToolName::new("forge_tool_fs_patch")
     }
 }
 
@@ -241,8 +241,7 @@ impl<F: Infrastructure> ApplyPatchJson<F> {
 fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
     if let Some(w) = warning {
         format!(
-            "<file_content\n  path=\"{}\"\n  syntax_checker_warning=\"{}\">\n{}</file_content>\n",
-            path, w, content
+            "<file_content\n  path=\"{path}\"\n  syntax_checker_warning=\"{w}\">\n{content}</file_content>\n"
         )
     } else {
         format!(
@@ -282,7 +281,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
 
         // Generate diff between old and new content
         let diff = DiffFormat::format(
-            "patch",
+            "Patch",
             PathBuf::from(display_path),
             &old_content,
             &current_content,

@@ -37,7 +37,7 @@ impl FSFindInput {
         Ok(match &self.file_pattern {
             Some(pattern) => Some(
                 glob::Pattern::new(pattern)
-                    .with_context(|| format!("Invalid glob pattern: {}", pattern))?,
+                    .with_context(|| format!("Invalid glob pattern: {pattern}"))?,
             ),
             None => None,
         })
@@ -96,19 +96,16 @@ impl<F: Infrastructure> FSFind<F> {
         // Format the title with relative path if possible
         let formatted_dir = self.format_display_path(input.path.as_ref())?;
 
-        let sub_title = match (&input.regex, &input.file_pattern) {
+        let title = match (&input.regex, &input.file_pattern) {
             (Some(regex), Some(pattern)) => {
-                format!(
-                    "for '{}' in '{}' files at {}",
-                    regex, pattern, formatted_dir
-                )
+                format!("Search for '{regex}' in '{pattern}' files at {formatted_dir}")
             }
-            (Some(regex), None) => format!("for '{}' at {}", regex, formatted_dir),
-            (None, Some(pattern)) => format!("for '{}' at {}", pattern, formatted_dir),
-            (None, None) => format!("at {}", formatted_dir),
+            (Some(regex), None) => format!("Search for '{regex}' at {formatted_dir}"),
+            (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
+            (None, None) => format!("at {formatted_dir}"),
         };
 
-        Ok(TitleFormat::new("search").sub_title(sub_title))
+        Ok(TitleFormat::new(title))
     }
 
     async fn call(&self, context: ToolCallContext, input: FSFindInput) -> anyhow::Result<String> {
@@ -126,10 +123,10 @@ impl<F: Infrastructure> FSFind<F> {
         // Create content regex pattern if provided
         let regex = match &input.regex {
             Some(regex) => {
-                let pattern = format!("(?i){}", regex); // Case-insensitive by default
+                let pattern = format!("(?i){regex}"); // Case-insensitive by default
                 Some(
                     Regex::new(&pattern)
-                        .with_context(|| format!("Invalid regex pattern: {}", regex))?,
+                        .with_context(|| format!("Invalid regex pattern: {regex}"))?,
                 )
             }
             None => None,
@@ -221,7 +218,7 @@ async fn retrieve_file_paths(dir: &Path) -> anyhow::Result<HashSet<std::path::Pa
 
 impl<F> NamedTool for FSFind<F> {
     fn tool_name() -> ToolName {
-        ToolName::new("tool_forge_fs_search")
+        ToolName::new("forge_tool_fs_search")
     }
 }
 

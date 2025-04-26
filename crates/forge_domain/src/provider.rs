@@ -16,7 +16,7 @@ impl Provider {
                 if url.ends_with("/") {
                     *set_url = Url::parse(&url).unwrap();
                 } else {
-                    *set_url = Url::parse(&format!("{}/", url)).unwrap();
+                    *set_url = Url::parse(&format!("{url}/")).unwrap();
                 }
             }
             Provider::Anthropic { .. } => {}
@@ -30,7 +30,7 @@ impl Provider {
                 if url.ends_with("/") {
                     *set_url = Url::parse(&url).unwrap();
                 } else {
-                    *set_url = Url::parse(&format!("{}/", url)).unwrap();
+                    *set_url = Url::parse(&format!("{url}/")).unwrap();
                 }
             }
             Provider::OpenAI { .. } => {}

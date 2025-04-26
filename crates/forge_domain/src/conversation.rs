@@ -104,6 +104,7 @@ impl Conversation {
                 agent.tool_supported = Some(tool_supported);
             }
 
+            // Subscribe the main agent to all commands
             if agent.id.as_str() == Conversation::MAIN_AGENT_NAME {
                 let commands = workflow
                     .commands

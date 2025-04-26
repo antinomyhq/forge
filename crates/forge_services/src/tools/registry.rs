@@ -216,8 +216,7 @@ pub mod tests {
 
         assert!(
             !any_exceeded,
-            "One or more tools exceed the maximum description length of {}",
-            MAX_DESCRIPTION_LENGTH
+            "One or more tools exceed the maximum description length of {MAX_DESCRIPTION_LENGTH}"
         );
     }
 }

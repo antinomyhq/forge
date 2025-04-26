@@ -1,5 +1,4 @@
 {{#if (not tool_supported)}}
-<tool_information>
 Tool Usage Instructions:
 
 You have access to set of tools as described in the <available_tools> tag. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -8,53 +7,18 @@ Tool Use Formatting Rules:
 
 1. Tool use is formatted using XML-style tags ONLY.
 2. You can only make one tool call per message.
-3. Each tool call must be wrapped in `<tool_call>` tags.
-4. The actual tool name (e.g., tool_forge_fs_read) must be used as the enclosing tag.
+3. Each tool call must be wrapped in `<forge_tool_call>` tags.
+4. The actual tool name (e.g., forge_tool_fs_read) must be used as the enclosing tag.
 5. Each parameter must be enclosed within its own set of tags.
 Here's a correct example structure:
 
 ```
-
-<tool_call>
-<tool_forge_fs_read>
+<forge_tool_call>
+<forge_tool_fs_read>
 <path>/path/to/file</path>
 <recursive>true</recursive>
-</tool_forge_fs_read>
-</tool_call>
-```
-
-Example of correct multi-step tool usage:
-
-```
-First message to read file_a:
-<tool_call>
-<tool_forge_fs_read>
-<path>/path/to/file_a</path>
-</tool_forge_fs_read>
-</tool_call>
-
-User response for the first message:
-<tool_result>
-<tool_forge_fs_create>  
-<success>[success message]</success>
-</tool_forge_fs_create>
-<tool_result>
-
-
-Second request to read file_b:
-<tool_call>
-<tool_forge_fs_create>
-<path>/path/to/file_b</path>
-<content>New content</content>
-</tool_forge_fs_create>
-</tool_call>
-
-User response for the second message:
-<tool_result>
-<tool_forge_fs_create>  
-<success>[success message]</success>
-</tool_forge_fs_create>
-<tool_result>
+</forge_tool_fs_read>
+</forge_tool_call>
 ```
 
 Important:
@@ -63,12 +27,11 @@ Important:
 - Do NOT use JSON format (e.g., `tool_name({"param": "value"})`)
 - Do NOT mix formats in the same message
 - If you need to make multiple tool calls, send them in separate messages
-- Tool results will be wrapped in a `tool_result` tag by the user
-- Do not assume a tool call succeeded without a tool_result
 
 Before using a tool, ensure all required parameters are available. 
 If any required parameters are missing, do not attempt to use the tool.
 
-<available_tools>{{tool_information}}</available_tools>
-</tool_information>
+<available_tools>
+{{tool_information}}
+</available_tools>
 {{/if}}

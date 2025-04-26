@@ -225,7 +225,7 @@ mod tests {
             .dispatch(EventKind::Prompt("ping".to_string()))
             .await
         {
-            panic!("Tracker dispatch error: {:?}", e);
+            panic!("Tracker dispatch error: {e:?}");
         }
     }
 }

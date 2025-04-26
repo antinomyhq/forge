@@ -28,7 +28,7 @@ impl Client {
                     .provider(provider.clone())
                     .retry_config(retry_config.clone())
                     .build()
-                    .with_context(|| format!("Failed to initialize: {}", url))?,
+                    .with_context(|| format!("Failed to initialize: {url}"))?,
             )),
 
             Provider::Anthropic { url, key } => Ok(Client::Anthropic(
@@ -40,7 +40,7 @@ impl Client {
                     .retry_config(retry_config.clone())
                     .build()
                     .with_context(|| {
-                        format!("Failed to initialize Anthropic client with URL: {}", url)
+                        format!("Failed to initialize Anthropic client with URL: {url}")
                     })?,
             )),
         }
