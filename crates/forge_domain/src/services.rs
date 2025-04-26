@@ -1,6 +1,10 @@
 use serde_json::Value;
 
-use crate::{Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation, ConversationId, Environment, Model, ModelId, ResultStream, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow};
+use crate::{
+    Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
+    ConversationId, Environment, Model, ModelId, ResultStream, Tool, ToolCallContext, ToolCallFull,
+    ToolDefinition, ToolName, ToolResult, Workflow,
+};
 
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {

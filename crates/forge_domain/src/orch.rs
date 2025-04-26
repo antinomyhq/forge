@@ -122,17 +122,22 @@ impl<A: Services> Orchestrator<A> {
     }
 
     /// Get the allowed tools for an agent
-    async fn get_allowed_tools(&self, agent: &Agent, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
+    async fn get_allowed_tools(
+        &self,
+        agent: &Agent,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<Vec<ToolDefinition>> {
         let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
-        Ok(
-            self.services
-                .tool_service()
-                .list(conversation_id)
-                .await?
-                .into_iter()
-                .filter(|tool| tool.name.as_str().starts_with("-forgestrip-") || allowed.contains(&tool.name))
-                .collect(),
-        )
+        Ok(self
+            .services
+            .tool_service()
+            .list(conversation_id)
+            .await?
+            .into_iter()
+            .filter(|tool| {
+                tool.name.as_str().starts_with("-forgestrip-") || allowed.contains(&tool.name)
+            })
+            .collect())
     }
 
     async fn set_system_prompt(
@@ -158,7 +163,10 @@ impl<A: Services> Orchestrator<A> {
 
             let tool_information = match agent.tool_supported.unwrap_or_default() {
                 true => None,
-                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent, conversation_id).await?).to_string()),
+                false => Some(
+                    ToolUsagePrompt::from(&self.get_allowed_tools(agent, conversation_id).await?)
+                        .to_string(),
+                ),
             };
 
             let ctx = SystemContext {
@@ -185,7 +193,7 @@ impl<A: Services> Orchestrator<A> {
     async fn collect_messages(
         &self,
         agent: &Agent,
-        mut response: impl Stream<Item=anyhow::Result<ChatCompletionMessage>> + std::marker::Unpin,
+        mut response: impl Stream<Item = anyhow::Result<ChatCompletionMessage>> + std::marker::Unpin,
     ) -> anyhow::Result<ChatCompletionResult> {
         let mut messages = Vec::new();
         let mut request_usage: Option<Usage> = None;
@@ -211,7 +219,7 @@ impl<A: Services> Orchestrator<A> {
                     agent,
                     ChatResponse::Text { text: content_part, is_complete: false, is_md: false },
                 )
-                    .await?;
+                .await?;
 
                 // Check for XML tool calls in the content, but only interrupt if tool_supported
                 // is false
@@ -274,7 +282,7 @@ impl<A: Services> Orchestrator<A> {
                 is_md: true,
             },
         )
-            .await?;
+        .await?;
 
         // Extract all tool calls in a fully declarative way with combined sources
         // Start with complete tool calls (for non-streaming mode)
@@ -371,16 +379,24 @@ impl<A: Services> Orchestrator<A> {
         let agent = conversation.get_agent(agent_id)?;
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
-            agent.init_context(self.get_allowed_tools(agent, &conversation.id).await?).await?
+            agent
+                .init_context(self.get_allowed_tools(agent, &conversation.id).await?)
+                .await?
         } else {
             match conversation.context(&agent.id) {
                 Some(context) => context.clone(),
-                None => agent.init_context(self.get_allowed_tools(agent, &conversation.id).await?).await?,
+                None => {
+                    agent
+                        .init_context(self.get_allowed_tools(agent, &conversation.id).await?)
+                        .await?
+                }
             }
         };
 
         // Render the system prompts with the variables
-        context = self.set_system_prompt(context, agent, variables, &conversation.id).await?;
+        context = self
+            .set_system_prompt(context, agent, variables, &conversation.id)
+            .await?;
 
         // Render user prompts
         context = self
@@ -515,8 +531,8 @@ impl<A: Services> Orchestrator<A> {
                 || self.init_agent(agent_id, &event),
                 is_parse_error,
             )
-                .await
-                .with_context(|| format!("Failed to initialize agent {}", *agent_id))?;
+            .await
+            .with_context(|| format!("Failed to initialize agent {}", *agent_id))?;
         }
 
         Ok(())

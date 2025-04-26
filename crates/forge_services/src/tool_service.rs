@@ -115,9 +115,12 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
     }
 
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
-        Ok(self.list(conversation_id).await?.into_iter().chain(
-            self.mcp.list(conversation_id).await?.into_iter(),
-        ).collect::<Vec<_>>())
+        Ok(self
+            .list(conversation_id)
+            .await?
+            .into_iter()
+            .chain(self.mcp.list(conversation_id).await?.into_iter())
+            .collect::<Vec<_>>())
     }
 
     fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
