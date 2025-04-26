@@ -20,7 +20,6 @@ pub trait ToolService: Send + Sync {
         call: ToolCallFull,
     ) -> anyhow::Result<ToolResult>;
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>>;
-    fn usage_prompt(&self) -> String;
     fn find_tool(&self, name: &ToolName) -> Option<&Tool>;
 }
 

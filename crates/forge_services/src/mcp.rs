@@ -209,10 +209,6 @@ impl<C: ConversationService> ForgeMcpService<C> {
         }
     }
 
-    fn usage_prompt(&self) -> String {
-        todo!()
-    }
-
     fn find_tool(&self, _name: &ToolName) -> Option<&Tool> {
         todo!()
     }
@@ -225,10 +221,6 @@ impl<C: ConversationService> ToolService for ForgeMcpService<C> {
     }
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
         self.list(conversation_id).await
-    }
-
-    fn usage_prompt(&self) -> String {
-        self.usage_prompt()
     }
 
     fn find_tool(&self, name: &ToolName) -> Option<&Tool> {

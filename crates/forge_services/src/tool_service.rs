@@ -99,30 +99,6 @@ impl<M: ToolService + 'static> ForgeToolService<M> {
         Ok(tools)
     }
 
-    // Private method to generate usage prompt
-    fn usage_prompt(&self) -> String {
-        let mut tools: Vec<_> = self.tools.values().collect();
-
-        tools.sort_by(|a, b| a.definition.name.as_str().cmp(b.definition.name.as_str()));
-
-        let mut prompt = tools
-            .iter()
-            .enumerate()
-            .fold("".to_string(), |mut acc, (i, tool)| {
-                acc.push('\n');
-                acc.push_str((i + 1).to_string().as_str());
-                acc.push_str(". ");
-                acc.push_str(tool.definition.usage_prompt().to_string().as_str());
-                acc
-            });
-
-        // Append MCP tools
-        prompt.push_str("\n\n");
-        prompt.push_str(self.mcp.usage_prompt().as_str());
-
-        prompt
-    }
-
     fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
         self.tools.get(name).or_else(|| self.mcp.find_tool(name))
     }
@@ -142,10 +118,6 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
         Ok(self.list(conversation_id).await?.into_iter().chain(
             self.mcp.list(conversation_id).await?.into_iter(),
         ).collect::<Vec<_>>())
-    }
-
-    fn usage_prompt(&self) -> String {
-        self.usage_prompt()
     }
 
     fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
@@ -179,10 +151,6 @@ mod test {
             _conversation_id: &ConversationId,
         ) -> anyhow::Result<Vec<ToolDefinition>> {
             Ok(vec![])
-        }
-
-        fn usage_prompt(&self) -> String {
-            todo!()
         }
 
         fn find_tool(&self, _name: &ToolName) -> Option<&Tool> {
