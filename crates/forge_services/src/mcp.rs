@@ -200,7 +200,9 @@ impl<C: ConversationService> ForgeMcpService<C> {
                 .map_err(|e| anyhow::anyhow!("Failed to init mcp: {e}"))?;
             self.servers
                 .lock()
-                .await.values().map(|server| Ok(server.tool_definition.clone()))
+                .await
+                .values()
+                .map(|server| Ok(server.tool_definition.clone()))
                 .collect()
         } else {
             Ok(vec![])
