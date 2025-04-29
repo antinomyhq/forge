@@ -88,7 +88,16 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsReadService for Stub {
-        async fn read(&self, _path: &Path) -> anyhow::Result<Bytes> {
+        async fn read(&self, _path: &Path) -> anyhow::Result<String> {
+            unimplemented!()
+        }
+
+        async fn range_read(
+            &self,
+            _path: &Path,
+            _start_char: u64,
+            _end_char: u64,
+        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
             unimplemented!()
         }
     }

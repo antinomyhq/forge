@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use anyhow::Result;
-use bytes::Bytes;
 use forge_services::FsReadService;
 
 pub struct ForgeFileReadService;
@@ -20,7 +19,16 @@ impl ForgeFileReadService {
 
 #[async_trait::async_trait]
 impl FsReadService for ForgeFileReadService {
-    async fn read(&self, path: &Path) -> Result<Bytes> {
-        Ok(Bytes::from(forge_fs::ForgeFS::read(path).await?))
+    async fn read(&self, path: &Path) -> Result<String> {
+        forge_fs::ForgeFS::read_utf8(path).await
+    }
+
+    async fn range_read(
+        &self,
+        path: &Path,
+        start_char: u64,
+        end_char: u64,
+    ) -> Result<(String, forge_fs::FileInfo)> {
+        forge_fs::ForgeFS::read_range_utf8(path, start_char, end_char).await
     }
 }

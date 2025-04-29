@@ -57,7 +57,7 @@ impl<F: Infrastructure> ForgeLoaderService<F> {
     /// default workflow
     async fn load_and_merge_workflow(&self, path: &Path) -> anyhow::Result<Workflow> {
         // Load the custom workflow
-        let content = String::from_utf8(self.0.file_read_service().read(path).await?.to_vec())?;
+        let content = self.0.file_read_service().read(path).await?;
         let custom_workflow: Workflow = serde_yml::from_str(&content)
             .with_context(|| format!("Failed to parse workflow from {}", path.display()))?;
 

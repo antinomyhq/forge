@@ -6,3 +6,9 @@ edition = "2021"
 [dependencies]
 tokio.workspace = true
 anyhow.workspace = true
+infer = "0.15.0" # For binary file detection
+thiserror = "1.0"
+
+[dev-dependencies]
+tempfile = "3.8.0"
+pretty_assertions = "1.4.0"
