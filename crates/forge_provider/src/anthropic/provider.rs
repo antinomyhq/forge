@@ -6,19 +6,20 @@ use forge_domain::{
     ChatCompletionMessage, Context, Model, ModelId, ProviderService, ResultStream, RetryConfig,
 };
 use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest::{Client, Url};
+use reqwest::{Request as ReqwestRequest, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
 use tracing::{debug, error};
 
 use super::request::Request;
 use super::response::{EventData, ListModelResponse};
+use crate::http_client::MockableHttpClient;
 use crate::retry::StatusCodeRetryPolicy;
 use crate::utils::format_http_context;
 
 #[derive(Clone, Builder)]
 pub struct Anthropic {
-    client: Client,
+    client: MockableHttpClient,
     api_key: String,
     base_url: Url,
     anthropic_version: String,
@@ -78,12 +79,18 @@ impl ProviderService for Anthropic {
 
         let url = self.url("/messages")?;
         debug!(url = %url, model = %model, "Connecting Upstream");
-        let mut es = self
-            .client
+        // Create the request
+        let request_builder = reqwest::Client::new()
             .post(url.clone())
             .headers(self.headers())
-            .json(&request)
-            .eventsource()
+            .json(&request);
+
+        // Build the request
+        let request = request_builder.build()
+            .context(format_http_context(None, "POST", &url))?;
+
+        // Create the event source using our mockable client
+        let mut es = self.client.eventsource(request)
             .context(format_http_context(None, "POST", &url))?;
         let status_codes = self.retry_config.retry_status_codes.clone();
 
@@ -157,12 +164,17 @@ impl ProviderService for Anthropic {
         let url = self.url("models")?;
         debug!(url = %url, "Fetching models");
 
-        let result = self
-            .client
+        // Create the request
+        let request_builder = reqwest::Client::new()
             .get(url.clone())
-            .headers(self.headers())
-            .send()
-            .await;
+            .headers(self.headers());
+
+        // Build the request
+        let request = request_builder.build()
+            .context(format_http_context(None, "GET", &url))?;
+
+        // Execute the request using our mockable client
+        let result = self.client.execute(request).await;
 
         match result {
             Err(err) => {
@@ -209,7 +221,11 @@ mod tests {
     #[tokio::test]
     async fn test_url_for_models() {
         let anthropic = Anthropic::builder()
-            .client(Client::new())
+            .client(MockableHttpClient::new(
+                reqwest::Client::new(),
+                None,
+                false
+            ))
             .base_url(Url::parse("https://api.anthropic.com/v1/").unwrap())
             .anthropic_version("v1".to_string())
             .api_key("sk-some-key".to_string())

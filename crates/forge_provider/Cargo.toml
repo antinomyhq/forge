@@ -21,7 +21,10 @@ forge_domain.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
+base64 = "0.21.0"
+http = "0.2.9"
 
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
+tempfile = "3.8.0"

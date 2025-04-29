@@ -7,7 +7,7 @@ use forge_domain::{
     ResultStream, RetryConfig,
 };
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::{Client, Url};
+use reqwest::{Request, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
 use tracing::debug;
@@ -15,13 +15,14 @@ use tracing::debug;
 use super::model::{ListModelResponse, OpenRouterModel};
 use super::request::OpenRouterRequest;
 use super::response::OpenRouterResponse;
+use crate::http_client::MockableHttpClient;
 use crate::open_router::transformers::{ProviderPipeline, Transformer};
 use crate::retry::StatusCodeRetryPolicy;
 use crate::utils::format_http_context;
 
 #[derive(Clone, Builder)]
 pub struct OpenRouter {
-    client: Client,
+    client: MockableHttpClient,
     provider: Provider,
     #[builder(default = "RetryConfig::default()")]
     retry_config: RetryConfig,
@@ -90,12 +91,18 @@ impl OpenRouter {
             "Connecting Upstream"
         );
 
-        let mut es = self
-            .client
+        // Create the request
+        let request_builder = reqwest::Client::new()
             .post(url.clone())
             .headers(self.headers())
-            .json(&request)
-            .eventsource()
+            .json(&request);
+
+        // Build the request
+        let request = request_builder.build()
+            .context(format_http_context(None, "POST", &url))?;
+
+        // Create the event source using our mockable client
+        let mut es = self.client.eventsource(request)
             .context(format_http_context(None, "POST", &url))?;
         let status_codes = self.retry_config.retry_status_codes.clone();
 
@@ -182,13 +189,17 @@ impl OpenRouter {
     }
 
     async fn fetch_models(&self, url: Url) -> Result<String, anyhow::Error> {
-        match self
-            .client
+        // Create the request
+        let request_builder = reqwest::Client::new()
             .get(url.clone())
-            .headers(self.headers())
-            .send()
-            .await
-        {
+            .headers(self.headers());
+
+        // Build the request
+        let request = request_builder.build()
+            .context(format_http_context(None, "GET", &url))?;
+
+        // Execute the request using our mockable client
+        match self.client.execute(request).await {
             Ok(response) => {
                 let ctx_message = format_http_context(Some(response.status()), "GET", &url);
                 match response.error_for_status() {

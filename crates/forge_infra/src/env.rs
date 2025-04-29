@@ -36,6 +36,10 @@ impl ForgeEnvironmentService {
     /// Returns a tuple of (provider_key, provider)
     /// Panics if no API key is found in the environment
     fn resolve_provider(&self) -> Provider {
+        // Mock mode is now handled in the provider client initialization
+        // We just need to check for API keys here
+
+        // If not in mock mode, proceed with normal provider resolution
         let keys: [ProviderSearch; 4] = [
             ("FORGE_KEY", Box::new(Provider::antinomy)),
             ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
@@ -66,7 +70,7 @@ impl ForgeEnvironmentService {
                     provider
                 })
             })
-            .unwrap_or_else(|| panic!("No API key found. Please set one of: {env_variables}"))
+            .unwrap_or_else(|| panic!("No API key found. Please set one of: {env_variables} or enable mock mode with FORGE_MOCK=true"))
     }
 
     /// Resolves retry configuration from environment variables or returns

@@ -12,7 +12,27 @@ const MAX_RETRIES: usize = 5;
 /// Check if API tests should run based on environment variable
 fn should_run_api_tests() -> bool {
     dotenv::dotenv().ok();
+
+    // If FORGE_MOCK is set to true, we can always run the tests
+    if let Ok(mock_mode) = env::var("FORGE_MOCK") {
+        if mock_mode.to_lowercase() == "true" {
+            return true;
+        }
+    }
+
+    // Otherwise, only run if RUN_API_TESTS is set
     env::var("RUN_API_TESTS").is_ok()
+}
+
+/// Check if we should update the mock data
+fn should_update_mock_data() -> bool {
+    dotenv::dotenv().ok();
+
+    if let Ok(update_mock) = env::var("FORGE_MOCK_UPDATE") {
+        update_mock.to_lowercase() == "true"
+    } else {
+        false
+    }
 }
 
 /// Test fixture for API testing that supports parallel model validation
@@ -33,6 +53,28 @@ impl Fixture {
 
     /// Get the API service, panicking if not validated
     fn api(&self) -> impl API {
+        // Set up environment variables for mock mode if not already set
+        if env::var("FORGE_MOCK").is_err() {
+            env::set_var("FORGE_MOCK", "true");
+        }
+
+        // Set up the mock directory if not already set
+        if env::var("FORGE_MOCK_DIR").is_err() {
+            let mock_dir = std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join("tests")
+                .join("mock_data");
+
+            // Create the directory if it doesn't exist
+            if !mock_dir.exists() {
+                std::fs::create_dir_all(&mock_dir).unwrap_or_else(|e| {
+                    panic!("Failed to create mock data directory: {}", e);
+                });
+            }
+
+            env::set_var("FORGE_MOCK_DIR", mock_dir.to_string_lossy().to_string());
+        }
+
         // NOTE: In tests the CWD is not the project root
         ForgeAPI::init(true)
     }
@@ -104,10 +146,23 @@ macro_rules! generate_model_test {
         async fn test_find_cat_name() {
             if !should_run_api_tests() {
                 println!(
-                    "Skipping API test for {} as RUN_API_TESTS is not set to 'true'",
+                    "Skipping API test for {} as neither FORGE_MOCK=true nor RUN_API_TESTS=true is set",
                     $model
                 );
                 return;
+            }
+
+            // If we're in update mode, let the user know
+            if should_update_mock_data() {
+                println!(
+                    "Running test for {} in mock update mode - will record real API responses",
+                    $model
+                );
+            } else {
+                println!(
+                    "Running test for {} using mock data",
+                    $model
+                );
             }
 
             let fixture = Fixture::new(ModelId::new($model));
