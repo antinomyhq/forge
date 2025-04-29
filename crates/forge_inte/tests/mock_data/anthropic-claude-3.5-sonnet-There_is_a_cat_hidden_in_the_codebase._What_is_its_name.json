@@ -1,0 +1,81 @@
+{
+  "model": "anthropic/claude-3.5-sonnet",
+  "messages": [
+    {
+      "content": {
+        "Part": {
+          "0": "I'll search through the codebase to find information about a cat."
+        }
+      },
+      "tool_calls": [],
+      "finish_reason": null,
+      "usage": null
+    },
+    {
+      "content": {
+        "Part": {
+          "0": "I need to use the file search tool to look for files that might contain information about a cat."
+        }
+      },
+      "tool_calls": [
+        {
+          "name": "forge_tool_fs_search",
+          "arguments": {
+            "pattern": "cat",
+            "include_hidden": false
+          },
+          "call_id": "call_01"
+        }
+      ],
+      "finish_reason": null,
+      "usage": null
+    },
+    {
+      "content": {
+        "Part": {
+          "0": "Now I'll look for files that might contain the word 'juniper' since that could be a cat name."
+        }
+      },
+      "tool_calls": [
+        {
+          "name": "forge_tool_fs_search",
+          "arguments": {
+            "pattern": "juniper",
+            "include_hidden": false
+          },
+          "call_id": "call_02"
+        }
+      ],
+      "finish_reason": null,
+      "usage": null
+    },
+    {
+      "content": {
+        "Part": {
+          "0": "I found a reference to a cat named Juniper in the codebase. Let me read the file to confirm."
+        }
+      },
+      "tool_calls": [
+        {
+          "name": "forge_tool_fs_read",
+          "arguments": {
+            "path": "tests/cat.md"
+          },
+          "call_id": "call_03"
+        }
+      ],
+      "finish_reason": null,
+      "usage": null
+    },
+    {
+      "content": {
+        "Part": {
+          "0": "After searching through the codebase, I found that the cat's name is Juniper. This information was found in a file called 'cat.md' in the tests directory."
+        }
+      },
+      "tool_calls": [],
+      "finish_reason": "Stop",
+      "usage": null
+    }
+  ]
+}

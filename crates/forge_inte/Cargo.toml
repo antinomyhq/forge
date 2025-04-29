@@ -3,6 +3,15 @@ name = "forge_inte"
 version = "0.1.0"
 edition = "2021"
 
+# Include the mock_data directory in the package
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+    "tests/mock_data/**/*.json",
+    "tests/mock_data/README.md",
+    "tests/cat.md"
+]
+
 [dev-dependencies]
 anyhow.workspace = true
 forge_api.workspace = true
