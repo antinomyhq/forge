@@ -15,6 +15,64 @@ use crate::TRACKER;
 const PACKAGE_NAME: &str = "@antinomyhq/forge";
 
 /// Runs npm update in the background, failing silently
+struct UpdateUI {
+    spinner_chars: &'static str,
+    spinner_interval: Duration,
+}
+
+impl Default for UpdateUI {
+    fn default() -> Self {
+        Self {
+            spinner_chars: "⣾⣽⣻⢿⣿⡿⣯⣿",
+            spinner_interval: Duration::from_millis(100),
+        }
+    }
+}
+
+impl UpdateUI {
+    fn create_spinner(&self) -> ProgressBar {
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .tick_chars(self.spinner_chars)
+                .template("  {spinner} {msg}")
+                .unwrap()
+        );
+        pb.enable_steady_tick(self.spinner_interval);
+        pb
+    }
+
+    fn show_version_prompt(&self, version: &str, latest_version: &str) {
+        println!(
+            "\n  {} {} → {}",
+            "A new version is available:".bright_black(),
+            version,
+            latest_version.bright_cyan().bold()
+        );
+    }
+
+    fn show_success(&self) {
+        println!(
+            "  {} {}",
+            "✓".green(),
+            "Update installed successfully".bright_black()
+        );
+    }
+
+    fn show_error(&self, err: &str) {
+        eprint!(
+            "  {} {}",
+            "✗".red(),
+            "Update installation failed".red()
+        );
+        eprintln!(
+            "\n  {}",
+            err.bright_black()
+        );
+    }
+}
+
+/// Runs npm update in the background, failing silently
 pub async fn update_forge(update_info: Updates) {
     // Check if version is development version, in which case we skip the update
     if VERSION.contains("dev") || VERSION == "0.1.0" {
@@ -23,6 +81,7 @@ pub async fn update_forge(update_info: Updates) {
     }
 
     // Configure the update informer with the registry and package name
+    let ui = UpdateUI::default();
     let informer = update_informer::new(registry::Npm, PACKAGE_NAME, VERSION).interval(
         update_info
             .check_frequency()
@@ -32,56 +91,30 @@ pub async fn update_forge(update_info: Updates) {
     );
 
     if let Ok(Some(latest_version)) = informer.check_version() {
-        println!(
-            "{}",
-            "\n🔄 Forge Update Available".bright_cyan().bold()
-        );
-        println!(
-            "Current version: {}   Latest: {}",
-            format!("v{}", VERSION).yellow(),
-            latest_version.to_string().green().bold()
-        );
-        println!("{}", "―――――――――――――――――――――――――――".bright_black());
-
-        // Skip asking for update if auto update is allowed
         let auto_update_allowed = update_info.auto_update().unwrap_or_default();
-        if !auto_update_allowed
-            && !Confirm::new(&"Would you like to update now?".cyan())
-                .with_default(false)
+        if !auto_update_allowed {
+            ui.show_version_prompt(VERSION, &latest_version.to_string());
+
+            if !Confirm::new(&"  Would you like to install the update?".bright_cyan())
+                .with_default(true)
                 .prompt()
                 .unwrap_or_default()
-        {
-            return;
+            {
+                return;
+            }
         }
 
-        // Create a progress bar
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
-                .template("{spinner:.cyan} {msg}")
-                .unwrap(),
-        );
-        pb.set_message("Starting update process...".to_string());
-        pb.enable_steady_tick(Duration::from_millis(80));
+        let pb = ui.create_spinner();
+        pb.set_message("Installing update...".to_string());
 
-        // Spawn a new task that won't block the main application
         match perform_update().await {
             Ok(_) => {
-                pb.finish_with_message("✨ Update completed!".green().to_string());
-                println!(
-                    "{}",
-                    format!("Successfully updated Forge to {}", latest_version).green().bold()
-                );
+                pb.finish_and_clear();
+                ui.show_success();
             }
             Err(err) => {
-                pb.finish_with_message("Update failed".red().to_string());
-                eprintln!(
-                    "{} {}",
-                    "❌ Error:".red().bold(),
-                    err.to_string().red()
-                );
-                // Send an event to the tracker on failure
+                pb.finish_and_clear();
+                ui.show_error(&err.to_string());
                 let _ = send_update_failure_event(&format!("Auto update failed: {err}")).await;
             }
         }
