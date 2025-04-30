@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
+use merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -81,6 +82,14 @@ impl Conversation {
     }
 
     pub fn new(id: ConversationId, workflow: Workflow) -> Self {
+        // Merge the workflow with the default workflow
+        let mut base_workflow = Workflow::default();
+        base_workflow.merge(workflow);
+
+        Self::new_inner(id, base_workflow)
+    }
+
+    fn new_inner(id: ConversationId, workflow: Workflow) -> Self {
         let mut agents = Vec::new();
 
         for mut agent in workflow.agents.into_iter() {
@@ -296,7 +305,7 @@ mod tests {
         let workflow = Workflow::new();
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), workflow);
+        let conversation = super::Conversation::new_inner(id.clone(), workflow);
 
         // Assert
         assert_eq!(conversation.id, id);
@@ -318,7 +327,7 @@ mod tests {
         let workflow = Workflow::new().variables(variables.clone());
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), workflow);
+        let conversation = super::Conversation::new_inner(id.clone(), workflow);
 
         // Assert
         assert_eq!(conversation.id, id);
@@ -341,7 +350,7 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), workflow);
+        let conversation = super::Conversation::new_inner(id.clone(), workflow);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -381,7 +390,7 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), workflow);
+        let conversation = super::Conversation::new_inner(id.clone(), workflow);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -441,7 +450,7 @@ mod tests {
             .commands(commands.clone());
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), workflow);
+        let conversation = super::Conversation::new_inner(id.clone(), workflow);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -507,7 +516,7 @@ mod tests {
             .commands(commands.clone());
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), workflow);
+        let conversation = super::Conversation::new_inner(id.clone(), workflow);
 
         // Assert
         let main_agent = conversation
@@ -535,7 +544,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
-        let conversation = super::Conversation::new(id, workflow);
+        let conversation = super::Conversation::new_inner(id, workflow);
 
         // Act
         let model_id = conversation.main_model().unwrap();
@@ -552,7 +561,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![agent]);
 
-        let conversation = super::Conversation::new(id, workflow);
+        let conversation = super::Conversation::new_inner(id, workflow);
 
         // Act
         let result = conversation.main_model();
@@ -570,7 +579,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
-        let conversation = super::Conversation::new(id, workflow);
+        let conversation = super::Conversation::new_inner(id, workflow);
 
         // Act
         let result = conversation.main_model();
@@ -587,7 +596,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
-        let mut conversation = super::Conversation::new(id, workflow);
+        let mut conversation = super::Conversation::new_inner(id, workflow);
 
         // Act
         let result = conversation.set_main_model(ModelId::new("new-model"));
@@ -606,7 +615,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![agent]);
 
-        let mut conversation = super::Conversation::new(id, workflow);
+        let mut conversation = super::Conversation::new_inner(id, workflow);
 
         // Act
         let result = conversation.set_main_model(ModelId::new("new-model"));
@@ -627,7 +636,7 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), workflow);
+        let conversation = super::Conversation::new_inner(id.clone(), workflow);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -654,7 +663,7 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), workflow);
+        let conversation = super::Conversation::new_inner(id.clone(), workflow);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);

@@ -1,8 +1,8 @@
-use serde_json::Value;
+use std::path::Path;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
-    ConversationId, Environment, Model, ModelId, ResultStream, Tool, ToolCallContext, ToolCallFull,
+    ConversationId, Environment, File, Model, ModelId, ResultStream, Tool, ToolCallContext, ToolCallFull,
     ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
@@ -40,16 +40,6 @@ pub trait ConversationService: Send + Sync {
 
     async fn create(&self, workflow: Workflow) -> anyhow::Result<Conversation>;
 
-    async fn get_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<Option<Value>>;
-
-    async fn set_variable(
-        &self,
-        id: &ConversationId,
-        key: String,
-        value: Value,
-    ) -> anyhow::Result<()>;
-    async fn delete_variable(&self, id: &ConversationId, key: &str) -> anyhow::Result<bool>;
-
     /// This is useful when you want to perform several operations on a
     /// conversation atomically.
     async fn update<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
@@ -80,6 +70,29 @@ pub trait EnvironmentService: Send + Sync {
     fn get_environment(&self) -> Environment;
 }
 
+#[async_trait::async_trait]
+pub trait WorkflowService {
+    /// Reads the workflow from the given path
+    async fn read(&self, path: &Path) -> anyhow::Result<Workflow>;
+
+    /// Writes the given workflow to the specified path
+    async fn write(&self, path: &Path, workflow: &Workflow) -> anyhow::Result<()>;
+
+    /// Updates the workflow at the given path using the provided closure
+    ///
+    /// The closure receives a mutable reference to the workflow, which can be
+    /// modified. After the closure completes, the updated workflow is
+    /// written back to the same path.
+    async fn update_workflow<F>(&self, path: &Path, f: F) -> anyhow::Result<Workflow>
+    where
+        F: FnOnce(&mut Workflow) + Send;
+}
+
+#[async_trait::async_trait]
+pub trait SuggestionService: Send + Sync {
+    async fn suggestions(&self) -> anyhow::Result<Vec<File>>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -91,6 +104,8 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AttachmentService: AttachmentService;
     type EnvironmentService: EnvironmentService;
     type CompactionService: CompactionService;
+    type WorkflowService: WorkflowService;
+    type SuggestionService: SuggestionService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -99,4 +114,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn attachment_service(&self) -> &Self::AttachmentService;
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn compaction_service(&self) -> &Self::CompactionService;
+    fn workflow_service(&self) -> &Self::WorkflowService;
+    fn suggestion_service(&self) -> &Self::SuggestionService;
 }

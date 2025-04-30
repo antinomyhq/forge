@@ -41,6 +41,8 @@ base64.workspace = true
 strum_macros.workspace = true
 bytes.workspace = true
 console.workspace = true
+serde_yml.workspace = true
+merge.workspace = true
 rmcp.workspace = true
 
 [dev-dependencies]

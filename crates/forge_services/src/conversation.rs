@@ -6,7 +6,6 @@ use forge_domain::{
     AgentId, CompactionResult, CompactionService, Conversation, ConversationId,
     ConversationService, Workflow,
 };
-use serde_json::Value;
 use tokio::sync::Mutex;
 
 /// Service for managing conversations, including creation, retrieval, and
@@ -59,21 +58,6 @@ impl<C: CompactionService> ConversationService for ForgeConversationService<C> {
             .await
             .insert(id.clone(), conversation.clone());
         Ok(conversation)
-    }
-
-    async fn get_variable(&self, id: &ConversationId, key: &str) -> Result<Option<Value>> {
-        self.update(id, |c| c.get_variable(key).cloned()).await
-    }
-
-    async fn set_variable(&self, id: &ConversationId, key: String, value: Value) -> Result<()> {
-        self.update(id, |c| {
-            c.set_variable(key, value);
-        })
-        .await
-    }
-
-    async fn delete_variable(&self, id: &ConversationId, key: &str) -> Result<bool> {
-        self.update(id, |c| c.delete_variable(key)).await
     }
 
     async fn compact_conversation(&self, id: &ConversationId) -> Result<CompactionResult> {

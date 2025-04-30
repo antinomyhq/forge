@@ -73,12 +73,25 @@ impl<F: Infrastructure> FSRead<F> {
         end_char: u64,
         file_info: &forge_fs::FileInfo,
     ) -> anyhow::Result<()> {
+        // Determine if the user requested an explicit range
+        let is_explicit_range = input.start_char.is_some() | input.end_char.is_some();
+
+        // Determine if the file is larger than the limit and needs truncation
+        let is_truncated = file_info.total_chars > end_char;
+
+        // Determine if range information is relevant to display
+        let is_range_relevant = is_explicit_range || is_truncated;
+
         // Set the title based on whether this was an explicit user range request
-        // or an automatic limit for large files
-        let title = if input.start_char.is_some() | input.end_char.is_some() {
+        // or an automatic limit for large files that actually needed truncation
+        let title = if is_explicit_range {
             "Read (Range)"
-        } else {
+        } else if is_truncated {
+            // Only show "Auto-Limited" if the file was actually truncated
             "Read (Auto-Limited)"
+        } else {
+            // File was smaller than the limit, so no truncation occurred
+            "Read"
         };
 
         let end_info = max(end_char, file_info.total_chars);
@@ -91,7 +104,19 @@ impl<F: Infrastructure> FSRead<F> {
         // Format a response with metadata
         let display_path = self.format_display_path(path)?;
 
-        let message = TitleFormat::new(title).sub_title(format!("{display_path} ({range_info})"));
+        // Build the subtitle conditionally using a string buffer
+        let mut subtitle = String::new();
+
+        // Always include the file path
+        subtitle.push_str(&display_path);
+
+        // Add range info if relevant
+        if is_range_relevant {
+            // Add range info for explicit ranges or truncated files
+            subtitle.push_str(&format!(" ({range_info})"));
+        }
+
+        let message = TitleFormat::new(title).sub_title(subtitle);
 
         // Send the formatted message
         context.send_text(message.format()).await?;
@@ -120,11 +145,34 @@ impl<F: Infrastructure> FSRead<F> {
         self.create_and_send_title(&context, &input, path, start_char, end_char, &file_info)
             .await?;
 
+        // Determine if the user requested an explicit range
+        let is_explicit_range = input.start_char.is_some() | input.end_char.is_some();
+
+        // Determine if the file is larger than the limit and needs truncation
+        let is_truncated = file_info.total_chars > end_char;
+
+        // Determine if range information is relevant to display
+        let is_range_relevant = is_explicit_range || is_truncated;
+
         // Format response with metadata header
-        Ok(format!(
-            "---\n\nchar_range: {}-{}\ntotal_chars: {}\n---\n{}",
-            file_info.start_char, file_info.end_char, file_info.total_chars, content
-        ))
+        // Use a buffer to build the response text conditionally
+        let mut response = String::new();
+
+        if is_range_relevant {
+            // Add metadata header for explicit ranges or truncated files
+            response.push_str("---\n\n");
+            response.push_str(&format!(
+                "char_range: {}-{}\n",
+                file_info.start_char, file_info.end_char
+            ));
+            response.push_str(&format!("total_chars: {}\n", file_info.total_chars));
+            response.push_str("---\n");
+        }
+
+        // Always include the content
+        response.push_str(&content);
+
+        Ok(response)
     }
 }
 

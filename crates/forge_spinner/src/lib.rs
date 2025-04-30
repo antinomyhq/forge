@@ -19,7 +19,7 @@ impl SpinnerManager {
     }
 
     /// Start the spinner with a message
-    pub fn start(&mut self) -> Result<()> {
+    pub fn start(&mut self, message: Option<&str>) -> Result<()> {
         self.stop(None)?;
 
         let words = [
@@ -34,7 +34,10 @@ impl SpinnerManager {
         ];
 
         // Use a random word from the list
-        let word = words.choose(&mut rand::thread_rng()).unwrap_or(&words[0]);
+        let word = match message {
+            None => words.choose(&mut rand::thread_rng()).unwrap_or(&words[0]),
+            Some(msg) => msg,
+        };
 
         // Store the base message without styling for later use with the timer
         self.message = Some(word.to_string());

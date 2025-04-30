@@ -6,27 +6,15 @@ use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::{CommandExecutorService, ForgeServices, Infrastructure};
 use forge_stream::MpscStream;
-use serde_json::Value;
-
-use crate::executor::ForgeExecutorService;
-use crate::loader::ForgeLoaderService;
-use crate::suggestion::ForgeSuggestionService;
+use tracing::error;
 
 pub struct ForgeAPI<F> {
     app: Arc<F>,
-    executor_service: ForgeExecutorService<F>,
-    suggestion_service: ForgeSuggestionService<F>,
-    loader: ForgeLoaderService<F>,
 }
 
 impl<F: Services + Infrastructure> ForgeAPI<F> {
     pub fn new(app: Arc<F>) -> Self {
-        Self {
-            app: app.clone(),
-            executor_service: ForgeExecutorService::new(app.clone()),
-            suggestion_service: ForgeSuggestionService::new(app.clone()),
-            loader: ForgeLoaderService::new(app.clone()),
-        }
+        Self { app: app.clone() }
     }
 }
 
@@ -41,7 +29,7 @@ impl ForgeAPI<ForgeServices<ForgeInfra>> {
 #[async_trait::async_trait]
 impl<F: Services + Infrastructure> API for ForgeAPI<F> {
     async fn suggestions(&self) -> Result<Vec<File>> {
-        self.suggestion_service.suggestions().await
+        self.app.suggestion_service().suggestions().await
     }
 
     async fn tools(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
@@ -56,10 +44,28 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         &self,
         chat: ChatRequest,
     ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
-        Ok(self.executor_service.chat(chat).await?)
+        let app = self.app.clone();
+        let conversation = app
+            .conversation_service()
+            .find(&chat.conversation_id)
+            .await
+            .unwrap_or_default()
+            .expect("conversation for the request should've been created at this point.");
+
+        Ok(MpscStream::spawn(move |tx| async move {
+            let tx = Arc::new(tx);
+
+            let orch = Orchestrator::new(app, conversation, Some(tx.clone()));
+
+            if let Err(err) = orch.dispatch(chat.event).await {
+                if let Err(e) = tx.send(Err(err)).await {
+                    error!("Failed to send error to stream: {:#?}", e);
+                }
+            }
+        }))
     }
 
-    async fn init<W: Into<Workflow> + Send + Sync>(
+    async fn init_conversation<W: Into<Workflow> + Send + Sync>(
         &self,
         workflow: W,
     ) -> anyhow::Result<Conversation> {
@@ -89,9 +95,19 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .clone()
     }
 
-    async fn load(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        let workflow = self.loader.load(path).await?;
-        Ok(workflow)
+    async fn read_workflow(&self, path: &Path) -> anyhow::Result<Workflow> {
+        self.app.workflow_service().read(path).await
+    }
+
+    async fn write_workflow(&self, path: &Path, workflow: &Workflow) -> anyhow::Result<()> {
+        self.app.workflow_service().write(path, workflow).await
+    }
+
+    async fn update_workflow<T>(&self, path: &Path, f: T) -> anyhow::Result<Workflow>
+    where
+        T: FnOnce(&mut Workflow) + Send,
+    {
+        self.app.workflow_service().update_workflow(path, f).await
     }
 
     async fn conversation(
@@ -99,29 +115,6 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>> {
         self.app.conversation_service().find(conversation_id).await
-    }
-
-    async fn get_variable(
-        &self,
-        conversation_id: &ConversationId,
-        key: &str,
-    ) -> anyhow::Result<Option<Value>> {
-        self.app
-            .conversation_service()
-            .get_variable(conversation_id, key)
-            .await
-    }
-
-    async fn set_variable(
-        &self,
-        conversation_id: &ConversationId,
-        key: String,
-        value: Value,
-    ) -> anyhow::Result<()> {
-        self.app
-            .conversation_service()
-            .set_variable(conversation_id, key, value)
-            .await
     }
 
     async fn execute_shell_command(

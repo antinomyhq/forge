@@ -207,7 +207,8 @@ pub struct Input {
 /// occurrence. Ideal for precise changes to configs, code, or docs while
 /// preserving context. Not suitable for complex refactoring or modifying all
 /// pattern occurrences - use forge_tool_fs_create instead for complete
-/// rewrites. Fails if search pattern isn't found.
+/// rewrites and forge_tool_fs_undo for undoing the last operation. Fails if
+/// search pattern isn't found.
 #[derive(ToolDescription)]
 pub struct ApplyPatchJson<F>(Arc<F>);
 

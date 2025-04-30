@@ -1,17 +1,16 @@
 commands:
-  - name: fixme
-    description: Looks for all the fixme comments in the code and attempts to fix them
-    prompt: |-
-      Find all the FIXME comments in source-code files and attempt to fix them.
-  - name: pr-description
-    description: Updates the description of the PR
-    prompt: |-
-      - I have created a Pull Request with all the accepted changes
-      - Understand the current PR deeply using the GH CLI and update the PR title and description
-      - Make sure the title follows conventional commits standard
-      - Top-level summary should contain 2-3 lines about the core functionality improvements
+- name: fixme
+  description: Looks for all the fixme comments in the code and attempts to fix them
+  prompt: Find all the FIXME comments in source-code files and attempt to fix them.
+- name: pr-description
+  description: Updates the description of the PR
+  prompt: |-
+    - I have created a Pull Request with all the accepted changes
+    - Understand the current PR deeply using the GH CLI and update the PR title and description
+    - Make sure the title follows conventional commits standard
+    - Top-level summary should contain 2-3 lines about the core functionality improvements
+model: anthropic/claude-3.7-sonnet
 max_walker_depth: 1024
-tool_supported: false
 custom_rules: |-
   Handling Errors:
 
@@ -47,7 +46,7 @@ custom_rules: |-
   Running Tests:
   - We use `insta` to run tests:
   ```
-  cargo insta test --accept --unreferenced=delete       
+  cargo insta test --accept --unreferenced=delete
   ```
 
   Verification:
@@ -62,3 +61,4 @@ custom_rules: |-
 
   Refactoring:
   - If asked to fix failing tests, always confirm whether to update the implementation or the tests.
+tool_supported: false

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -64,7 +65,9 @@ impl<F: API> UI<F> {
         if let Some(models) = &self.state.cached_models {
             Ok(models.clone())
         } else {
+            self.spinner.start(Some("Loading Models"))?;
             let models = self.api.models().await?;
+            self.spinner.stop(None)?;
             self.state.cached_models = Some(models.clone());
             Ok(models)
         }
@@ -88,13 +91,11 @@ impl<F: API> UI<F> {
         // Override the mode that was reset by the conversation
         self.state.mode = mode.clone();
 
-        self.api
-            .set_variable(
-                &conversation_id,
-                "mode".to_string(),
-                Value::from(mode.to_string()),
-            )
-            .await?;
+        // Retrieve the conversation, update it, and save it back
+        if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
+            conversation.set_variable("mode".to_string(), Value::from(mode.to_string()));
+            self.api.upsert_conversation(conversation).await?;
+        }
 
         println!(
             "{}",
@@ -151,7 +152,21 @@ impl<F: API> UI<F> {
         self.console.prompt(Some(self.state.clone().into())).await
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) {
+        match self.run_inner().await {
+            Ok(_) => {}
+            Err(error) => {
+                println!(
+                    "{}",
+                    TitleFormat::action("Error")
+                        .error(format!("{error:?}"))
+                        .format()
+                );
+            }
+        }
+    }
+
+    async fn run_inner(&mut self) -> Result<()> {
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
             return self.handle_dispatch(dispatch_json).await;
@@ -165,8 +180,8 @@ impl<F: API> UI<F> {
         }
 
         // Display the banner in dimmed colors since we're in interactive mode
-        self.init_conversation().await?;
         banner::display()?;
+        self.init_conversation().await?;
 
         // Get initial input from file or prompt
         let mut input = match &self.cli.command {
@@ -177,7 +192,7 @@ impl<F: API> UI<F> {
         loop {
             match input {
                 Command::Compact => {
-                    self.spinner.start()?;
+                    self.spinner.start(Some("Compacting"))?;
                     let conversation_id = self.init_conversation().await?;
                     let compaction_result = self.api.compact_conversation(&conversation_id).await?;
 
@@ -202,7 +217,7 @@ impl<F: API> UI<F> {
                     println!("{info}");
                 }
                 Command::Message(ref content) => {
-                    self.spinner.start()?;
+                    self.spinner.start(None)?;
                     let chat_result = self.chat(content.clone()).await;
                     if let Err(err) = chat_result {
                         tokio::spawn(
@@ -272,8 +287,10 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
-    // Helper method to handle model selection and update the conversation
-    async fn handle_model_selection(&mut self) -> Result<()> {
+    /// Select a model from the available models
+    /// Returns Some(ModelId) if a model was selected, or None if selection was
+    /// canceled
+    async fn select_model(&mut self) -> Result<Option<ModelId>> {
         // Fetch available models
         let models = self.get_models().await?;
 
@@ -295,18 +312,37 @@ impl<F: API> UI<F> {
             .unwrap_or(0);
 
         // Use inquire to select a model, with the current model pre-selected
-        let model = match Select::new("Select a model:", model_ids)
+        match Select::new("Select a model:", model_ids)
             .with_help_message("Use arrow keys to navigate and Enter to select")
             .with_render_config(render_config)
             .with_starting_cursor(starting_cursor)
             .prompt()
         {
-            Ok(model) => model,
+            Ok(model) => Ok(Some(model)),
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                return Ok(())
+                // Return None if selection was canceled
+                Ok(None)
             }
-            Err(err) => return Err(err.into()),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    // Helper method to handle model selection and update the conversation
+    async fn handle_model_selection(&mut self) -> Result<()> {
+        // Select a model
+        let model_option = self.select_model().await?;
+
+        // If no model was selected (user canceled), return early
+        let model = match model_option {
+            Some(model) => model,
+            None => return Ok(()),
         };
+
+        self.api
+            .update_workflow(&self.workflow_path(), |workflow| {
+                workflow.model = Some(model.clone());
+            })
+            .await?;
 
         // Get the conversation to update
         let conversation_id = self.init_conversation().await?;
@@ -350,10 +386,22 @@ impl<F: API> UI<F> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
             None => {
-                let config = self.api.load(self.cli.workflow.as_deref()).await?;
+                // Select a model if workflow doesn't have one
+                let mut workflow = self.api.read_workflow(&self.workflow_path()).await?;
+                if workflow.model.is_none() {
+                    workflow.model = Some(
+                        self.select_model()
+                            .await?
+                            .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
+                    );
+                }
+
+                self.api
+                    .write_workflow(&self.workflow_path(), &workflow)
+                    .await?;
 
                 // Get the mode from the config
-                let mode = config
+                let mode = workflow
                     .variables
                     .get("mode")
                     .cloned()
@@ -361,7 +409,7 @@ impl<F: API> UI<F> {
                     .unwrap_or(Mode::Act);
 
                 self.state = UIState::new(mode);
-                self.command.register_all(&config);
+                self.command.register_all(&workflow);
 
                 // We need to try and get the conversation ID first before fetching the model
                 if let Some(ref path) = self.cli.conversation {
@@ -376,13 +424,23 @@ impl<F: API> UI<F> {
                     self.api.upsert_conversation(conversation).await?;
                     Ok(conversation_id)
                 } else {
-                    let conversation = self.api.init(config.clone()).await?;
+                    let conversation = self.api.init_conversation(workflow.clone()).await?;
                     self.state.model = Some(conversation.main_model()?);
                     self.state.conversation_id = Some(conversation.id.clone());
                     Ok(conversation.id)
                 }
             }
         }
+    }
+
+    fn workflow_path(&self) -> PathBuf {
+        let path: PathBuf = self
+            .cli
+            .workflow
+            .as_ref()
+            .unwrap_or(&PathBuf::from("forge.yaml"))
+            .clone();
+        path
     }
 
     async fn chat(&mut self, content: String) -> Result<()> {
@@ -503,7 +561,7 @@ impl<F: API> UI<F> {
                 self.spinner.stop(None)?;
             }
             ChatResponse::ToolCallEnd(_) => {
-                self.spinner.start()?;
+                self.spinner.start(None)?;
                 if !self.cli.verbose {
                     return Ok(());
                 }

@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
 
     let api = Arc::new(ForgeAPI::init(cli.restricted));
     let mut ui = UI::init(cli, api)?;
-    ui.run().await?;
+    ui.run().await;
 
     Ok(())
 }

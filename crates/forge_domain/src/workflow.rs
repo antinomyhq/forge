@@ -25,7 +25,7 @@ pub struct Workflow {
 
     /// Commands that can be used to interact with the workflow
     #[merge(strategy = crate::merge::vec::append)]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub commands: Vec<Command>,
 
     /// Default model ID to use for agents in this workflow
