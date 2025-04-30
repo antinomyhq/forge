@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use derive_setters::Setters;
 use merge::Merge;
@@ -67,7 +68,52 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub tool_supported: Option<bool>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub updates: Option<Updates>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum UpdateFrequency {
+    #[default]
+    #[serde(rename = "daily")]
+    Daily,
+    #[serde(rename = "weekly")]
+    Weekly,
+}
+
+impl UpdateFrequency {
+    pub fn to_duration(&self) -> Duration {
+        match self {
+            UpdateFrequency::Daily => Duration::from_secs(24 * 60 * 60),
+            UpdateFrequency::Weekly => Duration::from_secs(7 * 24 * 60 * 60),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Default)]
+pub struct Updates {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    check_frequency: Option<UpdateFrequency>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auto_update: Option<bool>,
+}
+
+impl Updates {
+    pub fn check_frequency(&self) -> Option<&UpdateFrequency> {
+        self.check_frequency.as_ref()
+    }
+
+    pub fn auto_update(&self) -> Option<bool> {
+        self.auto_update
+    }
+}
+
 
 impl Default for Workflow {
     fn default() -> Self {
@@ -102,6 +148,7 @@ impl Workflow {
             custom_rules: None,
             temperature: None,
             tool_supported: None,
+            updates: None,
         }
     }
 

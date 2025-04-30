@@ -153,6 +153,13 @@ impl<F: API> UI<F> {
     }
 
     pub async fn run(&mut self) {
+        let workflow = self
+            .api
+            .read_workflow(&self.workflow_path())
+            .await
+            .unwrap_or_default();
+        update_forge(workflow.updates.unwrap_or_default()).await;
+
         match self.run_inner().await {
             Ok(_) => {}
             Err(error) => {
@@ -250,8 +257,7 @@ impl<F: API> UI<F> {
                     println!("{output}");
                 }
                 Command::Exit => {
-                    update_forge().await;
-
+                    // no-op
                     break;
                 }
 

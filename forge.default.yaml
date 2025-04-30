@@ -7,6 +7,10 @@ models:
   - &advanced_model anthropic/claude-3.7-sonnet
   - &standard_model anthropic/claude-3.5-haiku
 
+updates:
+  check_frequency: "daily"
+  auto_update: false
+
 agents:
   - id: software-engineer
     compact:

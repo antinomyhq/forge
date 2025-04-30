@@ -1,24 +1,90 @@
 use std::process::Stdio;
+use std::time::Duration;
 
 use anyhow::Result;
+use colored::Colorize;
+use forge_api::Updates;
 use forge_tracker::{EventKind, VERSION};
+use indicatif::{ProgressBar, ProgressStyle};
+use inquire::Confirm;
 use tokio::process::Command;
+use update_informer::{registry, Check};
 
 use crate::TRACKER;
 
+const PACKAGE_NAME: &str = "@antinomyhq/forge";
+
 /// Runs npm update in the background, failing silently
-pub async fn update_forge() {
+pub async fn update_forge(update_info: Updates) {
     // Check if version is development version, in which case we skip the update
     if VERSION.contains("dev") || VERSION == "0.1.0" {
         // Skip update for development version 0.1.0
         return;
     }
 
-    // Spawn a new task that won't block the main application
-    if let Err(err) = perform_update().await {
-        // Send an event to the tracker on failure
-        // We don't need to handle this result since we're failing silently
-        let _ = send_update_failure_event(&format!("Auto update failed: {err}")).await;
+    // Configure the update informer with the registry and package name
+    let informer = update_informer::new(registry::Npm, PACKAGE_NAME, VERSION).interval(
+        update_info
+            .check_frequency()
+            .cloned()
+            .unwrap_or_default()
+            .to_duration(),
+    );
+
+    if let Ok(Some(latest_version)) = informer.check_version() {
+        println!(
+            "{}",
+            "\n🔄 Forge Update Available".bright_cyan().bold()
+        );
+        println!(
+            "Current version: {}   Latest: {}",
+            format!("v{}", VERSION).yellow(),
+            latest_version.to_string().green().bold()
+        );
+        println!("{}", "―――――――――――――――――――――――――――".bright_black());
+
+        // Skip asking for update if auto update is allowed
+        let auto_update_allowed = update_info.auto_update().unwrap_or_default();
+        if !auto_update_allowed
+            && !Confirm::new(&"Would you like to update now?".cyan())
+                .with_default(false)
+                .prompt()
+                .unwrap_or_default()
+        {
+            return;
+        }
+
+        // Create a progress bar
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+                .template("{spinner:.cyan} {msg}")
+                .unwrap(),
+        );
+        pb.set_message("Starting update process...".to_string());
+        pb.enable_steady_tick(Duration::from_millis(80));
+
+        // Spawn a new task that won't block the main application
+        match perform_update().await {
+            Ok(_) => {
+                pb.finish_with_message("✨ Update completed!".green().to_string());
+                println!(
+                    "{}",
+                    format!("Successfully updated Forge to {}", latest_version).green().bold()
+                );
+            }
+            Err(err) => {
+                pb.finish_with_message("Update failed".red().to_string());
+                eprintln!(
+                    "{} {}",
+                    "❌ Error:".red().bold(),
+                    err.to_string().red()
+                );
+                // Send an event to the tracker on failure
+                let _ = send_update_failure_event(&format!("Auto update failed: {err}")).await;
+            }
+        }
     }
 }
 
@@ -26,7 +92,7 @@ pub async fn update_forge() {
 async fn perform_update() -> Result<()> {
     // Run npm install command with stdio set to null to avoid any output
     let status = Command::new("npm")
-        .args(["update", "-g", "@antinomyhq/forge"])
+        .args(["update", "-g", PACKAGE_NAME])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
