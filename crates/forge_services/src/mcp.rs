@@ -252,8 +252,9 @@ mod tests {
     use std::sync::Arc;
 
     use forge_domain::{
-        CompactionResult, Conversation, ConversationId, ConversationService, McpServerConfig,
-        ToolCallContext, ToolCallFull, ToolName, Workflow,
+        CompactionResult, Conversation, ConversationId, ConversationService,
+        McpServerConfig, Tool, ToolCallContext, ToolCallFull, ToolName, ToolResult,
+        Workflow,
     };
     use rmcp::model::{CallToolResult, Content};
     use rmcp::transport::SseServer;
@@ -379,33 +380,31 @@ mod tests {
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0].name.strip_prefix(), "increment");
 
-        let one = mcp
-            .call(
-                ToolCallContext::default().mcp_servers(workflow.mcp_servers.clone().unwrap()),
-                ToolCallFull {
-                    name: ToolName::new("test-forgestrip-increment"),
-                    call_id: None,
-                    arguments: serde_json::json!({}),
-                },
-            )
-            .await
-            .unwrap();
-        let content = serde_json::from_str::<Vec<Content>>(&one.content).unwrap();
+        // Get the tool first using find_tool
+        let tool_name = ToolName::new("forgestrip-test-increment");
+        let tool = mcp.find_tool(&tool_name).await.unwrap();
+        
+        // Create context for the tool calls
+        let context = ToolCallContext::default().mcp_servers(workflow.mcp_servers.clone().unwrap());
+        
+        // First call to the tool's executable directly
+        let result = tool.executable.call(
+            context.clone(), 
+            serde_json::json!({})
+        ).await.unwrap();
+        
+        let content = serde_json::from_str::<Vec<Content>>(&result).unwrap();
         assert_eq!(content[0].as_text().unwrap().text, "1");
-        let two = mcp
-            .call(
-                ToolCallContext::default().mcp_servers(workflow.mcp_servers.unwrap()),
-                ToolCallFull {
-                    name: ToolName::new("test-forgestrip-increment"),
-                    call_id: None,
-                    arguments: serde_json::json!({}),
-                },
-            )
-            .await
-            .unwrap();
-        let content = serde_json::from_str::<Vec<Content>>(&two.content).unwrap();
-
+        
+        // Second call to the tool's executable
+        let result = tool.executable.call(
+            context,
+            serde_json::json!({})
+        ).await.unwrap();
+        
+        let content = serde_json::from_str::<Vec<Content>>(&result).unwrap();
         assert_eq!(content[0].as_text().unwrap().text, "2");
+        
         ct.cancel();
     }
 
