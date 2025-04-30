@@ -15,6 +15,7 @@ forge_snaps.workspace = true
 forge_spinner.workspace = true
 inquire.workspace = true
 serde_yml.workspace = true
+semver.workspace = true
 
 forge_fs.workspace = true
 tokio.workspace = true

@@ -67,3 +67,7 @@ agents:
       - plan/user_task_init
       - plan/user_task_update
     max_walker_depth: 1
+
+updates:
+  check_frequency: "daily"
+  auto_update: false

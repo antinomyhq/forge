@@ -43,4 +43,8 @@ impl Environment {
     pub fn snapshot_path(&self) -> PathBuf {
         self.base_path.join("snapshots")
     }
+
+    pub fn update_check_path(&self) -> PathBuf {
+        self.base_path.join(".last_update_check")
+    }
 }

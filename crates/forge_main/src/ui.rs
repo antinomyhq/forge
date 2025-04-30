@@ -17,7 +17,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 use tracing::error;
 
-use crate::auto_update::update_forge;
+use crate::auto_update::check_for_updates;
 use crate::cli::Cli;
 use crate::info::Info;
 use crate::input::Console;
@@ -168,6 +168,10 @@ impl<F: API> UI<F> {
 
     async fn run_inner(&mut self) -> Result<()> {
         // Check for dispatch flag first
+        if let Err(e) = check_for_updates(&self.api.environment()).await {
+            tracing::warn!("Failed to check for updates: {}", e);
+        }
+
         if let Some(dispatch_json) = self.cli.event.clone() {
             return self.handle_dispatch(dispatch_json).await;
         }
@@ -250,8 +254,6 @@ impl<F: API> UI<F> {
                     println!("{output}");
                 }
                 Command::Exit => {
-                    update_forge().await;
-
                     break;
                 }
 
