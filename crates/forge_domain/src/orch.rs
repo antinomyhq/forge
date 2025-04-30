@@ -135,9 +135,9 @@ impl<A: Services> Orchestrator<A> {
             .await?
             .into_iter()
             .filter(|tool| {
-                tool.name.as_str().starts_with("-forgestrip-") || allowed.contains(&tool.name)
+                allowed.contains(&tool.name) || tool.name.as_str().starts_with(FORGE_STRIP)
             })
-            .collect())
+            .collect::<Vec<_>>())
     }
 
     async fn set_system_prompt(

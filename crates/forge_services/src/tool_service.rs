@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use tokio::time::{Duration, timeout};
+use tracing::{debug, error};
+
 use forge_domain::{
     ConversationId, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult,
     ToolService,
 };
-use tokio::time::{timeout, Duration};
-use tracing::{debug, error};
 
-use crate::tools::ToolRegistry;
 use crate::Infrastructure;
+use crate::tools::ToolRegistry;
 
 // Timeout duration for tool calls
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -42,7 +43,7 @@ impl<M: ToolService + 'static> ForgeToolService<M> {
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
 
-        let output = match self.find_tool(&name) {
+        let output = match self.find_tool(&name).await {
             Some(tool) => {
                 // Wrap tool call with timeout
                 match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
@@ -99,8 +100,12 @@ impl<M: ToolService + 'static> ForgeToolService<M> {
         Ok(tools)
     }
 
-    fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
-        self.tools.get(name).or_else(|| self.mcp.find_tool(name))
+    async fn find_tool(&self, name: &ToolName) -> Option<Tool> {
+        if let Some(tool) = self.tools.get(name).cloned() {
+            Some(tool)
+        } else {
+            self.mcp.find_tool(name).await
+        }
     }
 }
 
@@ -115,25 +120,21 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
     }
 
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
-        Ok(self
-            .list(conversation_id)
-            .await?
-            .into_iter()
-            .chain(self.mcp.list(conversation_id).await?.into_iter())
-            .collect::<Vec<_>>())
+        self.list(conversation_id).await
     }
 
-    fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
-        self.find_tool(name)
+    async fn find_tool(&self, name: &ToolName) -> Option<Tool> {
+        self.find_tool(name).await
     }
 }
 
 #[cfg(test)]
 mod test {
     use anyhow::bail;
-    use forge_domain::{Tool, ToolCallContext, ToolCallId, ToolDefinition};
     use serde_json::{json, Value};
     use tokio::time;
+
+    use forge_domain::{Tool, ToolCallContext, ToolCallId, ToolDefinition};
 
     use super::*;
 
@@ -156,7 +157,7 @@ mod test {
             Ok(vec![])
         }
 
-        fn find_tool(&self, _name: &ToolName) -> Option<&Tool> {
+        async fn find_tool(&self, _name: &ToolName) -> Option<&Tool> {
             None
         }
     }
@@ -274,7 +275,7 @@ mod test {
         let service = new_tool_service();
 
         // Test getting an existing tool
-        let success_tool = service.find_tool(&ToolName::new("success_tool"));
+        let success_tool = service.find_tool(&ToolName::new("success_tool")).await;
         assert!(success_tool.is_some());
         assert_eq!(
             success_tool.unwrap().definition.name.as_str(),
@@ -282,7 +283,7 @@ mod test {
         );
 
         // Test getting a non-existent tool
-        let nonexistent_tool = service.find_tool(&ToolName::new("nonexistent_tool"));
+        let nonexistent_tool = service.find_tool(&ToolName::new("nonexistent_tool")).await;
         assert!(nonexistent_tool.is_none());
     }
 

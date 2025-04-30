@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{
-    ConversationId, ConversationService, McpServerConfig, McpServers, Tool, ToolCallContext,
-    ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
-};
+use forge_domain::{ConversationId, ConversationService, ExecutableTool, McpServerConfig, McpServers, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService};
 use futures::FutureExt;
 use rmcp::model::{
     CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam,
@@ -45,14 +42,14 @@ impl RunnableService {
 /// when we add actual server functionality.
 #[derive(Clone)]
 pub struct ForgeMcpService<C> {
-    servers: Arc<Mutex<HashMap<ToolName, Server>>>,
+    tools: Arc<Mutex<HashMap<ToolName, Tool>>>,
     conversation_service: Arc<C>,
 }
 
 impl<C: ConversationService> ForgeMcpService<C> {
     pub fn new(conversation_service: Arc<C>) -> Self {
         Self {
-            servers: Arc::new(Mutex::new(HashMap::new())),
+            tools: Arc::new(Mutex::new(HashMap::new())),
             conversation_service,
         }
     }
@@ -70,10 +67,13 @@ impl<C: ConversationService> ForgeMcpService<C> {
         tools: ListToolsResult,
         client: Arc<RunnableService>,
     ) -> anyhow::Result<()> {
-        let mut lock = self.servers.lock().await;
+        let mut lock = self.tools.lock().await;
         for tool in tools.tools.into_iter() {
             let server = Server::new(server_name.to_string(), tool.clone(), client.clone())?;
-            lock.insert(server.tool_definition.name.clone(), server);
+            lock.insert(server.tool_definition.name.clone(), Tool {
+                definition: server.tool_definition.clone(),
+                executable: Arc::new(server),
+            });
         }
 
         Ok(())
@@ -131,9 +131,9 @@ impl<C: ConversationService> ForgeMcpService<C> {
             mcp.iter()
                 .map(|(server_name, server)| async move {
                     if self
-                        .servers
+                        .tools
                         .lock()
-                        .map(|v| v.values().any(|v| v.server_name.eq(server_name)))
+                        .map(|v| v.values().any(|v| v.definition.name.as_str().eq(server_name)))
                         .await
                     {
                         None
@@ -146,7 +146,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
                 // TODO: use flatten function provided by FuturesExt
                 .collect::<Vec<_>>(),
         )
-        .await;
+            .await;
 
         http_results
             .into_iter()
@@ -156,35 +156,8 @@ impl<C: ConversationService> ForgeMcpService<C> {
             .map_or(Ok(()), Err)
     }
 
-    async fn call(&self, ctx: ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolResult> {
-        if ctx.mcp_servers.is_empty() {
-            return Err(anyhow::anyhow!("MCP config not defined in the workspace."));
-        }
-        self.init_mcp(ctx.mcp_servers).await?;
-
-        let tool_name = ToolName::new(call.name);
-        let servers = self.servers.lock().await;
-        if let Some(server) = servers.get(&tool_name) {
-            let result = server
-                .client
-                .call_tool(CallToolRequestParam {
-                    name: Cow::Owned(tool_name.strip_prefix()),
-                    arguments: call.arguments.as_object().cloned(),
-                })
-                .await?;
-
-            Ok(ToolResult {
-                name: tool_name,
-                call_id: call.call_id.clone(),
-                content: serde_json::to_string(&result.content)?,
-                is_error: result.is_error.unwrap_or_default(),
-            })
-        } else {
-            Err(anyhow::anyhow!(
-                "MCP server {} not found",
-                tool_name.as_str()
-            ))
-        }
+    async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> anyhow::Result<ToolResult> {
+        unreachable!();
     }
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
         let mcp = self
@@ -198,19 +171,19 @@ impl<C: ConversationService> ForgeMcpService<C> {
             self.init_mcp(mcp)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to init mcp: {e}"))?;
-            self.servers
+            self.tools
                 .lock()
                 .await
                 .values()
-                .map(|server| Ok(server.tool_definition.clone()))
+                .map(|tool| Ok(tool.definition.clone()))
                 .collect()
         } else {
             Ok(vec![])
         }
     }
 
-    fn find_tool(&self, _name: &ToolName) -> Option<&Tool> {
-        todo!()
+    async fn find_tool(&self, name: &ToolName) -> Option<Tool> {
+        self.tools.lock().await.get(name).cloned()
     }
 }
 
@@ -223,13 +196,12 @@ impl<C: ConversationService> ToolService for ForgeMcpService<C> {
         self.list(conversation_id).await
     }
 
-    fn find_tool(&self, name: &ToolName) -> Option<&Tool> {
-        self.find_tool(name)
+    async fn find_tool(&self, name: &ToolName) -> Option<Tool> {
+        self.find_tool(name).await
     }
 }
 
 struct Server {
-    server_name: String,
     client: Arc<RunnableService>,
     tool_definition: ToolDefinition,
 }
@@ -250,8 +222,31 @@ impl Server {
             tool_definition: ToolDefinition::new(name)
                 .description(tool.description.unwrap_or_default().to_string())
                 .input_schema(input_schema),
-            server_name,
         })
+    }
+}
+
+#[async_trait::async_trait]
+impl ExecutableTool for Server {
+    type Input = serde_json::Value;
+
+    async fn call(&self, _: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+        let result = self.client.call_tool(CallToolRequestParam {
+            name: Cow::Owned(self.tool_definition.name.strip_prefix()),
+            arguments: if let serde_json::Value::Object(args) = input {
+                Some(args)
+            } else {
+                None
+            },
+        }).await?;
+
+        let content = serde_json::to_string(&result.content)?;
+
+        if result.is_error.unwrap_or_default() {
+            anyhow::bail!("{}", content)
+        } else {
+            Ok(content)
+        }
     }
 }
 
@@ -323,8 +318,8 @@ mod tests {
         }
 
         async fn update<F, T>(&self, _: &ConversationId, _: F) -> anyhow::Result<T>
-        where
-            F: FnOnce(&mut Conversation) -> T + Send,
+            where
+                F: FnOnce(&mut Conversation) -> T + Send,
         {
             unimplemented!()
         }
@@ -431,7 +426,7 @@ mod tests {
 
         // MCP service doesn't store tools locally, so get_tool should always return
         // None
-        let tool = mcp_service.find_tool(&ToolName::new("any-tool"));
+        let tool = mcp_service.find_tool(&ToolName::new("any-tool")).await;
         assert!(tool.is_none());
     }
 }

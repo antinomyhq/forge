@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 #[serde(transparent)]
 pub struct ToolName(String);
 
+pub const FORGE_STRIP: &str = "forgestrip";
+
 impl ToolName {
     pub fn new(value: impl ToString) -> Self {
         ToolName(value.to_string())
@@ -20,7 +22,7 @@ impl ToolName {
             prefix
         };
 
-        let input = format!("{}-forgestrip-{}", prefix, tool_name.to_string());
+        let input = format!("{FORGE_STRIP}-{}-{}", prefix, tool_name.to_string());
 
         // Keep only alphanumeric characters, underscores, or hyphens
         let formatted: String = input
