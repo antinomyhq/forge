@@ -38,6 +38,7 @@ strum_macros.workspace = true
 base64.workspace = true
 convert_case.workspace = true
 indicatif.workspace = true
+merge.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

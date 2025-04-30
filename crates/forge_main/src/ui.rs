@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_api::{
     AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
-    API,
+    Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_fs::ForgeFS;
@@ -24,6 +24,7 @@ use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::state::{Mode, UIState};
 use crate::{banner, TRACKER};
+use merge::Merge;
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -153,11 +154,13 @@ impl<F: API> UI<F> {
     }
 
     pub async fn run(&mut self) {
-        let workflow = self
-            .api
-            .read_workflow(&self.workflow_path())
-            .await
-            .unwrap_or_default();
+        let mut workflow = Workflow::default();
+        workflow.merge(
+            self.api
+                .read_workflow(&self.workflow_path())
+                .await
+                .unwrap_or_default(),
+        );
         update_forge(workflow.updates.unwrap_or_default()).await;
 
         match self.run_inner().await {
