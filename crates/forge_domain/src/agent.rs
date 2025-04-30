@@ -1,5 +1,4 @@
 use std::cmp::max;
-use std::collections::HashSet;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -304,11 +303,9 @@ impl Agent {
     }
 
     pub async fn init_context(&self, mut tool_defs: Vec<ToolDefinition>) -> Result<Context> {
-        let allowed = self.tools.iter().flatten().collect::<HashSet<_>>();
-
         // Adding Event tool to the list of tool definitions
         let event_tool = Event::tool_definition();
-        if allowed.contains(&event_tool.name) {
+        if self.tools.iter().flatten().any(|v| v.eq(&event_tool.name)) {
             tool_defs.push(event_tool);
         }
 
