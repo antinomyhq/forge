@@ -84,15 +84,14 @@ pub enum UpdateFrequency {
     Weekly,
 }
 
-impl UpdateFrequency {
-    pub fn to_duration(&self) -> Duration {
+impl Into<Duration> for UpdateFrequency {
+    fn into(self) -> Duration {
         match self {
             UpdateFrequency::Daily => Duration::from_secs(24 * 60 * 60),
             UpdateFrequency::Weekly => Duration::from_secs(7 * 24 * 60 * 60),
         }
     }
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Default)]
 pub struct Updates {
     #[serde(default)]

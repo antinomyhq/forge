@@ -28,7 +28,7 @@ pub async fn update_forge(update_info: Updates) {
             .check_frequency()
             .cloned()
             .unwrap_or_default()
-            .to_duration(),
+            .into(),
     );
 
     if let Ok(Some(latest_version)) = informer.check_version() {
