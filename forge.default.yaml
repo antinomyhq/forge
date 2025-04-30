@@ -69,5 +69,5 @@ agents:
     max_walker_depth: 1
 
 updates:
-  check_frequency: "daily"
-  auto_update: false
+  check_frequency: "weekly"
+  auto_update: true
