@@ -155,10 +155,6 @@ impl<C: ConversationService> ForgeMcpService<C> {
             .next()
             .map_or(Ok(()), Err)
     }
-
-    async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> anyhow::Result<ToolResult> {
-        unreachable!();
-    }
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
         let mcp = self
             .conversation_service
@@ -189,8 +185,8 @@ impl<C: ConversationService> ForgeMcpService<C> {
 
 #[async_trait::async_trait]
 impl<C: ConversationService> ToolService for ForgeMcpService<C> {
-    async fn call(&self, ctx: ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolResult> {
-        self.call(ctx, call).await
+    async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> anyhow::Result<ToolResult> {
+        unreachable!()
     }
     async fn list(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<ToolDefinition>> {
         self.list(conversation_id).await

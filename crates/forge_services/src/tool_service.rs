@@ -157,7 +157,7 @@ mod test {
             Ok(vec![])
         }
 
-        async fn find_tool(&self, _name: &ToolName) -> Option<&Tool> {
+        async fn find_tool(&self, _: &ToolName) -> Option<Tool> {
             None
         }
     }
@@ -202,7 +202,7 @@ mod test {
                 input_schema: schemars::schema_for!(serde_json::Value),
                 output_schema: Some(schemars::schema_for!(String)),
             },
-            executable: Box::new(SuccessTool),
+            executable: Arc::new(SuccessTool),
         };
 
         let failure_tool = Tool {
@@ -212,7 +212,7 @@ mod test {
                 input_schema: schemars::schema_for!(serde_json::Value),
                 output_schema: Some(schemars::schema_for!(String)),
             },
-            executable: Box::new(FailureTool),
+            executable: Arc::new(FailureTool),
         };
         let tools = vec![success_tool, failure_tool]
             .into_iter()
@@ -316,7 +316,7 @@ mod test {
                 input_schema: schemars::schema_for!(serde_json::Value),
                 output_schema: Some(schemars::schema_for!(String)),
             },
-            executable: Box::new(SlowTool),
+            executable: Arc::new(SlowTool),
         };
 
         let service = ForgeToolService::<MockMcpTool> {

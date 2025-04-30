@@ -45,8 +45,11 @@ impl ToolName {
     }
 
     pub fn strip_prefix(&self) -> String {
-        let split = self.0.split("-forgestrip-").collect::<Vec<&str>>();
-        split.get(1).unwrap_or(&self.0.as_str()).to_string()
+        if self.0.starts_with(FORGE_STRIP) {
+            self.0.split('-').last().unwrap_or(self.0.as_str()).to_string()
+        }else { 
+            self.0.clone()
+        }
     }
 
     pub fn as_str(&self) -> &str {
@@ -65,14 +68,14 @@ mod tess {
     #[test]
     fn test_prefixed_basic() {
         let name = ToolName::prefixed("my_prefix", "tool");
-        assert!(name.as_str().starts_with("my_prefix-forgestrip-tool"));
+        assert!(name.as_str().starts_with("forgestrip-my_prefix-tool"));
         assert_eq!(name.strip_prefix(), "tool");
     }
 
     #[test]
     fn test_prefixed_filters_invalid_chars() {
         let name = ToolName::prefixed("!@#bad$$prefix", "some*tool");
-        assert!(name.as_str().contains("badprefix-forgestrip-sometool"));
+        assert!(name.as_str().contains("forgestrip-badprefix-sometool"));
     }
 
     #[test]
@@ -85,7 +88,7 @@ mod tess {
 
     #[test]
     fn test_strip_prefix_exists() {
-        let name = ToolName::new("abc-forgestrip-mytool");
+        let name = ToolName::new("forgestrip-abc-mytool");
         assert_eq!(name.strip_prefix(), "mytool");
     }
 

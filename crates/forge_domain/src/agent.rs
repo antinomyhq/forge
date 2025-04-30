@@ -10,10 +10,7 @@ use tracing::debug;
 use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
-use crate::{
-    Context, Error, Event, EventContext, ModelId, Result, Role, SystemContext, ToolDefinition,
-    ToolName,
-};
+use crate::{Context, Error, Event, EventContext, FORGE_STRIP, ModelId, Result, Role, SystemContext, ToolDefinition, ToolName};
 
 // Unique identifier for an agent
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
@@ -303,16 +300,14 @@ impl Agent {
         }
     }
 
-    pub async fn init_context(&self, mut forge_tools: Vec<ToolDefinition>) -> Result<Context> {
+    pub async fn init_context(&self, mut tool_defs: Vec<ToolDefinition>) -> Result<Context> {
         let allowed = self.tools.iter().flatten().collect::<HashSet<_>>();
 
         // Adding Event tool to the list of tool definitions
-        forge_tools.push(Event::tool_definition());
-
-        let tool_defs = forge_tools
-            .into_iter()
-            .filter(|tool| allowed.contains(&tool.name))
-            .collect::<Vec<_>>();
+        let event_tool = Event::tool_definition();
+        if allowed.contains(&event_tool.name) {
+            tool_defs.push(event_tool);
+        }
 
         // Use the agent's tool_supported flag directly instead of querying the provider
         let tool_supported = self.tool_supported.unwrap_or_default();
@@ -322,7 +317,9 @@ impl Agent {
         Ok(context.extend_tools(if tool_supported {
             tool_defs
         } else {
-            Vec::new()
+            tool_defs.into_iter()
+                .filter(|tool| tool.name.as_str().starts_with(FORGE_STRIP))
+                .collect()
         }))
     }
 }
