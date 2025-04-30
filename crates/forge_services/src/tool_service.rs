@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::time::{Duration, timeout};
-use tracing::{debug, error};
-
 use forge_domain::{
     ConversationId, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult,
     ToolService,
 };
+use tokio::time::{timeout, Duration};
+use tracing::{debug, error};
 
-use crate::Infrastructure;
 use crate::tools::ToolRegistry;
+use crate::Infrastructure;
 
 // Timeout duration for tool calls
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -131,10 +130,9 @@ impl<M: ToolService + 'static> ToolService for ForgeToolService<M> {
 #[cfg(test)]
 mod test {
     use anyhow::bail;
+    use forge_domain::{Tool, ToolCallContext, ToolCallId, ToolDefinition};
     use serde_json::{json, Value};
     use tokio::time;
-
-    use forge_domain::{Tool, ToolCallContext, ToolCallId, ToolDefinition};
 
     use super::*;
 

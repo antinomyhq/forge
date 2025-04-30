@@ -10,7 +10,10 @@ use tracing::debug;
 use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
-use crate::{Context, Error, Event, EventContext, FORGE_STRIP, ModelId, Result, Role, SystemContext, ToolDefinition, ToolName};
+use crate::{
+    Context, Error, Event, EventContext, ModelId, Result, Role, SystemContext, ToolDefinition,
+    ToolName, FORGE_STRIP,
+};
 
 // Unique identifier for an agent
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
@@ -317,7 +320,8 @@ impl Agent {
         Ok(context.extend_tools(if tool_supported {
             tool_defs
         } else {
-            tool_defs.into_iter()
+            tool_defs
+                .into_iter()
                 .filter(|tool| tool.name.as_str().starts_with(FORGE_STRIP))
                 .collect()
         }))

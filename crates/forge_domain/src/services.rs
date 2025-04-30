@@ -2,8 +2,8 @@ use std::path::Path;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
-    ConversationId, Environment, File, Model, ModelId, ResultStream, Tool, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolName, ToolResult, Workflow,
+    ConversationId, Environment, File, Model, ModelId, ResultStream, Tool, ToolCallContext,
+    ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]

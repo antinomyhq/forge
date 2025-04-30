@@ -46,8 +46,12 @@ impl ToolName {
 
     pub fn strip_prefix(&self) -> String {
         if self.0.starts_with(FORGE_STRIP) {
-            self.0.split('-').next_back().unwrap_or(self.0.as_str()).to_string()
-        }else { 
+            self.0
+                .split('-')
+                .next_back()
+                .unwrap_or(self.0.as_str())
+                .to_string()
+        } else {
             self.0.clone()
         }
     }

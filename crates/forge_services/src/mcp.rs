@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{ConversationId, ConversationService, ExecutableTool, McpServerConfig, McpServers, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService};
+use forge_domain::{
+    ConversationId, ConversationService, ExecutableTool, McpServerConfig, McpServers, Tool,
+    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
+};
 use futures::FutureExt;
 use rmcp::model::{
     CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam,
@@ -70,10 +73,13 @@ impl<C: ConversationService> ForgeMcpService<C> {
         let mut lock = self.tools.lock().await;
         for tool in tools.tools.into_iter() {
             let server = Server::new(server_name.to_string(), tool.clone(), client.clone())?;
-            lock.insert(server.tool_definition.name.clone(), Tool {
-                definition: server.tool_definition.clone(),
-                executable: Arc::new(server),
-            });
+            lock.insert(
+                server.tool_definition.name.clone(),
+                Tool {
+                    definition: server.tool_definition.clone(),
+                    executable: Arc::new(server),
+                },
+            );
         }
 
         Ok(())
@@ -133,7 +139,10 @@ impl<C: ConversationService> ForgeMcpService<C> {
                     if self
                         .tools
                         .lock()
-                        .map(|v| v.values().any(|v| v.definition.name.as_str().eq(server_name)))
+                        .map(|v| {
+                            v.values()
+                                .any(|v| v.definition.name.as_str().eq(server_name))
+                        })
                         .await
                     {
                         None
@@ -146,7 +155,7 @@ impl<C: ConversationService> ForgeMcpService<C> {
                 // TODO: use flatten function provided by FuturesExt
                 .collect::<Vec<_>>(),
         )
-            .await;
+        .await;
 
         http_results
             .into_iter()
@@ -227,14 +236,17 @@ impl ExecutableTool for Server {
     type Input = serde_json::Value;
 
     async fn call(&self, _: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
-        let result = self.client.call_tool(CallToolRequestParam {
-            name: Cow::Owned(self.tool_definition.name.strip_prefix()),
-            arguments: if let serde_json::Value::Object(args) = input {
-                Some(args)
-            } else {
-                None
-            },
-        }).await?;
+        let result = self
+            .client
+            .call_tool(CallToolRequestParam {
+                name: Cow::Owned(self.tool_definition.name.strip_prefix()),
+                arguments: if let serde_json::Value::Object(args) = input {
+                    Some(args)
+                } else {
+                    None
+                },
+            })
+            .await?;
 
         let content = serde_json::to_string(&result.content)?;
 
@@ -252,14 +264,12 @@ mod tests {
     use std::sync::Arc;
 
     use forge_domain::{
-        CompactionResult, Conversation, ConversationId, ConversationService,
-        McpServerConfig, Tool, ToolCallContext, ToolCallFull, ToolName, ToolResult,
-        Workflow,
+        CompactionResult, Conversation, ConversationId, ConversationService, McpServerConfig,
+        ToolCallContext, ToolName, Workflow,
     };
     use rmcp::model::{CallToolResult, Content};
     use rmcp::transport::SseServer;
     use rmcp::{tool, ServerHandler};
-    use serde_json::Value;
     use tokio::sync::Mutex;
     use tokio_util::sync::CancellationToken;
 
@@ -296,27 +306,9 @@ mod tests {
         async fn create(&self, _: Workflow) -> anyhow::Result<Conversation> {
             unimplemented!()
         }
-
-        async fn get_variable(&self, _: &ConversationId, _: &str) -> anyhow::Result<Option<Value>> {
-            unimplemented!()
-        }
-
-        async fn set_variable(
-            &self,
-            _: &ConversationId,
-            _: String,
-            _: Value,
-        ) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-
-        async fn delete_variable(&self, _: &ConversationId, _: &str) -> anyhow::Result<bool> {
-            unimplemented!()
-        }
-
         async fn update<F, T>(&self, _: &ConversationId, _: F) -> anyhow::Result<T>
-            where
-                F: FnOnce(&mut Conversation) -> T + Send,
+        where
+            F: FnOnce(&mut Conversation) -> T + Send,
         {
             unimplemented!()
         }
@@ -383,28 +375,30 @@ mod tests {
         // Get the tool first using find_tool
         let tool_name = ToolName::new("forgestrip-test-increment");
         let tool = mcp.find_tool(&tool_name).await.unwrap();
-        
+
         // Create context for the tool calls
         let context = ToolCallContext::default().mcp_servers(workflow.mcp_servers.clone().unwrap());
-        
+
         // First call to the tool's executable directly
-        let result = tool.executable.call(
-            context.clone(), 
-            serde_json::json!({})
-        ).await.unwrap();
-        
+        let result = tool
+            .executable
+            .call(context.clone(), serde_json::json!({}))
+            .await
+            .unwrap();
+
         let content = serde_json::from_str::<Vec<Content>>(&result).unwrap();
         assert_eq!(content[0].as_text().unwrap().text, "1");
-        
+
         // Second call to the tool's executable
-        let result = tool.executable.call(
-            context,
-            serde_json::json!({})
-        ).await.unwrap();
-        
+        let result = tool
+            .executable
+            .call(context, serde_json::json!({}))
+            .await
+            .unwrap();
+
         let content = serde_json::from_str::<Vec<Content>>(&result).unwrap();
         assert_eq!(content[0].as_text().unwrap().text, "2");
-        
+
         ct.cancel();
     }
 
