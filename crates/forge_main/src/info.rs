@@ -97,6 +97,10 @@ impl From<&UIState> for Info {
             info = info.add_key_value("Current", model);
         }
 
+        if let Some(provider) = &value.provider {
+            info = info.add_key_value("Provider", provider.to_base_url());
+        }
+
         info = info
             .add_key_value("Prompt Tokens", value.usage.prompt_tokens)
             .add_key_value("Completion Tokens", value.usage.completion_tokens)
