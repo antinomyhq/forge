@@ -22,6 +22,7 @@ pub struct ForgePrompt {
     pub usage: Option<Usage>,
     pub mode: Mode,
     pub model: Option<ModelId>,
+    pub estimated_tokens: Option<u64>,
 }
 
 impl Prompt for ForgePrompt {
@@ -91,7 +92,15 @@ impl Prompt for ForgePrompt {
             .as_ref()
             .unwrap_or(&Usage::default())
             .total_tokens;
-        let _ = write!(result, "/{usage}");
+        let estimated = self.estimated_tokens.unwrap_or(usage);
+        let max_tokens = std::cmp::max(usage, estimated);
+
+        let _ = write!(result, "/{max_tokens}");
+
+        if estimated > usage {
+            let _ = write!(result, "~");
+        }
+
         let _ = write!(result, "]");
 
         // Apply styling once at the end

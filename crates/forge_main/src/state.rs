@@ -31,6 +31,7 @@ pub struct UIState {
     pub is_first: bool,
     pub model: Option<ModelId>,
     pub cached_models: Option<Vec<Model>>,
+    pub estimated_tokens: Option<u64>,
 }
 
 impl UIState {
@@ -42,6 +43,7 @@ impl UIState {
             is_first: true,
             model: Default::default(),
             cached_models: Default::default(),
+            estimated_tokens: Default::default(),
         }
     }
 }
@@ -52,6 +54,7 @@ impl From<UIState> for ForgePrompt {
             usage: Some(state.usage),
             mode: state.mode,
             model: state.model,
+            estimated_tokens: state.estimated_tokens,
         }
     }
 }

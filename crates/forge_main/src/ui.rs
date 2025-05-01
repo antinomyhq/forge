@@ -5,6 +5,8 @@ use forge_api::{
     AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
     API,
 };
+
+use forge_domain::estimate_token_count;
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
@@ -545,6 +547,8 @@ impl<F: API> UI<F> {
                     if is_md {
                         text = self.markdown.render(&text);
                     }
+                    let estimated = estimate_token_count(&text);
+                    self.state.estimated_tokens = Some(estimated);
                     self.spinner.stop(Some(text))?;
                 }
             }
