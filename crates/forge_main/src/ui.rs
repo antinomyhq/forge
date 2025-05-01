@@ -410,6 +410,7 @@ impl<F: API> UI<F> {
                     .unwrap_or(Mode::Act);
 
                 self.state = UIState::new(mode);
+                self.state.provider = Some(self.api.environment().provider.clone());
                 self.command.register_all(&workflow);
 
                 // We need to try and get the conversation ID first before fetching the model

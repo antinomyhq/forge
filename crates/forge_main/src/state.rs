@@ -1,4 +1,4 @@
-use forge_api::{ConversationId, Model, ModelId, Usage};
+use forge_api::{ConversationId, Model, ModelId, Usage, Provider};
 use serde::Deserialize;
 
 use crate::prompt::ForgePrompt;
@@ -31,6 +31,7 @@ pub struct UIState {
     pub is_first: bool,
     pub model: Option<ModelId>,
     pub cached_models: Option<Vec<Model>>,
+    pub provider: Option<Provider>,
 }
 
 impl UIState {
@@ -42,6 +43,7 @@ impl UIState {
             is_first: true,
             model: Default::default(),
             cached_models: Default::default(),
+            provider: Default::default(),
         }
     }
 }
