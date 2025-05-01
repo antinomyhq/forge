@@ -6,6 +6,7 @@ mod chat_response;
 mod compaction_result;
 mod conversation_html;
 
+pub mod config;
 mod context;
 mod conversation;
 mod env;
@@ -37,7 +38,6 @@ mod tool_name;
 mod tool_result;
 mod tool_usage;
 mod workflow;
-pub mod config;
 
 pub use agent::*;
 pub use api::*;

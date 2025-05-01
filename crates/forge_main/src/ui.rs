@@ -287,10 +287,11 @@ impl<F: API> UI<F> {
                         &self.api.environment(),
                         &forge_domain::config::UpdateConfig {
                             check_frequency: "force".into(),
-                            auto_update: false
-                        }
-                    ).await;
-                    
+                            auto_update: false,
+                        },
+                    )
+                    .await;
+
                     if let Err(e) = result {
                         println!("Update failed: {}", e);
                     }

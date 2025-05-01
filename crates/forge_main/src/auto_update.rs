@@ -7,14 +7,11 @@ use tokio::process::Command;
 
 use crate::TRACKER;
 
-async fn should_check_update(
-    env: &forge_domain::Environment,
-    hours_needed: i64
-) -> bool {
+async fn should_check_update(env: &forge_domain::Environment, hours_needed: i64) -> bool {
     let path = env.update_check_path();
-    
+
     match ForgeFS::read_to_string(&path).await {
-        Ok(content) => {  
+        Ok(content) => {
             let last_checked = content.parse().unwrap_or(DateTime::<Utc>::MIN_UTC);
             Utc::now().signed_duration_since(last_checked).num_hours() >= hours_needed
         }
@@ -42,7 +39,10 @@ async fn get_latest_version() -> Result<Version> {
     Version::parse(&version_str).map_err(|e| anyhow::anyhow!("Failed to parse version: {}", e))
 }
 
-pub async fn check_for_updates(env: &forge_domain::Environment, config: &forge_domain::config::UpdateConfig) -> Result<()> {
+pub async fn check_for_updates(
+    env: &forge_domain::Environment,
+    config: &forge_domain::config::UpdateConfig,
+) -> Result<()> {
     // Skip development versions
     if VERSION.contains("dev") || VERSION == "0.1.0" {
         return Ok(());
@@ -78,7 +78,7 @@ async fn handle_update_flow(
     env: &forge_domain::Environment,
     config: &forge_domain::config::UpdateConfig,
     current: &Version,
-    latest: &Version
+    latest: &Version,
 ) -> Result<()> {
     println!(
         "\nForge Update Available\nCurrent: {}   Latest: {}\n",

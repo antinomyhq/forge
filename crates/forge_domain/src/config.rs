@@ -10,16 +10,14 @@ pub struct ForgeConfig {
 pub struct UpdateConfig {
     #[serde(default = "default_check_frequency")]
     pub check_frequency: String,
-    
+
     #[serde(default = "default_auto_update")]
     pub auto_update: bool,
 }
 
 impl Default for ForgeConfig {
     fn default() -> Self {
-        Self {
-            updates: UpdateConfig::default(),
-        }
+        Self { updates: UpdateConfig::default() }
     }
 }
 
