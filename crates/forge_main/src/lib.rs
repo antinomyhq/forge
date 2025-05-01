@@ -11,6 +11,7 @@ mod state;
 mod tools_display;
 mod ui;
 
+pub use forge_domain::config::{ForgeConfig, UpdateConfig};
 pub use auto_update::check_for_updates;
 pub use cli::Cli;
 use lazy_static::lazy_static;

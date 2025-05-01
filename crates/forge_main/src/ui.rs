@@ -54,6 +54,7 @@ pub struct UI<F> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
+    config: forge_domain::config::ForgeConfig,
     spinner: SpinnerManager,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
@@ -131,13 +132,14 @@ impl<F: API> UI<F> {
         )
     }
 
-    pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
+    pub fn init(cli: Cli, api: Arc<F>, config: forge_domain::config::ForgeConfig) -> Result<Self> {
         // Parse CLI arguments first to get flags
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
         Ok(Self {
             state: Default::default(),
             api,
+            config,
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
@@ -168,7 +170,8 @@ impl<F: API> UI<F> {
 
     async fn run_inner(&mut self) -> Result<()> {
         // Check for dispatch flag first
-        if let Err(e) = check_for_updates(&self.api.environment()).await {
+        let update_config = &self.config.updates;
+        if let Err(e) = check_for_updates(&self.api.environment(), update_config).await {
             tracing::warn!("Failed to check for updates: {}", e);
         }
 
@@ -278,6 +281,19 @@ impl<F: API> UI<F> {
 
                     // Execute the command
                     let _ = self.api.execute_shell_command(command, cwd).await;
+                }
+                Command::Update => {
+                    let result = check_for_updates(
+                        &self.api.environment(),
+                        &forge_domain::config::UpdateConfig {
+                            check_frequency: "force".into(),
+                            auto_update: false
+                        }
+                    ).await;
+                    
+                    if let Err(e) = result {
+                        println!("Update failed: {}", e);
+                    }
                 }
             }
 

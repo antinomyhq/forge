@@ -37,6 +37,7 @@ mod tool_name;
 mod tool_result;
 mod tool_usage;
 mod workflow;
+pub mod config;
 
 pub use agent::*;
 pub use api::*;

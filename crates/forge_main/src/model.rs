@@ -259,6 +259,7 @@ pub enum Command {
     /// This can be triggered with commands starting with '!' character.
     #[strum(props(usage = "Execute a native shell command"))]
     Shell(String),
+    Update,
 }
 
 impl Command {
@@ -276,6 +277,7 @@ impl Command {
             Command::Model => "/model",
             Command::Tools => "/tools",
             Command::Custom(event) => &event.name,
+            Command::Update => "/update",
             Command::Shell(_) => "!shell",
         }
     }
