@@ -409,7 +409,7 @@ impl<F: API> UI<F> {
                     .and_then(|value| serde_json::from_value(value).ok())
                     .unwrap_or(Mode::Act);
 
-                self.state = UIState::new(mode);
+                self.state = UIState::new(mode).provider(self.api.environment().provider);
                 self.command.register_all(&workflow);
 
                 // We need to try and get the conversation ID first before fetching the model
