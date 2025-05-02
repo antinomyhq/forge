@@ -38,14 +38,19 @@ pub trait API: Sync + Send {
 
     /// Initializes a workflow configuration from the given path
     /// The workflow at the specified path is merged with the default
-    /// configuration
-    async fn read_workflow(&self, path: &Path) -> Result<Workflow>;
+    /// configuration If no path is provided, it will try to find forge.yaml
+    /// in the current directory or its parent directories
+    async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow>;
 
     /// Writes the given workflow to the specified path
-    async fn write_workflow(&self, path: &Path, workflow: &Workflow) -> Result<()>;
+    /// If no path is provided, it will try to find forge.yaml in the current
+    /// directory or its parent directories
+    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()>;
 
     /// Updates the workflow at the given path using the provided closure
-    async fn update_workflow<F>(&self, path: &Path, f: F) -> Result<Workflow>
+    /// If no path is provided, it will try to find forge.yaml in the current
+    /// directory or its parent directories
+    async fn update_workflow<F>(&self, path: Option<&Path>, f: F) -> Result<Workflow>
     where
         F: FnOnce(&mut Workflow) + Send;
 

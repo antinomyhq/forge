@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -9,6 +8,7 @@ use forge_api::{
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
+use forge_tracker::ToolCallPayload;
 use inquire::error::InquireError;
 use inquire::ui::{RenderConfig, Styled};
 use inquire::Select;
@@ -340,7 +340,7 @@ impl<F: API> UI<F> {
         };
 
         self.api
-            .update_workflow(&self.workflow_path(), |workflow| {
+            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
                 workflow.model = Some(model.clone());
             })
             .await?;
@@ -388,7 +388,7 @@ impl<F: API> UI<F> {
             Some(ref id) => Ok(id.clone()),
             None => {
                 // Select a model if workflow doesn't have one
-                let mut workflow = self.api.read_workflow(&self.workflow_path()).await?;
+                let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
                 if workflow.model.is_none() {
                     workflow.model = Some(
                         self.select_model()
@@ -398,7 +398,7 @@ impl<F: API> UI<F> {
                 }
 
                 self.api
-                    .write_workflow(&self.workflow_path(), &workflow)
+                    .write_workflow(self.cli.workflow.as_deref(), &workflow)
                     .await?;
 
                 // Get the mode from the config
@@ -432,16 +432,6 @@ impl<F: API> UI<F> {
                 }
             }
         }
-    }
-
-    fn workflow_path(&self) -> PathBuf {
-        let path: PathBuf = self
-            .cli
-            .workflow
-            .as_ref()
-            .unwrap_or(&PathBuf::from("forge.yaml"))
-            .clone();
-        path
     }
 
     async fn chat(&mut self, content: String) -> Result<()> {
@@ -561,7 +551,16 @@ impl<F: API> UI<F> {
             ChatResponse::ToolCallStart(_) => {
                 self.spinner.stop(None)?;
             }
-            ChatResponse::ToolCallEnd(_) => {
+            ChatResponse::ToolCallEnd(toolcall_result) => {
+                // Only track toolcall name in case of success else track the error.
+                let payload = if toolcall_result.is_error {
+                    ToolCallPayload::new(toolcall_result.name.into_string())
+                        .with_cause(toolcall_result.content)
+                } else {
+                    ToolCallPayload::new(toolcall_result.name.into_string())
+                };
+                tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::ToolCall(payload)));
+
                 self.spinner.start(None)?;
                 if !self.cli.verbose {
                     return Ok(());

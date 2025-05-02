@@ -8,11 +8,34 @@ use forge_domain::{Attachment, AttachmentService, ContentType, EnvironmentServic
 use crate::{FsReadService, Infrastructure};
 
 #[derive(Clone)]
+
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
 impl<F: Infrastructure> ForgeChatRequest<F> {
+    async fn generate_image_content(
+        path: &Path,
+        img_format: &str,
+        infra: &impl FsReadService,
+    ) -> anyhow::Result<String> {
+        let bytes = infra.read(path).await?;
+        let base64_encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        Ok(format!("data:image/{img_format};base64,{base64_encoded}"))
+    }
+
+    async fn generate_text_content(
+        path: &Path,
+        infra: &impl FsReadService,
+    ) -> anyhow::Result<String> {
+        const MAX_CHARS: u64 = 40_000;
+        let (file_content, file_info) = infra.range_read_utf8(path, 0, MAX_CHARS).await?;
+        Ok(format!(
+            "---\n\nchar_range: {}-{}\ntotal_chars: {}\n---\n{}",
+            file_info.start_char, file_info.end_char, file_info.total_chars, file_content
+        ))
+    }
+
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -44,37 +67,31 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
                 .join(path);
         }
 
-        let (file_content, file_info) = self
-            .infra
-            .file_read_service()
-            .range_read(path.as_path(), 0, u64::MAX)
-            .await?;
-
-        let path_str = path.to_string_lossy().to_string();
-        let content_type;
-        let content;
-
-        // Handle image files
-        if let Some(img_format) = extension.and_then(|ext| match ext.as_str() {
-            "jpeg" | "jpg" => Some("jpeg"),
-            "png" => Some("png"),
-            "webp" => Some("webp"),
+        // Determine file type (text or image with format)
+        let img_format = extension.and_then(|ext| match ext.as_str() {
+            "jpeg" | "jpg" => Some("jpeg".to_string()),
+            "png" => Some("png".to_string()),
+            "webp" => Some("webp".to_string()),
             _ => None,
-        }) {
-            content_type = ContentType::Image;
-            let base64_encoded =
-                base64::engine::general_purpose::STANDARD.encode(file_content.as_bytes());
-            content = format!("data:image/{img_format};base64,{base64_encoded}");
-        } else {
-            // Handle text files
-            content_type = ContentType::Text;
-            content = format!(
-                "---\n\nchar_range: {}-{}\ntotal_chars: {}\n---\n{}",
-                file_info.start_char, file_info.end_char, file_info.total_chars, file_content
-            );
-        }
+        });
 
-        Ok(Attachment { content, path: path_str, content_type })
+        let (content, content_type) = match img_format {
+            Some(format) => (
+                Self::generate_image_content(&path, &format, self.infra.file_read_service())
+                    .await?,
+                ContentType::Image,
+            ),
+            None => (
+                Self::generate_text_content(&path, self.infra.file_read_service()).await?,
+                ContentType::Text,
+            ),
+        };
+
+        Ok(Attachment {
+            content,
+            path: path.to_string_lossy().to_string(),
+            content_type,
+        })
     }
 }
 
@@ -158,7 +175,7 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsReadService for MockFileService {
-        async fn read(&self, path: &Path) -> anyhow::Result<String> {
+        async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
             let files = self.files.lock().unwrap();
             match files.iter().find(|v| v.0 == path) {
                 Some((_, content)) => {
@@ -170,14 +187,22 @@ pub mod tests {
             }
         }
 
-        async fn range_read(
+        async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
+            let files = self.files.lock().unwrap();
+            match files.iter().find(|v| v.0 == path) {
+                Some((_, content)) => Ok(content.to_vec()),
+                None => Err(anyhow::anyhow!("File not found: {:?}", path)),
+            }
+        }
+
+        async fn range_read_utf8(
             &self,
             path: &Path,
             _start_char: u64,
             _end_char: u64,
         ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
             // For tests, we'll just read the entire file and return it
-            let content = self.read(path).await?;
+            let content = self.read_utf8(path).await?;
             let total_chars = content.len() as u64;
 
             // Return the entire content for simplicity in tests
