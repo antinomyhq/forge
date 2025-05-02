@@ -98,7 +98,7 @@ impl From<&UIState> for Info {
         }
 
         if let Some(provider) = &value.provider {
-            info = info.add_key_value("Provider", provider.to_base_url());
+            info = info.add_key_value("Provider (URL)", provider.to_base_url());
         }
 
         info = info
