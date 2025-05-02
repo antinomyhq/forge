@@ -19,7 +19,8 @@ pub struct ShellInput {
     pub command: String,
     /// The working directory where the command should be executed.
     pub cwd: PathBuf,
-    /// Whether to keep ANSI escape codes in the output. Defaults to false.
+    /// Controls ANSI code preservation in output. When true, preserves color
+    /// and formatting. When false (default), outputs plain text.
     #[serde(default = "default_keep_ansi")]
     pub keep_ansi: bool,
 }
@@ -87,7 +88,12 @@ fn format_output(output: CommandOutput, keep_ansi: bool) -> anyhow::Result<Strin
 /// installing packages, or executing build commands. For operations requiring
 /// unrestricted access, advise users to run forge CLI with '-u' flag. Returns
 /// complete output including stdout, stderr, and exit code for diagnostic
-/// purposes.
+/// purposes. The `keep_ansi` flag controls whether ANSI escape codes are
+/// preserved in the output (default: false).
+///
+/// # ANSI Code Handling
+/// - `keep_ansi=true`: Preserves ANSI escape codes for colored output
+/// - `keep_ansi=false`: Strips ANSI codes for plain text output
 #[derive(ToolDescription)]
 pub struct Shell<I> {
     env: Environment,
