@@ -88,11 +88,15 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsReadService for Stub {
-        async fn read(&self, _path: &Path) -> anyhow::Result<String> {
+        async fn read_utf8(&self, _path: &Path) -> anyhow::Result<String> {
             unimplemented!()
         }
 
-        async fn range_read(
+        async fn read(&self, _path: &Path) -> anyhow::Result<Vec<u8>> {
+            unimplemented!()
+        }
+
+        async fn range_read_utf8(
             &self,
             _path: &Path,
             _start_char: u64,

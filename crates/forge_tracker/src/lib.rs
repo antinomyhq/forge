@@ -7,5 +7,5 @@ mod log;
 pub use can_track::VERSION;
 pub use dispatch::Tracker;
 use error::Result;
-pub use event::{Event, EventKind};
+pub use event::{Event, EventKind, ToolCallPayload};
 pub use log::{init_tracing, Guard};

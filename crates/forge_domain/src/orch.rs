@@ -181,6 +181,7 @@ impl<A: Services> Orchestrator<A> {
     async fn collect_messages(
         &self,
         agent: &Agent,
+        context: &Context,
         mut response: impl Stream<Item = anyhow::Result<ChatCompletionMessage>> + std::marker::Unpin,
     ) -> anyhow::Result<ChatCompletionResult> {
         let mut messages = Vec::new();
@@ -231,6 +232,10 @@ impl<A: Services> Orchestrator<A> {
 
             // Process usage information
             if let Some(usage) = message.usage {
+                let mut usage = usage.clone();
+                // Calculate estimated tokens from context
+                let estimated = context.estimate_token_count();
+                usage.estimated_tokens = Some(estimated);
                 request_usage = Some(usage.clone());
                 debug!(usage = ?usage, "Usage");
                 self.send(agent, ChatResponse::Usage(usage)).await?;
@@ -431,7 +436,7 @@ impl<A: Services> Orchestrator<A> {
                 .await?;
 
             let ChatCompletionResult { tool_calls, content, usage } =
-                self.collect_messages(agent, response).await?;
+                self.collect_messages(agent, &context, response).await?;
 
             // Check if context requires compression and decide to compact
             if agent.should_compact(&context, usage.map(|usage| usage.prompt_tokens as usize)) {

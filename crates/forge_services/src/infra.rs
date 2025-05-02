@@ -15,7 +15,11 @@ use forge_snaps::Snapshot;
 pub trait FsReadService: Send + Sync {
     /// Reads the content of a file at the specified path.
     /// Returns the file content as a UTF-8 string.
-    async fn read(&self, path: &Path) -> anyhow::Result<String>;
+    async fn read_utf8(&self, path: &Path) -> anyhow::Result<String>;
+
+    /// Reads the content of a file at the specified path.
+    /// Returns the file content as raw bytes.
+    async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>>;
 
     /// Reads a specific character range from a file at the specified path.
     /// Returns the file content within the range as a UTF-8 string along with
@@ -32,7 +36,7 @@ pub trait FsReadService: Send + Sync {
     /// - FileInfo.start_char: starting character position
     /// - FileInfo.end_char: ending character position
     /// - FileInfo.total_chars: total character count in file
-    async fn range_read(
+    async fn range_read_utf8(
         &self,
         path: &Path,
         start_char: u64,

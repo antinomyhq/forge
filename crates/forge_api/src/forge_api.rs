@@ -95,15 +95,15 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .clone()
     }
 
-    async fn read_workflow(&self, path: &Path) -> anyhow::Result<Workflow> {
+    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         self.app.workflow_service().read(path).await
     }
 
-    async fn write_workflow(&self, path: &Path, workflow: &Workflow) -> anyhow::Result<()> {
+    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
         self.app.workflow_service().write(path, workflow).await
     }
 
-    async fn update_workflow<T>(&self, path: &Path, f: T) -> anyhow::Result<Workflow>
+    async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>
     where
         T: FnOnce(&mut Workflow) + Send,
     {

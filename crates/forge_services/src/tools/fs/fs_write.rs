@@ -90,7 +90,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
         // If file exists and overwrite flag is not set, return an error with the
         // existing content
         if file_exists && !input.overwrite {
-            let existing_content = self.0.file_read_service().read(path).await?;
+            let existing_content = self.0.file_read_service().read_utf8(path).await?;
             return Err(anyhow::anyhow!(
                 "File already exists at {}. If you need to overwrite it, set overwrite to true.\n\nExisting content:\n{}",
                 input.path,
@@ -101,7 +101,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
         // record the file content before they're modified
         let old_content = if file_exists {
             // if file already exists, we should be able to read it.
-            self.0.file_read_service().read(path).await?
+            self.0.file_read_service().read_utf8(path).await?
         } else {
             // if file doesn't exist, we should record it as an empty string.
             "".to_string()
@@ -124,7 +124,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
         }
 
         // record the file content after they're modified
-        let new_content = self.0.file_read_service().read(path).await?;
+        let new_content = self.0.file_read_service().read_utf8(path).await?;
         let title = if file_exists { "Overwrite" } else { "Create" };
 
         // Use the formatted path for display
@@ -190,7 +190,11 @@ mod test {
         assert!(output.contains(&content.len().to_string()));
 
         // Verify file was actually written
-        let content = infra.file_read_service().read(&file_path).await.unwrap();
+        let content = infra
+            .file_read_service()
+            .read_utf8(&file_path)
+            .await
+            .unwrap();
         assert_eq!(content, "Hello, World!")
     }
 
@@ -242,7 +246,11 @@ mod test {
         assert!(!output.contains("Warning:"));
 
         // Verify file contains valid Rust code
-        let content = infra.file_read_service().read(&file_path).await.unwrap();
+        let content = infra
+            .file_read_service()
+            .read_utf8(&file_path)
+            .await
+            .unwrap();
         assert_eq!(content, "fn main() { let x = 42; }");
     }
 
@@ -272,7 +280,11 @@ mod test {
         assert_path_exists(nested_path.parent().unwrap(), &infra).await;
 
         // Verify content
-        let written_content = infra.file_read_service().read(&nested_path).await.unwrap();
+        let written_content = infra
+            .file_read_service()
+            .read_utf8(&nested_path)
+            .await
+            .unwrap();
         assert_eq!(written_content, content);
     }
 
@@ -312,7 +324,11 @@ mod test {
         }
 
         // Verify content
-        let written_content = infra.file_read_service().read(&deep_path).await.unwrap();
+        let written_content = infra
+            .file_read_service()
+            .read_utf8(&deep_path)
+            .await
+            .unwrap();
         assert_eq!(written_content, content);
     }
 
@@ -351,7 +367,7 @@ mod test {
         // Verify content
         let written_content = infra
             .file_read_service()
-            .read(&platform_path)
+            .read_utf8(&platform_path)
             .await
             .unwrap();
         assert_eq!(written_content, content);
@@ -417,7 +433,11 @@ mod test {
         assert!(error_msg.contains(original_content));
 
         // Make sure the file wasn't changed
-        let content = infra.file_read_service().read(&file_path).await.unwrap();
+        let content = infra
+            .file_read_service()
+            .read_utf8(&file_path)
+            .await
+            .unwrap();
         assert_eq!(content, original_content);
     }
 
@@ -475,7 +495,11 @@ mod test {
         assert!(success_msg.contains("Successfully wrote"));
 
         // Verify file was actually overwritten
-        let content = infra.file_read_service().read(&file_path).await.unwrap();
+        let content = infra
+            .file_read_service()
+            .read_utf8(&file_path)
+            .await
+            .unwrap();
         assert_eq!(content, new_content);
     }
 }

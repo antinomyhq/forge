@@ -2,7 +2,7 @@ use std::cmp::max;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use forge_display::TitleFormat;
 use forge_domain::{
     EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
@@ -13,6 +13,34 @@ use serde::Deserialize;
 
 use crate::tools::utils::{assert_absolute_path, format_display_path};
 use crate::{FsReadService, Infrastructure};
+
+// Define maximum character limits
+const MAX_RANGE_SIZE: u64 = 40_000;
+
+/// Ensures that the given character range is valid and doesn't exceed the
+/// maximum size
+///
+/// # Arguments
+/// * `start_char` - The starting character position
+/// * `end_char` - The ending character position
+/// * `max_size` - The maximum allowed range size
+///
+/// # Returns
+/// * `Ok(())` if the range is valid and within size limits
+/// * `Err(String)` with an error message if the range is invalid or too large
+pub fn assert_valid_range(start_char: u64, end_char: u64) -> anyhow::Result<()> {
+    // Check that end_char is not less than start_char
+    if end_char < start_char {
+        bail!("Invalid range: end character ({end_char}) must not be less than start character ({start_char})")
+    }
+
+    // Check that the range size doesn't exceed the maximum
+    if end_char.saturating_sub(start_char).saturating_add(1) > MAX_RANGE_SIZE {
+        bail!("The requested range exceeds the maximum size of {MAX_RANGE_SIZE} characters. Please specify a smaller range.")
+    }
+
+    Ok(())
+}
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSReadInput {
@@ -36,7 +64,9 @@ pub struct FSReadInput {
 /// Files larger than 40,000 characters will automatically be read using range
 /// functionality, returning only the first 40,000 characters by default. For
 /// large files, you can specify custom ranges using start_char and end_char
-/// parameters. Binary files are automatically detected and rejected.
+/// parameters. The total range must not exceed 40,000 characters (an error will
+/// be thrown if end_char - start_char > 40,000). Binary files are automatically
+/// detected and rejected.
 #[derive(ToolDescription)]
 pub struct FSRead<F>(Arc<F>);
 
@@ -129,15 +159,16 @@ impl<F: Infrastructure> FSRead<F> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        // Define maximum character limit
-        const MAX_CHARS: u64 = 39_999;
         let start_char = input.start_char.unwrap_or(0);
-        let end_char = input.end_char.unwrap_or(MAX_CHARS);
+        let end_char = input.end_char.unwrap_or(MAX_RANGE_SIZE.saturating_sub(1));
+
+        // Validate the range size using the module-level assertion function
+        assert_valid_range(start_char, end_char)?;
 
         let (content, file_info) = self
             .0
             .file_read_service()
-            .range_read(path, start_char, end_char)
+            .range_read_utf8(path, start_char, end_char)
             .await
             .with_context(|| format!("Failed to read file content from {}", input.path))?;
 
@@ -353,12 +384,17 @@ mod test {
         // Implement FsReadService for our custom tracking infrastructure
         #[async_trait::async_trait]
         impl FsReadService for RangeTrackingMockInfra {
-            async fn read(&self, path: &Path) -> anyhow::Result<String> {
+            async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
+                // Delegate to inner mock implementation
+                self.inner.file_read_service().read_utf8(path).await
+            }
+
+            async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
                 // Delegate to inner mock implementation
                 self.inner.file_read_service().read(path).await
             }
 
-            async fn range_read(
+            async fn range_read_utf8(
                 &self,
                 _path: &Path,
                 start_char: u64,

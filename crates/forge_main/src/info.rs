@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -51,9 +52,20 @@ impl Info {
 
 impl From<&Usage> for Info {
     fn from(usage: &Usage) -> Self {
-        Info::new()
-            .add_title("Usage".to_string())
-            .add_key_value("Prompt", usage.prompt_tokens)
+        let mut info = Info::new();
+        let estimated = usage.estimated_tokens.unwrap_or(0);
+
+        if estimated > usage.prompt_tokens {
+            info = info.add_key_value("Prompt", format!("~{estimated}"));
+        } else {
+            info = info.add_key_value("Prompt", usage.prompt_tokens)
+        }
+
+        info.add_title("Usage".to_string())
+            .add_key_value(
+                "Prompt",
+                max(usage.prompt_tokens, usage.estimated_tokens.unwrap_or(0)),
+            )
             .add_key_value("Completion", usage.completion_tokens)
             .add_key_value("Total", usage.total_tokens)
     }
@@ -100,7 +112,12 @@ impl From<&UIState> for Info {
         info = info
             .add_key_value("Prompt Tokens", value.usage.prompt_tokens)
             .add_key_value("Completion Tokens", value.usage.completion_tokens)
-            .add_key_value("Total Tokens", value.usage.total_tokens);
+            .add_key_value("Total Reported", value.usage.total_tokens);
+
+        // Add estimated tokens if available
+        if let Some(estimated) = value.usage.estimated_tokens {
+            info = info.add_key_value("Total Estimated", estimated);
+        }
 
         info
     }
