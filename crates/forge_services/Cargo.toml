@@ -52,6 +52,7 @@ bytes.workspace = true
 console.workspace = true
 serde_yml.workspace = true
 merge.workspace = true
+strip-ansi-escapes.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
