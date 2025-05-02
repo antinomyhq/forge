@@ -45,6 +45,17 @@ pub struct Usage {
     pub output_tokens: Option<u64>,
 }
 
+impl From<Usage> for forge_domain::Usage {
+    fn from(usage: Usage) -> Self {
+        forge_domain::Usage {
+            prompt_tokens: usage.input_tokens.unwrap_or(0),
+            completion_tokens: usage.output_tokens.unwrap_or(0),
+            total_tokens: usage.input_tokens.unwrap_or(0) + usage.output_tokens.unwrap_or(0),
+            estimated_tokens: None,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum StopReason {

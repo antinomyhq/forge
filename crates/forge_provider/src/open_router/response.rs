@@ -106,6 +106,7 @@ impl From<ResponseUsage> for Usage {
             prompt_tokens: usage.prompt_tokens,
             completion_tokens: usage.completion_tokens,
             total_tokens: usage.total_tokens,
+            estimated_tokens: None,
         }
     }
 }

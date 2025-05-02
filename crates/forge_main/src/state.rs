@@ -34,6 +34,7 @@ pub struct UIState {
     pub model: Option<ModelId>,
     pub cached_models: Option<Vec<Model>>,
     pub provider: Option<Provider>,
+    pub estimated_usage: Option<u64>,
 }
 
 impl UIState {
@@ -46,6 +47,7 @@ impl UIState {
             model: Default::default(),
             cached_models: Default::default(),
             provider: Default::default(),
+            estimated_usage: Default::default(),
         }
     }
 }
