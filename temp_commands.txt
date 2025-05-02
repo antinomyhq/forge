@@ -1,0 +1,1 @@
+!echo -e "[31mRed Text[0m"

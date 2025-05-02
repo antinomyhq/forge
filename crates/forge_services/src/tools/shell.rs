@@ -19,6 +19,13 @@ pub struct ShellInput {
     pub command: String,
     /// The working directory where the command should be executed.
     pub cwd: PathBuf,
+    /// Whether to keep ANSI escape codes in the output. Defaults to false.
+    #[serde(default = "default_keep_ansi")]
+    pub keep_ansi: bool,
+}
+
+fn default_keep_ansi() -> bool {
+    false
 }
 
 /// Formats command output by wrapping non-empty stdout/stderr in XML tags.
@@ -26,18 +33,35 @@ pub struct ShellInput {
 /// determined by exit status, not stderr presence. Returns Ok(output) on
 /// success or Err(output) on failure, with a status message if both streams are
 /// empty.
-fn format_output(output: CommandOutput) -> anyhow::Result<String> {
+fn format_output(output: CommandOutput, keep_ansi: bool) -> anyhow::Result<String> {
     let mut formatted_output = String::new();
 
-    if !output.stdout.trim().is_empty() {
-        formatted_output.push_str(&format!("<stdout>{}</stdout>", output.stdout));
+    // Function to strip ANSI codes if keep_ansi is false
+    fn strip_ansi(s: &str) -> String {
+        s.replace("\x1B[", "").replace("]0;", "").replace("m", "")
     }
 
-    if !output.stderr.trim().is_empty() {
+    let stdout = if keep_ansi {
+        output.stdout
+    } else {
+        strip_ansi(&output.stdout)
+    };
+
+    let stderr = if keep_ansi {
+        output.stderr
+    } else {
+        strip_ansi(&output.stderr)
+    };
+
+    if !stdout.trim().is_empty() {
+        formatted_output.push_str(&format!("<stdout>{}</stdout>", stdout));
+    }
+
+    if !stderr.trim().is_empty() {
         if !formatted_output.is_empty() {
             formatted_output.push('\n');
         }
-        formatted_output.push_str(&format!("<stderr>{}</stderr>", output.stderr));
+        formatted_output.push_str(&format!("<stderr>{}</stderr>", stderr));
     }
 
     let result = if formatted_output.is_empty() {
@@ -104,7 +128,7 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
             .execute_command(input.command, input.cwd)
             .await?;
 
-        format_output(output)
+        format_output(output, input.keep_ansi)
     }
 }
 
@@ -142,6 +166,7 @@ mod tests {
                 ShellInput {
                     command: "echo 'Hello, World!'".to_string(),
                     cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
                 },
             )
             .await
@@ -164,6 +189,7 @@ mod tests {
                         "echo 'to stderr' >&2; echo 'to stdout'".to_string()
                     },
                     cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
                 },
             )
             .await
@@ -185,6 +211,7 @@ mod tests {
                 ShellInput {
                     command: "echo 'to stdout' && echo 'to stderr' >&2".to_string(),
                     cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
                 },
             )
             .await
@@ -212,6 +239,7 @@ mod tests {
                         "pwd".to_string()
                     },
                     cwd: temp_dir.clone(),
+                    keep_ansi: false,
                 },
             )
             .await
@@ -228,6 +256,7 @@ mod tests {
                 ShellInput {
                     command: "non_existent_command".to_string(),
                     cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
                 },
             )
             .await;
@@ -253,7 +282,7 @@ mod tests {
         let result = shell
             .call(
                 ToolCallContext::default(),
-                ShellInput { command: "".to_string(), cwd: env::current_dir().unwrap() },
+                ShellInput { command: "".to_string(), cwd: env::current_dir().unwrap(), keep_ansi: false },
             )
             .await;
         assert!(result.is_err());
@@ -287,6 +316,7 @@ mod tests {
                         "pwd".to_string()
                     },
                     cwd: current_dir.clone(),
+                    keep_ansi: false,
                 },
             )
             .await
@@ -307,6 +337,7 @@ mod tests {
                 ShellInput {
                     command: "echo 'first' && echo 'second'".to_string(),
                     cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
                 },
             )
             .await
@@ -323,6 +354,7 @@ mod tests {
                 ShellInput {
                     command: "true".to_string(),
                     cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
                 },
             )
             .await
@@ -341,6 +373,7 @@ mod tests {
                 ShellInput {
                     command: "echo ''".to_string(),
                     cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
                 },
             )
             .await
@@ -359,6 +392,7 @@ mod tests {
                 ShellInput {
                     command: "echo $PATH".to_string(),
                     cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
                 },
             )
             .await
@@ -381,7 +415,7 @@ mod tests {
         let result = shell
             .call(
                 ToolCallContext::default(),
-                ShellInput { command: cmd.to_string(), cwd: env::current_dir().unwrap() },
+                ShellInput { command: cmd.to_string(), cwd: env::current_dir().unwrap(), keep_ansi: false },
             )
             .await;
 
