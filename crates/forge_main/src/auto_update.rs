@@ -81,8 +81,7 @@ async fn handle_update_flow(
     latest: &Version,
 ) -> Result<()> {
     println!(
-        "\nForge Update Available\nCurrent: {}   Latest: {}\n",
-        current, latest
+        "\nForge Update Available\nCurrent: {current}   Latest: {latest}\n"
     );
 
     if config.auto_update {
@@ -128,7 +127,7 @@ async fn perform_update() -> Result<()> {
 
     // Check if the command was successful
     if !status.success() {
-        let msg = format!("npm exited with status: {}", status);
+        let msg = format!("npm exited with status: {status}");
         let _ = TRACKER.dispatch(EventKind::Error(msg.clone())).await;
         return Err(anyhow::anyhow!(msg));
     }

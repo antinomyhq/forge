@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
+#[derive(Default)]
 pub struct ForgeConfig {
     #[serde(default)]
     pub updates: UpdateConfig,
@@ -15,11 +16,6 @@ pub struct UpdateConfig {
     pub auto_update: bool,
 }
 
-impl Default for ForgeConfig {
-    fn default() -> Self {
-        Self { updates: UpdateConfig::default() }
-    }
-}
 
 impl Default for UpdateConfig {
     fn default() -> Self {

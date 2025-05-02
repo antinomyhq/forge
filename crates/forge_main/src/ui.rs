@@ -293,7 +293,7 @@ impl<F: API> UI<F> {
                     .await;
 
                     if let Err(e) = result {
-                        println!("Update failed: {}", e);
+                        println!("Update failed: {e}");
                     }
                 }
             }
