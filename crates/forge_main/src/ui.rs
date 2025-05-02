@@ -313,7 +313,9 @@ impl<F: API> UI<F> {
 
         // Use inquire to select a model, with the current model pre-selected
         match Select::new("Select a model:", model_ids)
-            .with_help_message("Use arrow keys to navigate and Enter to select")
+            .with_help_message(
+                "Type a model name or use arrow keys to navigate and Enter to select",
+            )
             .with_render_config(render_config)
             .with_starting_cursor(starting_cursor)
             .prompt()
