@@ -124,7 +124,7 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool, _command: &str) -> 
         {
             let result = format!(
                 "{0}\ncommand: {1}\ntotal_chars: 0\nexit_code: {2}\n{0}\n{3}",
-                METADATA_SEPARATOR, command, output.exit_code, msg
+                METADATA_SEPARATOR, _command, output.exit_code, msg
             );
             return if output.success { Ok(result) } else { Err(anyhow::anyhow!(result)) };
         }
@@ -162,7 +162,7 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool, _command: &str) -> 
 
         // Add the metadata header
         result.push_str(&format!("{}\n", METADATA_SEPARATOR));
-        result.push_str(&format!("command: {}\n", command));
+        result.push_str(&format!("command: {}\n", _command));
 
         // Is this a huge output that needs truncation?
         let needs_truncation = total_size > OUTPUT_LIMIT;
@@ -175,10 +175,10 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool, _command: &str) -> 
             // Save the full output to a temp file for reference
             let full_output = format!(
                 "COMMAND: {}\n\nSTDOUT ({} chars):\n{}\n\nSTDERR ({} chars):\n{}\n",
-                command, stdout_size, output.stdout, stderr_size, output.stderr
+                _command, stdout_size, output.stdout, stderr_size, output.stderr
             );
 
-            let temp_path = create_temp_file(command, &full_output)?;
+            let temp_path = create_temp_file(_command, &full_output)?;
             result.push_str(&format!("temp_file: {}\n", temp_path));
 
             // Remember where we saved it

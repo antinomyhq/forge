@@ -5,6 +5,8 @@ use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 use schemars::JsonSchema;
 use serde::Deserialize;
+use tempfile;
+use uuid::Uuid;
 
 /// Retrieves content from URLs as markdown or raw text. Enables access to
 /// current online information including websites, APIs and documentation. Use
@@ -38,6 +40,46 @@ fn default_start_index() -> Option<usize> {
 fn default_raw() -> Option<bool> {
     Some(false)
 }
+
+// Limits for output handling
+// 40k is a good balance - large enough for most outputs but small enough to avoid UI issues
+const OUTPUT_LIMIT: usize = 40_000;
+
+// Marker for metadata section
+const METADATA_SEPARATOR: &str = "---";
+
+// Creates a temp file for large fetch content
+// TODO: Consider adding cleanup mechanism for old temp files
+fn create_temp_file(url: &str, content: &str) -> anyhow::Result<String> {
+    // Get domain part for filename
+    let domain_part = url.split("://").nth(1).unwrap_or(url).split('/').next().unwrap_or("url");
+
+    // Clean up domain name - just keep alphanumeric chars and dots
+    let safe_domain = domain_part.chars()
+        .filter(|c| c.is_alphanumeric() || *c == '.')
+        .collect::<String>();
+
+    // Use PID + timestamp + random part for uniqueness
+    let pid = std::process::id();
+    let now = chrono::Local::now().format("%m%d_%H%M%S");
+    let rand_id = Uuid::new_v4().to_string()[..8].to_string();
+
+    // Build the temp file
+    let temp = tempfile::Builder::new()
+        .prefix(&format!("forge_fetch_{pid}_{safe_domain}_"))
+        .suffix(&format!("_{now}_{rand_id}.txt"))
+        .tempfile()?;
+
+    // Write content and keep the file around
+    std::fs::write(temp.path(), content)?;
+    let path = temp.path().to_string_lossy().into_owned();
+    temp.keep()?;
+
+    Ok(path)
+}
+
+
+
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FetchInput {
@@ -167,8 +209,30 @@ impl ExecutableTool for Fetch {
             return Ok("<error>No more content available.</error>".to_string());
         }
 
-        let max_length = input.max_length.unwrap_or(40000);
+        let max_length = input.max_length.unwrap_or(OUTPUT_LIMIT);
         let end = (start_index + max_length).min(original_length);
+
+        // Check if content is too large (>40k chars)
+        let needs_temp_file = original_length > OUTPUT_LIMIT;
+
+        // Start building our result
+        let mut result = String::with_capacity(max_length + 500);
+
+        // Add metadata header for large content
+        if needs_temp_file {
+            // Add metadata header
+            result.push_str(&format!("{}\n", METADATA_SEPARATOR));
+            result.push_str(&format!("URL: {}\n", url));
+            result.push_str(&format!("total_chars: {}\n", original_length));
+            result.push_str(&format!("start_char: {}\n", start_index));
+            result.push_str(&format!("end_char: {}\n", end));
+
+            // Save the full content to a temp file
+            let temp_path = create_temp_file(url.as_str(), &content)?;
+            result.push_str(&format!("temp_file: {}\n", temp_path));
+            result.push_str(&format!("{}\n", METADATA_SEPARATOR));
+        }
+
         let mut truncated = content[start_index..end].to_string();
 
         if end < original_length {
@@ -176,7 +240,18 @@ impl ExecutableTool for Fetch {
                 "\n\n<error>Content truncated. Call the fetch tool with a start_index of {end} to get more content.</error>"));
         }
 
-        Ok(format!("{prefix}Contents of {url}:\n{truncated}"))
+        // For non-temp file case, just return the content directly
+        if !needs_temp_file {
+            return Ok(format!("{prefix}Contents of {url}:\n{truncated}"));
+        }
+
+        // For temp file case, add the content after the metadata
+        if !prefix.is_empty() {
+            result.push_str(&prefix);
+        }
+        result.push_str(&format!("Contents of {url}:\n{truncated}"));
+
+        Ok(result)
     }
 }
 
@@ -391,5 +466,45 @@ mod tests {
         let result = fetch.call(ToolCallContext::default(), input).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("404"));
+    }
+
+    #[tokio::test]
+    async fn test_fetch_large_content_with_temp_file() {
+        let (fetch, mut server) = setup().await;
+
+        // Create content larger than OUTPUT_LIMIT
+        let large_content = "A".repeat(OUTPUT_LIMIT + 5000);
+
+        server
+            .mock("GET", "/large.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body(&large_content)
+            .create();
+
+        server
+            .mock("GET", "/robots.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("User-agent: *\nAllow: /")
+            .create();
+
+        let input = FetchInput {
+            url: format!("{}/large.txt", server.url()),
+            max_length: None,
+            start_index: Some(0),
+            raw: Some(true),
+        };
+
+        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
+        let normalized_result = normalize_port(result);
+
+        // Check that the result contains metadata section
+        assert!(normalized_result.contains(METADATA_SEPARATOR));
+        assert!(normalized_result.contains("total_chars:"));
+        assert!(normalized_result.contains("temp_file:"));
+
+        // Check that the content is still included
+        assert!(normalized_result.contains("A".repeat(100).as_str()));
     }
 }
