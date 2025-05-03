@@ -1,3 +1,6 @@
+use std::io::Write;
+use std::path::PathBuf;
+
 use anyhow::{anyhow, Context, Result};
 use forge_display::TitleFormat;
 use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription};
@@ -5,6 +8,7 @@ use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 use schemars::JsonSchema;
 use serde::Deserialize;
+use tempfile::NamedTempFile;
 
 /// Retrieves content from URLs as markdown or raw text. Enables access to
 /// current online information including websites, APIs and documentation. Use
@@ -146,6 +150,26 @@ impl Fetch {
             ))
         }
     }
+
+    /// Writes content to a temporary file when it's too large to display
+    fn save_to_temp_file(&self, content: &str) -> Result<PathBuf> {
+        let mut temp_file = NamedTempFile::new()?;
+
+        // Add a header comment with a TTL note
+        let header = "# TEMPORARY FETCH RESULT\n";
+        let ttl_comment = "# This temporary file may be deleted by the OS (e.g., on reboot).\n";
+        let separator = format!("# {}\n\n", "-".repeat(70));
+
+        // Write header and content
+        temp_file.write_all(header.as_bytes())?;
+        temp_file.write_all(ttl_comment.as_bytes())?;
+        temp_file.write_all(separator.as_bytes())?;
+        temp_file.write_all(content.as_bytes())?;
+
+        // Keep the file and get its persistent path
+        let persistent_path = temp_file.into_temp_path().keep()?;
+        Ok(persistent_path)
+    }
 }
 
 #[async_trait::async_trait]
@@ -176,12 +200,35 @@ impl ExecutableTool for Fetch {
                 "\n\n<error>Content truncated. Call the fetch tool with a start_index of {end} to get more content.</error>"));
         }
 
-        Ok(format!("{prefix}Contents of {url}:\n{truncated}"))
+        // If the content is very large (> 40k chars), store in a temp file
+        if original_length > 40000 {
+            let temp_file_path = self.save_to_temp_file(&content)?;
+
+            // Create a response with temp file information
+            return Ok(format!(
+                "---\nURL: {}\ntotal_chars: {}\nstart_char: {}\nend_char: {}\ntemp_file: {}\n---\n{}",
+                url,
+                original_length,
+                start_index,
+                end,
+                temp_file_path.display(),
+                truncated
+            ));
+        }
+
+        // Regular response for normal-sized content
+        Ok(format!(
+            "---\nURL: {}\ntotal_chars: {}\nstart_char: {}\nend_char: {}\n---\n{}",
+            url, original_length, start_index, end, truncated
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::Path;
+
     use regex::Regex;
     use tokio::runtime::Runtime;
 
@@ -303,6 +350,64 @@ mod tests {
             err.to_string().contains("robots.txt"),
             "Expected error containing 'robots.txt', got: {err}"
         );
+    }
+
+    #[tokio::test]
+    async fn test_fetch_large_content_creates_temp_file() {
+        let (fetch, mut server) = setup().await;
+
+        // Create content larger than 40k chars
+        let large_content = "A".repeat(45000);
+
+        server
+            .mock("GET", "/large.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body(&large_content)
+            .create();
+
+        server
+            .mock("GET", "/robots.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("User-agent: *\nAllow: /")
+            .create();
+
+        let input = FetchInput {
+            url: format!("{}/large.txt", server.url()),
+            max_length: Some(40000),
+            start_index: Some(0),
+            raw: Some(true),
+        };
+
+        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
+
+        // Verify the response contains temp_file field
+        assert!(result.contains("temp_file:"));
+
+        // Extract the temp file path and verify it exists
+        let re = Regex::new(r"temp_file: (.*)\n").unwrap();
+        if let Some(captures) = re.captures(&result) {
+            if let Some(path_match) = captures.get(1) {
+                let temp_path = Path::new(path_match.as_str());
+                assert!(temp_path.exists(), "Temp file should exist");
+
+                // Verify the temp file contains the full content
+                let file_content = fs::read_to_string(temp_path).unwrap();
+
+                // Check that the file contains the header comments
+                assert!(file_content.contains("TEMPORARY FETCH RESULT"));
+                assert!(file_content.contains("may be deleted by the OS"));
+
+                // Check that the file contains all the original content
+                assert!(file_content.contains(&large_content));
+
+                // Cleanup - delete the temp file
+                fs::remove_file(temp_path).unwrap_or_default();
+            }
+        } else {
+            panic!("Temp file path not found in response");
+        }
     }
 
     #[tokio::test]
