@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::bail;
@@ -11,6 +11,8 @@ use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strip_ansi_escapes::strip;
+use tokio::fs;
+use uuid::Uuid;
 
 use crate::{CommandExecutorService, Infrastructure};
 
@@ -27,45 +29,213 @@ pub struct ShellInput {
     pub keep_ansi: bool,
 }
 
+// Limits for output handling
+// 40k is a good balance - large enough for most outputs but small enough to avoid UI issues
+const OUTPUT_LIMIT: usize = 40_000;
+// Show 20k at start and end when truncating large outputs
+const DISPLAY_CHUNK: usize = 20_000;
+// Marker for metadata section - matches other tools in the codebase
+const META_MARKER: &str = "---";
+
 // Strips out the ansi codes from content.
 fn strip_ansi(content: String) -> String {
     String::from_utf8_lossy(&strip(content.as_bytes())).into_owned()
 }
 
-/// Formats command output by wrapping non-empty stdout/stderr in XML tags.
-/// stderr is commonly used for warnings and progress info, so success is
-/// determined by exit status, not stderr presence. Returns Ok(output) on
-/// success or Err(output) on failure, with a status message if both streams are
-/// empty.
-fn format_output(mut output: CommandOutput, keep_ansi: bool) -> anyhow::Result<String> {
-    let mut formatted_output = String::new();
+// Creates a temp file for large command output
+// TODO: Consider adding cleanup mechanism for old temp files
+fn create_temp_file(command: &str, content: &str) -> anyhow::Result<String> {
+    // Get first word of command for filename
+    let cmd_part = command.split_whitespace().next().unwrap_or("cmd");
 
+    // Clean up command name - just keep alphanumeric chars
+    // (this is probably overkill but better safe than sorry)
+    let safe_cmd = cmd_part.chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect::<String>();
+
+    // Use PID + timestamp + random part for uniqueness
+    let pid = std::process::id();
+    let now = chrono::Local::now().format("%m%d_%H%M%S");
+    let rand_id = Uuid::new_v4().to_string()[..8].to_string();
+
+    // Build the temp file
+    let temp = tempfile::Builder::new()
+        .prefix(&format!("forge_shell_{pid}_{safe_cmd}_"))
+        .suffix(&format!("_{now}_{rand_id}.txt"))
+        .tempfile()?;
+
+    // Write content and keep the file around
+    std::fs::write(temp.path(), content)?;
+    let path = temp.path().to_string_lossy().into_owned();
+    temp.keep()?;
+
+    Ok(path)
+}
+
+// Formats command output for display
+//
+// For large outputs (>40k chars), we:
+// 1. Save the full output to a temp file
+// 2. Show the first and last 20k chars with proper XML tags
+// 3. Add a <truncated> tag to show what's missing
+//
+// For normal outputs, we just show everything in stdout/stderr tags
+//
+// The format looks like:
+// ---
+// command: ls -la
+// total_chars: 2500
+// exit_code: 0
+// ---
+// <stdout>
+// ... content ...
+// </stdout>
+fn format_output(mut output: CommandOutput, keep_ansi: bool, command: &str) -> anyhow::Result<String> {
+    // Strip ANSI codes if requested
     if !keep_ansi {
         output.stderr = strip_ansi(output.stderr);
         output.stdout = strip_ansi(output.stdout);
     }
 
-    if !output.stdout.trim().is_empty() {
-        formatted_output.push_str(&format!("<stdout>{}</stdout>", output.stdout));
-    }
+    // Figure out how big the output is
+    let stdout_size = output.stdout.len();
+    let stderr_size = output.stderr.len();
+    let total_size = stdout_size + stderr_size;
 
-    if !output.stderr.trim().is_empty() {
-        if !formatted_output.is_empty() {
-            formatted_output.push('\n');
-        }
-        formatted_output.push_str(&format!("<stderr>{}</stderr>", output.stderr));
-    }
-
-    let result = if formatted_output.is_empty() {
-        if output.success {
-            "Command executed successfully with no output.".to_string()
+    // Special case: no output at all
+    if stdout_size == 0 && stderr_size == 0 {
+        let msg = if output.success {
+            "Command executed successfully with no output."
         } else {
-            "Command failed with no output.".to_string()
+            "Command failed with no output."
+        };
+
+        let result = format!(
+            "---\ncommand: {}\ntotal_chars: 0\nexit_code: {}\n---\n{}",
+            command, output.exit_code, msg
+        );
+
+        return if output.success { Ok(result) } else { Err(anyhow::anyhow!(result)) };
+    }
+
+    // Start building our result - this will be big so pre-allocate some space
+    let mut result = String::with_capacity(total_size + 500);
+
+    // Add the metadata header
+    result.push_str("---\n");
+    result.push_str(&format!("command: {}\n", command));
+
+    // Is this a huge output that needs truncation?
+    let needs_truncation = total_size > OUTPUT_LIMIT;
+    if needs_truncation {
+        // Add size info for each stream
+        result.push_str(&format!("total_stdout_chars: {}\n", stdout_size));
+        result.push_str(&format!("total_stderr_chars: {}\n", stderr_size));
+        result.push_str("truncated: true\n");
+
+        // Save the full output to a temp file for reference
+        let full_output = format!(
+            "COMMAND: {}\n\nSTDOUT ({} chars):\n{}\n\nSTDERR ({} chars):\n{}\n",
+            command, stdout_size, output.stdout, stderr_size, output.stderr
+        );
+
+        let temp_path = create_temp_file(command, &full_output)?;
+        result.push_str(&format!("temp_file: {}\n", temp_path));
+
+        // Remember where we saved it
+        output.temp_file_path = Some(temp_path);
+    } else {
+        // Just show total size for small outputs
+        result.push_str(&format!("total_chars: {}\n", total_size));
+    }
+
+    // Always include exit code
+    result.push_str(&format!("exit_code: {}\n", output.exit_code));
+    result.push_str("---\n");
+
+    // Now for the actual output content
+    if needs_truncation {
+        // For large outputs, we need to show chunks with range info
+
+        // Handle stdout first (if any)
+        if stdout_size > 0 {
+            // Is stdout small enough to show in one chunk?
+            if stdout_size <= DISPLAY_CHUNK {
+                // Just show it all with range info
+                result.push_str(&format!("<stdout chars=\"0-{}\">\n", stdout_size));
+                result.push_str(&output.stdout);
+                result.push_str("\n</stdout>\n");
+            } else {
+                // Need to show first and last chunks
+
+                // First chunk (0 to DISPLAY_CHUNK)
+                result.push_str(&format!("<stdout chars=\"0-{}\">\n", DISPLAY_CHUNK));
+                result.push_str(&output.stdout[..DISPLAY_CHUNK]);
+                result.push_str("\n</stdout>\n\n");
+
+                // How many chars are we skipping?
+                let hidden = stdout_size - (2 * DISPLAY_CHUNK);
+                if hidden > 0 {
+                    // Add a truncation marker
+                    result.push_str("<truncated>\n");
+                    result.push_str(&format!("...output truncated ({hidden} characters not shown)...\n"));
+                    result.push_str("</truncated>\n\n");
+                }
+
+                // Last chunk (end-DISPLAY_CHUNK to end)
+                let last_start = stdout_size.saturating_sub(DISPLAY_CHUNK);
+                result.push_str(&format!("<stdout chars=\"{}-{}\">\n", last_start, stdout_size));
+                result.push_str(&output.stdout[last_start..]);
+                result.push_str("\n</stdout>\n");
+            }
+        }
+
+        // Now handle stderr (if any)
+        if stderr_size > 0 {
+            // Add a newline if we already added stdout
+            if stdout_size > 0 {
+                result.push_str("\n");
+            }
+
+            // Is stderr small enough to show in one chunk?
+            if stderr_size <= DISPLAY_CHUNK {
+                // Just show it all with range info
+                result.push_str(&format!("<stderr chars=\"0-{}\">\n", stderr_size));
+                result.push_str(&output.stderr);
+                result.push_str("\n</stderr>\n");
+            } else {
+                // Just show the first chunk of stderr (users rarely need to see all stderr)
+                result.push_str(&format!("<stderr chars=\"0-{}\">\n", DISPLAY_CHUNK));
+                result.push_str(&output.stderr[..DISPLAY_CHUNK]);
+                result.push_str("\n</stderr>\n\n");
+
+                // Add truncation marker
+                let hidden = stderr_size - DISPLAY_CHUNK;
+                result.push_str("<truncated>\n");
+                result.push_str(&format!("...stderr truncated ({hidden} characters not shown)...\n"));
+                result.push_str("</truncated>\n");
+            }
         }
     } else {
-        formatted_output
-    };
+        // For normal-sized outputs, just show everything
 
+        // Add stdout if present
+        if stdout_size > 0 {
+            result.push_str("<stdout>\n");
+            result.push_str(&output.stdout);
+            result.push_str("\n</stdout>\n");
+        }
+
+        // Add stderr if present
+        if stderr_size > 0 {
+            result.push_str("<stderr>\n");
+            result.push_str(&output.stderr);
+            result.push_str("\n</stderr>\n");
+        }
+    }
+
+    // Return success or error based on command success
     if output.success {
         Ok(result)
     } else {
@@ -109,18 +279,21 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
         if input.command.trim().is_empty() {
             bail!("Command string is empty or contains only whitespace".to_string());
         }
+
+        // Display command execution information
         let title_format = TitleFormat::debug(format!("Execute [{}]", self.env.shell.as_str()))
             .sub_title(&input.command);
-
         context.send_text(title_format).await?;
 
+        // Execute the command
         let output = self
             .infra
             .command_executor_service()
-            .execute_command(input.command, input.cwd)
+            .execute_command(input.command.clone(), input.cwd)
             .await?;
 
-        format_output(output, input.keep_ansi)
+        // Format the output with proper structure
+        format_output(output, input.keep_ansi, &input.command)
     }
 }
 
@@ -434,23 +607,106 @@ mod tests {
             stdout: "\x1b[32mSuccess\x1b[0m".to_string(),
             stderr: "\x1b[31mWarning\x1b[0m".to_string(),
             success: true,
+            exit_code: 0,
+            temp_file_path: None,
         };
-        let preserved = format_output(ansi_output, true).unwrap();
-        assert_eq!(
-            preserved,
-            "<stdout>\x1b[32mSuccess\x1b[0m</stdout>\n<stderr>\x1b[31mWarning\x1b[0m</stderr>"
-        );
+        let preserved = format_output(ansi_output, true, "test_command").unwrap();
+        assert!(preserved.contains("\x1b[32mSuccess\x1b[0m"));
+        assert!(preserved.contains("\x1b[31mWarning\x1b[0m"));
 
         // Test with keep_ansi = false (should strip ANSI codes)
         let ansi_output = CommandOutput {
             stdout: "\x1b[32mSuccess\x1b[0m".to_string(),
             stderr: "\x1b[31mWarning\x1b[0m".to_string(),
             success: true,
+            exit_code: 0,
+            temp_file_path: None,
         };
-        let stripped = format_output(ansi_output, false).unwrap();
-        assert_eq!(
-            stripped,
-            "<stdout>Success</stdout>\n<stderr>Warning</stderr>"
-        );
+        let stripped = format_output(ansi_output, false, "test_command").unwrap();
+        assert!(stripped.contains("Success"));
+        assert!(stripped.contains("Warning"));
+        assert!(!stripped.contains("\x1b[32m"));
+    }
+
+    #[test]
+    fn test_large_output_handling() {
+        // Create a large output
+        let large_stdout = "A".repeat(30_000);
+        let large_stderr = "B".repeat(15_000);
+
+        let large_output = CommandOutput {
+            stdout: large_stdout,
+            stderr: large_stderr,
+            success: true,
+            exit_code: 0,
+            temp_file_path: None,
+        };
+
+        let result = format_output(large_output, true, "find /").unwrap();
+
+        // Check that the output contains the expected elements
+        assert!(result.contains("---"));
+        assert!(result.contains("command: find /"));
+        assert!(result.contains("exit_code: 0"));
+        assert!(result.contains("total_stdout_chars: 30000"));
+        assert!(result.contains("total_stderr_chars: 15000"));
+        assert!(result.contains("truncated: true"));
+        assert!(result.contains("temp_file:"));
+
+        // Check that the output contains the truncated sections
+        assert!(result.contains("<stdout chars=\"0-20000\">"));
+        assert!(result.contains("<stdout chars=\"10000-30000\">"));
+        assert!(result.contains("<stderr chars=\"0-20000\">"));
+        assert!(result.contains("<truncated>"));
+
+        // Verify the temp file exists and contains the full output
+        let temp_file_line = result.lines()
+            .find(|line| line.starts_with("temp_file:"))
+            .unwrap();
+        let temp_file_path = temp_file_line.split_once(": ").unwrap().1;
+
+        assert!(Path::new(temp_file_path).exists());
+
+        // Clean up the temp file
+        let _ = std::fs::remove_file(temp_file_path);
+    }
+
+    #[test]
+    fn test_empty_output_handling() {
+        // Test with empty output
+        let empty_output = CommandOutput {
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+            success: true,
+            exit_code: 0,
+            temp_file_path: None,
+        };
+
+        let result = format_output(empty_output, true, "echo").unwrap();
+
+        // Check that the output contains the expected elements
+        assert!(result.contains("---"));
+        assert!(result.contains("command: echo"));
+        assert!(result.contains("total_chars: 0"));
+        assert!(result.contains("exit_code: 0"));
+        assert!(result.contains("Command executed successfully with no output"));
+
+        // Test with failed command
+        let failed_output = CommandOutput {
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+            success: false,
+            exit_code: 1,
+            temp_file_path: None,
+        };
+
+        let result = format_output(failed_output, true, "false").unwrap_err().to_string();
+
+        // Check that the output contains the expected elements
+        assert!(result.contains("---"));
+        assert!(result.contains("command: false"));
+        assert!(result.contains("total_chars: 0"));
+        assert!(result.contains("exit_code: 1"));
+        assert!(result.contains("Command failed with no output"));
     }
 }

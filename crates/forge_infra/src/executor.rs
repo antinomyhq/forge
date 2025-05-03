@@ -100,6 +100,8 @@ impl ForgeCommandExecutorService {
             stdout: String::from_utf8_lossy(&stdout_buffer).into_owned(),
             stderr: String::from_utf8_lossy(&stderr_buffer).into_owned(),
             success: status.success(),
+            exit_code: status.code().unwrap_or(-1),
+            temp_file_path: None,
         })
     }
 }
@@ -173,6 +175,8 @@ mod tests {
             stdout: "hello world\n".to_string(),
             stderr: "".to_string(),
             success: true,
+            exit_code: 0,
+            temp_file_path: None,
         };
 
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
