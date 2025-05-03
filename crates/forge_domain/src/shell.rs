@@ -3,4 +3,5 @@ pub struct CommandOutput {
     pub stdout: String,
     pub stderr: String,
     pub success: bool,
+    pub command: String,
 }

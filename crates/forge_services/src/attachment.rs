@@ -319,6 +319,7 @@ pub mod tests {
                     stdout: "Mock command executed successfully\n".to_string(),
                     stderr: "".to_string(),
                     success: true,
+                    command: command.to_string(),
                 });
             } else if command.contains("echo") {
                 if command.contains(">") && command.contains(">&2") {
@@ -337,6 +338,7 @@ pub mod tests {
                         stdout: stdout.to_string(),
                         stderr: stderr.to_string(),
                         success: true,
+                        command: command.to_string(),
                     });
                 } else if command.contains(">&2") {
                     // Command with only stderr
@@ -346,6 +348,7 @@ pub mod tests {
                         stdout: "".to_string(),
                         stderr: format!("{content}\n"),
                         success: true,
+                        command: command.to_string(),
                     });
                 } else {
                     // Standard echo command
@@ -373,14 +376,16 @@ pub mod tests {
                         stdout: content,
                         stderr: "".to_string(),
                         success: true,
+                        command: command.to_string(),
                     });
                 }
             } else if command == "pwd" || command == "cd" {
                 // Return working directory for pwd/cd commands
                 return Ok(CommandOutput {
-                    stdout: format!("{working_dir}\n", working_dir = working_dir.display()),
+                    stdout: format!("{}\n", working_dir.display()),
                     stderr: "".to_string(),
                     success: true,
+                    command: command.to_string(),
                 });
             } else if command == "true" {
                 // true command returns success with no output
@@ -388,20 +393,29 @@ pub mod tests {
                     stdout: "".to_string(),
                     stderr: "".to_string(),
                     success: true,
+                    command: command.to_string(),
                 });
-            } else if command.starts_with("/bin/ls") || command.contains("whoami") {
-                // Full path commands
+            } else if command == "false" {
                 return Ok(CommandOutput {
-                    stdout: "user\n".to_string(),
+                    stdout: "".to_string(),
+                    stderr: "".to_string(),
+                    success: false,
+                    command: command.to_string(),
+                });
+            } else if command.contains("$PATH") {
+                return Ok(CommandOutput {
+                    stdout: "/usr/bin:/bin:/usr/sbin:/sbin\n".to_string(),
                     stderr: "".to_string(),
                     success: true,
+                    command: command.to_string(),
                 });
-            } else if command == "non_existent_command" {
+            } else if command.contains("non_existent_command") {
                 // Command not found
                 return Ok(CommandOutput {
                     stdout: "".to_string(),
                     stderr: "command not found: non_existent_command\n".to_string(),
                     success: false,
+                    command: command.to_string(),
                 });
             }
 
@@ -410,6 +424,7 @@ pub mod tests {
                 stdout: "Mock command executed successfully\n".to_string(),
                 stderr: "".to_string(),
                 success: true,
+                command: command.to_string(),
             })
         }
     }

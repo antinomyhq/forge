@@ -71,12 +71,12 @@ impl ForgeCommandExecutorService {
     /// Internal method to execute commands with streaming to console
     async fn execute_command_internal(
         &self,
-        command: String,
+        command_str: String,
         working_dir: &Path,
     ) -> anyhow::Result<CommandOutput> {
         let ready = self.ready.lock().await;
 
-        let mut command = self.prepare_command(&command, working_dir);
+        let mut command = self.prepare_command(&command_str, working_dir);
 
         // Spawn the command
         let mut child = command.spawn()?;
@@ -100,6 +100,7 @@ impl ForgeCommandExecutorService {
             stdout: String::from_utf8_lossy(&stdout_buffer).into_owned(),
             stderr: String::from_utf8_lossy(&stderr_buffer).into_owned(),
             success: status.success(),
+            command: command_str,
         })
     }
 }
@@ -173,10 +174,12 @@ mod tests {
             stdout: "hello world\n".to_string(),
             stderr: "".to_string(),
             success: true,
+            command: cmd.to_string(),
         };
 
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
         assert_eq!(actual.stderr, expected.stderr);
         assert_eq!(actual.success, expected.success);
+        assert_eq!(actual.command, expected.command);
     }
 }

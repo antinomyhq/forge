@@ -38,38 +38,110 @@ fn strip_ansi(content: String) -> String {
 /// success or Err(output) on failure, with a status message if both streams are
 /// empty.
 fn format_output(mut output: CommandOutput, keep_ansi: bool) -> anyhow::Result<String> {
-    let mut formatted_output = String::new();
+    const MAX_OUTPUT_SIZE: usize = 40000;
+    const TRUNCATE_SIZE: usize = 20000;
 
     if !keep_ansi {
         output.stderr = strip_ansi(output.stderr);
         output.stdout = strip_ansi(output.stdout);
     }
 
-    if !output.stdout.trim().is_empty() {
-        formatted_output.push_str(&format!("<stdout>{}</stdout>", output.stdout));
-    }
-
-    if !output.stderr.trim().is_empty() {
-        if !formatted_output.is_empty() {
-            formatted_output.push('\n');
-        }
-        formatted_output.push_str(&format!("<stderr>{}</stderr>", output.stderr));
-    }
-
-    let result = if formatted_output.is_empty() {
-        if output.success {
-            "Command executed successfully with no output.".to_string()
+    // Check for empty output before adding metadata
+    if output.stdout.trim().is_empty() && output.stderr.trim().is_empty() {
+        let result = if output.success {
+            "Command executed successfully with no output".to_string()
         } else {
-            "Command failed with no output.".to_string()
+            "Command failed with no output".to_string()
+        };
+        return if output.success {
+            Ok(result)
+        } else {
+            Err(anyhow::anyhow!(result))
+        };
+    }
+
+    let mut formatted_output = String::new();
+
+    // Add metadata section
+    formatted_output.push_str("---\n");
+    formatted_output.push_str(&format!("command: {}\n", output.command));
+    formatted_output.push_str(&format!("total_stdout_chars: {}\n", output.stdout.len()));
+    formatted_output.push_str(&format!("total_stderr_chars: {}\n", output.stderr.len()));
+    
+    let is_truncated = output.stdout.len() > MAX_OUTPUT_SIZE || output.stderr.len() > MAX_OUTPUT_SIZE;
+    if is_truncated {
+        formatted_output.push_str("truncated: true\n");
+        // Create temp file for full output
+        let temp_file = tempfile::Builder::new()
+            .prefix("forge_shell_")
+            .suffix(".txt")
+            .tempfile()?;
+        let temp_path = temp_file.path().to_string_lossy().to_string();
+        std::fs::write(&temp_path, &output.stdout)?;
+        formatted_output.push_str(&format!("temp_file: {}\n", temp_path));
+    }
+    formatted_output.push_str(&format!("exit_code: {}\n", if output.success { 0 } else { 1 }));
+    formatted_output.push_str("---\n");
+
+    // Handle stdout
+    if !output.stdout.trim().is_empty() {
+        if output.stdout.len() > MAX_OUTPUT_SIZE {
+            // First portion
+            formatted_output.push_str(&format!(
+                "<stdout chars=\"0-{}\">\n{}\n</stdout>\n",
+                TRUNCATE_SIZE,
+                &output.stdout[..TRUNCATE_SIZE]
+            ));
+            
+            // Truncation message
+            let omitted = output.stdout.len() - (2 * TRUNCATE_SIZE);
+            formatted_output.push_str(&format!(
+                "<truncated>\n...output truncated ({} characters not shown)...\n</truncated>\n",
+                omitted
+            ));
+            
+            // Last portion
+            formatted_output.push_str(&format!(
+                "<stdout chars=\"{}-{}\">\n{}\n</stdout>\n",
+                output.stdout.len() - TRUNCATE_SIZE,
+                output.stdout.len(),
+                &output.stdout[output.stdout.len() - TRUNCATE_SIZE..]
+            ));
+        } else {
+            formatted_output.push_str(&format!("<stdout>\n{}\n</stdout>\n", output.stdout));
         }
-    } else {
-        formatted_output
-    };
+    }
+
+    // Handle stderr
+    if !output.stderr.trim().is_empty() {
+        if output.stderr.len() > MAX_OUTPUT_SIZE {
+            formatted_output.push_str(&format!(
+                "<stderr chars=\"0-{}\">\n{}\n</stderr>\n",
+                TRUNCATE_SIZE,
+                &output.stderr[..TRUNCATE_SIZE]
+            ));
+            
+            let omitted = output.stderr.len() - (2 * TRUNCATE_SIZE);
+            formatted_output.push_str(&format!(
+                "<truncated>\n...output truncated ({} characters not shown)...\n</truncated>\n",
+                omitted
+            ));
+            
+            formatted_output.push_str(&format!(
+                "<stderr chars=\"{}-{}\">\n{}\n</stderr>\n",
+                output.stderr.len() - TRUNCATE_SIZE,
+                output.stderr.len(),
+                &output.stderr[output.stderr.len() - TRUNCATE_SIZE..]
+            ));
+        } else {
+            formatted_output.push_str(&format!("<stderr>\n{}\n</stderr>\n", output.stderr));
+        }
+    }
 
     if output.success {
-        Ok(result)
+        Ok(formatted_output)
     } else {
-        Err(anyhow::anyhow!(result))
+        Err(anyhow::anyhow!(formatted_output))
     }
 }
 
@@ -187,10 +259,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            result,
-            "<stdout>to stdout\n</stdout>\n<stderr>to stderr\n</stderr>"
-        );
+        assert!(result.contains("---"));
+        assert!(result.contains("command:"));
+        assert!(result.contains("total_stdout_chars:"));
+        assert!(result.contains("total_stderr_chars:"));
+        assert!(result.contains("exit_code: 0"));
+        assert!(result.contains("<stdout>"));
+        assert!(result.contains("to stdout"));
+        assert!(result.contains("</stdout>"));
+        assert!(result.contains("<stderr>"));
+        assert!(result.contains("to stderr"));
+        assert!(result.contains("</stderr>"));
     }
 
     #[tokio::test]
@@ -209,10 +288,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            result,
-            "<stdout>to stdout\n</stdout>\n<stderr>to stderr\n</stderr>"
-        );
+        assert!(result.contains("---"));
+        assert!(result.contains("command:"));
+        assert!(result.contains("total_stdout_chars:"));
+        assert!(result.contains("total_stderr_chars:"));
+        assert!(result.contains("exit_code: 0"));
+        assert!(result.contains("<stdout>"));
+        assert!(result.contains("to stdout"));
+        assert!(result.contains("</stdout>"));
+        assert!(result.contains("<stderr>"));
+        assert!(result.contains("to stderr"));
+        assert!(result.contains("</stderr>"));
     }
 
     #[tokio::test]
@@ -236,7 +322,15 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(result, format!("<stdout>{}\n</stdout>", temp_dir.display()));
+
+        assert!(result.contains("---"));
+        assert!(result.contains("command:"));
+        assert!(result.contains("total_stdout_chars:"));
+        assert!(result.contains("total_stderr_chars:"));
+        assert!(result.contains("exit_code: 0"));
+        assert!(result.contains("<stdout>"));
+        assert!(result.contains(&temp_dir.display().to_string()));
+        assert!(result.contains("</stdout>"));
     }
 
     #[tokio::test]
@@ -318,10 +412,14 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            result,
-            format!("<stdout>{}\n</stdout>", current_dir.display())
-        );
+        assert!(result.contains("---"));
+        assert!(result.contains("command:"));
+        assert!(result.contains("total_stdout_chars:"));
+        assert!(result.contains("total_stderr_chars:"));
+        assert!(result.contains("exit_code: 0"));
+        assert!(result.contains("<stdout>"));
+        assert!(result.contains(&current_dir.display().to_string()));
+        assert!(result.contains("</stdout>"));
     }
 
     #[tokio::test]
@@ -338,7 +436,16 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(result, format!("<stdout>first\nsecond\n</stdout>"));
+
+        assert!(result.contains("---"));
+        assert!(result.contains("command:"));
+        assert!(result.contains("total_stdout_chars:"));
+        assert!(result.contains("total_stderr_chars:"));
+        assert!(result.contains("exit_code: 0"));
+        assert!(result.contains("<stdout>"));
+        assert!(result.contains("first"));
+        assert!(result.contains("second"));
+        assert!(result.contains("</stdout>"));
     }
 
     #[tokio::test]
@@ -356,8 +463,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(result.contains("executed successfully"));
-        assert!(!result.contains("failed"));
+        assert!(result.contains("Command executed successfully with no output"));
     }
 
     #[tokio::test]
@@ -375,8 +481,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(result.contains("executed successfully"));
-        assert!(!result.contains("failed"));
+        assert!(result.contains("Command executed successfully with no output"));
     }
 
     #[tokio::test]
@@ -394,8 +499,14 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(!result.is_empty());
-        assert!(!result.contains("Error:"));
+        assert!(result.contains("---"));
+        assert!(result.contains("command:"));
+        assert!(result.contains("total_stdout_chars:"));
+        assert!(result.contains("total_stderr_chars:"));
+        assert!(result.contains("exit_code: 0"));
+        assert!(result.contains("<stdout>"));
+        assert!(result.contains("/usr/bin:/bin:/usr/sbin:/sbin"));
+        assert!(result.contains("</stdout>"));
     }
 
     #[tokio::test]
@@ -434,23 +545,70 @@ mod tests {
             stdout: "\x1b[32mSuccess\x1b[0m".to_string(),
             stderr: "\x1b[31mWarning\x1b[0m".to_string(),
             success: true,
+            command: "echo test".to_string(),
         };
         let preserved = format_output(ansi_output, true).unwrap();
-        assert_eq!(
-            preserved,
-            "<stdout>\x1b[32mSuccess\x1b[0m</stdout>\n<stderr>\x1b[31mWarning\x1b[0m</stderr>"
-        );
+        assert!(preserved.contains("---"));
+        assert!(preserved.contains("command: echo test"));
+        assert!(preserved.contains("total_stdout_chars:"));
+        assert!(preserved.contains("total_stderr_chars:"));
+        assert!(preserved.contains("exit_code: 0"));
+        assert!(preserved.contains("<stdout>"));
+        assert!(preserved.contains("\x1b[32mSuccess\x1b[0m"));
+        assert!(preserved.contains("</stdout>"));
+        assert!(preserved.contains("<stderr>"));
+        assert!(preserved.contains("\x1b[31mWarning\x1b[0m"));
+        assert!(preserved.contains("</stderr>"));
 
         // Test with keep_ansi = false (should strip ANSI codes)
         let ansi_output = CommandOutput {
             stdout: "\x1b[32mSuccess\x1b[0m".to_string(),
             stderr: "\x1b[31mWarning\x1b[0m".to_string(),
             success: true,
+            command: "echo test".to_string(),
         };
         let stripped = format_output(ansi_output, false).unwrap();
-        assert_eq!(
-            stripped,
-            "<stdout>Success</stdout>\n<stderr>Warning</stderr>"
-        );
+        assert!(stripped.contains("---"));
+        assert!(stripped.contains("command: echo test"));
+        assert!(stripped.contains("total_stdout_chars:"));
+        assert!(stripped.contains("total_stderr_chars:"));
+        assert!(stripped.contains("exit_code: 0"));
+        assert!(stripped.contains("<stdout>"));
+        assert!(stripped.contains("Success"));
+        assert!(stripped.contains("</stdout>"));
+        assert!(stripped.contains("<stderr>"));
+        assert!(stripped.contains("Warning"));
+        assert!(stripped.contains("</stderr>"));
+    }
+
+    #[test]
+    fn test_format_output_large_output() {
+        // Create a large output string
+        let large_output = "a".repeat(50000);
+        let output = CommandOutput {
+            stdout: large_output.clone(),
+            stderr: "".to_string(),
+            success: true,
+            command: "echo large".to_string(),
+        };
+        
+        let result = format_output(output, false).unwrap();
+        
+        // Check metadata
+        assert!(result.contains("total_stdout_chars: 50000"));
+        assert!(result.contains("truncated: true"));
+        assert!(result.contains("temp_file:"));
+        
+        // Check first portion
+        assert!(result.contains("<stdout chars=\"0-20000\">"));
+        assert!(result.contains(&"a".repeat(20000)));
+        
+        // Check truncation message
+        assert!(result.contains("<truncated>"));
+        assert!(result.contains("10000 characters not shown"));
+        
+        // Check last portion
+        assert!(result.contains("<stdout chars=\"30000-50000\">"));
+        assert!(result.contains(&"a".repeat(20000)));
     }
 }
