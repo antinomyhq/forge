@@ -65,21 +65,31 @@ fn create_temp_file(url: &str, content: &str) -> anyhow::Result<String> {
     let rand_id = Uuid::new_v4().to_string()[..8].to_string();
 
     // Build the temp file
-    let temp = tempfile::Builder::new()
+    let mut temp = tempfile::Builder::new()
         .prefix(&format!("forge_fetch_{pid}_{safe_domain}_"))
         .suffix(&format!("_{now}_{rand_id}.txt"))
         .tempfile()?;
 
-    // Write content and keep the file around
-    std::fs::write(temp.path(), content)?;
+    // Add header comments to the temp file
+    let header = "# TEMPORARY FETCH RESULT\n";
+    let ttl_comment = "# This temporary file may be deleted by the OS (e.g., on reboot).\n";
+    let url_comment = format!("# Source URL: {}\n", url);
+    let separator = format!("# {}\n\n", "-".repeat(70));
+
+    // Write header and content
+    use std::io::Write;
+    temp.write_all(header.as_bytes())?;
+    temp.write_all(ttl_comment.as_bytes())?;
+    temp.write_all(url_comment.as_bytes())?;
+    temp.write_all(separator.as_bytes())?;
+    temp.write_all(content.as_bytes())?;
+
+    // Keep the file and get its path
     let path = temp.path().to_string_lossy().into_owned();
     temp.keep()?;
 
     Ok(path)
 }
-
-
-
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FetchInput {
@@ -218,20 +228,21 @@ impl ExecutableTool for Fetch {
         // Start building our result
         let mut result = String::with_capacity(max_length + 500);
 
-        // Add metadata header for large content
-        if needs_temp_file {
-            // Add metadata header
-            result.push_str(&format!("{}\n", METADATA_SEPARATOR));
-            result.push_str(&format!("URL: {}\n", url));
-            result.push_str(&format!("total_chars: {}\n", original_length));
-            result.push_str(&format!("start_char: {}\n", start_index));
-            result.push_str(&format!("end_char: {}\n", end));
+        // Always add metadata header
+        // Add metadata header
+        result.push_str(&format!("{}\n", METADATA_SEPARATOR));
+        result.push_str(&format!("URL: {}\n", url));
+        result.push_str(&format!("total_chars: {}\n", original_length));
+        result.push_str(&format!("start_char: {}\n", start_index));
+        result.push_str(&format!("end_char: {}\n", end));
 
+        // For large content, add temp file info
+        if needs_temp_file {
             // Save the full content to a temp file
             let temp_path = create_temp_file(url.as_str(), &content)?;
             result.push_str(&format!("temp_file: {}\n", temp_path));
-            result.push_str(&format!("{}\n", METADATA_SEPARATOR));
         }
+        result.push_str(&format!("{}\n", METADATA_SEPARATOR));
 
         let mut truncated = content[start_index..end].to_string();
 
@@ -240,16 +251,13 @@ impl ExecutableTool for Fetch {
                 "\n\n<error>Content truncated. Call the fetch tool with a start_index of {end} to get more content.</error>"));
         }
 
-        // For non-temp file case, just return the content directly
-        if !needs_temp_file {
-            return Ok(format!("{prefix}Contents of {url}:\n{truncated}"));
-        }
-
-        // For temp file case, add the content after the metadata
+        // Add the prefix (if any)
         if !prefix.is_empty() {
             result.push_str(&prefix);
         }
-        result.push_str(&format!("Contents of {url}:\n{truncated}"));
+
+        // Add the content
+        result.push_str(&truncated);
 
         Ok(result)
     }
