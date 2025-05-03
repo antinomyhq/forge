@@ -67,8 +67,9 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool) -> anyhow::Result<S
     formatted_output.push_str(&format!("command: {}\n", output.command));
     formatted_output.push_str(&format!("total_stdout_chars: {}\n", output.stdout.len()));
     formatted_output.push_str(&format!("total_stderr_chars: {}\n", output.stderr.len()));
-    
-    let is_truncated = output.stdout.len() > MAX_OUTPUT_SIZE || output.stderr.len() > MAX_OUTPUT_SIZE;
+
+    let is_truncated =
+        output.stdout.len() > MAX_OUTPUT_SIZE || output.stderr.len() > MAX_OUTPUT_SIZE;
     if is_truncated {
         formatted_output.push_str("truncated: true\n");
         // Create temp file for full output
@@ -78,9 +79,12 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool) -> anyhow::Result<S
             .tempfile()?;
         let temp_path = temp_file.path().to_string_lossy().to_string();
         std::fs::write(&temp_path, &output.stdout)?;
-        formatted_output.push_str(&format!("temp_file: {}\n", temp_path));
+        formatted_output.push_str(&format!("temp_file: {temp_path}\n"));
     }
-    formatted_output.push_str(&format!("exit_code: {}\n", if output.success { 0 } else { 1 }));
+    formatted_output.push_str(&format!(
+        "exit_code: {}\n",
+        if output.success { 0 } else { 1 }
+    ));
     formatted_output.push_str("---\n");
 
     // Handle stdout
@@ -92,14 +96,13 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool) -> anyhow::Result<S
                 TRUNCATE_SIZE,
                 &output.stdout[..TRUNCATE_SIZE]
             ));
-            
+
             // Truncation message
             let omitted = output.stdout.len() - (2 * TRUNCATE_SIZE);
             formatted_output.push_str(&format!(
-                "<truncated>\n...output truncated ({} characters not shown)...\n</truncated>\n",
-                omitted
+                "<truncated>\n...output truncated ({omitted} characters not shown)...\n</truncated>\n"
             ));
-            
+
             // Last portion
             formatted_output.push_str(&format!(
                 "<stdout chars=\"{}-{}\">\n{}\n</stdout>\n",
@@ -120,13 +123,12 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool) -> anyhow::Result<S
                 TRUNCATE_SIZE,
                 &output.stderr[..TRUNCATE_SIZE]
             ));
-            
+
             let omitted = output.stderr.len() - (2 * TRUNCATE_SIZE);
             formatted_output.push_str(&format!(
-                "<truncated>\n...output truncated ({} characters not shown)...\n</truncated>\n",
-                omitted
+                "<truncated>\n...output truncated ({omitted} characters not shown)...\n</truncated>\n"
             ));
-            
+
             formatted_output.push_str(&format!(
                 "<stderr chars=\"{}-{}\">\n{}\n</stderr>\n",
                 output.stderr.len() - TRUNCATE_SIZE,
@@ -591,22 +593,22 @@ mod tests {
             success: true,
             command: "echo large".to_string(),
         };
-        
+
         let result = format_output(output, false).unwrap();
-        
+
         // Check metadata
         assert!(result.contains("total_stdout_chars: 50000"));
         assert!(result.contains("truncated: true"));
         assert!(result.contains("temp_file:"));
-        
+
         // Check first portion
         assert!(result.contains("<stdout chars=\"0-20000\">"));
         assert!(result.contains(&"a".repeat(20000)));
-        
+
         // Check truncation message
         assert!(result.contains("<truncated>"));
         assert!(result.contains("10000 characters not shown"));
-        
+
         // Check last portion
         assert!(result.contains("<stdout chars=\"30000-50000\">"));
         assert!(result.contains(&"a".repeat(20000)));
