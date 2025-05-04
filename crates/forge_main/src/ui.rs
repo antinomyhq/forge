@@ -17,7 +17,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 use tracing::error;
 
-use crate::auto_update::update_forge;
+use crate::auto_update::{check_for_updates, force_check_update, UpdateCheckResult};
 use crate::cli::Cli;
 use crate::info::Info;
 use crate::input::Console;
@@ -176,6 +176,23 @@ impl<F: API> UI<F> {
             return Ok(());
         }
 
+        // Check for updates at startup
+        let env = self.api.environment();
+        match check_for_updates(&env).await {
+            UpdateCheckResult::UpdatePerformed(version) => {
+                self.writeln(TitleFormat::action(format!(
+                    "Updated to version {}. Please restart Forge to use the new version.",
+                    version
+                )))?;
+                return Ok(());
+            }
+            UpdateCheckResult::Error(err) => {
+                // Log the error but continue
+                tracing::warn!("Update check failed: {}", err);
+            }
+            _ => {} // Continue with startup for other results
+        }
+
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
         self.init_conversation().await?;
@@ -240,9 +257,60 @@ impl<F: API> UI<F> {
                     let output = format_tools(&tools);
                     self.writeln(output)?;
                 }
+                Command::Update => {
+                    self.writeln(TitleFormat::action("Checking for updates..."))?;
+                    match force_check_update().await {
+                        UpdateCheckResult::NoUpdateAvailable => {
+                            self.writeln(TitleFormat::action("You are using the latest version."))?;
+                        }
+                        UpdateCheckResult::UpdateAvailable(version) => {
+                            self.writeln(TitleFormat::action(format!(
+                                "Update available: {}. Run /update again to update.",
+                                version
+                            )))?;
+                        }
+                        UpdateCheckResult::UpdatePerformed(version) => {
+                            self.writeln(TitleFormat::action(format!(
+                                "Updated to version {}. Please restart Forge to use the new version.",
+                                version
+                            )))?;
+                        }
+                        UpdateCheckResult::Skipped => {
+                            self.writeln(TitleFormat::action("Update check skipped."))?;
+                        }
+                        UpdateCheckResult::Error(err) => {
+                            self.writeln(TitleFormat::error(format!("Update check failed: {}", err)))?;
+                        }
+                    }
+                }
+                Command::UpdateCheck => {
+                    // For backward compatibility
+                    self.writeln(TitleFormat::action("Checking for updates..."))?;
+                    match force_check_update().await {
+                        UpdateCheckResult::NoUpdateAvailable => {
+                            self.writeln(TitleFormat::action("You are using the latest version."))?;
+                        }
+                        UpdateCheckResult::UpdateAvailable(version) => {
+                            self.writeln(TitleFormat::action(format!(
+                                "Update available: {}. Run /update again to update.",
+                                version
+                            )))?;
+                        }
+                        UpdateCheckResult::UpdatePerformed(version) => {
+                            self.writeln(TitleFormat::action(format!(
+                                "Updated to version {}. Please restart Forge to use the new version.",
+                                version
+                            )))?;
+                        }
+                        UpdateCheckResult::Skipped => {
+                            self.writeln(TitleFormat::action("Update check skipped."))?;
+                        }
+                        UpdateCheckResult::Error(err) => {
+                            self.writeln(TitleFormat::error(format!("Update check failed: {}", err)))?;
+                        }
+                    }
+                }
                 Command::Exit => {
-                    update_forge().await;
-
                     break;
                 }
 

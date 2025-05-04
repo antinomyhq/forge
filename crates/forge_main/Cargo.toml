@@ -36,6 +36,8 @@ strum.workspace = true
 strum_macros.workspace = true
 base64.workspace = true
 convert_case.workspace = true
+semver.workspace = true
+update-informer = { version = "1.2.0", default-features = false, features = ["npm", "rustls-tls"] }
 
 [dev-dependencies]
 insta.workspace = true

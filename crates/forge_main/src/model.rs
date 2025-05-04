@@ -169,6 +169,7 @@ impl ForgeCommandManager {
             "/new" => Ok(Command::New),
             "/info" => Ok(Command::Info),
             "/exit" => Ok(Command::Exit),
+            "/update" => Ok(Command::Update),
             "/dump" => {
                 if !parameters.is_empty() && parameters[0] == "html" {
                     Ok(Command::Dump(Some("html".to_string())))
@@ -181,6 +182,7 @@ impl ForgeCommandManager {
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
+            "/update-check" => Ok(Command::UpdateCheck),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -230,6 +232,9 @@ pub enum Command {
     /// Exit the application without any further action.
     #[strum(props(usage = "Exit the application"))]
     Exit,
+    /// Check for updates and prompt to install if available
+    #[strum(props(usage = "Check for updates and install if available"))]
+    Update,
     /// Switch to "act" mode.
     /// This can be triggered with the '/act' command.
     #[strum(props(usage = "Enable implementation mode with code changes"))]
@@ -253,6 +258,10 @@ pub enum Command {
     /// This can be triggered with the '/tools' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
     Tools,
+    /// Check for updates manually
+    /// This can be triggered with the '/update-check' command.
+    #[strum(props(usage = "Check for updates manually"))]
+    UpdateCheck,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
     /// Executes a native shell command.
@@ -269,12 +278,14 @@ impl Command {
             Command::Message(_) => "/message",
             Command::Info => "/info",
             Command::Exit => "/exit",
+            Command::Update => "/update",
             Command::Act => "/act",
             Command::Plan => "/plan",
             Command::Help => "/help",
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
             Command::Tools => "/tools",
+            Command::UpdateCheck => "/update-check",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
         }
