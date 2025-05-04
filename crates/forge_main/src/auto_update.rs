@@ -62,7 +62,7 @@ pub async fn force_update(frequency: UpdateFrequency, auto_update: bool) {
         match frequency {
             UpdateFrequency::Daily => Duration::from_secs(60 * 60 * 24), // 1 day
             UpdateFrequency::Weekly => Duration::from_secs(60 * 60 * 24 * 7), // 1 week
-            UpdateFrequency::Always => Duration::ZERO,                    // one time,
+            UpdateFrequency::Always => Duration::ZERO,                   // one time,
         },
     );
 
