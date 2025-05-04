@@ -1,4 +1,3 @@
-use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -80,8 +79,6 @@ async fn perform_update() -> Result<()> {
     // Run npm install command with stdio set to null to avoid any output
     let status = Command::new("npm")
         .args(["update", "-g", "@antinomyhq/forge"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
         .status()
         .await?;
 
