@@ -5,6 +5,5 @@ snapshot_kind: text
 ---
 ---
 tool_name: fs_read
-status: Success
 ---
 Contents of the file

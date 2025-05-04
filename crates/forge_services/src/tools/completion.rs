@@ -13,7 +13,7 @@ pub struct Completion;
 
 impl NamedTool for Completion {
     fn tool_name() -> forge_domain::ToolName {
-        forge_domain::ToolName::new("tool_forge_attempt_completion")
+        forge_domain::ToolName::new("forge_tool_attempt_completion")
     }
 }
 

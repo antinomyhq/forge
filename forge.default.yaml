@@ -32,8 +32,8 @@ agents:
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_fs_undo
-      - tool_forge_attempt_completion
-      - tool_forge_followup
+      - forge_tool_attempt_completion
+      - forge_tool_followup
     subscribe:
       - act/user_task_init
       - act/user_task_update

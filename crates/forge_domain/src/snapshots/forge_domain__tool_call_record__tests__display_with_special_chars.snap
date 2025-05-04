@@ -5,6 +5,5 @@ snapshot_kind: text
 ---
 ---
 tool_name: test_tool
-status: Success
 ---
 Result with <tags> & special "characters"

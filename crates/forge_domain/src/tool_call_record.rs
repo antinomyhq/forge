@@ -23,8 +23,6 @@ impl Display for ToolCallRecord {
         writeln!(f, "tool_name: {tool_name}")?;
         if self.tool_result.is_error {
             writeln!(f, "status: Failure")?;
-        } else {
-            writeln!(f, "status: Success")?;
         }
         writeln!(f, "---")?;
 
