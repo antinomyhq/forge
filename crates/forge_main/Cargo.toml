@@ -36,6 +36,9 @@ strum.workspace = true
 strum_macros.workspace = true
 base64.workspace = true
 convert_case.workspace = true
+dotenv.workspace = true
+pathdiff.workspace = true
+dirs.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
