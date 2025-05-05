@@ -90,7 +90,8 @@ impl ForgeEditor {
             .with_edit_mode(edit_mode)
             .with_quick_completions(true)
             .with_partial_completions(true)
-            .with_ansi_colors(true);
+            .with_ansi_colors(true)
+            .use_bracketed_paste(true);
         Self { editor }
     }
 
