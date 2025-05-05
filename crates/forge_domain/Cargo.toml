@@ -30,6 +30,7 @@ tokio-retry = { workspace = true }
 serde_yml.workspace = true
 forge_template.workspace = true
 forge_walker.workspace = true
+gray_matter = "0.2.8"
 
 [dev-dependencies]
 insta.workspace = true
