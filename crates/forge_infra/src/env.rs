@@ -109,7 +109,14 @@ impl ForgeEnvironmentService {
     }
 
     fn get(&self) -> Environment {
-        dotenv::dotenv().ok();
+        // Try to load .env file and show its path
+        let env_path = dotenv::from_path(".env").ok().map(|_| ".env".to_string())
+            .or_else(|| dotenv::from_path(dirs::home_dir().unwrap_or_default().join(".env")).ok().map(|_| "~/.env".to_string()));
+        
+        if let Some(path) = env_path {
+            println!("⏺ [{}] Reading {}", chrono::Local::now().format("%H:%M:%S%.3f"), path);
+        }
+
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
