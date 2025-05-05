@@ -1,5 +1,6 @@
 use derive_setters::Setters;
-use gray_matter::{Matter, engine::YAML, ParsedEntity};
+use gray_matter::engine::YAML;
+use gray_matter::{Matter, ParsedEntity};
 use serde::{Deserialize, Serialize};
 
 use crate::{ToolCallFull, ToolCallId, ToolName};
@@ -47,44 +48,51 @@ impl ToolResult {
     /// Serialize the tool result as a front matter document
     pub fn to_frontmatter(&self) -> String {
         let mut frontmatter = serde_json::Map::new();
-        frontmatter.insert("tool".to_string(), serde_json::Value::String(self.name.as_str().to_string()));
-        
+        frontmatter.insert(
+            "tool".to_string(),
+            serde_json::Value::String(self.name.as_str().to_string()),
+        );
+
         if let Some(call_id) = &self.call_id {
-            frontmatter.insert("call_id".to_string(), serde_json::Value::String(call_id.as_str().to_string()));
+            frontmatter.insert(
+                "call_id".to_string(),
+                serde_json::Value::String(call_id.as_str().to_string()),
+            );
         }
-        
-        frontmatter.insert("is_error".to_string(), serde_json::Value::Bool(self.is_error));
-        
+
+        frontmatter.insert(
+            "is_error".to_string(),
+            serde_json::Value::Bool(self.is_error),
+        );
+
         let frontmatter_value = serde_json::Value::Object(frontmatter);
         let frontmatter_yaml = serde_yml::to_string(&frontmatter_value).unwrap_or_default();
-        
+
         format!("---\n{}---\n{}", frontmatter_yaml, self.content)
     }
-    
+
     /// Parse a front matter document back into a ToolResult
     pub fn from_frontmatter(content: &str) -> anyhow::Result<Self> {
         let matter = Matter::<YAML>::new();
         let parsed: ParsedEntity = matter.parse(content);
-        
-        let data = parsed.data.ok_or_else(|| anyhow::anyhow!("No front matter found"))?;
-        
-        let name = data["tool"].as_string()
+
+        let data = parsed
+            .data
+            .ok_or_else(|| anyhow::anyhow!("No front matter found"))?;
+
+        let name = data["tool"]
+            .as_string()
             .map_err(|_| anyhow::anyhow!("Invalid tool name"))?;
         let name = ToolName::new(name);
-        
+
         let call_id = match data["call_id"].as_string() {
             Ok(id) => Some(ToolCallId::new(id)),
             Err(_) => None,
         };
-        
+
         let is_error = data["is_error"].as_bool().unwrap_or(false);
-        
-        Ok(Self {
-            name,
-            call_id,
-            content: parsed.content,
-            is_error,
-        })
+
+        Ok(Self { name, call_id, content: parsed.content, is_error })
     }
 }
 
@@ -194,10 +202,10 @@ mod tests {
         let original = ToolResult::new(ToolName::new("test_tool"))
             .call_id(ToolCallId::new("abc123"))
             .success("This is the content\nWith multiple lines");
-        
+
         let frontmatter = original.to_frontmatter();
         let parsed = ToolResult::from_frontmatter(&frontmatter).unwrap();
-        
+
         assert_eq!(parsed.name, original.name);
         assert_eq!(parsed.call_id, original.call_id);
         assert_eq!(parsed.content, original.content);
