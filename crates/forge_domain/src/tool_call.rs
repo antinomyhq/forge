@@ -2,6 +2,7 @@ use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt;
 
 use crate::{extract_tag_content, Error, Result, ToolName};
 
@@ -17,6 +18,12 @@ impl ToolCallId {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl fmt::Display for ToolCallId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

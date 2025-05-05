@@ -12,6 +12,7 @@ derive_more.workspace = true
 derive_setters.workspace = true
 forge_stream.workspace = true
 futures.workspace = true
+gray_matter.workspace = true
 nom.workspace = true
 schemars.workspace = true
 serde.workspace = true
@@ -30,7 +31,12 @@ tokio-retry = { workspace = true }
 serde_yml.workspace = true
 forge_template.workspace = true
 forge_walker.workspace = true
+serde_yaml = "0.9.34"
 
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
+
+[[example]]
+name = "test_tool_response"
+path = "examples/test_tool_response.rs"
