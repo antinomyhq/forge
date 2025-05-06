@@ -27,7 +27,7 @@ async fn update_forge() {
             .with_default(true)
             .with_error_message("Invalid response!")
             .prompt();
-        if answer.is_ok() && answer.unwrap() {
+        if answer.unwrap_or_default() {
             std::process::exit(0);
         }
     }
