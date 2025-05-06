@@ -76,6 +76,10 @@ impl From<&Environment> for Info {
                 "Checkpoints",
                 format_path_zsh_style(&env.home, &env.snapshot_path()),
             )
+            .add_key_value(
+                ".env",
+                format_path_zsh_style(&env.home, &env.dot_env_path()),
+            )
     }
 }
 

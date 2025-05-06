@@ -43,4 +43,7 @@ impl Environment {
     pub fn snapshot_path(&self) -> PathBuf {
         self.base_path.join("snapshots")
     }
+    pub fn dot_env_path(&self) -> PathBuf {
+        self.base_path.join(".env")
+    }
 }
