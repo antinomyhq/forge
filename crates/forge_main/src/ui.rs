@@ -191,8 +191,29 @@ impl<F: API> UI<F> {
                 Command::Compact => {
                     self.spinner.start(Some("Compacting"))?;
                     let conversation_id = self.init_conversation().await?;
-                    let compaction_result = self.api.compact_conversation(&conversation_id).await?;
-
+                    
+                    // Set up a tokio interval to update the spinner every second
+                    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
+                    
+                    // Create a future that will update the spinner
+                    let spinner_future = async {
+                        loop {
+                            interval.tick().await;
+                            if let Err(e) = self.spinner.update_time() {
+                                tracing::warn!("Failed to update spinner time: {}", e);
+                                break;
+                            }
+                        }
+                    };
+                    
+                    // Run the compaction and spinner update concurrently
+                    let (compaction_result, _) = tokio::join!(
+                        self.api.compact_conversation(&conversation_id),
+                        spinner_future
+                    );
+                    
+                    let compaction_result = compaction_result?;
+                    
                     // Calculate percentage reduction
                     let token_reduction = compaction_result.token_reduction_percentage();
                     let message_reduction = compaction_result.message_reduction_percentage();
@@ -200,6 +221,9 @@ impl<F: API> UI<F> {
                     let content = TitleFormat::action(format!(
                         "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
                      )).to_string();
+                     
+                    // Stop the spinner before showing the results
+                    self.spinner.stop(None)?;
                     self.writeln(content)?;
                 }
                 Command::Dump(format) => {
