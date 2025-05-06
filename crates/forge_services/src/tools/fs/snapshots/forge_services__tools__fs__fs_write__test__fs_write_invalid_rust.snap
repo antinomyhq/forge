@@ -1,0 +1,11 @@
+---
+source: crates/forge_services/src/tools/fs/fs_write.rs
+expression: normalized_output
+snapshot_kind: text
+---
+---
+path: false
+operation: CREATE
+total_chars: 20
+Warning: Syntax error found in file with extension rs. Hint: Please retry in raw mode without HTML-encoding angle brackets.
+---

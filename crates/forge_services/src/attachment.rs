@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -29,11 +30,20 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         infra: &impl FsReadService,
     ) -> anyhow::Result<String> {
         const MAX_CHARS: u64 = 40_000;
-        let (file_content, file_info) = infra.range_read_utf8(path, 0, MAX_CHARS).await?;
-        Ok(format!(
-            "---\n\nchar_range: {}-{}\ntotal_chars: {}\n---\n{}",
-            file_info.start_char, file_info.end_char, file_info.total_chars, file_content
-        ))
+        let (content, file_info) = infra.range_read_utf8(path, 0, MAX_CHARS).await?;
+        let mut response = String::new();
+        writeln!(response, "---")?;
+        writeln!(response, "path: {}", path.display())?;
+
+        writeln!(response, "start_char: {}", file_info.start_char)?;
+        writeln!(response, "end_char: {}", file_info.end_char)?;
+        writeln!(response, "total_chars: {}", file_info.total_chars)?;
+
+        writeln!(response, "---")?;
+
+        writeln!(response, "{}", &content)?;
+
+        Ok(response)
     }
 
     pub fn new(infra: Arc<F>) -> Self {
@@ -518,7 +528,8 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("This is a text file content"));
-        assert!(attachment.content.contains("char_range:"));
+        assert!(attachment.content.contains("start_char:"));
+        assert!(attachment.content.contains("end_char:"));
         assert!(attachment.content.contains("total_chars:"));
     }
 
@@ -675,7 +686,8 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("Some content"));
-        assert!(attachment.content.contains("char_range:"));
+        assert!(attachment.content.contains("start_char:"));
+        assert!(attachment.content.contains("end_char:"));
         assert!(attachment.content.contains("total_chars:"));
     }
 }
