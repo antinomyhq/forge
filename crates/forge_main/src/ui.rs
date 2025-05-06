@@ -70,7 +70,8 @@ impl<F: API> UI<F> {
         if let Some(models) = &self.state.cached_models {
             Ok(models.clone())
         } else {
-            self.spinner.start_with_auto_update(Some("Loading Models"))?;
+            self.spinner
+                .start_with_auto_update(Some("Loading Models"))?;
             let models = self.api.models().await?;
             self.spinner.stop(None)?;
             self.state.cached_models = Some(models.clone());
@@ -191,7 +192,7 @@ impl<F: API> UI<F> {
                 Command::Compact => {
                     self.spinner.start_with_auto_update(Some("Compacting"))?;
                     let conversation_id = self.init_conversation().await?;
-                    
+
                     // Run the compaction operation
                     let compaction_result = self.api.compact_conversation(&conversation_id).await?;
 

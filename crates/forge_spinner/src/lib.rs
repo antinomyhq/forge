@@ -84,26 +84,30 @@ impl SpinnerManager {
     pub fn start_with_auto_update(&mut self, message: Option<&str>) -> Result<()> {
         // First, start the regular spinner
         self.start(message)?;
-        
+
         // Create a channel for stopping the update task
         let (stop_tx, mut stop_rx) = mpsc::channel::<()>(1);
         self.stop_tx = Some(stop_tx);
 
         // Get essential spinner information
-        let spinner = self.spinner.as_ref().expect("Spinner should be initialized").clone();
+        let spinner = self
+            .spinner
+            .as_ref()
+            .expect("Spinner should be initialized")
+            .clone();
         let message = self.message.clone().expect("Message should be initialized");
         let start_time = self.start_time.expect("Start time should be initialized");
-        
+
         // Create a new tokio task to update the spinner timer
         let update_task = tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
-            
+
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
                         let elapsed = start_time.elapsed();
                         let seconds = elapsed.as_secs();
-                        
+
                         // Create a new message with the elapsed time
                         let updated_message = format!(
                             "{} {}s · {}",
@@ -111,7 +115,7 @@ impl SpinnerManager {
                             seconds,
                             "Ctrl+C to interrupt".white().dimmed()
                         );
-                        
+
                         // Update the spinner's message
                         spinner.set_message(updated_message);
                     }
@@ -122,10 +126,10 @@ impl SpinnerManager {
                 }
             }
         });
-        
+
         // Store the task handle for cleanup on stop
         self.update_task = Some(update_task);
-        
+
         Ok(())
     }
 
@@ -157,7 +161,8 @@ impl SpinnerManager {
     pub fn stop(&mut self, message: Option<String>) -> Result<()> {
         // Send stop signal to the update task if it exists
         if let Some(tx) = self.stop_tx.take() {
-            let _ = tx.try_send(());  // Ignore errors if the receiver is already dropped
+            let _ = tx.try_send(()); // Ignore errors if the receiver is already
+                                     // dropped
         }
 
         // Cancel the update task if it's running
@@ -200,9 +205,10 @@ impl Drop for SpinnerManager {
     fn drop(&mut self) {
         // Try to send stop signal first
         if let Some(tx) = self.stop_tx.take() {
-            let _ = tx.try_send(());  // Ignore errors if the receiver is already dropped
+            let _ = tx.try_send(()); // Ignore errors if the receiver is already
+                                     // dropped
         }
-        
+
         // Then abort the task if needed
         if let Some(task) = self.update_task.take() {
             task.abort();
