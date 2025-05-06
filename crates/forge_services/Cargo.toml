@@ -53,7 +53,7 @@ console.workspace = true
 serde_yml.workspace = true
 merge.workspace = true
 strip-ansi-escapes.workspace = true
-tempfile = "3.8"
+tempfile.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
