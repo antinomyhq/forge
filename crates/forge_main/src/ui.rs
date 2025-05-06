@@ -83,17 +83,14 @@ impl<F: API> UI<F> {
         let user_workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         workflow.merge(user_workflow);
 
-        let update_config = workflow
-            .updates
-            .ok_or(anyhow!("Update configuration not found"))?;
+        let update_config = workflow.updates.context("Update configuration not found")?;
 
         // Extract the values from the config using clone to avoid partial moves
         let frequency = update_config
             .check_frequency
-            .as_ref()
-            .unwrap_or(&UpdateFrequency::Daily)
-            .clone();
-        let auto_update = update_config.auto_update.unwrap_or(false);
+            .clone()
+            .unwrap_or(&UpdateFrequency::Daily);
+        let auto_update = update_config.auto_update.unwrap_or_default();
 
         // Perform update check using the configuration
         force_update(frequency, auto_update).await;
@@ -187,7 +184,7 @@ impl<F: API> UI<F> {
     }
 
     async fn run_inner(&mut self) -> Result<()> {
-        self.attempt_update().await?;
+        let _ = self.attempt_update().await;
 
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {

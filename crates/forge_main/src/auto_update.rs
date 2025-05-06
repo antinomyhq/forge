@@ -11,12 +11,6 @@ use crate::TRACKER;
 
 /// Runs npm update in the background, failing silently
 async fn update_forge() {
-    // Check if version is development version, in which case we skip the update
-    if VERSION.contains("dev") || VERSION == "0.1.0" {
-        // Skip update for development version 0.1.0
-        return;
-    }
-
     // Spawn a new task that won't block the main application
     if let Err(err) = perform_update().await {
         // Send an event to the tracker on failure
@@ -43,7 +37,7 @@ async fn confirm_update(version: Version) {
     .with_error_message("Invalid response!")
     .prompt();
 
-    if answer.is_ok() && answer.unwrap() {
+    if answer.unwrap_or_default() {
         update_forge().await;
     }
 }
@@ -57,13 +51,8 @@ pub async fn force_update(frequency: UpdateFrequency, auto_update: bool) {
         return;
     }
 
-    let informer = update_informer::new(registry::Npm, "@antinomyhq/forge", VERSION).interval(
-        match frequency {
-            UpdateFrequency::Daily => Duration::from_secs(60 * 60 * 24), // 1 day
-            UpdateFrequency::Weekly => Duration::from_secs(60 * 60 * 24 * 7), // 1 week
-            UpdateFrequency::Always => Duration::ZERO,                   // one time,
-        },
-    );
+    let informer = update_informer::new(registry::Npm, "@antinomyhq/forge", VERSION)
+        .interval(frequency.into());
 
     if let Some(version) = informer.check_version().ok().flatten() {
         if auto_update {
