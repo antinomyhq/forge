@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use anyhow::Result;
 use colored::Colorize;
 use forge_api::UpdateFrequency;

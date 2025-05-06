@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use forge_api::{
     AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
     Update, UpdateFrequency, Workflow, API,
@@ -89,7 +89,7 @@ impl<F: API> UI<F> {
         let frequency = update_config
             .check_frequency
             .clone()
-            .unwrap_or(&UpdateFrequency::Daily);
+            .unwrap_or(UpdateFrequency::Daily);
         let auto_update = update_config.auto_update.unwrap_or_default();
 
         // Perform update check using the configuration
