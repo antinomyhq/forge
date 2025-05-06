@@ -30,6 +30,8 @@ on:
   push:
     branches:
     - main
+    tags:
+    - v*
 jobs:
   build:
     name: Build and Test
