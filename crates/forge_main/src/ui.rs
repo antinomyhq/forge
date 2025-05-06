@@ -70,7 +70,7 @@ impl<F: API> UI<F> {
         if let Some(models) = &self.state.cached_models {
             Ok(models.clone())
         } else {
-            self.spinner.start(Some("Loading Models"))?;
+            self.spinner.start_with_auto_update(Some("Loading Models"))?;
             let models = self.api.models().await?;
             self.spinner.stop(None)?;
             self.state.cached_models = Some(models.clone());
@@ -189,31 +189,11 @@ impl<F: API> UI<F> {
         loop {
             match input {
                 Command::Compact => {
-                    self.spinner.start(Some("Compacting"))?;
+                    self.spinner.start_with_auto_update(Some("Compacting"))?;
                     let conversation_id = self.init_conversation().await?;
-
-                    // Set up a tokio interval to update the spinner every 500ms
-                    let mut interval =
-                        tokio::time::interval(tokio::time::Duration::from_millis(500));
-
-                    // Create a future that will update the spinner
-                    let spinner_future = async {
-                        loop {
-                            interval.tick().await;
-                            if let Err(e) = self.spinner.update_time() {
-                                tracing::warn!("Failed to update spinner time: {}", e);
-                                break;
-                            }
-                        }
-                    };
-
-                    // Run the compaction and spinner update concurrently
-                    let (compaction_result, _) = tokio::join!(
-                        self.api.compact_conversation(&conversation_id),
-                        spinner_future
-                    );
-
-                    let compaction_result = compaction_result?;
+                    
+                    // Run the compaction operation
+                    let compaction_result = self.api.compact_conversation(&conversation_id).await?;
 
                     // Calculate percentage reduction
                     let token_reduction = compaction_result.token_reduction_percentage();
@@ -238,7 +218,7 @@ impl<F: API> UI<F> {
                     self.writeln(info)?;
                 }
                 Command::Message(ref content) => {
-                    self.spinner.start(None)?;
+                    self.spinner.start_with_auto_update(None)?;
                     let chat_result = self.chat(content.clone()).await;
                     if let Err(err) = chat_result {
                         tokio::spawn(
@@ -468,20 +448,11 @@ impl<F: API> UI<F> {
         &mut self,
         stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
-        // Set up a tokio interval to update the spinner every second
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
-
         loop {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
                     self.spinner.stop(None)?;
                     return Ok(());
-                }
-                _ = interval.tick() => {
-                    // Update the spinner with elapsed time
-                    if let Err(e) = self.spinner.update_time() {
-                        tracing::warn!("Failed to update spinner time: {}", e);
-                    }
                 }
                 maybe_message = stream.next() => {
                     match maybe_message {
@@ -569,7 +540,7 @@ impl<F: API> UI<F> {
                 };
                 tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::ToolCall(payload)));
 
-                self.spinner.start(None)?;
+                self.spinner.start_with_auto_update(None)?;
                 if !self.cli.verbose {
                     return Ok(());
                 }

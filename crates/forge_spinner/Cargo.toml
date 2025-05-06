@@ -8,3 +8,4 @@ anyhow.workspace = true
 colored.workspace = true
 indicatif = "0.17.11"
 rand = "0.8.5"
+tokio = { workspace = true, features = ["rt", "time", "sync"] }
