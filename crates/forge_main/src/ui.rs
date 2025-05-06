@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
-    API,
+    AgentMessage, ChatRequest, ChatResponse, CompactionResult, Conversation, ConversationId, Event,
+    Model, ModelId, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_fs::ForgeFS;
@@ -191,16 +191,24 @@ impl<F: API> UI<F> {
                 Command::Compact => {
                     self.spinner.start(Some("Compacting"))?;
                     let conversation_id = self.init_conversation().await?;
-                    let compaction_result = self.api.compact_conversation(&conversation_id).await?;
 
-                    // Calculate percentage reduction
-                    let token_reduction = compaction_result.token_reduction_percentage();
-                    let message_reduction = compaction_result.message_reduction_percentage();
+                    // Start the compaction operation and handle the spinner updates
+                    match self.handle_compaction(&conversation_id).await {
+                        Ok(compaction_result) => {
+                            // Calculate percentage reduction
+                            let token_reduction = compaction_result.token_reduction_percentage();
+                            let message_reduction =
+                                compaction_result.message_reduction_percentage();
 
-                    let content = TitleFormat::action(format!(
-                        "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
-                     )).to_string();
-                    self.writeln(content)?;
+                            let content = TitleFormat::action(format!(
+                                "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
+                            )).to_string();
+                            self.writeln(content)?;
+                        }
+                        Err(err) => {
+                            self.writeln(TitleFormat::error(format!("{err:?}")))?;
+                        }
+                    }
                 }
                 Command::Dump(format) => {
                     self.handle_dump(format).await?;
@@ -470,6 +478,38 @@ impl<F: API> UI<F> {
                             return Ok(())
                         },
                     }
+                }
+            }
+        }
+    }
+
+    /// Handle the compaction operation with spinner updates
+    async fn handle_compaction(
+        &mut self,
+        conversation_id: &ConversationId,
+    ) -> Result<CompactionResult> {
+        // Set up a tokio interval to update the spinner every 500ms
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
+
+        // Create a future for the compaction operation
+        let compaction_future = self.api.compact_conversation(conversation_id);
+        tokio::pin!(compaction_future);
+
+        loop {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    self.spinner.stop(None)?;
+                    return Err(anyhow::anyhow!("Compaction interrupted"));
+                }
+                _ = interval.tick() => {
+                    // Update the spinner with elapsed time
+                    if let Err(e) = self.spinner.update_time() {
+                        tracing::warn!("Failed to update spinner time: {}", e);
+                    }
+                }
+                result = &mut compaction_future => {
+                    self.spinner.stop(None)?;
+                    return result;
                 }
             }
         }
