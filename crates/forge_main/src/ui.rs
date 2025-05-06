@@ -490,10 +490,7 @@ impl<F: API> UI<F> {
     ) -> Result<CompactionResult> {
         // Set up a tokio interval to update the spinner every 500ms
         let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
-
-        // Create a future for the compaction operation
-        let compaction_future = self.api.compact_conversation(conversation_id);
-        tokio::pin!(compaction_future);
+        let mut compaction_future = self.api.compact_conversation(conversation_id);
 
         loop {
             tokio::select! {
