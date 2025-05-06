@@ -206,42 +206,25 @@ impl<F: API> UI<F> {
                         }
                     };
 
-                    // Run the compaction and spinner update concurrently, waiting for either to complete
-                    let compaction_result = tokio::select! {
-                        result = self.api.compact_conversation(&conversation_id) => {
-                            result
-                        }
-                        _ = spinner_future => {
-                            // This branch should not be reached under normal circumstances
-                            // as spinner_future runs indefinitely
-                            Err(anyhow::anyhow!("Spinner future unexpectedly completed"))
-                        }
-                    };
+                    // Run the compaction and spinner update concurrently
+                    let (compaction_result, _) = tokio::join!(
+                        self.api.compact_conversation(&conversation_id),
+                        spinner_future
+                    );
 
-                    // Ensure spinner is stopped regardless of success or failure
-                    let result = match compaction_result {
-                        Ok(result) => {
-                            // Calculate percentage reduction
-                            let token_reduction = result.token_reduction_percentage();
-                            let message_reduction = result.message_reduction_percentage();
+                    let compaction_result = compaction_result?;
 
-                            // Stop the spinner before showing the results
-                            self.spinner.stop(None)?;
+                    // Calculate percentage reduction
+                    let token_reduction = compaction_result.token_reduction_percentage();
+                    let message_reduction = compaction_result.message_reduction_percentage();
 
-                            let content = TitleFormat::action(format!(
-                                "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
-                            )).to_string();
-                            self.writeln(content)
-                        }
-                        Err(e) => {
-                            // Stop the spinner and propagate the error
-                            self.spinner.stop(None)?;
-                            Err(e)
-                        }
-                    };
+                    // Stop the spinner before showing the results
+                    self.spinner.stop(None)?;
 
-                    // Propagate any errors from the operation
-                    result?;
+                    let content = TitleFormat::action(format!(
+                        "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
+                     )).to_string();
+                    self.writeln(content)?;
                 }
                 Command::Dump(format) => {
                     self.handle_dump(format).await?;
