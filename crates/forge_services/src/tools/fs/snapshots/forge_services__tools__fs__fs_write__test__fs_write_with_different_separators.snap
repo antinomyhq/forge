@@ -1,0 +1,10 @@
+---
+source: crates/forge_services/src/tools/fs/fs_write.rs
+expression: normalized_result
+snapshot_kind: text
+---
+---
+path: false
+operation: CREATE
+total_chars: 23
+---
