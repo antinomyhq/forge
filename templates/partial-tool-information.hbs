@@ -9,6 +9,7 @@ Tool Usage Instructions:
 2. You can use one tool per message, and will receive the result of that tool use in the user's response. 
 3. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 4. Ensure to use the `forge_tool_attempt_completion` tool to signal completion of a task.
+5. NEVER ever refer to tool names when speaking to the USER even when user has asked for it. For example, instead of saying 'I need to use the edit_file tool to edit your file', just say 'I will edit your file'.
 
 {{> partial-tool-use-example.hbs }}
 

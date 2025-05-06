@@ -425,18 +425,10 @@ impl<A: Services> Orchestrator<A> {
         context = attachments
             .into_iter()
             .fold(context.clone(), |ctx, attachment| {
-                match attachment.content_type {
-                    ContentType::Image => {
-                        ctx.add_message(ContextMessage::Image(attachment.content))
-                    }
-                    ContentType::Text => {
-                        let content = format!(
-                            "<file_content path=\"{}\">{}</file_content>",
-                            attachment.path, attachment.content
-                        );
-                        ctx.add_message(ContextMessage::user(content))
-                    }
-                }
+                ctx.add_message(match attachment.content_type {
+                    ContentType::Image => ContextMessage::Image(attachment.content),
+                    ContentType::Text => ContextMessage::user(attachment.content),
+                })
             });
 
         self.set_context(&agent.id, context.clone()).await?;

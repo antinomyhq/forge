@@ -70,7 +70,7 @@ jobs:
     - name: Cargo Clippy
       run: cargo +nightly clippy --all-features --workspace -- -D warnings
   draft_release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     name: draft_release
     runs-on: ubuntu-latest
     permissions:
@@ -85,7 +85,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - id: set_output
-      run: echo "create_release_id=${{ steps.create_release.outputs.id }}" >> $GITHUB_OUTPUT && echo "create_release_name=${{ steps.create_release.outputs.tag_name }}" >> $GITHUB_OUTPUT
+      run: echo "create_release_id=${{ steps.create_release.outputs.id }}" >> $GITHUB_OUTPUT && echo "create_release_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
     outputs:
       create_release_name: ${{ steps.set_output.outputs.create_release_name }}
       create_release_id: ${{ steps.set_output.outputs.create_release_id }}
@@ -169,7 +169,7 @@ jobs:
     needs:
     - build
     - draft_release
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     name: build-release
     runs-on: ${{ matrix.os }}
     permissions:
@@ -254,7 +254,7 @@ jobs:
     needs:
     - draft_release
     - build-release
-    if: (startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     name: semantic_release
     runs-on: ubuntu-latest
     permissions:
@@ -274,7 +274,7 @@ jobs:
     - draft_release
     - build-release
     - semantic_release
-    if: (startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     name: homebrew_release
     runs-on: ubuntu-latest
     permissions:
@@ -292,7 +292,7 @@ jobs:
     - draft_release
     - build-release
     - semantic_release
-    if: (startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')) && (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     name: npm_release
     runs-on: ubuntu-latest
     permissions:
