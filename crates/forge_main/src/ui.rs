@@ -191,16 +191,57 @@ impl<F: API> UI<F> {
                 Command::Compact => {
                     self.spinner.start(Some("Compacting"))?;
                     let conversation_id = self.init_conversation().await?;
-                    let compaction_result = self.api.compact_conversation(&conversation_id).await?;
 
-                    // Calculate percentage reduction
-                    let token_reduction = compaction_result.token_reduction_percentage();
-                    let message_reduction = compaction_result.message_reduction_percentage();
+                    // Set up a tokio interval to update the spinner every 500ms
+                    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
 
-                    let content = TitleFormat::action(format!(
-                        "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
-                     )).to_string();
-                    self.writeln(content)?;
+                    // Create a future that will update the spinner
+                    let spinner_future = async {
+                        loop {
+                            interval.tick().await;
+                            if let Err(e) = self.spinner.update_time() {
+                                tracing::warn!("Failed to update spinner time: {}", e);
+                                break;
+                            }
+                        }
+                    };
+
+                    // Run the compaction and spinner update concurrently, waiting for either to complete
+                    let compaction_result = tokio::select! {
+                        result = self.api.compact_conversation(&conversation_id) => {
+                            result
+                        }
+                        _ = spinner_future => {
+                            // This branch should not be reached under normal circumstances
+                            // as spinner_future runs indefinitely
+                            Err(anyhow::anyhow!("Spinner future unexpectedly completed"))
+                        }
+                    };
+
+                    // Ensure spinner is stopped regardless of success or failure
+                    let result = match compaction_result {
+                        Ok(result) => {
+                            // Calculate percentage reduction
+                            let token_reduction = result.token_reduction_percentage();
+                            let message_reduction = result.message_reduction_percentage();
+
+                            // Stop the spinner before showing the results
+                            self.spinner.stop(None)?;
+
+                            let content = TitleFormat::action(format!(
+                                "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
+                            )).to_string();
+                            self.writeln(content)
+                        }
+                        Err(e) => {
+                            // Stop the spinner and propagate the error
+                            self.spinner.stop(None)?;
+                            Err(e)
+                        }
+                    };
+
+                    // Propagate any errors from the operation
+                    result?;
                 }
                 Command::Dump(format) => {
                     self.handle_dump(format).await?;
