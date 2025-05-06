@@ -27,7 +27,7 @@ dirs = "6.0.0"
 dissimilar = "1.0.9"
 dotenv = "0.15.0"
 futures = "0.3.31"
-gh-workflow-tailcall = "0.5.1"
+gh-workflow-tailcall = "0.5.2"
 glob = "0.3.2"
 handlebars = { version = "6.2.0", features = ["rust-embed"] }
 html2md = "0.2.15"
@@ -45,7 +45,7 @@ posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0"
 quote = "1.0"
-reedline = "0.38.0"
+reedline = "0.40.0"
 regex = "1.11.1"
 reqwest = { version = "0.12.12", features = [
     "json",
