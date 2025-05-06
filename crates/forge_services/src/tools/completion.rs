@@ -17,7 +17,6 @@ use serde::Deserialize;
 /// must ask yourself in <thinking></thinking> tags if you've confirmed from the
 /// user that any previous tool uses were successful. If not, then DO NOT use
 /// this tool.
-
 #[derive(Debug, Default, ToolDescription)]
 pub struct Completion;
 
