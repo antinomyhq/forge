@@ -193,7 +193,8 @@ impl<F: API> UI<F> {
                     let conversation_id = self.init_conversation().await?;
 
                     // Set up a tokio interval to update the spinner every 500ms
-                    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
+                    let mut interval =
+                        tokio::time::interval(tokio::time::Duration::from_millis(500));
 
                     // Create a future that will update the spinner
                     let spinner_future = async {
