@@ -15,10 +15,12 @@ async fn update_forge() {
         // We don't need to handle this result since we're failing silently
         let _ = send_update_failure_event(&format!("Auto update failed: {err}")).await;
     } else {
-        let answer = inquire::Confirm::new("Restart forge to apply the update?")
-            .with_default(true)
-            .with_error_message("Invalid response!")
-            .prompt();
+        let answer = inquire::Confirm::new(
+            "You need to close forge to complete update. Do you want to close it now?",
+        )
+        .with_default(true)
+        .with_error_message("Invalid response!")
+        .prompt();
         if answer.unwrap_or_default() {
             std::process::exit(0);
         }
