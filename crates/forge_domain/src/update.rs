@@ -11,9 +11,9 @@ pub enum UpdateFrequency {
     Always,
 }
 
-impl Into<Duration> for UpdateFrequency {
-    fn into(self) -> Duration {
-        match self {
+impl From<UpdateFrequency> for Duration {
+    fn from(val: UpdateFrequency) -> Self {
+        match val {
             UpdateFrequency::Daily => Duration::from_secs(60 * 60 * 24), // 1 day
             UpdateFrequency::Weekly => Duration::from_secs(60 * 60 * 24 * 7), // 1 week
             UpdateFrequency::Always => Duration::ZERO,                   // one time,
