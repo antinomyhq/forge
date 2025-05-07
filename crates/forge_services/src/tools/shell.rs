@@ -1,15 +1,13 @@
-use std::path::PathBuf;
+// PathBuf now comes from the ShellInput in forge_domain
 use std::sync::Arc;
 
 use anyhow::bail;
 use forge_display::TitleFormat;
 use forge_domain::{
-    CommandOutput, Environment, EnvironmentService, ExecutableTool, NamedTool, ToolCallContext,
-    ToolDescription, ToolName,
+    CommandOutput, Environment, EnvironmentService, ExecutableTool, NamedTool, ShellInput,
+    ToolCallContext, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use strip_ansi_escapes::strip;
 
 use crate::metadata::Metadata;
@@ -21,18 +19,7 @@ const PREFIX_CHARS: usize = 10_000;
 /// Number of characters to keep at the end of truncated output
 const SUFFIX_CHARS: usize = 10_000;
 
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
-pub struct ShellInput {
-    /// The shell command to execute.
-    pub command: String,
-    /// The working directory where the command should be executed.
-    pub cwd: PathBuf,
-    /// Whether to preserve ANSI escape codes in the output.
-    /// If true, ANSI escape codes will be preserved in the output.
-    /// If false (default), ANSI escape codes will be stripped from the output.
-    #[serde(default)]
-    pub keep_ansi: bool,
-}
+// Using ShellInput from forge_domain
 
 // Strips out the ansi codes from content.
 fn strip_ansi(content: String) -> String {

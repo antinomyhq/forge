@@ -5,37 +5,39 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::{GrepFormat, TitleFormat};
 use forge_domain::{
-    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    EnvironmentService, ExecutableTool, FSSearchInput, NamedTool, ToolCallContext, ToolDescription,
+    ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
+use crate::metadata::Metadata;
 use crate::tools::utils::{assert_absolute_path, format_display_path};
-use crate::Infrastructure;
+use crate::{Clipper, FsWriteService, Infrastructure};
 
-#[derive(Deserialize, JsonSchema)]
-pub struct FSFindInput {
-    /// The absolute path of the directory or file to search in. If it's a
-    /// directory, it will be searched recursively. If it's a file path,
-    /// only that specific file will be searched.
-    pub path: String,
+const MAX_SEARCH_CHAR_LIMIT: usize = 40_000;
 
-    /// The regular expression pattern to search for in file contents.
-    /// Uses Rust regex syntax. If not provided, only file name matching will be
-    /// performed.
-    pub regex: Option<String>,
+// Using FSSearchInput from forge_domain
 
-    /// Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not
-    /// provided, it will search all files (*).
-    pub file_pattern: Option<String>,
-}
+// Helper to handle FSSearchInput functionality
+struct FSSearchHelper<'a>(&'a FSSearchInput);
 
-impl FSFindInput {
+impl FSSearchHelper<'_> {
+    fn path(&self) -> &str {
+        &self.0.path
+    }
+
+    fn regex(&self) -> Option<&String> {
+        self.0.regex.as_ref()
+    }
+
+    fn file_pattern(&self) -> Option<&String> {
+        self.0.file_pattern.as_ref()
+    }
+
     fn get_file_pattern(&self) -> anyhow::Result<Option<glob::Pattern>> {
-        Ok(match &self.file_pattern {
+        Ok(match &self.0.file_pattern {
             Some(pattern) => Some(
                 glob::Pattern::new(pattern)
                     .with_context(|| format!("Invalid glob pattern: {pattern}"))?,
@@ -70,7 +72,9 @@ impl FSFindInput {
 /// (when regex omitted). Uses case-insensitive Rust regex syntax. Requires
 /// absolute paths. Avoids binary files and excluded directories. Best for code
 /// exploration, API usage discovery, configuration settings, or finding
-/// patterns across projects.
+/// patterns across projects. For large pages, returns the first 40,000
+/// characters and stores the complete content in a temporary file for
+/// subsequent access.
 #[derive(ToolDescription)]
 pub struct FSFind<F>(Arc<F>);
 
@@ -93,11 +97,12 @@ impl<F: Infrastructure> FSFind<F> {
         format_display_path(path, cwd)
     }
 
-    fn create_title(&self, input: &FSFindInput) -> anyhow::Result<TitleFormat> {
+    fn create_title(&self, input: &FSSearchInput) -> anyhow::Result<TitleFormat> {
         // Format the title with relative path if possible
         let formatted_dir = self.format_display_path(input.path.as_ref())?;
+        let helper = FSSearchHelper(input);
 
-        let title = match (&input.regex, &input.file_pattern) {
+        let title = match (&helper.regex(), &helper.file_pattern()) {
             (Some(regex), Some(pattern)) => {
                 format!("Search for '{regex}' in '{pattern}' files at {formatted_dir}")
             }
@@ -109,8 +114,14 @@ impl<F: Infrastructure> FSFind<F> {
         Ok(TitleFormat::debug(title))
     }
 
-    async fn call(&self, context: ToolCallContext, input: FSFindInput) -> anyhow::Result<String> {
-        let path = Path::new(&input.path);
+    async fn call_inner(
+        &self,
+        context: ToolCallContext,
+        input: FSSearchInput,
+        max_char_limit: usize,
+    ) -> anyhow::Result<String> {
+        let helper = FSSearchHelper(&input);
+        let path = Path::new(helper.path());
         assert_absolute_path(path)?;
 
         let title_format = self.create_title(&input)?;
@@ -118,7 +129,7 @@ impl<F: Infrastructure> FSFind<F> {
         context.send_text(title_format).await?;
 
         // Create content regex pattern if provided
-        let regex = match &input.regex {
+        let regex = match helper.regex() {
             Some(regex) => {
                 let pattern = format!("(?i){regex}"); // Case-insensitive by default
                 Some(
@@ -134,7 +145,7 @@ impl<F: Infrastructure> FSFind<F> {
         let mut matches = Vec::new();
 
         for path in paths {
-            if !input.match_file_path(path.as_path())? {
+            if !helper.match_file_path(path.as_path())? {
                 continue;
             }
 
@@ -179,7 +190,7 @@ impl<F: Infrastructure> FSFind<F> {
 
                 // If no matches found in content but we're looking for content,
                 // don't add this file to matches
-                if !found_match && input.regex.is_some() {
+                if !found_match && helper.regex().is_some() {
                     continue;
                 }
             }
@@ -198,22 +209,59 @@ impl<F: Infrastructure> FSFind<F> {
         }
 
         context.send_text(formatted_output.format()).await?;
-        Ok(matches.join("\n"))
+
+        let matches = matches.join("\n");
+        let metadata = Metadata::default()
+            .add("path", input.path)
+            .add_optional("regex", input.regex)
+            .add_optional("file_pattern", input.file_pattern)
+            .add("total_chars", matches.len())
+            .add("start_char", 0);
+
+        let truncated_result = Clipper::from_start(max_char_limit).clip(&matches);
+        if let Some(truncated) = truncated_result.prefix_content() {
+            let path = self
+                .0
+                .file_write_service()
+                .write_temp("forge_find_", ".md", &matches)
+                .await?;
+
+            let metadata = metadata
+                .add("end_char", truncated.len())
+                .add("temp_file", path.display());
+
+            let truncation_tag = format!("\n<truncation>content is truncated to {} chars, remaining content can be read from path:{}</truncation>", 
+            max_char_limit,path.to_string_lossy());
+
+            Ok(format!("{metadata}{truncated}{truncation_tag}"))
+        } else {
+            let metadata = metadata.add("end_char", matches.len());
+            Ok(format!("{metadata}{matches}"))
+        }
     }
 }
 
-async fn retrieve_file_paths(dir: &Path) -> anyhow::Result<HashSet<std::path::PathBuf>> {
+async fn retrieve_file_paths(dir: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
     if dir.is_dir() {
-        Ok(Walker::max_all()
+        // note: Paths needs mutable to avoid flaky tests.
+        #[allow(unused_mut)]
+        let mut paths = Walker::max_all()
             .cwd(dir.to_path_buf())
             .get()
             .await
             .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?
             .into_iter()
             .map(|file| dir.join(file.path))
-            .collect::<HashSet<_>>())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        #[cfg(test)]
+        paths.sort();
+
+        Ok(paths)
     } else {
-        Ok(HashSet::from_iter([dir.to_path_buf()]))
+        Ok(Vec::from_iter([dir.to_path_buf()]))
     }
 }
 
@@ -225,10 +273,10 @@ impl<F> NamedTool for FSFind<F> {
 
 #[async_trait::async_trait]
 impl<F: Infrastructure> ExecutableTool for FSFind<F> {
-    type Input = FSFindInput;
+    type Input = FSSearchInput;
 
     async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
-        self.call(context, input).await
+        self.call_inner(context, input, MAX_SEARCH_CHAR_LIMIT).await
     }
 }
 
@@ -260,7 +308,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
                     file_pattern: None,
@@ -269,8 +317,6 @@ mod test {
             .await
             .unwrap();
 
-        let lines: Vec<_> = result.lines().collect();
-        assert_eq!(lines.len(), 2);
         assert!(result.contains("test1.txt"));
         assert!(result.contains("test2.txt"));
     }
@@ -291,7 +337,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
                     file_pattern: Some("*.rs".to_string()),
@@ -300,8 +346,6 @@ mod test {
             .await
             .unwrap();
 
-        let lines: Vec<_> = result.lines().collect();
-        assert_eq!(lines.len(), 1);
         assert!(result.contains("test2.rs"));
     }
 
@@ -324,7 +368,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: None,
                     file_pattern: Some("test*.txt".to_string()),
@@ -333,8 +377,6 @@ mod test {
             .await
             .unwrap();
 
-        let lines: Vec<_> = result.lines().collect();
-        assert_eq!(lines.len(), 2);
         assert!(result.contains("test1.txt"));
         assert!(result.contains("test2.txt"));
         assert!(!result.contains("other.txt"));
@@ -354,7 +396,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
                     file_pattern: None,
@@ -363,8 +405,6 @@ mod test {
             .await
             .unwrap();
 
-        let lines: Vec<_> = result.lines().collect();
-        assert_eq!(lines.len(), 1);
         assert!(result.contains("test line"));
     }
 
@@ -390,7 +430,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
                     file_pattern: None,
@@ -399,8 +439,6 @@ mod test {
             .await
             .unwrap();
 
-        let lines: Vec<_> = result.lines().collect();
-        assert_eq!(lines.len(), 3);
         assert!(result.contains("test1.txt"));
         assert!(result.contains("test2.txt"));
         assert!(result.contains("best.txt"));
@@ -422,7 +460,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
                     file_pattern: None,
@@ -431,8 +469,6 @@ mod test {
             .await
             .unwrap();
 
-        let lines: Vec<_> = result.lines().collect();
-        assert_eq!(lines.len(), 2);
         assert!(result.contains("TEST CONTENT"));
         assert!(result.contains("test content"));
     }
@@ -450,7 +486,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("nonexistent".to_string()),
                     file_pattern: None,
@@ -478,7 +514,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: None,
                     file_pattern: None,
@@ -487,8 +523,6 @@ mod test {
             .await
             .unwrap();
 
-        let lines: Vec<_> = result.lines().collect();
-        assert_eq!(lines.len(), 2);
         assert!(result.contains("file1.txt"));
         assert!(result.contains("file2.rs"));
     }
@@ -502,7 +536,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("[invalid".to_string()),
                     file_pattern: None,
@@ -524,7 +558,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: "relative/path".to_string(),
                     regex: Some("test".to_string()),
                     file_pattern: None,
@@ -580,7 +614,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().join("best.txt").display().to_string(),
                     regex: Some("nice".to_string()),
                     file_pattern: None,
@@ -589,9 +623,7 @@ mod test {
             .await
             .unwrap();
 
-        let lines: Vec<_> = result.lines().collect();
-        assert_eq!(lines.len(), 1);
-        assert!(lines[0].eq(&format!(
+        assert!(result.contains(&format!(
             "{}:1:nice code.",
             temp_dir.path().join("best.txt").display()
         )));
@@ -600,7 +632,7 @@ mod test {
         let result = fs_search
             .call(
                 ToolCallContext::default(),
-                FSFindInput {
+                FSSearchInput {
                     path: temp_dir.path().join("best.txt").display().to_string(),
                     regex: None,
                     file_pattern: None,
@@ -608,8 +640,32 @@ mod test {
             )
             .await
             .unwrap();
-        let lines: Vec<_> = result.lines().collect();
-        assert_eq!(lines.len(), 1);
-        assert!(lines[0].eq(&format!("{}", temp_dir.path().join("best.txt").display())));
+        assert!(result.contains(&format!("{}", temp_dir.path().join("best.txt").display())));
+    }
+
+    #[tokio::test]
+    async fn test_fs_large_result() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let content = "content".repeat(10);
+        fs::write(temp_dir.path().join("file1.txt"), &content)
+            .await
+            .unwrap();
+
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_search = FSFind::new(infra);
+        let result = fs_search
+            .call_inner(
+                ToolCallContext::default(),
+                FSSearchInput {
+                    path: temp_dir.path().to_string_lossy().to_string(),
+                    regex: Some("content*".into()),
+                    file_pattern: None,
+                },
+                100,
+            )
+            .await
+            .unwrap();
+        assert!(result.contains("content is truncated to 100 chars"))
     }
 }

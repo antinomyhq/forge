@@ -7,30 +7,16 @@ use bytes::Bytes;
 use console::strip_ansi_codes;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
-    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    EnvironmentService, ExecutableTool, FSWriteInput, NamedTool, ToolCallContext, ToolDescription,
+    ToolName,
 };
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::tools::syn;
 use crate::tools::utils::{assert_absolute_path, format_display_path};
 use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};
 
-#[derive(Deserialize, JsonSchema)]
-pub struct FSWriteInput {
-    /// The path of the file to write to (absolute path required)
-    pub path: String,
-    /// The content to write to the file. ALWAYS provide the COMPLETE intended
-    /// content of the file, without any truncation or omissions. You MUST
-    /// include ALL parts of the file, even if they haven't been modified.
-    pub content: String,
-    /// If set to true, existing files will be overwritten. If not set and the
-    /// file exists, an error will be returned with the content of the
-    /// existing file.
-    #[serde(default)]
-    pub overwrite: bool,
-}
+// Using FSWriteInput from forge_domain
 
 /// Use it to create a new file at a specified path with the provided content.
 /// Always provide absolute paths for file locations. The tool
