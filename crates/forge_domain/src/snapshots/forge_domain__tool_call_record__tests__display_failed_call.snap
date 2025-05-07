@@ -1,11 +1,12 @@
 ---
 source: crates/forge_domain/src/tool_call_record.rs
 expression: record.to_string()
-snapshot_kind: text
 ---
 ---
+type: generic
 tool_name: fs_write
 status: Failure
+call_id: call_def456
 ---
 
 ERROR:

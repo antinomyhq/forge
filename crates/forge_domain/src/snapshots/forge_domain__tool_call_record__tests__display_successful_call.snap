@@ -1,10 +1,11 @@
 ---
 source: crates/forge_domain/src/tool_call_record.rs
 expression: record.to_string()
-snapshot_kind: text
 ---
 ---
+type: generic
 tool_name: fs_read
 status: Success
+call_id: call_abc123
 ---
 Contents of the file
