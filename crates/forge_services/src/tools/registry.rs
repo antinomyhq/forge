@@ -115,6 +115,10 @@ pub mod tests {
         async fn write(&self, _: &Path, _: Bytes) -> anyhow::Result<()> {
             unimplemented!()
         }
+
+        async fn write_temp(&self, _: &str, _: &str, _: &str) -> anyhow::Result<PathBuf> {
+            unimplemented!()
+        }
     }
 
     #[async_trait::async_trait]

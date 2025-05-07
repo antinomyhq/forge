@@ -4,5 +4,5 @@ expression: record.to_string()
 snapshot_kind: text
 ---
 <forge_tool_result tool_name="fs_read">
-<success>Contents of the file</success>
+Contents of the file
 </forge_tool_result>

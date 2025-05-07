@@ -128,7 +128,7 @@ pub mod tests {
     use crate::attachment::ForgeChatRequest;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
+        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService, TempDir,
     };
 
     #[derive(Debug)]
@@ -280,6 +280,15 @@ pub mod tests {
                 .push((path.to_path_buf(), contents));
             Ok(())
         }
+
+        async fn write_temp(&self, _: &str, _: &str, content: &str) -> anyhow::Result<PathBuf> {
+            let temp_dir = TempDir::new().unwrap();
+            let path = temp_dir.path();
+
+            self.write(&path, content.to_string().into()).await?;
+
+            Ok(path)
+        }
     }
 
     #[derive(Debug)]
@@ -328,7 +337,8 @@ pub mod tests {
                 return Ok(CommandOutput {
                     stdout: "Mock command executed successfully\n".to_string(),
                     stderr: "".to_string(),
-                    success: true,
+                    command,
+                    exit_code: Some(0),
                 });
             } else if command.contains("echo") {
                 if command.contains(">") && command.contains(">&2") {
@@ -346,7 +356,8 @@ pub mod tests {
                     return Ok(CommandOutput {
                         stdout: stdout.to_string(),
                         stderr: stderr.to_string(),
-                        success: true,
+                        command,
+                        exit_code: Some(0),
                     });
                 } else if command.contains(">&2") {
                     // Command with only stderr
@@ -355,7 +366,8 @@ pub mod tests {
                     return Ok(CommandOutput {
                         stdout: "".to_string(),
                         stderr: format!("{content}\n"),
-                        success: true,
+                        command,
+                        exit_code: Some(0),
                     });
                 } else {
                     // Standard echo command
@@ -382,7 +394,8 @@ pub mod tests {
                     return Ok(CommandOutput {
                         stdout: content,
                         stderr: "".to_string(),
-                        success: true,
+                        command,
+                        exit_code: Some(0),
                     });
                 }
             } else if command == "pwd" || command == "cd" {
@@ -390,28 +403,32 @@ pub mod tests {
                 return Ok(CommandOutput {
                     stdout: format!("{working_dir}\n", working_dir = working_dir.display()),
                     stderr: "".to_string(),
-                    success: true,
+                    command,
+                    exit_code: Some(0),
                 });
             } else if command == "true" {
                 // true command returns success with no output
                 return Ok(CommandOutput {
                     stdout: "".to_string(),
                     stderr: "".to_string(),
-                    success: true,
+                    command,
+                    exit_code: Some(0),
                 });
             } else if command.starts_with("/bin/ls") || command.contains("whoami") {
                 // Full path commands
                 return Ok(CommandOutput {
                     stdout: "user\n".to_string(),
                     stderr: "".to_string(),
-                    success: true,
+                    command,
+                    exit_code: Some(0),
                 });
             } else if command == "non_existent_command" {
                 // Command not found
                 return Ok(CommandOutput {
                     stdout: "".to_string(),
                     stderr: "command not found: non_existent_command\n".to_string(),
-                    success: false,
+                    command,
+                    exit_code: Some(-1),
                 });
             }
 
@@ -419,7 +436,8 @@ pub mod tests {
             Ok(CommandOutput {
                 stdout: "Mock command executed successfully\n".to_string(),
                 stderr: "".to_string(),
-                success: true,
+                command,
+                exit_code: Some(0),
             })
         }
     }

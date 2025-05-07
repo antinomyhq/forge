@@ -41,6 +41,7 @@ impl TempDir {
         );
         let pattern = regex::Regex::new(&pattern).unwrap();
         let content = pattern.replace_all(input, "[TEMP_DIR]");
+
         content.to_string()
     }
 }

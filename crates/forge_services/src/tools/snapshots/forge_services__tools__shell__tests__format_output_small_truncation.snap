@@ -1,0 +1,19 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: "TempDir::normalize(&small_result)"
+---
+---
+command: echo
+exit_code: 0
+total_stdout_chars: 26
+temp_file: [TEMP_DIR]
+truncated: true
+---
+<stdout chars="0-5">
+ABCDE
+</stdout>
+<truncated>...stdout truncated (16 characters not shown)...</truncated>
+<stdout chars="21-26">
+VWXYZ
+</stdout>
+<truncate>content is truncated, remaining content can be read from path:[TEMP_DIR]</truncate>

@@ -6,11 +6,10 @@ use std::sync::Arc;
 use anyhow::{bail, Context};
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    EnvironmentService, ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolDescription,
+    ToolName,
 };
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::tools::utils::{assert_absolute_path, format_display_path};
 use crate::{FsReadService, Infrastructure};
@@ -43,19 +42,7 @@ pub fn assert_valid_range(start_char: u64, end_char: u64) -> anyhow::Result<()> 
     Ok(())
 }
 
-#[derive(Deserialize, JsonSchema)]
-pub struct FSReadInput {
-    /// The path of the file to read, always provide absolute paths.
-    pub path: String,
-
-    /// Optional start position in characters (0-based). If provided, reading
-    /// will start from this character position.
-    pub start_char: Option<u64>,
-
-    /// Optional end position in characters (inclusive). If provided, reading
-    /// will end at this character position.
-    pub end_char: Option<u64>,
-}
+// Using FSReadInput from forge_domain
 
 /// Reads file contents at specified path. Use for analyzing code, config files,
 /// documentation or text data. Extracts text from PDF/DOCX files and preserves

@@ -1,19 +1,15 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName};
+use forge_domain::{
+    ExecutableTool, FSRemoveInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
+};
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::tools::utils::assert_absolute_path;
 use crate::{FileRemoveService, FsMetaService, Infrastructure};
 
-#[derive(Deserialize, JsonSchema)]
-pub struct FSRemoveInput {
-    /// The path of the file to remove (absolute path required)
-    pub path: String,
-}
+// Using FSRemoveInput from forge_domain
 
 /// Request to remove a file at the specified path. Use this when you need to
 /// delete an existing file. The path must be absolute. This operation cannot

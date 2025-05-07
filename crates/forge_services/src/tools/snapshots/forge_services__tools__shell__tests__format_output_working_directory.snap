@@ -1,0 +1,12 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: "TempDir::normalize(&result)"
+---
+---
+command: pwd
+exit_code: 0
+---
+<stdout>
+[TEMP_DIR]
+
+</stdout>

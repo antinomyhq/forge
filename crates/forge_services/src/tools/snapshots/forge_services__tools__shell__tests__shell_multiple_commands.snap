@@ -1,0 +1,13 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: result
+---
+---
+command: echo 'first' && echo 'second'
+exit_code: 0
+---
+<stdout>
+first
+second
+
+</stdout>

@@ -57,19 +57,7 @@ pub trait FsWriteService: Send + Sync {
     /// * `prefix` - Prefix for the temporary file name
     /// * `ext` - File extension (e.g. ".txt", ".md")
     /// * `content` - Content to write to the file
-    async fn write_temp(&self, prefix: &str, ext: &str, content: &str) -> anyhow::Result<PathBuf> {
-        let path = tempfile::Builder::new()
-            .keep(true)
-            .prefix(prefix)
-            .suffix(ext)
-            .tempfile()?
-            .into_temp_path()
-            .to_path_buf();
-
-        self.write(&path, content.to_string().into()).await?;
-
-        Ok(path)
-    }
+    async fn write_temp(&self, prefix: &str, ext: &str, content: &str) -> anyhow::Result<PathBuf>;
 }
 
 #[async_trait::async_trait]

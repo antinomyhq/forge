@@ -1020,6 +1020,7 @@ dependencies = [
  "reqwest 0.12.12",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
@@ -1148,6 +1149,7 @@ dependencies = [
  "colored 3.0.0",
  "indicatif",
  "rand 0.8.5",
+ "tokio",
 ]
 
 [[package]]

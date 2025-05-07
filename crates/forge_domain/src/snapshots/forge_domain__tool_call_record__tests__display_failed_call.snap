@@ -5,7 +5,9 @@ snapshot_kind: text
 ---
 <forge_tool_result tool_name="fs_write">
 <error>
+
 ERROR:
 Caused by: Permission denied
+
 </error>
 </forge_tool_result>

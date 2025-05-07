@@ -16,3 +16,5 @@ pub use clipper::*;
 pub use forge_services::*;
 pub use infra::*;
 pub use suggestion::*;
+#[cfg(test)]
+pub use tools::TempDir;

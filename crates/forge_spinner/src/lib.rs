@@ -4,6 +4,7 @@ use anyhow::Result;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
+use tokio::task::JoinHandle;
 
 /// Manages spinner functionality for the UI
 #[derive(Default)]
@@ -11,6 +12,7 @@ pub struct SpinnerManager {
     spinner: Option<ProgressBar>,
     start_time: Option<Instant>,
     message: Option<String>,
+    tracker: Option<JoinHandle<()>>,
 }
 
 impl SpinnerManager {
@@ -71,29 +73,36 @@ impl SpinnerManager {
 
         self.spinner = Some(pb);
 
-        Ok(())
-    }
+        // Clone the necessary components for the tracker task
+        let spinner_clone = self.spinner.clone();
+        let start_time_clone = self.start_time;
+        let message_clone = self.message.clone();
 
-    /// Update the spinner with the current elapsed time
-    pub fn update_time(&mut self) -> Result<()> {
-        if let (Some(start_time), Some(message), Some(spinner)) =
-            (self.start_time, self.message.as_ref(), &mut self.spinner)
-        {
-            let elapsed = start_time.elapsed();
-            let seconds = elapsed.as_secs();
+        // Spwan tracker to keep the track of time in sec.
+        self.tracker = Some(tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
+            loop {
+                interval.tick().await;
+                // Update the spinner with the current elapsed time
+                if let (Some(spinner), Some(start_time), Some(message)) =
+                    (&spinner_clone, start_time_clone, &message_clone)
+                {
+                    let elapsed = start_time.elapsed();
+                    let seconds = elapsed.as_secs();
 
-            // Create a new message with the elapsed time
-            let updated_message = format!(
-                "{} {}s · {}",
-                message.green().bold(),
-                seconds,
-                "Ctrl+C to interrupt".white().dimmed()
-            );
+                    // Create a new message with the elapsed time
+                    let updated_message = format!(
+                        "{} {}s · {}",
+                        message.green().bold(),
+                        seconds,
+                        "Ctrl+C to interrupt".white().dimmed()
+                    );
 
-            // Update the spinner's message
-            // No need to call tick() as we're using enable_steady_tick
-            spinner.set_message(updated_message);
-        }
+                    // Update the spinner's message
+                    spinner.set_message(updated_message);
+                }
+            }
+        }));
 
         Ok(())
     }
@@ -113,6 +122,11 @@ impl SpinnerManager {
             println!("{message}");
         }
 
+        // Tracker task will be dropped here.
+        if let Some(a) = self.tracker.take() {
+            drop(a)
+        }
+        self.tracker = None;
         self.start_time = None;
         self.message = None;
         Ok(())

@@ -16,7 +16,6 @@ use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
-use tracing::error;
 
 use crate::cli::Cli;
 use crate::info::Info;
@@ -99,7 +98,7 @@ impl<F: API> UI<F> {
     }
 
     // Handle creating a new conversation
-    async fn handle_new(&mut self) -> Result<()> {
+    async fn on_new(&mut self) -> Result<()> {
         self.state = UIState::default();
         self.init_conversation().await?;
         banner::display()?;
@@ -108,8 +107,8 @@ impl<F: API> UI<F> {
     }
 
     // Set the current mode and update conversation variable
-    async fn handle_mode_change(&mut self, mode: Mode) -> Result<()> {
-        self.handle_new().await?;
+    async fn on_mode_change(&mut self, mode: Mode) -> Result<()> {
+        self.on_new().await?;
         // Set the mode variable in the conversation if a conversation exists
         let conversation_id = self.init_conversation().await?;
 
@@ -194,7 +193,7 @@ impl<F: API> UI<F> {
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
-            self.chat(prompt).await?;
+            self.on_message(prompt).await?;
             return Ok(());
         }
 
@@ -203,99 +202,104 @@ impl<F: API> UI<F> {
         self.init_conversation().await?;
 
         // Get initial input from file or prompt
-        let mut input = match &self.cli.command {
+        let mut command = match &self.cli.command {
             Some(path) => self.console.upload(path).await?,
             None => self.prompt().await?,
         };
 
         loop {
-            match input {
-                Command::Compact => {
-                    self.spinner.start(Some("Compacting"))?;
-                    let conversation_id = self.init_conversation().await?;
-                    let compaction_result = self.api.compact_conversation(&conversation_id).await?;
-
-                    // Calculate percentage reduction
-                    let token_reduction = compaction_result.token_reduction_percentage();
-                    let message_reduction = compaction_result.message_reduction_percentage();
-
-                    let content = TitleFormat::action(format!(
-                        "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
-                     )).to_string();
-                    self.writeln(content)?;
-                }
-                Command::Dump(format) => {
-                    self.handle_dump(format).await?;
-                }
-                Command::New => {
-                    self.handle_new().await?;
-                }
-                Command::Info => {
-                    let info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
-                    self.writeln(info)?;
-                }
-                Command::Message(ref content) => {
-                    self.spinner.start(None)?;
-                    let chat_result = self.chat(content.clone()).await;
-                    if let Err(err) = chat_result {
-                        tokio::spawn(
-                            TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{err:?}"))),
-                        );
-                        error!(error = ?err, "Chat request failed");
-
-                        self.writeln(TitleFormat::error(format!("{err:?}")))?;
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}
+                result = self.on_command(command) => {
+                    match result {
+                        Ok(exit) => if exit {return Ok(())},
+                        Err(error) => {
+                            tokio::spawn(
+                                TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{error:?}"))),
+                            );
+                            self.writeln(TitleFormat::error(format!("{error:?}")))?;
+                        },
                     }
-                }
-                Command::Act => {
-                    self.handle_mode_change(Mode::Act).await?;
-                }
-                Command::Plan => {
-                    self.handle_mode_change(Mode::Plan).await?;
-                }
-                Command::Help => {
-                    let info = Info::from(self.command.as_ref());
-                    self.writeln(info)?;
-                }
-                Command::Tools => {
-                    use crate::tools_display::format_tools;
-                    let tools = self.api.tools().await;
-                    let output = format_tools(&tools);
-                    self.writeln(output)?;
-                }
-                Command::Update => {
-                    // Force an update check with the 'Never' frequency to run it immediately
-                    // regardless of when it was last run
-                    force_update(UpdateFrequency::Always, false).await;
-                }
-                Command::Exit => {
-                    break;
-                }
-
-                Command::Custom(event) => {
-                    if let Err(e) = self.dispatch_event(event.into()).await {
-                        self.writeln(
-                            TitleFormat::error("Failed to execute the command")
-                                .sub_title(e.to_string()),
-                        )?;
-                    }
-                }
-                Command::Model => {
-                    self.handle_model_selection().await?;
-                }
-                Command::Shell(ref command) => {
-                    // Execute the shell command using the existing infrastructure
-                    // Get the working directory from the environment service instead of std::env
-                    let cwd = self.api.environment().cwd;
-
-                    // Execute the command
-                    let _ = self.api.execute_shell_command(command, cwd).await;
                 }
             }
 
+            self.spinner.stop(None)?;
+
             // Centralized prompt call at the end of the loop
-            input = self.prompt().await?;
+            command = self.prompt().await?;
+        }
+    }
+
+    async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
+        match command {
+            Command::Compact => {
+                self.on_compaction().await?;
+            }
+            Command::Dump(format) => {
+                self.on_dump(format).await?;
+            }
+            Command::New => {
+                self.on_new().await?;
+            }
+            Command::Info => {
+                let info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+                self.writeln(info)?;
+            }
+            Command::Message(ref content) => {
+                self.on_message(content.clone()).await?;
+            }
+            Command::Act => {
+                self.on_mode_change(Mode::Act).await?;
+            }
+            Command::Plan => {
+                self.on_mode_change(Mode::Plan).await?;
+            }
+            Command::Help => {
+                let info = Info::from(self.command.as_ref());
+                self.writeln(info)?;
+            }
+            Command::Tools => {
+                use crate::tools_display::format_tools;
+                let tools = self.api.tools().await;
+                let output = format_tools(&tools);
+                self.writeln(output)?;
+            }
+            Command::Update => {
+                // Force an update check with the 'Never' frequency to run it immediately
+                // regardless of when it was last run
+                force_update(UpdateFrequency::Always, false).await;
+            }
+            Command::Exit => {
+                return Ok(true);
+            }
+
+            Command::Custom(event) => {
+                self.on_custom_event(event.into()).await?;
+            }
+            Command::Model => {
+                self.on_model_selection().await?;
+            }
+            Command::Shell(ref command) => {
+                // Execute the shell command using the existing infrastructure
+                // Get the working directory from the environment service instead of std::env
+                let cwd = self.api.environment().cwd;
+
+                // Execute the command
+                let _ = self.api.execute_shell_command(command, cwd).await;
+            }
         }
 
+        Ok(false)
+    }
+
+    async fn on_compaction(&mut self) -> Result<(), anyhow::Error> {
+        self.spinner.start(Some("Compacting"))?;
+        let conversation_id = self.init_conversation().await?;
+        let compaction_result = self.api.compact_conversation(&conversation_id).await?;
+        let token_reduction = compaction_result.token_reduction_percentage();
+        let message_reduction = compaction_result.message_reduction_percentage();
+        let content = TitleFormat::action(format!("Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"));
+        self.writeln(content)?;
         Ok(())
     }
 
@@ -342,7 +346,7 @@ impl<F: API> UI<F> {
     }
 
     // Helper method to handle model selection and update the conversation
-    async fn handle_model_selection(&mut self) -> Result<()> {
+    async fn on_model_selection(&mut self) -> Result<()> {
         // Select a model
         let model_option = self.select_model().await?;
 
@@ -444,7 +448,8 @@ impl<F: API> UI<F> {
         }
     }
 
-    async fn chat(&mut self, content: String) -> Result<()> {
+    async fn on_message(&mut self, content: String) -> Result<()> {
+        self.spinner.start(None)?;
         let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
@@ -468,40 +473,23 @@ impl<F: API> UI<F> {
         &mut self,
         stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
-        // Set up a tokio interval to update the spinner every second
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
-
-        loop {
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => {
+        while let Some(message) = stream.next().await {
+            match message {
+                Ok(message) => self.handle_chat_response(message)?,
+                Err(err) => {
                     self.spinner.stop(None)?;
-                    return Ok(());
-                }
-                _ = interval.tick() => {
-                    // Update the spinner with elapsed time
-                    if let Err(e) = self.spinner.update_time() {
-                        tracing::warn!("Failed to update spinner time: {}", e);
-                    }
-                }
-                maybe_message = stream.next() => {
-                    match maybe_message {
-                        Some(Ok(message)) => self.handle_chat_response(message)?,
-                        Some(Err(err)) => {
-                            self.spinner.stop(None)?;
-                            return Err(err);
-                        }
-                        None => {
-                            self.spinner.stop(None)?;
-                            return Ok(())
-                        },
-                    }
+                    return Err(err);
                 }
             }
         }
+
+        self.spinner.stop(None)?;
+
+        Ok(())
     }
 
     /// Modified version of handle_dump that supports HTML format
-    async fn handle_dump(&mut self, format: Option<String>) -> Result<()> {
+    async fn on_dump(&mut self, format: Option<String>) -> Result<()> {
         if let Some(conversation_id) = self.state.conversation_id.clone() {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
@@ -532,10 +520,8 @@ impl<F: API> UI<F> {
                     )?;
                 }
             } else {
-                self.writeln(
-                    TitleFormat::error("Could not create dump")
-                        .sub_title(format!("Conversation: {conversation_id} was not found")),
-                )?;
+                return Err(anyhow::anyhow!("Could not create dump"))
+                    .context(format!("Conversation: {conversation_id} was not found"));
             }
         }
         Ok(())
@@ -545,12 +531,8 @@ impl<F: API> UI<F> {
         match message.message {
             ChatResponse::Text { mut text, is_complete, is_md, is_summary } => {
                 if is_complete && !text.trim().is_empty() {
-                    if is_md {
+                    if is_md || is_summary {
                         text = self.markdown.render(&text);
-                    }
-
-                    if is_summary {
-                        text = TitleFormat::debug(text).to_string();
                     }
 
                     self.writeln(text)?;
@@ -581,7 +563,7 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
-    async fn dispatch_event(&mut self, event: Event) -> Result<()> {
+    async fn on_custom_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
         let chat = ChatRequest::new(event, conversation_id);
         match self.api.chat(chat).await {

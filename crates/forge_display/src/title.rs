@@ -9,6 +9,7 @@ pub enum Category {
     Info,
     Debug,
     Error,
+    Completion,
 }
 
 #[derive(Clone, Setters)]
@@ -67,6 +68,14 @@ impl TitleFormat {
         }
     }
 
+    pub fn completion(message: impl Into<String>) -> Self {
+        Self {
+            title: message.into(),
+            sub_title: None,
+            category: Category::Completion,
+        }
+    }
+
     fn format(&self) -> String {
         let mut buf = String::new();
 
@@ -75,6 +84,7 @@ impl TitleFormat {
             Category::Info => "⏺".white(),
             Category::Debug => "⏺".cyan(),
             Category::Error => "⏺".red(),
+            Category::Completion => "⏺".yellow(),
         };
 
         buf.push_str(format!("{icon} ").as_str());
@@ -97,6 +107,7 @@ impl TitleFormat {
             Category::Info => self.title.white(),
             Category::Debug => self.title.dimmed(),
             Category::Error => format!("{} {}", "ERROR:".bold(), self.title).red(),
+            Category::Completion => self.title.white().bold(),
         };
 
         buf.push_str(title.to_string().as_str());
