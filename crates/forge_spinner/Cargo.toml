@@ -6,5 +6,6 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 colored.workspace = true
+tokio.workspace = true
 indicatif = "0.17.11"
 rand = "0.8.5"
