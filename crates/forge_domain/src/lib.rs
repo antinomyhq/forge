@@ -33,6 +33,7 @@ mod tool_call_parser;
 mod tool_call_record;
 mod tool_choice;
 mod tool_definition;
+mod tool_input;
 mod tool_name;
 mod tool_response;
 #[cfg(test)]
@@ -74,6 +75,7 @@ pub use tool_call_parser::*;
 pub use tool_call_record::*;
 pub use tool_choice::*;
 pub use tool_definition::*;
+pub use tool_input::*;
 pub use tool_name::*;
 pub use tool_response::*;
 pub use tool_result::*;
