@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::temperature::Temperature;
-use crate::{Agent, AgentId, ModelId};
+use crate::{Agent, AgentId, ModelId, UpdateConfig};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -67,6 +67,11 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub tool_supported: Option<bool>,
+
+    /// Configuration for application updates
+    #[serde(default)]
+    #[merge(strategy = crate::merge::option)]
+    pub updates: Option<UpdateConfig>,
 }
 
 impl Default for Workflow {
@@ -102,6 +107,7 @@ impl Workflow {
             custom_rules: None,
             temperature: None,
             tool_supported: None,
+            updates: None,
         }
     }
 
@@ -137,6 +143,7 @@ mod tests {
         assert_eq!(actual.custom_rules, None);
         assert_eq!(actual.temperature, None);
         assert_eq!(actual.tool_supported, None);
+        assert_eq!(actual.updates, None);
     }
 
     #[test]

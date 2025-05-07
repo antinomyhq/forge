@@ -20,7 +20,14 @@ impl<F: Services + Infrastructure> ForgeAPI<F> {
 
 impl ForgeAPI<ForgeServices<ForgeInfra>> {
     pub fn init(restricted: bool) -> Self {
+        // Note: dotenv is already loaded in main.rs, but we'll access the environment
+        // to ensure the path is captured
         let infra = Arc::new(ForgeInfra::new(restricted));
+
+        // Access the environment to ensure the .env file path is captured
+        // This is important for displaying the path in the banner
+        let _ = infra.environment_service().get_environment();
+
         let app = Arc::new(ForgeServices::new(infra));
         ForgeAPI::new(app)
     }

@@ -1,10 +1,14 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use forge_domain::{Environment, Provider, RetryConfig};
 
 pub struct ForgeEnvironmentService {
     restricted: bool,
 }
+
+// Static flag to track if we've shown the .env file path message
+static SHOWN_ENV_PATH: AtomicBool = AtomicBool::new(false);
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
 
@@ -109,22 +113,58 @@ impl ForgeEnvironmentService {
     }
 
     fn get(&self) -> Environment {
-        dotenv::dotenv().ok();
-        let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
-        let provider = self.resolve_provider();
-        let retry_config = self.resolve_retry_config();
+        // Load .env file and get its path
+        let env_path = dotenv::dotenv().ok();
+
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let home = dirs::home_dir();
+
+        // If env_path is None, try to check if .env exists in the current directory
+        // This handles the case where dotenv has already been loaded
+        let dotenv_path = if let Some(path) = env_path {
+            // Print the .env file path if we haven't shown it yet
+            if !SHOWN_ENV_PATH.load(Ordering::SeqCst) {
+                let now = chrono::Local::now();
+                let time_str = now.format("%H:%M:%S.%3f").to_string();
+
+                // Replace home directory with ~ in the path
+                let display_path = if let Some(home_dir) = &home {
+                    if path.starts_with(home_dir) {
+                        path.to_string_lossy().replace(home_dir.to_string_lossy().as_ref(), "~")
+                    } else {
+                        path.to_string_lossy().to_string()
+                    }
+                } else {
+                    path.to_string_lossy().to_string()
+                };
+
+                println!("⏺ [{}] Reading {}", time_str, display_path);
+                SHOWN_ENV_PATH.store(true, Ordering::SeqCst);
+            }
+            Some(path)
+        } else {
+            // Check if .env exists in the current directory
+            let env_file = cwd.join(".env");
+            if env_file.exists() {
+                Some(env_file)
+            } else {
+                None
+            }
+        };
 
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
             cwd,
             shell: self.get_shell_path(),
-            base_path: dirs::home_dir()
+            base_path: home.clone()
                 .map(|a| a.join("forge"))
                 .unwrap_or(PathBuf::from(".").join("forge")),
-            home: dirs::home_dir(),
+            home,
             provider,
             retry_config,
+            update_config: Default::default(),
+            dotenv_path,
         }
     }
 }

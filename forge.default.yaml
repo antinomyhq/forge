@@ -1,6 +1,11 @@
 variables:
   mode: ACT
 
+# Update configuration
+updates:
+  check_frequency: "daily"
+  auto_update: false
+
 # Define model anchors with simpler, purpose-based names
 models:
   # Role-based model definitions - easy to swap implementation
@@ -56,7 +61,7 @@ agents:
       <current_time>{{current_time}}</current_time>
       Only create new plans or update existing ones.
       Do not modify, create, or delete any code files.
-      
+
     ephemeral: false
     tools:
       - forge_tool_fs_read

@@ -16,7 +16,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
-use crate::auto_update::update_forge;
+use crate::auto_update::{check_for_updates, force_check_update, UpdateCheckResult};
 use crate::cli::Cli;
 use crate::info::Info;
 use crate::input::Console;
@@ -80,8 +80,13 @@ impl<F: API> UI<F> {
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
         self.state = UIState::default();
+
+        // Initialize conversation first to trigger .env file loading
         self.init_conversation().await?;
-        banner::display()?;
+
+        // Use the environment to display the .env file path
+        let env = self.api.environment();
+        banner::display_with_env(&env)?;
 
         Ok(())
     }
@@ -175,9 +180,30 @@ impl<F: API> UI<F> {
             return Ok(());
         }
 
-        // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
+        // Check for updates at startup
+        let env = self.api.environment();
+        match check_for_updates(&env).await {
+            UpdateCheckResult::UpdatePerformed(version) => {
+                self.writeln(TitleFormat::action(format!(
+                    "Updated to version {}. Please restart Forge to use the new version.",
+                    version
+                )))?;
+                return Ok(());
+            }
+            UpdateCheckResult::Error(err) => {
+                // Log the error but continue
+                tracing::warn!("Update check failed: {}", err);
+            }
+            _ => {} // Continue with startup for other results
+        }
+
+        // Initialize conversation first to trigger .env file loading
         self.init_conversation().await?;
+
+        // Display the banner in dimmed colors since we're in interactive mode
+        // Use the environment to display the .env file path
+        let env = self.api.environment();
+        banner::display_with_env(&env)?;
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -243,7 +269,8 @@ impl<F: API> UI<F> {
                 self.writeln(output)?;
             }
             Command::Exit => {
-                update_forge().await;
+                // Check for updates when exiting
+                let _ = force_check_update().await;
                 return Ok(true);
             }
 
@@ -260,6 +287,14 @@ impl<F: API> UI<F> {
 
                 // Execute the command
                 let _ = self.api.execute_shell_command(command, cwd).await;
+            }
+            Command::Update => {
+                // Perform a forced update check
+                let _ = force_check_update().await;
+            }
+            Command::UpdateCheck => {
+                // Perform a normal update check
+                let _ = check_for_updates(&self.api.environment()).await;
             }
         }
 
