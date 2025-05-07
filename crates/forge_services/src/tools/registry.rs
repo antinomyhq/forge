@@ -31,9 +31,9 @@ impl<F: Infrastructure> ToolRegistry<F> {
             FsUndo::new(self.infra.clone()).into(),
             ApplyPatchJson::new(self.infra.clone()).into(),
             Shell::new(self.infra.clone()).into(),
-            Fetch::default().into(),
             Completion.into(),
             Followup::new(self.infra.clone()).into(),
+            Fetch::new(self.infra.clone()).into(),
         ]
     }
 }

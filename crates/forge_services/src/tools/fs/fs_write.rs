@@ -1,9 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::fmt::Write;
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
-use forge_display::DiffFormat;
+use console::strip_ansi_codes;
+use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
     EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
 };
@@ -113,28 +115,41 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
             .write(Path::new(&input.path), Bytes::from(input.content.clone()))
             .await?;
 
-        let mut result = format!(
-            "Successfully wrote {} bytes to {}",
-            input.content.len(),
-            input.path
-        );
-        if let Some(warning) = syntax_warning {
-            result.push_str("\nWarning: ");
-            result.push_str(&warning.to_string());
+        let mut result = String::new();
+
+        writeln!(result, "---")?;
+        writeln!(result, "path: {file_exists}")?;
+        if file_exists {
+            writeln!(result, "operation: OVERWRITE")?;
+        } else {
+            writeln!(result, "operation: CREATE")?;
         }
+        writeln!(result, "total_chars: {}", input.content.len())?;
+        if let Some(warning) = syntax_warning {
+            writeln!(result, "Warning: {}", &warning.to_string())?;
+        }
+        writeln!(result, "---")?;
 
         // record the file content after they're modified
         let new_content = self.0.file_read_service().read_utf8(path).await?;
-        let title = if file_exists { "Overwrite" } else { "Create" };
+        let diff = DiffFormat::format(&old_content, &new_content);
+        let title = if file_exists {
+            writeln!(result, "{}", strip_ansi_codes(&diff))?;
+            "Overwrite"
+        } else {
+            "Create"
+        };
 
         // Use the formatted path for display
         let formatted_path = self.format_display_path(path)?;
-        let diff = DiffFormat::format(
-            title,
-            PathBuf::from(formatted_path),
-            &old_content,
-            &new_content,
-        );
+
+        context
+            .send_text(format!(
+                "{}",
+                TitleFormat::debug(title).sub_title(formatted_path)
+            ))
+            .await?;
+
         context.send_text(diff).await?;
 
         Ok(result)
@@ -146,6 +161,7 @@ mod test {
     use std::path::Path;
     use std::sync::Arc;
 
+    use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -185,9 +201,9 @@ mod test {
             .await
             .unwrap();
 
-        assert!(output.contains("Successfully wrote"));
-        assert!(output.contains(&file_path.display().to_string()));
-        assert!(output.contains(&content.len().to_string()));
+        // Normalize the output to remove temp directory paths
+        let normalized_output = TempDir::normalize(&output);
+        assert_snapshot!(normalized_output);
 
         // Verify file was actually written
         let content = infra
@@ -217,7 +233,9 @@ mod test {
             .await;
 
         let output = result.unwrap();
-        assert!(output.contains("Warning:"));
+        // Normalize the output to remove temp directory paths
+        let normalized_output = TempDir::normalize(&output);
+        assert_snapshot!(normalized_output);
     }
 
     #[tokio::test]
@@ -240,9 +258,10 @@ mod test {
             .await;
 
         let output = result.unwrap();
-        assert!(output.contains("Successfully wrote"));
-        assert!(output.contains(&file_path.display().to_string()));
-        assert!(output.contains(&content.len().to_string()));
+        // Normalize the output to remove temp directory paths
+        let normalized_output = TempDir::normalize(&output);
+        assert_snapshot!(normalized_output);
+        // Still keep basic assertions for specific conditions
         assert!(!output.contains("Warning:"));
 
         // Verify file contains valid Rust code
@@ -274,7 +293,10 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("Successfully wrote"));
+        // Normalize the output to remove temp directory paths
+        let normalized_result = TempDir::normalize(&result);
+        assert_snapshot!(normalized_result);
+
         // Verify both directory and file were created
         assert_path_exists(&nested_path, &infra).await;
         assert_path_exists(nested_path.parent().unwrap(), &infra).await;
@@ -313,7 +335,9 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("Successfully wrote"));
+        // Normalize the output to remove temp directory paths
+        let normalized_result = TempDir::normalize(&result);
+        assert_snapshot!(normalized_result);
 
         // Verify entire path was created
         assert_path_exists(&deep_path, &infra).await;
@@ -354,7 +378,9 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("Successfully wrote"));
+        // Normalize the output to remove temp directory paths
+        let normalized_result = TempDir::normalize(&result);
+        assert_snapshot!(normalized_result);
 
         // Convert to platform path and verify
         let platform_path = Path::new(&temp_dir.path())
@@ -491,8 +517,9 @@ mod test {
         assert!(result.is_ok());
         let success_msg = result.unwrap();
 
-        // Success message should contain expected text
-        assert!(success_msg.contains("Successfully wrote"));
+        // Normalize the output to remove temp directory paths
+        let normalized_msg = TempDir::normalize(&success_msg);
+        assert_snapshot!(normalized_msg);
 
         // Verify file was actually overwritten
         let content = infra

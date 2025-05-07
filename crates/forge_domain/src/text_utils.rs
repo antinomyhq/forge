@@ -23,7 +23,7 @@ pub fn extract_tag_content<'a>(text: &'a str, tag_name: &str) -> Option<&'a str>
     let closing_tag = format!("</{tag_name}>");
 
     if let Some(start_idx) = text.find(&opening_tag) {
-        if let Some(end_idx) = text.find(&closing_tag) {
+        if let Some(end_idx) = text.rfind(&closing_tag) {
             let content_start = start_idx + opening_tag.len();
             if content_start < end_idx {
                 return Some(text[content_start..end_idx].trim());
@@ -214,6 +214,14 @@ mod tests {
         let fixture = "<other>Content</other> <another>More content</another>";
         let actual = remove_tag_with_prefix(fixture, "forge_");
         let expected = "<other>Content</other> <another>More content</another>";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_with_duplicate_closing_tags() {
+        let fixture = "<foo>1<foo>2</foo>3</foo>";
+        let actual = extract_tag_content(fixture, "foo").unwrap();
+        let expected = "1<foo>2</foo>3";
         assert_eq!(actual, expected);
     }
 }

@@ -3,8 +3,6 @@ source: crates/forge_display/src/diff.rs
 expression: clean_diff
 snapshot_kind: text
 ---
-⏺ diff abc.txt
-
 1   1    | line 1
 2        |-line 2
     2    |+modified line
