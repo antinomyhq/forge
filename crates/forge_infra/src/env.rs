@@ -1,10 +1,14 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use forge_domain::{Environment, Provider, RetryConfig};
 
 pub struct ForgeEnvironmentService {
     restricted: bool,
 }
+
+// Static flag to track if we've shown the .env file path message
+static SHOWN_ENV_PATH: AtomicBool = AtomicBool::new(false);
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
 
@@ -109,7 +113,28 @@ impl ForgeEnvironmentService {
     }
 
     fn get(&self) -> Environment {
-        dotenv::dotenv().ok();
+        // Load .env file and get its path
+        let env_path = dotenv::dotenv().ok().map(|_| {
+            let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+            home.join(".env")
+        });
+        
+        // Print the .env file path if it exists and we haven't shown it yet
+        if let Some(path) = &env_path {
+            if !SHOWN_ENV_PATH.load(Ordering::SeqCst) {
+                let now = chrono::Local::now();
+                let time_str = now.format("%H:%M:%S%.3f").to_string();
+                // Replace home directory with ~ in the path
+                let display_path = if let Some(home) = dirs::home_dir() {
+                    path.to_string_lossy().replace(home.to_string_lossy().as_ref(), "~")
+                } else {
+                    path.to_string_lossy().to_string()
+                };
+                println!("⏺ [{}] Reading {}", time_str, display_path);
+                SHOWN_ENV_PATH.store(true, Ordering::SeqCst);
+            }
+        }
+        
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();

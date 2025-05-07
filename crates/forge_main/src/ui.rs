@@ -176,9 +176,11 @@ impl<F: API> UI<F> {
             return Ok(());
         }
 
+        // Initialize conversation first to trigger .env file loading
+        self.init_conversation().await?;
+
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
-        self.init_conversation().await?;
 
         // Get initial input from file or prompt
         let mut input = match &self.cli.command {
