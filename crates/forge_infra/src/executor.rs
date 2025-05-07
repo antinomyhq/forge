@@ -76,10 +76,10 @@ impl ForgeCommandExecutorService {
     ) -> anyhow::Result<CommandOutput> {
         let ready = self.ready.lock().await;
 
-        let mut command = self.prepare_command(&command, working_dir);
+        let mut prepared_command = self.prepare_command(&command, working_dir);
 
         // Spawn the command
-        let mut child = command.spawn()?;
+        let mut child = prepared_command.spawn()?;
 
         let mut stdout_pipe = child.stdout.take();
         let mut stderr_pipe = child.stderr.take();
@@ -97,10 +97,10 @@ impl ForgeCommandExecutorService {
         drop(ready);
 
         Ok(CommandOutput {
+            command,
             stdout: String::from_utf8_lossy(&stdout_buffer).into_owned(),
             stderr: String::from_utf8_lossy(&stderr_buffer).into_owned(),
-            success: status.success(),
-            exit_code: status.code().unwrap_or(-1),
+            exit_code: status.code(),
             temp_file_path: None,
         })
     }
@@ -174,16 +174,16 @@ mod tests {
             .unwrap();
 
         let expected = CommandOutput {
+            command: "echo 'hello world'".into(),
             stdout: "hello world\n".to_string(),
             stderr: "".to_string(),
-            success: true,
-            exit_code: 0,
+            exit_code: Some(0),
             temp_file_path: None,
         };
 
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
         assert_eq!(actual.stderr, expected.stderr);
-        assert_eq!(actual.success, expected.success);
+        assert_eq!(actual.success(), expected.success());
     }
 
     #[tokio::test]

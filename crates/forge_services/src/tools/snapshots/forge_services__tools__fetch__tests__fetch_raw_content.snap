@@ -2,7 +2,16 @@
 source: crates/forge_services/src/tools/fetch.rs
 assertion_line: 352
 expression: normalized_result
+snapshot_kind: text
 ---
+---
+URL: http://127.0.0.1:PORT/test.txt
+total_chars: 24
+start_char: 0
+end_char: 24
+context: Content type text/plain cannot be simplified to markdown; Raw content provided instead
+---
+<<<<<<< HEAD
 ---
 URL: http://127.0.0.1:PORT/test.txt
 total_chars: 24
@@ -10,4 +19,6 @@ start_char: 0
 end_char: 24
 ---
 Content type text/plain cannot be simplified to markdown, but here is the raw content:
+=======
+>>>>>>> upstream/main
 This is raw text content

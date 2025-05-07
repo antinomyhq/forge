@@ -644,31 +644,11 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
-dependencies = [
- "derive_more-impl 1.0.0",
-]
-
-[[package]]
-name = "derive_more"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
 dependencies = [
- "derive_more-impl 2.0.1",
-]
-
-[[package]]
-name = "derive_more-impl"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.98",
+ "derive_more-impl",
 ]
 
 [[package]]
@@ -985,7 +965,7 @@ dependencies = [
  "async-recursion",
  "async-trait",
  "chrono",
- "derive_more 2.0.1",
+ "derive_more",
  "derive_setters",
  "forge_stream",
  "forge_template",
@@ -1041,6 +1021,7 @@ dependencies = [
  "reqwest 0.12.12",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
@@ -1066,7 +1047,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "derive_builder",
- "derive_more 2.0.1",
+ "derive_more",
  "derive_setters",
  "forge_domain",
  "insta",
@@ -1094,7 +1075,7 @@ dependencies = [
  "bytes",
  "chrono",
  "console",
- "derive_more 2.0.1",
+ "derive_more",
  "derive_setters",
  "dissimilar",
  "forge_display",
@@ -1169,6 +1150,7 @@ dependencies = [
  "colored 3.0.0",
  "indicatif",
  "rand 0.8.5",
+ "tokio",
 ]
 
 [[package]]
@@ -1183,7 +1165,7 @@ dependencies = [
 name = "forge_template"
 version = "0.1.0"
 dependencies = [
- "derive_more 2.0.1",
+ "derive_more",
  "html-escape",
  "pretty_assertions",
 ]
@@ -1205,7 +1187,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "convert_case",
- "derive_more 2.0.1",
+ "derive_more",
  "http 1.2.0",
  "lazy_static",
  "machineid-rs",
@@ -1387,12 +1369,12 @@ dependencies = [
 
 [[package]]
 name = "gh-workflow"
-version = "0.5.10"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5107624928f6c2381609c85694c12b734fe697753259e0c6b060120da64be0b8"
+checksum = "d3f151d05aed873a8e507af24255923c1c7a5233040e7757ea6bb0f3930893ee"
 dependencies = [
  "async-trait",
- "derive_more 1.0.0",
+ "derive_more",
  "derive_setters",
  "gh-workflow-macros",
  "indexmap",
@@ -1400,14 +1382,14 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "strum_macros 0.26.4",
+ "strum_macros 0.27.1",
 ]
 
 [[package]]
 name = "gh-workflow-macros"
-version = "0.5.10"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e72d2e820ebf208f923f0ed711cd7135446ddf99cceeba418a55f36f277fcdbe"
+checksum = "c700d433184ad5a1547ab7e619704a6aa15e2428bdb0dfe78e18aa893f17e2b9"
 dependencies = [
  "heck",
  "quote",
@@ -1416,9 +1398,9 @@ dependencies = [
 
 [[package]]
 name = "gh-workflow-tailcall"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4782cea870d1d4fa0c0169f52304f01862867d5bc536b7040e1c4a0047dd8f2f"
+checksum = "b739e49a3a29d7f3638eeee8d3ee6c0db4cbbb02070579fd9a20430614ec95f9"
 dependencies = [
  "derive_setters",
  "gh-workflow",
@@ -2003,9 +1985,9 @@ checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 
 [[package]]
 name = "itertools"
-version = "0.12.1"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -2885,9 +2867,9 @@ dependencies = [
 
 [[package]]
 name = "reedline"
-version = "0.38.0"
+version = "0.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bfa8cb0ad84c396c936d8abb814703d7042a433d2da75a0c7060cbdc89109f3"
+checksum = "b5cdfab7494d13ebfb6ce64828648518205d3ce8541ef1f94a27887f29d2d50b"
 dependencies = [
  "chrono",
  "crossterm 0.28.1",
@@ -2898,9 +2880,9 @@ dependencies = [
  "strip-ansi-escapes",
  "strum 0.26.3",
  "strum_macros 0.26.4",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "unicode-segmentation",
- "unicode-width 0.1.14",
+ "unicode-width 0.2.0",
 ]
 
 [[package]]

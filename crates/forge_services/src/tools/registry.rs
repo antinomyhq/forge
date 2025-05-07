@@ -31,9 +31,9 @@ impl<F: Infrastructure> ToolRegistry<F> {
             FsUndo::new(self.infra.clone()).into(),
             ApplyPatchJson::new(self.infra.clone()).into(),
             Shell::new(self.infra.clone()).into(),
-            Fetch::default().into(),
             Completion.into(),
             Followup::new(self.infra.clone()).into(),
+            Fetch::new(self.infra.clone()).into(),
         ]
     }
 }
@@ -114,6 +114,10 @@ pub mod tests {
     #[async_trait::async_trait]
     impl FsWriteService for Stub {
         async fn write(&self, _: &Path, _: Bytes) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn write_temp(&self, _: &str, _: &str, _: &str) -> anyhow::Result<PathBuf> {
             unimplemented!()
         }
     }

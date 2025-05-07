@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -29,11 +30,20 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         infra: &impl FsReadService,
     ) -> anyhow::Result<String> {
         const MAX_CHARS: u64 = 40_000;
-        let (file_content, file_info) = infra.range_read_utf8(path, 0, MAX_CHARS).await?;
-        Ok(format!(
-            "---\n\nchar_range: {}-{}\ntotal_chars: {}\n---\n{}",
-            file_info.start_char, file_info.end_char, file_info.total_chars, file_content
-        ))
+        let (content, file_info) = infra.range_read_utf8(path, 0, MAX_CHARS).await?;
+        let mut response = String::new();
+        writeln!(response, "---")?;
+        writeln!(response, "path: {}", path.display())?;
+
+        writeln!(response, "start_char: {}", file_info.start_char)?;
+        writeln!(response, "end_char: {}", file_info.end_char)?;
+        writeln!(response, "total_chars: {}", file_info.total_chars)?;
+
+        writeln!(response, "---")?;
+
+        writeln!(response, "{}", &content)?;
+
+        Ok(response)
     }
 
     pub fn new(infra: Arc<F>) -> Self {
@@ -118,7 +128,7 @@ pub mod tests {
     use crate::attachment::ForgeChatRequest;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
+        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService, TempDir,
     };
 
     #[derive(Debug)]
@@ -271,6 +281,15 @@ pub mod tests {
                 .push((path.to_path_buf(), contents));
             Ok(())
         }
+
+        async fn write_temp(&self, _: &str, _: &str, content: &str) -> anyhow::Result<PathBuf> {
+            let temp_dir = TempDir::new().unwrap();
+            let path = temp_dir.path();
+
+            self.write(&path, content.to_string().into()).await?;
+
+            Ok(path)
+        }
     }
 
     #[derive(Debug)]
@@ -317,10 +336,10 @@ pub mod tests {
                 // When the test_shell_echo looks for this specific command
                 // It's expecting to see "Mock command executed successfully"
                 return Ok(CommandOutput {
+                    command,
                     stdout: "Mock command executed successfully\n".to_string(),
                     stderr: "".to_string(),
-                    success: true,
-                    exit_code: 0,
+                    exit_code: Some(0),
                     temp_file_path: None,
                 });
             } else if command.contains("echo") {
@@ -337,10 +356,10 @@ pub mod tests {
                         "stderr output\n"
                     };
                     return Ok(CommandOutput {
+                        command,
                         stdout: stdout.to_string(),
                         stderr: stderr.to_string(),
-                        success: true,
-                        exit_code: 0,
+                        exit_code: Some(0),
                         temp_file_path: None,
                     });
                 } else if command.contains(">&2") {
@@ -348,10 +367,10 @@ pub mod tests {
                     let content = command.split("echo").nth(1).unwrap_or("").trim();
                     let content = content.trim_matches(|c| c == '\'' || c == '"');
                     return Ok(CommandOutput {
+                        command,
                         stdout: "".to_string(),
                         stderr: format!("{content}\n"),
-                        success: true,
-                        exit_code: 0,
+                        exit_code: Some(0),
                         temp_file_path: None,
                     });
                 } else {
@@ -377,57 +396,57 @@ pub mod tests {
                     };
 
                     return Ok(CommandOutput {
+                        command,
                         stdout: content,
                         stderr: "".to_string(),
-                        success: true,
-                        exit_code: 0,
+                        exit_code: Some(0),
                         temp_file_path: None,
                     });
                 }
             } else if command == "pwd" || command == "cd" {
                 // Return working directory for pwd/cd commands
                 return Ok(CommandOutput {
+                    command,
                     stdout: format!("{working_dir}\n", working_dir = working_dir.display()),
                     stderr: "".to_string(),
-                    success: true,
-                    exit_code: 0,
+                    exit_code: Some(0),
                     temp_file_path: None,
                 });
             } else if command == "true" {
                 // true command returns success with no output
                 return Ok(CommandOutput {
+                    command,
                     stdout: "".to_string(),
                     stderr: "".to_string(),
-                    success: true,
-                    exit_code: 0,
+                    exit_code: Some(0),
                     temp_file_path: None,
                 });
             } else if command.starts_with("/bin/ls") || command.contains("whoami") {
                 // Full path commands
                 return Ok(CommandOutput {
+                    command,
                     stdout: "user\n".to_string(),
                     stderr: "".to_string(),
-                    success: true,
-                    exit_code: 0,
+                    exit_code: Some(0),
                     temp_file_path: None,
                 });
             } else if command == "non_existent_command" {
                 // Command not found
                 return Ok(CommandOutput {
+                    command,
                     stdout: "".to_string(),
                     stderr: "command not found: non_existent_command\n".to_string(),
-                    success: false,
-                    exit_code: 127,
+                    exit_code: Some(-1),
                     temp_file_path: None,
                 });
             }
 
             // Default response for other commands
             Ok(CommandOutput {
+                command,
                 stdout: "Mock command executed successfully\n".to_string(),
                 stderr: "".to_string(),
-                success: true,
-                exit_code: 0,
+                exit_code: Some(0),
                 temp_file_path: None,
             })
         }
@@ -537,7 +556,8 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("This is a text file content"));
-        assert!(attachment.content.contains("char_range:"));
+        assert!(attachment.content.contains("start_char:"));
+        assert!(attachment.content.contains("end_char:"));
         assert!(attachment.content.contains("total_chars:"));
     }
 
@@ -694,7 +714,8 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("Some content"));
-        assert!(attachment.content.contains("char_range:"));
+        assert!(attachment.content.contains("start_char:"));
+        assert!(attachment.content.contains("end_char:"));
         assert!(attachment.content.contains("total_chars:"));
     }
 }

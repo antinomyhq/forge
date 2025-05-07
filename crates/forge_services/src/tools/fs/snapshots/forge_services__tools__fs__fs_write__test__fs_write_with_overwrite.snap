@@ -1,0 +1,12 @@
+---
+source: crates/forge_services/src/tools/fs/fs_write.rs
+expression: normalized_msg
+snapshot_kind: text
+---
+---
+path: true
+operation: OVERWRITE
+total_chars: 11
+---
+1        |-Original content
+    1    |+New content

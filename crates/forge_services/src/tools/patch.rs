@@ -1,8 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::fmt::Write;
+use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_display::DiffFormat;
+use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
     EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
 };
@@ -238,21 +239,6 @@ impl<F: Infrastructure> ApplyPatchJson<F> {
     }
 }
 
-/// Format the modified content as XML with optional syntax warning
-fn format_output(path: &str, content: &str, warning: Option<&str>) -> String {
-    if let Some(w) = warning {
-        format!(
-            "<file_content\n  path=\"{path}\"\n  syntax_checker_warning=\"{w}\">\n{content}</file_content>\n"
-        )
-    } else {
-        format!(
-            "<file_content path=\"{}\">\n{}\n</file_content>\n",
-            path,
-            content.trim_end()
-        )
-    }
-}
-
 #[async_trait::async_trait]
 impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
     type Input = Input;
@@ -281,12 +267,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
         let display_path = self.format_display_path(path)?;
 
         // Generate diff between old and new content
-        let diff = DiffFormat::format(
-            "Patch",
-            PathBuf::from(display_path),
-            &old_content,
-            &current_content,
-        );
+        let diff = DiffFormat::format(&old_content, &current_content);
 
         // Write final content to file after all patches are applied
         self.0
@@ -294,15 +275,27 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
             .write(path, Bytes::from(current_content.clone()))
             .await?;
 
-        // Check for syntax errors
-        let warning = syn::validate(path, &current_content).map(|e| e.to_string());
+        let mut result = String::new();
 
-        // Format the output
-        let result = format_output(
-            path.to_string_lossy().as_ref(),
-            console::strip_ansi_codes(&diff).as_ref(),
-            warning.as_deref(),
-        );
+        writeln!(result, "---")?;
+        writeln!(result, "path: {}", path.display())?;
+        writeln!(result, "total_chars: {}", current_content.len())?;
+
+        // Check for syntax errors
+        if let Some(warning) = syn::validate(path, &current_content).map(|e| e.to_string()) {
+            writeln!(result, "warning:{warning}")?;
+        }
+
+        writeln!(result, "---")?;
+
+        writeln!(result, "{}", console::strip_ansi_codes(&diff).as_ref())?;
+
+        context
+            .send_text(format!(
+                "{}",
+                TitleFormat::debug("Patch").sub_title(display_path)
+            ))
+            .await?;
 
         // Output diff either to sender or println
         context.send_text(diff).await?;

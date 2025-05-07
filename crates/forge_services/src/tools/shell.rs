@@ -14,7 +14,14 @@ use strip_ansi_escapes::strip;
 #[cfg(not(test))]
 use uuid::Uuid;
 
-use crate::{CommandExecutorService, Infrastructure};
+use crate::metadata::Metadata;
+use crate::{Clipper, ClipperResult, CommandExecutorService, FsWriteService, Infrastructure};
+
+/// Number of characters to keep at the start of truncated output
+const PREFIX_CHARS: usize = 10_000;
+
+/// Number of characters to keep at the end of truncated output
+const SUFFIX_CHARS: usize = 10_000;
 
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct ShellInput {
@@ -45,12 +52,28 @@ fn strip_ansi(content: String) -> String {
     String::from_utf8_lossy(&strip(content.as_bytes())).into_owned()
 }
 
+<<<<<<< HEAD
 // Creates a temp file for large command output
 // TODO: Consider adding cleanup mechanism for old temp files
 #[cfg(not(test))]
 fn create_temp_file(command: &str, content: &str) -> anyhow::Result<String> {
     // Get first word of command for filename
     let cmd_part = command.split_whitespace().next().unwrap_or("cmd");
+=======
+/// Formats command output by wrapping non-empty stdout/stderr in XML tags.
+/// stderr is commonly used for warnings and progress info, so success is
+/// determined by exit status, not stderr presence. Returns Ok(output) on
+/// success or Err(output) on failure, with a status message if both streams are
+/// empty.
+async fn format_output<F: Infrastructure>(
+    infra: &Arc<F>,
+    mut output: CommandOutput,
+    keep_ansi: bool,
+    prefix_chars: usize,
+    suffix_chars: usize,
+) -> anyhow::Result<String> {
+    let mut formatted_output = String::new();
+>>>>>>> upstream/main
 
     // Clean up command name - just keep alphanumeric chars
     // (this is probably overkill but better safe than sorry)
@@ -102,6 +125,7 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool, _command: &str) -> 
         output.stdout = strip_ansi(output.stdout);
     }
 
+<<<<<<< HEAD
     // Figure out how big the output is
     let stdout_size = output.stdout.trim().len();
     let stderr_size = output.stderr.trim().len();
@@ -111,10 +135,72 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool, _command: &str) -> 
     if stdout_size == 0 && stderr_size == 0 {
         let msg = if output.success {
             "Command executed successfully with no output."
+=======
+    // Create metadata
+    let mut metadata = Metadata::default()
+        .add("command", &output.command)
+        .add_optional("exit_code", output.exit_code);
+
+    let mut is_truncated = false;
+
+    // Format stdout if not empty
+    if !output.stdout.trim().is_empty() {
+        let result = Clipper::from_start_end(prefix_chars, suffix_chars).clip(&output.stdout);
+
+        if result.is_truncated() {
+            metadata = metadata.add("total_stdout_chars", output.stdout.len());
+            is_truncated = true;
+        }
+        formatted_output.push_str(&tag_output(result, "stdout", &output.stdout));
+    }
+
+    // Format stderr if not empty
+    if !output.stderr.trim().is_empty() {
+        if !formatted_output.is_empty() {
+            formatted_output.push('\n');
+        }
+        let result = Clipper::from_start_end(prefix_chars, suffix_chars).clip(&output.stderr);
+
+        if result.is_truncated() {
+            metadata = metadata.add("total_stderr_chars", output.stderr.len());
+            is_truncated = true;
+        }
+        formatted_output.push_str(&tag_output(result, "stderr", &output.stderr));
+    }
+
+    // Add temp file path if output is truncated
+    if is_truncated {
+        let path = infra
+            .file_write_service()
+            .write_temp(
+                "forge_shell_",
+                ".md",
+                &format!(
+                    "command:{}\n<stdout>{}</stdout>\n<stderr>{}</stderr>",
+                    output.command, output.stdout, output.stderr
+                ),
+            )
+            .await?;
+
+        metadata = metadata
+            .add("temp_file", path.display())
+            .add("truncated", "true");
+        formatted_output.push_str(&format!(
+            "<truncate>content is truncated, remaining content can be read from path:{}</truncate>",
+            path.display()
+        ));
+    }
+
+    // Handle empty outputs
+    let result = if formatted_output.is_empty() {
+        if output.success() {
+            "Command executed successfully with no output.".to_string()
+>>>>>>> upstream/main
         } else {
             "Command failed with no output."
         };
 
+<<<<<<< HEAD
         // For tests, we need to match the expected format without metadata
         #[cfg(test)]
         return if output.success { Ok(msg.to_string()) } else { Err(anyhow::anyhow!(msg)) };
@@ -285,7 +371,40 @@ fn format_output(mut output: CommandOutput, keep_ansi: bool, _command: &str) -> 
     #[allow(unreachable_code)]
     {
         Ok(String::new())
+=======
+    if output.success() {
+        Ok(format!("{metadata}{result}"))
+    } else {
+        bail!(format!("{metadata}{result}"))
+>>>>>>> upstream/main
     }
+}
+
+/// Helper function to format potentially truncated output for stdout or stderr
+fn tag_output(result: ClipperResult, tag: &str, content: &str) -> String {
+    let mut formatted_output = String::default();
+    match (result.prefix, result.suffix) {
+        (Some(prefix), Some(suffix)) => {
+            let truncated_chars = content.len() - prefix.len() - suffix.len();
+            let prefix_content = &content[prefix.clone()];
+            let suffix_content = &content[suffix.clone()];
+
+            formatted_output.push_str(&format!(
+                "<{} chars=\"{}-{}\">\n{}\n</{}>\n",
+                tag, prefix.start, prefix.end, prefix_content, tag
+            ));
+            formatted_output.push_str(&format!(
+                "<truncated>...{tag} truncated ({truncated_chars} characters not shown)...</truncated>\n"
+            ));
+            formatted_output.push_str(&format!(
+                "<{} chars=\"{}-{}\">\n{}\n</{}>\n",
+                tag, suffix.start, suffix.end, suffix_content, tag
+            ));
+        }
+        _ => formatted_output.push_str(&format!("<{tag}>\n{content}\n</{tag}>")),
+    }
+
+    formatted_output
 }
 
 /// Executes shell commands with safety measures using restricted bash (rbash).
@@ -337,20 +456,66 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
             .execute_command(input.command.clone(), input.cwd)
             .await?;
 
+<<<<<<< HEAD
         // Format the output with proper structure
         format_output(output, input.keep_ansi, &input.command)
+=======
+        format_output(
+            &self.infra,
+            output,
+            input.keep_ansi,
+            PREFIX_CHARS,
+            SUFFIX_CHARS,
+        )
+        .await
+>>>>>>> upstream/main
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn test_format_output_with_different_max_chars() {
+        let infra = Arc::new(MockInfrastructure::new());
+
+        // Test with small truncation values that will truncate the string
+        let small_output = CommandOutput {
+            stdout: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string(),
+            stderr: "".to_string(),
+            command: "echo".into(),
+            exit_code: Some(0),
+        };
+        let small_result = format_output(&infra, small_output, false, 5, 5)
+            .await
+            .unwrap();
+        insta::assert_snapshot!(
+            "format_output_small_truncation",
+            TempDir::normalize(&small_result)
+        );
+
+        // Test with large values that won't cause truncation
+        let large_output = CommandOutput {
+            stdout: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string(),
+            stderr: "".to_string(),
+            command: "echo".into(),
+            exit_code: Some(0),
+        };
+        let large_result = format_output(&infra, large_output, false, 100, 100)
+            .await
+            .unwrap();
+        insta::assert_snapshot!(
+            "format_output_no_truncation",
+            TempDir::normalize(&large_result)
+        );
+    }
+    use std::env;
     use std::sync::Arc;
-    use std::{env, fs};
 
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
+    use crate::tools::utils::TempDir;
 
     // We no longer need these patterns since we simplified the test
     // But we'll keep them commented out for reference
@@ -408,11 +573,7 @@ mod tests {
             )
             .await
             .unwrap();
-
-        assert_eq!(
-            result,
-            "<stdout>to stdout\n</stdout>\n<stderr>to stderr\n</stderr>"
-        );
+        insta::assert_snapshot!(result);
     }
 
     #[tokio::test]
@@ -430,18 +591,14 @@ mod tests {
             )
             .await
             .unwrap();
-
-        assert_eq!(
-            result,
-            "<stdout>to stdout\n</stdout>\n<stderr>to stderr\n</stderr>"
-        );
+        insta::assert_snapshot!(result);
     }
 
     #[tokio::test]
     async fn test_shell_with_working_directory() {
         let infra = Arc::new(MockInfrastructure::new());
         let shell = Shell::new(infra);
-        let temp_dir = fs::canonicalize(env::temp_dir()).unwrap();
+        let temp_dir = TempDir::new().unwrap().path();
 
         let result = shell
             .call(
@@ -458,7 +615,10 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(result, format!("<stdout>{}\n</stdout>", temp_dir.display()));
+        insta::assert_snapshot!(
+            "format_output_working_directory",
+            TempDir::normalize(&result)
+        );
     }
 
     #[tokio::test]
@@ -536,7 +696,21 @@ mod tests {
 
         assert_eq!(
             result,
-            format!("<stdout>{}\n</stdout>", current_dir.display())
+            format!(
+                "{}<stdout>\n{}\n\n</stdout>",
+                Metadata::default()
+                    .add(
+                        "command",
+                        if cfg!(target_os = "windows") {
+                            "cd"
+                        } else {
+                            "pwd"
+                        }
+                    )
+                    .add("exit_code", 0)
+                    .to_string(),
+                current_dir.display()
+            )
         );
     }
 
@@ -554,7 +728,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(result, format!("<stdout>first\nsecond\n</stdout>"));
+        insta::assert_snapshot!(result);
     }
 
     #[tokio::test]
@@ -643,12 +817,14 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_format_output_ansi_handling() {
+    #[tokio::test]
+    async fn test_format_output_ansi_handling() {
+        let infra = Arc::new(MockInfrastructure::new());
         // Test with keep_ansi = true (should preserve ANSI codes)
         let ansi_output = CommandOutput {
             stdout: "\x1b[32mSuccess\x1b[0m".to_string(),
             stderr: "\x1b[31mWarning\x1b[0m".to_string(),
+<<<<<<< HEAD
             success: true,
             exit_code: 0,
             temp_file_path: None,
@@ -656,11 +832,21 @@ mod tests {
         let preserved = format_output(ansi_output, true, "test_command").unwrap();
         assert!(preserved.contains("\x1b[32mSuccess\x1b[0m"));
         assert!(preserved.contains("\x1b[31mWarning\x1b[0m"));
+=======
+            command: "ls -la".into(),
+            exit_code: Some(0),
+        };
+        let preserved = format_output(&infra, ansi_output, true, PREFIX_CHARS, SUFFIX_CHARS)
+            .await
+            .unwrap();
+        insta::assert_snapshot!("format_output_ansi_preserved", preserved);
+>>>>>>> upstream/main
 
         // Test with keep_ansi = false (should strip ANSI codes)
         let ansi_output = CommandOutput {
             stdout: "\x1b[32mSuccess\x1b[0m".to_string(),
             stderr: "\x1b[31mWarning\x1b[0m".to_string(),
+<<<<<<< HEAD
             success: true,
             exit_code: 0,
             temp_file_path: None,
@@ -727,5 +913,44 @@ mod tests {
 
         // In test mode, we just get the message without metadata
         assert_eq!(result, "Command failed with no output.");
+=======
+            command: "ls -la".into(),
+            exit_code: Some(0),
+        };
+        let stripped = format_output(&infra, ansi_output, false, PREFIX_CHARS, SUFFIX_CHARS)
+            .await
+            .unwrap();
+        insta::assert_snapshot!("format_output_ansi_stripped", stripped);
+    }
+
+    #[tokio::test]
+    async fn test_format_output_with_large_command_output() {
+        let infra = Arc::new(MockInfrastructure::new());
+        // Using tiny PREFIX_CHARS and SUFFIX_CHARS values (30) to test truncation with
+        // minimal content This creates very small snapshots while still testing
+        // the truncation logic
+        const TINY_PREFIX: usize = 30;
+        const TINY_SUFFIX: usize = 30;
+
+        // Create a test string just long enough to trigger truncation with our small
+        // prefix/suffix values
+        let test_string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".repeat(4); // 104 characters
+
+        let ansi_output = CommandOutput {
+            stdout: test_string.clone(),
+            stderr: test_string,
+            command: "ls -la".into(),
+            exit_code: Some(0),
+        };
+
+        let preserved = format_output(&infra, ansi_output, false, TINY_PREFIX, TINY_SUFFIX)
+            .await
+            .unwrap();
+        // Use a specific name for the snapshot instead of auto-generated name
+        insta::assert_snapshot!(
+            "format_output_large_command",
+            TempDir::normalize(&preserved)
+        );
+>>>>>>> upstream/main
     }
 }

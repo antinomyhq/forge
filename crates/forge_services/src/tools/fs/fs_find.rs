@@ -18,8 +18,9 @@ use crate::Infrastructure;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSFindInput {
-    /// The path of the directory to search in (absolute path required). This
-    /// directory will be recursively searched.
+    /// The absolute path of the directory or file to search in. If it's a
+    /// directory, it will be searched recursively. If it's a file path,
+    /// only that specific file will be searched.
     pub path: String,
 
     /// The regular expression pattern to search for in file contents.
@@ -109,16 +110,12 @@ impl<F: Infrastructure> FSFind<F> {
     }
 
     async fn call(&self, context: ToolCallContext, input: FSFindInput) -> anyhow::Result<String> {
-        let dir = Path::new(&input.path);
-        assert_absolute_path(dir)?;
+        let path = Path::new(&input.path);
+        assert_absolute_path(path)?;
 
         let title_format = self.create_title(&input)?;
 
         context.send_text(title_format).await?;
-
-        if !dir.exists() {
-            return Err(anyhow::anyhow!("Directory '{}' does not exist", input.path));
-        }
 
         // Create content regex pattern if provided
         let regex = match &input.regex {
@@ -132,7 +129,7 @@ impl<F: Infrastructure> FSFind<F> {
             None => None,
         };
 
-        let paths = retrieve_file_paths(dir).await?;
+        let paths = retrieve_file_paths(path).await?;
 
         let mut matches = Vec::new();
 
@@ -206,14 +203,18 @@ impl<F: Infrastructure> FSFind<F> {
 }
 
 async fn retrieve_file_paths(dir: &Path) -> anyhow::Result<HashSet<std::path::PathBuf>> {
-    Ok(Walker::max_all()
-        .cwd(dir.to_path_buf())
-        .get()
-        .await
-        .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?
-        .into_iter()
-        .map(|file| dir.join(file.path))
-        .collect::<HashSet<_>>())
+    if dir.is_dir() {
+        Ok(Walker::max_all()
+            .cwd(dir.to_path_buf())
+            .get()
+            .await
+            .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?
+            .into_iter()
+            .map(|file| dir.join(file.path))
+            .collect::<HashSet<_>>())
+    } else {
+        Ok(HashSet::from_iter([dir.to_path_buf()]))
+    }
 }
 
 impl<F> NamedTool for FSFind<F> {
@@ -553,5 +554,62 @@ mod test {
         // and our temp path won't start with that, we expect the full path
         assert!(display_path.is_ok());
         assert_eq!(display_path.unwrap(), file_path.display().to_string());
+    }
+
+    #[tokio::test]
+    async fn test_fs_search_in_specific_file() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("test1.txt"), "Hello test world")
+            .await
+            .unwrap();
+        fs::write(temp_dir.path().join("test2.txt"), "Another test case")
+            .await
+            .unwrap();
+        fs::write(temp_dir.path().join("other.txt"), "No match here")
+            .await
+            .unwrap();
+
+        fs::write(temp_dir.path().join("best.txt"), "nice code.")
+            .await
+            .unwrap();
+
+        let infra = Arc::new(MockInfrastructure::new());
+        let fs_search = FSFind::new(infra);
+
+        // case 1: search within a specific file
+        let result = fs_search
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().join("best.txt").display().to_string(),
+                    regex: Some("nice".to_string()),
+                    file_pattern: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let lines: Vec<_> = result.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].eq(&format!(
+            "{}:1:nice code.",
+            temp_dir.path().join("best.txt").display()
+        )));
+
+        // case 2: check if file is present or not by using search tool.
+        let result = fs_search
+            .call(
+                ToolCallContext::default(),
+                FSFindInput {
+                    path: temp_dir.path().join("best.txt").display().to_string(),
+                    regex: None,
+                    file_pattern: None,
+                },
+            )
+            .await
+            .unwrap();
+        let lines: Vec<_> = result.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].eq(&format!("{}", temp_dir.path().join("best.txt").display())));
     }
 }
