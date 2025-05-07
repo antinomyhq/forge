@@ -77,6 +77,9 @@ pub struct Environment {
     /// Configuration for application updates
     #[serde(default)]
     pub update_config: UpdateConfig,
+    /// Path to the loaded .env file, if any
+    #[serde(default)]
+    pub dotenv_path: Option<PathBuf>,
 }
 
 impl Environment {

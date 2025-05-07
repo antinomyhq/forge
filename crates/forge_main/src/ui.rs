@@ -80,8 +80,13 @@ impl<F: API> UI<F> {
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
         self.state = UIState::default();
+
+        // Initialize conversation first to trigger .env file loading
         self.init_conversation().await?;
-        banner::display()?;
+
+        // Use the environment to display the .env file path
+        let env = self.api.environment();
+        banner::display_with_env(&env)?;
 
         Ok(())
     }
@@ -192,9 +197,13 @@ impl<F: API> UI<F> {
             _ => {} // Continue with startup for other results
         }
 
-        // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
+        // Initialize conversation first to trigger .env file loading
         self.init_conversation().await?;
+
+        // Display the banner in dimmed colors since we're in interactive mode
+        // Use the environment to display the .env file path
+        let env = self.api.environment();
+        banner::display_with_env(&env)?;
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -260,7 +269,8 @@ impl<F: API> UI<F> {
                 self.writeln(output)?;
             }
             Command::Exit => {
-                update_forge().await;
+                // Check for updates when exiting
+                let _ = force_check_update().await;
                 return Ok(true);
             }
 
@@ -277,6 +287,14 @@ impl<F: API> UI<F> {
 
                 // Execute the command
                 let _ = self.api.execute_shell_command(command, cwd).await;
+            }
+            Command::Update => {
+                // Perform a forced update check
+                let _ = force_check_update().await;
+            }
+            Command::UpdateCheck => {
+                // Perform a normal update check
+                let _ = check_for_updates(&self.api.environment()).await;
             }
         }
 
