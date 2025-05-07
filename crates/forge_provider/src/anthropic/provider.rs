@@ -200,8 +200,9 @@ impl ProviderService for Anthropic {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use forge_domain::{
-        Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolResult,
+        Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolResponseData, ToolResult,
     };
 
     use super::*;
@@ -242,6 +243,13 @@ mod tests {
                 call_id: Some(ToolCallId::new("math-1")),
                 content: serde_json::json!({"result": 4}).to_string(),
                 is_error: false,
+                data: ToolResponseData::Generic {
+                    metadata: {
+                        let mut map = HashMap::new();
+                        map.insert("result".to_string(), serde_json::json!(4));
+                        map
+                    }
+                },
             }])
             .tool_choice(ToolChoice::Call(ToolName::new("math")));
         let request = Request::try_from(context)
