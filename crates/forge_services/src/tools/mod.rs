@@ -9,3 +9,5 @@ mod syn;
 mod utils;
 
 pub use registry::ToolRegistry;
+#[cfg(test)]
+pub use utils::TempDir;

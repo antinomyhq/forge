@@ -1,0 +1,16 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: result
+---
+---
+command: echo 'to stdout' && echo 'to stderr' >&2
+exit_code: 0
+---
+<stdout>
+to stdout
+
+</stdout>
+<stderr>
+to stderr
+
+</stderr>

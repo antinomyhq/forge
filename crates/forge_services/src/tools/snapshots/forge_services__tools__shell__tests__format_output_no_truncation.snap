@@ -1,0 +1,12 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: large_result
+snapshot_kind: text
+---
+---
+command: echo
+exit_code: 0
+---
+<stdout>
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+</stdout>

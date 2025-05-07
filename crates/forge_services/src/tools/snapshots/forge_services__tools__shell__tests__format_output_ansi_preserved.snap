@@ -1,0 +1,15 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: preserved
+snapshot_kind: text
+---
+---
+command: ls -la
+exit_code: 0
+---
+<stdout>
+[32mSuccess[0m
+</stdout>
+<stderr>
+[31mWarning[0m
+</stderr>

@@ -4,5 +4,5 @@ expression: record.to_string()
 snapshot_kind: text
 ---
 <forge_tool_result tool_name="test_tool">
-<success>Result with <tags> & special "characters"</success>
+Result with <tags> & special "characters"
 </forge_tool_result>

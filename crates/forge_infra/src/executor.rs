@@ -76,10 +76,10 @@ impl ForgeCommandExecutorService {
     ) -> anyhow::Result<CommandOutput> {
         let ready = self.ready.lock().await;
 
-        let mut command = self.prepare_command(&command, working_dir);
+        let mut prepared_command = self.prepare_command(&command, working_dir);
 
         // Spawn the command
-        let mut child = command.spawn()?;
+        let mut child = prepared_command.spawn()?;
 
         let mut stdout_pipe = child.stdout.take();
         let mut stderr_pipe = child.stderr.take();
@@ -99,7 +99,8 @@ impl ForgeCommandExecutorService {
         Ok(CommandOutput {
             stdout: String::from_utf8_lossy(&stdout_buffer).into_owned(),
             stderr: String::from_utf8_lossy(&stderr_buffer).into_owned(),
-            success: status.success(),
+            exit_code: status.code(),
+            command,
         })
     }
 }
@@ -172,11 +173,12 @@ mod tests {
         let expected = CommandOutput {
             stdout: "hello world\n".to_string(),
             stderr: "".to_string(),
-            success: true,
+            command: "echo \"hello world\"".into(),
+            exit_code: Some(0),
         };
 
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
         assert_eq!(actual.stderr, expected.stderr);
-        assert_eq!(actual.success, expected.success);
+        assert_eq!(actual.success(), expected.success());
     }
 }

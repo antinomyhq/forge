@@ -517,12 +517,8 @@ impl<F: API> UI<F> {
         match message.message {
             ChatResponse::Text { mut text, is_complete, is_md, is_summary } => {
                 if is_complete && !text.trim().is_empty() {
-                    if is_md {
+                    if is_md || is_summary {
                         text = self.markdown.render(&text);
-                    }
-
-                    if is_summary {
-                        text = TitleFormat::debug(text).to_string();
                     }
 
                     self.writeln(text)?;
