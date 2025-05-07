@@ -134,22 +134,16 @@ impl ForgeEnvironmentService {
                 SHOWN_ENV_PATH.store(true, Ordering::SeqCst);
             }
         }
-        
-        let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
-        let provider = self.resolve_provider();
-        let retry_config = self.resolve_retry_config();
 
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
-            cwd,
-            shell: self.get_shell_path(),
-            base_path: dirs::home_dir()
-                .map(|a| a.join("forge"))
-                .unwrap_or(PathBuf::from(".").join("forge")),
+            cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             home: dirs::home_dir(),
-            provider,
-            retry_config,
+            shell: self.get_shell_path(),
+            base_path: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            provider: self.resolve_provider(),
+            retry_config: self.resolve_retry_config(),
         }
     }
 }
