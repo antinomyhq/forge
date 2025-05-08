@@ -146,6 +146,7 @@ pub mod tests {
                 base_path: PathBuf::from("/base"),
                 provider: Provider::open_router("test-key"),
                 retry_config: Default::default(),
+                update_config: Default::default(),
             }
         }
     }
@@ -335,10 +336,11 @@ pub mod tests {
                 // When the test_shell_echo looks for this specific command
                 // It's expecting to see "Mock command executed successfully"
                 return Ok(CommandOutput {
+                    command,
                     stdout: "Mock command executed successfully\n".to_string(),
                     stderr: "".to_string(),
-                    command,
                     exit_code: Some(0),
+                    temp_file_path: None,
                 });
             } else if command.contains("echo") {
                 if command.contains(">") && command.contains(">&2") {
@@ -354,20 +356,22 @@ pub mod tests {
                         "stderr output\n"
                     };
                     return Ok(CommandOutput {
+                        command,
                         stdout: stdout.to_string(),
                         stderr: stderr.to_string(),
-                        command,
                         exit_code: Some(0),
+                        temp_file_path: None,
                     });
                 } else if command.contains(">&2") {
                     // Command with only stderr
                     let content = command.split("echo").nth(1).unwrap_or("").trim();
                     let content = content.trim_matches(|c| c == '\'' || c == '"');
                     return Ok(CommandOutput {
+                        command,
                         stdout: "".to_string(),
                         stderr: format!("{content}\n"),
-                        command,
                         exit_code: Some(0),
+                        temp_file_path: None,
                     });
                 } else {
                     // Standard echo command
@@ -392,52 +396,58 @@ pub mod tests {
                     };
 
                     return Ok(CommandOutput {
+                        command,
                         stdout: content,
                         stderr: "".to_string(),
-                        command,
                         exit_code: Some(0),
+                        temp_file_path: None,
                     });
                 }
             } else if command == "pwd" || command == "cd" {
                 // Return working directory for pwd/cd commands
                 return Ok(CommandOutput {
+                    command,
                     stdout: format!("{working_dir}\n", working_dir = working_dir.display()),
                     stderr: "".to_string(),
-                    command,
                     exit_code: Some(0),
+                    temp_file_path: None,
                 });
             } else if command == "true" {
                 // true command returns success with no output
                 return Ok(CommandOutput {
+                    command,
                     stdout: "".to_string(),
                     stderr: "".to_string(),
-                    command,
                     exit_code: Some(0),
+                    temp_file_path: None,
                 });
             } else if command.starts_with("/bin/ls") || command.contains("whoami") {
                 // Full path commands
                 return Ok(CommandOutput {
+                    command,
                     stdout: "user\n".to_string(),
                     stderr: "".to_string(),
-                    command,
                     exit_code: Some(0),
+                    temp_file_path: None,
                 });
             } else if command == "non_existent_command" {
                 // Command not found
                 return Ok(CommandOutput {
+                    command,
                     stdout: "".to_string(),
                     stderr: "command not found: non_existent_command\n".to_string(),
-                    command,
                     exit_code: Some(-1),
+                    temp_file_path: None,
                 });
             }
 
             // Default response for other commands
             Ok(CommandOutput {
+                command,
                 stdout: "Mock command executed successfully\n".to_string(),
                 stderr: "".to_string(),
-                command,
                 exit_code: Some(0),
+                temp_file_path: None,
             })
         }
     }

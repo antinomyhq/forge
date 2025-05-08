@@ -1,6 +1,7 @@
 use std::io;
 
 use colored::Colorize;
+use forge_tracker::VERSION;
 
 const BANNER: &str = include_str!("banner");
 
@@ -9,8 +10,10 @@ pub fn display() -> io::Result<()> {
 
     // Define the labels as tuples of (key, value)
     let labels = [
+        ("Version:", VERSION),
         ("New conversation:", "/new"),
         ("Get started:", "/info, /help"),
+        ("Check for updates:", "/update"),
         ("Switch mode:", "/plan or /act"),
         ("Quit:", "/exit or <CTRL+D>"),
     ];

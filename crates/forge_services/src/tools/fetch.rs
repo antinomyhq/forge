@@ -7,6 +7,8 @@ use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 use schemars::JsonSchema;
 use serde::Deserialize;
+use tempfile;
+use uuid::Uuid;
 
 use crate::clipper::Clipper;
 use crate::metadata::Metadata;
@@ -43,6 +45,56 @@ impl<F: Infrastructure> Fetch<F> {
 
 fn default_raw() -> Option<bool> {
     Some(false)
+}
+
+// Limits for output handling
+// 40k is a good balance - large enough for most outputs but small enough to avoid UI issues
+const OUTPUT_LIMIT: usize = 40_000;
+
+// Marker for metadata section
+const METADATA_SEPARATOR: &str = "---";
+
+// Creates a temp file for large fetch content
+// TODO: Consider adding cleanup mechanism for old temp files
+fn create_temp_file(url: &str, content: &str) -> anyhow::Result<String> {
+    // Get domain part for filename
+    let domain_part = url.split("://").nth(1).unwrap_or(url).split('/').next().unwrap_or("url");
+
+    // Clean up domain name - just keep alphanumeric chars and dots
+    let safe_domain = domain_part.chars()
+        .filter(|c| c.is_alphanumeric() || *c == '.')
+        .collect::<String>();
+
+    // Use PID + timestamp + random part for uniqueness
+    let pid = std::process::id();
+    let now = chrono::Local::now().format("%m%d_%H%M%S");
+    let rand_id = Uuid::new_v4().to_string()[..8].to_string();
+
+    // Build the temp file
+    let mut temp = tempfile::Builder::new()
+        .prefix(&format!("forge_fetch_{pid}_{safe_domain}_"))
+        .suffix(&format!("_{now}_{rand_id}.txt"))
+        .tempfile()?;
+
+    // Add header comments to the temp file
+    let header = "# TEMPORARY FETCH RESULT\n";
+    let ttl_comment = "# This temporary file may be deleted by the OS (e.g., on reboot).\n";
+    let url_comment = format!("# Source URL: {}\n", url);
+    let separator = format!("# {}\n\n", "-".repeat(70));
+
+    // Write header and content
+    use std::io::Write;
+    temp.write_all(header.as_bytes())?;
+    temp.write_all(ttl_comment.as_bytes())?;
+    temp.write_all(url_comment.as_bytes())?;
+    temp.write_all(separator.as_bytes())?;
+    temp.write_all(content.as_bytes())?;
+
+    // Keep the file and get its path
+    let path = temp.path().to_string_lossy().into_owned();
+    temp.keep()?;
+
+    Ok(path)
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -165,6 +217,34 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
         // Apply truncation directly
         let truncated = Clipper::from_start(MAX_LENGTH).clip(&content);
 
+<<<<<<< HEAD
+        let max_length = input.max_length.unwrap_or(OUTPUT_LIMIT);
+        let end = (start_index + max_length).min(original_length);
+
+        // Check if content is too large (>40k chars)
+        let needs_temp_file = original_length > OUTPUT_LIMIT;
+
+        // Start building our result
+        let mut result = String::with_capacity(max_length + 500);
+
+        // Always add metadata header
+        // Add metadata header
+        result.push_str(&format!("{}\n", METADATA_SEPARATOR));
+        result.push_str(&format!("URL: {}\n", url));
+        result.push_str(&format!("total_chars: {}\n", original_length));
+        result.push_str(&format!("start_char: {}\n", start_index));
+        result.push_str(&format!("end_char: {}\n", end));
+
+        // For large content, add temp file info
+        if needs_temp_file {
+            // Save the full content to a temp file
+            let temp_path = create_temp_file(url.as_str(), &content)?;
+            result.push_str(&format!("temp_file: {}\n", temp_path));
+        }
+        result.push_str(&format!("{}\n", METADATA_SEPARATOR));
+
+        let mut truncated = content[start_index..end].to_string();
+=======
         // Create temp file only if content was truncated
         let temp_file_path = if truncated.is_truncated() {
             Some(
@@ -176,6 +256,7 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
         } else {
             None
         };
+>>>>>>> upstream/main
 
         // Build metadata with all required fields in a single fluent chain
         let metadata = Metadata::default()
@@ -191,6 +272,17 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
                  .map(|path| format!("Content is truncated to {MAX_LENGTH} chars; Remaining content can be read from path: {path}"))
             );
 
+<<<<<<< HEAD
+        // Add the prefix (if any)
+        if !prefix.is_empty() {
+            result.push_str(&prefix);
+        }
+
+        // Add the content
+        result.push_str(&truncated);
+
+        Ok(result)
+=======
         // Determine output. If truncated then use truncated content else the actual.
         let output = truncated.prefix_content().unwrap_or(content.as_str());
 
@@ -205,6 +297,7 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
         };
 
         Ok(format!("{metadata}{output}{truncation_tag}",))
+>>>>>>> upstream/main
     }
 }
 
@@ -456,5 +549,45 @@ mod tests {
         let result = fetch.call(ToolCallContext::default(), input).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("404"));
+    }
+
+    #[tokio::test]
+    async fn test_fetch_large_content_with_temp_file() {
+        let (fetch, mut server) = setup().await;
+
+        // Create content larger than OUTPUT_LIMIT
+        let large_content = "A".repeat(OUTPUT_LIMIT + 5000);
+
+        server
+            .mock("GET", "/large.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body(&large_content)
+            .create();
+
+        server
+            .mock("GET", "/robots.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("User-agent: *\nAllow: /")
+            .create();
+
+        let input = FetchInput {
+            url: format!("{}/large.txt", server.url()),
+            max_length: None,
+            start_index: Some(0),
+            raw: Some(true),
+        };
+
+        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
+        let normalized_result = normalize_port(result);
+
+        // Check that the result contains metadata section
+        assert!(normalized_result.contains(METADATA_SEPARATOR));
+        assert!(normalized_result.contains("total_chars:"));
+        assert!(normalized_result.contains("temp_file:"));
+
+        // Check that the content is still included
+        assert!(normalized_result.contains("A".repeat(100).as_str()));
     }
 }

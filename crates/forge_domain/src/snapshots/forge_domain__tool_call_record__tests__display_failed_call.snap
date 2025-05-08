@@ -1,13 +1,13 @@
 ---
 source: crates/forge_domain/src/tool_call_record.rs
 expression: record.to_string()
-snapshot_kind: text
 ---
-<forge_tool_result tool_name="fs_write">
-<error>
+---
+type: generic
+tool_name: fs_write
+status: Failure
+call_id: call_def456
+---
 
 ERROR:
 Caused by: Permission denied
-
-</error>
-</forge_tool_result>

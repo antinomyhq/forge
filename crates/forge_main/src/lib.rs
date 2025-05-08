@@ -11,7 +11,7 @@ mod state;
 mod tools_display;
 mod ui;
 
-pub use auto_update::update_forge;
+pub use auto_update::{check_for_updates, force_check_update, UpdateCheckResult};
 pub use cli::Cli;
 use lazy_static::lazy_static;
 pub use ui::UI;

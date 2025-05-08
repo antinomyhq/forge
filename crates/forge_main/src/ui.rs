@@ -16,7 +16,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
-use crate::auto_update::update_forge;
+use crate::auto_update::{check_for_updates, force_check_update, UpdateCheckResult};
 use crate::cli::Cli;
 use crate::info::Info;
 use crate::input::Console;
@@ -173,6 +173,23 @@ impl<F: API> UI<F> {
         if let Some(prompt) = prompt {
             self.on_message(prompt).await?;
             return Ok(());
+        }
+
+        // Check for updates at startup
+        let env = self.api.environment();
+        match check_for_updates(&env).await {
+            UpdateCheckResult::UpdatePerformed(version) => {
+                self.writeln(TitleFormat::action(format!(
+                    "Updated to version {}. Please restart Forge to use the new version.",
+                    version
+                )))?;
+                return Ok(());
+            }
+            UpdateCheckResult::Error(err) => {
+                // Log the error but continue
+                tracing::warn!("Update check failed: {}", err);
+            }
+            _ => {} // Continue with startup for other results
         }
 
         // Display the banner in dimmed colors since we're in interactive mode
