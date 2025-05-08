@@ -33,7 +33,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
     }
 
     async fn tools(&self) -> Vec<ToolDefinition> {
-        self.app.tool_service().list()
+        self.app.tool_service().list().await
     }
 
     async fn models(&self) -> Result<Vec<Model>> {

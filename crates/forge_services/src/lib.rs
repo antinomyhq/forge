@@ -11,6 +11,7 @@ mod template;
 mod tool_service;
 mod tools;
 mod workflow;
+mod mcp;
 
 pub use clipper::*;
 pub use forge_services::*;

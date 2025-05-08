@@ -14,30 +14,26 @@ use crate::Infrastructure;
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Clone)]
-pub struct ForgeToolService {
-    tools: Arc<HashMap<ToolName, Tool>>,
+pub struct ForgeToolService<M> {
+    tools: Arc<HashMap<ToolName, Arc<Tool>>>,
+    mcp: Arc<M>,
 }
 
-impl ForgeToolService {
-    pub fn new<F: Infrastructure>(infra: Arc<F>) -> Self {
+impl<M: ToolService> ForgeToolService<M> {
+    pub fn new<F: Infrastructure>(infra: Arc<F>, mcp: Arc<M>) -> Self {
         let registry = ToolRegistry::new(infra.clone());
-        ForgeToolService::from_iter(registry.tools())
-    }
-}
-
-impl FromIterator<Tool> for ForgeToolService {
-    fn from_iter<T: IntoIterator<Item = Tool>>(iter: T) -> Self {
-        let tools: HashMap<ToolName, Tool> = iter
+        let tools = registry.tools();
+        let tools: HashMap<ToolName, Arc<Tool>> = tools
             .into_iter()
-            .map(|tool| (tool.definition.name.clone(), tool))
+            .map(|tool| (tool.definition.name.clone(), Arc::new(tool)))
             .collect::<HashMap<_, _>>();
 
-        Self { tools: Arc::new(tools) }
+        Self { tools: Arc::new(tools), mcp }
     }
 }
 
 #[async_trait::async_trait]
-impl ToolService for ForgeToolService {
+impl<M: ToolService> ToolService for ForgeToolService<M> {
     async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult {
         let name = call.name.clone();
         let input = call.arguments.clone();
@@ -51,7 +47,7 @@ impl ToolService for ForgeToolService {
 
         available_tools.sort();
 
-        let output = match self.tools.get(&name) {
+        let output = match self.find_tool(&name).await {
             Some(tool) => {
                 // Wrap tool call with timeout
                 match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
@@ -82,17 +78,27 @@ impl ToolService for ForgeToolService {
         result
     }
 
-    fn list(&self) -> Vec<ToolDefinition> {
+    async fn list(&self) -> Vec<ToolDefinition> {
         let mut tools: Vec<_> = self
             .tools
             .values()
             .map(|tool| tool.definition.clone())
             .collect();
+        let mcp_tools = self.mcp.list().await;
+        println!("{:?}", mcp_tools.iter().map(|v| v.name.as_str()));
+        tools.extend(mcp_tools);
 
         // Sorting is required to ensure system prompts are exactly the same
         tools.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         tools
+    }
+    async fn find_tool(&self, name: &ToolName) -> Option<Arc<Tool>> {
+        if let Some(tool) = self.tools.get(name).cloned() {
+            Some(tool)
+        } else {
+            self.mcp.find_tool(name).await
+        }
     }
 }
 
@@ -156,7 +162,7 @@ mod test {
             executable: Box::new(FailureTool),
         };
 
-        ForgeToolService::from_iter(vec![success_tool, failure_tool])
+        ForgeToolService::new(vec![success_tool, failure_tool])
     }
 
     #[tokio::test]
