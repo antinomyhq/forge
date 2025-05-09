@@ -77,26 +77,6 @@ impl<F: API> UI<F> {
         }
     }
 
-    async fn attempt_update(&self) -> Result<Update> {
-        let mut workflow = Workflow::default();
-        let user_workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-        workflow.merge(user_workflow);
-
-        let update_config = workflow.updates.context("Update configuration not found")?;
-
-        // Extract the values from the config using clone to avoid partial moves
-        let frequency = update_config
-            .check_frequency
-            .clone()
-            .unwrap_or(UpdateFrequency::Daily);
-        let auto_update = update_config.auto_update.unwrap_or_default();
-
-        // Perform update check using the configuration
-        force_update(frequency, auto_update).await;
-
-        Ok(update_config)
-    }
-
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
         self.state = UIState::default();
@@ -183,8 +163,6 @@ impl<F: API> UI<F> {
     }
 
     async fn run_inner(&mut self) -> Result<()> {
-        let _ = self.attempt_update().await;
-
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
             return self.handle_dispatch(dispatch_json).await;
@@ -265,9 +243,7 @@ impl<F: API> UI<F> {
                 self.writeln(output)?;
             }
             Command::Update => {
-                // Force an update check with the 'Never' frequency to run it immediately
-                // regardless of when it was last run
-                force_update(UpdateFrequency::Always, false).await;
+                force_update(None).await;
             }
             Command::Exit => {
                 return Ok(true);
@@ -410,6 +386,9 @@ impl<F: API> UI<F> {
                             .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
                     );
                 }
+
+                // Perform update check using the configuration
+                force_update(workflow.updates.as_ref()).await;
 
                 self.api
                     .write_workflow(self.cli.workflow.as_deref(), &workflow)

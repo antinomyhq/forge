@@ -1,6 +1,6 @@
 use anyhow::Result;
 use colored::Colorize;
-use forge_api::UpdateFrequency;
+use forge_api::{Update, UpdateFrequency};
 use forge_tracker::{EventKind, VERSION};
 use tokio::process::Command;
 use update_informer::{registry, Check, Version};
@@ -43,7 +43,11 @@ async fn confirm_update(version: Version) {
 }
 
 /// Checks if there is an update available
-pub async fn force_update(frequency: UpdateFrequency, auto_update: bool) {
+pub async fn force_update(update: Option<&Update>) {
+    let update = update.cloned().unwrap_or_default();
+    let frequency = update.frequency.unwrap_or_default();
+    let auto_update = update.auto_update.unwrap_or_default();
+
     // Check if version is development version, in which case we skip the update
     // check
     if VERSION.contains("dev") || VERSION == "0.1.0" {
