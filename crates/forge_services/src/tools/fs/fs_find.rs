@@ -12,9 +12,10 @@ use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
 
+use crate::clipper::Clipper;
 use crate::metadata::Metadata;
 use crate::tools::utils::{assert_absolute_path, format_display_path};
-use crate::{Clipper, FsWriteService, Infrastructure};
+use crate::{FsWriteService, Infrastructure};
 
 const MAX_SEARCH_CHAR_LIMIT: usize = 40_000;
 

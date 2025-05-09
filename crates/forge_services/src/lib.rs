@@ -4,6 +4,7 @@ mod compaction;
 mod conversation;
 mod forge_services;
 mod infra;
+mod mcp_tool_service;
 mod metadata;
 mod provider;
 mod suggestion;
@@ -12,9 +13,8 @@ mod tool_service;
 mod tools;
 mod workflow;
 
-pub use clipper::*;
-pub use forge_services::*;
+// IMPORTANT: We should only expose `infra` & `ForgeServices`
+pub use forge_services::ForgeServices;
 pub use infra::*;
-pub use suggestion::*;
 #[cfg(test)]
 pub use tools::TempDir;

@@ -2,8 +2,8 @@ use std::path::Path;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
-    ConversationId, Environment, File, Model, ModelId, ResultStream, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolResult, Workflow,
+    ConversationId, Environment, File, Model, ModelId, ResultStream, Tool, ToolCallContext,
+    ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -18,9 +18,9 @@ pub trait ProviderService: Send + Sync + 'static {
 
 #[async_trait::async_trait]
 pub trait ToolService: Send + Sync {
-    // TODO: should take `call` by reference
     async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult;
     fn list(&self) -> Vec<ToolDefinition>;
+    fn find(&self, name: &ToolName) -> Option<Tool>;
 }
 
 #[async_trait::async_trait]

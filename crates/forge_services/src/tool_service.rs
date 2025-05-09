@@ -14,42 +14,28 @@ use crate::Infrastructure;
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Clone)]
-pub struct ForgeToolService {
+pub struct ForgeToolService<M> {
     tools: Arc<HashMap<ToolName, Tool>>,
+    mcp: Arc<M>,
 }
 
-impl ForgeToolService {
-    pub fn new<F: Infrastructure>(infra: Arc<F>) -> Self {
+impl<M> ForgeToolService<M> {
+    pub fn new<F: Infrastructure>(infra: Arc<F>, mcp: Arc<M>) -> Self {
         let registry = ToolRegistry::new(infra.clone());
-        ForgeToolService::from_iter(registry.tools())
-    }
-}
-
-impl FromIterator<Tool> for ForgeToolService {
-    fn from_iter<T: IntoIterator<Item = Tool>>(iter: T) -> Self {
-        let tools: HashMap<ToolName, Tool> = iter
+        let tools: HashMap<ToolName, Tool> = registry
+            .tools()
             .into_iter()
             .map(|tool| (tool.definition.name.clone(), tool))
             .collect::<HashMap<_, _>>();
 
-        Self { tools: Arc::new(tools) }
+        Self { tools: Arc::new(tools), mcp }
     }
 }
-
-#[async_trait::async_trait]
-impl ToolService for ForgeToolService {
+impl<M: ToolService> ForgeToolService<M> {
     async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult {
         let name = call.name.clone();
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
-
-        let mut available_tools = self
-            .tools
-            .keys()
-            .map(|name| name.as_str())
-            .collect::<Vec<_>>();
-
-        available_tools.sort();
 
         let output = match self.tools.get(&name) {
             Some(tool) => {
@@ -63,11 +49,21 @@ impl ToolService for ForgeToolService {
                     )),
                 }
             }
-            None => Err(anyhow::anyhow!(
-                "No tool with name '{}' was found. Please try again with one of these tools {}",
-                name.as_str(),
-                available_tools.join(", ")
-            )),
+            None => {
+                let mut available_tools = self
+                    .tools
+                    .keys()
+                    .map(|name| name.as_str())
+                    .collect::<Vec<_>>();
+
+                available_tools.sort();
+
+                Err(anyhow::anyhow!(
+                    "No tool with name '{}' was found. Please try again with one of these tools {}",
+                    name.as_str(),
+                    available_tools.join(", ")
+                ))
+            }
         };
 
         let result = match output {
@@ -89,10 +85,37 @@ impl ToolService for ForgeToolService {
             .map(|tool| tool.definition.clone())
             .collect();
 
+        // Add all MCP tools
+        tools.extend(self.mcp.list());
+
         // Sorting is required to ensure system prompts are exactly the same
         tools.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         tools
+    }
+
+    fn find(&self, name: &ToolName) -> Option<Tool> {
+        let name = name.clone();
+
+        self.tools
+            .get(&name)
+            .or(self.mcp.find(&name).as_ref())
+            .cloned()
+    }
+}
+
+#[async_trait::async_trait]
+impl<M: ToolService> ToolService for ForgeToolService<M> {
+    async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult {
+        self.call(context, call).await
+    }
+
+    fn list(&self) -> Vec<ToolDefinition> {
+        self.list()
+    }
+
+    fn find(&self, name: &ToolName) -> Option<Tool> {
+        self.find(name)
     }
 }
 
@@ -143,7 +166,7 @@ mod test {
                 input_schema: schemars::schema_for!(serde_json::Value),
                 output_schema: Some(schemars::schema_for!(String)),
             },
-            executable: Box::new(SuccessTool),
+            executable: Arc::new(SuccessTool),
         };
 
         let failure_tool = Tool {
@@ -153,10 +176,38 @@ mod test {
                 input_schema: schemars::schema_for!(serde_json::Value),
                 output_schema: Some(schemars::schema_for!(String)),
             },
-            executable: Box::new(FailureTool),
+            executable: Arc::new(FailureTool),
         };
 
         ForgeToolService::from_iter(vec![success_tool, failure_tool])
+    }
+
+    struct Stub;
+
+    #[async_trait::async_trait]
+    impl ToolService for Stub {
+        async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> ToolResult {
+            unimplemented!()
+        }
+        fn list(&self) -> Vec<ToolDefinition> {
+            Default::default()
+        }
+        fn find(&self, _: &ToolName) -> Option<Tool> {
+            None
+        }
+    }
+
+    impl ForgeToolService<Stub> {
+        fn from_iter(tools: Vec<Tool>) -> Self {
+            ForgeToolService {
+                tools: Arc::new(HashMap::from_iter(
+                    tools
+                        .into_iter()
+                        .map(|tool| (tool.definition.name.clone(), tool)),
+                )),
+                mcp: Arc::new(Stub),
+            }
+        }
     }
 
     #[tokio::test]
@@ -226,7 +277,7 @@ mod test {
                 input_schema: schemars::schema_for!(serde_json::Value),
                 output_schema: Some(schemars::schema_for!(String)),
             },
-            executable: Box::new(SlowTool),
+            executable: Arc::new(SlowTool),
         };
 
         let service = ForgeToolService::from_iter(vec![slow_tool]);
