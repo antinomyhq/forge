@@ -1,16 +1,20 @@
-use anyhow::Result;
+use std::sync::Arc;
+
 use colored::Colorize;
-use forge_api::Update;
+use forge_api::{Update, API};
 use forge_tracker::{EventKind, VERSION};
-use tokio::process::Command;
 use update_informer::{registry, Check, Version};
 
 use crate::TRACKER;
 
 /// Runs npm update in the background, failing silently
-async fn update_forge() {
+async fn execute_update_command(api: Arc<impl API>) {
     // Spawn a new task that won't block the main application
-    if let Err(err) = perform_update().await {
+    let output = api
+        .execute_shell_command("npm i update -g @antinomyhq/forge", api.environment().cwd)
+        .await;
+
+    if let Err(err) = output {
         // Send an event to the tracker on failure
         // We don't need to handle this result since we're failing silently
         let _ = send_update_failure_event(&format!("Auto update failed: {err}")).await;
@@ -27,7 +31,7 @@ async fn update_forge() {
     }
 }
 
-async fn confirm_update(version: Version) {
+async fn confirm_update(version: Version) -> bool {
     let answer = inquire::Confirm::new(&format!(
         "Confirm upgrade from {} -> {} (latest)?",
         format!("v{VERSION}").bold().white(),
@@ -37,13 +41,11 @@ async fn confirm_update(version: Version) {
     .with_error_message("Invalid response!")
     .prompt();
 
-    if answer.unwrap_or_default() {
-        update_forge().await;
-    }
+    answer.unwrap_or(false)
 }
 
 /// Checks if there is an update available
-pub async fn on_update(update: Option<&Update>) {
+pub async fn on_update(api: Arc<impl API>, update: Option<&Update>) {
     let update = update.cloned().unwrap_or_default();
     let frequency = update.frequency.unwrap_or_default();
     let auto_update = update.auto_update.unwrap_or_default();
@@ -59,31 +61,10 @@ pub async fn on_update(update: Option<&Update>) {
         .interval(frequency.into());
 
     if let Some(version) = informer.check_version().ok().flatten() {
-        if auto_update {
-            update_forge().await;
-        } else {
-            confirm_update(version).await;
+        if auto_update || confirm_update(version).await {
+            execute_update_command(api).await;
         }
     }
-}
-
-/// Actually performs the npm update
-async fn perform_update() -> Result<()> {
-    // Run npm install command with stdio set to null to avoid any output
-    let status = Command::new("npm")
-        .args(["update", "-g", "@antinomyhq/forge"])
-        .status()
-        .await?;
-
-    // Check if the command was successful
-    if !status.success() {
-        return Err(anyhow::anyhow!(
-            "npm update command failed with status: {}",
-            status
-        ));
-    }
-
-    Ok(())
 }
 
 /// Sends an event to the tracker when an update fails
@@ -96,45 +77,4 @@ async fn send_update_failure_event(error_msg: &str) -> anyhow::Result<()> {
 
     // Always return Ok since we want to fail silently
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_perform_update_success() {
-        // This test would normally mock the Command execution
-        // For simplicity, we're just testing the function interface
-        // In a real test, we would use something like mockall to mock Command
-
-        // Arrange
-        // No setup needed for this simple test
-
-        // Act
-        // Note: This would not actually run the npm command in a real test
-        // We would mock the Command to return a successful status
-        let _ = perform_update().await;
-
-        // Assert
-        // We can't meaningfully assert on the result without proper mocking
-        // This is just a placeholder for the test structure
-    }
-
-    #[tokio::test]
-    async fn test_send_update_failure_event() {
-        // This test would normally mock the Tracker
-        // For simplicity, we're just testing the function interface
-
-        // Arrange
-        let error_msg = "Test error";
-
-        // Act
-        let result = send_update_failure_event(error_msg).await;
-
-        // Assert
-        // We would normally assert that the tracker received the event
-        // but this would require more complex mocking
-        assert!(result.is_ok());
-    }
 }

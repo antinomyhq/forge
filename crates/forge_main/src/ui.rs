@@ -243,7 +243,7 @@ impl<F: API> UI<F> {
                 self.writeln(output)?;
             }
             Command::Update => {
-                on_update(None).await;
+                on_update(self.api.clone(), None).await;
             }
             Command::Exit => {
                 return Ok(true);
@@ -388,7 +388,7 @@ impl<F: API> UI<F> {
                 }
 
                 // Perform update using the configuration
-                on_update(workflow.updates.as_ref()).await;
+                on_update(self.api.clone(), workflow.updates.as_ref()).await;
 
                 self.api
                     .write_workflow(self.cli.workflow.as_deref(), &workflow)
