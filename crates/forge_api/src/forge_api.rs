@@ -127,4 +127,14 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .execute_command(command.to_string(), working_dir)
             .await
     }
+
+    async fn call_tool(&self, input: ToolCallFull) -> anyhow::Result<ToolResult> {
+        let result = self
+            .app
+            .tool_service()
+            .call(ToolCallContext::default(), input)
+            .await;
+
+        Ok(result)
+    }
 }

@@ -860,6 +860,7 @@ dependencies = [
  "inquire",
  "insta",
  "lazy_static",
+ "merge",
  "nu-ansi-term 0.50.1",
  "pretty_assertions",
  "reedline",

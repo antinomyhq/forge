@@ -50,6 +50,10 @@ pub enum ToolInput {
     /// Input for the completion tool
     #[serde(rename = "forge_tool_attempt_completion")]
     AttemptCompletion(AttemptCompletionInput),
+
+    /// Input for the task list tool
+    #[serde(rename = "forge_tool_task_list")]
+    TaskList(TaskListInput),
 }
 
 /// Input type for the file read tool
@@ -227,6 +231,37 @@ pub struct AttemptCompletionInput {
     /// does not require further input from the user. Don't end your result
     /// with questions or offers for further assistance.
     pub result: String,
+}
+
+/// Input type for the task list tool
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct TaskListInput {
+    /// Append a task to the end of the list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub append_task: Option<String>,
+
+    /// Prepend a task to the beginning of the list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prepend_task: Option<String>,
+
+    /// Remove and return the first task from the list and set its status to
+    /// InProgress. This operation can only be called in ACT mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pop_front: Option<bool>,
+
+    /// Remove and return the last task from the list and set its status to
+    /// InProgress. This operation can only be called in ACT mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pop_back: Option<bool>,
+
+    /// Mark a task as Done and return the next pending task.
+    /// This operation can only be called in ACT mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mark_done_id: Option<u32>,
+
+    /// List all tasks in the TaskList.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub list: Option<bool>,
 }
 
 /// Helper function to check if a value equals its default value

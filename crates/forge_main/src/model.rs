@@ -66,6 +66,8 @@ impl ForgeCommandManager {
             .filter(|command| !matches!(command, Command::Message(_)))
             .filter(|command| !matches!(command, Command::Custom(_)))
             .filter(|command| !matches!(command, Command::Shell(_)))
+            // Filter out Tasks command - it will be added conditionally by register_all
+            .filter(|command| !matches!(command, Command::Tasks))
             .map(|command| ForgeCommand {
                 name: command.name().to_string(),
                 description: command.usage().to_string(),
@@ -78,6 +80,27 @@ impl ForgeCommandManager {
     pub fn register_all(&self, workflow: &Workflow) {
         let mut guard = self.commands.lock().unwrap();
         let mut commands = Self::default_commands();
+
+        // Add Tasks command only if `forge_tool_task_list` is configured in any of the
+        // agents
+        let has_task_list_tool = workflow.agents.iter().any(|agent| {
+            if let Some(tools) = &agent.tools {
+                tools
+                    .iter()
+                    .any(|tool| tool.as_str() == "forge_tool_task_list")
+            } else {
+                false
+            }
+        });
+
+        if has_task_list_tool {
+            // Add the Tasks command
+            commands.push(ForgeCommand {
+                name: Command::Tasks.name().to_string(),
+                description: Command::Tasks.usage().to_string(),
+                value: None,
+            });
+        }
 
         commands.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -163,6 +186,17 @@ impl ForgeCommandManager {
             return Ok(Command::Message(input.to_string()));
         }
 
+        let valid_command = self
+            .commands
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|c| c.name == command);
+
+        if !valid_command {
+            return Err(anyhow::anyhow!("{} is not valid", command));
+        }
+
         // TODO: Can leverage Clap to parse commands and provide correct error messages
         match command {
             "/compact" => Ok(Command::Compact),
@@ -181,6 +215,7 @@ impl ForgeCommandManager {
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
+            "/tasks" => Ok(Command::Tasks),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -259,6 +294,9 @@ pub enum Command {
     /// This can be triggered with commands starting with '!' character.
     #[strum(props(usage = "Execute a native shell command"))]
     Shell(String),
+    /// List all the tasks from tasklist
+    #[strum(props(usage = "List all the tasks from tasklist"))]
+    Tasks,
 }
 
 impl Command {
@@ -275,8 +313,9 @@ impl Command {
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
             Command::Tools => "/tools",
-            Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
+            Command::Tasks => "/tasks",
+            Command::Custom(event) => &event.name,
         }
     }
 

@@ -71,4 +71,7 @@ pub trait API: Sync + Send {
         command: &str,
         working_dir: PathBuf,
     ) -> Result<CommandOutput>;
+
+    /// Calls a tool with the given input and returns the output
+    async fn call_tool(&self, input: ToolCallFull) -> Result<ToolResult>;
 }

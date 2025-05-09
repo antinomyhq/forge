@@ -19,6 +19,7 @@ pub struct ToolCallContext {
     /// This is wrapped in an RWLock for thread-safety
     #[setters(skip)]
     pub is_complete: Arc<RwLock<bool>>,
+    pub stats: Arc<RwLock<Option<String>>>,
 }
 
 impl ToolCallContext {
@@ -28,7 +29,13 @@ impl ToolCallContext {
             agent_id: None,
             sender: None,
             is_complete: Arc::new(RwLock::new(false)),
+            stats: Arc::new(RwLock::new(None)),
         }
+    }
+
+    pub async fn set_stats(&mut self, stats: String) -> &mut Self {
+        *self.stats.write().await = Some(stats);
+        self
     }
 
     /// Sets the is_complete flag to true

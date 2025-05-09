@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_api::{
     AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
-    API,
+    ToolCallFull, ToolName, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_fs::ForgeFS;
@@ -12,6 +12,7 @@ use forge_tracker::ToolCallPayload;
 use inquire::error::InquireError;
 use inquire::ui::{RenderConfig, Styled};
 use inquire::Select;
+use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
@@ -261,6 +262,23 @@ impl<F: API> UI<F> {
                 // Execute the command
                 let _ = self.api.execute_shell_command(command, cwd).await;
             }
+            Command::Tasks => {
+                let _ = self
+                    .api
+                    .call_tool(
+                        ToolCallFull::new(ToolName::new("forge_tool_task_list")).arguments(
+                            serde_json::json!({
+                                "list": true
+                            }),
+                        ),
+                    )
+                    .await?;
+                // note: tool creates a markdown format file, so read that to display tasklist.
+                let cwd = self.api.environment().cwd.join("task_list.md");
+                let content = tokio::fs::read_to_string(&cwd).await?;
+                let text = self.markdown.render(&content);
+                self.writeln(text)?;
+            }
         }
 
         Ok(false)
@@ -376,9 +394,12 @@ impl<F: API> UI<F> {
             Some(ref id) => Ok(id.clone()),
             None => {
                 // Select a model if workflow doesn't have one
-                let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-                if workflow.model.is_none() {
-                    workflow.model = Some(
+                let mut base_workflow = Workflow::default();
+                let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+                base_workflow.merge(workflow.clone());
+
+                if base_workflow.model.is_none() {
+                    base_workflow.model = Some(
                         self.select_model()
                             .await?
                             .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
@@ -390,7 +411,7 @@ impl<F: API> UI<F> {
                     .await?;
 
                 // Get the mode from the config
-                let mode = workflow
+                let mode = base_workflow
                     .variables
                     .get("mode")
                     .cloned()
@@ -398,7 +419,7 @@ impl<F: API> UI<F> {
                     .unwrap_or(Mode::Act);
 
                 self.state = UIState::new(mode).provider(self.api.environment().provider);
-                self.command.register_all(&workflow);
+                self.command.register_all(&base_workflow);
 
                 // We need to try and get the conversation ID first before fetching the model
                 if let Some(ref path) = self.cli.conversation {
@@ -413,7 +434,7 @@ impl<F: API> UI<F> {
                     self.api.upsert_conversation(conversation).await?;
                     Ok(conversation_id)
                 } else {
-                    let conversation = self.api.init_conversation(workflow.clone()).await?;
+                    let conversation = self.api.init_conversation(base_workflow.clone()).await?;
                     self.state.model = Some(conversation.main_model()?);
                     self.state.conversation_id = Some(conversation.id.clone());
                     Ok(conversation.id)
