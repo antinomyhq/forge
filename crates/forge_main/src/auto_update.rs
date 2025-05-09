@@ -1,6 +1,6 @@
 use anyhow::Result;
 use colored::Colorize;
-use forge_api::{Update, UpdateFrequency};
+use forge_api::Update;
 use forge_tracker::{EventKind, VERSION};
 use tokio::process::Command;
 use update_informer::{registry, Check, Version};
