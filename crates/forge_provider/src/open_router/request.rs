@@ -234,6 +234,7 @@ impl From<Context> for OpenRouterRequest {
                 let messages = request
                     .messages
                     .into_iter()
+                    .map(|message| message.message)
                     .map(OpenRouterMessage::from)
                     .collect::<Vec<_>>();
 

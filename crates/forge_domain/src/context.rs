@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use derive_more::derive::{Display, From};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -5,7 +7,34 @@ use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
-use crate::{ToolCallRecord, ToolChoice, ToolDefinition};
+use crate::{ModelId, ToolCallRecord, ToolChoice, ToolDefinition};
+
+#[derive(Clone, Debug, Deserialize, From, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ContextMessageWrapper {
+    pub message: ContextMessage,
+    pub model: ModelId,
+}
+
+impl ContextMessageWrapper {
+    pub fn new(message: ContextMessage, model: ModelId) -> Self {
+        Self { message, model }
+    }
+}
+
+impl From<ContextMessageWrapper> for ContextMessage {
+    fn from(value: ContextMessageWrapper) -> Self {
+        value.message
+    }
+}
+
+impl Deref for ContextMessageWrapper {
+    type Target = ContextMessage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.message
+    }
+}
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -100,7 +129,7 @@ pub enum Role {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Setters, Default)]
 #[setters(into, strip_option)]
 pub struct Context {
-    pub messages: Vec<ContextMessage>,
+    pub messages: Vec<ContextMessageWrapper>,
     pub tools: Vec<ToolDefinition>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<ToolChoice>,
@@ -111,8 +140,9 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn add_url(mut self, url: &str) -> Self {
-        self.messages.push(ContextMessage::Image(url.to_string()));
+    pub fn add_url(mut self, url: &str, model: ModelId) -> Self {
+        self.messages
+            .push(ContextMessageWrapper { message: ContextMessage::Image(url.to_string()), model });
         self
     }
 
@@ -122,10 +152,11 @@ impl Context {
         self
     }
 
-    pub fn add_message(mut self, content: impl Into<ContextMessage>) -> Self {
+    pub fn add_message(mut self, content: impl Into<ContextMessage>, model: ModelId) -> Self {
         let content = content.into();
         debug!(content = ?content, "Adding message to context");
-        self.messages.push(content);
+        self.messages
+            .push(ContextMessageWrapper { message: content, model });
 
         self
     }
@@ -135,28 +166,39 @@ impl Context {
         self
     }
 
-    pub fn add_tool_results(mut self, results: Vec<ToolResult>) -> Self {
+    pub fn add_tool_results(mut self, results: Vec<ToolResult>, model: ModelId) -> Self {
         if !results.is_empty() {
             debug!(results = ?results, "Adding tool results to context");
             self.messages
-                .extend(results.into_iter().map(ContextMessage::tool_result));
+                .extend(results.into_iter().map(|result| ContextMessageWrapper {
+                    message: ContextMessage::tool_result(result),
+                    model: model.clone(),
+                }));
         }
 
         self
     }
 
     /// Updates the set system message
-    pub fn set_first_system_message(mut self, content: impl Into<String>) -> Self {
+    pub fn set_first_system_message(mut self, content: impl Into<String>, model: ModelId) -> Self {
         if self.messages.is_empty() {
-            self.add_message(ContextMessage::system(content.into()))
+            self.add_message(ContextMessage::system(content.into()), model.clone())
         } else {
-            if let Some(ContextMessage::ContentMessage(content_message)) = self.messages.get_mut(0)
+            if let Some(ContextMessageWrapper {
+                message: ContextMessage::ContentMessage(content_message),
+                model: _,
+            }) = self.messages.get_mut(0)
             {
                 if content_message.role == Role::System {
                     content_message.content = content.into();
                 } else {
-                    self.messages
-                        .insert(0, ContextMessage::system(content.into()));
+                    self.messages.insert(
+                        0,
+                        ContextMessageWrapper {
+                            message: ContextMessage::system(content.into()),
+                            model,
+                        },
+                    );
                 }
             }
 
@@ -169,6 +211,7 @@ impl Context {
         let mut lines = String::new();
 
         for message in self.messages.iter() {
+            let message = &message.message;
             match message {
                 ContextMessage::ContentMessage(message) => {
                     lines.push_str(&format!("<message role=\"{}\">", message.role));
@@ -222,27 +265,35 @@ impl Context {
     pub fn append_message(
         mut self,
         content: impl ToString,
+        model: ModelId,
         tool_records: Vec<ToolCallRecord>,
         tool_supported: bool,
     ) -> Self {
         if tool_supported {
-            self.add_message(ContextMessage::assistant(
-                content,
-                Some(
-                    tool_records
-                        .iter()
-                        .map(|record| record.tool_call.clone())
-                        .collect::<Vec<_>>(),
+            self.add_message(
+                ContextMessage::assistant(
+                    content,
+                    Some(
+                        tool_records
+                            .iter()
+                            .map(|record| record.tool_call.clone())
+                            .collect::<Vec<_>>(),
+                    ),
                 ),
-            ))
+                model.clone(),
+            )
             .add_tool_results(
                 tool_records
                     .iter()
                     .map(|record| record.tool_result.clone())
                     .collect::<Vec<_>>(),
+                model,
             )
         } else {
-            self = self.add_message(ContextMessage::assistant(content, None));
+            self = self.add_message(
+                ContextMessage::assistant(content.to_string(), None),
+                model.clone(),
+            );
             if tool_records.is_empty() {
                 return self;
             }
@@ -254,7 +305,7 @@ impl Context {
                 acc
             });
 
-            self.add_message(ContextMessage::user(content))
+            self.add_message(ContextMessage::user(content), model)
         }
     }
 }
@@ -267,45 +318,65 @@ mod tests {
 
     #[test]
     fn test_override_system_message() {
+        let model = ModelId::new("test-model");
         let request = Context::default()
-            .add_message(ContextMessage::system("Initial system message"))
-            .set_first_system_message("Updated system message");
+            .add_message(
+                ContextMessage::system("Initial system message"),
+                model.clone(),
+            )
+            .set_first_system_message("Updated system message", model.clone());
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("Updated system message")
+            ContextMessageWrapper {
+                message: ContextMessage::system("Updated system message"),
+                model: model.clone(),
+            }
         );
     }
 
     #[test]
     fn test_set_system_message() {
-        let request = Context::default().set_first_system_message("A system message");
+        let model = ModelId::new("test-model");
+        let request =
+            Context::default().set_first_system_message("A system message", model.clone());
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("A system message")
+            ContextMessageWrapper {
+                message: ContextMessage::system("A system message"),
+                model: model.clone(),
+            }
         );
     }
 
     #[test]
     fn test_insert_system_message() {
+        let model = ModelId::new("test-model");
         let request = Context::default()
-            .add_message(ContextMessage::user("Do something"))
-            .set_first_system_message("A system message");
+            .add_message(ContextMessage::user("Do something"), model.clone())
+            .set_first_system_message("A system message", model.clone());
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("A system message")
+            ContextMessageWrapper {
+                message: ContextMessage::system("A system message"),
+                model: model.clone(),
+            }
         );
     }
 
     #[test]
     fn test_estimate_token_count() {
         // Create a context with some messages
+        let model = ModelId::new("test-model");
         let context = Context::default()
-            .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::user("User message"))
-            .add_message(ContextMessage::assistant("Assistant message", None));
+            .add_message(ContextMessage::system("System message"), model.clone())
+            .add_message(ContextMessage::user("User message"), model.clone())
+            .add_message(
+                ContextMessage::assistant("Assistant message", None),
+                model.clone(),
+            );
 
         // Get the token count
         let token_count = context.estimate_token_count();

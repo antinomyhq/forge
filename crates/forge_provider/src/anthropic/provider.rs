@@ -224,25 +224,35 @@ mod tests {
 
     #[tokio::test]
     async fn test_request_conversion() {
+        let model_id = ModelId::new("gpt-4");
         let context = Context::default()
-            .add_message(ContextMessage::system(
-                "You're expert at math, so you should resolve all user queries.",
-            ))
-            .add_message(ContextMessage::user("what's 2 + 2 ?"))
-            .add_message(ContextMessage::assistant(
-                "here is the system call.",
-                Some(vec![ToolCallFull {
+            .add_message(
+                ContextMessage::system(
+                    "You're expert at math, so you should resolve all user queries.",
+                ),
+                model_id.clone(),
+            )
+            .add_message(ContextMessage::user("what's 2 + 2 ?"), model_id.clone())
+            .add_message(
+                ContextMessage::assistant(
+                    "here is the system call.",
+                    Some(vec![ToolCallFull {
+                        name: ToolName::new("math"),
+                        call_id: Some(ToolCallId::new("math-1")),
+                        arguments: serde_json::json!({"expression": "2 + 2"}),
+                    }]),
+                ),
+                model_id.clone(),
+            )
+            .add_tool_results(
+                vec![ToolResult {
                     name: ToolName::new("math"),
                     call_id: Some(ToolCallId::new("math-1")),
-                    arguments: serde_json::json!({"expression": "2 + 2"}),
-                }]),
-            ))
-            .add_tool_results(vec![ToolResult {
-                name: ToolName::new("math"),
-                call_id: Some(ToolCallId::new("math-1")),
-                content: serde_json::json!({"result": 4}).to_string(),
-                is_error: false,
-            }])
+                    content: serde_json::json!({"result": 4}).to_string(),
+                    is_error: false,
+                }],
+                model_id.clone(),
+            )
             .tool_choice(ToolChoice::Call(ToolName::new("math")));
         let request = Request::try_from(context)
             .unwrap()

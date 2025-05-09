@@ -35,22 +35,27 @@ impl TryFrom<forge_domain::Context> for Request {
         // note: Anthropic only supports 1 system message in context, so from the
         // context we pick the first system message available.
         // ref: https://docs.anthropic.com/en/api/messages#body-system
-        let system = request.messages.iter().find_map(|message| {
-            if let ContextMessage::ContentMessage(chat_message) = message {
-                if chat_message.role == forge_domain::Role::System {
-                    Some(chat_message.content.clone())
+        let system = request
+            .messages
+            .iter()
+            .map(|message| &message.message)
+            .find_map(|message| {
+                if let ContextMessage::ContentMessage(chat_message) = message {
+                    if chat_message.role == forge_domain::Role::System {
+                        Some(chat_message.content.clone())
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
-            } else {
-                None
-            }
-        });
+            });
 
         Ok(Self {
             messages: request
                 .messages
                 .into_iter()
+                .map(|mesasge| mesasge.message)
                 .filter(|message| {
                     // note: Anthropic does not support system messages in message field.
                     if let ContextMessage::ContentMessage(chat_message) = message {

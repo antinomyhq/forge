@@ -173,70 +173,88 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
             // Add context if available
             if let Some(context) = &state.context {
                 let context_messages = Element::new("div.context-section").append(
-                    context.messages.iter().map(|message| match message {
-                        ContextMessage::ContentMessage(content_message) => {
-                            // Convert role to lowercase for the class
-                            let role_lowercase = content_message.role.to_string().to_lowercase();
+                    context.messages.iter().map(|message| {
+                        let ctx_message = &message.message;
+                        let ctx_model = &message.model;
+                        match ctx_message {
+                            ContextMessage::ContentMessage(content_message) => {
+                                // Convert role to lowercase for the class
+                                let role_lowercase =
+                                    content_message.role.to_string().to_lowercase();
 
-                            let message_div = Element::new(format!(
-                                "details.message-card.message-{role_lowercase}"
-                            ))
-                            .append(
-                                Element::new("summary")
-                                    .text(format!("{} Message", content_message.role)),
-                            )
-                            .append(Element::new("pre").text(&content_message.content));
+                                let message_div = Element::new(format!(
+                                    "details.message-card.message-{role_lowercase}"
+                                ))
+                                .append(
+                                    Element::new("summary")
+                                        .text(format!("{} Message", content_message.role))
+                                        .append(
+                                            Element::new("span").text(format!(" ({ctx_model})")),
+                                        ),
+                                )
+                                .append(Element::new("pre").text(&content_message.content));
 
-                            // Add tool calls if any
-                            if let Some(tool_calls) = &content_message.tool_calls {
-                                if !tool_calls.is_empty() {
-                                    message_div.append(Element::new("div").append(
-                                        tool_calls.iter().map(|tool_call| {
-                                            Element::new("div.tool-call")
-                                                .append(
-                                                    Element::new("p").append(
-                                                        Element::new("strong")
-                                                            .text(tool_call.name.as_str()),
-                                                    ),
-                                                )
-                                                .append(tool_call.call_id.as_ref().map(|call_id| {
-                                                    Element::new("p")
-                                                        .append(Element::new("strong").text("ID: "))
-                                                        .text(call_id.as_str())
-                                                }))
-                                                .append(Element::new("p").append(
-                                                    Element::new("strong").text("Arguments: "),
-                                                ))
-                                                .append(
-                                                    Element::new("pre").text(
-                                                        to_string_pretty(&tool_call.arguments)
-                                                            .unwrap_or_default(),
-                                                    ),
-                                                )
-                                        }),
-                                    ))
+                                // Add tool calls if any
+                                if let Some(tool_calls) = &content_message.tool_calls {
+                                    if !tool_calls.is_empty() {
+                                        message_div.append(Element::new("div").append(
+                                            tool_calls.iter().map(|tool_call| {
+                                                Element::new("div.tool-call")
+                                                    .append(
+                                                        Element::new("p").append(
+                                                            Element::new("strong")
+                                                                .text(tool_call.name.as_str()),
+                                                        ),
+                                                    )
+                                                    .append(tool_call.call_id.as_ref().map(
+                                                        |call_id| {
+                                                            Element::new("p")
+                                                                .append(
+                                                                    Element::new("strong")
+                                                                        .text("ID: "),
+                                                                )
+                                                                .text(call_id.as_str())
+                                                        },
+                                                    ))
+                                                    .append(Element::new("p").append(
+                                                        Element::new("strong").text("Arguments: "),
+                                                    ))
+                                                    .append(
+                                                        Element::new("pre").text(
+                                                            to_string_pretty(&tool_call.arguments)
+                                                                .unwrap_or_default(),
+                                                        ),
+                                                    )
+                                            }),
+                                        ))
+                                    } else {
+                                        message_div
+                                    }
                                 } else {
                                     message_div
                                 }
-                            } else {
-                                message_div
                             }
-                        }
-                        ContextMessage::ToolMessage(tool_result) => {
-                            // Tool Message
-                            Element::new("details.message-card.message-tool")
-                                .append(
-                                    Element::new("summary")
-                                        .append(Element::new("strong").text("Tool Result: "))
-                                        .append(Element::span(tool_result.name.as_str())),
-                                )
-                                .append(Element::new("pre").text(&tool_result.content))
-                        }
-                        ContextMessage::Image(url) => {
-                            // Image message
-                            Element::new("div.message-card.message-user")
-                                .append(Element::new("strong").text("Image Attachment"))
-                                .append(Element::new("p").text(format!("URL: {url}")))
+                            ContextMessage::ToolMessage(tool_result) => {
+                                // Tool Message
+                                Element::new("details.message-card.message-tool")
+                                    .append(
+                                        Element::new("summary")
+                                            .append(Element::new("strong").text("Tool Result: "))
+                                            .append(Element::span(tool_result.name.as_str()))
+                                            .append(Element::span(format!(" ({ctx_model})"))),
+                                    )
+                                    .append(Element::new("pre").text(&tool_result.content))
+                            }
+                            ContextMessage::Image(url) => {
+                                // Image message
+                                Element::new("div.message-card.message-user")
+                                    .append(
+                                        Element::new("strong")
+                                            .text("Image Attachment")
+                                            .append(Element::span(format!(" ({ctx_model})"))),
+                                    )
+                                    .append(Element::new("p").text(format!("URL: {url}")))
+                            }
                         }
                     }),
                 );
