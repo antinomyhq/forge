@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
+use crate::cli::mcp::McpCommandGroup;
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -54,4 +55,13 @@ pub struct Cli {
     /// This file should be in JSON format.
     #[arg(long)]
     pub conversation: Option<PathBuf>,
+
+    /// Top-level subcommands
+    #[command(subcommand)]
+    pub subcommands: Option<TopLevelCommand>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum TopLevelCommand {
+    Mcp(McpCommandGroup),
 }
