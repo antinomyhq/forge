@@ -9,11 +9,13 @@ pub fn display() -> io::Result<()> {
     let mut banner = BANNER.to_string();
 
     // Define the labels as tuples of (key, value)
+
     let labels = [
-        ("Version", VERSION),
+        ("Version:", VERSION),
         ("New conversation:", "/new"),
-        ("Get started:", "/info, /help, /update"),
+        ("Get started:", "/info, /help"),
         ("Switch mode:", "/plan or /act"),
+        ("Update:", "/update"),
         ("Quit:", "/exit or <CTRL+D>"),
     ];
 
