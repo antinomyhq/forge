@@ -21,7 +21,8 @@ use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::state::{Mode, UIState};
-use crate::{banner, on_update, TRACKER};
+use crate::update::on_update;
+use crate::{banner, TRACKER};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";

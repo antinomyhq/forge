@@ -1,4 +1,3 @@
-mod update;
 mod banner;
 mod cli;
 mod completer;
@@ -10,8 +9,8 @@ mod prompt;
 mod state;
 mod tools_display;
 mod ui;
+mod update;
 
-pub use update::on_update;
 pub use cli::Cli;
 use lazy_static::lazy_static;
 pub use ui::UI;
