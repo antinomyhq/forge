@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_api::{
     AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
-    API,
+    Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_fs::ForgeFS;
@@ -12,6 +12,7 @@ use forge_tracker::ToolCallPayload;
 use inquire::error::InquireError;
 use inquire::ui::{RenderConfig, Styled};
 use inquire::Select;
+use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
@@ -376,7 +377,10 @@ impl<F: API> UI<F> {
             Some(ref id) => Ok(id.clone()),
             None => {
                 // Select a model if workflow doesn't have one
+                let mut base_workflow = Workflow::default();
                 let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+                base_workflow.merge(workflow.clone());
+
                 if workflow.model.is_none() {
                     workflow.model = Some(
                         self.select_model()
@@ -390,7 +394,7 @@ impl<F: API> UI<F> {
                     .await?;
 
                 // Get the mode from the config
-                let mode = workflow
+                let mode = base_workflow
                     .variables
                     .get("mode")
                     .cloned()
@@ -398,7 +402,7 @@ impl<F: API> UI<F> {
                     .unwrap_or(Mode::Act);
 
                 self.state = UIState::new(mode).provider(self.api.environment().provider);
-                self.command.register_all(&workflow);
+                self.command.register_all(&base_workflow);
 
                 // We need to try and get the conversation ID first before fetching the model
                 if let Some(ref path) = self.cli.conversation {
@@ -413,7 +417,7 @@ impl<F: API> UI<F> {
                     self.api.upsert_conversation(conversation).await?;
                     Ok(conversation_id)
                 } else {
-                    let conversation = self.api.init_conversation(workflow.clone()).await?;
+                    let conversation = self.api.init_conversation(base_workflow).await?;
                     self.state.model = Some(conversation.main_model()?);
                     self.state.conversation_id = Some(conversation.id.clone());
                     Ok(conversation.id)
