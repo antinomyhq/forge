@@ -4,6 +4,12 @@ use forge_domain::{
 
 pub struct McpToolService {}
 
+impl Default for McpToolService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl McpToolService {
     pub fn new() -> McpToolService {
         McpToolService {}
