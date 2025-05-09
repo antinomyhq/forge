@@ -43,7 +43,7 @@ async fn confirm_update(version: Version) {
 }
 
 /// Checks if there is an update available
-pub async fn force_update(update: Option<&Update>) {
+pub async fn on_update(update: Option<&Update>) {
     let update = update.cloned().unwrap_or_default();
     let frequency = update.frequency.unwrap_or_default();
     let auto_update = update.auto_update.unwrap_or_default();

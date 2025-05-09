@@ -11,7 +11,7 @@ mod state;
 mod tools_display;
 mod ui;
 
-pub use update::force_update;
+pub use update::on_update;
 pub use cli::Cli;
 use lazy_static::lazy_static;
 pub use ui::UI;

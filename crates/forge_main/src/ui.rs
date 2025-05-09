@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId, API,
+    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
+    API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_fs::ForgeFS;
@@ -20,7 +21,7 @@ use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::state::{Mode, UIState};
-use crate::{banner, force_update, TRACKER};
+use crate::{banner, on_update, TRACKER};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -241,7 +242,7 @@ impl<F: API> UI<F> {
                 self.writeln(output)?;
             }
             Command::Update => {
-                force_update(None).await;
+                on_update(None).await;
             }
             Command::Exit => {
                 return Ok(true);
@@ -385,8 +386,8 @@ impl<F: API> UI<F> {
                     );
                 }
 
-                // Perform update check using the configuration
-                force_update(workflow.updates.as_ref()).await;
+                // Perform update using the configuration
+                on_update(workflow.updates.as_ref()).await;
 
                 self.api
                     .write_workflow(self.cli.workflow.as_deref(), &workflow)
