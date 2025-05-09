@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 use rmcp::model::{CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam, ListToolsResult};
@@ -8,10 +9,9 @@ use futures::FutureExt;
 use rmcp::transport::TokioChildProcess;
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use forge_domain::{EnvironmentService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService};
+use forge_domain::{EnvironmentService, McpServerConfig, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService};
 use crate::{FsReadService, Infrastructure};
 use crate::mcp::executable::Executable;
-use crate::mcp::schema::{McpServerConfig, McpServers};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -36,16 +36,14 @@ impl RunnableService {
 }
 
 #[derive(Clone)]
-pub struct ForgeMcpService<I> {
+pub struct ForgeMcpService {
     tools: Arc<Mutex<HashMap<ToolName, Arc<Tool>>>>,
-    infra: Arc<I>,
 }
 
-impl<I: Infrastructure> ForgeMcpService<I> {
-    pub fn new(infra: Arc<I>) -> Self {
+impl ForgeMcpService {
+    pub fn new() -> Self {
         Self {
             tools: Arc::new(Mutex::new(HashMap::new())),
-            infra,
         }
     }
 
@@ -125,7 +123,7 @@ impl<I: Infrastructure> ForgeMcpService<I> {
 
         Ok(())
     }
-    async fn init_mcp(&self, mcp: HashMap<String, McpServerConfig>) -> anyhow::Result<()> {
+    async fn init_mcp(&self, mcp: &HashMap<String, McpServerConfig>) -> anyhow::Result<()> {
         let http_results: Vec<Option<anyhow::Result<()>>> = futures::future::join_all(
             mcp.iter()
                 .map(|(server_name, server)| async move {
@@ -158,7 +156,7 @@ impl<I: Infrastructure> ForgeMcpService<I> {
             .map_or(Ok(()), Err)
     }
 
-
+/*
     async fn read_config(&self, path: &Path) -> anyhow::Result<McpServers> {
         let config = self
             .infra
@@ -169,19 +167,18 @@ impl<I: Infrastructure> ForgeMcpService<I> {
     }
 
     async fn get_config(&self) -> McpServers {
-        let env = self.infra.environment_service().get_environment();
         let mut global_config = self.read_config(env.mcp_user_config().as_path()).await.unwrap_or_default();
         let local_config = self.read_config(env.mcp_local_config().as_path()).await.unwrap_or_default();
         global_config.mcp_servers.extend(local_config.mcp_servers);
         
         global_config
-    }
+    }*/
 
-    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+    async fn list(&self, ctx: ToolCallContext) -> anyhow::Result<Vec<ToolDefinition>> {
         // maybe we should cache McpServerConfig and add a new service which can refresh the config
         // when /refresh is executed
-        let mcp_servers = self.get_config().await.mcp_servers;
-        
+        let mcp_servers = ctx.mcp_servers.deref();
+
         if mcp_servers.is_empty() {
             Ok(vec![])
         } else {
@@ -201,13 +198,13 @@ impl<I: Infrastructure> ForgeMcpService<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: Infrastructure> ToolService for ForgeMcpService<I> {
+impl ToolService for ForgeMcpService {
     async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> ToolResult {
         unreachable!()
     }
 
-    async fn list(&self) -> Vec<ToolDefinition> {
-        let x = self.list().await;
+    async fn list(&self, ctx: ToolCallContext) -> Vec<ToolDefinition> {
+        let x = self.list(ctx).await;
         println!("{:?}",x);
         x.unwrap_or_default()
     }
