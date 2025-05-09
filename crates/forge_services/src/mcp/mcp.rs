@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::ops::Deref;
-use std::path::Path;
 use std::sync::Arc;
 use rmcp::model::{CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam, ListToolsResult};
 use rmcp::{RoleClient, ServiceError, ServiceExt};
@@ -9,8 +7,7 @@ use futures::FutureExt;
 use rmcp::transport::TokioChildProcess;
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use forge_domain::{EnvironmentService, McpServerConfig, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService};
-use crate::{FsReadService, Infrastructure};
+use forge_domain::{McpConfigReadService, McpServerConfig, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService};
 use crate::mcp::executable::Executable;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
@@ -36,14 +33,16 @@ impl RunnableService {
 }
 
 #[derive(Clone)]
-pub struct ForgeMcpService {
+pub struct ForgeMcpService<R> {
     tools: Arc<Mutex<HashMap<ToolName, Arc<Tool>>>>,
+    reader: Arc<R>,
 }
 
-impl ForgeMcpService {
-    pub fn new() -> Self {
+impl<R: McpConfigReadService> ForgeMcpService<R> {
+    pub fn new(reader: Arc<R>) -> Self {
         Self {
             tools: Arc::new(Mutex::new(HashMap::new())),
+            reader,
         }
     }
 
@@ -156,33 +155,15 @@ impl ForgeMcpService {
             .map_or(Ok(()), Err)
     }
 
-/*
-    async fn read_config(&self, path: &Path) -> anyhow::Result<McpServers> {
-        let config = self
-            .infra
-            .file_read_service()
-            .read_utf8(path)
-            .await?;
-        Ok(serde_json::from_str(&config)?)
+    async fn find_tool(&self, name: &ToolName) -> Option<Arc<Tool>> {
+        self.tools.lock().await.get(name).cloned()
     }
-
-    async fn get_config(&self) -> McpServers {
-        let mut global_config = self.read_config(env.mcp_user_config().as_path()).await.unwrap_or_default();
-        let local_config = self.read_config(env.mcp_local_config().as_path()).await.unwrap_or_default();
-        global_config.mcp_servers.extend(local_config.mcp_servers);
-        
-        global_config
-    }*/
-
-    async fn list(&self, ctx: ToolCallContext) -> anyhow::Result<Vec<ToolDefinition>> {
-        // maybe we should cache McpServerConfig and add a new service which can refresh the config
-        // when /refresh is executed
-        let mcp_servers = ctx.mcp_servers.deref();
-
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        let mcp_servers = self.reader.read().await?.mcp_servers;
         if mcp_servers.is_empty() {
             Ok(vec![])
         } else {
-            self.init_mcp(mcp_servers).await?;
+            self.init_mcp(&mcp_servers).await?;
             Ok(self
                 .tools
                 .lock()
@@ -192,21 +173,16 @@ impl ForgeMcpService {
                 .collect())
         }
     }
-    async fn find_tool(&self, name: &ToolName) -> Option<Arc<Tool>> {
-        self.tools.lock().await.get(name).cloned()
-    }
 }
 
 #[async_trait::async_trait]
-impl ToolService for ForgeMcpService {
+impl<R: McpConfigReadService> ToolService for ForgeMcpService<R> {
     async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> ToolResult {
         unreachable!()
     }
 
-    async fn list(&self, ctx: ToolCallContext) -> Vec<ToolDefinition> {
-        let x = self.list(ctx).await;
-        println!("{:?}",x);
-        x.unwrap_or_default()
+    async fn list(&self) -> Vec<ToolDefinition> {
+        self.list().await.unwrap_or_default()
     }
 
     async fn find_tool(&self, name: &ToolName) -> Option<Arc<Tool>> {

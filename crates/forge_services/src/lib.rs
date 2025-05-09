@@ -12,6 +12,7 @@ mod tool_service;
 mod tools;
 mod workflow;
 mod mcp;
+mod mcp_read_service;
 
 pub use clipper::*;
 pub use forge_services::*;

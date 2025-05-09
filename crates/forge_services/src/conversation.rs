@@ -2,33 +2,32 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as AnyhowContext, Result};
-use forge_domain::{
-    AgentId, CompactionResult, CompactionService, Conversation, ConversationId,
-    ConversationService, Workflow,
-};
+use forge_domain::{AgentId, CompactionResult, CompactionService, Conversation, ConversationId, ConversationService, ToolService, Workflow};
 use tokio::sync::Mutex;
 
 /// Service for managing conversations, including creation, retrieval, and
 /// updates
 #[derive(Clone)]
-pub struct ForgeConversationService<C> {
+pub struct ForgeConversationService<C, M> {
     workflows: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
     compaction_service: Arc<C>,
+    mcp_service: Arc<M>,
 }
 
-impl<C: CompactionService> ForgeConversationService<C> {
+impl<C: CompactionService, M: ToolService> ForgeConversationService<C, M> {
     /// Creates a new ForgeConversationService with the provided compaction
     /// service
-    pub fn new(compaction_service: Arc<C>) -> Self {
+    pub fn new(compaction_service: Arc<C>, mcp_service: Arc<M>) -> Self {
         Self {
             workflows: Arc::new(Mutex::new(HashMap::new())),
             compaction_service,
+            mcp_service,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<C: CompactionService> ConversationService for ForgeConversationService<C> {
+impl<C: CompactionService, M: ToolService> ConversationService for ForgeConversationService<C, M> {
     async fn update<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
@@ -52,7 +51,7 @@ impl<C: CompactionService> ConversationService for ForgeConversationService<C> {
 
     async fn create(&self, workflow: Workflow) -> Result<Conversation> {
         let id = ConversationId::generate();
-        let conversation = Conversation::new(id.clone(), workflow);
+        let conversation = Conversation::new(id.clone(), workflow, self.mcp_service.clone()).await;
         self.workflows
             .lock()
             .await

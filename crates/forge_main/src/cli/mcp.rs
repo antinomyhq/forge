@@ -7,20 +7,21 @@ pub struct McpCommandGroup {
     #[command(subcommand)]
     pub command: McpCommand,
 }
+
 #[derive(Subcommand, Debug, Clone)]
 pub enum McpCommand {
     /// Add a server
     Add(McpAddArgs),
-    
+
     /// List servers
     List,
-    
+
     /// Remove a server
     Remove(McpRemoveArgs),
-    
+
     /// Get server details
     Get(McpGetArgs),
-    
+
     /// Add a server in JSON format
     AddJson(McpAddJsonArgs),
 }
@@ -77,11 +78,20 @@ pub struct McpAddJsonArgs {
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
-#[clap(rename_all = "lower")]
 pub enum Scope {
     Local,
     User,
     Project,
+}
+
+impl Into<forge_domain::Scope> for Scope {
+    fn into(self) -> forge_domain::Scope {
+        match self {
+            Scope::Local => forge_domain::Scope::Local,
+            Scope::User => forge_domain::Scope::User,
+            Scope::Project => forge_domain::Scope::Project,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]

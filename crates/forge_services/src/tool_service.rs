@@ -78,14 +78,13 @@ impl<M: ToolService> ToolService for ForgeToolService<M> {
         result
     }
 
-    async fn list(&self, ctx: ToolCallContext) -> Vec<ToolDefinition> {
+    async fn list(&self) -> Vec<ToolDefinition> {
         let mut tools: Vec<_> = self
             .tools
             .values()
             .map(|tool| tool.definition.clone())
             .collect();
-        let mcp_tools = self.mcp.list(ctx).await;
-        println!("{:?}", mcp_tools.iter().map(|v| v.name.as_str()));
+        let mcp_tools = self.mcp.list().await;
         tools.extend(mcp_tools);
 
         // Sorting is required to ensure system prompts are exactly the same

@@ -12,6 +12,9 @@ use crate::tool_service::ForgeToolService;
 use crate::workflow::ForgeWorkflowService;
 use crate::Infrastructure;
 use crate::mcp::mcp::ForgeMcpService;
+use crate::mcp_read_service::ForgeMcpReadService;
+
+type McpService<F> = ForgeMcpService<ForgeMcpReadService<F>>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -22,11 +25,12 @@ use crate::mcp::mcp::ForgeMcpService;
 #[derive(Clone)]
 pub struct ForgeServices<F> {
     infra: Arc<F>,
-    tool_service: Arc<ForgeToolService<ForgeMcpService>>,
+    tool_service: Arc<ForgeToolService<McpService<F>>>,
     provider_service: Arc<ForgeProviderService>,
     conversation_service: Arc<
         ForgeConversationService<
             ForgeCompactionService<ForgeTemplateService, ForgeProviderService>,
+            McpService<F>,
         >,
     >,
     template_service: Arc<ForgeTemplateService>,
@@ -34,11 +38,14 @@ pub struct ForgeServices<F> {
     compaction_service: Arc<ForgeCompactionService<ForgeTemplateService, ForgeProviderService>>,
     workflow_service: Arc<ForgeWorkflowService<F>>,
     suggestion_service: Arc<ForgeSuggestionService<F>>,
+    mcp_read_service: Arc<ForgeMcpReadService<F>>,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        let tool_service = Arc::new(ForgeToolService::new(infra.clone(), Arc::new(ForgeMcpService::new())));
+        let mcp_read_service = Arc::new(ForgeMcpReadService::new(infra.clone()));
+        let mcp_service = Arc::new(ForgeMcpService::new(mcp_read_service.clone()));
+        let tool_service = Arc::new(ForgeToolService::new(infra.clone(), mcp_service.clone()));
         let template_service = Arc::new(ForgeTemplateService::new());
         let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
@@ -48,7 +55,7 @@ impl<F: Infrastructure> ForgeServices<F> {
         ));
 
         let conversation_service =
-            Arc::new(ForgeConversationService::new(compaction_service.clone()));
+            Arc::new(ForgeConversationService::new(compaction_service.clone(), mcp_service));
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeSuggestionService::new(infra.clone()));
@@ -62,20 +69,22 @@ impl<F: Infrastructure> ForgeServices<F> {
             template_service,
             workflow_service,
             suggestion_service,
+            mcp_read_service,
         }
     }
 }
 
 impl<F: Infrastructure> Services for ForgeServices<F> {
-    type ToolService = ForgeToolService<ForgeMcpService>;
+    type ToolService = ForgeToolService<McpService<F>>;
     type ProviderService = ForgeProviderService;
-    type ConversationService = ForgeConversationService<Self::CompactionService>;
+    type ConversationService = ForgeConversationService<Self::CompactionService, McpService<F>>;
     type TemplateService = ForgeTemplateService;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
     type CompactionService = ForgeCompactionService<Self::TemplateService, Self::ProviderService>;
     type WorkflowService = ForgeWorkflowService<F>;
     type SuggestionService = ForgeSuggestionService<F>;
+    type McpConfigReadService = ForgeMcpReadService<F>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -111,6 +120,10 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn suggestion_service(&self) -> &Self::SuggestionService {
         self.suggestion_service.as_ref()
+    }
+
+    fn mcp_config_read_service(&self) -> &Self::McpConfigReadService {
+        self.mcp_read_service.as_ref()
     }
 }
 

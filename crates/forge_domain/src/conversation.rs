@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -7,8 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{Agent, AgentId, Context, Error, Event, ModelId, Result, Workflow};
-use crate::mcp::McpServers;
+use crate::{Agent, AgentId, Context, Error, Event, ModelId, Result, ToolService, Workflow};
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -38,7 +38,6 @@ pub struct Conversation {
     pub variables: HashMap<String, Value>,
     pub agents: Vec<Agent>,
     pub events: Vec<Event>,
-    pub mcp: McpServers,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -82,16 +81,17 @@ impl Conversation {
         Ok(())
     }
 
-    pub fn new(id: ConversationId, workflow: Workflow) -> Self {
+    pub async fn new<M: ToolService>(id: ConversationId, workflow: Workflow, mcp_service: Arc<M>) -> Self {
         // Merge the workflow with the default workflow
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow);
 
-        Self::new_inner(id, base_workflow)
+        Self::new_inner(id, base_workflow, mcp_service).await
     }
 
-    fn new_inner(id: ConversationId, workflow: Workflow) -> Self {
+    async fn new_inner<M: ToolService>(id: ConversationId, workflow: Workflow, mcp_service: Arc<M>) -> Self {
         let mut agents = Vec::new();
+        let mcp_tools = mcp_service.list().await.into_iter().map(|v| v.name).collect::<Vec<_>>();
 
         for mut agent in workflow.agents.into_iter() {
             if let Some(custom_rules) = workflow.custom_rules.clone() {
@@ -128,6 +128,10 @@ impl Conversation {
                 }
             }
 
+            if !mcp_tools.is_empty() {
+                agent.tools = Some(agent.tools.unwrap_or_default().into_iter().chain(mcp_tools.iter().cloned()).collect::<Vec<_>>());
+            }
+
             agents.push(agent);
         }
 
@@ -138,7 +142,6 @@ impl Conversation {
             variables: workflow.variables.clone(),
             agents,
             events: Default::default(),
-            mcp: workflow.mcp_servers.unwrap_or_default(),
         }
     }
 
@@ -420,7 +423,7 @@ mod tests {
         assert_eq!(agent2.custom_rules, Some("Default rules".to_string()));
         assert_eq!(agent2.temperature, Some(Temperature::new(0.7).unwrap()));
         assert_eq!(agent2.tool_supported, Some(true)); // Workflow setting is
-                                                       // applied
+        // applied
     }
 
     #[test]
@@ -589,6 +592,7 @@ mod tests {
         // Assert
         assert!(matches!(result, Err(Error::NoModelDefined(_))));
     }
+
     #[test]
     fn test_set_main_model_success() {
         // Arrange

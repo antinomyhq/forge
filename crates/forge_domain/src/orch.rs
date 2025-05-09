@@ -16,7 +16,6 @@ use tracing::debug;
 // Use retry_config default values directly in this file
 use crate::services::Services;
 use crate::*;
-use crate::mcp::McpServers;
 
 type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
 
@@ -119,11 +118,11 @@ impl<A: Services> Orchestrator<A> {
     }
 
     /// Get the allowed tools for an agent
-    async fn get_allowed_tools(&self, agent: &Agent, servers: &McpServers) -> Vec<ToolDefinition> {
+    async fn get_allowed_tools(&self, agent: &Agent) -> Vec<ToolDefinition> {
         let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
         self.services
             .tool_service()
-            .list(ToolCallContext::default().mcp_servers(servers.clone()))
+            .list()
             .await
             .into_iter()
             .filter(|tool| allowed.contains(&tool.name))
@@ -152,7 +151,7 @@ impl<A: Services> Orchestrator<A> {
 
             let tool_information = match agent.tool_supported.unwrap_or_default() {
                 true => None,
-                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent, &self.get_conversation().await?.mcp).await).to_string()),
+                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent).await).to_string()),
             };
 
             let ctx = SystemContext {
@@ -376,12 +375,11 @@ impl<A: Services> Orchestrator<A> {
     }
 
     // Get the ToolCallContext for an agent
-    fn get_tool_call_context(&self, agent_id: &AgentId, mcp_servers: McpServers) -> ToolCallContext {
+    fn get_tool_call_context(&self, agent_id: &AgentId) -> ToolCallContext {
         // Create a new ToolCallContext with the agent ID
         ToolCallContext::default()
             .agent_id(agent_id.clone())
             .sender(self.sender.clone())
-            .mcp_servers(mcp_servers)
     }
 
     // Create a helper method with the core functionality
@@ -397,11 +395,11 @@ impl<A: Services> Orchestrator<A> {
         let agent = conversation.get_agent(agent_id)?;
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
-            agent.init_context(self.get_allowed_tools(agent, &conversation.mcp).await).await?
+            agent.init_context(self.get_allowed_tools(agent).await).await?
         } else {
             match conversation.context(&agent.id) {
                 Some(context) => context.clone(),
-                None => agent.init_context(self.get_allowed_tools(agent, &conversation.mcp).await).await?,
+                None => agent.init_context(self.get_allowed_tools(agent).await).await?,
             }
         };
 
@@ -436,7 +434,7 @@ impl<A: Services> Orchestrator<A> {
 
         self.set_context(&agent.id, context.clone()).await?;
 
-        let tool_context = self.get_tool_call_context(&agent.id, conversation.mcp.clone());
+        let tool_context = self.get_tool_call_context(&agent.id);
 
         let mut empty_tool_call_count = 0;
 

@@ -5,6 +5,13 @@ use derive_setters::Setters;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Scope {
+    Local,
+    User,
+    Project,
+}
+
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]
 #[setters(strip_option, into)]
 pub struct McpServerConfig {
@@ -27,19 +34,23 @@ pub struct McpServerConfig {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct McpServers(HashMap<String, McpServerConfig>);
+#[serde(rename_all = "camelCase")]
+pub struct McpServers {
+    pub mcp_servers: HashMap<String, McpServerConfig>,
+}
 
 impl Deref for McpServers {
     type Target = HashMap<String, McpServerConfig>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.mcp_servers
     }
 }
 
 impl From<HashMap<String, McpServerConfig>> for McpServers {
-    fn from(value: HashMap<String, McpServerConfig>) -> Self {
-        Self(value)
+    fn from(mcp_servers: HashMap<String, McpServerConfig>) -> Self {
+        Self {
+            mcp_servers,
+        }
     }
 }
