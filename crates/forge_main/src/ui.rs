@@ -17,7 +17,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::auto_update::update_forge;
-use crate::cli::Cli;
+use crate::cli::{Cli, McpCommand, TopLevelCommand};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
@@ -44,6 +44,11 @@ impl From<PartialEvent> for Event {
     fn from(value: PartialEvent) -> Self {
         Event::new(value.name, value.value)
     }
+}
+
+enum CommandAction {
+    Continue,
+    Exit,
 }
 
 pub struct UI<F> {
@@ -185,6 +190,13 @@ impl<F: API> UI<F> {
             None => self.prompt().await?,
         };
 
+        if let Some(mcp) = self.cli.subcommands.as_ref() {
+            match self.handle_subcommands(mcp).await? {
+                CommandAction::Exit => return Ok(()),
+                CommandAction::Continue => (),
+            }
+        }
+
         loop {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {}
@@ -206,6 +218,21 @@ impl<F: API> UI<F> {
             // Centralized prompt call at the end of the loop
             command = self.prompt().await?;
         }
+    }
+
+    async fn handle_subcommands(&self, subcommand: &TopLevelCommand) -> anyhow::Result<CommandAction> {
+        match subcommand {
+            TopLevelCommand::Mcp(mcp_command) => {
+                match mcp_command.command {
+                    McpCommand::Add(_) => {}
+                    McpCommand::List => {}
+                    McpCommand::Remove(_) => {}
+                    McpCommand::Get(_) => {}
+                    McpCommand::AddJson(_) => {}
+                }
+            }
+        }
+        Ok(CommandAction::Continue)
     }
 
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
@@ -405,7 +432,7 @@ impl<F: API> UI<F> {
                     let conversation: Conversation = serde_json::from_str(
                         ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
                     )
-                    .context("Failed to parse Conversation")?;
+                        .context("Failed to parse Conversation")?;
 
                     let conversation_id = conversation.id.clone();
                     self.state.model = Some(conversation.main_model()?);
@@ -445,7 +472,7 @@ impl<F: API> UI<F> {
 
     async fn handle_chat_stream(
         &mut self,
-        stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
+        stream: &mut (impl StreamExt<Item=Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
         while let Some(message) = stream.next().await {
             match message {
