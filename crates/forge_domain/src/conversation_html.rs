@@ -230,7 +230,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                         .append(Element::new("strong").text("Tool Result: "))
                                         .append(Element::span(tool_result.name.as_str())),
                                 )
-                                .append(Element::new("pre").text(&tool_result.content))
+                                .append(Element::new("pre").text(tool_result.content()))
                         }
                         ContextMessage::Image(url) => {
                             // Image message

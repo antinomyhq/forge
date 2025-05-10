@@ -201,7 +201,8 @@ impl ProviderService for Anthropic {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolResult,
+        Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolResponseData,
+        ToolResult,
     };
 
     use super::*;
@@ -240,7 +241,9 @@ mod tests {
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("math"),
                 call_id: Some(ToolCallId::new("math-1")),
-                content: serde_json::json!({"result": 4}).to_string(),
+                data: ToolResponseData::Generic {
+                    content: serde_json::json!({"result": 4}).to_string(),
+                },
                 is_error: false,
             }])
             .tool_choice(ToolChoice::Call(ToolName::new("math")));

@@ -30,7 +30,7 @@ impl Transformer for DropToolCalls {
 mod tests {
     use forge_domain::{
         ContentMessage, Context, ContextMessage, Role, ToolCallFull, ToolCallId, ToolName,
-        ToolResult,
+        ToolResponseData, ToolResult,
     };
     use serde_json::json;
 
@@ -46,7 +46,7 @@ mod tests {
 
         let tool_result = ToolResult::new(ToolName::new("test_tool"))
             .call_id(ToolCallId::new("123"))
-            .success("test result");
+            .success(ToolResponseData::Generic { content: "test result".to_string() });
 
         let context = Context {
             messages: vec![

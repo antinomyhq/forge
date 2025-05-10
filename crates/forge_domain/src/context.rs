@@ -191,7 +191,7 @@ impl Context {
                     lines.push_str(&format!(
                         "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
                         result.name.as_str(),
-                        serde_json::to_string(&result.content).unwrap()
+                        serde_json::to_string(&result.content()).unwrap()
                     ));
                     lines.push_str("</message>");
                 }

@@ -523,8 +523,8 @@ impl<F: API> UI<F> {
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
                 let payload = if toolcall_result.is_error {
-                    ToolCallPayload::new(toolcall_result.name.into_string())
-                        .with_cause(toolcall_result.content)
+                    ToolCallPayload::new(toolcall_result.name.clone().into_string())
+                        .with_cause(toolcall_result.content())
                 } else {
                     ToolCallPayload::new(toolcall_result.name.into_string())
                 };

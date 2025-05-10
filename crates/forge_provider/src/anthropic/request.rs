@@ -235,7 +235,7 @@ impl TryFrom<forge_domain::ToolResult> for Content {
         Ok(Content::ToolResult {
             tool_use_id: call_id.as_str().to_string(),
             cache_control: None,
-            content: Some(value.content),
+            content: Some(value.content()),
             is_error: Some(value.is_error),
         })
     }
