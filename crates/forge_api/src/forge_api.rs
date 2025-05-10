@@ -127,4 +127,10 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .execute_command(command.to_string(), working_dir)
             .await
     }
+    async fn should_show_feedback(&self) -> anyhow::Result<bool> {
+        self.app.feedback_service().should_show_feedback().await
+    }
+    async fn update_last_shown(&self) -> anyhow::Result<()> {
+        self.app.feedback_service().update_last_shown().await
+    }
 }

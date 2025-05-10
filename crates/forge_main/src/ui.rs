@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use colored::Colorize;
 use forge_api::{
     AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
     API,
@@ -464,6 +465,8 @@ impl<F: API> UI<F> {
 
         self.spinner.stop(None)?;
 
+        self.show_feedback().await?;
+
         Ok(())
     }
 
@@ -539,6 +542,27 @@ impl<F: API> UI<F> {
                 self.state.usage = usage;
             }
         }
+        Ok(())
+    }
+
+    async fn show_feedback(&mut self) -> Result<(), anyhow::Error> {
+        if self.api.should_show_feedback().await? {
+            self.api.update_last_shown().await?;
+
+            let feedback_url = "https://shorturl.at/LheIj";
+
+            let star = "★".yellow().bold();
+            let title = "Thank you for using Forge!".white().bold();
+            let message =
+                "  Your feedback helps us improve. We'd love to hear your thoughts!".white();
+            let link = format!("Click to share feedback: {feedback_url}")
+                .cyan()
+                .underline();
+
+            let banner = format!("\n{star} {title} {star}\n{message}\n{link}\n");
+
+            self.writeln(banner)?;
+        };
         Ok(())
     }
 

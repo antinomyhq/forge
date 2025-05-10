@@ -71,4 +71,9 @@ pub trait API: Sync + Send {
         command: &str,
         working_dir: PathBuf,
     ) -> Result<CommandOutput>;
+    /// Check if feedback form should be shown to the user
+    async fn should_show_feedback(&self) -> anyhow::Result<bool>;
+
+    /// Update the last shown timestamp to current time
+    async fn update_last_shown(&self) -> anyhow::Result<()>;
 }
