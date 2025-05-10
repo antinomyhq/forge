@@ -127,4 +127,44 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .execute_command(command.to_string(), working_dir)
             .await
     }
+
+    async fn write(&self, name: &str, mcp_servers: &McpServerConfig, scope: Scope) -> Result<()> {
+        self.app
+            .mcp_config_read_service()
+            .write(name, mcp_servers, scope)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn write_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> Result<()> {
+        self.app
+            .mcp_config_read_service()
+            .write_json(name, mcp_servers, scope)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn remove(&self, name: &str, scope: Scope) -> Result<()> {
+        self.app
+            .mcp_config_read_service()
+            .remove(name, scope)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn get(&self, name: &str) -> Result<McpServerConfig> {
+        self.app
+            .mcp_config_read_service()
+            .get(name)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn get_all(&self) -> Result<McpServers> {
+        self.app
+            .mcp_config_read_service()
+            .read()
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
 }

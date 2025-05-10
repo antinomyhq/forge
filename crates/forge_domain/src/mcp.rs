@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
 use derive_setters::Setters;
@@ -9,7 +10,6 @@ use serde::{Deserialize, Serialize};
 pub enum Scope {
     Local,
     User,
-    Project,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]
@@ -31,6 +31,30 @@ pub struct McpServerConfig {
     /// Url of the MCP server
     #[merge(strategy = crate::merge::option)]
     pub url: Option<String>,
+}
+
+impl Display for McpServerConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut output = String::new();
+        if let Some(command) = self.command.as_ref() {
+            output.push_str(&format!("{command} "));
+            self.args.iter().for_each(|arg| {
+                output.push_str(&format!("{arg} "));
+            });
+
+            if let Some(env) = self.env.as_ref() {
+                env.iter().for_each(|(key, value)| {
+                    output.push_str(&format!("{key}={value} "));
+                });
+            }
+        }
+
+        if let Some(url) = self.url.as_ref() {
+            output.push_str(&format!("{url} "));
+        }
+
+        write!(f, "{}", output.trim())
+    }
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]

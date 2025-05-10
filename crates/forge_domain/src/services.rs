@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
-    ConversationId, Environment, File, McpServers, Model, ModelId, ResultStream, Tool,
-    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
+    ConversationId, Environment, File, McpServerConfig, McpServers, Model, ModelId, ResultStream,
+    Scope, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -24,19 +24,29 @@ pub trait ToolService: Send + Sync {
     async fn list(&self) -> Vec<ToolDefinition>;
     async fn find_tool(&self, name: &ToolName) -> Option<Arc<Tool>>;
 }
+
 #[async_trait::async_trait]
 pub trait McpConfigReadService: Send + Sync {
     /// Responsible to load the MCP servers from all configuration files.
     async fn read(&self) -> anyhow::Result<McpServers>;
-    /*
-    TODO: maybe we don't need these here, but in API
+
     /// Responsible to add a new MCP server to the config depending upon scope.
-    async fn write(&self, name: &str, mcp_servers: &McpServerConfig, scope: Scope) -> anyhow::Result<()>;
-    /// Responsible to add MCP server from JSON string to config depending upon scope.
+    async fn write(
+        &self,
+        name: &str,
+        mcp_servers: &McpServerConfig,
+        scope: Scope,
+    ) -> anyhow::Result<()>;
+    /// Responsible to add MCP server from JSON string to config depending upon
+    /// scope.
     async fn write_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> anyhow::Result<()>;
 
-    /// Responsible to remove the MCP server from the config depending upon scope.
-    async fn remove(&self, name: &str, scope: Scope) -> anyhow::Result<()>; */
+    /// Responsible to remove the MCP server from the config depending upon
+    /// scope.
+    async fn remove(&self, name: &str, scope: Scope) -> anyhow::Result<()>;
+
+    /// Responsible to get details about an MCP server
+    async fn get(&self, name: &str) -> anyhow::Result<McpServerConfig>;
 }
 
 #[async_trait::async_trait]

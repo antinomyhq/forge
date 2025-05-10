@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -6,6 +7,7 @@ use forge_api::{
     API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
+use forge_domain::{McpServerConfig, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -17,7 +19,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::auto_update::update_forge;
-use crate::cli::{Cli, McpCommand, TopLevelCommand};
+use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
@@ -47,7 +49,6 @@ impl From<PartialEvent> for Event {
 }
 
 enum CommandAction {
-    Continue,
     Exit,
 }
 
@@ -168,6 +169,12 @@ impl<F: API> UI<F> {
     }
 
     async fn run_inner(&mut self) -> Result<()> {
+        if let Some(mcp) = self.cli.subcommands.clone() {
+            return match self.handle_subcommands(mcp).await? {
+                CommandAction::Exit => Ok(()),
+            };
+        }
+
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
             return self.handle_dispatch(dispatch_json).await;
@@ -189,13 +196,6 @@ impl<F: API> UI<F> {
             Some(path) => self.console.upload(path).await?,
             None => self.prompt().await?,
         };
-
-        if let Some(mcp) = self.cli.subcommands.as_ref() {
-            match self.handle_subcommands(mcp).await? {
-                CommandAction::Exit => return Ok(()),
-                CommandAction::Continue => (),
-            }
-        }
 
         loop {
             tokio::select! {
@@ -221,19 +221,74 @@ impl<F: API> UI<F> {
     }
 
     async fn handle_subcommands(
-        &self,
-        subcommand: &TopLevelCommand,
+        &mut self,
+        subcommand: TopLevelCommand,
     ) -> anyhow::Result<CommandAction> {
         match subcommand {
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
-                McpCommand::Add(_) => {}
-                McpCommand::List => {}
-                McpCommand::Remove(_) => {}
-                McpCommand::Get(_) => {}
-                McpCommand::AddJson(_) => {}
+                McpCommand::Add(add) => {
+                    let name = add.name.context("Server name is required")?;
+                    let scope: Scope = add.scope.into();
+                    let mut server = McpServerConfig::default()
+                        .args(add.args)
+                        .env(parse_env(add.env));
+                    match add.transport {
+                        Transport::Stdio => {
+                            server = server.command(add.command_or_url.unwrap_or_default());
+                        }
+                        Transport::Sse => {
+                            server = server.url(add.command_or_url.unwrap_or_default());
+                        }
+                    }
+                    self.api.write(name.as_str(), &server, scope).await?;
+
+                    Ok(CommandAction::Exit)
+                }
+                McpCommand::List => {
+                    let mcp_servers = self.api.get_all().await?;
+                    if mcp_servers.is_empty() {
+                        self.writeln("No MCP servers found")?;
+                        return Ok(CommandAction::Exit);
+                    }
+
+                    let mut output = String::new();
+                    for (name, server) in mcp_servers.mcp_servers {
+                        output.push_str(&format!("{name}: {server}"));
+                    }
+                    self.writeln(output)?;
+                    Ok(CommandAction::Exit)
+                }
+                McpCommand::Remove(rm) => {
+                    let name = rm.name.clone();
+                    let scope: Scope = rm.scope.into();
+                    self.api.remove(name.as_str(), scope).await?;
+                    self.writeln(format!("Removed server: {name}"))?;
+                    Ok(CommandAction::Exit)
+                }
+                McpCommand::Get(val) => {
+                    let name = val.name.clone();
+                    let service = self.api.get(name.as_str()).await?;
+                    let mut output = String::new();
+                    output.push_str(&format!("{}: {}", name, service));
+                    self.writeln(output)?;
+
+                    Ok(CommandAction::Exit)
+                }
+                McpCommand::AddJson(add_json) => {
+                    self.api
+                        .write_json(
+                            add_json.name.as_str(),
+                            &add_json.json,
+                            add_json.scope.into(),
+                        )
+                        .await?;
+
+                    self.writeln(format!("Added server: {}", add_json.name))?;
+
+                    Ok(CommandAction::Exit)
+                }
             },
         }
-        Ok(CommandAction::Continue)
     }
 
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
@@ -573,4 +628,17 @@ impl<F: API> UI<F> {
             Err(err) => Err(err),
         }
     }
+}
+
+fn parse_env(env: Vec<String>) -> HashMap<String, String> {
+    env.into_iter()
+        .filter_map(|s| {
+            let mut parts = s.splitn(2, '=');
+            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
+                Some((key.to_string(), value.to_string()))
+            } else {
+                None
+            }
+        })
+        .collect()
 }

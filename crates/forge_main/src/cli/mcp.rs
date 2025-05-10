@@ -73,15 +73,18 @@ pub struct McpAddJsonArgs {
     #[arg(short = 's', long = "scope", default_value = "local")]
     pub scope: Scope,
 
+    /// Name of the server
+    pub name: String,
+
     /// JSON string containing the server configuration
     pub json: String,
 }
 
-#[derive(Copy, Clone, Debug, ValueEnum)]
+#[derive(Copy, Clone, Debug, ValueEnum, Default)]
 pub enum Scope {
+    #[default]
     Local,
     User,
-    Project,
 }
 
 impl From<Scope> for forge_domain::Scope {
@@ -89,7 +92,6 @@ impl From<Scope> for forge_domain::Scope {
         match value {
             Scope::Local => forge_domain::Scope::Local,
             Scope::User => forge_domain::Scope::User,
-            Scope::Project => forge_domain::Scope::Project,
         }
     }
 }
