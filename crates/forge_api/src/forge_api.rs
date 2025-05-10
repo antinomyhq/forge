@@ -21,6 +21,7 @@ impl<F: Services + Infrastructure> ForgeAPI<F> {
 impl ForgeAPI<ForgeServices<ForgeInfra>> {
     pub fn init(restricted: bool) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted));
+        let _ = infra.environment_service().get_environment();
         let app = Arc::new(ForgeServices::new(infra));
         ForgeAPI::new(app)
     }
