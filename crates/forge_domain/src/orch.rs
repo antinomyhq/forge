@@ -151,7 +151,9 @@ impl<A: Services> Orchestrator<A> {
 
             let tool_information = match agent.tool_supported.unwrap_or_default() {
                 true => None,
-                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent).await).to_string()),
+                false => {
+                    Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent).await).to_string())
+                }
             };
 
             let ctx = SystemContext {
@@ -395,11 +397,17 @@ impl<A: Services> Orchestrator<A> {
         let agent = conversation.get_agent(agent_id)?;
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
-            agent.init_context(self.get_allowed_tools(agent).await).await?
+            agent
+                .init_context(self.get_allowed_tools(agent).await)
+                .await?
         } else {
             match conversation.context(&agent.id) {
                 Some(context) => context.clone(),
-                None => agent.init_context(self.get_allowed_tools(agent).await).await?,
+                None => {
+                    agent
+                        .init_context(self.get_allowed_tools(agent).await)
+                        .await?
+                }
             }
         };
 

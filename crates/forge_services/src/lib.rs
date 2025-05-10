@@ -1,9 +1,13 @@
+#![allow(clippy::module_inception)]
+
 mod attachment;
 mod clipper;
 mod compaction;
 mod conversation;
 mod forge_services;
 mod infra;
+mod mcp;
+mod mcp_read_service;
 mod metadata;
 mod provider;
 mod suggestion;
@@ -11,8 +15,6 @@ mod template;
 mod tool_service;
 mod tools;
 mod workflow;
-mod mcp;
-mod mcp_read_service;
 
 pub use clipper::*;
 pub use forge_services::*;

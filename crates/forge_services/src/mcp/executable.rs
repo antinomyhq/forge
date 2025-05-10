@@ -1,8 +1,10 @@
 use std::borrow::Cow;
 use std::sync::Arc;
+
+use forge_domain::{ExecutableTool, ToolCallContext, ToolDefinition, ToolName};
 use rmcp::model::CallToolRequestParam;
 use rmcp::schemars::schema::RootSchema;
-use forge_domain::{ExecutableTool, ToolCallContext, ToolDefinition, ToolName};
+
 use crate::mcp::mcp::RunnableService;
 
 pub struct Executable {

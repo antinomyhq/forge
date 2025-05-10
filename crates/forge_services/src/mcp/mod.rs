@@ -1,2 +1,2 @@
-pub mod mcp;
 mod executable;
+pub mod mcp;

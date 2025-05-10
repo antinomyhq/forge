@@ -1,13 +1,21 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use rmcp::model::{CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam, ListToolsResult};
-use rmcp::{RoleClient, ServiceError, ServiceExt};
-use rmcp::service::RunningService;
+
+use forge_domain::{
+    McpConfigReadService, McpServerConfig, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
+    ToolName, ToolResult, ToolService,
+};
 use futures::FutureExt;
+use rmcp::model::{
+    CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam,
+    ListToolsResult,
+};
+use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
+use rmcp::{RoleClient, ServiceError, ServiceExt};
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use forge_domain::{McpConfigReadService, McpServerConfig, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService};
+
 use crate::mcp::executable::Executable;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
@@ -40,10 +48,7 @@ pub struct ForgeMcpService<R> {
 
 impl<R: McpConfigReadService> ForgeMcpService<R> {
     pub fn new(reader: Arc<R>) -> Self {
-        Self {
-            tools: Arc::new(Mutex::new(HashMap::new())),
-            reader,
-        }
+        Self { tools: Arc::new(Mutex::new(HashMap::new())), reader }
     }
 
     fn client_info() -> ClientInfo {
@@ -145,7 +150,7 @@ impl<R: McpConfigReadService> ForgeMcpService<R> {
                 // TODO: use flatten function provided by FuturesExt
                 .collect::<Vec<_>>(),
         )
-            .await;
+        .await;
 
         http_results
             .into_iter()
@@ -188,4 +193,4 @@ impl<R: McpConfigReadService> ToolService for ForgeMcpService<R> {
     async fn find_tool(&self, name: &ToolName) -> Option<Arc<Tool>> {
         self.find_tool(name).await
     }
-} 
+}

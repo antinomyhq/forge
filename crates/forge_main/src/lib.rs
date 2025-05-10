@@ -1,3 +1,5 @@
+#![allow(clippy::module_inception)]
+
 mod auto_update;
 mod banner;
 mod cli;

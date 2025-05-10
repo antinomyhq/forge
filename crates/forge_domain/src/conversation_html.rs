@@ -334,16 +334,38 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::conversation::Conversation;
+    use crate::{
+        Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
+    };
 
-    #[test]
-    fn test_render_empty_conversation() {
+    struct Stub;
+
+    #[async_trait::async_trait]
+    impl ToolService for Stub {
+        async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> ToolResult {
+            unimplemented!()
+        }
+
+        async fn list(&self) -> Vec<ToolDefinition> {
+            vec![]
+        }
+
+        async fn find_tool(&self, _: &ToolName) -> Option<Arc<Tool>> {
+            unimplemented!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_render_empty_conversation() {
         // Create a new empty conversation
         let id = crate::conversation::ConversationId::generate();
         let workflow = crate::Workflow::new();
 
-        let fixture = Conversation::new(id, workflow);
+        let fixture = Conversation::new(id, workflow, Arc::new(Stub)).await;
         let actual = render_conversation_html(&fixture);
 
         // We're verifying that the function runs without errors

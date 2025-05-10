@@ -84,9 +84,9 @@ pub enum Scope {
     Project,
 }
 
-impl Into<forge_domain::Scope> for Scope {
-    fn into(self) -> forge_domain::Scope {
-        match self {
+impl From<Scope> for forge_domain::Scope {
+    fn from(value: Scope) -> Self {
+        match value {
             Scope::Local => forge_domain::Scope::Local,
             Scope::User => forge_domain::Scope::User,
             Scope::Project => forge_domain::Scope::Project,

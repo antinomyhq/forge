@@ -5,14 +5,14 @@ use forge_domain::Services;
 use crate::attachment::ForgeChatRequest;
 use crate::compaction::ForgeCompactionService;
 use crate::conversation::ForgeConversationService;
+use crate::mcp::mcp::ForgeMcpService;
+use crate::mcp_read_service::ForgeMcpReadService;
 use crate::provider::ForgeProviderService;
 use crate::suggestion::ForgeSuggestionService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::workflow::ForgeWorkflowService;
 use crate::Infrastructure;
-use crate::mcp::mcp::ForgeMcpService;
-use crate::mcp_read_service::ForgeMcpReadService;
 
 type McpService<F> = ForgeMcpService<ForgeMcpReadService<F>>;
 
@@ -54,8 +54,10 @@ impl<F: Infrastructure> ForgeServices<F> {
             provider_service.clone(),
         ));
 
-        let conversation_service =
-            Arc::new(ForgeConversationService::new(compaction_service.clone(), mcp_service));
+        let conversation_service = Arc::new(ForgeConversationService::new(
+            compaction_service.clone(),
+            mcp_service,
+        ));
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeSuggestionService::new(infra.clone()));

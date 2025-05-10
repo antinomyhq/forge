@@ -49,8 +49,6 @@ impl Deref for McpServers {
 
 impl From<HashMap<String, McpServerConfig>> for McpServers {
     fn from(mcp_servers: HashMap<String, McpServerConfig>) -> Self {
-        Self {
-            mcp_servers,
-        }
+        Self { mcp_servers }
     }
 }

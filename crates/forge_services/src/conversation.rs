@@ -2,7 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as AnyhowContext, Result};
-use forge_domain::{AgentId, CompactionResult, CompactionService, Conversation, ConversationId, ConversationService, ToolService, Workflow};
+use forge_domain::{
+    AgentId, CompactionResult, CompactionService, Conversation, ConversationId,
+    ConversationService, ToolService, Workflow,
+};
 use tokio::sync::Mutex;
 
 /// Service for managing conversations, including creation, retrieval, and

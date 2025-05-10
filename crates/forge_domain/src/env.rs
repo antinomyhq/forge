@@ -46,7 +46,7 @@ impl Environment {
     pub fn mcp_user_config(&self) -> PathBuf {
         self.base_path.join(".mcp.json")
     }
-    
+
     pub fn mcp_local_config(&self) -> PathBuf {
         self.cwd.join(".mcp.json")
     }

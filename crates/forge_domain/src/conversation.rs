@@ -81,7 +81,11 @@ impl Conversation {
         Ok(())
     }
 
-    pub async fn new<M: ToolService>(id: ConversationId, workflow: Workflow, mcp_service: Arc<M>) -> Self {
+    pub async fn new<M: ToolService>(
+        id: ConversationId,
+        workflow: Workflow,
+        mcp_service: Arc<M>,
+    ) -> Self {
         // Merge the workflow with the default workflow
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow);
@@ -89,9 +93,18 @@ impl Conversation {
         Self::new_inner(id, base_workflow, mcp_service).await
     }
 
-    async fn new_inner<M: ToolService>(id: ConversationId, workflow: Workflow, mcp_service: Arc<M>) -> Self {
+    async fn new_inner<M: ToolService>(
+        id: ConversationId,
+        workflow: Workflow,
+        mcp_service: Arc<M>,
+    ) -> Self {
         let mut agents = Vec::new();
-        let mcp_tools = mcp_service.list().await.into_iter().map(|v| v.name).collect::<Vec<_>>();
+        let mcp_tools = mcp_service
+            .list()
+            .await
+            .into_iter()
+            .map(|v| v.name)
+            .collect::<Vec<_>>();
 
         for mut agent in workflow.agents.into_iter() {
             if let Some(custom_rules) = workflow.custom_rules.clone() {
@@ -129,7 +142,14 @@ impl Conversation {
             }
 
             if !mcp_tools.is_empty() {
-                agent.tools = Some(agent.tools.unwrap_or_default().into_iter().chain(mcp_tools.iter().cloned()).collect::<Vec<_>>());
+                agent.tools = Some(
+                    agent
+                        .tools
+                        .unwrap_or_default()
+                        .into_iter()
+                        .chain(mcp_tools.iter().cloned())
+                        .collect::<Vec<_>>(),
+                );
             }
 
             agents.push(agent);
@@ -297,19 +317,42 @@ impl Conversation {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     use serde_json::json;
 
     use crate::{Agent, Command, Error, ModelId, Temperature, Workflow};
 
-    #[test]
-    fn test_conversation_new_with_empty_workflow() {
+    struct Stub;
+
+    #[async_trait::async_trait]
+    impl crate::ToolService for Stub {
+        async fn call(
+            &self,
+            _: crate::ToolCallContext,
+            _: crate::ToolCallFull,
+        ) -> crate::ToolResult {
+            unimplemented!()
+        }
+
+        async fn list(&self) -> Vec<crate::ToolDefinition> {
+            vec![]
+        }
+
+        async fn find_tool(&self, _: &crate::ToolName) -> Option<Arc<crate::Tool>> {
+            unimplemented!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conversation_new_with_empty_workflow() {
         // Arrange
         let id = super::ConversationId::generate();
         let workflow = Workflow::new();
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+        let conversation =
+            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
 
         // Assert
         assert_eq!(conversation.id, id);
@@ -320,8 +363,8 @@ mod tests {
         assert!(conversation.events.is_empty());
     }
 
-    #[test]
-    fn test_conversation_new_with_workflow_variables() {
+    #[tokio::test]
+    async fn test_conversation_new_with_workflow_variables() {
         // Arrange
         let id = super::ConversationId::generate();
         let mut variables = HashMap::new();
@@ -332,15 +375,16 @@ mod tests {
         workflow.variables = variables.clone();
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+        let conversation =
+            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
 
         // Assert
         assert_eq!(conversation.id, id);
         assert_eq!(conversation.variables, variables);
     }
 
-    #[test]
-    fn test_conversation_new_applies_workflow_settings_to_agents() {
+    #[tokio::test]
+    async fn test_conversation_new_applies_workflow_settings_to_agents() {
         // Arrange
         let id = super::ConversationId::generate();
         let agent1 = Agent::new("agent1");
@@ -355,7 +399,8 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+        let conversation =
+            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -370,8 +415,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_conversation_new_preserves_agent_specific_settings() {
+    #[tokio::test]
+    async fn test_conversation_new_preserves_agent_specific_settings() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -395,7 +440,8 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+        let conversation =
+            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -423,11 +469,11 @@ mod tests {
         assert_eq!(agent2.custom_rules, Some("Default rules".to_string()));
         assert_eq!(agent2.temperature, Some(Temperature::new(0.7).unwrap()));
         assert_eq!(agent2.tool_supported, Some(true)); // Workflow setting is
-        // applied
+                                                       // applied
     }
 
-    #[test]
-    fn test_conversation_new_adds_commands_to_main_agent_subscriptions() {
+    #[tokio::test]
+    async fn test_conversation_new_adds_commands_to_main_agent_subscriptions() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -455,7 +501,8 @@ mod tests {
             .commands(commands.clone());
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+        let conversation =
+            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -493,8 +540,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_conversation_new_merges_commands_with_existing_subscriptions() {
+    #[tokio::test]
+    async fn test_conversation_new_merges_commands_with_existing_subscriptions() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -521,7 +568,8 @@ mod tests {
             .commands(commands.clone());
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+        let conversation =
+            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
 
         // Assert
         let main_agent = conversation
@@ -540,8 +588,8 @@ mod tests {
         assert_eq!(subscriptions.len(), 3);
     }
 
-    #[test]
-    fn test_main_model_success() {
+    #[tokio::test]
+    async fn test_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
         let main_agent =
@@ -549,7 +597,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
-        let conversation = super::Conversation::new_inner(id, workflow);
+        let conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
 
         // Act
         let model_id = conversation.main_model().unwrap();
@@ -558,15 +606,15 @@ mod tests {
         assert_eq!(model_id, ModelId::new("test-model"));
     }
 
-    #[test]
-    fn test_main_model_agent_not_found() {
+    #[tokio::test]
+    async fn test_main_model_agent_not_found() {
         // Arrange
         let id = super::ConversationId::generate();
         let agent = Agent::new("some-other-agent");
 
         let workflow = Workflow::new().agents(vec![agent]);
 
-        let conversation = super::Conversation::new_inner(id, workflow);
+        let conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
 
         // Act
         let result = conversation.main_model();
@@ -575,8 +623,8 @@ mod tests {
         assert!(matches!(result, Err(Error::AgentUndefined(_))));
     }
 
-    #[test]
-    fn test_main_model_no_model_defined() {
+    #[tokio::test]
+    async fn test_main_model_no_model_defined() {
         // Arrange
         let id = super::ConversationId::generate();
         let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
@@ -584,7 +632,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
-        let conversation = super::Conversation::new_inner(id, workflow);
+        let conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
 
         // Act
         let result = conversation.main_model();
@@ -593,8 +641,8 @@ mod tests {
         assert!(matches!(result, Err(Error::NoModelDefined(_))));
     }
 
-    #[test]
-    fn test_set_main_model_success() {
+    #[tokio::test]
+    async fn test_set_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
         let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
@@ -602,7 +650,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
-        let mut conversation = super::Conversation::new_inner(id, workflow);
+        let mut conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
 
         // Act
         let result = conversation.set_main_model(ModelId::new("new-model"));
@@ -613,15 +661,15 @@ mod tests {
         assert_eq!(model, ModelId::new("new-model"));
     }
 
-    #[test]
-    fn test_set_main_model_agent_not_found() {
+    #[tokio::test]
+    async fn test_set_main_model_agent_not_found() {
         // Arrange
         let id = super::ConversationId::generate();
         let agent = Agent::new("some-other-agent");
 
         let workflow = Workflow::new().agents(vec![agent]);
 
-        let mut conversation = super::Conversation::new_inner(id, workflow);
+        let mut conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
 
         // Act
         let result = conversation.set_main_model(ModelId::new("new-model"));
@@ -630,8 +678,8 @@ mod tests {
         assert!(matches!(result, Err(Error::AgentUndefined(_))));
     }
 
-    #[test]
-    fn test_conversation_new_applies_tool_supported_to_agents() {
+    #[tokio::test]
+    async fn test_conversation_new_applies_tool_supported_to_agents() {
         // Arrange
         let id = super::ConversationId::generate();
         let agent1 = Agent::new("agent1");
@@ -642,7 +690,8 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+        let conversation =
+            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -653,8 +702,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_conversation_new_respects_agent_specific_tool_supported() {
+    #[tokio::test]
+    async fn test_conversation_new_respects_agent_specific_tool_supported() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -669,7 +718,8 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+        let conversation =
+            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);

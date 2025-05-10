@@ -220,17 +220,18 @@ impl<F: API> UI<F> {
         }
     }
 
-    async fn handle_subcommands(&self, subcommand: &TopLevelCommand) -> anyhow::Result<CommandAction> {
+    async fn handle_subcommands(
+        &self,
+        subcommand: &TopLevelCommand,
+    ) -> anyhow::Result<CommandAction> {
         match subcommand {
-            TopLevelCommand::Mcp(mcp_command) => {
-                match mcp_command.command {
-                    McpCommand::Add(_) => {}
-                    McpCommand::List => {}
-                    McpCommand::Remove(_) => {}
-                    McpCommand::Get(_) => {}
-                    McpCommand::AddJson(_) => {}
-                }
-            }
+            TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
+                McpCommand::Add(_) => {}
+                McpCommand::List => {}
+                McpCommand::Remove(_) => {}
+                McpCommand::Get(_) => {}
+                McpCommand::AddJson(_) => {}
+            },
         }
         Ok(CommandAction::Continue)
     }
@@ -432,7 +433,7 @@ impl<F: API> UI<F> {
                     let conversation: Conversation = serde_json::from_str(
                         ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
                     )
-                        .context("Failed to parse Conversation")?;
+                    .context("Failed to parse Conversation")?;
 
                     let conversation_id = conversation.id.clone();
                     self.state.model = Some(conversation.main_model()?);
@@ -472,7 +473,7 @@ impl<F: API> UI<F> {
 
     async fn handle_chat_stream(
         &mut self,
-        stream: &mut (impl StreamExt<Item=Result<AgentMessage<ChatResponse>>> + Unpin),
+        stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
         while let Some(message) = stream.next().await {
             match message {

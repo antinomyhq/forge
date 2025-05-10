@@ -110,8 +110,37 @@ mod test {
 
     use super::*;
 
+    struct Stub;
+
+    #[async_trait::async_trait]
+    impl ToolService for Stub {
+        async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> ToolResult {
+            unimplemented!()
+        }
+
+        async fn list(&self) -> Vec<ToolDefinition> {
+            vec![]
+        }
+
+        async fn find_tool(&self, _: &ToolName) -> Option<Arc<Tool>> {
+            None
+        }
+    }
+
+    impl FromIterator<Tool> for ForgeToolService<Stub> {
+        fn from_iter<T: IntoIterator<Item = Tool>>(iter: T) -> Self {
+            let tools: HashMap<ToolName, Arc<Tool>> = iter
+                .into_iter()
+                .map(|tool| (tool.definition.name.clone(), Arc::new(tool)))
+                .collect::<HashMap<_, _>>();
+
+            Self { tools: Arc::new(tools), mcp: Arc::new(Stub) }
+        }
+    }
+
     // Mock tool that always succeeds
     struct SuccessTool;
+
     #[async_trait::async_trait]
     impl forge_domain::ExecutableTool for SuccessTool {
         type Input = Value;
@@ -127,6 +156,7 @@ mod test {
 
     // Mock tool that always fails
     struct FailureTool;
+
     #[async_trait::async_trait]
     impl forge_domain::ExecutableTool for FailureTool {
         type Input = Value;
@@ -161,7 +191,7 @@ mod test {
             executable: Box::new(FailureTool),
         };
 
-        ForgeToolService::new(vec![success_tool, failure_tool])
+        ForgeToolService::from_iter(vec![success_tool, failure_tool])
     }
 
     #[tokio::test]
@@ -205,6 +235,7 @@ mod test {
 
     // Mock tool that simulates a long-running task
     struct SlowTool;
+
     #[async_trait::async_trait]
     impl forge_domain::ExecutableTool for SlowTool {
         type Input = Value;

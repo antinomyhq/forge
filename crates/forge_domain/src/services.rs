@@ -1,7 +1,11 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::{Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation, ConversationId, Environment, File, McpServers, Model, ModelId, ResultStream, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow};
+use crate::{
+    Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
+    ConversationId, Environment, File, McpServers, Model, ModelId, ResultStream, Tool,
+    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
+};
 
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {
@@ -24,13 +28,13 @@ pub trait ToolService: Send + Sync {
 pub trait McpConfigReadService: Send + Sync {
     /// Responsible to load the MCP servers from all configuration files.
     async fn read(&self) -> anyhow::Result<McpServers>;
-   /*
+    /*
     TODO: maybe we don't need these here, but in API
     /// Responsible to add a new MCP server to the config depending upon scope.
     async fn write(&self, name: &str, mcp_servers: &McpServerConfig, scope: Scope) -> anyhow::Result<()>;
     /// Responsible to add MCP server from JSON string to config depending upon scope.
     async fn write_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> anyhow::Result<()>;
-    
+
     /// Responsible to remove the MCP server from the config depending upon scope.
     async fn remove(&self, name: &str, scope: Scope) -> anyhow::Result<()>; */
 }

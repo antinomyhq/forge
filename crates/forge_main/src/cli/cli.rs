@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+
 use crate::cli::mcp::McpCommandGroup;
 
 #[derive(Parser)]
