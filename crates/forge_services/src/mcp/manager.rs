@@ -6,11 +6,11 @@ use forge_domain::{EnvironmentService, McpConfig, McpConfigManager, McpServer, S
 
 use crate::{FsReadService, FsWriteService, Infrastructure};
 
-pub struct ForgeMcpReadService<I> {
+pub struct ForgeMcpManager<I> {
     infra: Arc<I>,
 }
 
-impl<I: Infrastructure> ForgeMcpReadService<I> {
+impl<I: Infrastructure> ForgeMcpManager<I> {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
@@ -29,7 +29,7 @@ impl<I: Infrastructure> ForgeMcpReadService<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: Infrastructure> McpConfigManager for ForgeMcpReadService<I> {
+impl<I: Infrastructure> McpConfigManager for ForgeMcpManager<I> {
     async fn read(&self) -> anyhow::Result<McpConfig> {
         let env = self.infra.environment_service().get_environment();
         let mut user_config = self
