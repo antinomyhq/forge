@@ -128,7 +128,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .await
     }
 
-    async fn write(&self, name: &str, mcp_servers: &McpConfig, scope: Scope) -> Result<()> {
+    async fn add_mcp_server(&self, name: &str, mcp_servers: &McpServer, scope: Scope) -> Result<()> {
         self.app
             .mcp_config_read_service()
             .write(name, mcp_servers, scope)
@@ -136,7 +136,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    async fn write_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> Result<()> {
+    async fn add_mcp_server_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> Result<()> {
         self.app
             .mcp_config_read_service()
             .write_json(name, mcp_servers, scope)
@@ -144,7 +144,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    async fn remove(&self, name: &str, scope: Scope) -> Result<()> {
+    async fn remove_mcp_server(&self, name: &str, scope: Scope) -> Result<()> {
         self.app
             .mcp_config_read_service()
             .remove(name, scope)
@@ -152,7 +152,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    async fn get(&self, name: &str) -> Result<McpConfig> {
+    async fn get_mcp_server(&self, name: &str) -> Result<McpServer> {
         self.app
             .mcp_config_read_service()
             .get(name)
@@ -160,7 +160,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    async fn get_all(&self) -> Result<McpServers> {
+    async fn read_mcp_config(&self) -> Result<McpConfig> {
         self.app
             .mcp_config_read_service()
             .read()

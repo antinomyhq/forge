@@ -1,3 +1,7 @@
+//!
+//! Follows the design specifications of Claude's [.mcp.json](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
+//!
+
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
@@ -14,7 +18,7 @@ pub enum Scope {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]
 #[setters(strip_option, into)]
-pub struct McpConfig {
+pub struct McpServer {
     /// Command to execute for starting this MCP server
     #[merge(strategy = crate::merge::option)]
     pub command: Option<String>,
@@ -33,7 +37,7 @@ pub struct McpConfig {
     pub url: Option<String>,
 }
 
-impl Display for McpConfig {
+impl Display for McpServer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut output = String::new();
         if let Some(command) = self.command.as_ref() {
@@ -59,20 +63,20 @@ impl Display for McpConfig {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct McpServers {
-    pub mcp_servers: HashMap<String, McpConfig>,
+pub struct McpConfig {
+    pub mcp_servers: HashMap<String, McpServer>,
 }
 
-impl Deref for McpServers {
-    type Target = HashMap<String, McpConfig>;
+impl Deref for McpConfig {
+    type Target = HashMap<String, McpServer>;
 
     fn deref(&self) -> &Self::Target {
         &self.mcp_servers
     }
 }
 
-impl From<HashMap<String, McpConfig>> for McpServers {
-    fn from(mcp_servers: HashMap<String, McpConfig>) -> Self {
+impl From<HashMap<String, McpServer>> for McpConfig {
+    fn from(mcp_servers: HashMap<String, McpServer>) -> Self {
         Self { mcp_servers }
     }
 }

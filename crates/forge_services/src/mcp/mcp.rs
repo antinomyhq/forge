@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpConfig, McpConfigReadService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
+    McpServer, McpConfigReadService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
     ToolResult, ToolService,
 };
 use futures::FutureExt;
@@ -83,7 +83,7 @@ impl<R: McpConfigReadService> ForgeMcpService<R> {
     async fn connect_stdio_server(
         &self,
         server_name: &str,
-        config: McpConfig,
+        config: McpServer,
     ) -> anyhow::Result<()> {
         let command = config
             .command
@@ -113,7 +113,7 @@ impl<R: McpConfigReadService> ForgeMcpService<R> {
     async fn connect_http_server(
         &self,
         server_name: &str,
-        config: McpConfig,
+        config: McpServer,
     ) -> anyhow::Result<()> {
         let url = config
             .url
@@ -127,7 +127,7 @@ impl<R: McpConfigReadService> ForgeMcpService<R> {
 
         Ok(())
     }
-    async fn init_mcp(&self, mcp: &HashMap<String, McpConfig>) -> anyhow::Result<()> {
+    async fn init_mcp(&self, mcp: &HashMap<String, McpServer>) -> anyhow::Result<()> {
         let http_results: Vec<Option<anyhow::Result<()>>> = futures::future::join_all(
             mcp.iter()
                 .map(|(server_name, server)| async move {
