@@ -13,9 +13,10 @@ mod tools_display;
 mod ui;
 mod update;
 
-pub use crate::cli::Cli;
 use lazy_static::lazy_static;
 pub use ui::UI;
+
+pub use crate::cli::Cli;
 lazy_static! {
     pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
 }
