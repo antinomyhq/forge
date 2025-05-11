@@ -85,7 +85,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type CompactionService = ForgeCompactionService<Self::TemplateService, Self::ProviderService>;
     type WorkflowService = ForgeWorkflowService<F>;
     type SuggestionService = ForgeSuggestionService<F>;
-    type McpConfigReadService = ForgeMcpReadService<F>;
+    type McpConfigManager = ForgeMcpReadService<F>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -123,7 +123,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
         self.suggestion_service.as_ref()
     }
 
-    fn mcp_config_read_service(&self) -> &Self::McpConfigReadService {
+    fn mcp_config_manager(&self) -> &Self::McpConfigManager {
         self.mcp_read_service.as_ref()
     }
 }

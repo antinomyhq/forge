@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpConfigReadService, McpServer, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
+    McpConfigManager, McpServer, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
     ToolResult, ToolService,
 };
 use futures::FutureExt;
@@ -46,7 +46,7 @@ pub struct ForgeMcpService<R> {
     reader: Arc<R>,
 }
 
-impl<R: McpConfigReadService> ForgeMcpService<R> {
+impl<R: McpConfigManager> ForgeMcpService<R> {
     pub fn new(reader: Arc<R>) -> Self {
         Self { tools: Arc::new(Mutex::new(HashMap::new())), reader }
     }
@@ -181,7 +181,7 @@ impl<R: McpConfigReadService> ForgeMcpService<R> {
 }
 
 #[async_trait::async_trait]
-impl<R: McpConfigReadService> ToolService for ForgeMcpService<R> {
+impl<R: McpConfigManager> ToolService for ForgeMcpService<R> {
     async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> ToolResult {
         unreachable!()
     }

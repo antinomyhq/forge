@@ -26,22 +26,12 @@ pub trait ToolService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait McpConfigReadService: Send + Sync {
+pub trait McpConfigManager: Send + Sync {
     /// Responsible to load the MCP servers from all configuration files.
     async fn read(&self) -> anyhow::Result<McpConfig>;
 
-    /// Responsible to add a new MCP server to the config depending upon scope.
-    async fn write(&self, name: &str, mcp_servers: &McpServer, scope: Scope) -> anyhow::Result<()>;
-    /// Responsible to add MCP server from JSON string to config depending upon
-    /// scope.
-    async fn write_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> anyhow::Result<()>;
-
-    /// Responsible to remove the MCP server from the config depending upon
-    /// scope.
-    async fn remove(&self, name: &str, scope: Scope) -> anyhow::Result<()>;
-
-    /// Responsible to get details about an MCP server
-    async fn get(&self, name: &str) -> anyhow::Result<McpServer>;
+    /// Responsible for writing the McpConfig on disk.
+    async fn write(&self, config: &McpConfig, scope: Scope) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -134,7 +124,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CompactionService: CompactionService;
     type WorkflowService: WorkflowService;
     type SuggestionService: SuggestionService;
-    type McpConfigReadService: McpConfigReadService;
+    type McpConfigManager: McpConfigManager;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -145,5 +135,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn compaction_service(&self) -> &Self::CompactionService;
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn suggestion_service(&self) -> &Self::SuggestionService;
-    fn mcp_config_read_service(&self) -> &Self::McpConfigReadService;
+    fn mcp_config_manager(&self) -> &Self::McpConfigManager;
 }
