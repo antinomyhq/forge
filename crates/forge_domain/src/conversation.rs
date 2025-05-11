@@ -37,6 +37,7 @@ pub struct Conversation {
     pub variables: HashMap<String, Value>,
     pub agents: Vec<Agent>,
     pub events: Vec<Event>,
+    pub workflow: Workflow,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -91,7 +92,7 @@ impl Conversation {
     fn new_inner(id: ConversationId, workflow: Workflow) -> Self {
         let mut agents = Vec::new();
 
-        for mut agent in workflow.agents.into_iter() {
+        for mut agent in workflow.agents.clone().into_iter() {
             if let Some(custom_rules) = workflow.custom_rules.clone() {
                 agent.custom_rules = Some(custom_rules);
             }
@@ -136,6 +137,7 @@ impl Conversation {
             variables: workflow.variables.clone(),
             agents,
             events: Default::default(),
+            workflow,
         }
     }
 

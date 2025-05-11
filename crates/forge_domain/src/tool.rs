@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use schemars::JsonSchema;
 use serde_json::Value;
 
@@ -24,8 +26,9 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct Tool {
-    pub executable: Box<dyn ExecutableTool<Input = Value> + Send + Sync + 'static>,
+    pub executable: Arc<dyn ExecutableTool<Input = Value> + Send + Sync + 'static>,
     pub definition: ToolDefinition,
 }
 
@@ -36,7 +39,7 @@ where
 {
     fn from(tool: T) -> Self {
         let definition = ToolDefinition::from(&tool);
-        let executable = Box::new(JsonTool::new(tool));
+        let executable = Arc::new(JsonTool::new(tool));
 
         Tool { executable, definition }
     }

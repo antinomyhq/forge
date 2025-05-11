@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 /// updates
 #[derive(Clone)]
 pub struct ForgeConversationService<C> {
-    workflows: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
+    conversations: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
     compaction_service: Arc<C>,
 }
 
@@ -21,7 +21,7 @@ impl<C: CompactionService> ForgeConversationService<C> {
     /// service
     pub fn new(compaction_service: Arc<C>) -> Self {
         Self {
-            workflows: Arc::new(Mutex::new(HashMap::new())),
+            conversations: Arc::new(Mutex::new(HashMap::new())),
             compaction_service,
         }
     }
@@ -33,17 +33,17 @@ impl<C: CompactionService> ConversationService for ForgeConversationService<C> {
     where
         F: FnOnce(&mut Conversation) -> T + Send,
     {
-        let mut workflows = self.workflows.lock().await;
+        let mut workflows = self.conversations.lock().await;
         let conversation = workflows.get_mut(id).context("Conversation not found")?;
         Ok(f(conversation))
     }
 
     async fn find(&self, id: &ConversationId) -> Result<Option<Conversation>> {
-        Ok(self.workflows.lock().await.get(id).cloned())
+        Ok(self.conversations.lock().await.get(id).cloned())
     }
 
     async fn upsert(&self, conversation: Conversation) -> Result<()> {
-        self.workflows
+        self.conversations
             .lock()
             .await
             .insert(conversation.id.clone(), conversation);
@@ -53,7 +53,7 @@ impl<C: CompactionService> ConversationService for ForgeConversationService<C> {
     async fn create(&self, workflow: Workflow) -> Result<Conversation> {
         let id = ConversationId::generate();
         let conversation = Conversation::new(id.clone(), workflow);
-        self.workflows
+        self.conversations
             .lock()
             .await
             .insert(id.clone(), conversation.clone());

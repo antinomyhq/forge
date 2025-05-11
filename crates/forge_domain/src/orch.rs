@@ -374,11 +374,16 @@ impl<A: Services> Orchestrator<A> {
     }
 
     // Get the ToolCallContext for an agent
-    fn get_tool_call_context(&self, agent_id: &AgentId) -> ToolCallContext {
+    fn get_tool_call_context(
+        &self,
+        agent_id: &AgentId,
+        conversation: Conversation,
+    ) -> ToolCallContext {
         // Create a new ToolCallContext with the agent ID
         ToolCallContext::default()
             .agent_id(agent_id.clone())
             .sender(self.sender.clone())
+            .conversation(conversation)
     }
 
     // Create a helper method with the core functionality
@@ -433,7 +438,7 @@ impl<A: Services> Orchestrator<A> {
 
         self.set_context(&agent.id, context.clone()).await?;
 
-        let tool_context = self.get_tool_call_context(&agent.id);
+        let tool_context = self.get_tool_call_context(&agent.id, conversation.clone());
 
         let mut empty_tool_call_count = 0;
 

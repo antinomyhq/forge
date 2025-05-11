@@ -127,4 +127,13 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .execute_command(command.to_string(), working_dir)
             .await
     }
+    /// Adds a new mcp server to the working mcp.json
+    async fn add_mcp_server(&self, name: String) -> Result<()> {
+        todo!();
+    }
+
+    /// Removes the provided mcp server from the mcp config
+    async fn remove_mcp_server(&self, name: String) -> Result<()> {
+        todo!();
+    }
 }

@@ -2,8 +2,8 @@ use std::path::Path;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
-    ConversationId, Environment, File, Model, ModelId, ResultStream, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolResult, Workflow,
+    ConversationId, Environment, File, McpServer, McpServerConfig, Model, ModelId, ResultStream,
+    Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -18,9 +18,10 @@ pub trait ProviderService: Send + Sync + 'static {
 
 #[async_trait::async_trait]
 pub trait ToolService: Send + Sync {
-    // TODO: should take `call` by reference
+    /// FIXME: pass tool_call_context as an immutable reference
     async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult;
     fn list(&self) -> Vec<ToolDefinition>;
+    fn find(&self, name: &ToolName) -> Option<Tool>;
 }
 
 #[async_trait::async_trait]
@@ -100,6 +101,14 @@ pub trait SuggestionService: Send + Sync {
     async fn suggestions(&self) -> anyhow::Result<Vec<File>>;
 }
 
+#[async_trait::async_trait]
+pub trait McpManagementService: Send + Sync {
+    async fn read(&self) -> McpServerConfig;
+    async fn update(&self, server: McpServer) -> McpServerConfig;
+}
+
+pub trait McpExecutorService: ToolService {}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -113,6 +122,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CompactionService: CompactionService;
     type WorkflowService: WorkflowService;
     type SuggestionService: SuggestionService;
+    type McpManagementService: McpManagementService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -123,4 +133,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn compaction_service(&self) -> &Self::CompactionService;
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn suggestion_service(&self) -> &Self::SuggestionService;
+    fn mcp_management_service(&self) -> &Self::McpManagementService;
 }

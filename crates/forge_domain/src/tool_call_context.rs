@@ -4,7 +4,7 @@ use derive_setters::Setters;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::RwLock;
 
-use crate::{AgentId, AgentMessage, ChatResponse};
+use crate::{AgentId, AgentMessage, ChatResponse, Conversation};
 
 /// Type alias for Arc<Sender<Result<AgentMessage<ChatResponse>>>>
 type ArcSender = Arc<Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
@@ -19,18 +19,13 @@ pub struct ToolCallContext {
     /// This is wrapped in an RWLock for thread-safety
     #[setters(skip)]
     pub is_complete: Arc<RwLock<bool>>,
+
+    /// FIXME: Store Conversation as a immutable reference
+    #[setters(strip_option)]
+    pub conversation: Option<Conversation>,
 }
 
 impl ToolCallContext {
-    /// Creates a new ToolCallContext with default values
-    pub fn new() -> Self {
-        Self {
-            agent_id: None,
-            sender: None,
-            is_complete: Arc::new(RwLock::new(false)),
-        }
-    }
-
     /// Sets the is_complete flag to true
     pub async fn set_complete(&self) {
         let mut is_complete = self.is_complete.write().await;

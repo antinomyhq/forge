@@ -71,4 +71,10 @@ pub trait API: Sync + Send {
         command: &str,
         working_dir: PathBuf,
     ) -> Result<CommandOutput>;
+
+    /// Adds a new mcp server to the working mcp.json
+    async fn add_mcp_server(&self, name: String) -> Result<()>;
+
+    /// Removes the provided mcp server from the mcp config
+    async fn remove_mcp_server(&self, name: String) -> Result<()>;
 }

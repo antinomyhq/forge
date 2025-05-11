@@ -10,8 +10,9 @@ use forge_domain::{
 use forge_tool_macros::ToolDescription;
 use strip_ansi_escapes::strip;
 
+use crate::clipper::{Clipper, ClipperResult};
 use crate::metadata::Metadata;
-use crate::{Clipper, ClipperResult, CommandExecutorService, FsWriteService, Infrastructure};
+use crate::{CommandExecutorService, FsWriteService, Infrastructure};
 
 /// Number of characters to keep at the start of truncated output
 const PREFIX_CHARS: usize = 10_000;
