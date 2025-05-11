@@ -7,7 +7,6 @@ mod conversation;
 mod forge_services;
 mod infra;
 mod mcp;
-mod mcp_read_service;
 mod metadata;
 mod provider;
 mod suggestion;
