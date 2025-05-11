@@ -93,11 +93,7 @@ impl<M: ToolService> ToolService for ForgeToolService<M> {
         tools
     }
     async fn find(&self, name: &ToolName) -> Option<Arc<Tool>> {
-        if let Some(tool) = self.tools.get(name).cloned() {
-            Some(tool)
-        } else {
-            self.mcp.find(name).await
-        }
+        self.tools.get(name).cloned().or(self.mcp.find(name).await)
     }
 }
 

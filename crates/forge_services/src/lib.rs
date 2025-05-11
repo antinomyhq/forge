@@ -1,5 +1,3 @@
-#![allow(clippy::module_inception)]
-
 mod attachment;
 mod clipper;
 mod compaction;
