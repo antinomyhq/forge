@@ -12,7 +12,6 @@ pub struct ToolName {
     pub server: Option<String>,
 }
 
-
 impl ToolName {
     pub fn new(value: impl ToString) -> Self {
         ToolName { name: value.to_string(), server: None }
