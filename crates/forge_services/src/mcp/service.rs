@@ -16,7 +16,7 @@ use rmcp::{RoleClient, ServiceError, ServiceExt};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
-use crate::mcp::executable::Executable;
+use crate::mcp::executor::McpExecutor;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -67,7 +67,7 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
     ) -> anyhow::Result<()> {
         let mut lock = self.tools.lock().await;
         for tool in tools.tools.into_iter() {
-            let server = Executable::new(server_name.to_string(), tool.clone(), client.clone())?;
+            let server = McpExecutor::new(server_name.to_string(), tool.clone(), client.clone())?;
             lock.insert(
                 server.tool_definition.name.clone(),
                 Arc::new(Tool {
@@ -190,7 +190,7 @@ impl<R: McpConfigManager> ToolService for ForgeMcpService<R> {
         self.list().await.unwrap_or_default()
     }
 
-    async fn find_tool(&self, name: &ToolName) -> Option<Arc<Tool>> {
+    async fn find(&self, name: &ToolName) -> Option<Arc<Tool>> {
         self.find_tool(name).await
     }
 }

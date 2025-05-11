@@ -1,6 +1,6 @@
-mod executable;
-mod mcp;
-mod mcp_read_service;
+mod executor;
+mod service;
+mod manager;
 
-pub use mcp::*;
-pub use mcp_read_service::*;
+pub use service::*;
+pub use manager::*;

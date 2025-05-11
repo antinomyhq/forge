@@ -5,14 +5,14 @@ use forge_domain::{ExecutableTool, ToolCallContext, ToolDefinition, ToolName};
 use rmcp::model::CallToolRequestParam;
 use rmcp::schemars::schema::RootSchema;
 
-use crate::mcp::mcp::RunnableService;
+use crate::mcp::service::RunnableService;
 
-pub struct Executable {
+pub struct McpExecutor {
     pub client: Arc<RunnableService>,
     pub tool_definition: ToolDefinition,
 }
 
-impl Executable {
+impl McpExecutor {
     pub fn new(
         server_name: String,
         tool: rmcp::model::Tool,
@@ -33,7 +33,7 @@ impl Executable {
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for Executable {
+impl ExecutableTool for McpExecutor {
     type Input = serde_json::Value;
 
     async fn call(&self, _: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {

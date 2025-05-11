@@ -47,7 +47,7 @@ impl<M: ToolService> ToolService for ForgeToolService<M> {
 
         available_tools.sort();
 
-        let output = match self.find_tool(&name).await {
+        let output = match self.find(&name).await {
             Some(tool) => {
                 // Wrap tool call with timeout
                 match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
@@ -92,11 +92,11 @@ impl<M: ToolService> ToolService for ForgeToolService<M> {
 
         tools
     }
-    async fn find_tool(&self, name: &ToolName) -> Option<Arc<Tool>> {
+    async fn find(&self, name: &ToolName) -> Option<Arc<Tool>> {
         if let Some(tool) = self.tools.get(name).cloned() {
             Some(tool)
         } else {
-            self.mcp.find_tool(name).await
+            self.mcp.find(name).await
         }
     }
 }
@@ -122,7 +122,7 @@ mod test {
             vec![]
         }
 
-        async fn find_tool(&self, _: &ToolName) -> Option<Arc<Tool>> {
+        async fn find(&self, _: &ToolName) -> Option<Arc<Tool>> {
             None
         }
     }
