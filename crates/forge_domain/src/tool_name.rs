@@ -5,10 +5,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Setters)]
 #[setters(strip_option, into)]
+#[serde(transparent)]
 pub struct ToolName {
     pub name: String,
+    #[serde(skip)]
     pub server: Option<String>,
 }
+
 
 impl ToolName {
     pub fn new(value: impl ToString) -> Self {
