@@ -72,29 +72,11 @@ pub trait API: Sync + Send {
         working_dir: PathBuf,
     ) -> Result<CommandOutput>;
 
-    /// Responsible to add a new MCP server to the config depending upon scope.
-    async fn add_mcp_server(
-        &self,
-        name: &str,
-        server: &McpServer,
-        scope: Scope,
-    ) -> anyhow::Result<()>;
-
-    /// Responsible to add MCP server from JSON string to config depending upon
-    /// scope.
-    async fn add_mcp_server_json(
-        &self,
-        name: &str,
-        server: &str,
-        scope: Scope,
-    ) -> anyhow::Result<()>;
-    /// Responsible to remove the MCP server from the config depending upon
-    /// scope.
-    async fn remove_mcp_server(&self, name: &str, scope: Scope) -> anyhow::Result<()>;
-
-    /// Get all MCP servers
     async fn read_mcp_config(&self) -> Result<McpConfig>;
 
-    /// Responsible to get details about an MCP server
-    async fn get_mcp_server(&self, name: &str) -> anyhow::Result<McpServer>;
+    async fn write_mcp_config(&self, scope: Scope, config: McpConfig) -> Result<()>;
+
+    async fn update_mcp_config<F>(&self, scope: Scope, f: F) -> Result<McpConfig>
+    where
+        F: FnOnce(&mut McpConfig) + Send;
 }
