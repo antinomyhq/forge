@@ -188,7 +188,6 @@ impl<F: API> UI<F> {
 
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
-        self.init_conversation().await?;
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
