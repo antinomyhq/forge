@@ -142,14 +142,4 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
-
-    async fn update_mcp_config<W>(&self, scope: &Scope, f: W) -> Result<McpConfig>
-    where
-        W: FnOnce(&mut McpConfig) + Send,
-    {
-        let mut config = self.read_mcp_config().await?;
-        f(&mut config);
-        self.write_mcp_config(scope, &config).await?;
-        Ok(config)
-    }
 }
