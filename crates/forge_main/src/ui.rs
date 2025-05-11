@@ -269,7 +269,7 @@ impl<F: API> UI<F> {
                     let name = val.name.clone();
                     let service = self.api.get(name.as_str()).await?;
                     let mut output = String::new();
-                    output.push_str(&format!("{}: {}", name, service));
+                    output.push_str(&format!("{name}: {service}"));
                     self.writeln(output)?;
 
                     Ok(CommandAction::Exit)
