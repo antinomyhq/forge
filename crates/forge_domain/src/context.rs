@@ -177,7 +177,7 @@ impl Context {
                         for call in tool_calls {
                             lines.push_str(&format!(
                                 "<forge_tool_call name=\"{}\"><![CDATA[{}]]></forge_tool_call>",
-                                call.name.to_string(),
+                                call.name,
                                 serde_json::to_string(&call.arguments).unwrap()
                             ));
                         }
@@ -190,7 +190,7 @@ impl Context {
 
                     lines.push_str(&format!(
                         "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
-                        result.name.to_string(),
+                        result.name,
                         serde_json::to_string(&result.content).unwrap()
                     ));
                     lines.push_str("</message>");

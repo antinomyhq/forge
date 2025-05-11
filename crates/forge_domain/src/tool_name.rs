@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
@@ -14,12 +16,14 @@ impl ToolName {
     }
 }
 
-impl ToolName {
-    pub fn to_string(&self) -> String {
-        match self.server {
-            None => self.name.clone(),
-            Some(ref server) => format!("{}__{}", server, self.name),
+impl Display for ToolName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(ref server) = self.server {
+            write!(f, "{server}")?;
+            write!(f, "__")?;
         }
+
+        write!(f, "{}", self.name)
     }
 }
 

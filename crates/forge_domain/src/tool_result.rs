@@ -61,7 +61,7 @@ impl std::fmt::Display for ToolResult {
         write!(
             f,
             "<forge_tool_name>{}</forge_tool_name>",
-            self.name.to_string()
+            self.name
         )?;
         let content = format!("<![CDATA[{}]]>", self.content);
         if self.is_error {
