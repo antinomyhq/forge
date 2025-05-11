@@ -169,6 +169,7 @@ impl ForgeCommandManager {
             "/new" => Ok(Command::New),
             "/info" => Ok(Command::Info),
             "/exit" => Ok(Command::Exit),
+            "/update" => Ok(Command::Update),
             "/dump" => {
                 if !parameters.is_empty() && parameters[0] == "html" {
                     Ok(Command::Dump(Some("html".to_string())))
@@ -230,6 +231,9 @@ pub enum Command {
     /// Exit the application without any further action.
     #[strum(props(usage = "Exit the application"))]
     Exit,
+    /// Updates the forge version
+    #[strum(props(usage = "Updates to the latest compatible version of forge"))]
+    Update,
     /// Switch to "act" mode.
     /// This can be triggered with the '/act' command.
     #[strum(props(usage = "Enable implementation mode with code changes"))]
@@ -267,6 +271,7 @@ impl Command {
             Command::Compact => "/compact",
             Command::New => "/new",
             Command::Message(_) => "/message",
+            Command::Update => "/update",
             Command::Info => "/info",
             Command::Exit => "/exit",
             Command::Act => "/act",

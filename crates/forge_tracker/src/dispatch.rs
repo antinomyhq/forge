@@ -32,6 +32,7 @@ pub struct Tracker {
     can_track: bool,
     start_time: DateTime<Utc>,
     email: Mutex<Option<Vec<String>>>,
+    model: Mutex<Option<String>>,
 }
 
 impl Default for Tracker {
@@ -44,11 +45,17 @@ impl Default for Tracker {
             can_track,
             start_time,
             email: Mutex::new(None),
+            model: Mutex::new(None),
         }
     }
 }
 
 impl Tracker {
+    pub async fn set_model<S: Into<String>>(&'static self, model: S) {
+        let mut guard = self.model.lock().await;
+        *guard = Some(model.into());
+    }
+
     pub async fn init_ping(&'static self, duration: Duration) {
         let mut interval = tokio::time::interval(duration);
         tokio::task::spawn(async move {
@@ -76,6 +83,7 @@ impl Tracker {
                 user: user(),
                 version: version(),
                 email: self.email().await.clone(),
+                model: self.model.lock().await.clone(),
             };
 
             // Dispatch the event to all collectors

@@ -15,6 +15,7 @@ forge_snaps.workspace = true
 forge_spinner.workspace = true
 inquire.workspace = true
 serde_yml.workspace = true
+merge.workspace = true
 
 forge_fs.workspace = true
 tokio.workspace = true
@@ -36,6 +37,11 @@ strum.workspace = true
 strum_macros.workspace = true
 base64.workspace = true
 convert_case.workspace = true
+update-informer = { version = "1.2.0", default-features = false, features = [
+    "npm",
+    "ureq",
+    "rustls-tls",
+] }
 
 [dev-dependencies]
 insta.workspace = true

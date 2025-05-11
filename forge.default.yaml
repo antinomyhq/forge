@@ -1,6 +1,10 @@
 variables:
   mode: ACT
 
+updates:
+  frequency: "weekly"
+  auto_update: false
+
 # Define model anchors with simpler, purpose-based names
 models:
   # Role-based model definitions - easy to swap implementation

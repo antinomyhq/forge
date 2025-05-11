@@ -5,6 +5,7 @@ mod chat_request;
 mod chat_response;
 mod compaction_result;
 mod conversation_html;
+mod update;
 
 mod context;
 mod conversation;
@@ -78,4 +79,5 @@ pub use tool_input::*;
 pub use tool_name::*;
 pub use tool_result::*;
 pub use tool_usage::*;
+pub use update::*;
 pub use workflow::*;
