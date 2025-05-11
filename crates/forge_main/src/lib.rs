@@ -13,7 +13,7 @@ mod tools_display;
 mod ui;
 mod update;
 
-pub use cli::Cli;
+pub use crate::cli::Cli;
 use lazy_static::lazy_static;
 pub use ui::UI;
 lazy_static! {
