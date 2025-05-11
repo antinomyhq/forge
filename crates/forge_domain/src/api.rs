@@ -72,7 +72,15 @@ pub trait API: Sync + Send {
         working_dir: PathBuf,
     ) -> Result<CommandOutput>;
 
+    /// Reads and merges MCP configurations from all available configuration
+    /// files This combines both user-level and local configurations with
+    /// local taking precedence
     async fn read_mcp_config(&self) -> Result<McpConfig>;
 
+    /// Writes the provided MCP configuration to disk at the specified scope
+    /// The scope determines whether the configuration is written to user-level
+    /// or local configuration User-level configuration is stored in the
+    /// user's home directory Local configuration is stored in the current
+    /// project directory
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
 }
