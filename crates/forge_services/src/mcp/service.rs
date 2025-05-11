@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use forge_domain::{
-    McpConfigManager, McpServer, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
-    ToolResult, ToolService,
-};
+use forge_domain::{McpConfigManager, McpServer, McpService, Tool, ToolDefinition, ToolName};
 use futures::FutureExt;
 use rmcp::model::{
     CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam,
@@ -181,11 +178,7 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
 }
 
 #[async_trait::async_trait]
-impl<R: McpConfigManager> ToolService for ForgeMcpService<R> {
-    async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> ToolResult {
-        unreachable!()
-    }
-
+impl<R: McpConfigManager> McpService for ForgeMcpService<R> {
     async fn list(&self) -> Vec<ToolDefinition> {
         self.list().await.unwrap_or_default()
     }

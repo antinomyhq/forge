@@ -35,6 +35,12 @@ pub trait McpConfigManager: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait McpService: Send + Sync {
+    async fn list(&self) -> Vec<ToolDefinition>;
+    async fn find(&self, name: &ToolName) -> Option<Arc<Tool>>;
+}
+
+#[async_trait::async_trait]
 pub trait CompactionService: Send + Sync {
     async fn compact_context(&self, agent: &Agent, context: Context) -> anyhow::Result<Context>;
 }

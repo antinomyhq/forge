@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context as AnyhowContext, Result};
 use forge_domain::{
     AgentId, CompactionResult, CompactionService, Conversation, ConversationId,
-    ConversationService, ToolService, Workflow,
+    ConversationService, McpService, Workflow,
 };
 use tokio::sync::Mutex;
 
@@ -17,7 +17,7 @@ pub struct ForgeConversationService<C, M> {
     mcp_service: Arc<M>,
 }
 
-impl<C: CompactionService, M: ToolService> ForgeConversationService<C, M> {
+impl<C: CompactionService, M: McpService> ForgeConversationService<C, M> {
     /// Creates a new ForgeConversationService with the provided compaction
     /// service
     pub fn new(compaction_service: Arc<C>, mcp_service: Arc<M>) -> Self {
@@ -30,7 +30,7 @@ impl<C: CompactionService, M: ToolService> ForgeConversationService<C, M> {
 }
 
 #[async_trait::async_trait]
-impl<C: CompactionService, M: ToolService> ConversationService for ForgeConversationService<C, M> {
+impl<C: CompactionService, M: McpService> ConversationService for ForgeConversationService<C, M> {
     async fn update<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,

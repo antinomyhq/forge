@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
+    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult,
+    ToolService,
 };
 use tokio::time::{timeout, Duration};
 use tracing::{debug, error};
@@ -19,7 +20,7 @@ pub struct ForgeToolService<M> {
     mcp: Arc<M>,
 }
 
-impl<M: ToolService> ForgeToolService<M> {
+impl<M: McpService> ForgeToolService<M> {
     pub fn new<F: Infrastructure>(infra: Arc<F>, mcp: Arc<M>) -> Self {
         let registry = ToolRegistry::new(infra.clone());
         let tools = registry.tools();
@@ -33,7 +34,7 @@ impl<M: ToolService> ForgeToolService<M> {
 }
 
 #[async_trait::async_trait]
-impl<M: ToolService> ToolService for ForgeToolService<M> {
+impl<M: McpService> ToolService for ForgeToolService<M> {
     async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult {
         let name = call.name.clone();
         let input = call.arguments.clone();
@@ -109,11 +110,7 @@ mod test {
     struct Stub;
 
     #[async_trait::async_trait]
-    impl ToolService for Stub {
-        async fn call(&self, _: ToolCallContext, _: ToolCallFull) -> ToolResult {
-            unimplemented!()
-        }
-
+    impl McpService for Stub {
         async fn list(&self) -> Vec<ToolDefinition> {
             vec![]
         }
