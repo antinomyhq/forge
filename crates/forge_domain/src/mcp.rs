@@ -14,7 +14,7 @@ pub enum Scope {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]
 #[setters(strip_option, into)]
-pub struct McpServerConfig {
+pub struct McpConfig {
     /// Command to execute for starting this MCP server
     #[merge(strategy = crate::merge::option)]
     pub command: Option<String>,
@@ -33,7 +33,7 @@ pub struct McpServerConfig {
     pub url: Option<String>,
 }
 
-impl Display for McpServerConfig {
+impl Display for McpConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut output = String::new();
         if let Some(command) = self.command.as_ref() {
@@ -60,19 +60,19 @@ impl Display for McpServerConfig {
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServers {
-    pub mcp_servers: HashMap<String, McpServerConfig>,
+    pub mcp_servers: HashMap<String, McpConfig>,
 }
 
 impl Deref for McpServers {
-    type Target = HashMap<String, McpServerConfig>;
+    type Target = HashMap<String, McpConfig>;
 
     fn deref(&self) -> &Self::Target {
         &self.mcp_servers
     }
 }
 
-impl From<HashMap<String, McpServerConfig>> for McpServers {
-    fn from(mcp_servers: HashMap<String, McpServerConfig>) -> Self {
+impl From<HashMap<String, McpConfig>> for McpServers {
+    fn from(mcp_servers: HashMap<String, McpConfig>) -> Self {
         Self { mcp_servers }
     }
 }

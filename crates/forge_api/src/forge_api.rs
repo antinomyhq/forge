@@ -128,7 +128,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .await
     }
 
-    async fn write(&self, name: &str, mcp_servers: &McpServerConfig, scope: Scope) -> Result<()> {
+    async fn write(&self, name: &str, mcp_servers: &McpConfig, scope: Scope) -> Result<()> {
         self.app
             .mcp_config_read_service()
             .write(name, mcp_servers, scope)
@@ -152,7 +152,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    async fn get(&self, name: &str) -> Result<McpServerConfig> {
+    async fn get(&self, name: &str) -> Result<McpConfig> {
         self.app
             .mcp_config_read_service()
             .get(name)

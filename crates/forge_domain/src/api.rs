@@ -73,12 +73,7 @@ pub trait API: Sync + Send {
     ) -> Result<CommandOutput>;
 
     /// Responsible to add a new MCP server to the config depending upon scope.
-    async fn write(
-        &self,
-        name: &str,
-        mcp_servers: &McpServerConfig,
-        scope: Scope,
-    ) -> anyhow::Result<()>;
+    async fn write(&self, name: &str, mcp_servers: &McpConfig, scope: Scope) -> anyhow::Result<()>;
     /// Responsible to add MCP server from JSON string to config depending upon
     /// scope.
     async fn write_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> anyhow::Result<()>;
@@ -90,5 +85,5 @@ pub trait API: Sync + Send {
     async fn get_all(&self) -> Result<McpServers>;
 
     /// Responsible to get details about an MCP server
-    async fn get(&self, name: &str) -> anyhow::Result<McpServerConfig>;
+    async fn get(&self, name: &str) -> anyhow::Result<McpConfig>;
 }

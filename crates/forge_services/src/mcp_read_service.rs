@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{EnvironmentService, McpConfigReadService, McpServerConfig, McpServers, Scope};
+use forge_domain::{EnvironmentService, McpConfig, McpConfigReadService, McpServers, Scope};
 
 use crate::{FsReadService, FsWriteService, Infrastructure};
 
@@ -45,12 +45,7 @@ impl<I: Infrastructure> McpConfigReadService for ForgeMcpReadService<I> {
         Ok(user_config)
     }
 
-    async fn write(
-        &self,
-        name: &str,
-        mcp_servers: &McpServerConfig,
-        scope: Scope,
-    ) -> anyhow::Result<()> {
+    async fn write(&self, name: &str, mcp_servers: &McpConfig, scope: Scope) -> anyhow::Result<()> {
         let config_path = self.config_path(scope).await?;
 
         let mut config = self
@@ -71,7 +66,7 @@ impl<I: Infrastructure> McpConfigReadService for ForgeMcpReadService<I> {
     }
 
     async fn write_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> anyhow::Result<()> {
-        let server_config: McpServerConfig = serde_json::from_str(mcp_servers)?;
+        let server_config: McpConfig = serde_json::from_str(mcp_servers)?;
         self.write(name, &server_config, scope).await
     }
 
@@ -93,7 +88,7 @@ impl<I: Infrastructure> McpConfigReadService for ForgeMcpReadService<I> {
         Ok(())
     }
 
-    async fn get(&self, name: &str) -> anyhow::Result<McpServerConfig> {
+    async fn get(&self, name: &str) -> anyhow::Result<McpConfig> {
         let config = self.read().await?;
         if let Some(server_config) = config.mcp_servers.get(name) {
             Ok(server_config.clone())

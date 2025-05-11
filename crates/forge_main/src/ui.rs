@@ -7,7 +7,7 @@ use forge_api::{
     API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpServerConfig, Scope};
+use forge_domain::{McpConfig, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -229,9 +229,7 @@ impl<F: API> UI<F> {
                 McpCommand::Add(add) => {
                     let name = add.name.context("Server name is required")?;
                     let scope: Scope = add.scope.into();
-                    let mut server = McpServerConfig::default()
-                        .args(add.args)
-                        .env(parse_env(add.env));
+                    let mut server = McpConfig::default().args(add.args).env(parse_env(add.env));
                     match add.transport {
                         Transport::Stdio => {
                             server = server.command(add.command_or_url.unwrap_or_default());

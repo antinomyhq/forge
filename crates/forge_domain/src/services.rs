@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
-    ConversationId, Environment, File, McpServerConfig, McpServers, Model, ModelId, ResultStream,
-    Scope, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
+    ConversationId, Environment, File, McpConfig, McpServers, Model, ModelId, ResultStream, Scope,
+    Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -31,12 +31,7 @@ pub trait McpConfigReadService: Send + Sync {
     async fn read(&self) -> anyhow::Result<McpServers>;
 
     /// Responsible to add a new MCP server to the config depending upon scope.
-    async fn write(
-        &self,
-        name: &str,
-        mcp_servers: &McpServerConfig,
-        scope: Scope,
-    ) -> anyhow::Result<()>;
+    async fn write(&self, name: &str, mcp_servers: &McpConfig, scope: Scope) -> anyhow::Result<()>;
     /// Responsible to add MCP server from JSON string to config depending upon
     /// scope.
     async fn write_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> anyhow::Result<()>;
@@ -46,7 +41,7 @@ pub trait McpConfigReadService: Send + Sync {
     async fn remove(&self, name: &str, scope: Scope) -> anyhow::Result<()>;
 
     /// Responsible to get details about an MCP server
-    async fn get(&self, name: &str) -> anyhow::Result<McpServerConfig>;
+    async fn get(&self, name: &str) -> anyhow::Result<McpConfig>;
 }
 
 #[async_trait::async_trait]
