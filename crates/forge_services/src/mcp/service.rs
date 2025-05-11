@@ -133,7 +133,7 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
                         .lock()
                         .map(|v| {
                             v.values()
-                                .any(|v| v.definition.name.as_str().eq(server_name))
+                                .any(|v| v.definition.name.to_string().eq(server_name))
                         })
                         .await
                     {
@@ -157,7 +157,7 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
             .map_or(Ok(()), Err)
     }
 
-    async fn find_tool(&self, name: &ToolName) -> Option<Arc<Tool>> {
+    async fn find(&self, name: &ToolName) -> Option<Arc<Tool>> {
         self.tools.lock().await.get(name).cloned()
     }
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
@@ -184,6 +184,6 @@ impl<R: McpConfigManager> McpService for ForgeMcpService<R> {
     }
 
     async fn find(&self, name: &ToolName) -> Option<Arc<Tool>> {
-        self.find_tool(name).await
+        self.find(name).await
     }
 }

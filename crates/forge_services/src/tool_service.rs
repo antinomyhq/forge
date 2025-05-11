@@ -43,7 +43,7 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         let mut available_tools = self
             .tools
             .keys()
-            .map(|name| name.as_str())
+            .map(|name| name.to_string())
             .collect::<Vec<_>>();
 
         available_tools.sort();
@@ -55,14 +55,14 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
                     Ok(result) => result,
                     Err(_) => Err(anyhow::anyhow!(
                         "Tool '{}' timed out after {} minutes",
-                        name.as_str(),
+                        name.to_string(),
                         TOOL_CALL_TIMEOUT.as_secs() / 60
                     )),
                 }
             }
             None => Err(anyhow::anyhow!(
                 "No tool with name '{}' was found. Please try again with one of these tools {}",
-                name.as_str(),
+                name.to_string(),
                 available_tools.join(", ")
             )),
         };
@@ -89,7 +89,7 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         tools.extend(mcp_tools);
 
         // Sorting is required to ensure system prompts are exactly the same
-        tools.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        tools.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
 
         tools
     }

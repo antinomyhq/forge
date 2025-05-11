@@ -120,7 +120,7 @@ mod tests {
     #[tokio::test]
     async fn test_tool_name() {
         assert_eq!(
-            FsUndo::<Stub>::tool_name().as_str(),
+            FsUndo::<Stub>::tool_name().to_string(),
             "forge_tool_fs_undo",
             "Tool name should match expected value"
         );

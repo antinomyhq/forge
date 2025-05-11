@@ -196,7 +196,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                                 .append(
                                                     Element::new("p").append(
                                                         Element::new("strong")
-                                                            .text(tool_call.name.as_str()),
+                                                            .text(tool_call.name.to_string()),
                                                     ),
                                                 )
                                                 .append(tool_call.call_id.as_ref().map(|call_id| {
@@ -228,7 +228,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                 .append(
                                     Element::new("summary")
                                         .append(Element::new("strong").text("Tool Result: "))
-                                        .append(Element::span(tool_result.name.as_str())),
+                                        .append(Element::span(tool_result.name.to_string())),
                                 )
                                 .append(Element::new("pre").text(&tool_result.content))
                         }
@@ -249,7 +249,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                             .append(
                                 Element::new("p")
                                     .append(Element::new("strong").text("Tool: "))
-                                    .text(tool.name.as_str()),
+                                    .text(tool.name.to_string()),
                             )
                             .append(
                                 Element::new("p")

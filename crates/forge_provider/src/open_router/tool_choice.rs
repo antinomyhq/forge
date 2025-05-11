@@ -47,7 +47,7 @@ impl From<forge_domain::ToolChoice> for ToolChoice {
             forge_domain::ToolChoice::Auto => ToolChoice::Auto,
             forge_domain::ToolChoice::Required => ToolChoice::Required,
             forge_domain::ToolChoice::Call(tool_name) => ToolChoice::Function {
-                function: FunctionName { name: tool_name.into_string() },
+                function: FunctionName { name: tool_name.to_string() },
                 r#type: FunctionType,
             },
         }

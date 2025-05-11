@@ -220,7 +220,7 @@ impl From<ToolDefinition> for OpenRouterTool {
             r#type: FunctionType,
             function: FunctionDescription {
                 description: Some(value.description),
-                name: value.name.into_string(),
+                name: value.name.to_string(),
                 parameters: serde_json::to_value(value.input_schema).unwrap(),
             },
         }

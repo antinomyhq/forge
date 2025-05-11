@@ -18,14 +18,14 @@ impl McpExecutor {
         tool: rmcp::model::Tool,
         client: Arc<RunnableService>,
     ) -> anyhow::Result<Self> {
-        let name = ToolName::prefixed(server_name.clone(), tool.name);
+        let name = ToolName::new(tool.name).server(server_name);
         let input_schema: RootSchema = serde_json::from_value(serde_json::Value::Object(
             tool.input_schema.as_ref().clone(),
         ))?;
 
         Ok(Self {
             client,
-            tool_definition: ToolDefinition::new(name)
+            tool_definition: ToolDefinition::new(name.to_string())
                 .description(tool.description.unwrap_or_default().to_string())
                 .input_schema(input_schema),
         })
@@ -40,7 +40,7 @@ impl ExecutableTool for McpExecutor {
         let result = self
             .client
             .call_tool(CallToolRequestParam {
-                name: Cow::Owned(self.tool_definition.name.strip_prefix()),
+                name: Cow::Owned(self.tool_definition.name.name.to_string()),
                 arguments: if let serde_json::Value::Object(args) = input {
                     Some(args)
                 } else {
