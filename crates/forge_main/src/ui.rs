@@ -86,7 +86,6 @@ impl<F: API> UI<F> {
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
         self.state = UIState::default();
-        self.init_conversation().await?;
         banner::display()?;
 
         Ok(())

@@ -124,7 +124,8 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
 
         Ok(())
     }
-    async fn init_mcp(&self, mcp: &HashMap<String, McpServer>) -> anyhow::Result<()> {
+    async fn init_mcp(&self) -> anyhow::Result<()> {
+        let mcp = self.reader.read().await?.mcp_servers;
         futures::future::join_all(
             mcp.iter()
                 .map(|(name, server)| async move {
@@ -156,19 +157,14 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
         self.tools.lock().await.get(name).cloned()
     }
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        let mcp_servers = self.reader.read().await?.mcp_servers;
-        if mcp_servers.is_empty() {
-            Ok(vec![])
-        } else {
-            self.init_mcp(&mcp_servers).await?;
-            Ok(self
-                .tools
-                .lock()
-                .await
-                .values()
-                .map(|tool| tool.definition.clone())
-                .collect())
-        }
+        self.init_mcp().await?;
+        Ok(self
+            .tools
+            .lock()
+            .await
+            .values()
+            .map(|tool| tool.definition.clone())
+            .collect())
     }
 }
 
