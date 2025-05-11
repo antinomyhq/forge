@@ -54,7 +54,16 @@ impl<C: CompactionService, M: ToolService> ConversationService for ForgeConversa
 
     async fn create(&self, workflow: Workflow) -> Result<Conversation> {
         let id = ConversationId::generate();
-        let conversation = Conversation::new(id.clone(), workflow, self.mcp_service.clone()).await;
+        let conversation = Conversation::new(
+            id.clone(),
+            workflow,
+            self.mcp_service
+                .list()
+                .await
+                .into_iter()
+                .map(|a| a.name)
+                .collect(),
+        );
         self.workflows
             .lock()
             .await

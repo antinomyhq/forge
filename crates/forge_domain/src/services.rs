@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
-    ConversationId, Environment, File, McpServer, McpConfig, Model, ModelId, ResultStream, Scope,
+    ConversationId, Environment, File, McpConfig, McpServer, Model, ModelId, ResultStream, Scope,
     Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 

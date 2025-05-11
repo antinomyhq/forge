@@ -128,7 +128,12 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .await
     }
 
-    async fn add_mcp_server(&self, name: &str, mcp_servers: &McpServer, scope: Scope) -> Result<()> {
+    async fn add_mcp_server(
+        &self,
+        name: &str,
+        mcp_servers: &McpServer,
+        scope: Scope,
+    ) -> Result<()> {
         self.app
             .mcp_config_read_service()
             .write(name, mcp_servers, scope)

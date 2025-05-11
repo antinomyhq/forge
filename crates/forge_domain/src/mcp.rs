@@ -1,6 +1,5 @@
 //!
 //! Follows the design specifications of Claude's [.mcp.json](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
-//!
 
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};

@@ -238,7 +238,9 @@ impl<F: API> UI<F> {
                             server = server.url(add.command_or_url.unwrap_or_default());
                         }
                     }
-                    self.api.add_mcp_server(name.as_str(), &server, scope).await?;
+                    self.api
+                        .add_mcp_server(name.as_str(), &server, scope)
+                        .await?;
 
                     Ok(CommandAction::Exit)
                 }

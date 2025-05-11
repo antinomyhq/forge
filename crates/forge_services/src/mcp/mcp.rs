@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpServer, McpConfigReadService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
+    McpConfigReadService, McpServer, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
     ToolResult, ToolService,
 };
 use futures::FutureExt;

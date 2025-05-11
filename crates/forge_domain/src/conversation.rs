@@ -1,5 +1,4 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -8,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{Agent, AgentId, Context, Error, Event, ModelId, Result, ToolService, Workflow};
+use crate::{Agent, AgentId, Context, Error, Event, ModelId, Result, ToolName, Workflow};
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -81,30 +80,16 @@ impl Conversation {
         Ok(())
     }
 
-    pub async fn new<M: ToolService>(
-        id: ConversationId,
-        workflow: Workflow,
-        mcp_service: Arc<M>,
-    ) -> Self {
+    pub fn new(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
         // Merge the workflow with the default workflow
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow);
 
-        Self::new_inner(id, base_workflow, mcp_service).await
+        Self::new_inner(id, base_workflow, additional_tools)
     }
 
-    async fn new_inner<M: ToolService>(
-        id: ConversationId,
-        workflow: Workflow,
-        mcp_service: Arc<M>,
-    ) -> Self {
+    fn new_inner(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
         let mut agents = Vec::new();
-        let mcp_tools = mcp_service
-            .list()
-            .await
-            .into_iter()
-            .map(|v| v.name)
-            .collect::<Vec<_>>();
 
         for mut agent in workflow.agents.into_iter() {
             if let Some(custom_rules) = workflow.custom_rules.clone() {
@@ -141,13 +126,13 @@ impl Conversation {
                 }
             }
 
-            if !mcp_tools.is_empty() {
+            if !additional_tools.is_empty() {
                 agent.tools = Some(
                     agent
                         .tools
                         .unwrap_or_default()
                         .into_iter()
-                        .chain(mcp_tools.iter().cloned())
+                        .chain(additional_tools.iter().cloned())
                         .collect::<Vec<_>>(),
                 );
             }
@@ -317,32 +302,10 @@ impl Conversation {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::sync::Arc;
 
     use serde_json::json;
 
     use crate::{Agent, Command, Error, ModelId, Temperature, Workflow};
-
-    struct Stub;
-
-    #[async_trait::async_trait]
-    impl crate::ToolService for Stub {
-        async fn call(
-            &self,
-            _: crate::ToolCallContext,
-            _: crate::ToolCallFull,
-        ) -> crate::ToolResult {
-            unimplemented!()
-        }
-
-        async fn list(&self) -> Vec<crate::ToolDefinition> {
-            vec![]
-        }
-
-        async fn find_tool(&self, _: &crate::ToolName) -> Option<Arc<crate::Tool>> {
-            unimplemented!()
-        }
-    }
 
     #[tokio::test]
     async fn test_conversation_new_with_empty_workflow() {
@@ -351,8 +314,7 @@ mod tests {
         let workflow = Workflow::new();
 
         // Act
-        let conversation =
-            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
         // Assert
         assert_eq!(conversation.id, id);
@@ -375,8 +337,7 @@ mod tests {
         workflow.variables = variables.clone();
 
         // Act
-        let conversation =
-            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
         // Assert
         assert_eq!(conversation.id, id);
@@ -399,8 +360,7 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation =
-            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -440,8 +400,7 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation =
-            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -501,8 +460,7 @@ mod tests {
             .commands(commands.clone());
 
         // Act
-        let conversation =
-            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -568,8 +526,7 @@ mod tests {
             .commands(commands.clone());
 
         // Act
-        let conversation =
-            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
         // Assert
         let main_agent = conversation
@@ -597,7 +554,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
-        let conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
 
         // Act
         let model_id = conversation.main_model().unwrap();
@@ -614,7 +571,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![agent]);
 
-        let conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
 
         // Act
         let result = conversation.main_model();
@@ -632,7 +589,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
-        let conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
 
         // Act
         let result = conversation.main_model();
@@ -650,7 +607,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
-        let mut conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
+        let mut conversation = super::Conversation::new_inner(id, workflow, vec![]);
 
         // Act
         let result = conversation.set_main_model(ModelId::new("new-model"));
@@ -669,7 +626,7 @@ mod tests {
 
         let workflow = Workflow::new().agents(vec![agent]);
 
-        let mut conversation = super::Conversation::new_inner(id, workflow, Arc::new(Stub)).await;
+        let mut conversation = super::Conversation::new_inner(id, workflow, vec![]);
 
         // Act
         let result = conversation.set_main_model(ModelId::new("new-model"));
@@ -690,8 +647,7 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation =
-            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -718,8 +674,7 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation =
-            super::Conversation::new_inner(id.clone(), workflow, Arc::new(Stub)).await;
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{EnvironmentService, McpServer, McpConfigReadService, McpConfig, Scope};
+use forge_domain::{EnvironmentService, McpConfig, McpConfigReadService, McpServer, Scope};
 
 use crate::{FsReadService, FsWriteService, Infrastructure};
 
