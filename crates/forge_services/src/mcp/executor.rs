@@ -10,6 +10,7 @@ use crate::mcp::service::RunnableService;
 pub struct McpExecutor {
     pub client: Arc<RunnableService>,
     pub tool_definition: ToolDefinition,
+    pub local_tool_name: ToolName,
 }
 
 impl McpExecutor {
@@ -18,6 +19,7 @@ impl McpExecutor {
         tool: rmcp::model::Tool,
         client: Arc<RunnableService>,
     ) -> anyhow::Result<Self> {
+        let local_tool_name = ToolName::new(tool.name.to_string());
         let name = ToolName::new(format!("{}_tool_{}", server, tool.name));
         let input_schema: RootSchema = serde_json::from_value(serde_json::Value::Object(
             tool.input_schema.as_ref().clone(),
@@ -28,6 +30,7 @@ impl McpExecutor {
             tool_definition: ToolDefinition::new(name.to_string())
                 .description(tool.description.unwrap_or_default().to_string())
                 .input_schema(input_schema),
+            local_tool_name,
         })
     }
 }
@@ -40,7 +43,7 @@ impl ExecutableTool for McpExecutor {
         let result = self
             .client
             .call_tool(CallToolRequestParam {
-                name: Cow::Owned(self.tool_definition.name.to_string()),
+                name: Cow::Owned(self.local_tool_name.to_string()),
                 arguments: if let serde_json::Value::Object(args) = input {
                     Some(args)
                 } else {
