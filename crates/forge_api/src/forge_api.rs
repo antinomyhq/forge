@@ -127,49 +127,29 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .execute_command(command.to_string(), working_dir)
             .await
     }
-
-    async fn add_mcp_server(
-        &self,
-        name: &str,
-        mcp_servers: &McpServer,
-        scope: Scope,
-    ) -> Result<()> {
-        self.app
-            .mcp_config_manager()
-            .add_server(name, mcp_servers, scope)
-            .await
-            .map_err(|e| anyhow::anyhow!(e))
-    }
-
-    async fn add_mcp_server_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> Result<()> {
-        self.app
-            .mcp_config_manager()
-            .write_json(name, mcp_servers, scope)
-            .await
-            .map_err(|e| anyhow::anyhow!(e))
-    }
-
-    async fn remove_mcp_server(&self, name: &str, scope: Scope) -> Result<()> {
-        self.app
-            .mcp_config_manager()
-            .remove_server(name, scope)
-            .await
-            .map_err(|e| anyhow::anyhow!(e))
-    }
-
-    async fn get_mcp_server(&self, name: &str) -> Result<McpServer> {
-        self.app
-            .mcp_config_manager()
-            .get(name)
-            .await
-            .map_err(|e| anyhow::anyhow!(e))
-    }
-
     async fn read_mcp_config(&self) -> Result<McpConfig> {
         self.app
             .mcp_config_manager()
             .read()
             .await
             .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()> {
+        self.app
+            .mcp_config_manager()
+            .write(config, scope)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn update_mcp_config<W>(&self, scope: &Scope, f: W) -> Result<McpConfig>
+    where
+        W: FnOnce(&mut McpConfig) + Send,
+    {
+        let mut config = self.read_mcp_config().await?;
+        f(&mut config);
+        self.write_mcp_config(scope, &config).await?;
+        Ok(config)
     }
 }

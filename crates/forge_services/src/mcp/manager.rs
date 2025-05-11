@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{EnvironmentService, McpConfig, McpConfigManager, McpServer, Scope};
+use forge_domain::{EnvironmentService, McpConfig, McpConfigManager, Scope};
 
 use crate::{FsReadService, FsWriteService, Infrastructure};
 
@@ -19,7 +19,7 @@ impl<I: Infrastructure> ForgeMcpManager<I> {
         let config = self.infra.file_read_service().read_utf8(path).await?;
         Ok(serde_json::from_str(&config)?)
     }
-    async fn config_path(&self, scope: Scope) -> anyhow::Result<PathBuf> {
+    async fn config_path(&self, scope: &Scope) -> anyhow::Result<PathBuf> {
         let env = self.infra.environment_service().get_environment();
         match scope {
             Scope::User => Ok(env.mcp_user_config()),
@@ -45,55 +45,13 @@ impl<I: Infrastructure> McpConfigManager for ForgeMcpManager<I> {
         Ok(user_config)
     }
 
-    async fn add_server(&self, name: &str, mcp_servers: &McpServer, scope: Scope) -> anyhow::Result<()> {
-        let config_path = self.config_path(scope).await?;
-
-        let mut config = self
-            .read_config(config_path.as_path())
-            .await
-            .unwrap_or_default();
-        config
-            .mcp_servers
-            .insert(name.to_string(), mcp_servers.clone());
+    async fn write(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()> {
         self.infra
             .file_write_service()
             .write(
-                config_path.as_path(),
-                Bytes::from(serde_json::to_string(&config)?),
+                self.config_path(scope).await?.as_path(),
+                Bytes::from(serde_json::to_string(config)?),
             )
-            .await?;
-        Ok(())
-    }
-
-    async fn write_json(&self, name: &str, mcp_servers: &str, scope: Scope) -> anyhow::Result<()> {
-        let server_config: McpServer = serde_json::from_str(mcp_servers)?;
-        self.add_server(name, &server_config, scope).await
-    }
-
-    async fn remove_server(&self, name: &str, scope: Scope) -> anyhow::Result<()> {
-        let config_path = self.config_path(scope).await?;
-
-        let mut config = self
-            .read_config(config_path.as_path())
             .await
-            .unwrap_or_default();
-        config.mcp_servers.remove(name);
-        self.infra
-            .file_write_service()
-            .write(
-                config_path.as_path(),
-                Bytes::from(serde_json::to_string(&config)?),
-            )
-            .await?;
-        Ok(())
-    }
-
-    async fn get(&self, name: &str) -> anyhow::Result<McpServer> {
-        let config = self.read().await?;
-        if let Some(server_config) = config.mcp_servers.get(name) {
-            Ok(server_config.clone())
-        } else {
-            Err(anyhow::anyhow!("MCP server not found"))
-        }
     }
 }

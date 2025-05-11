@@ -7,7 +7,7 @@ use forge_api::{
     API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpServer, Scope};
+use forge_domain::{McpConfig, McpServer, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -238,9 +238,11 @@ impl<F: API> UI<F> {
                             server = server.url(add.command_or_url.unwrap_or_default());
                         }
                     }
-                    self.api
-                        .add_mcp_server(name.as_str(), &server, scope)
-                        .await?;
+
+                    update_mcp_config(self.api.as_ref(), &scope, |config| {
+                        config.mcp_servers.insert(name.to_string(), server);
+                    })
+                    .await?;
 
                     Ok(CommandAction::Exit)
                 }
@@ -261,27 +263,38 @@ impl<F: API> UI<F> {
                 McpCommand::Remove(rm) => {
                     let name = rm.name.clone();
                     let scope: Scope = rm.scope.into();
-                    self.api.remove_mcp_server(name.as_str(), scope).await?;
+
+                    update_mcp_config(self.api.as_ref(), &scope, |config| {
+                        config.mcp_servers.remove(name.as_str());
+                    })
+                    .await?;
+
                     self.writeln(format!("Removed server: {name}"))?;
                     Ok(CommandAction::Exit)
                 }
                 McpCommand::Get(val) => {
                     let name = val.name.clone();
-                    let service = self.api.get_mcp_server(name.as_str()).await?;
+                    let config = self.api.read_mcp_config().await?;
+                    let server = config
+                        .mcp_servers
+                        .get(name.as_str())
+                        .ok_or(anyhow::anyhow!("Server not found"))?;
+
                     let mut output = String::new();
-                    output.push_str(&format!("{name}: {service}"));
+                    output.push_str(&format!("{name}: {server}"));
                     self.writeln(output)?;
 
                     Ok(CommandAction::Exit)
                 }
                 McpCommand::AddJson(add_json) => {
-                    self.api
-                        .add_mcp_server_json(
-                            add_json.name.as_str(),
-                            &add_json.json,
-                            add_json.scope.into(),
-                        )
-                        .await?;
+                    let server = serde_json::from_str::<McpServer>(add_json.json.as_str())
+                        .context("Failed to parse JSON")?;
+                    let scope: Scope = add_json.scope.into();
+                    let name = add_json.name.clone();
+                    update_mcp_config(self.api.as_ref(), &scope, |config| {
+                        config.mcp_servers.insert(name.clone(), server);
+                    })
+                    .await?;
 
                     self.writeln(format!("Added server: {}", add_json.name))?;
 
@@ -638,6 +651,18 @@ impl<F: API> UI<F> {
             Err(err) => Err(err),
         }
     }
+}
+
+async fn update_mcp_config<F: API>(
+    api: &F,
+    scope: &Scope,
+    f: impl FnOnce(&mut McpConfig),
+) -> Result<()> {
+    let mut config = api.read_mcp_config().await?;
+    f(&mut config);
+    api.write_mcp_config(scope, &config).await?;
+
+    Ok(())
 }
 
 fn parse_env(env: Vec<String>) -> HashMap<String, String> {

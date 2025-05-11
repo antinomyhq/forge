@@ -74,9 +74,9 @@ pub trait API: Sync + Send {
 
     async fn read_mcp_config(&self) -> Result<McpConfig>;
 
-    async fn write_mcp_config(&self, scope: Scope, config: McpConfig) -> Result<()>;
+    async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
 
-    async fn update_mcp_config<F>(&self, scope: Scope, f: F) -> Result<McpConfig>
+    async fn update_mcp_config<W>(&self, scope: &Scope, f: W) -> Result<McpConfig>
     where
-        F: FnOnce(&mut McpConfig) + Send;
+        W: FnOnce(&mut McpConfig) + Send;
 }

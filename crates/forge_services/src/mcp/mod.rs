@@ -1,6 +1,6 @@
 mod executor;
-mod service;
 mod manager;
+mod service;
 
-pub use service::*;
 pub use manager::*;
+pub use service::*;

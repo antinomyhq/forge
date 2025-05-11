@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
-    ConversationId, Environment, File, McpConfig, McpServer, Model, ModelId, ResultStream, Scope,
-    Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
+    ConversationId, Environment, File, McpConfig, Model, ModelId, ResultStream, Scope, Tool,
+    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -31,7 +31,7 @@ pub trait McpConfigManager: Send + Sync {
     async fn read(&self) -> anyhow::Result<McpConfig>;
 
     /// Responsible for writing the McpConfig on disk.
-    async fn write(&self, config: &McpConfig, scope: Scope) -> anyhow::Result<()>;
+    async fn write(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
