@@ -125,36 +125,31 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
         Ok(())
     }
     async fn init_mcp(&self, mcp: &HashMap<String, McpServer>) -> anyhow::Result<()> {
-        let http_results: Vec<Option<anyhow::Result<()>>> = futures::future::join_all(
+        futures::future::join_all(
             mcp.iter()
-                .map(|(server_name, server)| async move {
+                .map(|(name, server)| async move {
                     if self
                         .tools
                         .lock()
-                        .map(|v| {
-                            v.values()
-                                .any(|v| v.definition.name.to_string().eq(server_name))
-                        })
+                        .map(|v| v.values().any(|v| v.definition.name.to_string().eq(name)))
                         .await
                     {
                         None
                     } else if server.url.is_some() {
-                        Some(self.connect_http_server(server_name, server.clone()).await)
+                        Some(self.connect_http_server(name, server.clone()).await)
                     } else {
-                        Some(self.connect_stdio_server(server_name, server.clone()).await)
+                        Some(self.connect_stdio_server(name, server.clone()).await)
                     }
                 })
                 // TODO: use flatten function provided by FuturesExt
                 .collect::<Vec<_>>(),
         )
-        .await;
-
-        http_results
-            .into_iter()
-            .flatten()
-            .filter_map(|e| e.err())
-            .next()
-            .map_or(Ok(()), Err)
+        .await
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.err())
+        .next()
+        .map_or(Ok(()), Err)
     }
 
     async fn find(&self, name: &ToolName) -> Option<Arc<Tool>> {

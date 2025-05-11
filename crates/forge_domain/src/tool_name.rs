@@ -1,34 +1,33 @@
 use std::fmt::Display;
 
-use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Setters)]
-#[setters(strip_option, into)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ToolName {
-    pub name: String,
-    #[serde(skip)]
-    pub server: Option<String>,
-}
+pub struct ToolName(String);
 
 impl ToolName {
     pub fn new(value: impl ToString) -> Self {
-        ToolName { name: value.to_string(), server: None }
+        ToolName(value.to_string())
     }
 }
 
-impl Display for ToolName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(ref server) = self.server {
-            write!(f, "{server}")?;
-            write!(f, "__")?;
-        }
+impl ToolName {
+    pub fn into_string(self) -> String {
+        self.0
+    }
 
-        write!(f, "{}", self.name)
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
 pub trait NamedTool {
     fn tool_name() -> ToolName;
+}
+
+impl Display for ToolName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }

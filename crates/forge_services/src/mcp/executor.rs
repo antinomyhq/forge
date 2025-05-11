@@ -14,11 +14,11 @@ pub struct McpExecutor {
 
 impl McpExecutor {
     pub fn new(
-        server_name: String,
+        server: String,
         tool: rmcp::model::Tool,
         client: Arc<RunnableService>,
     ) -> anyhow::Result<Self> {
-        let name = ToolName::new(tool.name).server(server_name);
+        let name = ToolName::new(format!("{}_tool_{}", server, tool.name));
         let input_schema: RootSchema = serde_json::from_value(serde_json::Value::Object(
             tool.input_schema.as_ref().clone(),
         ))?;
@@ -40,7 +40,7 @@ impl ExecutableTool for McpExecutor {
         let result = self
             .client
             .call_tool(CallToolRequestParam {
-                name: Cow::Owned(self.tool_definition.name.name.to_string()),
+                name: Cow::Owned(self.tool_definition.name.to_string()),
                 arguments: if let serde_json::Value::Object(args) = input {
                     Some(args)
                 } else {
