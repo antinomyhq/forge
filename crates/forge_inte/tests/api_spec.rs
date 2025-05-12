@@ -11,7 +11,7 @@ const MAX_RETRIES: usize = 5;
 
 /// Check if API tests should run based on environment variable
 fn should_run_api_tests() -> bool {
-    dotenv::dotenv().ok();
+    dotenvy::dotenv_override().ok();
     env::var("RUN_API_TESTS").is_ok()
 }
 

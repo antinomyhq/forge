@@ -109,7 +109,7 @@ impl ForgeEnvironmentService {
     }
 
     fn get(&self) -> Environment {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv_override().ok();
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
