@@ -109,7 +109,7 @@ impl ForgeEnvironmentService {
     }
 
     fn get(&self) -> Environment {
-        dotenvy::dotenv_override().ok();
+        Self::load_all();
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
@@ -126,6 +126,31 @@ impl ForgeEnvironmentService {
             provider,
             retry_config,
         }
+    }
+
+    /// Load all `.env` files with priority to lower (closer) files.
+    fn load_all() -> Option<()> {
+        let cur = std::env::current_dir().ok()?;
+        let values = cur
+            .iter()
+            .map(|v| v.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        let mut path = PathBuf::from(values.first()?);
+        let mut envs = vec![];
+
+        for value in values.into_iter().skip(1) {
+            let env = path.join(&value).join(".env");
+            if env.is_file() {
+                envs.push(env.clone());
+            }
+            path.push(PathBuf::from(value));
+        }
+
+        envs.into_iter().for_each(|env| {
+            dotenvy::from_path_override(env).ok();
+        });
+
+        Some(())
     }
 }
 
