@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use forge_domain::{McpConfigManager, McpServer, McpService, Tool, ToolDefinition, ToolName};
+use forge_domain::{
+    EnvironmentService, McpConfigManager, McpServer, McpService, Tool, ToolDefinition, ToolName,
+};
 use futures::FutureExt;
 use rmcp::model::{
     CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam,
@@ -14,11 +16,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use crate::mcp::executor::McpExecutor;
-
-const VERSION: &str = match option_env!("APP_VERSION") {
-    Some(val) => val,
-    None => env!("CARGO_PKG_VERSION"),
-};
+use crate::Infrastructure;
 
 pub enum RunnableService {
     Http(RunningService<RoleClient, InitializeRequestParam>),
@@ -38,21 +36,23 @@ impl RunnableService {
 }
 
 #[derive(Clone)]
-pub struct ForgeMcpService<R> {
+pub struct ForgeMcpService<R, I> {
     tools: Arc<Mutex<HashMap<ToolName, Arc<Tool>>>>,
     reader: Arc<R>,
+    infra: Arc<I>,
 }
 
-impl<R: McpConfigManager> ForgeMcpService<R> {
-    pub fn new(reader: Arc<R>) -> Self {
-        Self { tools: Arc::new(Mutex::new(HashMap::new())), reader }
+impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
+    pub fn new(reader: Arc<R>, infra: Arc<I>) -> Self {
+        Self { tools: Arc::new(Mutex::new(HashMap::new())), reader, infra }
     }
 
-    fn client_info() -> ClientInfo {
+    fn client_info(&self) -> ClientInfo {
+        let version = self.infra.environment_service().get_environment().version();
         ClientInfo {
             protocol_version: Default::default(),
             capabilities: Default::default(),
-            client_info: Implementation { name: "Forge".to_string(), version: VERSION.to_string() },
+            client_info: Implementation { name: "Forge".to_string(), version },
         }
     }
 
@@ -93,6 +93,11 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
                 command.env(key, value);
             }
         }
+        
+        command
+            .stdin(std::process::Stdio::inherit())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
 
         let client = ().serve(TokioChildProcess::new(command.args(config.args))?).await?;
         let tools = client
@@ -116,7 +121,7 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
             .url
             .ok_or_else(|| anyhow::anyhow!("URL is required for HTTP server"))?;
         let transport = rmcp::transport::SseTransport::start(url).await?;
-        let client = Self::client_info().serve(transport).await?;
+        let client = self.client_info().serve(transport).await?;
         let tools = client.list_tools(None).await?;
         let client = Arc::new(RunnableService::Http(client));
         self.insert_tools(server_name, tools, client.clone())
@@ -169,7 +174,7 @@ impl<R: McpConfigManager> ForgeMcpService<R> {
 }
 
 #[async_trait::async_trait]
-impl<R: McpConfigManager> McpService for ForgeMcpService<R> {
+impl<R: McpConfigManager, I: Infrastructure> McpService for ForgeMcpService<R, I> {
     async fn list(&self) -> Vec<ToolDefinition> {
         self.list().await.unwrap_or_default()
     }

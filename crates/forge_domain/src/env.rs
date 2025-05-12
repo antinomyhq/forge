@@ -5,6 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Provider, RetryConfig};
 
+const VERSION: &str = match option_env!("APP_VERSION") {
+    Some(val) => val,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
 #[derive(Debug, Setters, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[setters(strip_option)]
@@ -49,5 +54,8 @@ impl Environment {
 
     pub fn mcp_local_config(&self) -> PathBuf {
         self.cwd.join(".mcp.json")
+    }
+    pub fn version(&self) -> String {
+        VERSION.to_string()
     }
 }

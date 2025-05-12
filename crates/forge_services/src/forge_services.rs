@@ -13,7 +13,7 @@ use crate::tool_service::ForgeToolService;
 use crate::workflow::ForgeWorkflowService;
 use crate::Infrastructure;
 
-type McpService<F> = ForgeMcpService<ForgeMcpManager<F>>;
+type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -43,7 +43,7 @@ pub struct ForgeServices<F> {
 impl<F: Infrastructure> ForgeServices<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
-        let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone()));
+        let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
         let tool_service = Arc::new(ForgeToolService::new(infra.clone(), mcp_service.clone()));
         let template_service = Arc::new(ForgeTemplateService::new());
         let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
