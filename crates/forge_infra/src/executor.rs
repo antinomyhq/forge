@@ -58,7 +58,7 @@ impl ForgeCommandExecutorService {
         command.raw_arg(command_str);
         #[cfg(unix)]
         command.arg(command_str);
-        
+
         command.kill_on_drop(true);
 
         // Set the working directory
@@ -162,7 +162,7 @@ mod tests {
             } else {
                 "bash"
             }
-                .to_string(),
+            .to_string(),
             base_path: PathBuf::from("/base"),
             provider: Provider::open_router("test-key"),
             retry_config: Default::default(),
