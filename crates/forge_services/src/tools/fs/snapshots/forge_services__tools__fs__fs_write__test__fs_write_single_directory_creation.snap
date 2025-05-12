@@ -4,7 +4,7 @@ expression: normalized_result
 snapshot_kind: text
 ---
 ---
-path: false
+path: [TEMP_DIR]/new_dir/test.txt
 operation: CREATE
 total_chars: 23
 ---
