@@ -237,7 +237,7 @@ impl<F: API> UI<F> {
                         }
                     }
 
-                    update_mcp_config(self.api.as_ref(), &scope, |config| {
+                    self.update_mcp_config(&scope, |config| {
                         config.mcp_servers.insert(name.to_string(), server);
                     })
                     .await?;
@@ -262,7 +262,7 @@ impl<F: API> UI<F> {
                     let name = rm.name.clone();
                     let scope: Scope = rm.scope.into();
 
-                    update_mcp_config(self.api.as_ref(), &scope, |config| {
+                    self.update_mcp_config(&scope, |config| {
                         config.mcp_servers.remove(name.as_str());
                     })
                     .await?;
@@ -289,7 +289,7 @@ impl<F: API> UI<F> {
                         .context("Failed to parse JSON")?;
                     let scope: Scope = add_json.scope.into();
                     let name = add_json.name.clone();
-                    update_mcp_config(self.api.as_ref(), &scope, |config| {
+                    self.update_mcp_config(&scope, |config| {
                         config.mcp_servers.insert(name.clone(), server);
                     })
                     .await?;
@@ -649,18 +649,14 @@ impl<F: API> UI<F> {
             Err(err) => Err(err),
         }
     }
-}
 
-async fn update_mcp_config<F: API>(
-    api: &F,
-    scope: &Scope,
-    f: impl FnOnce(&mut McpConfig),
-) -> Result<()> {
-    let mut config = api.read_mcp_config().await?;
-    f(&mut config);
-    api.write_mcp_config(scope, &config).await?;
+    async fn update_mcp_config(&self, scope: &Scope, f: impl FnOnce(&mut McpConfig)) -> Result<()> {
+        let mut config = self.api.read_mcp_config().await?;
+        f(&mut config);
+        self.api.write_mcp_config(scope, &config).await?;
 
-    Ok(())
+        Ok(())
+    }
 }
 
 fn parse_env(env: Vec<String>) -> HashMap<String, String> {
