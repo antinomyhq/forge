@@ -5,7 +5,7 @@ use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
-use crate::{ToolCallRecord, ToolChoice, ToolDefinition};
+use crate::{ModelId, ToolCallRecord, ToolChoice, ToolDefinition};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -19,11 +19,12 @@ pub enum ContextMessage {
 }
 
 impl ContextMessage {
-    pub fn user(content: impl ToString) -> Self {
+    pub fn user(content: impl ToString, model: Option<ModelId>) -> Self {
         ContentMessage {
             role: Role::User,
             content: content.to_string(),
             tool_calls: None,
+            model,
         }
         .into()
     }
@@ -33,6 +34,7 @@ impl ContextMessage {
             role: Role::System,
             content: content.to_string(),
             tool_calls: None,
+            model: None,
         }
         .into()
     }
@@ -44,6 +46,7 @@ impl ContextMessage {
             role: Role::Assistant,
             content: content.to_string(),
             tool_calls,
+            model: None,
         }
         .into()
     }
@@ -76,14 +79,17 @@ pub struct ContentMessage {
     pub role: Role,
     pub content: String,
     pub tool_calls: Option<Vec<ToolCallFull>>,
+    // note: this used to track model used for this message.
+    pub model: Option<ModelId>,
 }
 
 impl ContentMessage {
-    pub fn assistant(content: impl ToString) -> Self {
+    pub fn assistant(content: impl ToString, model: Option<ModelId>) -> Self {
         Self {
             role: Role::Assistant,
             content: content.to_string(),
             tool_calls: None,
+            model,
         }
     }
 }
@@ -222,6 +228,7 @@ impl Context {
     pub fn append_message(
         mut self,
         content: impl ToString,
+        model: ModelId,
         tool_records: Vec<ToolCallRecord>,
         tool_supported: bool,
     ) -> Self {
@@ -242,7 +249,7 @@ impl Context {
                     .collect::<Vec<_>>(),
             )
         } else {
-            self = self.add_message(ContextMessage::assistant(content, None));
+            self = self.add_message(ContextMessage::assistant(content.to_string(), None));
             if tool_records.is_empty() {
                 return self;
             }
@@ -254,7 +261,7 @@ impl Context {
                 acc
             });
 
-            self.add_message(ContextMessage::user(content))
+            self.add_message(ContextMessage::user(content, Some(model)))
         }
     }
 }
@@ -273,7 +280,7 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("Updated system message")
+            ContextMessage::system("Updated system message"),
         );
     }
 
@@ -283,28 +290,30 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("A system message")
+            ContextMessage::system("A system message"),
         );
     }
 
     #[test]
     fn test_insert_system_message() {
+        let model = ModelId::new("test-model");
         let request = Context::default()
-            .add_message(ContextMessage::user("Do something"))
+            .add_message(ContextMessage::user("Do something", Some(model)))
             .set_first_system_message("A system message");
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("A system message")
+            ContextMessage::system("A system message"),
         );
     }
 
     #[test]
     fn test_estimate_token_count() {
         // Create a context with some messages
+        let model = ModelId::new("test-model");
         let context = Context::default()
             .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::user("User message"))
+            .add_message(ContextMessage::user("User message", model.into()))
             .add_message(ContextMessage::assistant("Assistant message", None));
 
         // Get the token count

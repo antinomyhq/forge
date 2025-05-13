@@ -59,9 +59,13 @@ impl Display for ToolUsagePrompt<'_> {
                 })
                 .collect::<BTreeMap<_, _>>();
 
-            let schema = Schema { name: tool.name.to_string(), arguments: parameters };
+            let schema = Schema {
+                name: tool.name.to_string(),
+                arguments: parameters,
+                description: tool.description.clone(),
+            };
 
-            writeln!(f, "{schema}")?;
+            writeln!(f, "<tool>{schema}</tool>")?;
         }
 
         Ok(())
@@ -71,6 +75,7 @@ impl Display for ToolUsagePrompt<'_> {
 #[derive(Serialize)]
 struct Schema {
     name: String,
+    description: String,
     arguments: BTreeMap<String, Parameter>,
 }
 

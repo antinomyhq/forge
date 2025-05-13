@@ -3,4 +3,4 @@ source: crates/forge_domain/src/tool_usage.rs
 expression: prompt
 snapshot_kind: text
 ---
-{"name":"forge_tool_mango","arguments":{"param1":{"description":"This is parameter 1","type":"string","is_required":true},"param2":{"description":"This is parameter 2","type":["string","null"],"is_required":false}}}
+<tool>{"name":"forge_tool_mango","description":"This is a mango tool","arguments":{"param1":{"description":"This is parameter 1","type":"string","is_required":true},"param2":{"description":"This is parameter 2","type":["string","null"],"is_required":false}}}</tool>

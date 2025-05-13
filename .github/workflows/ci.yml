@@ -72,7 +72,7 @@ jobs:
     - name: Cargo Clippy
       run: cargo +nightly clippy --all-features --workspace -- -D warnings
   draft_release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     name: draft_release
     runs-on: ubuntu-latest
     permissions:
@@ -91,87 +91,11 @@ jobs:
     outputs:
       create_release_name: ${{ steps.set_output.outputs.create_release_name }}
       create_release_id: ${{ steps.set_output.outputs.create_release_id }}
-  build-release-pr:
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'build-all-targets')
-    name: build-release
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: write
-      pull-requests: write
-    strategy:
-      matrix:
-        include:
-        - binary_name: forge-x86_64-unknown-linux-musl
-          binary_path: target/x86_64-unknown-linux-musl/release/forge
-          cross: 'false'
-          os: ubuntu-latest
-          target: x86_64-unknown-linux-musl
-        - binary_name: forge-aarch64-unknown-linux-musl
-          binary_path: target/aarch64-unknown-linux-musl/release/forge
-          cross: 'false'
-          os: ubuntu-latest
-          target: aarch64-unknown-linux-musl
-        - binary_name: forge-x86_64-unknown-linux-gnu
-          binary_path: target/x86_64-unknown-linux-gnu/release/forge
-          cross: 'false'
-          os: ubuntu-latest
-          target: x86_64-unknown-linux-gnu
-        - binary_name: forge-aarch64-unknown-linux-gnu
-          binary_path: target/aarch64-unknown-linux-gnu/release/forge
-          cross: 'true'
-          os: ubuntu-latest
-          target: aarch64-unknown-linux-gnu
-        - binary_name: forge-x86_64-apple-darwin
-          binary_path: target/x86_64-apple-darwin/release/forge
-          cross: 'false'
-          os: macos-latest
-          target: x86_64-apple-darwin
-        - binary_name: forge-aarch64-apple-darwin
-          binary_path: target/aarch64-apple-darwin/release/forge
-          cross: 'false'
-          os: macos-latest
-          target: aarch64-apple-darwin
-        - binary_name: forge-x86_64-pc-windows-msvc.exe
-          binary_path: target/x86_64-pc-windows-msvc/release/forge.exe
-          cross: 'false'
-          os: windows-latest
-          target: x86_64-pc-windows-msvc
-        - binary_name: forge-aarch64-pc-windows-msvc.exe
-          binary_path: target/aarch64-pc-windows-msvc/release/forge.exe
-          cross: 'false'
-          os: windows-latest
-          target: aarch64-pc-windows-msvc
-    steps:
-    - uses: actions/checkout@v4
-    - uses: taiki-e/setup-cross-toolchain-action@v1
-      with:
-        target: ${{ matrix.target }}
-    - if: '!contains(matrix.target, ''-unknown-linux-gnu'')'
-      run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
-    - if: contains(matrix.target, '-unknown-linux-musl')
-      run: |-
-        sudo apt-get update && \
-        sudo apt-get install -y \
-          gcc-aarch64-linux-gnu \
-          musl-tools \
-          musl-dev \
-          pkg-config \
-          libssl-dev
-    - uses: ClementTsang/cargo-action@v0.0.6
-      with:
-        command: build --release
-        args: --target ${{ matrix.target }}
-        use-cross: ${{ matrix.cross }}
-        cross-version: 0.2.4
-      env:
-        RUSTFLAGS: ${{ env.RUSTFLAGS }}
-        POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
-        APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
   build-release:
     needs:
     - build
     - draft_release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main')
     name: build-release
     runs-on: ${{ matrix.os }}
     permissions:
@@ -245,71 +169,12 @@ jobs:
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
-        APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
+        APP_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || needs.draft_release.outputs.create_release_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
     - uses: xresloader/upload-to-github-release@v1
       with:
         release_id: ${{ needs.draft_release.outputs.create_release_id }}
         file: ${{ matrix.binary_name }}
         overwrite: 'true'
-  semantic_release:
-    needs:
-    - draft_release
-    - build-release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    name: semantic_release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    env:
-      APP_VERSION: ${{ needs.draft_release.outputs.create_release_name }}
-    steps:
-    - uses: test-room-7/action-publish-release-drafts@v0
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        tag-name: ${{ needs.draft_release.outputs.create_release_name }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  homebrew_release:
-    needs:
-    - draft_release
-    - build-release
-    - semantic_release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    name: homebrew_release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        repository: antinomyhq/homebrew-code-forge
-        ref: main
-        token: ${{ secrets.HOMEBREW_ACCESS }}
-    - run: GITHUB_TOKEN="${{ secrets.HOMEBREW_ACCESS }}" ./update-formula.sh ${{needs.draft_release.outputs.create_release_name }}
-  npm_release:
-    needs:
-    - draft_release
-    - build-release
-    - semantic_release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    name: npm_release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        repository: antinomyhq/npm-code-forge
-        ref: main
-        token: ${{ secrets.NPM_ACCESS }}
-    - run: ./update-package.sh ${{needs.draft_release.outputs.create_release_name}}
-      env:
-        AUTO_PUSH: 'true'
-        CI: 'true'
-        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

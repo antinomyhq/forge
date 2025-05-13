@@ -1,12 +1,11 @@
 use derive_setters::Setters;
 use forge_api::{ConversationId, Model, ModelId, Provider, Usage};
-use serde::Deserialize;
+use strum_macros::EnumString;
 
 use crate::prompt::ForgePrompt;
 
-// TODO: convert to a new type
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Default, EnumString)]
+#[strum(ascii_case_insensitive)]
 pub enum Mode {
     Plan,
     #[default]

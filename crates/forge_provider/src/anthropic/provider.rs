@@ -224,11 +224,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_request_conversion() {
+        let model_id = ModelId::new("gpt-4");
         let context = Context::default()
             .add_message(ContextMessage::system(
                 "You're expert at math, so you should resolve all user queries.",
             ))
-            .add_message(ContextMessage::user("what's 2 + 2 ?"))
+            .add_message(ContextMessage::user(
+                "what's 2 + 2 ?",
+                model_id.clone().into(),
+            ))
             .add_message(ContextMessage::assistant(
                 "here is the system call.",
                 Some(vec![ToolCallFull {

@@ -396,6 +396,10 @@ impl<A: Services> Orchestrator<A> {
             "Initializing agent"
         );
         let agent = conversation.get_agent(agent_id)?;
+        let model_id = agent
+            .model
+            .clone()
+            .ok_or(Error::MissingModel(agent.id.clone()))?;
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
             agent
@@ -437,7 +441,9 @@ impl<A: Services> Orchestrator<A> {
             .fold(context.clone(), |ctx, attachment| {
                 ctx.add_message(match attachment.content_type {
                     ContentType::Image => ContextMessage::Image(attachment.content),
-                    ContentType::Text => ContextMessage::user(attachment.content),
+                    ContentType::Text => {
+                        ContextMessage::user(attachment.content, model_id.clone().into())
+                    }
                 })
             });
 
@@ -451,17 +457,10 @@ impl<A: Services> Orchestrator<A> {
             // Set context for the current loop iteration
             self.set_context(&agent.id, context.clone()).await?;
 
-            // Determine which model to use - prefer workflow model if available, fallback
-            // to agent model
-            let model_id = agent
-                .model
-                .as_ref()
-                .ok_or(Error::MissingModel(agent.id.clone()))?;
-
             let response = self
                 .services
                 .provider_service()
-                .chat(model_id, context.clone())
+                .chat(&model_id, context.clone())
                 .await?;
 
             let ChatCompletionResult { tool_calls, content, usage } =
@@ -491,6 +490,7 @@ impl<A: Services> Orchestrator<A> {
             // Process tool calls and update context
             context = context.append_message(
                 content,
+                model_id.clone(),
                 self.get_all_tool_results(agent, &tool_calls, tool_context.clone())
                     .await?,
                 agent.tool_supported.unwrap_or_default(),
@@ -503,7 +503,8 @@ impl<A: Services> Orchestrator<A> {
                     .services
                     .template_service()
                     .render("{{> partial-tool-required.hbs}}", &())?;
-                context = context.add_message(ContextMessage::user(content));
+                context =
+                    context.add_message(ContextMessage::user(content, model_id.clone().into()));
 
                 empty_tool_call_count += 1;
                 let model = agent
@@ -546,7 +547,7 @@ impl<A: Services> Orchestrator<A> {
         };
 
         if !content.is_empty() {
-            context = context.add_message(ContextMessage::user(content));
+            context = context.add_message(ContextMessage::user(content, agent.model.clone()));
         }
 
         Ok(context)

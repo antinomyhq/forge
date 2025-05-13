@@ -1,9 +1,11 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 use forge_domain::{Environment, Provider, RetryConfig};
 
 pub struct ForgeEnvironmentService {
     restricted: bool,
+    is_env_loaded: RwLock<bool>,
 }
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
@@ -15,7 +17,7 @@ impl ForgeEnvironmentService {
     /// * `unrestricted` - If true, use unrestricted shell mode (sh/bash) If
     ///   false, use restricted shell mode (rbash)
     pub fn new(restricted: bool) -> Self {
-        Self { restricted }
+        Self { restricted, is_env_loaded: Default::default() }
     }
 
     /// Get path to appropriate shell based on platform and mode
@@ -109,8 +111,12 @@ impl ForgeEnvironmentService {
     }
 
     fn get(&self) -> Environment {
-        dotenv::dotenv().ok();
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
+        if !self.is_env_loaded.read().map(|v| *v).unwrap_or_default() {
+            *self.is_env_loaded.write().unwrap() = true;
+            Self::dot_env(&cwd);
+        }
+
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
 
@@ -127,10 +133,124 @@ impl ForgeEnvironmentService {
             retry_config,
         }
     }
+
+    /// Load all `.env` files with priority to lower (closer) files.
+    fn dot_env(cwd: &Path) -> Option<()> {
+        let mut paths = vec![];
+        let mut current = PathBuf::new();
+
+        for component in cwd.components() {
+            current.push(component);
+            paths.push(current.clone());
+        }
+
+        paths.reverse();
+
+        for path in paths {
+            let env_file = path.join(".env");
+            if env_file.is_file() {
+                dotenv::from_path(&env_file).ok();
+            }
+        }
+
+        Some(())
+    }
 }
 
 impl forge_domain::EnvironmentService for ForgeEnvironmentService {
     fn get_environment(&self) -> Environment {
         self.get()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::{env, fs};
+
+    use tempfile::{tempdir, TempDir};
+
+    use super::*;
+
+    fn setup_envs(structure: Vec<(&str, &str)>) -> (TempDir, PathBuf) {
+        let root = tempdir().unwrap();
+        let root_path = root.path().to_path_buf();
+
+        for (rel_path, content) in &structure {
+            let dir = root_path.join(rel_path);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join(".env"), content).unwrap();
+        }
+
+        let deepest_path = root_path.join(structure[0].0);
+        // We MUST return root path, because dropping it will remove temp dir
+        (root, deepest_path)
+    }
+
+    #[test]
+    fn test_load_all_single_env() {
+        let (_root, cwd) = setup_envs(vec![("", "TEST_KEY1=VALUE1")]);
+
+        ForgeEnvironmentService::dot_env(&cwd);
+
+        assert_eq!(env::var("TEST_KEY1").unwrap(), "VALUE1");
+    }
+
+    #[test]
+    fn test_load_all_nested_envs_override() {
+        let (_root, cwd) = setup_envs(vec![("a/b", "TEST_KEY2=SUB"), ("a", "TEST_KEY2=ROOT")]);
+
+        ForgeEnvironmentService::dot_env(&cwd);
+
+        assert_eq!(env::var("TEST_KEY2").unwrap(), "SUB");
+    }
+
+    #[test]
+    fn test_load_all_multiple_keys() {
+        let (_root, cwd) = setup_envs(vec![
+            ("a/b", "SUB_KEY3=SUB_VAL"),
+            ("a", "ROOT_KEY3=ROOT_VAL"),
+        ]);
+
+        ForgeEnvironmentService::dot_env(&cwd);
+
+        assert_eq!(env::var("ROOT_KEY3").unwrap(), "ROOT_VAL");
+        assert_eq!(env::var("SUB_KEY3").unwrap(), "SUB_VAL");
+    }
+
+    #[test]
+    fn test_env_precedence_std_env_wins() {
+        let (_root, cwd) = setup_envs(vec![
+            ("a/b", "TEST_KEY4=SUB_VAL"),
+            ("a", "TEST_KEY4=ROOT_VAL"),
+        ]);
+
+        env::set_var("TEST_KEY4", "STD_ENV_VAL");
+
+        ForgeEnvironmentService::dot_env(&cwd);
+
+        assert_eq!(env::var("TEST_KEY4").unwrap(), "STD_ENV_VAL");
+    }
+
+    #[test]
+    fn test_custom_scenario() {
+        let (_root, cwd) = setup_envs(vec![("a/b", "A1=1\nB1=2"), ("a", "A1=2\nC1=3")]);
+
+        ForgeEnvironmentService::dot_env(&cwd);
+
+        assert_eq!(env::var("A1").unwrap(), "1");
+        assert_eq!(env::var("B1").unwrap(), "2");
+        assert_eq!(env::var("C1").unwrap(), "3");
+    }
+
+    #[test]
+    fn test_custom_scenario_with_std_env_precedence() {
+        let (_root, cwd) = setup_envs(vec![("a/b", "A2=1"), ("a", "A2=2")]);
+
+        env::set_var("A2", "STD_ENV");
+
+        ForgeEnvironmentService::dot_env(&cwd);
+
+        assert_eq!(env::var("A2").unwrap(), "STD_ENV");
     }
 }

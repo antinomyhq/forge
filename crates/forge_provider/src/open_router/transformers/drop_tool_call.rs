@@ -54,6 +54,7 @@ mod tests {
                     role: Role::Assistant,
                     content: "Using tool".to_string(),
                     tool_calls: Some(vec![tool_call]),
+                    model: None,
                 }),
                 ContextMessage::ToolMessage(tool_result),
             ],
