@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use forge_domain::{Environment, Provider, RetryConfig};
 
@@ -109,8 +109,9 @@ impl ForgeEnvironmentService {
     }
 
     fn get(&self) -> Environment {
-        Self::load_all();
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
+        Self::load_all(&cwd);
+        
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
 
@@ -129,27 +130,27 @@ impl ForgeEnvironmentService {
     }
 
     /// Load all `.env` files with priority to lower (closer) files.
-    fn load_all() -> Option<()> {
-        let cur = std::env::current_dir().ok()?;
-        let values = cur
-            .iter()
-            .map(|v| v.to_string_lossy().into_owned())
-            .collect::<Vec<_>>();
-        let mut path = PathBuf::from(values.first()?);
-        let mut envs = vec![];
-
-        for value in values.into_iter().skip(1) {
-            let env = path.join(&value).join(".env");
-            if env.is_file() {
-                envs.push(env.clone());
-            }
-            path.push(PathBuf::from(value));
+    fn load_all(cwd: &Path) -> Option<()> {
+        // Create the hierarchy of paths from root to the current working directory
+        let mut paths = Vec::new();
+        let mut current = PathBuf::new();
+        
+        for component in cwd.components() {
+            current.push(component);
+            paths.push(current.clone());
         }
-
-        envs.into_iter().for_each(|env| {
-            dotenv::from_path(env).ok();
-        });
-
+        
+        // Reverse to load from root to cwd (so cwd values take precedence)
+        paths.reverse();
+        
+        // Load .env files from each directory, from furthest to closest
+        for path in paths {
+            let env_file = path.join(".env");
+            if env_file.is_file() {
+                dotenv::from_path(&env_file).ok();
+            }
+        }
+        
         Some(())
     }
 }
@@ -159,3 +160,72 @@ impl forge_domain::EnvironmentService for ForgeEnvironmentService {
         self.get()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::env;
+    use tempfile::tempdir;
+
+    fn write_env_file(dir: &Path, content: &str) {
+        let env_path = dir.join(".env");
+        fs::write(&env_path, content).unwrap();
+    }
+
+    #[test]
+    fn test_load_all_single_env() {
+        let dir = tempdir().unwrap();
+        write_env_file(dir.path(), "TEST_KEY1=VALUE1");
+
+        ForgeEnvironmentService::load_all(dir.path());
+
+        assert_eq!(env::var("TEST_KEY1").unwrap(), "VALUE1");
+    }
+
+    #[test]
+    fn test_load_all_nested_envs_override() {
+        let root = tempdir().unwrap();
+        let subdir = root.path().join("subdir");
+        fs::create_dir(&subdir).unwrap();
+
+        write_env_file(root.path(), "TEST_KEY2=ROOT");
+        write_env_file(&subdir, "TEST_KEY2=SUB");
+
+        ForgeEnvironmentService::load_all(&subdir);
+
+        assert_eq!(env::var("TEST_KEY2").unwrap(), "SUB");
+    }
+
+    #[test]
+    fn test_load_all_multiple_keys() {
+        let root = tempdir().unwrap();
+        let subdir = root.path().join("subdir");
+        fs::create_dir(&subdir).unwrap();
+
+        write_env_file(root.path(), "ROOT_KEY3=ROOT_VAL");
+        write_env_file(&subdir, "SUB_KEY3=SUB_VAL");
+
+        ForgeEnvironmentService::load_all(&subdir);
+
+        assert_eq!(env::var("ROOT_KEY3").unwrap(), "ROOT_VAL");
+        assert_eq!(env::var("SUB_KEY3").unwrap(), "SUB_VAL");
+    }
+
+    #[test]
+    fn test_env_precedence_std_env_wins() {
+        let root = tempdir().unwrap();
+        let subdir = root.path().join("subdir");
+        fs::create_dir(&subdir).unwrap();
+
+        write_env_file(root.path(), "TEST_KEY4=ROOT_VAL");
+        write_env_file(&subdir, "TEST_KEY4=SUB_VAL");
+
+        env::set_var("TEST_KEY4", "STD_ENV_VAL");
+
+        ForgeEnvironmentService::load_all(&subdir);
+
+        assert_eq!(env::var("TEST_KEY4").unwrap(), "STD_ENV_VAL");
+    }
+}
+
