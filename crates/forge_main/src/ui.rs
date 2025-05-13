@@ -462,10 +462,10 @@ impl<F: API> UI<F> {
         stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
         const INACTIVITY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-        
+
         let mut received_message = false;
         let mut last_activity = std::time::Instant::now();
-        
+
         loop {
             tokio::select! {
                 message_opt = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next()) => {
@@ -503,7 +503,7 @@ impl<F: API> UI<F> {
                         }
                     }
                 },
-                
+
                 // Check inactivity periodically
                 _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
                     if last_activity.elapsed() > INACTIVITY_TIMEOUT {
