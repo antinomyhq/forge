@@ -110,7 +110,7 @@ impl ForgeEnvironmentService {
 
     fn get(&self) -> Environment {
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
-        Self::load_all(&cwd);
+        Self::dot_env(&cwd);
 
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
@@ -130,7 +130,7 @@ impl ForgeEnvironmentService {
     }
 
     /// Load all `.env` files with priority to lower (closer) files.
-    fn load_all(cwd: &Path) -> Option<()> {
+    fn dot_env(cwd: &Path) -> Option<()> {
         let mut paths = vec![];
         let mut current = PathBuf::new();
 
@@ -186,7 +186,7 @@ mod tests {
     fn test_load_all_single_env() {
         let (_root, cwd) = setup_envs(vec![("", "TEST_KEY1=VALUE1")]);
 
-        ForgeEnvironmentService::load_all(&cwd);
+        ForgeEnvironmentService::dot_env(&cwd);
 
         assert_eq!(env::var("TEST_KEY1").unwrap(), "VALUE1");
     }
@@ -195,7 +195,7 @@ mod tests {
     fn test_load_all_nested_envs_override() {
         let (_root, cwd) = setup_envs(vec![("a/b", "TEST_KEY2=SUB"), ("a", "TEST_KEY2=ROOT")]);
 
-        ForgeEnvironmentService::load_all(&cwd);
+        ForgeEnvironmentService::dot_env(&cwd);
 
         assert_eq!(env::var("TEST_KEY2").unwrap(), "SUB");
     }
@@ -207,7 +207,7 @@ mod tests {
             ("a", "ROOT_KEY3=ROOT_VAL"),
         ]);
 
-        ForgeEnvironmentService::load_all(&cwd);
+        ForgeEnvironmentService::dot_env(&cwd);
 
         assert_eq!(env::var("ROOT_KEY3").unwrap(), "ROOT_VAL");
         assert_eq!(env::var("SUB_KEY3").unwrap(), "SUB_VAL");
@@ -222,7 +222,7 @@ mod tests {
 
         env::set_var("TEST_KEY4", "STD_ENV_VAL");
 
-        ForgeEnvironmentService::load_all(&cwd);
+        ForgeEnvironmentService::dot_env(&cwd);
 
         assert_eq!(env::var("TEST_KEY4").unwrap(), "STD_ENV_VAL");
     }
@@ -231,7 +231,7 @@ mod tests {
     fn test_custom_scenario() {
         let (_root, cwd) = setup_envs(vec![("a/b", "A1=1\nB1=2"), ("a", "A1=2\nC1=3")]);
 
-        ForgeEnvironmentService::load_all(&cwd);
+        ForgeEnvironmentService::dot_env(&cwd);
 
         assert_eq!(env::var("A1").unwrap(), "1");
         assert_eq!(env::var("B1").unwrap(), "2");
@@ -244,7 +244,7 @@ mod tests {
 
         env::set_var("A2", "STD_ENV");
 
-        ForgeEnvironmentService::load_all(&cwd);
+        ForgeEnvironmentService::dot_env(&cwd);
 
         assert_eq!(env::var("A2").unwrap(), "STD_ENV");
     }
