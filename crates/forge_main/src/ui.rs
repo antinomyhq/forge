@@ -461,19 +461,63 @@ impl<F: API> UI<F> {
         &mut self,
         stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
     ) -> Result<()> {
-        while let Some(message) = stream.next().await {
-            match message {
-                Ok(message) => self.handle_chat_response(message)?,
-                Err(err) => {
-                    self.spinner.stop(None)?;
-                    return Err(err);
+        const INACTIVITY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+        
+        let mut received_message = false;
+        let mut last_activity = std::time::Instant::now();
+        
+        loop {
+            tokio::select! {
+                message_opt = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next()) => {
+                    match message_opt {
+                        Ok(Some(message_result)) => {
+                            match message_result {
+                                Ok(message) => {
+                                    received_message = true;
+                                    last_activity = std::time::Instant::now();
+                                    if let Err(e) = self.handle_chat_response(message) {
+                                        self.spinner.stop(None)?;
+                                        return Err(e);
+                                    }
+                                },
+                                Err(err) => {
+                                    self.spinner.stop(None)?;
+                                    return Err(err);
+                                }
+                            }
+                        },
+                        Ok(None) => {
+                            self.spinner.stop(None)?;
+                            return Ok(());
+                        },
+                        Err(_) => {
+                            if last_activity.elapsed() > INACTIVITY_TIMEOUT {
+                                if received_message {
+                                    self.writeln(TitleFormat::info("Connection appears stalled. Processing completed with partial response."))?;
+                                } else {
+                                    self.writeln(TitleFormat::error("Connection timed out without receiving any response."))?;
+                                }
+                                self.spinner.stop(None)?;
+                                return Ok(());
+                            }
+                        }
+                    }
+                },
+                
+                // Check inactivity periodically
+                _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
+                    if last_activity.elapsed() > INACTIVITY_TIMEOUT {
+                        if received_message {
+                            self.writeln(TitleFormat::debug("Connection appears stalled. Processing completed with partial response."))?;
+                        } else {
+                            self.writeln(TitleFormat::error("Connection timed out without receiving any response."))?;
+                        }
+                        self.spinner.stop(None)?;
+                        return Ok(());
+                    }
                 }
             }
         }
-
-        self.spinner.stop(None)?;
-
-        Ok(())
     }
 
     /// Modified version of handle_dump that supports HTML format
