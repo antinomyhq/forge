@@ -25,6 +25,7 @@ pub struct ForgeInfra {
     create_dirs_service: Arc<ForgeCreateDirsService>,
     command_executor_service: Arc<ForgeCommandExecutorService>,
     inquire_service: Arc<ForgeInquire>,
+    mcp_server: ForgeMcpServer,
 }
 
 impl ForgeInfra {
@@ -47,6 +48,7 @@ impl ForgeInfra {
                 env.clone(),
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
+            mcp_server: ForgeMcpServer,
         }
     }
 }
@@ -100,6 +102,6 @@ impl Infrastructure for ForgeInfra {
     }
 
     fn mcp_executor(&self) -> &Self::McpServer {
-        todo!()
+        &self.mcp_server
     }
 }

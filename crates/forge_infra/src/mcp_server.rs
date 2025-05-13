@@ -13,6 +13,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
+#[derive(Clone)]
 pub struct ForgeMcpServer;
 impl ForgeMcpServer {
     fn client_info(&self) -> ClientInfo {

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anyhow::Context;
 use forge_domain::{
     McpConfig, McpConfigManager, McpServer as McpServerConfig, McpService, Tool, ToolDefinition,
     ToolName,
@@ -116,9 +117,17 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
                 .iter()
                 .map(|(name, server)| async move {
                     if server.url.is_some() {
-                        Some(self.connect_http_server(name, server.clone()).await)
+                        Some(
+                            self.connect_http_server(name, server.clone())
+                                .await
+                                .context(format!("Failed to initiate MCP server: {}", name)),
+                        )
                     } else {
-                        Some(self.connect_stdio_server(name, server.clone()).await)
+                        Some(
+                            self.connect_stdio_server(name, server.clone())
+                                .await
+                                .context(format!("Failed to initiate MCP server: {}", name)),
+                        )
                     }
                 })
                 // TODO: use flatten function provided by FuturesExt
