@@ -1,9 +1,10 @@
-use std::path::{Path, PathBuf};
-
 use forge_domain::{Environment, Provider, RetryConfig};
+use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 pub struct ForgeEnvironmentService {
     restricted: bool,
+    is_env_loaded: RwLock<bool>,
 }
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
@@ -15,7 +16,7 @@ impl ForgeEnvironmentService {
     /// * `unrestricted` - If true, use unrestricted shell mode (sh/bash) If
     ///   false, use restricted shell mode (rbash)
     pub fn new(restricted: bool) -> Self {
-        Self { restricted }
+        Self { restricted, is_env_loaded: Default::default() }
     }
 
     /// Get path to appropriate shell based on platform and mode
@@ -110,7 +111,10 @@ impl ForgeEnvironmentService {
 
     fn get(&self) -> Environment {
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
-        Self::dot_env(&cwd);
+        if !self.is_env_loaded.read().map(|v| *v).unwrap_or_default() {
+            Self::dot_env(&cwd);
+            *self.is_env_loaded.write().unwrap() = true;
+        }
 
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
