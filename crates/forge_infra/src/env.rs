@@ -1,6 +1,7 @@
-use forge_domain::{Environment, Provider, RetryConfig};
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
+
+use forge_domain::{Environment, Provider, RetryConfig};
 
 pub struct ForgeEnvironmentService {
     restricted: bool,
