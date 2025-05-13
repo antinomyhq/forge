@@ -7,13 +7,13 @@ use rmcp::schemars::schema::RootSchema;
 
 use crate::mcp::service::RunnableService;
 
-pub struct McpExecutor {
+pub struct McpTool {
     pub client: Arc<RunnableService>,
     pub tool_definition: ToolDefinition,
     pub local_tool_name: ToolName,
 }
 
-impl McpExecutor {
+impl McpTool {
     pub fn new(
         server: String,
         tool: rmcp::model::Tool,
@@ -36,7 +36,7 @@ impl McpExecutor {
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for McpExecutor {
+impl ExecutableTool for McpTool {
     type Input = serde_json::Value;
 
     async fn call(&self, _: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {

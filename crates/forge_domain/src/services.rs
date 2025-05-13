@@ -36,7 +36,11 @@ pub trait McpConfigManager: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait McpService: Send + Sync {
+    
+    // FIXME: need to return a Result
     async fn list(&self) -> Vec<ToolDefinition>;
+    
+    // FIXME: It should return a Result. If the tool is not available, it should initialize MCP conn.
     async fn find(&self, name: &ToolName) -> Option<Arc<Tool>>;
 }
 

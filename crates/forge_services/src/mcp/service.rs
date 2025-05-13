@@ -15,12 +15,14 @@ use rmcp::{RoleClient, ServiceError, ServiceExt};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
-use crate::mcp::executor::McpExecutor;
-use crate::Infrastructure;
+use crate::mcp::tool::McpTool;
+use crate::{CommandExecutorService, Infrastructure};
 
+
+// FIXME: remove me
 pub enum RunnableService {
     Http(RunningService<RoleClient, InitializeRequestParam>),
-    Fs(RunningService<RoleClient, ()>),
+    Fs(RunningService<RoleClient, InitializeRequestParam>),
 }
 
 impl RunnableService {
@@ -64,7 +66,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     ) -> anyhow::Result<()> {
         let mut lock = self.tools.lock().await;
         for tool in tools.tools.into_iter() {
-            let server = McpExecutor::new(server_name.to_string(), tool.clone(), client.clone())?;
+            let server = McpTool::new(server_name.to_string(), tool.clone(), client.clone())?;
             lock.insert(
                 server.tool_definition.name.clone(),
                 Arc::new(Tool {
@@ -99,7 +101,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
-        let client = ().serve(TokioChildProcess::new(command.args(config.args))?).await?;
+        let client = self.client_info().serve(TokioChildProcess::new(command.args(config.args))?).await?;
         let tools = client
             .list_tools(None)
             .await
