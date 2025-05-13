@@ -113,8 +113,8 @@ impl ForgeEnvironmentService {
     fn get(&self) -> Environment {
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
         if !self.is_env_loaded.read().map(|v| *v).unwrap_or_default() {
-            Self::dot_env(&cwd);
             *self.is_env_loaded.write().unwrap() = true;
+            Self::dot_env(&cwd);
         }
 
         let provider = self.resolve_provider();
