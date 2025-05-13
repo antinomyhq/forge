@@ -111,7 +111,7 @@ impl ForgeEnvironmentService {
     fn get(&self) -> Environment {
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
         Self::load_all(&cwd);
-        
+
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
 
@@ -133,21 +133,21 @@ impl ForgeEnvironmentService {
     fn load_all(cwd: &Path) -> Option<()> {
         let mut paths = vec![];
         let mut current = PathBuf::new();
-        
+
         for component in cwd.components() {
             current.push(component);
             paths.push(current.clone());
         }
-        
+
         paths.reverse();
-        
+
         for path in paths {
             let env_file = path.join(".env");
             if env_file.is_file() {
                 dotenv::from_path(&env_file).ok();
             }
         }
-        
+
         Some(())
     }
 }
@@ -160,10 +160,11 @@ impl forge_domain::EnvironmentService for ForgeEnvironmentService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::fs;
-    use std::env;
+    use std::{env, fs};
+
     use tempfile::tempdir;
+
+    use super::*;
 
     fn write_env_file(dir: &Path, content: &str) {
         let env_path = dir.join(".env");
@@ -225,4 +226,3 @@ mod tests {
         assert_eq!(env::var("TEST_KEY4").unwrap(), "STD_ENV_VAL");
     }
 }
-
