@@ -2,41 +2,29 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    EnvironmentService, McpConfigManager, McpServer as McpServerConfig, McpService, Tool,
-    ToolDefinition, ToolName,
+    McpConfig, McpConfigManager, McpServer as McpServerConfig, McpService, Tool, ToolDefinition,
+    ToolName,
 };
-use futures::FutureExt;
-use rmcp::model::{
-    CallToolRequestParam, CallToolResult, ClientInfo, Implementation, InitializeRequestParam,
-    ListToolsResult,
-};
-use rmcp::service::RunningService;
-use rmcp::transport::TokioChildProcess;
-use rmcp::{RoleClient, ServiceError, ServiceExt};
-use tokio::process::Command;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpTool;
 use crate::{Infrastructure, McpClient, McpServer};
 
 #[derive(Clone)]
 pub struct ForgeMcpService<R, I> {
-    tools: Arc<Mutex<HashMap<ToolName, Arc<Tool>>>>,
+    tools: Arc<RwLock<HashMap<ToolName, Arc<Tool>>>>,
+    previous_config: Arc<Mutex<Option<McpConfig>>>,
     reader: Arc<R>,
     infra: Arc<I>,
 }
 
 impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     pub fn new(reader: Arc<R>, infra: Arc<I>) -> Self {
-        Self { tools: Arc::new(Mutex::new(HashMap::new())), reader, infra }
-    }
-
-    fn client_info(&self) -> ClientInfo {
-        let version = self.infra.environment_service().get_environment().version();
-        ClientInfo {
-            protocol_version: Default::default(),
-            capabilities: Default::default(),
-            client_info: Implementation { name: "Forge".to_string(), version },
+        Self {
+            tools: Default::default(),
+            previous_config: Default::default(),
+            reader,
+            infra,
         }
     }
 
@@ -46,15 +34,12 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         tools: Vec<ToolDefinition>,
         client: Arc<dyn McpClient>,
     ) -> anyhow::Result<()> {
-        let mut lock = self.tools.lock().await;
-        for tool in tools.tools.into_iter() {
+        let mut lock = self.tools.write().await;
+        for tool in tools.into_iter() {
             let server = McpTool::new(server_name.to_string(), tool.clone(), client.clone())?;
             lock.insert(
-                server.tool_definition.name.clone(),
-                Arc::new(Tool {
-                    definition: server.tool_definition.clone(),
-                    executable: Box::new(server),
-                }),
+                tool.name.clone(),
+                Arc::new(Tool { definition: tool, executable: Box::new(server) }),
             );
         }
 
@@ -98,28 +83,39 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         let url = config
             .url
             .ok_or_else(|| anyhow::anyhow!("URL is required for HTTP server"))?;
-        let transport = rmcp::transport::SseTransport::start(url).await?;
-        let client = self.client_info().serve(transport).await?;
-        let tools = client.list_tools(None).await?;
-        let client = Arc::new(RunnableService::Http(client));
+        let client = Arc::new(
+            self.infra
+                .mcp_executor()
+                .connect_sse(server_name, &url)
+                .await?,
+        );
+
+        let tools = client.list().await?;
         self.insert_tools(server_name, tools, client.clone())
             .await?;
 
         Ok(())
     }
     async fn init_mcp(&self) -> anyhow::Result<()> {
-        let mcp = self.reader.read().await?.mcp_servers;
+        let mcp = self.reader.read().await?;
+        let mut prev_config_lock = self.previous_config.lock().await;
+
+        // If config is unchanged, skip reinitialization
+        if prev_config_lock
+            .take()
+            .map(|v| v.eq(&mcp))
+            .unwrap_or_default()
+        {
+            return Ok(());
+        } else {
+            *prev_config_lock = Some(mcp.clone());
+        }
+
         futures::future::join_all(
-            mcp.iter()
+            mcp.mcp_servers
+                .iter()
                 .map(|(name, server)| async move {
-                    if self
-                        .tools
-                        .lock()
-                        .map(|v| v.values().any(|v| v.definition.name.to_string().eq(name)))
-                        .await
-                    {
-                        None
-                    } else if server.url.is_some() {
+                    if server.url.is_some() {
                         Some(self.connect_http_server(name, server.clone()).await)
                     } else {
                         Some(self.connect_stdio_server(name, server.clone()).await)
@@ -136,14 +132,16 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         .map_or(Ok(()), Err)
     }
 
-    async fn find(&self, name: &ToolName) -> Option<Arc<Tool>> {
-        self.tools.lock().await.get(name).cloned()
+    async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
+        self.init_mcp().await?;
+
+        Ok(self.tools.read().await.get(name).cloned())
     }
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         self.init_mcp().await?;
         Ok(self
             .tools
-            .lock()
+            .read()
             .await
             .values()
             .map(|tool| tool.definition.clone())
@@ -153,11 +151,11 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
 
 #[async_trait::async_trait]
 impl<R: McpConfigManager, I: Infrastructure> McpService for ForgeMcpService<R, I> {
-    async fn list(&self) -> Vec<ToolDefinition> {
-        self.list().await.unwrap_or_default()
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.list().await
     }
 
-    async fn find(&self, name: &ToolName) -> Option<Arc<Tool>> {
+    async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
         self.find(name).await
     }
 }

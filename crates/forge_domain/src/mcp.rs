@@ -15,7 +15,7 @@ pub enum Scope {
     User,
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, PartialEq)]
 #[setters(strip_option, into)]
 pub struct McpServer {
     /// Command to execute for starting this MCP server
@@ -60,7 +60,7 @@ impl Display for McpServer {
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
     pub mcp_servers: HashMap<String, McpServer>,

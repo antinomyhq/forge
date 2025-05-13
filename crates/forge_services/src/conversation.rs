@@ -59,7 +59,7 @@ impl<C: CompactionService, M: McpService> ConversationService for ForgeConversat
             workflow,
             self.mcp_service
                 .list()
-                .await
+                .await?
                 .into_iter()
                 .map(|a| a.name)
                 .collect(),

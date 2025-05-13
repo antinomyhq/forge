@@ -1,10 +1,12 @@
-use crate::mcp_client::ForgeMcpClient;
+use std::collections::HashMap;
+
 use forge_services::McpServer;
 use rmcp::model::{ClientInfo, Implementation};
 use rmcp::transport::TokioChildProcess;
 use rmcp::ServiceExt;
-use std::collections::HashMap;
 use tokio::process::Command;
+
+use crate::mcp_client::ForgeMcpClient;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,

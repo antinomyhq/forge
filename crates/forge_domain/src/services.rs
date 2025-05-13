@@ -20,9 +20,13 @@ pub trait ProviderService: Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait ToolService: Send + Sync {
     // TODO: should take `call` by reference
-    async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult;
-    async fn list(&self) -> Vec<ToolDefinition>;
-    async fn find(&self, name: &ToolName) -> Option<Arc<Tool>>;
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        call: ToolCallFull,
+    ) -> anyhow::Result<ToolResult>;
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>>;
 }
 
 #[async_trait::async_trait]
@@ -36,12 +40,12 @@ pub trait McpConfigManager: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait McpService: Send + Sync {
-    
     // FIXME: need to return a Result
-    async fn list(&self) -> Vec<ToolDefinition>;
-    
-    // FIXME: It should return a Result. If the tool is not available, it should initialize MCP conn.
-    async fn find(&self, name: &ToolName) -> Option<Arc<Tool>>;
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+
+    // FIXME: It should return a Result. If the tool is not available, it should
+    // initialize MCP conn.
+    async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>>;
 }
 
 #[async_trait::async_trait]

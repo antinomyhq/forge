@@ -32,7 +32,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         self.app.suggestion_service().suggestions().await
     }
 
-    async fn tools(&self) -> Vec<ToolDefinition> {
+    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         self.app.tool_service().list().await
     }
 

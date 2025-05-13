@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use forge_domain::{ToolDefinition, ToolName};
 use forge_services::McpClient;
 use rmcp::model::{CallToolRequestParam, InitializeRequestParam};
@@ -5,7 +7,6 @@ use rmcp::schemars::schema::RootSchema;
 use rmcp::service::RunningService;
 use rmcp::RoleClient;
 use serde_json::Value;
-use std::borrow::Cow;
 
 pub struct ForgeMcpClient {
     client: RunningService<RoleClient, InitializeRequestParam>,
@@ -13,7 +14,10 @@ pub struct ForgeMcpClient {
 }
 
 impl ForgeMcpClient {
-    pub fn new(name: impl ToString, client: RunningService<RoleClient, InitializeRequestParam>) -> Self {
+    pub fn new(
+        name: impl ToString,
+        client: RunningService<RoleClient, InitializeRequestParam>,
+    ) -> Self {
         Self { client, name: name.to_string() }
     }
 }

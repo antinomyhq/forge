@@ -175,7 +175,7 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     fn inquire_service(&self) -> &Self::InquireService {
         self.infra.inquire_service()
     }
-    
+
     fn mcp_executor(&self) -> &Self::McpServer {
         self.infra.mcp_executor()
     }

@@ -35,7 +35,11 @@ impl<M: McpService> ForgeToolService<M> {
 
 #[async_trait::async_trait]
 impl<M: McpService> ToolService for ForgeToolService<M> {
-    async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        call: ToolCallFull,
+    ) -> anyhow::Result<ToolResult> {
         let name = call.name.clone();
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
@@ -48,7 +52,7 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
 
         available_tools.sort();
 
-        let output = match self.find(&name).await {
+        let output = match self.find(&name).await? {
             Some(tool) => {
                 // Wrap tool call with timeout
                 match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
@@ -76,25 +80,25 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         };
 
         debug!(result = ?result, "Tool call result");
-        result
+        Ok(result)
     }
 
-    async fn list(&self) -> Vec<ToolDefinition> {
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         let mut tools: Vec<_> = self
             .tools
             .values()
             .map(|tool| tool.definition.clone())
             .collect();
-        let mcp_tools = self.mcp.list().await;
+        let mcp_tools = self.mcp.list().await?;
         tools.extend(mcp_tools);
 
         // Sorting is required to ensure system prompts are exactly the same
         tools.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
 
-        tools
+        Ok(tools)
     }
-    async fn find(&self, name: &ToolName) -> Option<Arc<Tool>> {
-        self.tools.get(name).cloned().or(self.mcp.find(name).await)
+    async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
+        Ok(self.tools.get(name).cloned().or(self.mcp.find(name).await?))
     }
 }
 
@@ -111,12 +115,12 @@ mod test {
 
     #[async_trait::async_trait]
     impl McpService for Stub {
-        async fn list(&self) -> Vec<ToolDefinition> {
-            vec![]
+        async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+            Ok(vec![])
         }
 
-        async fn find(&self, _: &ToolName) -> Option<Arc<Tool>> {
-            None
+        async fn find(&self, _: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
+            Ok(None)
         }
     }
 
@@ -196,7 +200,10 @@ mod test {
             call_id: Some(ToolCallId::new("test")),
         };
 
-        let result = service.call(ToolCallContext::default(), call).await;
+        let result = service
+            .call(ToolCallContext::default(), call)
+            .await
+            .unwrap();
         insta::assert_snapshot!(result);
     }
 
@@ -209,7 +216,10 @@ mod test {
             call_id: Some(ToolCallId::new("test")),
         };
 
-        let result = service.call(ToolCallContext::default(), call).await;
+        let result = service
+            .call(ToolCallContext::default(), call)
+            .await
+            .unwrap();
         insta::assert_snapshot!(result);
     }
 
@@ -222,7 +232,10 @@ mod test {
             call_id: Some(ToolCallId::new("test")),
         };
 
-        let result = service.call(ToolCallContext::default(), call).await;
+        let result = service
+            .call(ToolCallContext::default(), call)
+            .await
+            .unwrap();
         insta::assert_snapshot!(result);
     }
 
@@ -268,7 +281,10 @@ mod test {
         // Advance time to trigger timeout
         test::time::advance(Duration::from_secs(305)).await;
 
-        let result = service.call(ToolCallContext::default(), call).await;
+        let result = service
+            .call(ToolCallContext::default(), call)
+            .await
+            .unwrap();
 
         // Assert that the result contains a timeout error message
         let content_str = &result.content;
