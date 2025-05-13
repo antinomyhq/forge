@@ -160,51 +160,54 @@ impl forge_domain::EnvironmentService for ForgeEnvironmentService {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::{env, fs};
 
-    use tempfile::tempdir;
+    use tempfile::{tempdir, TempDir};
 
     use super::*;
 
-    fn write_env_file(dir: &Path, content: &str) {
-        let env_path = dir.join(".env");
-        fs::write(&env_path, content).unwrap();
+    /// Helper to prepare directory structure and write .env files
+    fn setup_envs(structure: Vec<(&str, &str)>) -> (TempDir, PathBuf) {
+        let root = tempdir().unwrap();
+        let root_path = root.path().to_path_buf();
+
+        for (rel_path, content) in &structure {
+            let dir = root_path.join(rel_path);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join(".env"), content).unwrap();
+        }
+
+        let deepest_path = root_path.join(structure[0].0);
+        (root, deepest_path)
     }
 
     #[test]
     fn test_load_all_single_env() {
-        let dir = tempdir().unwrap();
-        write_env_file(dir.path(), "TEST_KEY1=VALUE1");
+        let (_root, cwd) = setup_envs(vec![("", "TEST_KEY1=VALUE1")]);
 
-        ForgeEnvironmentService::load_all(dir.path());
+        ForgeEnvironmentService::load_all(&cwd);
 
         assert_eq!(env::var("TEST_KEY1").unwrap(), "VALUE1");
     }
 
     #[test]
     fn test_load_all_nested_envs_override() {
-        let root = tempdir().unwrap();
-        let subdir = root.path().join("subdir");
-        fs::create_dir(&subdir).unwrap();
+        let (_root, cwd) = setup_envs(vec![("a/b", "TEST_KEY2=SUB"), ("a", "TEST_KEY2=ROOT")]);
 
-        write_env_file(root.path(), "TEST_KEY2=ROOT");
-        write_env_file(&subdir, "TEST_KEY2=SUB");
-
-        ForgeEnvironmentService::load_all(&subdir);
+        ForgeEnvironmentService::load_all(&cwd);
 
         assert_eq!(env::var("TEST_KEY2").unwrap(), "SUB");
     }
 
     #[test]
     fn test_load_all_multiple_keys() {
-        let root = tempdir().unwrap();
-        let subdir = root.path().join("subdir");
-        fs::create_dir(&subdir).unwrap();
+        let (_root, cwd) = setup_envs(vec![
+            ("a/b", "SUB_KEY3=SUB_VAL"),
+            ("a", "ROOT_KEY3=ROOT_VAL"),
+        ]);
 
-        write_env_file(root.path(), "ROOT_KEY3=ROOT_VAL");
-        write_env_file(&subdir, "SUB_KEY3=SUB_VAL");
-
-        ForgeEnvironmentService::load_all(&subdir);
+        ForgeEnvironmentService::load_all(&cwd);
 
         assert_eq!(env::var("ROOT_KEY3").unwrap(), "ROOT_VAL");
         assert_eq!(env::var("SUB_KEY3").unwrap(), "SUB_VAL");
@@ -212,17 +215,37 @@ mod tests {
 
     #[test]
     fn test_env_precedence_std_env_wins() {
-        let root = tempdir().unwrap();
-        let subdir = root.path().join("subdir");
-        fs::create_dir(&subdir).unwrap();
-
-        write_env_file(root.path(), "TEST_KEY4=ROOT_VAL");
-        write_env_file(&subdir, "TEST_KEY4=SUB_VAL");
+        let (_root, cwd) = setup_envs(vec![
+            ("a/b", "TEST_KEY4=SUB_VAL"),
+            ("a", "TEST_KEY4=ROOT_VAL"),
+        ]);
 
         env::set_var("TEST_KEY4", "STD_ENV_VAL");
 
-        ForgeEnvironmentService::load_all(&subdir);
+        ForgeEnvironmentService::load_all(&cwd);
 
         assert_eq!(env::var("TEST_KEY4").unwrap(), "STD_ENV_VAL");
+    }
+
+    #[test]
+    fn test_custom_scenario() {
+        let (_root, cwd) = setup_envs(vec![("a/b", "A1=1\nB1=2"), ("a", "A1=2\nC1=3")]);
+
+        ForgeEnvironmentService::load_all(&cwd);
+
+        assert_eq!(env::var("A1").unwrap(), "1");
+        assert_eq!(env::var("B1").unwrap(), "2");
+        assert_eq!(env::var("C1").unwrap(), "3");
+    }
+
+    #[test]
+    fn test_custom_scenario_with_std_env_precedence() {
+        let (_root, cwd) = setup_envs(vec![("a/b", "A2=1"), ("a", "A2=2")]);
+
+        env::set_var("A2", "STD_ENV");
+
+        ForgeEnvironmentService::load_all(&cwd);
+
+        assert_eq!(env::var("A2").unwrap(), "STD_ENV");
     }
 }
