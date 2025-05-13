@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    EnvironmentService, McpConfigManager, McpServer, McpService, Tool, ToolDefinition, ToolName,
+    EnvironmentService, McpConfigManager, McpServer as McpServerConfig, McpService, Tool,
+    ToolDefinition, ToolName,
 };
 use futures::FutureExt;
 use rmcp::model::{
@@ -16,26 +17,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use crate::mcp::tool::McpTool;
-use crate::{CommandExecutorService, Infrastructure};
-
-
-// FIXME: remove me
-pub enum RunnableService {
-    Http(RunningService<RoleClient, InitializeRequestParam>),
-    Fs(RunningService<RoleClient, InitializeRequestParam>),
-}
-
-impl RunnableService {
-    pub async fn call_tool(
-        &self,
-        params: CallToolRequestParam,
-    ) -> Result<CallToolResult, ServiceError> {
-        match self {
-            RunnableService::Http(service) => service.call_tool(params).await,
-            RunnableService::Fs(service) => service.call_tool(params).await,
-        }
-    }
-}
+use crate::{Infrastructure, McpClient, McpServer};
 
 #[derive(Clone)]
 pub struct ForgeMcpService<R, I> {
@@ -61,8 +43,8 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     async fn insert_tools(
         &self,
         server_name: &str,
-        tools: ListToolsResult,
-        client: Arc<RunnableService>,
+        tools: Vec<ToolDefinition>,
+        client: Arc<dyn McpClient>,
     ) -> anyhow::Result<()> {
         let mut lock = self.tools.lock().await;
         for tool in tools.tools.into_iter() {
@@ -82,31 +64,25 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     async fn connect_stdio_server(
         &self,
         server_name: &str,
-        config: McpServer,
+        config: McpServerConfig,
     ) -> anyhow::Result<()> {
         let command = config
             .command
-            .ok_or_else(|| anyhow::anyhow!("Command is required for FS server"))?;
+            .ok_or_else(|| anyhow::anyhow!("Command is required for stdio server"))?;
+        let env = config.env.unwrap_or_default();
+        let args = config.args;
 
-        let mut command = Command::new(command);
-
-        if let Some(env) = config.env {
-            for (key, value) in env {
-                command.env(key, value);
-            }
-        }
-        
-        command
-            .stdin(std::process::Stdio::inherit())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-
-        let client = self.client_info().serve(TokioChildProcess::new(command.args(config.args))?).await?;
+        let client = self
+            .infra
+            .mcp_executor()
+            .connect_stdio(server_name, &command, env, args)
+            .await?;
         let tools = client
-            .list_tools(None)
+            .list()
             .await
             .map_err(|e| anyhow::anyhow!("Failed to list tools: {e}"))?;
-        let client = Arc::new(RunnableService::Fs(client));
+
+        let client = Arc::new(client);
 
         self.insert_tools(server_name, tools, client.clone())
             .await
@@ -117,7 +93,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     async fn connect_http_server(
         &self,
         server_name: &str,
-        config: McpServer,
+        config: McpServerConfig,
     ) -> anyhow::Result<()> {
         let url = config
             .url

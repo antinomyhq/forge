@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_domain::{CommandOutput, EnvironmentService, ToolName};
+use forge_domain::{CommandOutput, EnvironmentService, ToolDefinition, ToolName};
 use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
@@ -124,7 +124,7 @@ pub trait InquireService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait McpClient: Send + Sync + 'static {
-    async fn list(&self) -> anyhow::Result<Vec<ToolName>>;
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
     async fn call_tool(
         &self,
         tool_name: &ToolName,
@@ -135,8 +135,14 @@ pub trait McpClient: Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait McpServer: Send + Sync + 'static {
     type Client: McpClient;
-    async fn connect_stdio(&self, command: &str, env: HashMap<String, String>) -> anyhow::Result<Self::Client>;
-    async fn connect_sse(&self, url: &str) -> anyhow::Result<Self::Client>;
+    async fn connect_stdio(
+        &self,
+        name: &str,
+        command: &str,
+        env: HashMap<String, String>,
+        args: Vec<String>,
+    ) -> anyhow::Result<Self::Client>;
+    async fn connect_sse(&self, name: &str, url: &str) -> anyhow::Result<Self::Client>;
 }
 
 pub trait Infrastructure: Send + Sync + Clone + 'static {
@@ -162,4 +168,3 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     fn inquire_service(&self) -> &Self::InquireService;
     fn mcp_executor(&self) -> &Self::McpServer;
 }
-
