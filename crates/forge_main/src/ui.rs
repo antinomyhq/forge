@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -100,6 +101,15 @@ impl<F: API> UI<F> {
             conversation.set_variable("mode".to_string(), Value::from(mode.to_string()));
             self.api.upsert_conversation(conversation).await?;
         }
+
+        // Update the workflow with the new mode
+        self.api
+            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
+                workflow
+                    .variables
+                    .insert("mode".to_string(), Value::from(mode.to_string()));
+            })
+            .await?;
 
         self.writeln(TitleFormat::action(format!(
             "Switched to '{}' mode (context cleared)",
@@ -398,8 +408,7 @@ impl<F: API> UI<F> {
                 let mode = workflow
                     .variables
                     .get("mode")
-                    .cloned()
-                    .and_then(|value| serde_json::from_value(value).ok())
+                    .and_then(|value| value.as_str().and_then(|m| Mode::from_str(m).ok()))
                     .unwrap_or(Mode::Act);
 
                 self.state = UIState::new(mode).provider(self.api.environment().provider);
@@ -418,7 +427,7 @@ impl<F: API> UI<F> {
                     self.api.upsert_conversation(conversation).await?;
                     Ok(conversation_id)
                 } else {
-                    let conversation = self.api.init_conversation(workflow.clone()).await?;
+                    let conversation = self.api.init_conversation(workflow).await?;
                     self.state.conversation_id = Some(conversation.id.clone());
                     self.update_model(conversation.main_model()?);
                     Ok(conversation.id)

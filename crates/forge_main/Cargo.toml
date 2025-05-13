@@ -43,6 +43,7 @@ update-informer = { version = "1.2.0", default-features = false, features = [
     "rustls-tls",
 ] }
 
+
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
