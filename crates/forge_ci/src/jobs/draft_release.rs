@@ -4,6 +4,7 @@ use indexmap::indexmap;
 /// Create a draft release job for GitHub Actions
 pub fn create_draft_release_job() -> Job {
     Job::new("draft_release")
+        .name("Draft Release")
         .runs_on("ubuntu-latest")
         .cond(Expression::new(
             "github.event_name == 'push' && github.ref == 'refs/heads/main'",

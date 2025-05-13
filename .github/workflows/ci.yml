@@ -73,7 +73,7 @@ jobs:
       run: cargo +nightly clippy --all-features --workspace -- -D warnings
   draft_release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    name: draft_release
+    name: Draft Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
