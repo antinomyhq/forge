@@ -167,7 +167,6 @@ mod tests {
 
     use super::*;
 
-    /// Helper to prepare directory structure and write .env files
     fn setup_envs(structure: Vec<(&str, &str)>) -> (TempDir, PathBuf) {
         let root = tempdir().unwrap();
         let root_path = root.path().to_path_buf();
@@ -179,6 +178,7 @@ mod tests {
         }
 
         let deepest_path = root_path.join(structure[0].0);
+        // We MUST return root path, because dropping it will remove temp dir
         (root, deepest_path)
     }
 
