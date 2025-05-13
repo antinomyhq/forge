@@ -53,12 +53,12 @@ impl ForgeCommandExecutorService {
         let parameter = if is_windows { "/C" } else { "-c" };
         command.arg(parameter);
 
-        if is_windows {
-            command.raw_arg(command_str);
-        } else {
-            command.arg(command_str);
-        }
-
+        // TODO needs better method then OS flags
+        #[cfg(windows)]
+        command.raw_arg(command_str);
+        #[cfg(unix)]
+        command.arg(command_str);
+        
         command.kill_on_drop(true);
 
         // Set the working directory
