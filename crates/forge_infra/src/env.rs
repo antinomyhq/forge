@@ -131,8 +131,7 @@ impl ForgeEnvironmentService {
 
     /// Load all `.env` files with priority to lower (closer) files.
     fn load_all(cwd: &Path) -> Option<()> {
-        // Create the hierarchy of paths from root to the current working directory
-        let mut paths = Vec::new();
+        let mut paths = vec![];
         let mut current = PathBuf::new();
         
         for component in cwd.components() {
@@ -140,10 +139,8 @@ impl ForgeEnvironmentService {
             paths.push(current.clone());
         }
         
-        // Reverse to load from root to cwd (so cwd values take precedence)
         paths.reverse();
         
-        // Load .env files from each directory, from furthest to closest
         for path in paths {
             let env_file = path.join(".env");
             if env_file.is_file() {
