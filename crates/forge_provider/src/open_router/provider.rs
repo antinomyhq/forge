@@ -146,8 +146,20 @@ impl OpenRouter {
                             let status_code = response.status();
                             debug!(response = ?response, "Invalid content type");
                             Some(Err(anyhow::anyhow!(error).context(format!("Http Status: {status_code}" ))))
-
                         }
+                        // Handle other network errors explicitly so they're properly logged and propagated
+                        reqwest_eventsource::Error::Transport(req_err) if req_err.is_timeout() => {
+                            debug!(error = %req_err, "Network timeout occurred in event stream");
+                            Some(Err(anyhow::anyhow!("Network timeout: {}", req_err)))
+                        },
+                        reqwest_eventsource::Error::Transport(req_err) if req_err.is_connect() => {
+                            debug!(error = %req_err, "Connection error occurred in event stream");
+                            Some(Err(anyhow::anyhow!("Connection error: {}", req_err)))
+                        },
+                        reqwest_eventsource::Error::Transport(req_err) => {
+                            debug!(error = %req_err, "Network error occurred in event stream");
+                            Some(Err(anyhow::anyhow!("Network error: {}", req_err)))
+                        },
                         error => {
                             debug!(error = %error, "Failed to receive chat completion event");
                             Some(Err(error.into()))

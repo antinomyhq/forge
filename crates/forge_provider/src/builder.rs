@@ -18,6 +18,8 @@ pub enum Client {
 impl Client {
     pub fn new(provider: Provider, retry_config: RetryConfig) -> Result<Self> {
         let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(15))
             .pool_idle_timeout(std::time::Duration::from_secs(90))
             .pool_max_idle_per_host(5)
             .redirect(Policy::limited(10))
