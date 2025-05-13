@@ -17,7 +17,7 @@ pub struct ToolCallRecord {
 /// Formats the CallRecord as XML with tool name, arguments, and result
 impl Display for ToolCallRecord {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let content = &self.tool_result.content;
+        let content = &self.tool_result.content();
         let tool_name = self.tool_call.name.as_str();
         writeln!(f, r#"<forge_tool_result tool_name="{tool_name}">"#,)?;
 
@@ -56,7 +56,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{ToolCallId, ToolName};
+    use crate::{ToolCallId, ToolName, ToolResponseData};
 
     #[test]
     fn test_call_record_creation() {
@@ -70,7 +70,9 @@ mod tests {
         // Create a successful result
         let result = ToolResult::new(ToolName::new("test_tool"))
             .call_id(ToolCallId::new("call_123"))
-            .success("Operation completed successfully");
+            .success(ToolResponseData::Generic {
+                content: "Operation completed successfully".to_string(),
+            });
 
         // Create a CallRecord
         let record = ToolCallRecord::new(call, result);
@@ -114,7 +116,7 @@ mod tests {
         // Create a successful result
         let result = ToolResult::new(ToolName::new("fs_read"))
             .call_id(ToolCallId::new("call_abc123"))
-            .success("Contents of the file");
+            .success(ToolResponseData::Generic { content: "Contents of the file".to_string() });
 
         // Create a CallRecord
         let record = ToolCallRecord::new(call, result);
@@ -161,8 +163,10 @@ mod tests {
         };
 
         // Create a result with special characters
-        let result = ToolResult::new(ToolName::new("test_tool"))
-            .success("Result with <tags> & special \"characters\"");
+        let result =
+            ToolResult::new(ToolName::new("test_tool")).success(ToolResponseData::Generic {
+                content: "Result with <tags> & special \"characters\"".to_string(),
+            });
 
         // Create a CallRecord
         let record = ToolCallRecord::new(call, result);

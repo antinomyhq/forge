@@ -978,6 +978,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "serde_yaml",
  "serde_yml",
  "strum 0.27.1",
  "strum_macros 0.27.1",

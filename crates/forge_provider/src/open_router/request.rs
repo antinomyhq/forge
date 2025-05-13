@@ -351,7 +351,8 @@ pub enum OpenRouterRole {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        ContentMessage, ContextMessage, Role, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        ContentMessage, ContextMessage, Role, ToolCallFull, ToolCallId, ToolName, ToolResponseData,
+        ToolResult,
     };
     use insta::assert_json_snapshot;
     use serde_json::json;
@@ -411,13 +412,14 @@ mod tests {
     fn test_tool_message_conversion() {
         let tool_result = ToolResult::new(ToolName::new("test_tool"))
             .call_id(ToolCallId::new("123"))
-            .success(
-                r#"{
+            .success(ToolResponseData::Generic {
+                content: r#"{
                "user": "John",
                "age": 30,
                "address": [{"city": "New York"}, {"city": "San Francisco"}]
-            }"#,
-            );
+    }"#
+                .to_string(),
+            });
 
         let tool_message = ContextMessage::ToolMessage(tool_result);
         let router_message = OpenRouterMessage::from(tool_message);
@@ -428,16 +430,17 @@ mod tests {
     fn test_tool_message_with_special_chars() {
         let tool_result = ToolResult::new(ToolName::new("html_tool"))
             .call_id(ToolCallId::new("456"))
-            .success(
-                r#"{
+            .success(ToolResponseData::Generic {
+                content: r#"{
                 "html": "<div class=\"container\"><p>Hello <World></p></div>",
                 "elements": ["<span>", "<br/>", "<hr>"],
                 "attributes": {
                     "style": "color: blue; font-size: 12px;",
                     "data-test": "<test>&value</test>"
                 }
-            }"#,
-            );
+    }"#
+                .to_string(),
+            });
 
         let tool_message = ContextMessage::ToolMessage(tool_result);
         let router_message = OpenRouterMessage::from(tool_message);
@@ -448,7 +451,9 @@ mod tests {
     fn test_tool_message_typescript_code() {
         let tool_result = ToolResult::new(ToolName::new("rust_tool"))
             .call_id(ToolCallId::new("456"))
-            .success(r#"{ "code": "fn main<T>(gt: T) {let b = &gt; }"}"#);
+            .success(ToolResponseData::Generic {
+                content: r#"{ "code": "fn main<T>(gt: T) {let b = &gt; }"}"#.to_string(),
+            });
 
         let tool_message = ContextMessage::ToolMessage(tool_result);
         let router_message = OpenRouterMessage::from(tool_message);
