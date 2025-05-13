@@ -14,4 +14,4 @@ forge_tracker.workspace = true
 forge_domain.workspace = true
 
 [dependencies]
-dotenvy.workspace = true
+dotenv.workspace = true

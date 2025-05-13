@@ -110,6 +110,7 @@ impl ForgeEnvironmentService {
 
     fn get(&self) -> Environment {
         Self::load_all();
+        println!("{:?}", std::env::var("FORGE_KEY"));
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
@@ -147,7 +148,7 @@ impl ForgeEnvironmentService {
         }
 
         envs.into_iter().for_each(|env| {
-            dotenvy::from_path_override(env).ok();
+            dotenv::from_path(env).ok();
         });
 
         Some(())

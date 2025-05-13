@@ -732,10 +732,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59f8e79d1fbf76bdfbde321e902714bf6c49df88a7dda6fc682fc2979226962d"
 
 [[package]]
-name = "dotenvy"
-version = "0.15.7"
+name = "dotenv"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
+checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "dyn-clone"
@@ -1010,7 +1010,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "dirs",
- "dotenvy",
+ "dotenv",
  "forge_domain",
  "forge_fs",
  "forge_services",
@@ -1029,7 +1029,7 @@ name = "forge_inte"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "dotenvy",
+ "dotenv",
  "forge_api",
  "forge_domain",
  "forge_tracker",
