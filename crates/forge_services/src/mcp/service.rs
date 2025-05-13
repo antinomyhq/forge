@@ -120,13 +120,13 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
                         Some(
                             self.connect_http_server(name, server.clone())
                                 .await
-                                .context(format!("Failed to initiate MCP server: {}", name)),
+                                .context(format!("Failed to initiate MCP server: {name}")),
                         )
                     } else {
                         Some(
                             self.connect_stdio_server(name, server.clone())
                                 .await
-                                .context(format!("Failed to initiate MCP server: {}", name)),
+                                .context(format!("Failed to initiate MCP server: {name}")),
                         )
                     }
                 })
