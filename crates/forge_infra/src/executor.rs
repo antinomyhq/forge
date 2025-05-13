@@ -51,8 +51,12 @@ impl ForgeCommandExecutorService {
         command.env("GREP_OPTIONS", "--color=always"); // GNU grep
 
         let parameter = if is_windows { "/C" } else { "-c" };
+        command.arg(parameter);
 
-        command.arg(parameter).arg(command_str);
+        #[cfg(windows)]
+        command.raw_arg(command_str);
+        #[cfg(unix)]
+        command.arg(command_str);
 
         command.kill_on_drop(true);
 
@@ -152,7 +156,12 @@ mod tests {
             pid: 12345,
             cwd: PathBuf::from("/test"),
             home: Some(PathBuf::from("/home/test")),
-            shell: "bash".to_string(),
+            shell: if cfg!(target_os = "windows") {
+                "cmd"
+            } else {
+                "bash"
+            }
+            .to_string(),
             base_path: PathBuf::from("/base"),
             provider: Provider::open_router("test-key"),
             retry_config: Default::default(),
@@ -170,12 +179,16 @@ mod tests {
             .await
             .unwrap();
 
-        let expected = CommandOutput {
+        let mut expected = CommandOutput {
             stdout: "hello world\n".to_string(),
             stderr: "".to_string(),
             command: "echo \"hello world\"".into(),
             exit_code: Some(0),
         };
+
+        if cfg!(target_os = "windows") {
+            expected.stdout = format!("'{}'", expected.stdout);
+        }
 
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
         assert_eq!(actual.stderr, expected.stderr);
