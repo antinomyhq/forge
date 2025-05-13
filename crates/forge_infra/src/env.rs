@@ -110,7 +110,6 @@ impl ForgeEnvironmentService {
 
     fn get(&self) -> Environment {
         Self::load_all();
-        println!("{:?}", std::env::var("FORGE_KEY"));
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
