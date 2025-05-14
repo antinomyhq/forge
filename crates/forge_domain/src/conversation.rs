@@ -724,7 +724,7 @@ mod tests {
             .model(ModelId::new("workflow-model"));
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
         // Check that agent1's compact.model was updated to the workflow model
         let agent1 = conversation.get_agent(&AgentId::new("agent1")).unwrap();
