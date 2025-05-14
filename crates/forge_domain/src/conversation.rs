@@ -307,8 +307,8 @@ mod tests {
 
     use crate::{Agent, Command, Error, ModelId, Temperature, Workflow};
 
-    #[tokio::test]
-    async fn test_conversation_new_with_empty_workflow() {
+    #[test]
+    fn test_conversation_new_with_empty_workflow() {
         // Arrange
         let id = super::ConversationId::generate();
         let workflow = Workflow::new();
@@ -325,8 +325,8 @@ mod tests {
         assert!(conversation.events.is_empty());
     }
 
-    #[tokio::test]
-    async fn test_conversation_new_with_workflow_variables() {
+    #[test]
+    fn test_conversation_new_with_workflow_variables() {
         // Arrange
         let id = super::ConversationId::generate();
         let mut variables = HashMap::new();
@@ -344,8 +344,8 @@ mod tests {
         assert_eq!(conversation.variables, variables);
     }
 
-    #[tokio::test]
-    async fn test_conversation_new_applies_workflow_settings_to_agents() {
+    #[test]
+    fn test_conversation_new_applies_workflow_settings_to_agents() {
         // Arrange
         let id = super::ConversationId::generate();
         let agent1 = Agent::new("agent1");
@@ -375,8 +375,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_conversation_new_preserves_agent_specific_settings() {
+    #[test]
+    fn test_conversation_new_preserves_agent_specific_settings() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -431,8 +431,8 @@ mod tests {
                                                        // applied
     }
 
-    #[tokio::test]
-    async fn test_conversation_new_adds_commands_to_main_agent_subscriptions() {
+    #[test]
+    fn test_conversation_new_adds_commands_to_main_agent_subscriptions() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -498,8 +498,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_conversation_new_merges_commands_with_existing_subscriptions() {
+    #[test]
+    fn test_conversation_new_merges_commands_with_existing_subscriptions() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -545,8 +545,8 @@ mod tests {
         assert_eq!(subscriptions.len(), 3);
     }
 
-    #[tokio::test]
-    async fn test_main_model_success() {
+    #[test]
+    fn test_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
         let main_agent =
@@ -563,8 +563,8 @@ mod tests {
         assert_eq!(model_id, ModelId::new("test-model"));
     }
 
-    #[tokio::test]
-    async fn test_main_model_agent_not_found() {
+    #[test]
+    fn test_main_model_agent_not_found() {
         // Arrange
         let id = super::ConversationId::generate();
         let agent = Agent::new("some-other-agent");
@@ -580,8 +580,8 @@ mod tests {
         assert!(matches!(result, Err(Error::AgentUndefined(_))));
     }
 
-    #[tokio::test]
-    async fn test_main_model_no_model_defined() {
+    #[test]
+    fn test_main_model_no_model_defined() {
         // Arrange
         let id = super::ConversationId::generate();
         let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
@@ -597,9 +597,8 @@ mod tests {
         // Assert
         assert!(matches!(result, Err(Error::NoModelDefined(_))));
     }
-
-    #[tokio::test]
-    async fn test_set_main_model_success() {
+    #[test]
+    fn test_set_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
         let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
@@ -618,8 +617,8 @@ mod tests {
         assert_eq!(model, ModelId::new("new-model"));
     }
 
-    #[tokio::test]
-    async fn test_set_main_model_agent_not_found() {
+    #[test]
+    fn test_set_main_model_agent_not_found() {
         // Arrange
         let id = super::ConversationId::generate();
         let agent = Agent::new("some-other-agent");
@@ -635,8 +634,8 @@ mod tests {
         assert!(matches!(result, Err(Error::AgentUndefined(_))));
     }
 
-    #[tokio::test]
-    async fn test_conversation_new_applies_tool_supported_to_agents() {
+    #[test]
+    fn test_conversation_new_applies_tool_supported_to_agents() {
         // Arrange
         let id = super::ConversationId::generate();
         let agent1 = Agent::new("agent1");
@@ -658,8 +657,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_conversation_new_respects_agent_specific_tool_supported() {
+    #[test]
+    fn test_conversation_new_respects_agent_specific_tool_supported() {
         // Arrange
         let id = super::ConversationId::generate();
 

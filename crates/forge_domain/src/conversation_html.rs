@@ -240,7 +240,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                     .append(
                                         Element::new("summary")
                                             .append(Element::new("strong").text("Tool Result: "))
-                                            .append(Element::span(tool_result.name.to_string())),
+                                            .append(Element::span(tool_result.name.as_str())),
                                     )
                                     .append(Element::new("pre").text(&tool_result.content))
                             }
@@ -347,12 +347,11 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::conversation::Conversation;
 
-    #[tokio::test]
-    async fn test_render_empty_conversation() {
+    #[test]
+    fn test_render_empty_conversation() {
         // Create a new empty conversation
         let id = crate::conversation::ConversationId::generate();
         let workflow = crate::Workflow::new();
