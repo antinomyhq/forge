@@ -37,6 +37,7 @@ pub struct Orchestrator<Services> {
     sender: Option<ArcSender>,
     conversation: Arc<RwLock<Conversation>>,
     retry_strategy: std::iter::Take<tokio_retry::strategy::ExponentialBackoff>,
+    operating_mode: Mode,
 }
 
 struct ChatCompletionResult {
@@ -50,6 +51,7 @@ impl<A: Services> Orchestrator<A> {
         services: Arc<A>,
         mut conversation: Conversation,
         sender: Option<ArcSender>,
+        operating_mode: Mode,
     ) -> Self {
         // since self is a new request, we clear the queue
         conversation.state.values_mut().for_each(|state| {
@@ -66,6 +68,7 @@ impl<A: Services> Orchestrator<A> {
             sender,
             retry_strategy,
             conversation: Arc::new(RwLock::new(conversation)),
+            operating_mode,
         }
     }
 
@@ -161,6 +164,7 @@ impl<A: Services> Orchestrator<A> {
                 files,
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
                 variables: variables.clone(),
+                mode: self.operating_mode.clone(),
             };
 
             let system_message = self
@@ -497,13 +501,8 @@ impl<A: Services> Orchestrator<A> {
                     context.add_message(ContextMessage::user(content, model_id.clone().into()));
 
                 empty_tool_call_count += 1;
-                let model = agent
-                    .model
-                    .as_ref()
-                    .map(ModelId::as_str)
-                    .unwrap_or_default();
                 if empty_tool_call_count > 3 {
-                    bail!("Model '{model}' is unable to follow instructions, consider retrying or switching to a bigger model.");
+                    bail!("Model '{model_id}' is unable to follow instructions, consider retrying or switching to a bigger model.");
                 }
             }
 

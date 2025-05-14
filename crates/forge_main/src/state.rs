@@ -1,25 +1,7 @@
 use derive_setters::Setters;
-use forge_api::{ConversationId, Model, ModelId, Provider, Usage};
-use strum_macros::EnumString;
+use forge_api::{ConversationId, Mode, Model, ModelId, Provider, Usage};
 
 use crate::prompt::ForgePrompt;
-
-#[derive(Debug, Clone, Default, EnumString)]
-#[strum(ascii_case_insensitive)]
-pub enum Mode {
-    Plan,
-    #[default]
-    Act,
-}
-
-impl std::fmt::Display for Mode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Mode::Plan => write!(f, "PLAN"),
-            Mode::Act => write!(f, "ACT"),
-        }
-    }
-}
 
 //TODO: UIState and ForgePrompt seem like the same thing and can be merged
 /// State information for the UI

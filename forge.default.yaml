@@ -23,7 +23,7 @@ agents:
     tool_supported: false
     model: *advanced_model
     system_prompt: |-
-      {{> system-prompt-engineer-act.hbs }}
+      {{> system-prompt.hbs }}
     user_prompt: |-
       <task>{{event.value}}</task>
     ephemeral: false
@@ -38,37 +38,6 @@ agents:
       - forge_tool_fs_undo
       - forge_tool_attempt_completion
     subscribe:
-      - act/user_task_init
-      - act/user_task_update
-    max_walker_depth: 1
-
-  - id: software-designer
-    compact:
-      max_tokens: 2000
-      token_threshold: 120000
-      model: *advanced_model
-      retention_window: 6
-      message_threshold: 200
-      prompt: "{{> system-prompt-context-summarizer.hbs }}"
-    tool_supported: false
-    model: *advanced_model
-    system_prompt: |-
-      {{> system-prompt-engineer-plan.hbs }}
-    user_prompt: |-
-      <task>{{event.value}}</task>
-      <current_time>{{current_time}}</current_time>
-      Only create new plans or update existing ones.
-      Do not modify, create, or delete any code files.
-      
-    ephemeral: false
-    tools:
-      - forge_tool_fs_read
-      - forge_tool_net_fetch
-      - forge_tool_fs_search
-      - forge_tool_fs_create
-      - forge_tool_fs_patch
-      - forge_tool_attempt_completion
-    subscribe:
-      - plan/user_task_init
-      - plan/user_task_update
+      - user_task_init
+      - user_task_update
     max_walker_depth: 1

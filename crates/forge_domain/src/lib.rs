@@ -5,6 +5,7 @@ mod chat_request;
 mod chat_response;
 mod compaction_result;
 mod conversation_html;
+mod mode;
 mod update;
 
 mod context;
@@ -54,6 +55,7 @@ pub use error::*;
 pub use event::*;
 pub use file::*;
 pub use message::*;
+pub use mode::*;
 pub use model::*;
 pub use orch::*;
 pub use point::*;

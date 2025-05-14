@@ -55,7 +55,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         Ok(MpscStream::spawn(move |tx| async move {
             let tx = Arc::new(tx);
 
-            let orch = Orchestrator::new(app, conversation, Some(tx.clone()));
+            let orch = Orchestrator::new(app, conversation, Some(tx.clone()), chat.mode);
 
             if let Err(err) = orch.dispatch(chat.event).await {
                 if let Err(e) = tx.send(Err(err)).await {

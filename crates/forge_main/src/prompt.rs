@@ -4,12 +4,10 @@ use std::fmt::Write;
 use std::process::Command;
 
 use derive_setters::Setters;
-use forge_api::{ModelId, Usage};
+use forge_api::{Mode, ModelId, Usage};
 use forge_tracker::VERSION;
 use nu_ansi_term::{Color, Style};
 use reedline::{Prompt, PromptHistorySearchStatus};
-
-use crate::state::Mode;
 
 // Constants
 const MULTILINE_INDICATOR: &str = "::: ";

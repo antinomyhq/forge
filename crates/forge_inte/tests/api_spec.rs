@@ -55,6 +55,7 @@ impl Fixture {
                 "There is a cat hidden in the codebase. What is its name?",
             ),
             conversation_id,
+            forge_api::Mode::Act,
         );
 
         api.chat(request)

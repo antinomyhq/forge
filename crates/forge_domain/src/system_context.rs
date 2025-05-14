@@ -4,7 +4,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::Environment;
+use crate::{Environment, Mode};
 
 #[derive(Debug, Setters, Clone, Serialize, Deserialize)]
 #[setters(strip_option)]
@@ -35,4 +35,7 @@ pub struct SystemContext {
     // Variables to pass to the system context
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub variables: HashMap<String, Value>,
+
+    /// Operating mode of orchestrator (could be either plan or act)
+    pub mode: Mode,
 }
