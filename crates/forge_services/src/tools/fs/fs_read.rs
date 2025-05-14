@@ -476,8 +476,8 @@ mod test {
                 self.inner.inquire_service()
             }
 
-            fn mcp_executor(&self) -> &Self::McpServer {
-                self.inner.mcp_executor()
+            fn mcp_server(&self) -> &Self::McpServer {
+                self.inner.mcp_server()
             }
         }
 

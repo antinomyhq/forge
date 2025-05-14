@@ -60,7 +60,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
 
         let client = self
             .infra
-            .mcp_executor()
+            .mcp_server()
             .connect_stdio(server_name, &command, env, args)
             .await?;
         let tools = client
@@ -86,7 +86,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
             .ok_or_else(|| anyhow::anyhow!("URL is required for HTTP server"))?;
         let client = Arc::new(
             self.infra
-                .mcp_executor()
+                .mcp_server()
                 .connect_sse(server_name, &url)
                 .await?,
         );

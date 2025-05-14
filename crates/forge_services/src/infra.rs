@@ -173,5 +173,5 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     fn create_dirs_service(&self) -> &Self::FsCreateDirsService;
     fn command_executor_service(&self) -> &Self::CommandExecutorService;
     fn inquire_service(&self) -> &Self::InquireService;
-    fn mcp_executor(&self) -> &Self::McpServer;
+    fn mcp_server(&self) -> &Self::McpServer;
 }

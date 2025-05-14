@@ -101,7 +101,7 @@ impl Infrastructure for ForgeInfra {
         &self.inquire_service
     }
 
-    fn mcp_executor(&self) -> &Self::McpServer {
+    fn mcp_server(&self) -> &Self::McpServer {
         &self.mcp_server
     }
 }

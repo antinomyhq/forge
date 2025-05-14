@@ -566,7 +566,7 @@ pub mod tests {
             &()
         }
 
-        fn mcp_executor(&self) -> &Self::McpServer {
+        fn mcp_server(&self) -> &Self::McpServer {
             &()
         }
     }

@@ -290,7 +290,7 @@ pub mod tests {
             self
         }
 
-        fn mcp_executor(&self) -> &Self::McpServer {
+        fn mcp_server(&self) -> &Self::McpServer {
             self
         }
     }
