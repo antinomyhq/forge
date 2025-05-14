@@ -46,6 +46,9 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         client: Arc<dyn McpClient>,
     ) -> anyhow::Result<()> {
         let mut lock = self.tools.write().await;
+        // Clear the existing tools since the new config may have the tool removed
+        lock.clear();
+
         for tool in tools.into_iter() {
             let server = McpTool::new(server_name.to_string(), tool.clone(), client.clone())?;
             lock.insert(
