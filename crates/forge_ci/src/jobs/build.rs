@@ -60,7 +60,10 @@ fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
                 .add_with(("cross-version", "0.2.4"))
                 .add_env(("RUSTFLAGS", "${{ env.RUSTFLAGS }}"))
                 .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
-                .add_env(("APP_VERSION", "${{ github.event.release.tag_name || 'v0.1.0-dev' }}")),
+                .add_env((
+                    "APP_VERSION",
+                    "${{ github.event.release.tag_name || 'v0.1.0-dev' }}",
+                )),
         )
 }
 
