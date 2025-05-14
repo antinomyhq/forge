@@ -62,7 +62,7 @@ fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
                 .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
                 .add_env((
                     "APP_VERSION",
-                    "${{ github.event.release.tag_name || 'v0.1.0-dev' }}",
+                    "${{ needs.draft_release.outputs.crate_release_name }}",
                 )),
         )
 }
@@ -91,7 +91,7 @@ pub fn create_build_release_main_job(draft_release_job: &Job) -> Job {
             Step::uses("xresloader", "upload-to-github-release", "v1")
                 .add_with((
                     "release_id",
-                    "${{ needs.draft_release.outputs.create_release_id }}",
+                    "${{ needs.draft_release.outputs.crate_release_name }}",
                 ))
                 .add_with(("file", "${{ matrix.binary_name }}"))
                 .add_with(("overwrite", "true")),

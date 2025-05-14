@@ -89,10 +89,10 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - id: set_output
-      run: echo "create_release_id=${{ steps.create_release.outputs.id }}" >> $GITHUB_OUTPUT && echo "create_release_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      run: echo "crate_release_id=${{ steps.create_release.outputs.id }}" >> $GITHUB_OUTPUT && echo "crate_release_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
     outputs:
-      create_release_name: ${{ steps.set_output.outputs.create_release_name }}
-      create_release_id: ${{ steps.set_output.outputs.create_release_id }}
+      crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
+      crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
   build_release:
     needs:
     - draft_release
@@ -170,11 +170,11 @@ jobs:
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
-        APP_VERSION: ${{ github.event.release.tag_name || 'v0.1.0-dev' }}
+        APP_VERSION: ${{ needs.draft_release.outputs.crate_release_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
     - uses: xresloader/upload-to-github-release@v1
       with:
-        release_id: ${{ needs.draft_release.outputs.create_release_id }}
+        release_id: ${{ needs.draft_release.outputs.crate_release_name }}
         file: ${{ matrix.binary_name }}
         overwrite: 'true'
   build_release_pr:
@@ -254,6 +254,6 @@ jobs:
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
-        APP_VERSION: ${{ github.event.release.tag_name || 'v0.1.0-dev' }}
+        APP_VERSION: ${{ needs.draft_release.outputs.crate_release_name }}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
