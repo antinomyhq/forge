@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use forge_display::TitleFormat;
 use forge_domain::{ExecutableTool, ToolCallContext, ToolDefinition, ToolName};
 
 use crate::McpClient;
@@ -31,7 +32,10 @@ impl McpTool {
 impl ExecutableTool for McpTool {
     type Input = serde_json::Value;
 
-    async fn call(&self, _: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+        context
+            .send_text(TitleFormat::debug("MCP").sub_title(self.local_tool_name.as_str()))
+            .await?;
         self.client.call_tool(&self.local_tool_name, input).await
     }
 }
