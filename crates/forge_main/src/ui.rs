@@ -199,6 +199,7 @@ impl<F: API> UI<F> {
 
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
+        self.init_state().await?;
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -492,33 +493,7 @@ impl<F: API> UI<F> {
             Some(ref id) => Ok(id.clone()),
             None => {
                 // Select a model if workflow doesn't have one
-                let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-                if workflow.model.is_none() {
-                    workflow.model = Some(
-                        self.select_model()
-                            .await?
-                            .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
-                    );
-                }
-
-                // Perform update using the configuration
-                let mut base_workflow = Workflow::default();
-                base_workflow.merge(workflow.clone());
-
-                on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
-
-                self.api
-                    .write_workflow(self.cli.workflow.as_deref(), &workflow)
-                    .await?;
-
-                // Get the mode from the config
-                let mode = workflow
-                    .variables
-                    .get("mode")
-                    .and_then(|value| value.as_str().and_then(|m| Mode::from_str(m).ok()))
-                    .unwrap_or(Mode::Act);
-
-                self.state = UIState::new(mode).provider(self.api.environment().provider);
+                let workflow = self.init_state().await?;
                 self.command.register_all(&workflow);
 
                 // We need to try and get the conversation ID first before fetching the model
@@ -541,6 +516,31 @@ impl<F: API> UI<F> {
                 }
             }
         }
+    }
+
+    /// Initialize the state of the UI
+    async fn init_state(&mut self) -> Result<Workflow> {
+        let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+        if workflow.model.is_none() {
+            workflow.model = Some(
+                self.select_model()
+                    .await?
+                    .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
+            );
+        }
+        let mut base_workflow = Workflow::default();
+        base_workflow.merge(workflow.clone());
+        on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+        self.api
+            .write_workflow(self.cli.workflow.as_deref(), &workflow)
+            .await?;
+        let mode = workflow
+            .variables
+            .get("mode")
+            .and_then(|value| value.as_str().and_then(|m| Mode::from_str(m).ok()))
+            .unwrap_or(Mode::Act);
+        self.state = UIState::new(mode).provider(self.api.environment().provider);
+        Ok(workflow)
     }
 
     async fn on_message(&mut self, content: String) -> Result<()> {
