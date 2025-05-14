@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{Agent, AgentId, Context, Error, Event, ModelId, Result, ToolName, Workflow};
+use crate::{Agent, AgentId, Compact, Context, Error, Event, ModelId, Result, ToolName, Workflow};
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -105,7 +105,17 @@ impl Conversation {
             }
 
             if let Some(model) = workflow.model.clone() {
-                agent.model = Some(model);
+                agent.model = Some(model.clone());
+
+                // If a workflow model is specified, ensure all agents have a compact model
+                // initialized with that model, creating the compact configuration if needed
+                if agent.compact.is_some() {
+                    if let Some(ref mut compact) = agent.compact {
+                        compact.model = model;
+                    }
+                } else {
+                    agent.compact = Some(Compact::new(model));
+                }
             }
 
             if let Some(tool_supported) = workflow.tool_supported {
@@ -305,7 +315,7 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::{Agent, Command, Error, ModelId, Temperature, Workflow};
+    use crate::{Agent, AgentId, Command, Compact, Error, ModelId, Temperature, Workflow};
 
     #[test]
     fn test_conversation_new_with_empty_workflow() {
@@ -694,5 +704,40 @@ mod tests {
             .find(|a| a.id.as_str() == "agent2")
             .unwrap();
         assert_eq!(agent2.tool_supported, Some(true));
+    }
+
+    #[test]
+    fn test_workflow_model_overrides_compact_model() {
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        // Create an agent with compaction configured
+        let agent1 =
+            Agent::new("agent1").compact(Compact::new(ModelId::new("old-compaction-model")));
+
+        // Create an agent without compaction
+        let agent2 = Agent::new("agent2");
+
+        // Use setters pattern to create the workflow
+        let workflow = Workflow::new()
+            .agents(vec![agent1, agent2])
+            .model(ModelId::new("workflow-model"));
+
+        // Act
+        let conversation = super::Conversation::new_inner(id.clone(), workflow);
+
+        // Check that agent1's compact.model was updated to the workflow model
+        let agent1 = conversation.get_agent(&AgentId::new("agent1")).unwrap();
+        let compact = agent1.compact.as_ref().unwrap();
+        assert_eq!(compact.model, ModelId::new("workflow-model"));
+
+        // Regular agent model should also be updated
+        assert_eq!(agent1.model, Some(ModelId::new("workflow-model")));
+
+        // Check that agent2 still has no compaction
+        let agent2 = conversation.get_agent(&AgentId::new("agent2")).unwrap();
+        let compact = agent2.compact.as_ref().unwrap();
+        assert_eq!(compact.model, ModelId::new("workflow-model"));
+        assert_eq!(agent2.model, Some(ModelId::new("workflow-model")));
     }
 }
