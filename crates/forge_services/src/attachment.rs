@@ -114,7 +114,7 @@ impl<F: Infrastructure> AttachmentService for ForgeChatRequest<F> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
@@ -344,7 +344,7 @@ pub mod tests {
             &self,
             _: &str,
             _: &str,
-            _: HashMap<String, String>,
+            _: BTreeMap<String, String>,
             _: Vec<String>,
         ) -> anyhow::Result<Self::Client> {
             Ok(())

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use forge_services::McpServer;
 use rmcp::model::{ClientInfo, Implementation};
@@ -33,7 +33,7 @@ impl McpServer for ForgeMcpServer {
         &self,
         name: &str,
         command: &str,
-        env: HashMap<String, String>,
+        env: BTreeMap<String, String>,
         args: Vec<String>,
     ) -> anyhow::Result<Self::Client> {
         let mut command = Command::new(command);

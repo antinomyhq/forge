@@ -1,7 +1,7 @@
 //!
 //! Follows the design specifications of Claude's [.mcp.json](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
@@ -15,7 +15,7 @@ pub enum Scope {
     User,
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, PartialEq, Hash)]
 #[setters(strip_option, into)]
 pub struct McpServer {
     /// Command to execute for starting this MCP server
@@ -29,7 +29,7 @@ pub struct McpServer {
 
     /// Environment variables to pass to the command
     #[merge(strategy = crate::merge::option)]
-    pub env: Option<HashMap<String, String>>,
+    pub env: Option<BTreeMap<String, String>>,
 
     /// Url of the MCP server
     #[merge(strategy = crate::merge::option)]
@@ -60,22 +60,22 @@ impl Display for McpServer {
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
-    pub mcp_servers: HashMap<String, McpServer>,
+    pub mcp_servers: BTreeMap<String, McpServer>,
 }
 
 impl Deref for McpConfig {
-    type Target = HashMap<String, McpServer>;
+    type Target = BTreeMap<String, McpServer>;
 
     fn deref(&self) -> &Self::Target {
         &self.mcp_servers
     }
 }
 
-impl From<HashMap<String, McpServer>> for McpConfig {
-    fn from(mcp_servers: HashMap<String, McpServer>) -> Self {
+impl From<BTreeMap<String, McpServer>> for McpConfig {
+    fn from(mcp_servers: BTreeMap<String, McpServer>) -> Self {
         Self { mcp_servers }
     }
 }

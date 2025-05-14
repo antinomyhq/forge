@@ -40,7 +40,7 @@ impl<F: Infrastructure> ToolRegistry<F> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
@@ -229,7 +229,7 @@ pub mod tests {
             &self,
             _: &str,
             _: &str,
-            _: HashMap<String, String>,
+            _: BTreeMap<String, String>,
             _: Vec<String>,
         ) -> anyhow::Result<Self::Client> {
             unimplemented!()

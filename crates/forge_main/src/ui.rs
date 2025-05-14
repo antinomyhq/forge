@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -676,7 +676,7 @@ impl<F: API> UI<F> {
     }
 }
 
-fn parse_env(env: Vec<String>) -> HashMap<String, String> {
+fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
     env.into_iter()
         .filter_map(|s| {
             let mut parts = s.splitn(2, '=');

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -29,43 +30,13 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         }
     }
 
-    fn compute_config_hash(config: &McpConfig) -> u64 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
+    fn hash(config: &McpConfig) -> u64 {
         let mut hasher = DefaultHasher::new();
-
-        // Manually hash the contents of the McpConfig
-        for (name, server) in &config.mcp_servers {
-            name.hash(&mut hasher);
-
-            if let Some(command) = &server.command {
-                command.hash(&mut hasher);
-            }
-
-            for arg in &server.args {
-                arg.hash(&mut hasher);
-            }
-
-            if let Some(env) = &server.env {
-                for (key, value) in env {
-                    key.hash(&mut hasher);
-                    value.hash(&mut hasher);
-                }
-            }
-
-            if let Some(url) = &server.url {
-                url.hash(&mut hasher);
-            }
-        }
-
+        config.hash(&mut hasher);
         hasher.finish()
     }
-
     fn is_config_modified(&self, config: &McpConfig) -> bool {
-        let new_hash = Self::compute_config_hash(config);
-        let current_hash = *self.previous_config_hash.blocking_lock();
-        current_hash != new_hash
+        *self.previous_config_hash.blocking_lock() != Self::hash(config)
     }
 
     async fn insert_tools(
@@ -146,7 +117,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
 
         // Update the hash with the new config
         {
-            let new_hash = Self::compute_config_hash(&mcp);
+            let new_hash = Self::hash(&mcp);
             *self.previous_config_hash.lock().await = new_hash;
         }
 
@@ -168,7 +139,6 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
                         )
                     }
                 })
-                // TODO: use flatten function provided by FuturesExt
                 .collect::<Vec<_>>(),
         )
         .await

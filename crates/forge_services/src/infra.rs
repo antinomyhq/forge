@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -146,7 +146,7 @@ pub trait McpServer: Send + Sync + 'static {
         &self,
         name: &str,
         command: &str,
-        env: HashMap<String, String>,
+        env: BTreeMap<String, String>,
         args: Vec<String>,
     ) -> anyhow::Result<Self::Client>;
     async fn connect_sse(&self, name: &str, url: &str) -> anyhow::Result<Self::Client>;
