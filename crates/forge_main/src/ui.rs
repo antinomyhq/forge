@@ -253,7 +253,7 @@ impl<F: API> UI<F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Added server: {}", name)))?;
+                    self.writeln(TitleFormat::info(format!("Added server: {name}")))?;
 
                     Ok(CommandAction::Exit)
                 }
