@@ -14,7 +14,7 @@ use crate::{Infrastructure, McpClient, McpServer};
 #[derive(Clone)]
 pub struct ForgeMcpService<R, I> {
     tools: Arc<RwLock<HashMap<ToolName, Arc<Tool>>>>,
-    previous_config: Arc<Mutex<Option<McpConfig>>>,
+    previous_config_hash: Arc<Mutex<u64>>,
     reader: Arc<R>,
     infra: Arc<I>,
 }
@@ -23,10 +23,49 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     pub fn new(reader: Arc<R>, infra: Arc<I>) -> Self {
         Self {
             tools: Default::default(),
-            previous_config: Default::default(),
+            previous_config_hash: Arc::new(Mutex::new(0)),
             reader,
             infra,
         }
+    }
+
+    fn compute_config_hash(config: &McpConfig) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+
+        // Manually hash the contents of the McpConfig
+        for (name, server) in &config.mcp_servers {
+            name.hash(&mut hasher);
+
+            if let Some(command) = &server.command {
+                command.hash(&mut hasher);
+            }
+
+            for arg in &server.args {
+                arg.hash(&mut hasher);
+            }
+
+            if let Some(env) = &server.env {
+                for (key, value) in env {
+                    key.hash(&mut hasher);
+                    value.hash(&mut hasher);
+                }
+            }
+
+            if let Some(url) = &server.url {
+                url.hash(&mut hasher);
+            }
+        }
+
+        hasher.finish()
+    }
+
+    fn is_config_modified(&self, config: &McpConfig) -> bool {
+        let new_hash = Self::compute_config_hash(config);
+        let current_hash = *self.previous_config_hash.blocking_lock();
+        current_hash != new_hash
     }
 
     async fn insert_tools(
@@ -99,17 +138,16 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     }
     async fn init_mcp(&self) -> anyhow::Result<()> {
         let mcp = self.reader.read().await?;
-        let mut prev_config_lock = self.previous_config.lock().await;
 
         // If config is unchanged, skip reinitialization
-        if prev_config_lock
-            .take()
-            .map(|v| v.eq(&mcp))
-            .unwrap_or_default()
-        {
+        if !self.is_config_modified(&mcp) {
             return Ok(());
-        } else {
-            *prev_config_lock = Some(mcp.clone());
+        }
+
+        // Update the hash with the new config
+        {
+            let new_hash = Self::compute_config_hash(&mcp);
+            *self.previous_config_hash.lock().await = new_hash;
         }
 
         futures::future::join_all(
