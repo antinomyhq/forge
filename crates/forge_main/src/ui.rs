@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_api::{
     AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
-    API,
+    Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServer, Scope};
@@ -15,6 +15,7 @@ use forge_tracker::ToolCallPayload;
 use inquire::error::InquireError;
 use inquire::ui::{RenderConfig, Styled};
 use inquire::Select;
+use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
@@ -360,12 +361,16 @@ impl<F: API> UI<F> {
                 self.on_model_selection().await?;
             }
             Command::Shell(ref command) => {
-                // Execute the shell command using the existing infrastructure
-                // Get the working directory from the environment service instead of std::env
-                let cwd = self.api.environment().cwd;
-
-                // Execute the command
-                let _ = self.api.execute_shell_command(command, cwd).await;
+                let mut s = command.split_whitespace();
+                if let Some(command) = s.next() {
+                    let args = s.collect::<Vec<_>>();
+                    self.api.execute_shell_command_raw(command, &args).await?;
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Correct Usage: ! <command> [args...] (e.g., !ls -la)"
+                    ))
+                    .context("Empty shell command.");
+                }
             }
         }
 
@@ -492,7 +497,10 @@ impl<F: API> UI<F> {
                 }
 
                 // Perform update using the configuration
-                on_update(self.api.clone(), workflow.updates.as_ref()).await;
+                let mut base_workflow = Workflow::default();
+                base_workflow.merge(workflow.clone());
+
+                on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
 
                 self.api
                     .write_workflow(self.cli.workflow.as_deref(), &workflow)

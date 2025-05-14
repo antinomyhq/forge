@@ -473,6 +473,14 @@ pub mod tests {
                 exit_code: Some(0),
             })
         }
+
+        async fn execute_command_raw(
+            &self,
+            _: &str,
+            _: &[&str],
+        ) -> anyhow::Result<std::process::ExitStatus> {
+            unimplemented!()
+        }
     }
 
     #[async_trait::async_trait]

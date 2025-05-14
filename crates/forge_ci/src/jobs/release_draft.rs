@@ -2,9 +2,11 @@ use gh_workflow_tailcall::*;
 use indexmap::indexmap;
 
 /// Create a draft release job for GitHub Actions
-pub fn create_draft_release_job() -> Job {
+pub fn create_draft_release_job(build_job: &Job) -> Job {
     Job::new("draft_release")
+        .name("Draft Release")
         .runs_on("ubuntu-latest")
+        .add_needs(build_job.clone())
         .cond(Expression::new(
             "github.event_name == 'push' && github.ref == 'refs/heads/main'",
         ))
@@ -22,11 +24,11 @@ pub fn create_draft_release_job() -> Job {
                 .with(("config-name", "release-drafter.yml")),
         )
         .add_step(
-            Step::run("echo \"create_release_id=${{ steps.create_release.outputs.id }}\" >> $GITHUB_OUTPUT && echo \"create_release_name=${GITHUB_REF#refs/tags/}\" >> $GITHUB_OUTPUT")
+            Step::run("echo \"crate_release_id=${{ steps.create_release.outputs.id }}\" >> $GITHUB_OUTPUT && echo \"crate_release_name=${{ steps.create_release.outputs.tag_name }}\" >> $GITHUB_OUTPUT")
                 .id("set_output"),
         )
         .outputs(indexmap! {
-            "create_release_name".to_string() => "${{ steps.set_output.outputs.create_release_name }}".to_string(),
-            "create_release_id".to_string() => "${{ steps.set_output.outputs.create_release_id }}".to_string()
+            "crate_release_name".to_string() => "${{ steps.set_output.outputs.crate_release_name }}".to_string(),
+            "crate_release_id".to_string() => "${{ steps.set_output.outputs.crate_release_id }}".to_string()
         })
 }

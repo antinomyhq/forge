@@ -141,6 +141,18 @@ impl CommandExecutorService for ForgeCommandExecutorService {
     ) -> anyhow::Result<CommandOutput> {
         self.execute_command_internal(command, &working_dir).await
     }
+
+    async fn execute_command_raw(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> anyhow::Result<std::process::ExitStatus> {
+        let mut tokio_cmd = Command::new(command);
+        tokio_cmd.args(args);
+        tokio_cmd.kill_on_drop(true);
+
+        Ok(tokio_cmd.spawn()?.wait().await?)
+    }
 }
 
 #[cfg(test)]

@@ -1,18 +1,8 @@
-use forge_ci::{jobs, workflow};
+use forge_ci::workflow;
 
 #[test]
 fn generate() {
     workflow::generate_ci_workflow();
-}
-
-#[test]
-fn test_apt_get_install() {
-    let packages = &["pkg1", "pkg2", "pkg3"];
-    let command = jobs::apt_get_install(packages);
-    assert_eq!(
-        command,
-        "sudo apt-get update && \\\nsudo apt-get install -y \\\n  pkg1 \\\n  pkg2 \\\n  pkg3"
-    );
 }
 
 #[test]

@@ -11,22 +11,34 @@ use crate::TRACKER;
 async fn execute_update_command(api: Arc<impl API>) {
     // Spawn a new task that won't block the main application
     let output = api
-        .execute_shell_command("npm i update -g @antinomyhq/forge", api.environment().cwd)
+        .execute_shell_command_raw("npm", &["update", "-g", "@antinomyhq/forge"])
         .await;
 
-    if let Err(err) = output {
-        // Send an event to the tracker on failure
-        // We don't need to handle this result since we're failing silently
-        let _ = send_update_failure_event(&format!("Auto update failed: {err}")).await;
-    } else {
-        let answer = inquire::Confirm::new(
-            "You need to close forge to complete update. Do you want to close it now?",
-        )
-        .with_default(true)
-        .with_error_message("Invalid response!")
-        .prompt();
-        if answer.unwrap_or_default() {
-            std::process::exit(0);
+    match output {
+        Err(err) => {
+            // Send an event to the tracker on failure
+            // We don't need to handle this result since we're failing silently
+            let _ = send_update_failure_event(&format!("Auto update failed {err}")).await;
+        }
+        Ok(output) => {
+            if output.success() {
+                let answer = inquire::Confirm::new(
+                    "You need to close forge to complete update. Do you want to close it now?",
+                )
+                .with_default(true)
+                .with_error_message("Invalid response!")
+                .prompt();
+                if answer.unwrap_or_default() {
+                    std::process::exit(0);
+                }
+            } else {
+                let exit_output = match output.code() {
+                    Some(code) => format!("Process exited with code: {code}"),
+                    None => "Process exited without code".to_string(),
+                };
+                let _ =
+                    send_update_failure_event(&format!("Auto update failed, {exit_output}",)).await;
+            }
         }
     }
 }
@@ -34,7 +46,7 @@ async fn execute_update_command(api: Arc<impl API>) {
 async fn confirm_update(version: Version) -> bool {
     let answer = inquire::Confirm::new(&format!(
         "Confirm upgrade from {} -> {} (latest)?",
-        format!("v{VERSION}").bold().white(),
+        VERSION.to_string().bold().white(),
         version.to_string().bold().white()
     ))
     .with_default(true)

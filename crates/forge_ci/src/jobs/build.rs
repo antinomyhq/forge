@@ -4,7 +4,7 @@ use serde_json::Value;
 use crate::matrix;
 
 /// Helper function to generate an apt-get install command for multiple packages
-pub fn apt_get_install(packages: &[&str]) -> String {
+fn apt_get_install(packages: &[&str]) -> String {
     format!(
         "sudo apt-get update && \\\nsudo apt-get install -y \\\n{}",
         packages
@@ -16,13 +16,10 @@ pub fn apt_get_install(packages: &[&str]) -> String {
 }
 
 /// Create a base build job that can be customized
-pub fn create_build_release_job(matrix: Value) -> Job {
+fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
     Job::new("build-release")
-        .strategy(Strategy {
-            fail_fast: None,
-            max_parallel: None,
-            matrix: Some(matrix),
-        })
+        .add_needs(draft_release_job.clone())
+        .strategy(Strategy { fail_fast: None, max_parallel: None, matrix: Some(matrix) })
         .runs_on("${{ matrix.os }}")
         .permissions(
             Permissions::default()
@@ -65,25 +62,23 @@ pub fn create_build_release_job(matrix: Value) -> Job {
                 .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
                 .add_env((
                     "APP_VERSION",
-                    "${{ github.event_name == 'release' && github.event.release.tag_name || needs.draft_release.outputs.create_release_name }}",
+                    "${{ needs.draft_release.outputs.crate_release_name }}",
                 )),
         )
 }
 
 /// Create a build job for PRs with the 'build-all-targets' label
-pub fn create_build_release_pr_job() -> Job {
+pub fn create_build_release_pr_job(draft_release_job: &Job) -> Job {
     let matrix = matrix::create_matrix();
-    create_build_release_job(matrix.clone()).cond(Expression::new(
+    create_build_release_job(matrix.clone(), draft_release_job).cond(Expression::new(
         "github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'build-all-targets')",
     ))
 }
 
 /// Create a build job for main branch that adds binaries to release
-pub fn create_build_release_main_job(build_job: &Job, draft_release_job: &Job) -> Job {
+pub fn create_build_release_main_job(draft_release_job: &Job) -> Job {
     let matrix = matrix::create_matrix();
-    create_build_release_job(matrix.clone())
-        .add_needs(build_job.clone())
-        .add_needs(draft_release_job.clone())
+    create_build_release_job(matrix.clone(), draft_release_job)
         .cond(Expression::new(
             "(github.event_name == 'push' && github.ref == 'refs/heads/main')",
         ))
@@ -96,9 +91,24 @@ pub fn create_build_release_main_job(build_job: &Job, draft_release_job: &Job) -
             Step::uses("xresloader", "upload-to-github-release", "v1")
                 .add_with((
                     "release_id",
-                    "${{ needs.draft_release.outputs.create_release_id }}",
+                    "${{ needs.draft_release.outputs.crate_release_id }}",
                 ))
                 .add_with(("file", "${{ matrix.binary_name }}"))
                 .add_with(("overwrite", "true")),
         )
+}
+
+#[cfg(test)]
+mod test {
+    use crate::jobs::build::apt_get_install;
+
+    #[test]
+    fn test_apt_get_install() {
+        let packages = &["pkg1", "pkg2", "pkg3"];
+        let command = apt_get_install(packages);
+        assert_eq!(
+            command,
+            "sudo apt-get update && \\\nsudo apt-get install -y \\\n  pkg1 \\\n  pkg2 \\\n  pkg3"
+        );
+    }
 }
