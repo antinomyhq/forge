@@ -39,7 +39,7 @@ pub fn generate_homebrew_workflow() {
     let homebrew_workflow = jobs::create_homebrew_workflow();
 
     Generate::new(homebrew_workflow)
-        .name("homebrew-release.yml")
+        .name("release-homebrew.yml")
         .generate()
         .unwrap();
 }
@@ -49,7 +49,7 @@ pub fn generate_npm_workflow() {
     let npm_workflow = jobs::create_npm_workflow();
 
     Generate::new(npm_workflow)
-        .name("npm-release.yml")
+        .name("release-npm.yml")
         .generate()
         .unwrap();
 }
