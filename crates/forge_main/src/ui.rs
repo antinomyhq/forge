@@ -253,12 +253,14 @@ impl<F: API> UI<F> {
                     })
                     .await?;
 
+                    self.writeln(TitleFormat::info(format!("Added server: {}", name)))?;
+
                     Ok(CommandAction::Exit)
                 }
                 McpCommand::List => {
                     let mcp_servers = self.api.read_mcp_config().await?;
                     if mcp_servers.is_empty() {
-                        self.writeln("No MCP servers found")?;
+                        self.writeln(TitleFormat::error("No MCP servers found"))?;
                         return Ok(CommandAction::Exit);
                     }
 
@@ -278,7 +280,7 @@ impl<F: API> UI<F> {
                     })
                     .await?;
 
-                    self.writeln(format!("Removed server: {name}"))?;
+                    self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
                     Ok(CommandAction::Exit)
                 }
                 McpCommand::Get(val) => {
@@ -291,7 +293,7 @@ impl<F: API> UI<F> {
 
                     let mut output = String::new();
                     output.push_str(&format!("{name}: {server}"));
-                    self.writeln(output)?;
+                    self.writeln(TitleFormat::info(output))?;
 
                     Ok(CommandAction::Exit)
                 }
@@ -305,7 +307,10 @@ impl<F: API> UI<F> {
                     })
                     .await?;
 
-                    self.writeln(format!("Added server: {}", add_json.name))?;
+                    self.writeln(TitleFormat::info(format!(
+                        "Added server: {}",
+                        add_json.name
+                    )))?;
 
                     Ok(CommandAction::Exit)
                 }

@@ -35,8 +35,8 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         config.hash(&mut hasher);
         hasher.finish()
     }
-    fn is_config_modified(&self, config: &McpConfig) -> bool {
-        *self.previous_config_hash.blocking_lock() != Self::hash(config)
+    async fn is_config_modified(&self, config: &McpConfig) -> bool {
+        *self.previous_config_hash.lock().await != Self::hash(config)
     }
 
     async fn insert_tools(
@@ -68,19 +68,18 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         let env = config.env.unwrap_or_default();
         let args = config.args;
 
-        let client = self
-            .infra
-            .mcp_server()
-            .connect_stdio(server_name, &command, env, args)
-            .await?;
+        let client = Arc::new(
+            self.infra
+                .mcp_server()
+                .connect_stdio(server_name, &command, env, args)
+                .await?,
+        );
         let tools = client
             .list()
             .await
             .map_err(|e| anyhow::anyhow!("Failed to list tools: {e}"))?;
 
-        let client = Arc::new(client);
-
-        self.insert_tools(server_name, tools, client.clone())
+        self.insert_tools(server_name, tools, client)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to insert tools: {e}"))?;
 
@@ -111,7 +110,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         let mcp = self.reader.read().await?;
 
         // If config is unchanged, skip reinitialization
-        if !self.is_config_modified(&mcp) {
+        if !self.is_config_modified(&mcp).await {
             return Ok(());
         }
 
