@@ -10,7 +10,7 @@ use forge_tracker::install_panic_hook;
 async fn main() -> Result<()> {
     // Set up panic hook for crash reporting
     install_panic_hook();
-    
+
     // Initialize and run the UI
     let cli = Cli::parse();
 
