@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -87,7 +86,7 @@ impl<F: API> UI<F> {
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
-        self.state = UIState::default();
+        self.init_state().await?;
         banner::display()?;
 
         Ok(())
@@ -534,12 +533,8 @@ impl<F: API> UI<F> {
         self.api
             .write_workflow(self.cli.workflow.as_deref(), &workflow)
             .await?;
-        let mode = workflow
-            .variables
-            .get("mode")
-            .and_then(|value| value.as_str().and_then(|m| Mode::from_str(m).ok()))
-            .unwrap_or(Mode::Act);
-        self.state = UIState::new(mode).provider(self.api.environment().provider);
+
+        self.state = UIState::new(base_workflow).provider(self.api.environment().provider);
         Ok(workflow)
     }
 

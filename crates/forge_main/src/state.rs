@@ -1,5 +1,7 @@
+use std::str::FromStr;
+
 use derive_setters::Setters;
-use forge_api::{ConversationId, Model, ModelId, Provider, Usage};
+use forge_api::{ConversationId, Model, ModelId, Provider, Usage, Workflow};
 use strum_macros::EnumString;
 
 use crate::prompt::ForgePrompt;
@@ -23,7 +25,7 @@ impl std::fmt::Display for Mode {
 
 //TODO: UIState and ForgePrompt seem like the same thing and can be merged
 /// State information for the UI
-#[derive(Default, Clone, Setters)]
+#[derive(Debug, Default, Clone, Setters)]
 #[setters(strip_option)]
 pub struct UIState {
     pub conversation_id: Option<ConversationId>,
@@ -36,13 +38,18 @@ pub struct UIState {
 }
 
 impl UIState {
-    pub fn new(mode: Mode) -> Self {
+    pub fn new(workflow: Workflow) -> Self {
+        let mode = workflow
+            .variables
+            .get("mode")
+            .and_then(|value| value.as_str().and_then(|m| Mode::from_str(m).ok()))
+            .unwrap_or_default();
         Self {
             conversation_id: Default::default(),
             usage: Default::default(),
             mode,
             is_first: true,
-            model: Default::default(),
+            model: workflow.model,
             cached_models: Default::default(),
             provider: Default::default(),
         }
