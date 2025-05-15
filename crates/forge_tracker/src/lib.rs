@@ -5,6 +5,9 @@ mod error;
 mod error_reporting;
 mod event;
 mod log;
+
+// External crates used by specific modules
+extern crate open;
 pub use can_track::VERSION;
 pub use dispatch::Tracker;
 use error::Result;
