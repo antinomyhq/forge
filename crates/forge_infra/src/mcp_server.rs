@@ -25,8 +25,6 @@ impl McpServer for ForgeMcpServer {
     }
 
     async fn connect_sse(&self, url: &str) -> anyhow::Result<Self::Client> {
-        Ok(ForgeMcpClient::new(Connector::Sse {
-            url: url.to_string(),
-        }))
+        Ok(ForgeMcpClient::new(Connector::Sse { url: url.to_string() }))
     }
 }

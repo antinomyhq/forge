@@ -1,3 +1,6 @@
+use std::borrow::Cow;
+use std::sync::Arc;
+
 use anyhow::Context;
 use forge_domain::{ToolDefinition, ToolName};
 use forge_services::McpClient;
@@ -7,8 +10,6 @@ use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceExt};
 use serde_json::Value;
-use std::borrow::Cow;
-use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
