@@ -348,7 +348,10 @@ impl<F: API> UI<F> {
             }
             Command::Tools => {
                 use crate::tools_display::format_tools;
+                self.spinner.start(Some("Loading tools"))?;
                 let tools = self.api.tools().await?;
+                self.spinner.stop(None)?;
+                
                 let output = format_tools(&tools);
                 self.writeln(output)?;
             }
