@@ -10,12 +10,7 @@ use forge_tracker::install_panic_hook;
 async fn main() -> Result<()> {
     // Set up panic hook for crash reporting
     install_panic_hook();
-
-    // For testing the panic hook - uncomment to test
-    // if std::env::var("TEST_PANIC").is_ok() {
-    //     panic!("Test panic for crash reporting");
-    // }
-
+    
     // Initialize and run the UI
     let cli = Cli::parse();
 
