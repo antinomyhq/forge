@@ -6,10 +6,9 @@ mod error_reporting;
 mod event;
 mod log;
 
-// External crates used by specific modules
 pub use can_track::VERSION;
 pub use dispatch::Tracker;
 use error::Result;
-pub use error_reporting::{install_panic_hook, GithubIssueCreator, PanicReport, SystemInfo};
+pub use error_reporting::install_panic_hook;
 pub use event::{Event, EventKind, ToolCallPayload};
 pub use log::{init_tracing, Guard};
