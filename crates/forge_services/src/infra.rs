@@ -137,6 +137,7 @@ pub trait McpClient: Send + Sync + 'static {
         tool_name: &ToolName,
         input: serde_json::Value,
     ) -> anyhow::Result<String>;
+    async fn reconnect(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]

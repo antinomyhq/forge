@@ -48,7 +48,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         let mut lock = self.tools.write().await;
 
         for mut tool in tools.into_iter() {
-            let server = McpTool::new(tool.name.clone(), client.clone())?;
+            let server = McpTool::new(server_name, tool.name.clone(), client.clone())?;
             // Generate a unique name for the tool
             let tool_name = ToolName::new(format!("mcp_{server_name}_tool_{}", tool.name));
             tool.name = tool_name.clone();

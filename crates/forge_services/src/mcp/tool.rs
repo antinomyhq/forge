@@ -8,11 +8,16 @@ use crate::McpClient;
 pub struct McpTool<T> {
     pub client: Arc<T>,
     pub tool_name: ToolName,
+    pub server_name: String,
 }
 
 impl<T> McpTool<T> {
-    pub fn new(tool_name: ToolName, client: Arc<T>) -> anyhow::Result<Self> {
-        Ok(Self { client, tool_name })
+    pub fn new(
+        server_name: impl ToString,
+        tool_name: ToolName,
+        client: Arc<T>,
+    ) -> anyhow::Result<Self> {
+        Ok(Self { client, tool_name, server_name: server_name.to_string() })
     }
 }
 
@@ -24,6 +29,27 @@ impl<T: McpClient> ExecutableTool for McpTool<T> {
         context
             .send_text(TitleFormat::debug("MCP").sub_title(self.tool_name.as_str()))
             .await?;
-        self.client.call_tool(&self.tool_name, input).await
+        let mut result = self.client.call_tool(&self.tool_name, input.clone()).await;
+
+        let mut retries = 0;
+        while let Err(Some(rmcp::ServiceError::Transport(_))) = result
+            .as_ref()
+            .map_err(|e| e.downcast_ref::<rmcp::ServiceError>())
+        {
+            if retries > 2 {
+                context
+                    .send_text(TitleFormat::error(format!(
+                        "Unable to connect to MCP: {}",
+                        self.server_name
+                    )))
+                    .await?;
+                break;
+            }
+            self.client.reconnect().await?;
+            result = self.client.call_tool(&self.tool_name, input.clone()).await;
+            retries += 1;
+        }
+
+        result
     }
 }
