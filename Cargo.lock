@@ -1165,6 +1165,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.12",
  "tokio",
+ "tokio-retry",
  "tokio-stream",
  "tracing",
  "tree-sitter",
