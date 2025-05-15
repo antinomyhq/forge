@@ -20,19 +20,23 @@ pub enum Scope {
 pub struct McpServer {
     /// Command to execute for starting this MCP server
     #[merge(strategy = crate::merge::option)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
 
     /// Arguments to pass to the command
     #[merge(strategy = crate::merge::vec::append)]
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
 
     /// Environment variables to pass to the command
     #[merge(strategy = crate::merge::option)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub env: Option<BTreeMap<String, String>>,
 
     /// Url of the MCP server
     #[merge(strategy = crate::merge::option)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
 }
 
