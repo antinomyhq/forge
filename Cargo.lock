@@ -1189,6 +1189,7 @@ dependencies = [
  "convert_case",
  "derive_more",
  "http 1.2.0",
+ "inquire",
  "lazy_static",
  "machineid-rs",
  "posthog-rs",

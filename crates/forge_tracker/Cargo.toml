@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-reqwest.workspace = true
+reqwest = { workspace = true, features = ["json"] }
 derive_more.workspace = true
 url.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 machineid-rs.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 tracing.workspace = true
 sysinfo.workspace = true
 posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81419031e4889d9c3882d7458d2efa588a8" }
@@ -23,6 +23,7 @@ regex.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
 anyhow.workspace = true
+inquire.workspace = true
 
 [dev-dependencies]
 lazy_static.workspace = true

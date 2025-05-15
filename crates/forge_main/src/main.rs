@@ -4,9 +4,18 @@ use anyhow::Result;
 use clap::Parser;
 use forge::{Cli, UI};
 use forge_api::ForgeAPI;
+use forge_tracker::install_panic_hook;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Set up panic hook for crash reporting
+    install_panic_hook();
+
+    // For testing the panic hook - uncomment to test
+    // if std::env::var("TEST_PANIC").is_ok() {
+    //     panic!("Test panic for crash reporting");
+    // }
+
     // Initialize and run the UI
     let cli = Cli::parse();
 

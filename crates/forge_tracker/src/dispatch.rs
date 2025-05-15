@@ -66,7 +66,7 @@ impl Tracker {
         });
     }
 
-    pub async fn dispatch(&'static self, event_kind: EventKind) -> Result<()> {
+    pub async fn dispatch(&self, event_kind: EventKind) -> Result<()> {
         if self.can_track {
             // Create a new event
             let event = Event {
@@ -95,7 +95,7 @@ impl Tracker {
         Ok(())
     }
 
-    async fn email(&'static self) -> Vec<String> {
+    async fn email(&self) -> Vec<String> {
         let mut guard = self.email.lock().await;
         if guard.is_none() {
             *guard = Some(email().await.into_iter().collect());
