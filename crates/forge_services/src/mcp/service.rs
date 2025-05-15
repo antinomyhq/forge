@@ -39,11 +39,11 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         *self.previous_config_hash.lock().await != Self::hash(config)
     }
 
-    async fn insert_tools(
+    async fn insert_tools<T: McpClient>(
         &self,
         server_name: &str,
         tools: Vec<ToolDefinition>,
-        client: Arc<dyn McpClient>,
+        client: Arc<T>,
     ) -> anyhow::Result<()> {
         let mut lock = self.tools.write().await;
 

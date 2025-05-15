@@ -6,16 +6,16 @@ use forge_domain::{ExecutableTool, ToolCallContext, ToolDefinition, ToolName};
 
 use crate::McpClient;
 
-pub struct McpTool {
-    pub client: Arc<dyn McpClient>,
+pub struct McpTool<T> {
+    pub client: Arc<T>,
     pub local_tool_name: ToolName,
 }
 
-impl McpTool {
+impl<T> McpTool<T> {
     pub fn new(
         server: String,
         tool: ToolDefinition,
-        client: Arc<dyn McpClient>,
+        client: Arc<T>,
     ) -> anyhow::Result<Self> {
         let local_tool_name = ToolName::new(
             tool.name
@@ -29,7 +29,7 @@ impl McpTool {
 }
 
 #[async_trait::async_trait]
-impl ExecutableTool for McpTool {
+impl<T: McpClient> ExecutableTool for McpTool<T> {
     type Input = serde_json::Value;
 
     async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
