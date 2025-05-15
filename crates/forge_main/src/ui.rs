@@ -49,10 +49,6 @@ impl From<PartialEvent> for Event {
     }
 }
 
-enum CommandAction {
-    Exit,
-}
-
 pub struct UI<F> {
     markdown: MarkdownFormat,
     state: UIState,
@@ -179,9 +175,7 @@ impl<F: API> UI<F> {
 
     async fn run_inner(&mut self) -> Result<()> {
         if let Some(mcp) = self.cli.subcommands.clone() {
-            return match self.handle_subcommands(mcp).await? {
-                CommandAction::Exit => Ok(()),
-            };
+            return self.handle_subcommands(mcp).await;
         }
 
         // Check for dispatch flag first
@@ -229,10 +223,7 @@ impl<F: API> UI<F> {
         }
     }
 
-    async fn handle_subcommands(
-        &mut self,
-        subcommand: TopLevelCommand,
-    ) -> anyhow::Result<CommandAction> {
+    async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
         match subcommand {
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Add(add) => {
@@ -253,15 +244,12 @@ impl<F: API> UI<F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Added server: {name}")))?;
-
-                    Ok(CommandAction::Exit)
+                    self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))?;
                 }
                 McpCommand::List => {
                     let mcp_servers = self.api.read_mcp_config().await?;
                     if mcp_servers.is_empty() {
                         self.writeln(TitleFormat::error("No MCP servers found"))?;
-                        return Ok(CommandAction::Exit);
                     }
 
                     let mut output = String::new();
@@ -269,7 +257,6 @@ impl<F: API> UI<F> {
                         output.push_str(&format!("{name}: {server}"));
                     }
                     self.writeln(output)?;
-                    Ok(CommandAction::Exit)
                 }
                 McpCommand::Remove(rm) => {
                     let name = rm.name.clone();
@@ -281,7 +268,6 @@ impl<F: API> UI<F> {
                     .await?;
 
                     self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
-                    Ok(CommandAction::Exit)
                 }
                 McpCommand::Get(val) => {
                     let name = val.name.clone();
@@ -294,8 +280,6 @@ impl<F: API> UI<F> {
                     let mut output = String::new();
                     output.push_str(&format!("{name}: {server}"));
                     self.writeln(TitleFormat::info(output))?;
-
-                    Ok(CommandAction::Exit)
                 }
                 McpCommand::AddJson(add_json) => {
                     let server = serde_json::from_str::<McpServer>(add_json.json.as_str())
@@ -311,11 +295,10 @@ impl<F: API> UI<F> {
                         "Added server: {}",
                         add_json.name
                     )))?;
-
-                    Ok(CommandAction::Exit)
                 }
             },
         }
+        Ok(())
     }
 
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
