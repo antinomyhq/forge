@@ -219,6 +219,10 @@ pub mod tests {
         async fn call_tool(&self, _: &ToolName, _: Value) -> anyhow::Result<String> {
             Ok(String::new())
         }
+
+        async fn reconnect(&self) -> anyhow::Result<()> {
+            Ok(())
+        }
     }
 
     #[async_trait::async_trait]
