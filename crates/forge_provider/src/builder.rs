@@ -8,10 +8,10 @@ use forge_domain::{
 use reqwest::redirect::Policy;
 
 use crate::anthropic::Anthropic;
-use crate::open_router::OpenRouter;
+use crate::forge_provider::ForgeProvider;
 
 pub enum Client {
-    OpenAICompat(OpenRouter),
+    OpenAICompat(ForgeProvider),
     Anthropic(Anthropic),
 }
 
@@ -26,7 +26,7 @@ impl Client {
 
         match &provider {
             Provider::OpenAI { url, .. } => Ok(Client::OpenAICompat(
-                OpenRouter::builder()
+                ForgeProvider::builder()
                     .client(client)
                     .provider(provider.clone())
                     .retry_config(retry_config.clone())

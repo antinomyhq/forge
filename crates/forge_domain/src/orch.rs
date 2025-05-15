@@ -96,8 +96,11 @@ impl<A: Services> Orchestrator<A> {
             self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
                 .await?;
 
-            // Add the result to our collection
-            tool_call_records.push(ToolCallRecord { tool_call: tool_call.clone(), tool_result });
+            // Add the result to our collection if completion wasn't achieved
+            if !tool_context.get_complete().await {
+                tool_call_records
+                    .push(ToolCallRecord { tool_call: tool_call.clone(), tool_result });
+            }
         }
 
         Ok(tool_call_records)
@@ -515,6 +518,8 @@ impl<A: Services> Orchestrator<A> {
                 if empty_tool_call_count > 3 {
                     bail!("Model '{model}' is unable to follow instructions, consider retrying or switching to a bigger model.");
                 }
+            } else {
+                empty_tool_call_count = 0;
             }
 
             // Update context in the conversation

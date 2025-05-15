@@ -1,6 +1,6 @@
-use crate::open_router::request::OpenRouterRequest;
-use crate::open_router::tool_choice::ToolChoice;
-use crate::open_router::transformers::Transformer;
+use crate::forge_provider::request::Request;
+use crate::forge_provider::tool_choice::ToolChoice;
+use crate::forge_provider::transformers::Transformer;
 
 pub struct SetToolChoice {
     choice: ToolChoice,
@@ -13,7 +13,7 @@ impl SetToolChoice {
 }
 
 impl Transformer for SetToolChoice {
-    fn transform(&self, mut request: OpenRouterRequest) -> OpenRouterRequest {
+    fn transform(&self, mut request: Request) -> Request {
         request.tool_choice = Some(self.choice.clone());
         request
     }
@@ -28,7 +28,7 @@ mod tests {
     #[test]
     fn test_gemini_transformer_tool_strategy() {
         let context = Context::default();
-        let request = OpenRouterRequest::from(context).model(ModelId::new("google/gemini-pro"));
+        let request = Request::from(context).model(ModelId::new("google/gemini-pro"));
 
         let transformer = SetToolChoice::new(ToolChoice::Auto);
         let transformed = transformer.transform(request);

@@ -13,7 +13,7 @@ use super::tool_choice::FunctionType;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
-pub enum OpenRouterResponse {
+pub enum Response {
     Success {
         id: String,
         provider: Option<String>,
@@ -82,12 +82,12 @@ impl Display for ErrorResponse {
 pub struct ResponseMessage {
     pub content: Option<String>,
     pub role: Option<String>,
-    pub tool_calls: Option<Vec<OpenRouterToolCall>>,
+    pub tool_calls: Option<Vec<ToolCall>>,
     pub refusal: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct OpenRouterToolCall {
+pub struct ToolCall {
     pub id: Option<ToolCallId>,
     pub r#type: FunctionType,
     pub function: FunctionCall,
@@ -111,12 +111,12 @@ impl From<ResponseUsage> for Usage {
     }
 }
 
-impl TryFrom<OpenRouterResponse> for ModelResponse {
+impl TryFrom<Response> for ModelResponse {
     type Error = Error;
 
-    fn try_from(res: OpenRouterResponse) -> Result<Self, Self::Error> {
+    fn try_from(res: Response) -> Result<Self, Self::Error> {
         match res {
-            OpenRouterResponse::Success { choices, usage, .. } => {
+            Response::Success { choices, usage, .. } => {
                 if let Some(choice) = choices.first() {
                     let mut response = match choice {
                         Choice::NonChat { text, finish_reason, .. } => {
@@ -183,7 +183,7 @@ impl TryFrom<OpenRouterResponse> for ModelResponse {
                     Ok(default_response)
                 }
             }
-            OpenRouterResponse::Failure { error } => Err(Error::Upstream(error)),
+            Response::Failure { error } => Err(Error::Upstream(error)),
         }
     }
 }
@@ -198,15 +198,15 @@ mod tests {
     struct Fixture;
 
     impl Fixture {
-        // check if the response is compatible with the OpenRouterResponse
+        // check if the response is compatible with the
         fn test_response_compatibility(message: &str) -> bool {
-            let open_router_response = serde_json::from_str::<OpenRouterResponse>(message)
-                .with_context(|| format!("Failed to parse OpenRouter response: {message}"))
+            let response = serde_json::from_str::<Response>(message)
+                .with_context(|| format!("Failed to parse response: {message}"))
                 .and_then(|event| {
                     ChatCompletionMessage::try_from(event.clone())
                         .with_context(|| "Failed to create completion message")
                 });
-            open_router_response.is_ok()
+            response.is_ok()
         }
     }
 
@@ -217,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn test_open_router_response_event() {
+    fn test_antinomy_response_event() {
         let event = "{\"id\":\"gen-1739949430-JZMcABaj4fg8oFDtRNDZ\",\"provider\":\"OpenAI\",\"model\":\"openai/gpt-4o-mini\",\"object\":\"chat.completion.chunk\",\"created\":1739949430,\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"index\":0,\"id\":\"call_bhjvz9w48ov4DSRhM15qLMmh\",\"type\":\"function\",\"function\":{\"name\":\"forge_tool_process_shell\",\"arguments\":\"\"}}],\"refusal\":null},\"logprobs\":null,\"finish_reason\":null,\"native_finish_reason\":null}],\"system_fingerprint\":\"fp_00428b782a\"}";
         assert!(Fixture::test_response_compatibility(event));
     }

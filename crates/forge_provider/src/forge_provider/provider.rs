@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_domain::{
-    self, ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider, ProviderService,
+    self, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ProviderService,
     ResultStream, RetryConfig,
 };
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
@@ -12,24 +12,24 @@ use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
 use tracing::debug;
 
-use super::model::{ListModelResponse, OpenRouterModel};
-use super::request::OpenRouterRequest;
-use super::response::OpenRouterResponse;
-use crate::open_router::transformers::{ProviderPipeline, Transformer};
+use super::model::{ListModelResponse, Model};
+use super::request::Request;
+use super::response::Response;
+use crate::forge_provider::transformers::{ProviderPipeline, Transformer};
 use crate::retry::StatusCodeRetryPolicy;
 use crate::utils::format_http_context;
 
 #[derive(Clone, Builder)]
-pub struct OpenRouter {
+pub struct ForgeProvider {
     client: Client,
     provider: Provider,
     #[builder(default = "RetryConfig::default()")]
     retry_config: RetryConfig,
 }
 
-impl OpenRouter {
-    pub fn builder() -> OpenRouterBuilder {
-        OpenRouterBuilder::default()
+impl ForgeProvider {
+    pub fn builder() -> ForgeProviderBuilder {
+        ForgeProviderBuilder::default()
     }
 
     fn url(&self, path: &str) -> anyhow::Result<Url> {
@@ -75,9 +75,7 @@ impl OpenRouter {
         model: &ModelId,
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let mut request = OpenRouterRequest::from(context)
-            .model(model.clone())
-            .stream(true);
+        let mut request = Request::from(context).model(model.clone()).stream(true);
         request = ProviderPipeline::new(&self.provider).transform(request);
 
         let url = self.url("chat/completions")?;
@@ -118,8 +116,8 @@ impl OpenRouter {
                             None
                         }
                         Event::Message(message) => Some(
-                            serde_json::from_str::<OpenRouterResponse>(&message.data)
-                                .with_context(|| format!("Failed to parse OpenRouter response: {}", message.data))
+                            serde_json::from_str::<Response>(&message.data)
+                                .with_context(|| format!("Failed to parse Forge Provider response: {}", message.data))
                                 .and_then(|event| {
                                     ChatCompletionMessage::try_from(event.clone())
                                         .with_context(|| format!("Failed to create completion message: {}", message.data))
@@ -164,7 +162,7 @@ impl OpenRouter {
         Ok(Box::pin(stream.filter_map(|x| x)))
     }
 
-    async fn inner_models(&self) -> Result<Vec<Model>> {
+    async fn inner_models(&self) -> Result<Vec<forge_domain::Model>> {
         let url = self.url("models")?;
         debug!(url = %url, "Fetching models");
         match self.fetch_models(url.clone()).await {
@@ -213,7 +211,7 @@ impl OpenRouter {
 }
 
 #[async_trait::async_trait]
-impl ProviderService for OpenRouter {
+impl ProviderService for ForgeProvider {
     async fn chat(
         &self,
         model: &ModelId,
@@ -222,14 +220,14 @@ impl ProviderService for OpenRouter {
         self.inner_chat(model, context).await
     }
 
-    async fn models(&self) -> Result<Vec<Model>> {
+    async fn models(&self) -> Result<Vec<forge_domain::Model>> {
         self.inner_models().await
     }
 }
 
-impl From<OpenRouterModel> for Model {
-    fn from(value: OpenRouterModel) -> Self {
-        Model {
+impl From<Model> for forge_domain::Model {
+    fn from(value: Model) -> Self {
+        forge_domain::Model {
             id: value.id,
             name: value.name,
             description: value.description,
@@ -253,8 +251,8 @@ mod tests {
           }
         }))
         .unwrap();
-        let message = serde_json::from_str::<OpenRouterResponse>(&content)
-            .context("Failed to parse response")?;
+        let message =
+            serde_json::from_str::<Response>(&content).context("Failed to parse response")?;
         let message = ChatCompletionMessage::try_from(message.clone());
 
         assert!(message.is_err());

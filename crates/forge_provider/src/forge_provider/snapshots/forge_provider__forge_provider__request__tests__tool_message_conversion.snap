@@ -1,7 +1,6 @@
 ---
-source: crates/forge_provider/src/open_router/request.rs
+source: crates/forge_provider/src/forge_provider/request.rs
 expression: router_message
-snapshot_kind: text
 ---
 {
   "role": "tool",

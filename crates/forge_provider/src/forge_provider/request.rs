@@ -1,11 +1,11 @@
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use forge_domain::{
-    Context, ContextMessage, ModelId, Role, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
+    Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
 };
 use serde::{Deserialize, Serialize};
 
-use super::response::{FunctionCall, OpenRouterToolCall};
+use super::response::{FunctionCall, ToolCall};
 use super::tool_choice::{FunctionType, ToolChoice};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -29,8 +29,8 @@ pub struct ImageUrl {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct OpenRouterMessage {
-    pub role: OpenRouterRole,
+pub struct Message {
+    pub role: Role,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<MessageContent>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -38,7 +38,7 @@ pub struct OpenRouterMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<ToolCallId>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_calls: Option<Vec<OpenRouterToolCall>>,
+    pub tool_calls: Option<Vec<ToolCall>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -107,7 +107,7 @@ pub struct FunctionDescription {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct OpenRouterTool {
+pub struct Tool {
     // TODO: should be an enum
     pub r#type: FunctionType,
     pub function: FunctionDescription,
@@ -131,9 +131,9 @@ pub struct ProviderPreferences {
 
 #[derive(Debug, Deserialize, Serialize, Clone, Setters, Default)]
 #[setters(strip_option)]
-pub struct OpenRouterRequest {
+pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub messages: Option<Vec<OpenRouterMessage>>,
+    pub messages: Option<Vec<Message>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -149,7 +149,7 @@ pub struct OpenRouterRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<OpenRouterTool>>,
+    pub tools: Option<Vec<Tool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<ToolChoice>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -186,7 +186,7 @@ pub struct OpenRouterRequest {
     pub parallel_tool_calls: Option<bool>,
 }
 
-impl OpenRouterRequest {
+impl Request {
     pub fn message_count(&self) -> usize {
         self.messages
             .as_ref()
@@ -214,9 +214,9 @@ pub enum Transform {
     MiddleOut,
 }
 
-impl From<ToolDefinition> for OpenRouterTool {
+impl From<ToolDefinition> for Tool {
     fn from(value: ToolDefinition) -> Self {
-        OpenRouterTool {
+        Tool {
             r#type: FunctionType,
             function: FunctionDescription {
                 description: Some(value.description),
@@ -227,14 +227,14 @@ impl From<ToolDefinition> for OpenRouterTool {
     }
 }
 
-impl From<Context> for OpenRouterRequest {
+impl From<Context> for Request {
     fn from(request: Context) -> Self {
-        OpenRouterRequest {
+        Request {
             messages: {
                 let messages = request
                     .messages
                     .into_iter()
-                    .map(OpenRouterMessage::from)
+                    .map(Message::from)
                     .collect::<Vec<_>>();
 
                 Some(messages)
@@ -243,7 +243,7 @@ impl From<Context> for OpenRouterRequest {
                 let tools = request
                     .tools
                     .into_iter()
-                    .map(OpenRouterTool::from)
+                    .map(Tool::from)
                     .collect::<Vec<_>>();
                 if tools.is_empty() {
                     None
@@ -279,7 +279,7 @@ impl From<Context> for OpenRouterRequest {
     }
 }
 
-impl From<ToolCallFull> for OpenRouterToolCall {
+impl From<ToolCallFull> for ToolCall {
     fn from(value: ToolCallFull) -> Self {
         Self {
             id: value.call_id,
@@ -292,23 +292,20 @@ impl From<ToolCallFull> for OpenRouterToolCall {
     }
 }
 
-impl From<ContextMessage> for OpenRouterMessage {
+impl From<ContextMessage> for Message {
     fn from(value: ContextMessage) -> Self {
         match value {
-            ContextMessage::ContentMessage(chat_message) => OpenRouterMessage {
+            ContextMessage::ContentMessage(chat_message) => Message {
                 role: chat_message.role.into(),
                 content: Some(MessageContent::Text(chat_message.content)),
                 name: None,
                 tool_call_id: None,
-                tool_calls: chat_message.tool_calls.map(|tool_calls| {
-                    tool_calls
-                        .into_iter()
-                        .map(OpenRouterToolCall::from)
-                        .collect()
-                }),
+                tool_calls: chat_message
+                    .tool_calls
+                    .map(|tool_calls| tool_calls.into_iter().map(ToolCall::from).collect()),
             },
-            ContextMessage::ToolMessage(tool_result) => OpenRouterMessage {
-                role: OpenRouterRole::Tool,
+            ContextMessage::ToolMessage(tool_result) => Message {
+                role: Role::Tool,
                 content: Some(MessageContent::Text(tool_result.to_string())),
                 name: Some(tool_result.name),
                 tool_call_id: tool_result.call_id,
@@ -317,8 +314,8 @@ impl From<ContextMessage> for OpenRouterMessage {
             ContextMessage::Image(url) => {
                 let content =
                     vec![ContentPart::ImageUrl { image_url: ImageUrl { url, detail: None } }];
-                OpenRouterMessage {
-                    role: OpenRouterRole::User,
+                Message {
+                    role: Role::User,
                     content: Some(MessageContent::Parts(content)),
                     name: None,
                     tool_call_id: None,
@@ -329,19 +326,19 @@ impl From<ContextMessage> for OpenRouterMessage {
     }
 }
 
-impl From<Role> for OpenRouterRole {
-    fn from(role: Role) -> Self {
+impl From<forge_domain::Role> for Role {
+    fn from(role: forge_domain::Role) -> Self {
         match role {
-            Role::System => OpenRouterRole::System,
-            Role::User => OpenRouterRole::User,
-            Role::Assistant => OpenRouterRole::Assistant,
+            forge_domain::Role::System => Role::System,
+            forge_domain::Role::User => Role::User,
+            forge_domain::Role::Assistant => Role::Assistant,
         }
     }
 }
 
 #[derive(Debug, Deserialize, Display, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum OpenRouterRole {
+pub enum Role {
     System,
     User,
     Assistant,
@@ -366,7 +363,7 @@ mod tests {
             tool_calls: None,
             model: ModelId::new("gpt-3.5-turbo").into(),
         });
-        let router_message = OpenRouterMessage::from(user_message);
+        let router_message = Message::from(user_message);
         assert_json_snapshot!(router_message);
     }
 
@@ -388,7 +385,7 @@ mod tests {
             tool_calls: None,
             model: ModelId::new("gpt-3.5-turbo").into(),
         });
-        let router_message = OpenRouterMessage::from(message);
+        let router_message = Message::from(message);
         assert_json_snapshot!(router_message);
     }
 
@@ -406,7 +403,7 @@ mod tests {
             tool_calls: Some(vec![tool_call]),
             model: ModelId::new("gpt-3.5-turbo").into(),
         });
-        let router_message = OpenRouterMessage::from(assistant_message);
+        let router_message = Message::from(assistant_message);
         assert_json_snapshot!(router_message);
     }
 
@@ -423,7 +420,7 @@ mod tests {
             );
 
         let tool_message = ContextMessage::ToolMessage(tool_result);
-        let router_message = OpenRouterMessage::from(tool_message);
+        let router_message = Message::from(tool_message);
         assert_json_snapshot!(router_message);
     }
 
@@ -443,7 +440,7 @@ mod tests {
             );
 
         let tool_message = ContextMessage::ToolMessage(tool_result);
-        let router_message = OpenRouterMessage::from(tool_message);
+        let router_message = Message::from(tool_message);
         assert_json_snapshot!(router_message);
     }
 
@@ -454,7 +451,7 @@ mod tests {
             .success(r#"{ "code": "fn main<T>(gt: T) {let b = &gt; }"}"#);
 
         let tool_message = ContextMessage::ToolMessage(tool_result);
-        let router_message = OpenRouterMessage::from(tool_message);
+        let router_message = Message::from(tool_message);
         assert_json_snapshot!(router_message);
     }
 

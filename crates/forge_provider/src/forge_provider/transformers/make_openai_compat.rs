@@ -1,11 +1,11 @@
 use super::Transformer;
-use crate::open_router::request::OpenRouterRequest;
+use crate::forge_provider::request::Request;
 
-/// makes the OpenRouterRequest compatible with the OpenAI API.
-pub struct DropOpenRouterFields;
+/// makes the Request compatible with the OpenAI API.
+pub struct MakeOpenAiCompat;
 
-impl Transformer for DropOpenRouterFields {
-    fn transform(&self, mut request: OpenRouterRequest) -> OpenRouterRequest {
+impl Transformer for MakeOpenAiCompat {
+    fn transform(&self, mut request: Request) -> Request {
         // remove fields that are not supported by open-ai.
         request.provider = None;
         request.transforms = None;

@@ -2,7 +2,7 @@ use forge_domain::ModelId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct OpenRouterModel {
+pub struct Model {
     pub id: ModelId,
     pub name: Option<String>,
     pub created: Option<u64>,
@@ -38,5 +38,5 @@ pub struct TopProvider {
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct ListModelResponse {
-    pub data: Vec<OpenRouterModel>,
+    pub data: Vec<Model>,
 }

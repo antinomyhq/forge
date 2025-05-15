@@ -25,7 +25,11 @@ agents:
     system_prompt: |-
       {{> system-prompt-engineer-act.hbs }}
     user_prompt: |-
+      {{#if (eq event.name 'act/user_task_init')}}
       <task>{{event.value}}</task>
+      {{else}}
+      <feedback>{{event.value}}</feedback>
+      {{/if}}
     ephemeral: false
     tools:
       - forge_tool_fs_read
@@ -55,8 +59,11 @@ agents:
     system_prompt: |-
       {{> system-prompt-engineer-plan.hbs }}
     user_prompt: |-
+      {{#if (eq event.name 'plan/user_task_init')}}
       <task>{{event.value}}</task>
-      <current_time>{{current_time}}</current_time>
+      {{else}}
+      <feedback>{{event.value}}</feedback>
+      {{/if}}
       Only create new plans or update existing ones.
       Do not modify, create, or delete any code files.
       

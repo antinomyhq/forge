@@ -2,9 +2,9 @@ use regex::Regex;
 
 use super::combine::Combine;
 use super::when::When;
-use crate::open_router::request::OpenRouterRequest;
+use crate::forge_provider::request::Request;
 
-/// A trait for transforming OpenRouterRequest based on model-specific
+/// A trait for transforming Request based on model-specific
 /// requirements
 pub trait Transformer {
     /// Transform a request based on a regex pattern matching the model name
@@ -14,7 +14,7 @@ pub trait Transformer {
         self,
         pattern: &str,
         matches: bool,
-    ) -> When<Self, impl Fn(&OpenRouterRequest) -> bool>
+    ) -> When<Self, impl Fn(&Request) -> bool>
     where
         Self: Sized,
     {
@@ -29,14 +29,14 @@ pub trait Transformer {
         })
     }
 
-    fn when_model(self, pattern: &str) -> When<Self, impl Fn(&OpenRouterRequest) -> bool>
+    fn when_model(self, pattern: &str) -> When<Self, impl Fn(&Request) -> bool>
     where
         Self: Sized,
     {
         self.when_model_matches_condition(pattern, true)
     }
 
-    fn except_when_model(self, pattern: &str) -> When<Self, impl Fn(&OpenRouterRequest) -> bool>
+    fn except_when_model(self, pattern: &str) -> When<Self, impl Fn(&Request) -> bool>
     where
         Self: Sized,
     {
@@ -44,7 +44,7 @@ pub trait Transformer {
     }
 
     /// Transform the request according to the transformer's logic
-    fn transform(&self, request: OpenRouterRequest) -> OpenRouterRequest;
+    fn transform(&self, request: Request) -> Request;
 
     /// Combines this transformer with another, creating a new transformer that
     /// applies both transformations in sequence
@@ -57,7 +57,7 @@ pub trait Transformer {
 
     /// Creates a conditional transformer that only applies the transformation
     /// if the given condition is true
-    fn when<F: Fn(&OpenRouterRequest) -> bool>(self, condition: F) -> When<Self, F>
+    fn when<F: Fn(&Request) -> bool>(self, condition: F) -> When<Self, F>
     where
         Self: Sized,
     {
@@ -71,7 +71,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::open_router::transformers::identity::Identity;
+    use crate::forge_provider::transformers::identity::Identity;
 
     // A simple test transformer that adds a prefix to the model name
     struct TestTransformer {
@@ -79,7 +79,7 @@ mod tests {
     }
 
     impl Transformer for TestTransformer {
-        fn transform(&self, mut request: OpenRouterRequest) -> OpenRouterRequest {
+        fn transform(&self, mut request: Request) -> Request {
             if let Some(model) = request.model.as_mut() {
                 let new_model = format!("{}{}", self.prefix, model.as_str());
                 *model = ModelId::new(&new_model);
@@ -92,7 +92,7 @@ mod tests {
     fn test_when_model_matches_condition_true() {
         // Fixture
         let transformer = TestTransformer { prefix: "prefix-".to_string() };
-        let request = OpenRouterRequest::default().model(ModelId::new("anthropic/claude-3"));
+        let request = Request::default().model(ModelId::new("anthropic/claude-3"));
 
         // Apply transformation with condition that should match
         let conditional = transformer.when_model_matches_condition("claude", true);
@@ -106,7 +106,7 @@ mod tests {
     fn test_when_model_matches_condition_false() {
         // Fixture
         let transformer = TestTransformer { prefix: "prefix-".to_string() };
-        let request = OpenRouterRequest::default().model(ModelId::new("anthropic/claude-3"));
+        let request = Request::default().model(ModelId::new("anthropic/claude-3"));
 
         // Apply transformation with condition that should not match
         let conditional = transformer.when_model_matches_condition("claude", false);
@@ -120,7 +120,7 @@ mod tests {
     fn test_when_model_matches_condition_no_match() {
         // Fixture
         let transformer = TestTransformer { prefix: "prefix-".to_string() };
-        let request = OpenRouterRequest::default().model(ModelId::new("openai/gpt-4"));
+        let request = Request::default().model(ModelId::new("openai/gpt-4"));
 
         // Apply transformation with condition that should not match
         let conditional = transformer.when_model_matches_condition("claude", true);
@@ -134,7 +134,7 @@ mod tests {
     fn test_when_model() {
         // Fixture
         let transformer = TestTransformer { prefix: "prefix-".to_string() };
-        let request = OpenRouterRequest::default().model(ModelId::new("anthropic/claude-3"));
+        let request = Request::default().model(ModelId::new("anthropic/claude-3"));
 
         // Apply transformation with when_model
         let conditional = transformer.when_model("claude");
@@ -150,7 +150,7 @@ mod tests {
         let transformer = TestTransformer { prefix: "prefix-".to_string() };
 
         // Test with a model that should be excluded
-        let request1 = OpenRouterRequest::default().model(ModelId::new("anthropic/claude-3"));
+        let request1 = Request::default().model(ModelId::new("anthropic/claude-3"));
         let conditional = transformer.except_when_model("claude");
         let actual1 = conditional.transform(request1);
         // Expected: model name should remain unchanged (because it matches the pattern
@@ -160,7 +160,7 @@ mod tests {
         // Create a new transformer since the previous one was consumed
         let transformer2 = TestTransformer { prefix: "prefix-".to_string() };
         // Test with a model that should not be excluded
-        let request2 = OpenRouterRequest::default().model(ModelId::new("openai/gpt-4"));
+        let request2 = Request::default().model(ModelId::new("openai/gpt-4"));
         let conditional2 = transformer2.except_when_model("claude");
         let actual2 = conditional2.transform(request2);
         // Expected: model name should be prefixed (because it doesn't match the
@@ -173,7 +173,7 @@ mod tests {
         // Fixture
         let transformer1 = TestTransformer { prefix: "prefix1-".to_string() };
         let transformer2 = TestTransformer { prefix: "prefix2-".to_string() };
-        let request = OpenRouterRequest::default().model(ModelId::new("model"));
+        let request = Request::default().model(ModelId::new("model"));
 
         // Apply combined transformations
         let combined = transformer1.combine(transformer2);
@@ -187,7 +187,7 @@ mod tests {
     fn test_when() {
         // Fixture for first test
         let transformer1 = TestTransformer { prefix: "prefix-".to_string() };
-        let request1 = OpenRouterRequest::default().model(ModelId::new("model"));
+        let request1 = Request::default().model(ModelId::new("model"));
 
         // Test with a condition that should match
         let conditional1 = transformer1.when(|req| req.model.is_some());
@@ -197,7 +197,7 @@ mod tests {
 
         // Fixture for second test (need a new transformer since when takes ownership)
         let transformer2 = TestTransformer { prefix: "prefix-".to_string() };
-        let request2 = OpenRouterRequest::default().model(ModelId::new("model"));
+        let request2 = Request::default().model(ModelId::new("model"));
 
         // Test with a condition that should not match
         let conditional2 = transformer2.when(|req| {
@@ -214,7 +214,7 @@ mod tests {
     fn test_when_model_no_model() {
         // Fixture
         let transformer = TestTransformer { prefix: "prefix-".to_string() };
-        let request = OpenRouterRequest::default(); // No model set
+        let request = Request::default(); // No model set
 
         // Apply transformation with when_model
         let conditional = transformer.when_model("claude");
@@ -228,7 +228,7 @@ mod tests {
     fn test_identity_transformer() {
         // Fixture
         let transformer = Identity;
-        let request = OpenRouterRequest::default().model(ModelId::new("model"));
+        let request = Request::default().model(ModelId::new("model"));
 
         // Apply identity transformation
         let actual = transformer.transform(request.clone());

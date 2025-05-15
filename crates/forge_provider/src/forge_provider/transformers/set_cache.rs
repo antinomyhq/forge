@@ -1,23 +1,23 @@
-use crate::open_router::request::{OpenRouterRequest, OpenRouterRole};
-use crate::open_router::transformers::Transformer;
+use crate::forge_provider::request::{Request, Role};
+use crate::forge_provider::transformers::Transformer;
 
 /// Transformer that caches the last user/system message for supported models
 pub struct SetCache;
 
 impl Transformer for SetCache {
-    fn transform(&self, mut request: OpenRouterRequest) -> OpenRouterRequest {
+    fn transform(&self, mut request: Request) -> Request {
         if let Some(messages) = request.messages.as_mut() {
             let mut last_was_user = false;
             let mut cache_positions = Vec::new();
             for (i, message) in messages.iter().enumerate() {
-                if message.role == OpenRouterRole::User {
+                if message.role == Role::User {
                     if !last_was_user {
                         cache_positions.push(i);
                     }
                     last_was_user = true;
-                } else if message.role == OpenRouterRole::Assistant {
+                } else if message.role == Role::Assistant {
                     last_was_user = false;
-                } else if message.role == OpenRouterRole::System {
+                } else if message.role == Role::System {
                     cache_positions.push(i);
                     last_was_user = false;
                 }
@@ -80,7 +80,7 @@ mod tests {
             temperature: None,
         };
 
-        let request = OpenRouterRequest::from(context);
+        let request = Request::from(context);
         let request = SetCache.transform(request);
         let mut output = String::new();
         let sequences = request
