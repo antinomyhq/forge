@@ -1,11 +1,13 @@
+use std::backtrace::Backtrace;
+use std::fmt::Write as _;
+use std::fs;
+use std::panic::{self, PanicHookInfo};
+use std::path::PathBuf;
+
 use anyhow::Result;
 use chrono::Local;
 use inquire::{Confirm, Text};
 use reqwest::Client;
-use std::fs;
-use std::panic::{self, PanicHookInfo};
-use std::path::PathBuf;
-use std::{backtrace::Backtrace, fmt::Write as _};
 use sysinfo::System;
 
 use crate::{EventKind, Tracker};
@@ -50,8 +52,8 @@ impl PanicReport {
         };
 
         Self::new(
-            format!("{}{}", message, location),
-            format!("{:#?}", backtrace),
+            format!("{message}{location}"),
+            format!("{backtrace:#?}"),
         )
     }
 
@@ -176,19 +178,22 @@ fn save_token_to_env(token: &str) -> Result<()> {
     // Get current working directory
     let cwd = std::env::current_dir()?;
     let env_path = cwd.join(".env");
-    
+
     // Check if .env file exists
     let env_content = if env_path.exists() {
         // Read existing content
         let content = fs::read_to_string(&env_path)?;
-        
+
         // Check if GITHUB_TOKEN is already defined
-        if content.lines().any(|line| line.starts_with("GITHUB_TOKEN=")) {
+        if content
+            .lines()
+            .any(|line| line.starts_with("GITHUB_TOKEN="))
+        {
             // Replace existing token
             let mut new_content = String::new();
             for line in content.lines() {
                 if line.starts_with("GITHUB_TOKEN=") {
-                    new_content.push_str(&format!("GITHUB_TOKEN={}\n", token));
+                    new_content.push_str(&format!("GITHUB_TOKEN={token}\n"));
                 } else {
                     new_content.push_str(line);
                     new_content.push('\n');
@@ -197,16 +202,16 @@ fn save_token_to_env(token: &str) -> Result<()> {
             new_content
         } else {
             // Append token to file
-            format!("{}\nGITHUB_TOKEN={}\n", content, token)
+            format!("{content}\nGITHUB_TOKEN={token}\n")
         }
     } else {
         // Create new file with token
-        format!("GITHUB_TOKEN={}\n", token)
+        format!("GITHUB_TOKEN={token}\n")
     };
-    
+
     // Write content to file
     fs::write(env_path, env_content)?;
-    
+
     println!("GitHub token saved to .env file in current directory");
     Ok(())
 }
@@ -216,10 +221,10 @@ fn ask_for_github_token() -> Option<String> {
         Ok(token) if !token.trim().is_empty() => {
             // Save token to .env file if provided
             if let Err(e) = save_token_to_env(&token) {
-                eprintln!("Failed to save token to .env file: {}", e);
+                eprintln!("Failed to save token to .env file: {e}");
             }
             Some(token)
-        },
+        }
         _ => None,
     }
 }
@@ -241,8 +246,7 @@ fn create_github_issue_via_url(title: &str, body: &str) -> Result<()> {
 
     // Create the GitHub issue URL
     let issue_url = format!(
-        "https://github.com/{ORG}/{REPO}/issues/new?title={}&body={}&labels=bug,crash",
-        encoded_title, encoded_body
+        "https://github.com/{ORG}/{REPO}/issues/new?title={encoded_title}&body={encoded_body}&labels=bug,crash"
     );
 
     println!("Opening browser to create GitHub issue...");
@@ -251,9 +255,9 @@ fn create_github_issue_via_url(title: &str, body: &str) -> Result<()> {
     match open::that(&issue_url) {
         Ok(_) => println!("Browser opened with GitHub issue form."),
         Err(e) => {
-            println!("Couldn't open browser automatically: {}", e);
+            println!("Couldn't open browser automatically: {e}");
             println!("Please visit this URL to create the issue:");
-            println!("{}", issue_url);
+            println!("{issue_url}");
         }
     }
 
@@ -299,7 +303,7 @@ pub fn install_panic_hook() {
                             println!("Crash report saved to: {}", filepath.display());
                         }
                         Err(e) => {
-                            eprintln!("Failed to save crash report: {}", e);
+                            eprintln!("Failed to save crash report: {e}");
                         }
                     }
 
@@ -313,7 +317,7 @@ pub fn install_panic_hook() {
                     if let Some(ref token) = github_token {
                         if !token.trim().is_empty() {
                             if let Err(e) = save_token_to_env(token) {
-                                eprintln!("Failed to save token from environment to .env file: {}", e);
+                                eprintln!("Failed to save token from environment to .env file: {e}");
                             }
                         }
                     } else {
@@ -327,7 +331,7 @@ pub fn install_panic_hook() {
                             // Empty token provided, redirect to GitHub issues page
                             println!("No token provided.");
                             if let Err(e) = create_github_issue_via_url(&title, &report_formatted) {
-                                eprintln!("Failed to open GitHub issue URL: {}", e);
+                                eprintln!("Failed to open GitHub issue URL: {e}");
                                 println!("Please create an issue manually at: https://github.com/{ORG}/{REPO}/issues/new");
                             }
                         } else {
@@ -344,18 +348,18 @@ pub fn install_panic_hook() {
                                     .await
                             }) {
                                 Ok(issue_url) => {
-                                    println!("GitHub issue created successfully: {}", issue_url);
+                                    println!("GitHub issue created successfully: {issue_url}");
                                     // Try to open the browser
                                     if let Err(e) = open::that(&issue_url) {
-                                        println!("Couldn't open browser automatically: {}", e);
-                                        println!("Please visit the issue URL manually: {}", issue_url);
+                                        println!("Couldn't open browser automatically: {e}");
+                                        println!("Please visit the issue URL manually: {issue_url}");
                                     }
                                 }
                                 Err(e) => {
-                                    println!("Failed to create GitHub issue via API: {}", e);
+                                    println!("Failed to create GitHub issue via API: {e}");
                                     // Fallback to URL method
                                     if let Err(url_err) = create_github_issue_via_url(&title, &report_formatted) {
-                                        eprintln!("Also failed to open GitHub issue URL: {}", url_err);
+                                        eprintln!("Also failed to open GitHub issue URL: {url_err}");
                                         println!("Please create an issue manually at: https://github.com/{ORG}/{REPO}/issues/new");
                                     }
                                 }
@@ -364,7 +368,7 @@ pub fn install_panic_hook() {
                     } else {
                         // No token was provided, redirect to GitHub issues page
                         if let Err(e) = create_github_issue_via_url(&title, &report_formatted) {
-                            eprintln!("Failed to open GitHub issue URL: {}", e);
+                            eprintln!("Failed to open GitHub issue URL: {e}");
                             println!("Please create an issue manually at: https://github.com/{ORG}/{REPO}/issues/new");
                         }
                     }
@@ -373,7 +377,7 @@ pub fn install_panic_hook() {
                     println!("No GitHub issue created. Application will exit.");
                 }
                 Err(e) => {
-                    eprintln!("Error asking for confirmation: {}", e);
+                    eprintln!("Error asking for confirmation: {e}");
                 }
             }
         }).join();
