@@ -46,8 +46,6 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         client: Arc<dyn McpClient>,
     ) -> anyhow::Result<()> {
         let mut lock = self.tools.write().await;
-        // Clear the existing tools since the new config may have the tool removed
-        lock.clear();
 
         for tool in tools.into_iter() {
             let server = McpTool::new(server_name.to_string(), tool.clone(), client.clone())?;
@@ -118,10 +116,9 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         }
 
         // Update the hash with the new config
-        {
-            let new_hash = Self::hash(&mcp);
-            *self.previous_config_hash.lock().await = new_hash;
-        }
+        let new_hash = Self::hash(&mcp);
+        *self.previous_config_hash.lock().await = new_hash;
+        self.clear_tools().await;
 
         futures::future::join_all(
             mcp.mcp_servers
@@ -143,12 +140,12 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
                 })
                 .collect::<Vec<_>>(),
         )
-        .await
-        .into_iter()
-        .flatten()
-        .filter_map(|e| e.err())
-        .next()
-        .map_or(Ok(()), Err)
+            .await
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.err())
+            .next()
+            .map_or(Ok(()), Err)
     }
 
     async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
@@ -165,6 +162,9 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
             .values()
             .map(|tool| tool.definition.clone())
             .collect())
+    }
+    async fn clear_tools(&self) {
+        self.tools.write().await.clear()
     }
 }
 
