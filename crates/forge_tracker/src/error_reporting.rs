@@ -51,10 +51,7 @@ impl PanicReport {
             "".to_string()
         };
 
-        Self::new(
-            format!("{message}{location}"),
-            format!("{backtrace:#?}"),
-        )
+        Self::new(format!("{message}{location}"), format!("{backtrace:#?}"))
     }
 
     pub fn to_markdown(&self) -> String {
