@@ -140,12 +140,12 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
                 })
                 .collect::<Vec<_>>(),
         )
-            .await
-            .into_iter()
-            .flatten()
-            .filter_map(|e| e.err())
-            .next()
-            .map_or(Ok(()), Err)
+        .await
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.err())
+        .next()
+        .map_or(Ok(()), Err)
     }
 
     async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
