@@ -351,7 +351,7 @@ impl<F: API> UI<F> {
                 self.spinner.start(Some("Loading tools"))?;
                 let tools = self.api.tools().await?;
                 self.spinner.stop(None)?;
-                
+
                 let output = format_tools(&tools);
                 self.writeln(output)?;
             }
