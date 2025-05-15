@@ -47,10 +47,13 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     ) -> anyhow::Result<()> {
         let mut lock = self.tools.write().await;
 
-        for tool in tools.into_iter() {
-            let server = McpTool::new(server_name.to_string(), tool.clone(), client.clone())?;
+        for mut tool in tools.into_iter() {
+            let server = McpTool::new(tool.name.clone(), client.clone())?;
+            // Generate a unique name for the tool
+            let tool_name = ToolName::new(format!("mcp_{server_name}_tool_{}", tool.name));
+            tool.name = tool_name.clone();
             lock.insert(
-                tool.name.clone(),
+                tool_name,
                 Arc::new(Tool { definition: tool, executable: Box::new(server) }),
             );
         }
@@ -72,7 +75,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         let client = Arc::new(
             self.infra
                 .mcp_server()
-                .connect_stdio(server_name, &command, env, args)
+                .connect_stdio(&command, env, args)
                 .await?,
         );
         let tools = client
@@ -94,12 +97,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         let url = config
             .url
             .ok_or_else(|| anyhow::anyhow!("URL is required for HTTP server"))?;
-        let client = Arc::new(
-            self.infra
-                .mcp_server()
-                .connect_sse(server_name, &url)
-                .await?,
-        );
+        let client = Arc::new(self.infra.mcp_server().connect_sse(&url).await?);
 
         let tools = client.list().await?;
         self.insert_tools(server_name, tools, client.clone())

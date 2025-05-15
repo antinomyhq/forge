@@ -10,15 +10,11 @@ use serde_json::Value;
 
 pub struct ForgeMcpClient {
     client: RunningService<RoleClient, InitializeRequestParam>,
-    name: String,
 }
 
 impl ForgeMcpClient {
-    pub fn new(
-        name: impl ToString,
-        client: RunningService<RoleClient, InitializeRequestParam>,
-    ) -> Self {
-        Self { client, name: name.to_string() }
+    pub fn new(client: RunningService<RoleClient, InitializeRequestParam>) -> Self {
+        Self { client }
     }
 }
 
@@ -31,7 +27,7 @@ impl McpClient for ForgeMcpClient {
             .into_iter()
             .filter_map(|tool| {
                 Some(
-                    ToolDefinition::new(format!("{}_tool_{}", self.name, tool.name))
+                    ToolDefinition::new(tool.name)
                         .description(tool.description.unwrap_or_default())
                         .input_schema(
                             serde_json::from_value::<RootSchema>(Value::Object(

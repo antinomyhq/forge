@@ -31,7 +31,6 @@ impl McpServer for ForgeMcpServer {
 
     async fn connect_stdio(
         &self,
-        name: &str,
         command: &str,
         env: BTreeMap<String, String>,
         args: Vec<String>,
@@ -51,13 +50,13 @@ impl McpServer for ForgeMcpServer {
             .serve(TokioChildProcess::new(command.args(args))?)
             .await?;
 
-        Ok(ForgeMcpClient::new(name, client))
+        Ok(ForgeMcpClient::new(client))
     }
 
-    async fn connect_sse(&self, name: &str, url: &str) -> anyhow::Result<Self::Client> {
+    async fn connect_sse(&self, url: &str) -> anyhow::Result<Self::Client> {
         let transport = rmcp::transport::SseTransport::start(url).await?;
         let client = self.client_info().serve(transport).await?;
 
-        Ok(ForgeMcpClient::new(name, client))
+        Ok(ForgeMcpClient::new(client))
     }
 }

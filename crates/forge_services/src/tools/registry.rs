@@ -228,14 +228,13 @@ pub mod tests {
         async fn connect_stdio(
             &self,
             _: &str,
-            _: &str,
             _: BTreeMap<String, String>,
             _: Vec<String>,
         ) -> anyhow::Result<Self::Client> {
             unimplemented!()
         }
 
-        async fn connect_sse(&self, _: &str, _: &str) -> anyhow::Result<Self::Client> {
+        async fn connect_sse(&self, _: &str) -> anyhow::Result<Self::Client> {
             unimplemented!()
         }
     }
