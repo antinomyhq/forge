@@ -15,7 +15,7 @@ use crate::{Event, EventKind};
 
 const POSTHOG_API_SECRET: &str = match option_env!("POSTHOG_API_SECRET") {
     Some(val) => val,
-    None => "phc_bd0zcNhYlTLhPahqsdnT8CNIONsYuYm7XCsdpRUw8xE",
+    None => "dev",
 };
 
 const VERSION: &str = match option_env!("APP_VERSION") {

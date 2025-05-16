@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
     let api = Arc::new(ForgeAPI::init(cli.restricted));
     let panic_tracker = ForgePanicTracker::new(api.clone());
     panic_tracker.capture();
-    
+
     let mut ui = UI::init(cli, api, panic_tracker)?;
     ui.run().await;
 
