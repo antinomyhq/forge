@@ -14,7 +14,7 @@ fn show_manual_issue_url() {
         github::ORG,
         github::REPO
     );
-    output::instruction(format!("Please create an issue manually at: {}", url));
+    output::instruction(format!("Please create an issue manually at: {url}"));
 }
 
 /// Try to create GitHub issue via URL and handle errors
