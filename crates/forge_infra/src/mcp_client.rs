@@ -88,9 +88,10 @@ impl ForgeMcpClient {
         Self::new(Connector::Sse { url })
     }
 
-    async fn reconn_if(&self, reconn: bool) -> anyhow::Result<()> {
+    /// Connects to the MCP server. If `force` is true, it will reconnect even if already connected.
+    async fn connect(&self, force: bool) -> anyhow::Result<()> {
         let mut client = self.client.lock().await;
-        if client.is_none() || reconn {
+        if client.is_none() || force {
             *client = Some(self.connector.connect().await?);
         }
         Ok(())
@@ -100,7 +101,7 @@ impl ForgeMcpClient {
 #[async_trait::async_trait]
 impl McpClient for ForgeMcpClient {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        self.reconn_if(false).await?;
+        self.connect(false).await?;
         let client = self.client.lock().await;
         let client = client.as_ref().context("Client is not running")?;
         let tools = client.list_tools(None).await?;
@@ -123,7 +124,7 @@ impl McpClient for ForgeMcpClient {
     }
 
     async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<String> {
-        self.reconn_if(false).await?;
+        self.connect(false).await?;
         let client = self.client.lock().await;
         let client = client.as_ref().context("Client is not running")?;
 
@@ -148,7 +149,7 @@ impl McpClient for ForgeMcpClient {
     }
 
     async fn reconnect(&self) -> anyhow::Result<()> {
-        self.reconn_if(true).await?;
+        self.connect(true).await?;
         Ok(())
     }
 }

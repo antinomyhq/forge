@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_domain::{
-    McpConfig, McpConfigManager, McpServer as McpServerConfig, McpService, Tool, ToolDefinition,
-    ToolName,
+    McpConfig, McpConfigManager, McpServer as McpServerConfig, McpService, McpSseServer,
+    McpStdioServer, Tool, ToolDefinition, ToolName,
 };
 use tokio::sync::{Mutex, RwLock};
 
@@ -64,7 +64,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     async fn connect_stdio_server(
         &self,
         server_name: &str,
-        config: McpServerConfig,
+        config: McpStdioServer,
     ) -> anyhow::Result<()> {
         let command = config
             .command
@@ -92,7 +92,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
     async fn connect_http_server(
         &self,
         server_name: &str,
-        config: McpServerConfig,
+        config: McpSseServer,
     ) -> anyhow::Result<()> {
         let url = config
             .url
@@ -118,32 +118,22 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         *self.previous_config_hash.lock().await = new_hash;
         self.clear_tools().await;
 
-        futures::future::join_all(
-            mcp.mcp_servers
-                .iter()
-                .map(|(name, server)| async move {
-                    if server.url.is_some() {
-                        Some(
-                            self.connect_http_server(name, server.clone())
-                                .await
-                                .context(format!("Failed to initiate MCP server: {name}")),
-                        )
-                    } else {
-                        Some(
-                            self.connect_stdio_server(name, server.clone())
-                                .await
-                                .context(format!("Failed to initiate MCP server: {name}")),
-                        )
-                    }
-                })
-                .collect::<Vec<_>>(),
-        )
+        futures::future::join_all(mcp.mcp_servers.iter().map(|(name, server)| async move {
+            match server {
+                McpServerConfig::Stdio(server) => self
+                    .connect_stdio_server(name, server.clone())
+                    .await
+                    .context(format!("Failed to initiate MCP server: {name}")),
+                McpServerConfig::Sse(server) => self
+                    .connect_http_server(name, server.clone())
+                    .await
+                    .context(format!("Failed to initiate MCP server: {name}")),
+            }
+        }))
         .await
         .into_iter()
-        .flatten()
-        .filter_map(|e| e.err())
-        .next()
-        .map_or(Ok(()), Err)
+        .collect::<anyhow::Result<Vec<_>>>()
+        .map(|_| ())
     }
 
     async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {

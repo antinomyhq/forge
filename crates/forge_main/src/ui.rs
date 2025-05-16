@@ -229,15 +229,18 @@ impl<F: API> UI<F> {
                 McpCommand::Add(add) => {
                     let name = add.name.context("Server name is required")?;
                     let scope: Scope = add.scope.into();
-                    let mut server = McpServer::default().args(add.args).env(parse_env(add.env));
-                    match add.transport {
-                        Transport::Stdio => {
-                            server = server.command(add.command_or_url.unwrap_or_default());
-                        }
-                        Transport::Sse => {
-                            server = server.url(add.command_or_url.unwrap_or_default());
-                        }
-                    }
+                    // Create the appropriate server type based on transport
+                    let server = match add.transport {
+                        Transport::Stdio => McpServer::new_stdio(
+                            add.command_or_url.clone().unwrap_or_default(), 
+                            add.args.clone(),
+                            Some(parse_env(add.env.clone()))
+                        ),
+                        Transport::Sse => McpServer::new_sse(
+                            add.command_or_url.clone().unwrap_or_default()
+                        ),
+                    };
+                    // Command/URL already set in the constructor
 
                     self.update_mcp_config(&scope, |config| {
                         config.mcp_servers.insert(name.to_string(), server);
