@@ -11,10 +11,7 @@ pub struct McpExecutor<T> {
 }
 
 impl<T> McpExecutor<T> {
-    pub fn new(
-        tool_name: ToolName,
-        client: Arc<T>,
-    ) -> anyhow::Result<Self> {
+    pub fn new(tool_name: ToolName, client: Arc<T>) -> anyhow::Result<Self> {
         Ok(Self { client, tool_name })
     }
 }
