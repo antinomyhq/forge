@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_domain::{
-    McpConfig, McpConfigManager, McpServer as McpServerConfig, McpService, McpSseServer,
+    McpConfig, McpConfigManager, McpServerConfig, McpService, McpSseServer,
     McpStdioServer, Tool, ToolDefinition, ToolName,
 };
 use tokio::sync::{Mutex, RwLock};

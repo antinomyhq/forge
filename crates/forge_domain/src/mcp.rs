@@ -17,12 +17,12 @@ pub enum Scope {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(untagged)]
-pub enum McpServer {
+pub enum McpServerConfig {
     Stdio(McpStdioServer),
     Sse(McpSseServer),
 }
 
-impl McpServer {
+impl McpServerConfig {
     /// Create a new stdio-based MCP server
     pub fn new_stdio(command: impl Into<String>, args: Vec<String>, env: Option<BTreeMap<String, String>>) -> Self {
         Self::Stdio(McpStdioServer {
@@ -69,11 +69,11 @@ pub struct McpSseServer {
     pub url: Option<String>,
 }
 
-impl Display for McpServer {
+impl Display for McpServerConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut output = String::new();
         match self {
-            McpServer::Stdio(stdio) => {
+            McpServerConfig::Stdio(stdio) => {
                 if let Some(command) = stdio.command.as_ref() {
                     output.push_str(&format!("{command} "));
                     stdio.args.iter().for_each(|arg| {
@@ -87,7 +87,7 @@ impl Display for McpServer {
                     }
                 }
             },
-            McpServer::Sse(sse) => {
+            McpServerConfig::Sse(sse) => {
                 if let Some(url) = sse.url.as_ref() {
                     output.push_str(&format!("{url} "));
                 }
@@ -101,19 +101,19 @@ impl Display for McpServer {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
-    pub mcp_servers: BTreeMap<String, McpServer>,
+    pub mcp_servers: BTreeMap<String, McpServerConfig>,
 }
 
 impl Deref for McpConfig {
-    type Target = BTreeMap<String, McpServer>;
+    type Target = BTreeMap<String, McpServerConfig>;
 
     fn deref(&self) -> &Self::Target {
         &self.mcp_servers
     }
 }
 
-impl From<BTreeMap<String, McpServer>> for McpConfig {
-    fn from(mcp_servers: BTreeMap<String, McpServer>) -> Self {
+impl From<BTreeMap<String, McpServerConfig>> for McpConfig {
+    fn from(mcp_servers: BTreeMap<String, McpServerConfig>) -> Self {
         Self { mcp_servers }
     }
 }

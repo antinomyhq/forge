@@ -7,7 +7,7 @@ use forge_api::{
     Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServer, Scope};
+use forge_domain::{McpConfig, McpServerConfig, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -231,12 +231,12 @@ impl<F: API> UI<F> {
                     let scope: Scope = add.scope.into();
                     // Create the appropriate server type based on transport
                     let server = match add.transport {
-                        Transport::Stdio => McpServer::new_stdio(
+                        Transport::Stdio => McpServerConfig::new_stdio(
                             add.command_or_url.clone().unwrap_or_default(), 
                             add.args.clone(),
                             Some(parse_env(add.env.clone()))
                         ),
-                        Transport::Sse => McpServer::new_sse(
+                        Transport::Sse => McpServerConfig::new_sse(
                             add.command_or_url.clone().unwrap_or_default()
                         ),
                     };
@@ -285,7 +285,7 @@ impl<F: API> UI<F> {
                     self.writeln(TitleFormat::info(output))?;
                 }
                 McpCommand::AddJson(add_json) => {
-                    let server = serde_json::from_str::<McpServer>(add_json.json.as_str())
+                    let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
                         .context("Failed to parse JSON")?;
                     let scope: Scope = add_json.scope.into();
                     let name = add_json.name.clone();
