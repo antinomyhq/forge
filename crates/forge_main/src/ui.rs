@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
-    Workflow, API,
+    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, ForgeAPI, Model,
+    ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
-use forge_tracker::ToolCallPayload;
+use forge_tracker::{ForgePanicTracker, ToolCallPayload};
 use inquire::error::InquireError;
 use inquire::ui::{RenderConfig, Styled};
 use inquire::Select;
@@ -56,6 +56,7 @@ pub struct UI<F> {
     command: Arc<ForgeCommandManager>,
     cli: Cli,
     spinner: SpinnerManager,
+    panic_tracker: ForgePanicTracker<F>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
@@ -142,7 +143,7 @@ impl<F: API> UI<F> {
         )
     }
 
-    pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
+    pub fn init(cli: Cli, api: Arc<F>, panic_tracker: ForgePanicTracker<F>) -> Result<Self> {
         // Parse CLI arguments first to get flags
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
@@ -154,6 +155,7 @@ impl<F: API> UI<F> {
             command,
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
+            panic_tracker,
             _guard: forge_tracker::init_tracing(env.log_path())?,
         })
     }
@@ -431,12 +433,18 @@ impl<F: API> UI<F> {
 
                     let conversation_id = conversation.id.clone();
                     self.state.conversation_id = Some(conversation_id.clone());
+                    self.panic_tracker
+                        .update_conversation_id(conversation_id.clone())
+                        .await;
                     self.update_model(conversation.main_model()?);
                     self.api.upsert_conversation(conversation).await?;
                     Ok(conversation_id)
                 } else {
                     let conversation = self.api.init_conversation(workflow).await?;
                     self.state.conversation_id = Some(conversation.id.clone());
+                    self.panic_tracker
+                        .update_conversation_id(conversation.id.clone())
+                        .await;
                     self.update_model(conversation.main_model()?);
                     Ok(conversation.id)
                 }
