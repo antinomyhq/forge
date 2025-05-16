@@ -54,7 +54,6 @@ serde_yml.workspace = true
 merge.workspace = true
 strip-ansi-escapes.workspace = true
 rmcp.workspace = true
-tokio-retry.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
