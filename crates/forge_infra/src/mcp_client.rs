@@ -1,3 +1,8 @@
+use std::borrow::Cow;
+use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use anyhow::Context;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{McpServerConfig, ToolDefinition, ToolName};
@@ -8,10 +13,6 @@ use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceExt};
 use serde_json::Value;
-use std::borrow::Cow;
-use std::future::Future;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -87,7 +88,7 @@ impl ForgeMcpClient {
     /// Connects to the MCP server. If `force` is true, it will reconnect even
     /// if already connected.
     async fn connect(&self, force: bool) -> anyhow::Result<()> {
-        println!("force: {}",force);
+        println!("force: {}", force);
         let mut client = self.client.lock().await;
         if client.is_none() || force {
             *client = Some(self.connection.connect().await?);
