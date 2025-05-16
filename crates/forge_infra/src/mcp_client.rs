@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::future::Future;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -91,12 +92,8 @@ impl ForgeMcpClient {
         }
         Ok(())
     }
-}
 
-#[async_trait::async_trait]
-impl McpClient for ForgeMcpClient {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        self.connect(false).await?;
         let client = self.client.lock().await;
         let client = client.as_ref().context("Client is not running")?;
         let tools = client.list_tools(None).await?;
@@ -118,10 +115,7 @@ impl McpClient for ForgeMcpClient {
             .collect())
     }
 
-    async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<String> {
-        // Implementation without retry - using basic client call
-        self.connect(false).await?;
-
+    async fn call(&self, tool_name: &ToolName, input: &Value) -> anyhow::Result<String> {
         let client = self.client.lock().await;
         let client = client.as_ref().context("Client is not running")?;
 
@@ -129,7 +123,7 @@ impl McpClient for ForgeMcpClient {
             .call_tool(CallToolRequestParam {
                 name: Cow::Owned(tool_name.to_string()),
                 arguments: if let Value::Object(args) = input {
-                    Some(args)
+                    Some(args.clone())
                 } else {
                     None
                 },
@@ -145,8 +139,24 @@ impl McpClient for ForgeMcpClient {
         }
     }
 
-    async fn reconnect(&self) -> anyhow::Result<()> {
-        self.connect(true).await?;
-        Ok(())
+    async fn attempt_with_retry<T, F>(&self, f: impl Fn() -> F) -> anyhow::Result<T>
+    where
+        F: Future<Output = anyhow::Result<T>>,
+    {
+        self.connect(false).await?;
+
+        todo!()
+    }
+}
+
+#[async_trait::async_trait]
+impl McpClient for ForgeMcpClient {
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.attempt_with_retry(|| self.list()).await
+    }
+
+    async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<String> {
+        self.attempt_with_retry(|| self.call(tool_name, &input))
+            .await
     }
 }

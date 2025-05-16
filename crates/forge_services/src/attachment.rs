@@ -335,9 +335,6 @@ pub mod tests {
             Ok(String::new())
         }
 
-        async fn reconnect(&self) -> anyhow::Result<()> {
-            Ok(())
-        }
     }
 
     #[async_trait::async_trait]
