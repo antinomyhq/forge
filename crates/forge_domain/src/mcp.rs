@@ -58,8 +58,7 @@ pub struct McpStdioServer {
     pub env: Option<BTreeMap<String, String>>,
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, PartialEq, Hash)]
-#[setters(strip_option, into)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, PartialEq, Hash)]
 pub struct McpSseServer {
     /// Url of the MCP server
     #[merge(strategy = crate::merge::option)]
