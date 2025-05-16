@@ -21,5 +21,4 @@ pretty_assertions.workspace = true
 inquire.workspace = true
 tempfile.workspace = true
 rmcp.workspace = true
-tokio-retry.workspace = true
 tracing.workspace = true
