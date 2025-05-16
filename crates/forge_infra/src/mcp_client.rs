@@ -1,8 +1,5 @@
-use std::borrow::Cow;
-use std::future::Future;
-use std::sync::Arc;
-
 use anyhow::Context;
+use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{McpServerConfig, ToolDefinition, ToolName};
 use forge_services::McpClient;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
@@ -11,6 +8,10 @@ use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceExt};
 use serde_json::Value;
+use std::borrow::Cow;
+use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -86,6 +87,7 @@ impl ForgeMcpClient {
     /// Connects to the MCP server. If `force` is true, it will reconnect even
     /// if already connected.
     async fn connect(&self, force: bool) -> anyhow::Result<()> {
+        println!("force: {}",force);
         let mut client = self.client.lock().await;
         if client.is_none() || force {
             *client = Some(self.connection.connect().await?);
@@ -143,9 +145,25 @@ impl ForgeMcpClient {
     where
         F: Future<Output = anyhow::Result<T>>,
     {
-        self.connect(false).await?;
+        let is_retry = Arc::new(AtomicBool::new(false));
 
-        todo!()
+        (|| async {
+            let is_retry = is_retry.load(Ordering::Relaxed);
+            self.connect(is_retry).await?;
+            f().await
+        })
+        .retry(
+            ExponentialBuilder::default()
+                .with_max_times(5)
+                .with_jitter(),
+        )
+        .when(|err| {
+            is_retry.store(true, Ordering::Relaxed);
+            err.downcast_ref::<rmcp::ServiceError>()
+                .map(|e| matches!(e, rmcp::ServiceError::Transport(_)))
+                .unwrap_or(false)
+        })
+        .await
     }
 }
 
