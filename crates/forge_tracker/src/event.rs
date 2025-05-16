@@ -68,6 +68,7 @@ pub enum EventKind {
     ToolCall(ToolCallPayload),
     Prompt(String),
     Error(String),
+    FeedbackPrompt,
 }
 
 impl EventKind {
@@ -78,6 +79,7 @@ impl EventKind {
             Self::Prompt(_) => Name::from("prompt".to_string()),
             Self::Error(_) => Name::from("error".to_string()),
             Self::ToolCall(_) => Name::from("tool_call".to_string()),
+            Self::FeedbackPrompt => Name::from("feedback_prompt".to_string()),
         }
     }
     pub fn value(&self) -> String {
@@ -87,6 +89,7 @@ impl EventKind {
             Self::Prompt(content) => content.to_string(),
             Self::Error(content) => content.to_string(),
             Self::ToolCall(payload) => serde_json::to_string(&payload).unwrap_or_default(),
+            Self::FeedbackPrompt => "".to_string(),
         }
     }
 }

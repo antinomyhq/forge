@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_domain::Services;
+use forge_domain::{EnvironmentService, Services};
 
 use crate::attachment::ForgeChatRequest;
 use crate::compaction::ForgeCompactionService;
@@ -10,7 +10,7 @@ use crate::suggestion::ForgeSuggestionService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::workflow::ForgeWorkflowService;
-use crate::Infrastructure;
+use crate::{ForgeFeedbackService, Infrastructure};
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -33,6 +33,7 @@ pub struct ForgeServices<F> {
     compaction_service: Arc<ForgeCompactionService<ForgeTemplateService, ForgeProviderService>>,
     workflow_service: Arc<ForgeWorkflowService<F>>,
     suggestion_service: Arc<ForgeSuggestionService<F>>,
+    feedback_service: Arc<ForgeFeedbackService<F>>,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
@@ -51,6 +52,11 @@ impl<F: Infrastructure> ForgeServices<F> {
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeSuggestionService::new(infra.clone()));
+        let env = infra.clone().environment_service().get_environment();
+        let feedback_service = Arc::new(ForgeFeedbackService::new(
+            env.base_path.clone(),
+            infra.clone(),
+        ));
         Self {
             infra,
             conversation_service,
@@ -61,6 +67,7 @@ impl<F: Infrastructure> ForgeServices<F> {
             template_service,
             workflow_service,
             suggestion_service,
+            feedback_service,
         }
     }
 }
@@ -75,6 +82,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type CompactionService = ForgeCompactionService<Self::TemplateService, Self::ProviderService>;
     type WorkflowService = ForgeWorkflowService<F>;
     type SuggestionService = ForgeSuggestionService<F>;
+    type FeedbackService = ForgeFeedbackService<F>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -110,6 +118,9 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn suggestion_service(&self) -> &Self::SuggestionService {
         self.suggestion_service.as_ref()
+    }
+    fn feedback_service(&self) -> &Self::FeedbackService {
+        self.feedback_service.as_ref()
     }
 }
 

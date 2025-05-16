@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use colored::Colorize;
 use forge_api::{
     AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
     Workflow, API,
@@ -481,6 +482,8 @@ impl<F: API> UI<F> {
 
         self.spinner.stop(None)?;
 
+        self.show_feedback().await?;
+
         Ok(())
     }
 
@@ -557,6 +560,36 @@ impl<F: API> UI<F> {
             }
         }
         Ok(())
+    }
+
+    async fn show_feedback(&mut self) -> Result<(), anyhow::Error> {
+        // Only show feedback prompt if conditions are met
+        if !self.api.should_show_feedback().await? {
+            return Ok(());
+        }
+
+        // Update timestamp of when feedback was last shown
+        self.api.update_last_shown().await?;
+
+        // Feedback banner components with shorter text for smaller screens
+        const FEEDBACK_URL: &str = "https://shorturl.at/LheIj";
+
+        // Create colorful decorative elements
+        let sparkle = "✨".bright_yellow().bold();
+        let heart = "♥".bright_red().bold();
+
+        // Simplified style elements for better wrapping on small screens
+        let banner_title = "Thanks for using Forge!".bright_magenta().bold();
+        let banner_message = "We'd love your feedback".cyan().bold();
+        let feedback_link = FEEDBACK_URL.to_string().bright_cyan().underline();
+
+        // Create a simpler banner with more predictable wrapping
+        let banner = format!(
+            "\n  {sparkle} {banner_title} {heart}\n  {banner_message}\n  {feedback_link}\n"
+        );
+
+        // Display the enhanced feedback banner
+        self.writeln(banner)
     }
 
     fn update_model(&mut self, model: ModelId) {
