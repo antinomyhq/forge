@@ -77,6 +77,7 @@ impl ForgeMcpClient {
     fn new(connector: Connector) -> Self {
         Self { client: Default::default(), connector }
     }
+
     pub fn new_stdio(
         command: String,
         env: std::collections::BTreeMap<String, String>,
@@ -126,7 +127,9 @@ impl McpClient for ForgeMcpClient {
     }
 
     async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<String> {
+        // Implementation without retry - using basic client call
         self.connect(false).await?;
+
         let client = self.client.lock().await;
         let client = client.as_ref().context("Client is not running")?;
 
