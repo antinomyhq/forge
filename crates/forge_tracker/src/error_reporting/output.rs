@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 /// Prints an informational message
 pub fn info<T: Display>(msg: T) {
-    println!("ℹ️  {msg}");
+    println!("ℹ️ {msg}");
 }
 
 /// Prints a success message
@@ -12,7 +12,7 @@ pub fn success<T: Display>(msg: T) {
 
 /// Prints an action/step message
 pub fn action<T: Display>(msg: T) {
-    println!("▶️  {msg}");
+    println!("▶️ {msg}");
 }
 
 /// Prints an instruction for the user
@@ -27,7 +27,7 @@ pub fn raw<T: Display>(msg: T) {
 
 /// Prints a message with high emphasis (for critical information)
 pub fn important<T: Display>(msg: T) {
-    println!("❗ {msg}");
+    println!("❗{msg}");
 }
 
 /// Prints an error message with detailed error information

@@ -84,8 +84,6 @@ pub fn save_crash_report_to_file(body: &str) -> Result<PathBuf> {
     // Write the report to the file
     fs::write(&filepath, body)?;
 
-    output::success(format!("Crash report saved to: {}", filepath.display()));
-
     Ok(filepath)
 }
 
@@ -132,35 +130,22 @@ pub fn save_token_to_env(token: &str) -> Result<()> {
     Ok(())
 }
 
-/// Prompts the user for a GitHub token
-pub fn ask_for_github_token() -> Option<String> {
-    match Text::new("Enter your GitHub token (leave empty to skip):").prompt() {
-        Ok(token) if !token.trim().is_empty() => {
-            // Save token to .env file if provided
-            if let Err(e) = save_token_to_env(&token) {
-                output::error_details("Failed to save token to .env file", e);
-            }
-            Some(token)
-        }
-        _ => None,
-    }
-}
-
 /// Creates a GitHub issue via URL (browser redirect)
-pub fn create_github_issue_via_url(title: &str, body: &str) -> Result<()> {
-    // First save the report to a file due to URL length limitations
-    let filepath = save_crash_report_to_file(body)?;
-
-    // Use a minimal body that references the local file
-    let minimal_body = format!(
-        "# Crash Report\n\nDetailed crash report has been saved to: `{}`\n\nPlease attach this file when submitting the issue.",
-        filepath.display()
-    );
-
-    // Encode title and minimal body for URL
+pub fn create_github_issue_via_url(title: &str, md_path: Option<String>) -> Result<()> {
     let encoded_title = url::form_urlencoded::byte_serialize(title.as_bytes()).collect::<String>();
-    let encoded_body =
-        url::form_urlencoded::byte_serialize(minimal_body.as_bytes()).collect::<String>();
+    let mut encoded_body = String::new();
+
+    if let Some(md_path) = md_path {
+        encoded_body.push_str(
+            &url::form_urlencoded::byte_serialize(
+                format!(
+                    "<!-- Please paste the issue stored at {md_path} before raising the issue -->",
+                )
+                .as_bytes(),
+            )
+            .collect::<String>(),
+        );
+    }
 
     // Create the GitHub issue URL
     let issue_url = format!(
@@ -180,4 +165,18 @@ pub fn create_github_issue_via_url(title: &str, body: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Prompts the user for a GitHub token
+pub fn ask_for_github_token() -> Option<String> {
+    match Text::new("Enter your GitHub token (leave empty to skip):").prompt() {
+        Ok(token) if !token.trim().is_empty() => {
+            // Save token to .env file if provided
+            if let Err(e) = save_token_to_env(&token) {
+                output::error_details("Failed to save token to .env file", e);
+            }
+            Some(token)
+        }
+        _ => None,
+    }
 }
