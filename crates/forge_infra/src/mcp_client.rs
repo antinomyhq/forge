@@ -88,7 +88,6 @@ impl ForgeMcpClient {
     /// Connects to the MCP server. If `force` is true, it will reconnect even
     /// if already connected.
     async fn connect(&self, force: bool) -> anyhow::Result<()> {
-        println!("force: {force}");
         let mut client = self.client.lock().await;
         if client.is_none() || force {
             *client = Some(self.connection.connect().await?);
