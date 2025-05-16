@@ -18,7 +18,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-pub enum Connector {
+enum Connector {
     Stdio {
         command: String,
         env: std::collections::BTreeMap<String, String>,
@@ -73,9 +73,21 @@ pub struct ForgeMcpClient {
 }
 
 impl ForgeMcpClient {
-    pub fn new(connector: Connector) -> Self {
+    fn new(connector: Connector) -> Self {
         Self { client: Default::default(), connector }
     }
+    pub fn new_stdio(
+        command: String,
+        env: std::collections::BTreeMap<String, String>,
+        args: Vec<String>,
+    ) -> Self {
+        Self::new(Connector::Stdio { command, env, args })
+    }
+
+    pub fn new_sse(url: String) -> Self {
+        Self::new(Connector::Sse { url })
+    }
+
     async fn reconn_if(&self, reconn: bool) -> anyhow::Result<()> {
         let mut client = self.client.lock().await;
         if client.is_none() || reconn {

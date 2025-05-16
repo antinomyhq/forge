@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use forge_services::McpServer;
 
-use crate::mcp_client::{Connector, ForgeMcpClient};
+use crate::mcp_client::ForgeMcpClient;
 
 #[derive(Clone)]
 pub struct ForgeMcpServer;
@@ -17,14 +17,10 @@ impl McpServer for ForgeMcpServer {
         env: BTreeMap<String, String>,
         args: Vec<String>,
     ) -> anyhow::Result<Self::Client> {
-        Ok(ForgeMcpClient::new(Connector::Stdio {
-            command: command.to_string(),
-            env,
-            args,
-        }))
+        Ok(ForgeMcpClient::new_stdio(command.to_string(), env, args))
     }
 
     async fn connect_sse(&self, url: &str) -> anyhow::Result<Self::Client> {
-        Ok(ForgeMcpClient::new(Connector::Sse { url: url.to_string() }))
+        Ok(ForgeMcpClient::new_sse(url.to_string()))
     }
 }
