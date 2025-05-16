@@ -7,6 +7,7 @@ use super::fetch::Fetch;
 use super::fs::*;
 use super::patch::*;
 use super::shell::Shell;
+use super::task_list::TaskList;
 use crate::tools::followup::Followup;
 use crate::Infrastructure;
 
@@ -34,6 +35,7 @@ impl<F: Infrastructure> ToolRegistry<F> {
             Completion.into(),
             Followup::new(self.infra.clone()).into(),
             Fetch::new(self.infra.clone()).into(),
+            TaskList::new(self.infra.clone()).into(),
         ]
     }
 }

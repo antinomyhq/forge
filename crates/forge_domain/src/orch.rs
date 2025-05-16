@@ -492,10 +492,12 @@ impl<A: Services> Orchestrator<A> {
             if empty_tool_calls {
                 // No tool calls present, which doesn't mean task is complete so reprompt the
                 // agent to ensure the task complete.
-                let content = self
-                    .services
-                    .template_service()
-                    .render("{{> partial-tool-required.hbs}}", &())?;
+                let content = self.services.template_service().render(
+                    "{{> partial-tool-required.hbs}}",
+                    &serde_json::json!({
+                        "stats": tool_context.stats.read().await.clone().unwrap_or_default(),
+                    }),
+                )?;
                 context =
                     context.add_message(ContextMessage::user(content, model_id.clone().into()));
 

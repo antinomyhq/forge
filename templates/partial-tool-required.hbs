@@ -5,7 +5,13 @@ Please retry with correct tool use
 
 {{> partial-tool-use-example.hbs }}
 
-Next Steps: 
+{{#if stats}}
+<task_list_stats>
+    {{stats}}
+</task_list_stats>
+{{/if}}
+
+Next Steps:
 If you have completed the user's task, use the `forge_tool_attempt_completion`
 tool with a message. 
 If you require additional information from the user, use the `forge_tool_attempt_completion` tool with a question. 

@@ -163,6 +163,17 @@ impl ForgeCommandManager {
             return Ok(Command::Message(input.to_string()));
         }
 
+        let valid_command = self
+            .commands
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|c| c.name == command);
+
+        if !valid_command {
+            return Err(anyhow::anyhow!("{} is not valid", command));
+        }
+
         // TODO: Can leverage Clap to parse commands and provide correct error messages
         match command {
             "/compact" => Ok(Command::Compact),
@@ -280,8 +291,8 @@ impl Command {
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
             Command::Tools => "/tools",
-            Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
+            Command::Custom(event) => &event.name,
         }
     }
 
