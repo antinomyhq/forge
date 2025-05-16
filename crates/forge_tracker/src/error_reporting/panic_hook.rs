@@ -1,10 +1,11 @@
 use std::panic;
 
+use anyhow::Result;
+
 use crate::error_reporting::github::GithubIssueCreator;
 use crate::error_reporting::report::PanicReport;
 use crate::error_reporting::{github, output};
 use crate::{EventKind, Tracker};
-use anyhow::Result;
 
 /// Displays the GitHub issues URL for manual creation
 fn show_manual_issue_url() {
