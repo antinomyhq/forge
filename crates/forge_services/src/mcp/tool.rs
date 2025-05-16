@@ -10,14 +10,14 @@ use tracing::debug;
 
 use crate::McpClient;
 
-pub struct McpTool<T> {
+pub struct McpExecutor<T> {
     pub client: Arc<T>,
     pub tool_name: ToolName,
     pub server_name: String,
     pub retry_config: RetryConfig,
 }
 
-impl<T> McpTool<T> {
+impl<T> McpExecutor<T> {
     pub fn new(
         server_name: impl ToString,
         tool_name: ToolName,
@@ -32,7 +32,7 @@ impl<T> McpTool<T> {
     }
 }
 
-impl<T: McpClient> McpTool<T> {
+impl<T: McpClient> McpExecutor<T> {
     async fn call_tool(
         &self,
         tool_name: &ToolName,
@@ -73,7 +73,7 @@ impl<T: McpClient> McpTool<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: McpClient> ExecutableTool for McpTool<T> {
+impl<T: McpClient> ExecutableTool for McpExecutor<T> {
     type Input = serde_json::Value;
 
     async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {

@@ -9,7 +9,7 @@ use forge_domain::{
 };
 use tokio::sync::{Mutex, RwLock};
 
-use crate::mcp::tool::McpTool;
+use crate::mcp::tool::McpExecutor;
 use crate::{Infrastructure, McpClient, McpServer};
 
 #[derive(Clone)]
@@ -45,14 +45,14 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         tools: Vec<ToolDefinition>,
         client: Arc<T>,
     ) -> anyhow::Result<()> {
-        let mut lock = self.tools.write().await;
+        let mut tool_map = self.tools.write().await;
 
         for mut tool in tools.into_iter() {
-            let server = McpTool::new(server_name, tool.name.clone(), client.clone())?;
+            let server = McpExecutor::new(server_name, tool.name.clone(), client.clone())?;
             // Generate a unique name for the tool
             let tool_name = ToolName::new(format!("mcp_{server_name}_tool_{}", tool.name));
             tool.name = tool_name.clone();
-            lock.insert(
+            tool_map.insert(
                 tool_name,
                 Arc::new(Tool { definition: tool, executable: Box::new(server) }),
             );
