@@ -132,11 +132,7 @@ pub trait InquireService: Send + Sync {
 #[async_trait::async_trait]
 pub trait McpClient: Send + Sync + 'static {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
-    async fn call_tool(
-        &self,
-        tool_name: &ToolName,
-        input: serde_json::Value,
-    ) -> anyhow::Result<String>;
+    async fn call(&self, tool_name: &ToolName, input: serde_json::Value) -> anyhow::Result<String>;
     async fn reconnect(&self) -> anyhow::Result<()>;
 }
 

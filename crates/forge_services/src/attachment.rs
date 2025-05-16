@@ -331,7 +331,7 @@ pub mod tests {
             Ok(vec![])
         }
 
-        async fn call_tool(&self, _: &ToolName, _: Value) -> anyhow::Result<String> {
+        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<String> {
             Ok(String::new())
         }
 

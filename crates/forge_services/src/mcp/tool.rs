@@ -56,7 +56,7 @@ impl<T: McpClient> McpTool<T> {
         }
 
         self.client
-            .call_tool(tool_name, input)
+            .call(tool_name, input)
             .await
             .context("Failed to call MCP tool")
     }

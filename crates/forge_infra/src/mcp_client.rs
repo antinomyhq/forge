@@ -103,7 +103,6 @@ impl McpClient for ForgeMcpClient {
         self.reconn_if(false).await?;
         let client = self.client.lock().await;
         let client = client.as_ref().context("Client is not running")?;
-
         let tools = client.list_tools(None).await?;
         Ok(tools
             .tools
@@ -123,7 +122,7 @@ impl McpClient for ForgeMcpClient {
             .collect())
     }
 
-    async fn call_tool(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<String> {
+    async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<String> {
         self.reconn_if(false).await?;
         let client = self.client.lock().await;
         let client = client.as_ref().context("Client is not running")?;
