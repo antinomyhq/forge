@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{ToolDefinition, ToolName};
+use forge_domain::{McpServerConfig, ToolDefinition, ToolName};
 use forge_services::McpClient;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::schemars::schema::RootSchema;
@@ -18,19 +18,11 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-// FIXME: Use McpServerConfig instead
-enum Connector {
-    Stdio {
-        command: String,
-        env: std::collections::BTreeMap<String, String>,
-        args: Vec<String>,
-    },
-    Sse {
-        url: String,
-    },
+struct Connection {
+    config: McpServerConfig,
 }
 
-impl Connector {
+impl Connection {
     fn client_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: Default::default(),
@@ -40,26 +32,35 @@ impl Connector {
     }
 
     async fn connect(&self) -> anyhow::Result<RunningService<RoleClient, InitializeRequestParam>> {
-        match self {
-            Connector::Stdio { command, env, args } => {
-                let mut command = Command::new(command);
+        match &self.config {
+            McpServerConfig::Stdio(stdio) => {
+                let command = stdio
+                    .command
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Command not specified"))?;
+                let mut cmd = Command::new(command);
 
-                for (key, value) in env {
-                    command.env(key, value);
+                if let Some(env) = &stdio.env {
+                    for (key, value) in env {
+                        cmd.env(key, value);
+                    }
                 }
 
-                command
-                    .stdin(std::process::Stdio::inherit())
+                cmd.stdin(std::process::Stdio::inherit())
                     .stdout(std::process::Stdio::piped())
                     .stderr(std::process::Stdio::piped());
                 let client = self
                     .client_info()
-                    .serve(TokioChildProcess::new(command.args(args))?)
+                    .serve(TokioChildProcess::new(cmd.args(&stdio.args))?)
                     .await?;
 
                 Ok(client)
             }
-            Connector::Sse { url } => {
+            McpServerConfig::Sse(sse) => {
+                let url = sse
+                    .url
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("URL not specified"))?;
                 let transport = rmcp::transport::SseTransport::start(url).await?;
                 let client = self.client_info().serve(transport).await?;
                 Ok(client)
@@ -70,24 +71,15 @@ impl Connector {
 
 pub struct ForgeMcpClient {
     client: Arc<Mutex<Option<RunningService<RoleClient, InitializeRequestParam>>>>,
-    connector: Connector,
+    connection: Connection,
 }
 
 impl ForgeMcpClient {
-    fn new(connector: Connector) -> Self {
-        Self { client: Default::default(), connector }
-    }
-
-    pub fn new_stdio(
-        command: String,
-        env: std::collections::BTreeMap<String, String>,
-        args: Vec<String>,
-    ) -> Self {
-        Self::new(Connector::Stdio { command, env, args })
-    }
-
-    pub fn new_sse(url: String) -> Self {
-        Self::new(Connector::Sse { url })
+    pub fn new(config: McpServerConfig) -> Self {
+        Self {
+            client: Default::default(),
+            connection: Connection { config },
+        }
     }
 
     /// Connects to the MCP server. If `force` is true, it will reconnect even
@@ -95,7 +87,7 @@ impl ForgeMcpClient {
     async fn connect(&self, force: bool) -> anyhow::Result<()> {
         let mut client = self.client.lock().await;
         if client.is_none() || force {
-            *client = Some(self.connector.connect().await?);
+            *client = Some(self.connection.connect().await?);
         }
         Ok(())
     }
