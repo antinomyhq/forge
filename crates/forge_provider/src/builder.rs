@@ -3,7 +3,6 @@
 use anyhow::{Context as _, Result};
 use forge_domain::{
     ChatCompletionMessage, Context, Model, ModelId, Provider, ProviderService, ResultStream,
-    RetryConfig,
 };
 use reqwest::redirect::Policy;
 
@@ -16,7 +15,7 @@ pub enum Client {
 }
 
 impl Client {
-    pub fn new(provider: Provider, retry_config: RetryConfig) -> Result<Self> {
+    pub fn new(provider: Provider) -> Result<Self> {
         let client = reqwest::Client::builder()
             .read_timeout(std::time::Duration::from_secs(60))
             .pool_idle_timeout(std::time::Duration::from_secs(90))
@@ -29,7 +28,6 @@ impl Client {
                 ForgeProvider::builder()
                     .client(client)
                     .provider(provider.clone())
-                    .retry_config(retry_config.clone())
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             )),
@@ -40,7 +38,6 @@ impl Client {
                     .api_key(key.to_string())
                     .base_url(url.clone())
                     .anthropic_version("2023-06-01".to_string())
-                    .retry_config(retry_config.clone())
                     .build()
                     .with_context(|| {
                         format!("Failed to initialize Anthropic client with URL: {url}")

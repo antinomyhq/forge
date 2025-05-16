@@ -90,7 +90,7 @@ impl ForgeEnvironmentService {
         let max_retry_attempts = std::env::var("FORGE_RETRY_MAX_ATTEMPTS")
             .ok()
             .and_then(|val| val.parse::<usize>().ok())
-            .unwrap_or(3); // Default value
+            .unwrap_or(8); // Default value
 
         // Parse retry status codes
         let retry_status_codes = std::env::var("FORGE_RETRY_STATUS_CODES")
