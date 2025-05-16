@@ -6,7 +6,6 @@ use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
 use derive_setters::Setters;
-use merge::Merge;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
