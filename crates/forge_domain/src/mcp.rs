@@ -67,7 +67,7 @@ impl Display for McpServerConfig {
             McpServerConfig::Stdio(stdio) => {
                 output.push_str(&format!("{} ", stdio.command));
                 stdio.args.iter().for_each(|arg| {
-                    output.push_str(&format!("{} ", arg));
+                    output.push_str(&format!("{arg} "));
                 });
 
                 stdio.env.iter().for_each(|(key, value)| {
