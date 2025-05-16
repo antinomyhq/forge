@@ -18,6 +18,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
+// FIXME: Use McpServerConfig instead
 enum Connector {
     Stdio {
         command: String,
@@ -88,7 +89,8 @@ impl ForgeMcpClient {
         Self::new(Connector::Sse { url })
     }
 
-    /// Connects to the MCP server. If `force` is true, it will reconnect even if already connected.
+    /// Connects to the MCP server. If `force` is true, it will reconnect even
+    /// if already connected.
     async fn connect(&self, force: bool) -> anyhow::Result<()> {
         let mut client = self.client.lock().await;
         if client.is_none() || force {

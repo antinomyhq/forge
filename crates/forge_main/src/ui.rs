@@ -232,13 +232,13 @@ impl<F: API> UI<F> {
                     // Create the appropriate server type based on transport
                     let server = match add.transport {
                         Transport::Stdio => McpServerConfig::new_stdio(
-                            add.command_or_url.clone().unwrap_or_default(), 
+                            add.command_or_url.clone().unwrap_or_default(),
                             add.args.clone(),
-                            Some(parse_env(add.env.clone()))
+                            Some(parse_env(add.env.clone())),
                         ),
-                        Transport::Sse => McpServerConfig::new_sse(
-                            add.command_or_url.clone().unwrap_or_default()
-                        ),
+                        Transport::Sse => {
+                            McpServerConfig::new_sse(add.command_or_url.clone().unwrap_or_default())
+                        }
                     };
                     // Command/URL already set in the constructor
 

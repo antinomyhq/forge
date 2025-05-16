@@ -24,19 +24,17 @@ pub enum McpServerConfig {
 
 impl McpServerConfig {
     /// Create a new stdio-based MCP server
-    pub fn new_stdio(command: impl Into<String>, args: Vec<String>, env: Option<BTreeMap<String, String>>) -> Self {
-        Self::Stdio(McpStdioServer {
-            command: Some(command.into()),
-            args,
-            env,
-        })
+    pub fn new_stdio(
+        command: impl Into<String>,
+        args: Vec<String>,
+        env: Option<BTreeMap<String, String>>,
+    ) -> Self {
+        Self::Stdio(McpStdioServer { command: Some(command.into()), args, env })
     }
-    
+
     /// Create a new SSE-based MCP server
     pub fn new_sse(url: impl Into<String>) -> Self {
-        Self::Sse(McpSseServer {
-            url: Some(url.into()),
-        })
+        Self::Sse(McpSseServer { url: Some(url.into()) })
     }
 }
 
@@ -86,7 +84,7 @@ impl Display for McpServerConfig {
                         });
                     }
                 }
-            },
+            }
             McpServerConfig::Sse(sse) => {
                 if let Some(url) = sse.url.as_ref() {
                     output.push_str(&format!("{url} "));

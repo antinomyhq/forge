@@ -4,8 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_domain::{
-    McpConfig, McpConfigManager, McpServerConfig, McpService,
-    Tool, ToolDefinition, ToolName,
+    McpConfig, McpConfigManager, McpServerConfig, McpService, Tool, ToolDefinition, ToolName,
 };
 use tokio::sync::{Mutex, RwLock};
 
@@ -13,19 +12,19 @@ use crate::mcp::tool::McpExecutor;
 use crate::{Infrastructure, McpClient, McpServer};
 
 #[derive(Clone)]
-pub struct ForgeMcpService<R, I> {
+pub struct ForgeMcpService<M, I> {
     tools: Arc<RwLock<HashMap<ToolName, Arc<Tool>>>>,
     previous_config_hash: Arc<Mutex<u64>>,
-    reader: Arc<R>,
+    manager: Arc<M>,
     infra: Arc<I>,
 }
 
-impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
-    pub fn new(reader: Arc<R>, infra: Arc<I>) -> Self {
+impl<M: McpConfigManager, I: Infrastructure> ForgeMcpService<M, I> {
+    pub fn new(manager: Arc<M>, infra: Arc<I>) -> Self {
         Self {
             tools: Default::default(),
             previous_config_hash: Arc::new(Mutex::new(0)),
-            reader,
+            manager,
             infra,
         }
     }
@@ -39,12 +38,16 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         *self.previous_config_hash.lock().await != Self::hash(config)
     }
 
-    async fn insert_tools<T: McpClient>(
+    async fn insert_clients<T: McpClient>(
         &self,
         server_name: &str,
-        tools: Vec<ToolDefinition>,
         client: Arc<T>,
     ) -> anyhow::Result<()> {
+        let tools = client
+            .list()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to list tools: {e}"))?;
+
         let mut tool_map = self.tools.write().await;
 
         for mut tool in tools.into_iter() {
@@ -61,39 +64,34 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         Ok(())
     }
 
-    async fn connect_server(
-        &self,
-        server_name: &str,
-        config: McpServerConfig,
-    ) -> anyhow::Result<()> {
+    async fn connect(&self, server_name: &str, config: McpServerConfig) -> anyhow::Result<()> {
         let client = Arc::new(self.infra.mcp_server().connect(config).await?);
-        
-        let tools = client
-            .list()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to list tools: {e}"))?;
-
-        self.insert_tools(server_name, tools, client)
+        self.insert_clients(server_name, client)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to insert tools: {e}"))?;
 
         Ok(())
     }
+
     async fn init_mcp(&self) -> anyhow::Result<()> {
-        let mcp = self.reader.read().await?;
+        let mcp = self.manager.read().await?;
 
         // If config is unchanged, skip reinitialization
         if !self.is_config_modified(&mcp).await {
             return Ok(());
         }
 
+        self.update_mcp(mcp).await
+    }
+
+    async fn update_mcp(&self, mcp: McpConfig) -> Result<(), anyhow::Error> {
         // Update the hash with the new config
         let new_hash = Self::hash(&mcp);
         *self.previous_config_hash.lock().await = new_hash;
         self.clear_tools().await;
 
         futures::future::join_all(mcp.mcp_servers.iter().map(|(name, server)| async move {
-            self.connect_server(name, server.clone())
+            self.connect(name, server.clone())
                 .await
                 .context(format!("Failed to initiate MCP server: {name}"))
         }))
@@ -108,6 +106,7 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
 
         Ok(self.tools.read().await.get(name).cloned())
     }
+    
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         self.init_mcp().await?;
         Ok(self
