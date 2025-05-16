@@ -7,12 +7,12 @@ use update_informer::{registry, Check, Version};
 
 use crate::TRACKER;
 
+const UPDATE_COMMAND: &str = "npm update -g @antinomyhq/forge";
+
 /// Runs npm update in the background, failing silently
 async fn execute_update_command(api: Arc<impl API>) {
     // Spawn a new task that won't block the main application
-    let output = api
-        .execute_shell_command_raw("npm", &["update", "-g", "@antinomyhq/forge"])
-        .await;
+    let output = api.execute_shell_command_raw(UPDATE_COMMAND).await;
 
     match output {
         Err(err) => {

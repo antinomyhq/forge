@@ -267,16 +267,7 @@ impl<F: API> UI<F> {
                 self.on_model_selection().await?;
             }
             Command::Shell(ref command) => {
-                let mut s = command.split_whitespace();
-                if let Some(command) = s.next() {
-                    let args = s.collect::<Vec<_>>();
-                    self.api.execute_shell_command_raw(command, &args).await?;
-                } else {
-                    return Err(anyhow::anyhow!(
-                        "Correct Usage: ! <command> [args...] (e.g., !ls -la)"
-                    ))
-                    .context("Empty shell command.");
-                }
+                self.api.execute_shell_command_raw(command).await?;
             }
         }
 

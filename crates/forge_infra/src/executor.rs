@@ -142,13 +142,24 @@ impl CommandExecutorService for ForgeCommandExecutorService {
         self.execute_command_internal(command, &working_dir).await
     }
 
-    async fn execute_command_raw(
-        &self,
-        command: &str,
-        args: &[&str],
-    ) -> anyhow::Result<std::process::ExitStatus> {
-        let mut tokio_cmd = Command::new(command);
-        tokio_cmd.args(args);
+    async fn execute_command_raw(&self, command: &str) -> anyhow::Result<std::process::ExitStatus> {
+        // Create a basic command
+        let is_windows = cfg!(target_os = "windows");
+        let shell = if self.restricted && !is_windows {
+            "rbash"
+        } else {
+            self.env.shell.as_str()
+        };
+        let mut tokio_cmd = Command::new(shell);
+
+        let parameter = if is_windows { "/C" } else { "-c" };
+        tokio_cmd.arg(parameter);
+
+        #[cfg(windows)]
+        tokio_cmd.raw_arg(command);
+        #[cfg(unix)]
+        tokio_cmd.arg(command);
+
         tokio_cmd.kill_on_drop(true);
 
         Ok(tokio_cmd.spawn()?.wait().await?)

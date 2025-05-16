@@ -98,11 +98,7 @@ pub trait CommandExecutorService: Send + Sync {
     ) -> anyhow::Result<CommandOutput>;
 
     /// execute the shell command on present stdio.
-    async fn execute_command_raw(
-        &self,
-        command: &str,
-        args: &[&str],
-    ) -> anyhow::Result<std::process::ExitStatus>;
+    async fn execute_command_raw(&self, command: &str) -> anyhow::Result<std::process::ExitStatus>;
 }
 
 #[async_trait::async_trait]

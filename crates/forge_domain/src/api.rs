@@ -73,9 +73,5 @@ pub trait API: Sync + Send {
     ) -> Result<CommandOutput>;
 
     /// Executes the shell command on present stdio.
-    async fn execute_shell_command_raw(
-        &self,
-        command: &str,
-        args: &[&str],
-    ) -> Result<std::process::ExitStatus>;
+    async fn execute_shell_command_raw(&self, command: &str) -> Result<std::process::ExitStatus>;
 }
