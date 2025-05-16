@@ -21,11 +21,21 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-struct Connection {
+pub struct ForgeMcpClient {
+    client: Arc<Mutex<Option<RunningService<RoleClient, InitializeRequestParam>>>>,
     config: McpServerConfig,
+    reconnect: Arc<AtomicBool>,
 }
 
-impl Connection {
+impl ForgeMcpClient {
+    pub fn new(config: McpServerConfig) -> Self {
+        Self {
+            client: Default::default(),
+            config,
+            reconnect: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
     fn client_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: Default::default(),
@@ -34,68 +44,50 @@ impl Connection {
         }
     }
 
-    async fn connect(&self) -> anyhow::Result<RunningService<RoleClient, InitializeRequestParam>> {
-        match &self.config {
-            McpServerConfig::Stdio(stdio) => {
-                let command = stdio
-                    .command
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("Command not specified"))?;
-                let mut cmd = Command::new(command);
-
-                if let Some(env) = &stdio.env {
-                    for (key, value) in env {
-                        cmd.env(key, value);
-                    }
-                }
-
-                cmd.stdin(std::process::Stdio::inherit())
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped());
-                let client = self
-                    .client_info()
-                    .serve(TokioChildProcess::new(cmd.args(&stdio.args))?)
-                    .await?;
-
-                Ok(client)
-            }
-            McpServerConfig::Sse(sse) => {
-                let url = sse
-                    .url
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("URL not specified"))?;
-                let transport = rmcp::transport::SseTransport::start(url).await?;
-                let client = self.client_info().serve(transport).await?;
-                Ok(client)
-            }
-        }
-    }
-}
-
-pub struct ForgeMcpClient {
-    client: Arc<Mutex<Option<RunningService<RoleClient, InitializeRequestParam>>>>,
-    connection: Connection,
-}
-
-impl ForgeMcpClient {
-    pub fn new(config: McpServerConfig) -> Self {
-        Self {
-            client: Default::default(),
-            connection: Connection { config },
-        }
-    }
-
     /// Connects to the MCP server. If `force` is true, it will reconnect even
     /// if already connected.
-    async fn connect(&self, force: bool) -> anyhow::Result<()> {
-        let mut client = self.client.lock().await;
-        if client.is_none() || force {
-            *client = Some(self.connection.connect().await?);
+    async fn connect(&self) -> anyhow::Result<()> {
+        let mut guard = self.client.lock().await;
+        if guard.is_none() || self.reconnect.load(Ordering::SeqCst) {
+            self.reconnect.store(false, Ordering::SeqCst);
+
+            let client = match &self.config {
+                McpServerConfig::Stdio(stdio) => {
+                    let command = stdio
+                        .command
+                        .as_ref()
+                        .ok_or_else(|| anyhow::anyhow!("Command not specified"))?;
+                    let mut cmd = Command::new(command);
+
+                    if let Some(env) = &stdio.env {
+                        for (key, value) in env {
+                            cmd.env(key, value);
+                        }
+                    }
+
+                    cmd.stdin(std::process::Stdio::inherit())
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped());
+                    self.client_info()
+                        .serve(TokioChildProcess::new(cmd.args(&stdio.args))?)
+                        .await?
+                }
+                McpServerConfig::Sse(sse) => {
+                    let url = sse
+                        .url
+                        .as_ref()
+                        .ok_or_else(|| anyhow::anyhow!("URL not specified"))?;
+                    let transport = rmcp::transport::SseTransport::start(url).await?;
+                    self.client_info().serve(transport).await?
+                }
+            };
+            *guard = Some(client);
         }
         Ok(())
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.connect().await?;
         let client = self.client.lock().await;
         let client = client.as_ref().context("Client is not running")?;
         let tools = client.list_tools(None).await?;
@@ -118,6 +110,7 @@ impl ForgeMcpClient {
     }
 
     async fn call(&self, tool_name: &ToolName, input: &Value) -> anyhow::Result<String> {
+        self.connect().await?;
         let client = self.client.lock().await;
         let client = client.as_ref().context("Client is not running")?;
 
@@ -141,27 +134,26 @@ impl ForgeMcpClient {
         }
     }
 
-    async fn attempt_with_retry<T, F>(&self, f: impl Fn() -> F) -> anyhow::Result<T>
+    async fn attempt_with_retry<T, F>(&self, call: impl Fn() -> F) -> anyhow::Result<T>
     where
         F: Future<Output = anyhow::Result<T>>,
     {
-        let is_retry = Arc::new(AtomicBool::new(false));
-
-        (|| async {
-            let is_retry = is_retry.load(Ordering::Relaxed);
-            self.connect(is_retry).await?;
-            f().await
-        })
-        .retry(
+        call.retry(
             ExponentialBuilder::default()
                 .with_max_times(5)
                 .with_jitter(),
         )
         .when(|err| {
-            is_retry.store(true, Ordering::Relaxed);
-            err.downcast_ref::<rmcp::ServiceError>()
+            let is_transport = err
+                .downcast_ref::<rmcp::ServiceError>()
                 .map(|e| matches!(e, rmcp::ServiceError::Transport(_)))
-                .unwrap_or(false)
+                .unwrap_or(false);
+
+            if is_transport {
+                self.reconnect.store(true, Ordering::SeqCst);
+            }
+
+            is_transport
         })
         .await
     }
