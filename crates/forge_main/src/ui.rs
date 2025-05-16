@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -7,6 +7,7 @@ use forge_api::{
     Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
+use forge_domain::{McpConfig, McpServerConfig, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::{ForgePanicTracker, ToolCallPayload};
@@ -18,7 +19,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
-use crate::cli::Cli;
+use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
@@ -82,8 +83,7 @@ impl<F: API + 'static> UI<F> {
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
-        self.state = UIState::default();
-        self.init_conversation().await?;
+        self.init_state().await?;
         banner::display()?;
 
         Ok(())
@@ -176,6 +176,10 @@ impl<F: API + 'static> UI<F> {
     }
 
     async fn run_inner(&mut self) -> Result<()> {
+        if let Some(mcp) = self.cli.subcommands.clone() {
+            return self.handle_subcommands(mcp).await;
+        }
+
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
             return self.handle_dispatch(dispatch_json).await;
@@ -190,7 +194,7 @@ impl<F: API + 'static> UI<F> {
 
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
-        self.init_conversation().await?;
+        self.init_state().await?;
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -219,6 +223,87 @@ impl<F: API + 'static> UI<F> {
             // Centralized prompt call at the end of the loop
             command = self.prompt().await?;
         }
+    }
+
+    async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
+        match subcommand {
+            TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
+                McpCommand::Add(add) => {
+                    let name = add.name.context("Server name is required")?;
+                    let scope: Scope = add.scope.into();
+                    // Create the appropriate server type based on transport
+                    let server = match add.transport {
+                        Transport::Stdio => McpServerConfig::new_stdio(
+                            add.command_or_url.clone().unwrap_or_default(),
+                            add.args.clone(),
+                            Some(parse_env(add.env.clone())),
+                        ),
+                        Transport::Sse => {
+                            McpServerConfig::new_sse(add.command_or_url.clone().unwrap_or_default())
+                        }
+                    };
+                    // Command/URL already set in the constructor
+
+                    self.update_mcp_config(&scope, |config| {
+                        config.mcp_servers.insert(name.to_string(), server);
+                    })
+                    .await?;
+
+                    self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))?;
+                }
+                McpCommand::List => {
+                    let mcp_servers = self.api.read_mcp_config().await?;
+                    if mcp_servers.is_empty() {
+                        self.writeln(TitleFormat::error("No MCP servers found"))?;
+                    }
+
+                    let mut output = String::new();
+                    for (name, server) in mcp_servers.mcp_servers {
+                        output.push_str(&format!("{name}: {server}"));
+                    }
+                    self.writeln(output)?;
+                }
+                McpCommand::Remove(rm) => {
+                    let name = rm.name.clone();
+                    let scope: Scope = rm.scope.into();
+
+                    self.update_mcp_config(&scope, |config| {
+                        config.mcp_servers.remove(name.as_str());
+                    })
+                    .await?;
+
+                    self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
+                }
+                McpCommand::Get(val) => {
+                    let name = val.name.clone();
+                    let config = self.api.read_mcp_config().await?;
+                    let server = config
+                        .mcp_servers
+                        .get(name.as_str())
+                        .ok_or(anyhow::anyhow!("Server not found"))?;
+
+                    let mut output = String::new();
+                    output.push_str(&format!("{name}: {server}"));
+                    self.writeln(TitleFormat::info(output))?;
+                }
+                McpCommand::AddJson(add_json) => {
+                    let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
+                        .context("Failed to parse JSON")?;
+                    let scope: Scope = add_json.scope.into();
+                    let name = add_json.name.clone();
+                    self.update_mcp_config(&scope, |config| {
+                        config.mcp_servers.insert(name.clone(), server);
+                    })
+                    .await?;
+
+                    self.writeln(TitleFormat::info(format!(
+                        "Added server: {}",
+                        add_json.name
+                    )))?;
+                }
+            },
+        }
+        Ok(())
     }
 
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
@@ -251,7 +336,9 @@ impl<F: API + 'static> UI<F> {
             }
             Command::Tools => {
                 use crate::tools_display::format_tools;
-                let tools = self.api.tools().await;
+                self.spinner.start(Some("Loading tools"))?;
+                let tools = self.api.tools().await?;
+
                 let output = format_tools(&tools);
                 self.writeln(output)?;
             }
@@ -395,33 +482,7 @@ impl<F: API + 'static> UI<F> {
             Some(ref id) => Ok(id.clone()),
             None => {
                 // Select a model if workflow doesn't have one
-                let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-                if workflow.model.is_none() {
-                    workflow.model = Some(
-                        self.select_model()
-                            .await?
-                            .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
-                    );
-                }
-
-                // Perform update using the configuration
-                let mut base_workflow = Workflow::default();
-                base_workflow.merge(workflow.clone());
-
-                on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
-
-                self.api
-                    .write_workflow(self.cli.workflow.as_deref(), &workflow)
-                    .await?;
-
-                // Get the mode from the config
-                let mode = workflow
-                    .variables
-                    .get("mode")
-                    .and_then(|value| value.as_str().and_then(|m| Mode::from_str(m).ok()))
-                    .unwrap_or(Mode::Act);
-
-                self.state = UIState::new(mode).provider(self.api.environment().provider);
+                let workflow = self.init_state().await?;
                 self.command.register_all(&workflow);
 
                 // We need to try and get the conversation ID first before fetching the model
@@ -450,6 +511,27 @@ impl<F: API + 'static> UI<F> {
                 }
             }
         }
+    }
+
+    /// Initialize the state of the UI
+    async fn init_state(&mut self) -> Result<Workflow> {
+        let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+        if workflow.model.is_none() {
+            workflow.model = Some(
+                self.select_model()
+                    .await?
+                    .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
+            );
+        }
+        let mut base_workflow = Workflow::default();
+        base_workflow.merge(workflow.clone());
+        on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+        self.api
+            .write_workflow(self.cli.workflow.as_deref(), &workflow)
+            .await?;
+
+        self.state = UIState::new(base_workflow).provider(self.api.environment().provider);
+        Ok(workflow)
     }
 
     async fn on_message(&mut self, content: String) -> Result<()> {
@@ -548,10 +630,10 @@ impl<F: API + 'static> UI<F> {
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
                 let payload = if toolcall_result.is_error {
-                    ToolCallPayload::new(toolcall_result.name.into_string())
+                    ToolCallPayload::new(toolcall_result.name.to_string())
                         .with_cause(toolcall_result.content)
                 } else {
-                    ToolCallPayload::new(toolcall_result.name.into_string())
+                    ToolCallPayload::new(toolcall_result.name.to_string())
                 };
                 tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::ToolCall(payload)));
 
@@ -580,4 +662,25 @@ impl<F: API + 'static> UI<F> {
             Err(err) => Err(err),
         }
     }
+
+    async fn update_mcp_config(&self, scope: &Scope, f: impl FnOnce(&mut McpConfig)) -> Result<()> {
+        let mut config = self.api.read_mcp_config().await?;
+        f(&mut config);
+        self.api.write_mcp_config(scope, &config).await?;
+
+        Ok(())
+    }
+}
+
+fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
+    env.into_iter()
+        .filter_map(|s| {
+            let mut parts = s.splitn(2, '=');
+            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
+                Some((key.to_string(), value.to_string()))
+            } else {
+                None
+            }
+        })
+        .collect()
 }

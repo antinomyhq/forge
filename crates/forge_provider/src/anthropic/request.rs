@@ -219,7 +219,7 @@ impl TryFrom<forge_domain::ToolCallFull> for Content {
         Ok(Content::ToolUse {
             id: call_id.as_str().to_string(),
             input: serde_json::to_value(value.arguments).ok(),
-            name: value.name.as_str().to_string(),
+            name: value.name.to_string(),
             cache_control: None,
         })
     }
@@ -278,10 +278,9 @@ impl From<forge_domain::ToolChoice> for ToolChoice {
     fn from(value: forge_domain::ToolChoice) -> Self {
         match value {
             forge_domain::ToolChoice::Auto => ToolChoice::Auto { disable_parallel_tool_use: None },
-            forge_domain::ToolChoice::Call(tool_name) => ToolChoice::Tool {
-                name: tool_name.into_string(),
-                disable_parallel_tool_use: None,
-            },
+            forge_domain::ToolChoice::Call(tool_name) => {
+                ToolChoice::Tool { name: tool_name.to_string(), disable_parallel_tool_use: None }
+            }
             forge_domain::ToolChoice::Required => {
                 ToolChoice::Any { disable_parallel_tool_use: None }
             }
@@ -304,7 +303,7 @@ impl TryFrom<forge_domain::ToolDefinition> for ToolDefinition {
     type Error = anyhow::Error;
     fn try_from(value: forge_domain::ToolDefinition) -> std::result::Result<Self, Self::Error> {
         Ok(ToolDefinition {
-            name: value.name.into_string(),
+            name: value.name.to_string(),
             description: Some(value.description),
             cache_control: None,
             input_schema: serde_json::to_value(value.input_schema)?,

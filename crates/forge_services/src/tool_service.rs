@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, ToolService,
+    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult,
+    ToolService,
 };
 use tokio::time::{timeout, Duration};
 use tracing::{debug, error};
@@ -14,31 +15,31 @@ use crate::Infrastructure;
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Clone)]
-pub struct ForgeToolService {
-    tools: Arc<HashMap<ToolName, Tool>>,
+pub struct ForgeToolService<M> {
+    tools: Arc<HashMap<ToolName, Arc<Tool>>>,
+    mcp: Arc<M>,
 }
 
-impl ForgeToolService {
-    pub fn new<F: Infrastructure>(infra: Arc<F>) -> Self {
+impl<M: McpService> ForgeToolService<M> {
+    pub fn new<F: Infrastructure>(infra: Arc<F>, mcp: Arc<M>) -> Self {
         let registry = ToolRegistry::new(infra.clone());
-        ForgeToolService::from_iter(registry.tools())
-    }
-}
-
-impl FromIterator<Tool> for ForgeToolService {
-    fn from_iter<T: IntoIterator<Item = Tool>>(iter: T) -> Self {
-        let tools: HashMap<ToolName, Tool> = iter
+        let tools = registry.tools();
+        let tools: HashMap<ToolName, Arc<Tool>> = tools
             .into_iter()
-            .map(|tool| (tool.definition.name.clone(), tool))
+            .map(|tool| (tool.definition.name.clone(), Arc::new(tool)))
             .collect::<HashMap<_, _>>();
 
-        Self { tools: Arc::new(tools) }
+        Self { tools: Arc::new(tools), mcp }
     }
 }
 
 #[async_trait::async_trait]
-impl ToolService for ForgeToolService {
-    async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult {
+impl<M: McpService> ToolService for ForgeToolService<M> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        call: ToolCallFull,
+    ) -> anyhow::Result<ToolResult> {
         let name = call.name.clone();
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
@@ -46,26 +47,26 @@ impl ToolService for ForgeToolService {
         let mut available_tools = self
             .tools
             .keys()
-            .map(|name| name.as_str())
+            .map(|name| name.to_string())
             .collect::<Vec<_>>();
 
         available_tools.sort();
 
-        let output = match self.tools.get(&name) {
+        let output = match self.find(&name).await? {
             Some(tool) => {
                 // Wrap tool call with timeout
                 match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
                     Ok(result) => result,
                     Err(_) => Err(anyhow::anyhow!(
                         "Tool '{}' timed out after {} minutes",
-                        name.as_str(),
+                        name.to_string(),
                         TOOL_CALL_TIMEOUT.as_secs() / 60
                     )),
                 }
             }
             None => Err(anyhow::anyhow!(
                 "No tool with name '{}' was found. Please try again with one of these tools {}",
-                name.as_str(),
+                name.to_string(),
                 available_tools.join(", ")
             )),
         };
@@ -79,20 +80,25 @@ impl ToolService for ForgeToolService {
         };
 
         debug!(result = ?result, "Tool call result");
-        result
+        Ok(result)
     }
 
-    fn list(&self) -> Vec<ToolDefinition> {
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         let mut tools: Vec<_> = self
             .tools
             .values()
             .map(|tool| tool.definition.clone())
             .collect();
+        let mcp_tools = self.mcp.list().await?;
+        tools.extend(mcp_tools);
 
         // Sorting is required to ensure system prompts are exactly the same
-        tools.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        tools.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
 
-        tools
+        Ok(tools)
+    }
+    async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
+        Ok(self.tools.get(name).cloned().or(self.mcp.find(name).await?))
     }
 }
 
@@ -105,8 +111,33 @@ mod test {
 
     use super::*;
 
+    struct Stub;
+
+    #[async_trait::async_trait]
+    impl McpService for Stub {
+        async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+            Ok(vec![])
+        }
+
+        async fn find(&self, _: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
+            Ok(None)
+        }
+    }
+
+    impl FromIterator<Tool> for ForgeToolService<Stub> {
+        fn from_iter<T: IntoIterator<Item = Tool>>(iter: T) -> Self {
+            let tools: HashMap<ToolName, Arc<Tool>> = iter
+                .into_iter()
+                .map(|tool| (tool.definition.name.clone(), Arc::new(tool)))
+                .collect::<HashMap<_, _>>();
+
+            Self { tools: Arc::new(tools), mcp: Arc::new(Stub) }
+        }
+    }
+
     // Mock tool that always succeeds
     struct SuccessTool;
+
     #[async_trait::async_trait]
     impl forge_domain::ExecutableTool for SuccessTool {
         type Input = Value;
@@ -122,6 +153,7 @@ mod test {
 
     // Mock tool that always fails
     struct FailureTool;
+
     #[async_trait::async_trait]
     impl forge_domain::ExecutableTool for FailureTool {
         type Input = Value;
@@ -168,7 +200,10 @@ mod test {
             call_id: Some(ToolCallId::new("test")),
         };
 
-        let result = service.call(ToolCallContext::default(), call).await;
+        let result = service
+            .call(ToolCallContext::default(), call)
+            .await
+            .unwrap();
         insta::assert_snapshot!(result);
     }
 
@@ -181,7 +216,10 @@ mod test {
             call_id: Some(ToolCallId::new("test")),
         };
 
-        let result = service.call(ToolCallContext::default(), call).await;
+        let result = service
+            .call(ToolCallContext::default(), call)
+            .await
+            .unwrap();
         insta::assert_snapshot!(result);
     }
 
@@ -194,12 +232,16 @@ mod test {
             call_id: Some(ToolCallId::new("test")),
         };
 
-        let result = service.call(ToolCallContext::default(), call).await;
+        let result = service
+            .call(ToolCallContext::default(), call)
+            .await
+            .unwrap();
         insta::assert_snapshot!(result);
     }
 
     // Mock tool that simulates a long-running task
     struct SlowTool;
+
     #[async_trait::async_trait]
     impl forge_domain::ExecutableTool for SlowTool {
         type Input = Value;
@@ -239,7 +281,10 @@ mod test {
         // Advance time to trigger timeout
         test::time::advance(Duration::from_secs(305)).await;
 
-        let result = service.call(ToolCallContext::default(), call).await;
+        let result = service
+            .call(ToolCallContext::default(), call)
+            .await
+            .unwrap();
 
         // Assert that the result contains a timeout error message
         let content_str = &result.content;

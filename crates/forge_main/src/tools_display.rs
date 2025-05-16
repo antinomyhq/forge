@@ -12,7 +12,7 @@ pub fn format_tools(tools: &[ToolDefinition]) -> String {
     let mut out = String::new();
 
     for (i, tool) in tools.iter().enumerate() {
-        let name = tool.name.as_str().blue().bold();
+        let name = tool.name.to_string().blue().bold();
         let description = &tool.description;
         let schema_json = to_string_pretty(&tool.input_schema).unwrap_or_else(|_| "{}".to_string());
         let schema = format!("{}", schema_json.dimmed());

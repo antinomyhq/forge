@@ -31,13 +31,6 @@ impl AgentId {
     }
 }
 
-impl From<ToolName> for AgentId {
-    // Converts a ToolName into an AgentId
-    fn from(value: ToolName) -> Self {
-        Self(value.into_string())
-    }
-}
-
 /// Configuration for automatic context compaction
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters)]
 #[setters(strip_option, into)]

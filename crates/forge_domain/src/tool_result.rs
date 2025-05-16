@@ -58,11 +58,7 @@ impl From<ToolCallFull> for ToolResult {
 impl std::fmt::Display for ToolResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "<forge_tool_result>")?;
-        write!(
-            f,
-            "<forge_tool_name>{}</forge_tool_name>",
-            self.name.as_str()
-        )?;
+        write!(f, "<forge_tool_name>{}</forge_tool_name>", self.name)?;
         let content = format!("<![CDATA[{}]]>", self.content);
         if self.is_error {
             write!(f, "<error>{content}</error>")?;

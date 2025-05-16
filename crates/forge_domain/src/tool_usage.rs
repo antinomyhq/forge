@@ -60,7 +60,7 @@ impl Display for ToolUsagePrompt<'_> {
                 .collect::<BTreeMap<_, _>>();
 
             let schema = Schema {
-                name: tool.name.as_str().to_string(),
+                name: tool.name.to_string(),
                 arguments: parameters,
                 description: tool.description.clone(),
             };

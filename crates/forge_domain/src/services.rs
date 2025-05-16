@@ -1,9 +1,10 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use crate::{
     Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
-    ConversationId, Environment, File, Model, ModelId, ResultStream, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolResult, Workflow,
+    ConversationId, Environment, File, McpConfig, Model, ModelId, ResultStream, Scope, Tool,
+    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -19,8 +20,28 @@ pub trait ProviderService: Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait ToolService: Send + Sync {
     // TODO: should take `call` by reference
-    async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult;
-    fn list(&self) -> Vec<ToolDefinition>;
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        call: ToolCallFull,
+    ) -> anyhow::Result<ToolResult>;
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>>;
+}
+
+#[async_trait::async_trait]
+pub trait McpConfigManager: Send + Sync {
+    /// Responsible to load the MCP servers from all configuration files.
+    async fn read(&self) -> anyhow::Result<McpConfig>;
+
+    /// Responsible for writing the McpConfig on disk.
+    async fn write(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait McpService: Send + Sync {
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>>;
 }
 
 #[async_trait::async_trait]
@@ -113,6 +134,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CompactionService: CompactionService;
     type WorkflowService: WorkflowService;
     type SuggestionService: SuggestionService;
+    type McpConfigManager: McpConfigManager;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -123,4 +145,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn compaction_service(&self) -> &Self::CompactionService;
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn suggestion_service(&self) -> &Self::SuggestionService;
+    fn mcp_config_manager(&self) -> &Self::McpConfigManager;
 }

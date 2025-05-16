@@ -32,8 +32,8 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         self.app.suggestion_service().suggestions().await
     }
 
-    async fn tools(&self) -> Vec<ToolDefinition> {
-        self.app.tool_service().list()
+    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.app.tool_service().list().await
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
@@ -126,6 +126,21 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .command_executor_service()
             .execute_command(command.to_string(), working_dir)
             .await
+    }
+    async fn read_mcp_config(&self) -> Result<McpConfig> {
+        self.app
+            .mcp_config_manager()
+            .read()
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()> {
+        self.app
+            .mcp_config_manager()
+            .write(config, scope)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn execute_shell_command_raw(

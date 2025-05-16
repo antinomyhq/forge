@@ -40,16 +40,20 @@ impl<F: Infrastructure> ToolRegistry<F> {
 
 #[cfg(test)]
 pub mod tests {
+
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
-    use forge_domain::{CommandOutput, Environment, EnvironmentService, Provider};
+    use forge_domain::{
+        CommandOutput, Environment, EnvironmentService, Provider, ToolDefinition, ToolName,
+    };
     use forge_snaps::Snapshot;
+    use serde_json::Value;
 
     use super::*;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, InquireService,
+        FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
     };
 
     /// Create a default test environment
@@ -207,6 +211,26 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl McpClient for Stub {
+        async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+            Ok(vec![])
+        }
+
+        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl McpServer for Stub {
+        type Client = Stub;
+
+        async fn connect(&self, _: forge_domain::McpServerConfig) -> anyhow::Result<Self::Client> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
     impl Infrastructure for Stub {
         type EnvironmentService = Stub;
         type FsReadService = Stub;
@@ -217,6 +241,8 @@ pub mod tests {
         type FsCreateDirsService = Stub;
         type CommandExecutorService = Stub;
         type InquireService = Stub;
+
+        type McpServer = Stub;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             self
@@ -251,6 +277,10 @@ pub mod tests {
         }
 
         fn inquire_service(&self) -> &Self::InquireService {
+            self
+        }
+
+        fn mcp_server(&self) -> &Self::McpServer {
             self
         }
     }

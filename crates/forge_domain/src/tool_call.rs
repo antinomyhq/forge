@@ -215,7 +215,7 @@ mod tests {
     fn test_real_example() {
         let message = include_str!("./fixtures/tool_call_01.md");
         let tool_call = ToolCallFull::try_from_xml(message).unwrap();
-        let actual = tool_call.first().unwrap().name.as_str();
+        let actual = tool_call.first().unwrap().name.to_string();
         let expected = "forge_tool_attempt_completion";
         assert_eq!(actual, expected)
     }

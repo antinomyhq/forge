@@ -438,6 +438,8 @@ mod test {
             type CommandExecutorService = ();
             type InquireService = ();
 
+            type McpServer = ();
+
             fn environment_service(&self) -> &Self::EnvironmentService {
                 self.inner.environment_service()
             }
@@ -472,6 +474,10 @@ mod test {
 
             fn inquire_service(&self) -> &Self::InquireService {
                 self.inner.inquire_service()
+            }
+
+            fn mcp_server(&self) -> &Self::McpServer {
+                self.inner.mcp_server()
             }
         }
 

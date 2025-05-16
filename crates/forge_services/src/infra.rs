@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_domain::{CommandOutput, EnvironmentService};
+use forge_domain::{CommandOutput, EnvironmentService, McpServerConfig, ToolDefinition, ToolName};
 use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
@@ -128,6 +128,18 @@ pub trait InquireService: Send + Sync {
     ) -> anyhow::Result<Option<Vec<String>>>;
 }
 
+#[async_trait::async_trait]
+pub trait McpClient: Send + Sync + 'static {
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn call(&self, tool_name: &ToolName, input: serde_json::Value) -> anyhow::Result<String>;
+}
+
+#[async_trait::async_trait]
+pub trait McpServer: Send + Sync + 'static {
+    type Client: McpClient;
+    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
+}
+
 pub trait Infrastructure: Send + Sync + Clone + 'static {
     type EnvironmentService: EnvironmentService;
     type FsMetaService: FsMetaService;
@@ -138,6 +150,7 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     type FsCreateDirsService: FsCreateDirsService;
     type CommandExecutorService: CommandExecutorService;
     type InquireService: InquireService;
+    type McpServer: McpServer;
 
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn file_meta_service(&self) -> &Self::FsMetaService;
@@ -148,4 +161,5 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     fn create_dirs_service(&self) -> &Self::FsCreateDirsService;
     fn command_executor_service(&self) -> &Self::CommandExecutorService;
     fn inquire_service(&self) -> &Self::InquireService;
+    fn mcp_server(&self) -> &Self::McpServer;
 }

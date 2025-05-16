@@ -3,14 +3,13 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context as AnyhowContext};
 use async_recursion::async_recursion;
+use backon::{ExponentialBuilder, Retryable};
 use chrono::Local;
 use forge_walker::Walker;
 use futures::future::join_all;
 use futures::{Stream, StreamExt};
 use serde_json::Value;
 use tokio::sync::RwLock;
-use tokio_retry::strategy::{jitter, ExponentialBackoff};
-use tokio_retry::RetryIf;
 use tracing::debug;
 
 // Use retry_config default values directly in this file
@@ -36,7 +35,6 @@ pub struct Orchestrator<Services> {
     services: Arc<Services>,
     sender: Option<ArcSender>,
     conversation: Arc<RwLock<Conversation>>,
-    retry_strategy: std::iter::Take<tokio_retry::strategy::ExponentialBackoff>,
 }
 
 struct ChatCompletionResult {
@@ -56,15 +54,9 @@ impl<A: Services> Orchestrator<A> {
             state.queue.clear();
         });
 
-        let env = services.environment_service().get_environment();
-        let retry_strategy = ExponentialBackoff::from_millis(env.retry_config.initial_backoff_ms)
-            .factor(env.retry_config.backoff_factor)
-            .take(env.retry_config.max_retry_attempts);
-
         Self {
             services,
             sender,
-            retry_strategy,
             conversation: Arc::new(RwLock::new(conversation)),
         }
     }
@@ -90,7 +82,7 @@ impl<A: Services> Orchestrator<A> {
                 .services
                 .tool_service()
                 .call(tool_context.clone(), tool_call.clone())
-                .await;
+                .await?;
 
             // Send the end notification
             self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
@@ -121,14 +113,16 @@ impl<A: Services> Orchestrator<A> {
     }
 
     /// Get the allowed tools for an agent
-    fn get_allowed_tools(&self, agent: &Agent) -> Vec<ToolDefinition> {
+    async fn get_allowed_tools(&self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
         let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
-        self.services
+        Ok(self
+            .services
             .tool_service()
             .list()
+            .await?
             .into_iter()
             .filter(|tool| allowed.contains(&tool.name))
-            .collect()
+            .collect())
     }
 
     async fn set_system_prompt(
@@ -153,7 +147,9 @@ impl<A: Services> Orchestrator<A> {
 
             let tool_information = match agent.tool_supported.unwrap_or_default() {
                 true => None,
-                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)).to_string()),
+                false => {
+                    Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent).await?).to_string())
+                }
             };
 
             let ctx = SystemContext {
@@ -384,6 +380,20 @@ impl<A: Services> Orchestrator<A> {
             .sender(self.sender.clone())
     }
 
+    async fn chat(
+        &self,
+        agent: &Agent,
+        model_id: &ModelId,
+        context: Context,
+    ) -> anyhow::Result<ChatCompletionResult> {
+        let response = self
+            .services
+            .provider_service()
+            .chat(model_id, context.clone())
+            .await?;
+        self.collect_messages(agent, &context, response).await
+    }
+
     // Create a helper method with the core functionality
     async fn init_agent(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
         let conversation = self.get_conversation().await?;
@@ -401,11 +411,17 @@ impl<A: Services> Orchestrator<A> {
             .ok_or(Error::MissingModel(agent.id.clone()))?;
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
-            agent.init_context(self.get_allowed_tools(agent)).await?
+            agent
+                .init_context(self.get_allowed_tools(agent).await?)
+                .await?
         } else {
             match conversation.context(&agent.id) {
                 Some(context) => context.clone(),
-                None => agent.init_context(self.get_allowed_tools(agent)).await?,
+                None => {
+                    agent
+                        .init_context(self.get_allowed_tools(agent).await?)
+                        .await?
+                }
             }
         };
 
@@ -446,18 +462,26 @@ impl<A: Services> Orchestrator<A> {
 
         let mut empty_tool_call_count = 0;
 
+        let retry_config = self
+            .services
+            .environment_service()
+            .get_environment()
+            .retry_config;
+
         while !tool_context.get_complete().await {
             // Set context for the current loop iteration
             self.set_context(&agent.id, context.clone()).await?;
 
-            let response = self
-                .services
-                .provider_service()
-                .chat(&model_id, context.clone())
-                .await?;
-
             let ChatCompletionResult { tool_calls, content, usage } =
-                self.collect_messages(agent, &context, response).await?;
+                (|| self.chat(agent, &model_id, context.clone()))
+                    .retry(
+                        ExponentialBuilder::default()
+                            .with_factor(retry_config.backoff_factor as f32)
+                            .with_max_times(retry_config.max_retry_attempts)
+                            .with_jitter(),
+                    )
+                    .when(should_retry(&retry_config.retry_status_codes))
+                    .await?;
 
             // Check if context requires compression and decide to compact
             if agent.should_compact(&context, usage.map(|usage| usage.prompt_tokens as usize)) {
@@ -553,32 +577,25 @@ impl<A: Services> Orchestrator<A> {
             let mut conversation = self.conversation.write().await;
             conversation.poll_event(agent_id)
         } {
-            RetryIf::spawn(
-                self.retry_strategy.clone().map(jitter),
-                || self.init_agent(agent_id, &event),
-                is_parse_error,
-            )
-            .await?;
+            self.init_agent(agent_id, &event).await?
         }
 
         Ok(())
     }
 }
 
-fn is_parse_error(error: &anyhow::Error) -> bool {
-    let check = error
-        .downcast_ref::<Error>()
-        .map(|error| {
-            matches!(
-                error,
-                Error::ToolCallParse(_) | Error::ToolCallArgument(_) | Error::ToolCallMissingName
-            )
-        })
-        .unwrap_or_default();
-
-    if check {
-        debug!(error = %error, "Retrying due to parse error");
+fn should_retry(status_codes: &[u16]) -> impl Fn(&anyhow::Error) -> bool + '_ {
+    move |error| {
+        error
+            .source()
+            .and_then(|err| err.downcast_ref::<reqwest_eventsource::Error>())
+            .map(|err| match err {
+                reqwest_eventsource::Error::Transport(_) => true,
+                reqwest_eventsource::Error::InvalidStatusCode(status_code, _) => {
+                    status_codes.contains(&status_code.as_u16())
+                }
+                _ => false,
+            })
+            .unwrap_or(false)
     }
-
-    check
 }

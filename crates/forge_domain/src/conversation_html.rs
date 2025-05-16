@@ -203,7 +203,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                                     .append(
                                                         Element::new("p").append(
                                                             Element::new("strong")
-                                                                .text(tool_call.name.as_str()),
+                                                                .text(tool_call.name.to_string()),
                                                         ),
                                                     )
                                                     .append(tool_call.call_id.as_ref().map(
@@ -262,7 +262,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                             .append(
                                 Element::new("p")
                                     .append(Element::new("strong").text("Tool: "))
-                                    .text(tool.name.as_str()),
+                                    .text(tool.name.to_string()),
                             )
                             .append(
                                 Element::new("p")
@@ -356,7 +356,7 @@ mod tests {
         let id = crate::conversation::ConversationId::generate();
         let workflow = crate::Workflow::new();
 
-        let fixture = Conversation::new(id, workflow);
+        let fixture = Conversation::new(id, workflow, Default::default());
         let actual = render_conversation_html(&fixture);
 
         // We're verifying that the function runs without errors

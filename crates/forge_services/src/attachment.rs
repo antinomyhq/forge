@@ -122,13 +122,16 @@ pub mod tests {
     use bytes::Bytes;
     use forge_domain::{
         AttachmentService, CommandOutput, ContentType, Environment, EnvironmentService, Provider,
+        ToolDefinition, ToolName,
     };
     use forge_snaps::Snapshot;
+    use serde_json::Value;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService, TempDir,
+        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
+        McpClient, McpServer, TempDir,
     };
 
     #[derive(Debug)]
@@ -323,6 +326,26 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl McpClient for () {
+        async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+            Ok(vec![])
+        }
+
+        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl McpServer for () {
+        type Client = ();
+
+        async fn connect(&self, _: forge_domain::McpServerConfig) -> anyhow::Result<Self::Client> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
     impl CommandExecutorService for () {
         async fn execute_command(
             &self,
@@ -495,6 +518,7 @@ pub mod tests {
         type FsSnapshotService = MockSnapService;
         type CommandExecutorService = ();
         type InquireService = ();
+        type McpServer = ();
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
@@ -529,6 +553,10 @@ pub mod tests {
         }
 
         fn inquire_service(&self) -> &Self::InquireService {
+            &()
+        }
+
+        fn mcp_server(&self) -> &Self::McpServer {
             &()
         }
     }

@@ -13,7 +13,7 @@ pub trait API: Sync + Send {
 
     /// Provides information about the tools available in the current
     /// environment
-    async fn tools(&self) -> Vec<ToolDefinition>;
+    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>>;
 
     /// Provides a list of models available in the current environment
     async fn models(&self) -> Result<Vec<Model>>;
@@ -78,4 +78,16 @@ pub trait API: Sync + Send {
         command: &str,
         args: &[&str],
     ) -> Result<std::process::ExitStatus>;
+
+    /// Reads and merges MCP configurations from all available configuration
+    /// files This combines both user-level and local configurations with
+    /// local taking precedence
+    async fn read_mcp_config(&self) -> Result<McpConfig>;
+
+    /// Writes the provided MCP configuration to disk at the specified scope
+    /// The scope determines whether the configuration is written to user-level
+    /// or local configuration User-level configuration is stored in the
+    /// user's home directory Local configuration is stored in the current
+    /// project directory
+    async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
 }
