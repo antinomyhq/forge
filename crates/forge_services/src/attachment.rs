@@ -344,16 +344,7 @@ pub mod tests {
     impl McpServer for () {
         type Client = ();
 
-        async fn connect_stdio(
-            &self,
-            _: &str,
-            _: BTreeMap<String, String>,
-            _: Vec<String>,
-        ) -> anyhow::Result<Self::Client> {
-            Ok(())
-        }
-
-        async fn connect_sse(&self, _: &str) -> anyhow::Result<Self::Client> {
+        async fn connect(&self, _: forge_domain::McpServerConfig) -> anyhow::Result<Self::Client> {
             Ok(())
         }
     }

@@ -1,9 +1,9 @@
-use std::collections::BTreeMap;
+
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_domain::{CommandOutput, EnvironmentService, ToolDefinition, ToolName};
+use forge_domain::{CommandOutput, EnvironmentService, McpServerConfig, ToolDefinition, ToolName};
 use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
@@ -139,13 +139,7 @@ pub trait McpClient: Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait McpServer: Send + Sync + 'static {
     type Client: McpClient;
-    async fn connect_stdio(
-        &self,
-        command: &str,
-        env: BTreeMap<String, String>,
-        args: Vec<String>,
-    ) -> anyhow::Result<Self::Client>;
-    async fn connect_sse(&self, url: &str) -> anyhow::Result<Self::Client>;
+    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
 }
 
 pub trait Infrastructure: Send + Sync + Clone + 'static {

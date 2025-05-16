@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_domain::{
-    McpConfig, McpConfigManager, McpServerConfig, McpService, McpSseServer,
-    McpStdioServer, Tool, ToolDefinition, ToolName,
+    McpConfig, McpConfigManager, McpServerConfig, McpService,
+    Tool, ToolDefinition, ToolName,
 };
 use tokio::sync::{Mutex, RwLock};
 
@@ -61,23 +61,13 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         Ok(())
     }
 
-    async fn connect_stdio_server(
+    async fn connect_server(
         &self,
         server_name: &str,
-        config: McpStdioServer,
+        config: McpServerConfig,
     ) -> anyhow::Result<()> {
-        let command = config
-            .command
-            .ok_or_else(|| anyhow::anyhow!("Command is required for stdio server"))?;
-        let env = config.env.unwrap_or_default();
-        let args = config.args;
-
-        let client = Arc::new(
-            self.infra
-                .mcp_server()
-                .connect_stdio(&command, env, args)
-                .await?,
-        );
+        let client = Arc::new(self.infra.mcp_server().connect(config).await?);
+        
         let tools = client
             .list()
             .await
@@ -86,22 +76,6 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         self.insert_tools(server_name, tools, client)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to insert tools: {e}"))?;
-
-        Ok(())
-    }
-    async fn connect_http_server(
-        &self,
-        server_name: &str,
-        config: McpSseServer,
-    ) -> anyhow::Result<()> {
-        let url = config
-            .url
-            .ok_or_else(|| anyhow::anyhow!("URL is required for HTTP server"))?;
-        let client = Arc::new(self.infra.mcp_server().connect_sse(&url).await?);
-
-        let tools = client.list().await?;
-        self.insert_tools(server_name, tools, client.clone())
-            .await?;
 
         Ok(())
     }
@@ -119,16 +93,9 @@ impl<R: McpConfigManager, I: Infrastructure> ForgeMcpService<R, I> {
         self.clear_tools().await;
 
         futures::future::join_all(mcp.mcp_servers.iter().map(|(name, server)| async move {
-            match server {
-                McpServerConfig::Stdio(server) => self
-                    .connect_stdio_server(name, server.clone())
-                    .await
-                    .context(format!("Failed to initiate MCP server: {name}")),
-                McpServerConfig::Sse(server) => self
-                    .connect_http_server(name, server.clone())
-                    .await
-                    .context(format!("Failed to initiate MCP server: {name}")),
-            }
+            self.connect_server(name, server.clone())
+                .await
+                .context(format!("Failed to initiate MCP server: {name}"))
         }))
         .await
         .into_iter()

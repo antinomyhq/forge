@@ -229,16 +229,7 @@ pub mod tests {
     impl McpServer for Stub {
         type Client = Stub;
 
-        async fn connect_stdio(
-            &self,
-            _: &str,
-            _: BTreeMap<String, String>,
-            _: Vec<String>,
-        ) -> anyhow::Result<Self::Client> {
-            unimplemented!()
-        }
-
-        async fn connect_sse(&self, _: &str) -> anyhow::Result<Self::Client> {
+        async fn connect(&self, _: forge_domain::McpServerConfig) -> anyhow::Result<Self::Client> {
             unimplemented!()
         }
     }

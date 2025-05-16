@@ -1,5 +1,6 @@
-use std::collections::BTreeMap;
 
+
+use forge_domain::McpServerConfig;
 use forge_services::McpServer;
 
 use crate::mcp_client::ForgeMcpClient;
@@ -10,17 +11,19 @@ pub struct ForgeMcpServer;
 #[async_trait::async_trait]
 impl McpServer for ForgeMcpServer {
     type Client = ForgeMcpClient;
-
-    async fn connect_stdio(
-        &self,
-        command: &str,
-        env: BTreeMap<String, String>,
-        args: Vec<String>,
-    ) -> anyhow::Result<Self::Client> {
-        Ok(ForgeMcpClient::new_stdio(command.to_string(), env, args))
-    }
-
-    async fn connect_sse(&self, url: &str) -> anyhow::Result<Self::Client> {
-        Ok(ForgeMcpClient::new_sse(url.to_string()))
+    
+    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client> {
+        match config {
+            McpServerConfig::Stdio(stdio) => {
+                let command = stdio.command.unwrap_or_default();
+                let args = stdio.args;
+                let env = stdio.env.unwrap_or_default();
+                Ok(ForgeMcpClient::new_stdio(command, env, args))
+            },
+            McpServerConfig::Sse(sse) => {
+                let url = sse.url.unwrap_or_default();
+                Ok(ForgeMcpClient::new_sse(url))
+            }
+        }
     }
 }
