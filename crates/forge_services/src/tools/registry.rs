@@ -40,7 +40,7 @@ impl<F: Infrastructure> ToolRegistry<F> {
 
 #[cfg(test)]
 pub mod tests {
-    
+
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;

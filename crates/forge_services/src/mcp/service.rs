@@ -106,7 +106,7 @@ impl<M: McpConfigManager, I: Infrastructure> ForgeMcpService<M, I> {
 
         Ok(self.tools.read().await.get(name).cloned())
     }
-    
+
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         self.init_mcp().await?;
         Ok(self
