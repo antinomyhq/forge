@@ -53,14 +53,10 @@ impl ForgeMcpClient {
 
             let client = match &self.config {
                 McpServerConfig::Stdio(stdio) => {
-                    let command = stdio
-                        .command
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("Command not specified"))?;
-                    let mut cmd = Command::new(command);
+                    let mut cmd = Command::new(&stdio.command);
 
-                    if let Some(env) = &stdio.env {
-                        for (key, value) in env {
+                    if !stdio.env.is_empty() {
+                        for (key, value) in &stdio.env {
                             cmd.env(key, value);
                         }
                     }
@@ -73,11 +69,7 @@ impl ForgeMcpClient {
                         .await?
                 }
                 McpServerConfig::Sse(sse) => {
-                    let url = sse
-                        .url
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("URL not specified"))?;
-                    let transport = rmcp::transport::SseTransport::start(url).await?;
+                    let transport = rmcp::transport::SseTransport::start(&sse.url).await?;
                     self.client_info().serve(transport).await?
                 }
             };
