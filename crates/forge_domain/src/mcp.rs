@@ -6,6 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
 use derive_setters::Setters;
+use merge::Merge;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -45,11 +46,11 @@ pub struct McpStdioServer {
     pub command: String,
 
     /// Arguments to pass to the command
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
 
     /// Environment variables to pass to the command
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
 }
 
@@ -83,9 +84,10 @@ impl Display for McpServerConfig {
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Merge)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
+    #[merge(strategy = std::collections::BTreeMap::extend)]
     pub mcp_servers: BTreeMap<String, McpServerConfig>,
 }
 
