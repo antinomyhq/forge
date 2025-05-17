@@ -44,8 +44,8 @@ impl<I: Infrastructure> McpConfigManager for ForgeMcpManager<I> {
         // NOTE: Config at lower levels has higher priority.
 
         let mut config = McpConfig::default();
-        config.merge(self.read_or_default_config(&local_config).await?);
         config.merge(self.read_or_default_config(&user_config).await?);
+        config.merge(self.read_or_default_config(&local_config).await?);
 
         Ok(config)
     }
