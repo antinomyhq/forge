@@ -481,6 +481,20 @@ impl<A: Services> Orchestrator<A> {
                             .with_jitter(),
                     )
                     .when(should_retry(&retry_config.retry_status_codes))
+                    .notify(|error, duration| {
+                        let retry_msg = format!(
+                            "Retrying after error: {}. Retrying in {} ms",
+                            error.root_cause(),
+                            duration.as_millis()
+                        );
+                        let agent = agent.clone();
+                        let self_clone = self.clone();
+                        tokio::spawn(async move {
+                            let _ = self_clone
+                                .send(&agent, ChatResponse::Retry(retry_msg))
+                                .await;
+                        });
+                    })
                     .await?;
 
             // Check if context requires compression and decide to compact
