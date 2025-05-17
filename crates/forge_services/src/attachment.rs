@@ -285,7 +285,7 @@ pub mod tests {
         }
 
         async fn write_temp(&self, _: &str, _: &str, content: &str) -> anyhow::Result<PathBuf> {
-            let temp_dir = crate::utils:: TempDir::new().unwrap();
+            let temp_dir = crate::utils::TempDir::new().unwrap();
             let path = temp_dir.path();
 
             self.write(&path, content.to_string().into()).await?;
