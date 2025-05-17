@@ -72,7 +72,7 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         };
 
         let result = match output {
-            Ok(output) => ToolResult::from(call).success(output),
+            Ok(output) => ToolResult::from(call).success(output.into_string()),
             Err(output) => {
                 error!(error = ?output, "Tool call failed");
                 ToolResult::from(call).failure(output)
@@ -146,8 +146,10 @@ mod test {
             &self,
             _context: ToolCallContext,
             input: Self::Input,
-        ) -> anyhow::Result<String> {
-            Ok(format!("Success with input: {input}"))
+        ) -> anyhow::Result<forge_domain::ToolContent> {
+            Ok(forge_domain::ToolContent::new(format!(
+                "Success with input: {input}"
+            )))
         }
     }
 
@@ -162,7 +164,7 @@ mod test {
             &self,
             _context: ToolCallContext,
             _input: Self::Input,
-        ) -> anyhow::Result<String> {
+        ) -> anyhow::Result<forge_domain::ToolContent> {
             bail!("Tool call failed with simulated failure".to_string())
         }
     }
@@ -250,10 +252,12 @@ mod test {
             &self,
             _context: ToolCallContext,
             _input: Self::Input,
-        ) -> anyhow::Result<String> {
+        ) -> anyhow::Result<forge_domain::ToolContent> {
             // Simulate a long-running task that exceeds the timeout
             tokio::time::sleep(Duration::from_secs(400)).await;
-            Ok("Slow tool completed".to_string())
+            Ok(forge_domain::ToolContent::new(
+                "Slow tool completed".to_string(),
+            ))
         }
     }
 

@@ -4,7 +4,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    EnvironmentService, ExecutableTool, ToolContent, NamedTool, ToolCallContext,
+    ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
@@ -61,7 +62,11 @@ impl<F: Infrastructure> FSFileInfo<F> {
 impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
     type Input = FSFileInfoInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolContent> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -72,7 +77,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         context
             .send_text(TitleFormat::debug("Info").title(self.format_display_path(path)?))
             .await?;
-        Ok(format!("{meta:?}"))
+        Ok(ToolContent::new(format!("{meta:?}")))
     }
 }
 

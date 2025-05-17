@@ -6,8 +6,8 @@ use std::sync::Arc;
 use anyhow::{bail, Context};
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolDescription,
-    ToolName,
+    EnvironmentService, ExecutableTool, ToolContent, FSReadInput, NamedTool,
+    ToolCallContext, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 
@@ -143,7 +143,11 @@ impl<F: Infrastructure> FSRead<F> {
     }
 
     /// Helper function to read a file with range constraints
-    async fn call(&self, context: ToolCallContext, input: FSReadInput) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: FSReadInput,
+    ) -> anyhow::Result<ToolContent> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -190,7 +194,7 @@ impl<F: Infrastructure> FSRead<F> {
         // Always include the content
         writeln!(response, "{}", &content)?;
 
-        Ok(response)
+        Ok(ToolContent::new(response))
     }
 }
 
@@ -204,7 +208,11 @@ impl<F> NamedTool for FSRead<F> {
 impl<F: Infrastructure> ExecutableTool for FSRead<F> {
     type Input = FSReadInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolContent> {
         self.call(context, input).await
     }
 }
@@ -221,7 +229,7 @@ mod test {
     use crate::tools::utils::TempDir;
 
     // Helper function to test relative paths
-    async fn test_with_mock(path: &str) -> anyhow::Result<String> {
+    async fn test_with_mock(path: &str) -> anyhow::Result<ToolContent> {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_read = FSRead::new(infra);
         fs_read

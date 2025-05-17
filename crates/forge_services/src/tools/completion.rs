@@ -1,5 +1,7 @@
 use anyhow::Result;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription};
+use forge_domain::{
+    ExecutableTool, ToolContent, NamedTool, ToolCallContext, ToolDescription,
+};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -37,7 +39,11 @@ pub struct AttemptCompletionInput {
 impl ExecutableTool for Completion {
     type Input = AttemptCompletionInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> Result<ToolContent> {
         // Log the completion event
         context.send_summary(input.result.clone()).await?;
 
@@ -45,7 +51,7 @@ impl ExecutableTool for Completion {
         context.set_complete().await;
 
         // Return success with the message
-        Ok(input.result)
+        Ok(ToolContent::new(input.result))
     }
 }
 
@@ -63,7 +69,11 @@ mod tests {
             AttemptCompletionInput { result: "All required features implemented".to_string() };
 
         // Execute the fixture
-        let actual = tool.call(ToolCallContext::default(), input).await.unwrap();
+        let actual = tool
+            .call(ToolCallContext::default(), input)
+            .await
+            .unwrap()
+            .into_string();
 
         // Define expected result
         let expected = "All required features implemented";
