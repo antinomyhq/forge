@@ -79,11 +79,4 @@ impl ToolContent {
             ToolContent::ImageUrl(image) => image,
         }
     }
-
-    pub fn contains(&self, needle: &str) -> bool {
-        match self {
-            ToolContent::Text(text) => text.contains(needle),
-            ToolContent::ImageUrl(image) => image.contains(needle),
-        }
-    }
 }

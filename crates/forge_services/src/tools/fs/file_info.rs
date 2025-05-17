@@ -105,9 +105,9 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("FileType"));
-        assert!(result.contains("permissions"));
-        assert!(result.contains("modified"));
+        assert!(result.clone().into_string().contains("FileType"));
+        assert!(result.clone().into_string().contains("permissions"));
+        assert!(result.into_string().contains("modified"));
     }
 
     #[tokio::test]
@@ -127,9 +127,9 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("FileType"));
-        assert!(result.contains("permissions"));
-        assert!(result.contains("modified"));
+        assert!(result.clone().into_string().contains("FileType"));
+        assert!(result.clone().into_string().contains("permissions"));
+        assert!(result.into_string().contains("modified"));
     }
 
     #[tokio::test]
