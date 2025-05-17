@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult,
-    ToolService,
+    McpService, Tool, ToolCallContext, ToolCallFull, ToolContentItem, ToolDefinition, ToolName,
+    ToolResult, ToolService,
 };
 use tokio::time::{timeout, Duration};
 use tracing::{debug, error};
@@ -72,7 +72,26 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         };
 
         let result = match output {
-            Ok(output) => ToolResult::from(call).success(output.into_string()),
+            Ok(output) => {
+                // Extract text from the first text item, if any
+                let text = output.items.into_iter().find_map(|item| {
+                    if let ToolContentItem::Text(text) = item {
+                        Some(text)
+                    } else {
+                        None
+                    }
+                });
+
+                match text {
+                    Some(text) if output.is_error => {
+                        ToolResult::from(call).failure(anyhow::bail!("{text}"))
+                    }
+                    Some(text) => ToolResult::from(call).success(text),
+                    None => {
+                        ToolResult::from(call).failure(anyhow::bail!("Tool call returned no text"))
+                    }
+                }
+            }
             Err(output) => {
                 error!(error = ?output, "Tool call failed");
                 ToolResult::from(call).failure(output)
