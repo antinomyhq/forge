@@ -135,7 +135,10 @@ pub mod tests {
     };
 
     #[derive(Debug)]
-    pub struct MockEnvironmentService {}
+    pub struct MockEnvironmentService {
+        pub home: Option<PathBuf>,
+        pub cwd: Option<PathBuf>,
+    }
 
     #[async_trait::async_trait]
     impl EnvironmentService for MockEnvironmentService {
@@ -143,8 +146,8 @@ pub mod tests {
             Environment {
                 os: "test".to_string(),
                 pid: 12345,
-                cwd: PathBuf::from("/test"),
-                home: Some(PathBuf::from("/home/test")),
+                cwd: self.cwd.clone().unwrap_or(PathBuf::from("/test")),
+                home: Some(self.home.clone().unwrap_or(PathBuf::from("/home/test"))),
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/base"),
                 provider: Provider::open_router("test-key"),
@@ -228,15 +231,15 @@ pub mod tests {
 
     #[derive(Debug, Clone)]
     pub struct MockInfrastructure {
-        env_service: Arc<MockEnvironmentService>,
-        file_service: Arc<MockFileService>,
-        file_snapshot_service: Arc<MockSnapService>,
+        pub env_service: Arc<MockEnvironmentService>,
+        pub file_service: Arc<MockFileService>,
+        pub file_snapshot_service: Arc<MockSnapService>,
     }
 
     impl MockInfrastructure {
         pub fn new() -> Self {
             Self {
-                env_service: Arc::new(MockEnvironmentService {}),
+                env_service: Arc::new(MockEnvironmentService { home: None, cwd: None }),
                 file_service: Arc::new(MockFileService::new()),
                 file_snapshot_service: Arc::new(MockSnapService),
             }
