@@ -6,7 +6,7 @@ use bytes::Bytes;
 use forge_domain::{EnvironmentService, McpConfig, McpConfigManager, Scope};
 use merge::Merge;
 
-use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};
+use crate::{FsReadService, FsWriteService, Infrastructure};
 
 pub struct ForgeMcpManager<I> {
     infra: Arc<I>,
