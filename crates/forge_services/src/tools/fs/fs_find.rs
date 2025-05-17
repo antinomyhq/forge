@@ -283,7 +283,7 @@ impl<F: Infrastructure> ExecutableTool for FSFind<F> {
         let result = self
             .call_inner(context, input, MAX_SEARCH_CHAR_LIMIT)
             .await?;
-        Ok(ToolContent::new(result))
+        Ok(ToolContent::text(result))
     }
 }
 

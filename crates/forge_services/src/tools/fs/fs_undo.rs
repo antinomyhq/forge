@@ -78,7 +78,7 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
         let message = TitleFormat::debug("Undo").sub_title(display_path.clone());
         context.send_text(message).await?;
 
-        Ok(ToolContent::new(format!(
+        Ok(ToolContent::text(format!(
             "Successfully undid last operation on path: {display_path}"
         )))
     }
@@ -114,7 +114,7 @@ mod tests {
         assert!(result.is_ok(), "Expected successful undo operation");
         assert_eq!(
             result.unwrap(),
-            ToolContent::new(format!(
+            ToolContent::text(format!(
                 "Successfully undid last operation on path: {}",
                 test_path.display()
             )),

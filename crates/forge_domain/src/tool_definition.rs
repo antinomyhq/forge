@@ -64,25 +64,40 @@ pub trait ExecutableTool {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ToolContent(String);
+pub enum ToolContent {
+    Text(String),
+    Image(String),
+}
 impl ToolContent {
-    pub fn new(tool: String) -> Self {
-        Self(tool)
+    pub fn text(tool: String) -> Self {
+        ToolContent::Text(tool)
     }
 
     pub fn into_string(self) -> String {
-        self.0
+        match self {
+            ToolContent::Text(text) => text,
+            ToolContent::Image(image) => image,
+        }
     }
 
     pub fn as_str(&self) -> &str {
-        &self.0
+        match self {
+            ToolContent::Text(text) => text,
+            ToolContent::Image(image) => image,
+        }
     }
 
     pub fn contains(&self, needle: &str) -> bool {
-        self.0.contains(needle)
+        match self {
+            ToolContent::Text(text) => text.contains(needle),
+            ToolContent::Image(image) => image.contains(needle),
+        }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        match self {
+            ToolContent::Text(text) => text.is_empty(),
+            ToolContent::Image(image) => image.is_empty(),
+        }
     }
 }

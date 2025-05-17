@@ -142,7 +142,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
 
         context.send_text(diff).await?;
 
-        Ok(ToolContent::new(result))
+        Ok(ToolContent::text(result))
     }
 }
 

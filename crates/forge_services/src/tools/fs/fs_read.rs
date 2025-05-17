@@ -194,7 +194,7 @@ impl<F: Infrastructure> FSRead<F> {
         // Always include the content
         writeln!(response, "{}", &content)?;
 
-        Ok(ToolContent::new(response))
+        Ok(ToolContent::text(response))
     }
 }
 

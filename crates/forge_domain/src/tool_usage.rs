@@ -137,7 +137,7 @@ mod tests {
         type Input = ToolInput;
 
         async fn call(&self, _: ToolCallContext, _: Self::Input) -> anyhow::Result<ToolContent> {
-            Ok(ToolContent::new("Completed".to_string()))
+            Ok(ToolContent::text("Completed".to_string()))
         }
     }
 

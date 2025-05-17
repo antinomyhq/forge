@@ -30,6 +30,6 @@ impl<T: McpClient> ExecutableTool for McpExecutor<T> {
             .await?;
 
         let result = self.client.call(&self.tool_name, input).await?;
-        Ok(ToolContent::new(result))
+        Ok(ToolContent::text(result))
     }
 }

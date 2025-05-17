@@ -94,10 +94,10 @@ impl<F: Infrastructure> ExecutableTool for Followup<F> {
         };
 
         match result {
-            Some(answer) => Ok(ToolContent::new(answer)),
+            Some(answer) => Ok(ToolContent::text(answer)),
             None => {
                 context.set_complete().await;
-                Ok(ToolContent::new(
+                Ok(ToolContent::text(
                     "User interrupted the selection".to_string(),
                 ))
             }
