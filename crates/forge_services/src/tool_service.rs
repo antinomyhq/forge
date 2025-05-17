@@ -84,12 +84,11 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
 
                 match text {
                     Some(text) if output.is_error => {
-                        ToolResult::from(call).failure(anyhow::bail!("{text}"))
+                        ToolResult::from(call).failure(anyhow::anyhow!("{text}"))
                     }
                     Some(text) => ToolResult::from(call).success(text),
-                    None => {
-                        ToolResult::from(call).failure(anyhow::bail!("Tool call returned no text"))
-                    }
+                    None => ToolResult::from(call)
+                        .failure(anyhow::anyhow!("Tool call returned no text")),
                 }
             }
             Err(output) => {
