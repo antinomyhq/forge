@@ -17,9 +17,13 @@ impl<I: Infrastructure> ForgeMcpManager<I> {
         Self { infra }
     }
 
-    async fn read_config(&self, path: &Path) -> anyhow::Result<McpConfig> {
-        let config = self.infra.file_read_service().read_utf8(path).await?;
-        Ok(serde_json::from_str(&config)?)
+    async fn read_or_default_config(&self, path: &Path) -> anyhow::Result<McpConfig> {
+        let config = self.infra.file_read_service().read_utf8(path).await;
+        if let Ok(config) = config {
+            Ok(serde_json::from_str(&config)?)
+        } else {
+            Ok(McpConfig::default())
+        }
     }
     async fn config_path(&self, scope: &Scope) -> anyhow::Result<PathBuf> {
         let env = self.infra.environment_service().get_environment();
@@ -34,27 +38,23 @@ impl<I: Infrastructure> ForgeMcpManager<I> {
 impl<I: Infrastructure> McpConfigManager for ForgeMcpManager<I> {
     async fn read(&self) -> anyhow::Result<McpConfig> {
         let env = self.infra.environment_service().get_environment();
-        let paths = vec![
-            // Configs at lower levels take precedence, so we read them in reverse order.
-            env.mcp_user_config().as_path().to_path_buf(),
-            env.mcp_local_config().as_path().to_path_buf(),
-        ];
+        let user_config = env.mcp_user_config();
+        let local_config = env.mcp_local_config();
+
+        // NOTE: Config at lower levels has higher priority.
+
         let mut config = McpConfig::default();
-        for path in paths {
-            if self
-                .infra
-                .file_meta_service()
-                .is_file(&path)
-                .await
-                .unwrap_or_default()
-            {
-                let new_config = self.read_config(&path).await.context(format!(
-                    "An error occurred while reading config at: {}",
-                    path.display()
-                ))?;
-                config.merge(new_config);
-            }
-        }
+        let local_config = self
+            .read_or_default_config(&local_config)
+            .await
+            .context(format!("Invalid config at: {}", local_config.display()))?;
+        config.merge(local_config);
+
+        let user_config = self
+            .read_or_default_config(&user_config)
+            .await
+            .context(format!("Invalid config at: {}", user_config.display()))?;
+        config.merge(user_config);
 
         Ok(config)
     }
