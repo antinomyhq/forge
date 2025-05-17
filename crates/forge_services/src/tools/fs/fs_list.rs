@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use forge_domain::{
-    ExecutableTool, ToolContent, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    ExecutableTool, NamedTool, ToolCallContext, ToolContent, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;

@@ -4,8 +4,8 @@ use std::sync::Arc;
 use anyhow::bail;
 use forge_display::TitleFormat;
 use forge_domain::{
-    CommandOutput, Environment, EnvironmentService, ExecutableTool, ToolContent,
-    NamedTool, ShellInput, ToolCallContext, ToolDescription, ToolName,
+    CommandOutput, Environment, EnvironmentService, ExecutableTool, NamedTool, ShellInput,
+    ToolCallContext, ToolContent, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use strip_ansi_escapes::strip;
