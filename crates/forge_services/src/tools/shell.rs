@@ -4,8 +4,8 @@ use std::sync::Arc;
 use anyhow::bail;
 use forge_display::TitleFormat;
 use forge_domain::{
-    CommandOutput, Environment, EnvironmentService, ExecutableTool, NamedTool, ShellInput,
-    ToolCallContext, ToolDescription, ToolName,
+    CommandOutput, Environment, EnvironmentService, ExecutableTool, ToolContent,
+    NamedTool, ShellInput, ToolCallContext, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use strip_ansi_escapes::strip;
@@ -176,7 +176,11 @@ impl<I> NamedTool for Shell<I> {
 impl<I: Infrastructure> ExecutableTool for Shell<I> {
     type Input = ShellInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolContent> {
         // Validate empty command
         if input.command.trim().is_empty() {
             bail!("Command string is empty or contains only whitespace".to_string());
@@ -192,14 +196,15 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
             .execute_command(input.command, input.cwd)
             .await?;
 
-        format_output(
+        let result = format_output(
             &self.infra,
             output,
             input.keep_ansi,
             PREFIX_CHARS,
             SUFFIX_CHARS,
         )
-        .await
+        .await?;
+        Ok(ToolContent::new(result))
     }
 }
 
@@ -300,7 +305,7 @@ mod tests {
             )
             .await
             .unwrap();
-        insta::assert_snapshot!(result);
+        insta::assert_snapshot!(result.as_str());
     }
 
     #[tokio::test]
@@ -318,7 +323,7 @@ mod tests {
             )
             .await
             .unwrap();
-        insta::assert_snapshot!(result);
+        insta::assert_snapshot!(result.as_str());
     }
 
     #[tokio::test]
@@ -344,7 +349,7 @@ mod tests {
             .unwrap();
         insta::assert_snapshot!(
             "format_output_working_directory",
-            TempDir::normalize(&result)
+            TempDir::normalize(result.as_str())
         );
     }
 
@@ -428,7 +433,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            result,
+            result.into_string(),
             format!(
                 "{}<stdout>\n{}\n\n</stdout>",
                 Metadata::default()
@@ -461,7 +466,7 @@ mod tests {
             )
             .await
             .unwrap();
-        insta::assert_snapshot!(result);
+        insta::assert_snapshot!(result.as_str());
     }
 
     #[tokio::test]

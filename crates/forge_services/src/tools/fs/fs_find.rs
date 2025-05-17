@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::{GrepFormat, TitleFormat};
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSSearchInput, NamedTool, ToolCallContext, ToolDescription,
-    ToolName,
+    EnvironmentService, ExecutableTool, ToolContent, FSSearchInput, NamedTool,
+    ToolCallContext, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
@@ -275,8 +275,15 @@ impl<F> NamedTool for FSFind<F> {
 impl<F: Infrastructure> ExecutableTool for FSFind<F> {
     type Input = FSSearchInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
-        self.call_inner(context, input, MAX_SEARCH_CHAR_LIMIT).await
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolContent> {
+        let result = self
+            .call_inner(context, input, MAX_SEARCH_CHAR_LIMIT)
+            .await?;
+        Ok(ToolContent::new(result))
     }
 }
 

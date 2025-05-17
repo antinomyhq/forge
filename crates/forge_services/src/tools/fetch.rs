@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use forge_display::TitleFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription};
+use forge_domain::{
+    ExecutableTool, ToolContent, NamedTool, ToolCallContext, ToolDescription,
+};
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 use schemars::JsonSchema;
@@ -151,7 +153,11 @@ impl<F: Infrastructure> Fetch<F> {
 impl<F: Infrastructure> ExecutableTool for Fetch<F> {
     type Input = FetchInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolContent> {
         let url = Url::parse(&input.url)
             .with_context(|| format!("Failed to parse URL: {}", input.url))?;
 
@@ -204,7 +210,9 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
             _ => String::new(),
         };
 
-        Ok(format!("{metadata}{output}{truncation_tag}",))
+        Ok(ToolContent::new(format!(
+            "{metadata}{output}{truncation_tag}",
+        )))
     }
 }
 
@@ -272,7 +280,11 @@ mod tests {
 
         let input = FetchInput { url: format!("{}/test.html", server.url()), raw: Some(false) };
 
-        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
+        let result = fetch
+            .call(ToolCallContext::default(), input)
+            .await
+            .unwrap()
+            .into_string();
         let normalized_result = normalize_port(result);
         insta::assert_snapshot!(normalized_result);
     }
@@ -298,7 +310,11 @@ mod tests {
 
         let input = FetchInput { url: format!("{}/test.txt", server.url()), raw: Some(true) };
 
-        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
+        let result = fetch
+            .call(ToolCallContext::default(), input)
+            .await
+            .unwrap()
+            .into_string();
         let normalized_result = normalize_port(result);
         insta::assert_snapshot!(normalized_result);
     }
@@ -356,7 +372,11 @@ mod tests {
         // First page
         let input = FetchInput { url: format!("{}/long.txt", server.url()), raw: Some(true) };
 
-        let result = fetch.call(ToolCallContext::default(), input).await.unwrap();
+        let result = fetch
+            .call(ToolCallContext::default(), input)
+            .await
+            .unwrap()
+            .into_string();
         let normalized_result = normalize_port(result);
         assert!(normalized_result.contains("A".repeat(5000).as_str()));
         assert!(normalized_result.contains("B".repeat(5000).as_str()));
@@ -393,7 +413,7 @@ mod tests {
 
         // Execute the fetch
         let context = ToolCallContext::default();
-        let result: String = fetch.call(context, input).await.unwrap();
+        let result: String = fetch.call(context, input).await.unwrap().into_string();
 
         // For testing purposes, we can modify the result to simulate the truncation
         // that would happen with a smaller limit

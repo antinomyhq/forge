@@ -5,8 +5,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSPatchInput, NamedTool, PatchOperation, ToolCallContext,
-    ToolDescription, ToolName,
+    EnvironmentService, ExecutableTool, ToolContent, FSPatchInput, NamedTool,
+    PatchOperation, ToolCallContext, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use thiserror::Error;
@@ -208,7 +208,11 @@ impl<F: Infrastructure> ApplyPatchJson<F> {
 impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
     type Input = FSPatchInput;
 
-    async fn call(&self, context: ToolCallContext, patch: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        patch: Self::Input,
+    ) -> anyhow::Result<ToolContent> {
         let path = Path::new(&patch.path);
         assert_absolute_path(path)?;
 
@@ -266,7 +270,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
         context.send_text(diff).await?;
 
         // Return the final result
-        Ok(result)
+        Ok(ToolContent::new(result))
     }
 }
 

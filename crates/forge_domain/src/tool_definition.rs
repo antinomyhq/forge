@@ -56,5 +56,33 @@ pub trait ToolDescription {
 pub trait ExecutableTool {
     type Input: DeserializeOwned;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String>;
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolContent>;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ToolContent(String);
+impl ToolContent {
+    pub fn new(tool: String) -> Self {
+        Self(tool)
+    }
+
+    pub fn into_string(self) -> String {
+        self.0
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn contains(&self, needle: &str) -> bool {
+        self.0.contains(needle)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
