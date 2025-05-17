@@ -305,7 +305,7 @@ mod tests {
             )
             .await
             .unwrap();
-        insta::assert_snapshot!(result.as_str());
+        insta::assert_snapshot!(&result.into_string());
     }
 
     #[tokio::test]
@@ -323,7 +323,7 @@ mod tests {
             )
             .await
             .unwrap();
-        insta::assert_snapshot!(result.as_str());
+        insta::assert_snapshot!(&result.into_string());
     }
 
     #[tokio::test]
@@ -349,7 +349,7 @@ mod tests {
             .unwrap();
         insta::assert_snapshot!(
             "format_output_working_directory",
-            TempDir::normalize(result.as_str())
+            TempDir::normalize(&result.into_string())
         );
     }
 
@@ -466,7 +466,7 @@ mod tests {
             )
             .await
             .unwrap();
-        insta::assert_snapshot!(result.as_str());
+        insta::assert_snapshot!(&result.into_string());
     }
 
     #[tokio::test]
