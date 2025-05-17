@@ -175,7 +175,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                 let context_messages = Element::new("div.context-section").append(
                     context.messages.iter().map(|message| {
                         match message {
-                            ContextMessage::ContentMessage(content_message) => {
+                            ContextMessage::TextMessage(content_message) => {
                                 // Convert role to lowercase for the class
                                 let role_lowercase =
                                     content_message.role.to_string().to_lowercase();
@@ -244,7 +244,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                     )
                                     .append(Element::new("pre").text(&tool_result.content))
                             }
-                            ContextMessage::Image(url) => {
+                            ContextMessage::ImageUrl(url) => {
                                 // Image message
                                 Element::new("div.message-card.message-user")
                                     .append(Element::new("strong").text("Image Attachment"))

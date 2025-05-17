@@ -122,7 +122,7 @@ pub mod tests {
     use bytes::Bytes;
     use forge_domain::{
         AttachmentService, CommandOutput, ContentType, Environment, EnvironmentService, Provider,
-        ToolDefinition, ToolName,
+        ToolContent, ToolDefinition, ToolName,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -131,7 +131,7 @@ pub mod tests {
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
         FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
-        McpClient, McpServer, TempDir,
+        McpClient, McpServer,
     };
 
     #[derive(Debug)]
@@ -285,7 +285,7 @@ pub mod tests {
         }
 
         async fn write_temp(&self, _: &str, _: &str, content: &str) -> anyhow::Result<PathBuf> {
-            let temp_dir = TempDir::new().unwrap();
+            let temp_dir = crate::utils::TempDir::new().unwrap();
             let path = temp_dir.path();
 
             self.write(&path, content.to_string().into()).await?;
@@ -331,8 +331,8 @@ pub mod tests {
             Ok(vec![])
         }
 
-        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<String> {
-            Ok(String::new())
+        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<ToolContent> {
+            Ok(ToolContent::default())
         }
     }
 

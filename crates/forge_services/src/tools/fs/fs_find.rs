@@ -5,15 +5,15 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::{GrepFormat, TitleFormat};
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSSearchInput, NamedTool, ToolCallContext, ToolDescription,
-    ToolName,
+    EnvironmentService, ExecutableTool, FSSearchInput, NamedTool, ToolCallContext, ToolContent,
+    ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
 
 use crate::metadata::Metadata;
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{Clipper, FsWriteService, Infrastructure};
 
 const MAX_SEARCH_CHAR_LIMIT: usize = 40_000;
@@ -275,8 +275,15 @@ impl<F> NamedTool for FSFind<F> {
 impl<F: Infrastructure> ExecutableTool for FSFind<F> {
     type Input = FSSearchInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
-        self.call_inner(context, input, MAX_SEARCH_CHAR_LIMIT).await
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolContent> {
+        let result = self
+            .call_inner(context, input, MAX_SEARCH_CHAR_LIMIT)
+            .await?;
+        Ok(ToolContent::text(result))
     }
 }
 
@@ -287,7 +294,7 @@ mod test {
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
 
     #[tokio::test]
     async fn test_fs_search_content() {
@@ -317,8 +324,8 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("test1.txt"));
-        assert!(result.contains("test2.txt"));
+        assert!(result.clone().into_string().contains("test1.txt"));
+        assert!(result.into_string().contains("test2.txt"));
     }
 
     #[tokio::test]
@@ -346,7 +353,7 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("test2.rs"));
+        assert!(result.into_string().contains("test2.rs"));
     }
 
     #[tokio::test]
@@ -377,9 +384,9 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("test1.txt"));
-        assert!(result.contains("test2.txt"));
-        assert!(!result.contains("other.txt"));
+        assert!(result.clone().into_string().contains("test1.txt"));
+        assert!(result.clone().into_string().contains("test2.txt"));
+        assert!(!result.into_string().contains("other.txt"));
     }
 
     #[tokio::test]
@@ -405,7 +412,7 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("test line"));
+        assert!(result.into_string().contains("test line"));
     }
 
     #[tokio::test]
@@ -439,9 +446,9 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("test1.txt"));
-        assert!(result.contains("test2.txt"));
-        assert!(result.contains("best.txt"));
+        assert!(result.clone().into_string().contains("test1.txt"));
+        assert!(result.clone().into_string().contains("test2.txt"));
+        assert!(result.into_string().contains("best.txt"));
     }
 
     #[tokio::test]
@@ -469,8 +476,8 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("TEST CONTENT"));
-        assert!(result.contains("test content"));
+        assert!(result.clone().into_string().contains("TEST CONTENT"));
+        assert!(result.into_string().contains("test content"));
     }
 
     #[tokio::test]
@@ -495,7 +502,7 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("No matches found."));
+        assert!(result.into_string().contains("No matches found."));
     }
 
     #[tokio::test]
@@ -523,8 +530,8 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("file1.txt"));
-        assert!(result.contains("file2.rs"));
+        assert!(result.clone().into_string().contains("file1.txt"));
+        assert!(result.into_string().contains("file2.rs"));
     }
 
     #[tokio::test]
@@ -623,7 +630,7 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains(&format!(
+        assert!(result.clone().into_string().contains(&format!(
             "{}:1:nice code.",
             temp_dir.path().join("best.txt").display()
         )));
@@ -640,7 +647,10 @@ mod test {
             )
             .await
             .unwrap();
-        assert!(result.contains(&format!("{}", temp_dir.path().join("best.txt").display())));
+        assert!(result
+            .clone()
+            .into_string()
+            .contains(&format!("{}", temp_dir.path().join("best.txt").display())));
     }
 
     #[tokio::test]

@@ -56,5 +56,50 @@ pub trait ToolDescription {
 pub trait ExecutableTool {
     type Input: DeserializeOwned;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String>;
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolContent>;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ToolContentItem {
+    Text(String),
+    Base64URL(String),
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Setters)]
+#[setters(into, strip_option)]
+pub struct ToolContent {
+    pub items: Vec<ToolContentItem>,
+    pub is_error: bool,
+}
+
+impl ToolContent {
+    pub fn text(tool: String) -> Self {
+        ToolContent { is_error: false, items: vec![ToolContentItem::Text(tool)] }
+    }
+
+    pub fn image(url: String) -> Self {
+        ToolContent {
+            is_error: false,
+            items: vec![ToolContentItem::Base64URL(url)],
+        }
+    }
+
+    pub fn combine(self, other: ToolContent) -> Self {
+        let mut items = self.items;
+        items.extend(other.items);
+        ToolContent { items, is_error: self.is_error || other.is_error }
+    }
+}
+
+impl<T> From<T> for ToolContent
+where
+    T: Iterator<Item = ToolContent>,
+{
+    fn from(item: T) -> Self {
+        item.fold(ToolContent::default(), |acc, item| acc.combine(item))
+    }
 }
