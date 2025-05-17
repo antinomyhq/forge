@@ -98,7 +98,7 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.contains("Successfully removed file"));
+        assert!(result.into_string().contains("Successfully removed file"));
         assert!(!infra.file_meta_service().exists(&file_path).await.unwrap());
     }
 
