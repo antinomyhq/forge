@@ -20,7 +20,7 @@ impl<I: Infrastructure> ForgeMcpManager<I> {
     async fn read_or_default_config(&self, path: &Path) -> anyhow::Result<McpConfig> {
         let config = self.infra.file_read_service().read_utf8(path).await;
         if let Ok(config) = config {
-            Ok(serde_json::from_str(&config)?)
+            serde_json::from_str(&config).context(format!("Invalid config at: {}", path.display()))
         } else {
             Ok(McpConfig::default())
         }
@@ -44,17 +44,8 @@ impl<I: Infrastructure> McpConfigManager for ForgeMcpManager<I> {
         // NOTE: Config at lower levels has higher priority.
 
         let mut config = McpConfig::default();
-        let local_config = self
-            .read_or_default_config(&local_config)
-            .await
-            .context(format!("Invalid config at: {}", local_config.display()))?;
-        config.merge(local_config);
-
-        let user_config = self
-            .read_or_default_config(&user_config)
-            .await
-            .context(format!("Invalid config at: {}", user_config.display()))?;
-        config.merge(user_config);
+        config.merge(self.read_or_default_config(&local_config).await?);
+        config.merge(self.read_or_default_config(&user_config).await?);
 
         Ok(config)
     }
