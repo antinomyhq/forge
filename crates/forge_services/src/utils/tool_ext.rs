@@ -6,14 +6,13 @@ pub trait ToolContentExtension {
 
 impl ToolContentExtension for ToolContent {
     fn into_string(self) -> String {
-        match self {
-            ToolContent { items, .. } => items
-                .into_iter()
-                .map(|item| match item {
-                    ToolContentItem::Text(text) => text,
-                    ToolContentItem::Base64URL(image) => image,
-                })
-                .collect(),
-        }
+        let ToolContent { items, .. } = self;
+        items
+            .into_iter()
+            .map(|item| match item {
+                ToolContentItem::Text(text) => text,
+                ToolContentItem::Base64URL(image) => image,
+            })
+            .collect()
     }
 }
