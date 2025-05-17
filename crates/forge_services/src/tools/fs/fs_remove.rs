@@ -7,7 +7,7 @@ use forge_domain::{
 };
 use forge_tool_macros::ToolDescription;
 
-use crate::tools::utils::assert_absolute_path;
+use crate::utils::assert_absolute_path;
 use crate::{FileRemoveService, FsMetaService, Infrastructure};
 
 // Using FSRemoveInput from forge_domain
@@ -68,7 +68,7 @@ mod test {
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
     use crate::{FsCreateDirsService, FsWriteService};
 
     #[tokio::test]

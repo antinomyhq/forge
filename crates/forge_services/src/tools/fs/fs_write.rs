@@ -15,7 +15,7 @@ use forge_domain::{
 use forge_tool_macros::ToolDescription;
 
 use crate::tools::syn;
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};
 
 /// Use it to create a new file at a specified path with the provided content.
@@ -156,7 +156,7 @@ mod test {
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
     use crate::{FsMetaService, FsReadService};
 
     async fn assert_path_exists(path: impl AsRef<Path>, infra: &MockInfrastructure) {

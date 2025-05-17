@@ -9,7 +9,7 @@ use forge_walker::Walker;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::tools::utils::assert_absolute_path;
+use crate::utils::assert_absolute_path;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSListInput {
@@ -102,7 +102,7 @@ mod test {
     use tokio::fs;
 
     use super::*;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
 
     impl FSList {
         fn new(sorted: bool) -> Self {

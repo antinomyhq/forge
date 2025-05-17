@@ -220,7 +220,7 @@ mod tests {
     use tokio::runtime::Runtime;
 
     use super::*;
-    use crate::attachment::tests::MockInfrastructure;
+    use crate::{attachment::tests::MockInfrastructure, utils::ToolContentExtension};
 
     async fn setup() -> (Fetch<MockInfrastructure>, mockito::ServerGuard) {
         let server = mockito::Server::new_async().await;

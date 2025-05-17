@@ -52,6 +52,8 @@ impl ExecutableTool for Completion {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use crate::utils::ToolContentExtension;
+
 
     use super::*;
 
