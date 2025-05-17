@@ -14,7 +14,7 @@ use tokio::fs;
 
 // No longer using dissimilar for fuzzy matching
 use crate::tools::syn;
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsWriteService, Infrastructure};
 
 // Removed fuzzy matching threshold as we only use exact matching now
@@ -278,7 +278,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
 mod test {
 
     use super::*;
-    use crate::tools::utils::TempDir;
+    use crate::utils::TempDir;
 
     // Enhanced test helper for running multiple operations
     #[derive(Debug)]

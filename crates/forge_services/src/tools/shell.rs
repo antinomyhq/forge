@@ -251,7 +251,7 @@ mod tests {
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
 
     /// Platform-specific error message patterns for command not found errors
     #[cfg(target_os = "windows")]

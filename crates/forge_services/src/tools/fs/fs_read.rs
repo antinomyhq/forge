@@ -11,7 +11,7 @@ use forge_domain::{
 };
 use forge_tool_macros::ToolDescription;
 
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsReadService, Infrastructure};
 
 // Define maximum character limits
@@ -226,7 +226,7 @@ mod test {
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
-    use crate::tools::utils::TempDir;
+    use crate::utils::TempDir;
 
     // Helper function to test relative paths
     async fn test_with_mock(path: &str) -> anyhow::Result<ToolContent> {

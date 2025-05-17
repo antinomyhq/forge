@@ -11,7 +11,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::infra::FsSnapshotService;
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
 
 /// Reverts the most recent file operation (create/modify/delete) on a specific

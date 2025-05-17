@@ -11,7 +11,7 @@ use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
 
 #[derive(Deserialize, JsonSchema)]
@@ -86,7 +86,7 @@ mod test {
     use tokio::fs;
 
     use super::*;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
 
     #[tokio::test]
     async fn test_fs_file_info_on_file() {

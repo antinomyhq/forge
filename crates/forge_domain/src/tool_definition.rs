@@ -88,19 +88,7 @@ impl ToolContent {
         }
     }
 
-    pub fn into_string(self) -> String {
-        match self {
-            ToolContent { items, .. } => items
-                .into_iter()
-                .map(|item| match item {
-                    ToolContentItem::Text(text) => text,
-                    ToolContentItem::Base64URL(image) => image,
-                    ToolContentItem::Audio(url) => url,
-                    ToolContentItem::Resource(url) => url,
-                })
-                .collect(),
-        }
-    }
+ 
 
     pub fn combine(self, other: ToolContent) -> Self {
         let mut items = self.items;

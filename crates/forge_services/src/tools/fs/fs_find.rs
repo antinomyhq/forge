@@ -13,7 +13,7 @@ use forge_walker::Walker;
 use regex::Regex;
 
 use crate::metadata::Metadata;
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{Clipper, FsWriteService, Infrastructure};
 
 const MAX_SEARCH_CHAR_LIMIT: usize = 40_000;
@@ -294,7 +294,7 @@ mod test {
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
 
     #[tokio::test]
     async fn test_fs_search_content() {
