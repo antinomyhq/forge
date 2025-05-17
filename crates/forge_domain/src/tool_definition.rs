@@ -66,7 +66,7 @@ pub trait ExecutableTool {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ToolContent {
     Text(String),
-    Image(String),
+    ImageUrl(String),
 }
 impl ToolContent {
     pub fn text(tool: String) -> Self {
@@ -76,28 +76,28 @@ impl ToolContent {
     pub fn into_string(self) -> String {
         match self {
             ToolContent::Text(text) => text,
-            ToolContent::Image(image) => image,
+            ToolContent::ImageUrl(image) => image,
         }
     }
 
     pub fn as_str(&self) -> &str {
         match self {
             ToolContent::Text(text) => text,
-            ToolContent::Image(image) => image,
+            ToolContent::ImageUrl(image) => image,
         }
     }
 
     pub fn contains(&self, needle: &str) -> bool {
         match self {
             ToolContent::Text(text) => text.contains(needle),
-            ToolContent::Image(image) => image.contains(needle),
+            ToolContent::ImageUrl(image) => image.contains(needle),
         }
     }
 
     pub fn is_empty(&self) -> bool {
         match self {
             ToolContent::Text(text) => text.is_empty(),
-            ToolContent::Image(image) => image.is_empty(),
+            ToolContent::ImageUrl(image) => image.is_empty(),
         }
     }
 }
