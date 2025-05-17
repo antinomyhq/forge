@@ -64,19 +64,56 @@ pub trait ExecutableTool {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ToolContent {
+pub enum ToolContentItem {
     Text(String),
-    ImageUrl(String),
+    Base64URL(String),
 }
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Setters)]
+#[setters(into, strip_option)]
+pub struct ToolContent {
+    pub items: Vec<ToolContentItem>,
+    pub is_error: bool,
+}
+
 impl ToolContent {
     pub fn text(tool: String) -> Self {
-        ToolContent::Text(tool)
+        ToolContent { is_error: false, items: vec![ToolContentItem::Text(tool)] }
+    }
+
+    pub fn image(url: String) -> Self {
+        ToolContent {
+            is_error: false,
+            items: vec![ToolContentItem::Base64URL(url)],
+        }
     }
 
     pub fn into_string(self) -> String {
         match self {
-            ToolContent::Text(text) => text,
-            ToolContent::ImageUrl(image) => image,
+            ToolContent { items, .. } => items
+                .into_iter()
+                .map(|item| match item {
+                    ToolContentItem::Text(text) => text,
+                    ToolContentItem::Base64URL(image) => image,
+                    ToolContentItem::Audio(url) => url,
+                    ToolContentItem::Resource(url) => url,
+                })
+                .collect(),
         }
+    }
+
+    pub fn combine(self, other: ToolContent) -> Self {
+        let mut items = self.items;
+        items.extend(other.items);
+        ToolContent { items, is_error: self.is_error || other.is_error }
+    }
+}
+
+impl<T> From<T> for ToolContent
+where
+    T: Iterator<Item = ToolContent>,
+{
+    fn from(item: T) -> Self {
+        item.fold(ToolContent::default(), |acc, item| acc.combine(item))
     }
 }

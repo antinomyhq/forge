@@ -122,7 +122,7 @@ pub mod tests {
     use bytes::Bytes;
     use forge_domain::{
         AttachmentService, CommandOutput, ContentType, Environment, EnvironmentService, Provider,
-        ToolDefinition, ToolName,
+        ToolContent, ToolDefinition, ToolName,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -331,8 +331,8 @@ pub mod tests {
             Ok(vec![])
         }
 
-        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<String> {
-            Ok(String::new())
+        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<ToolContent> {
+            Ok(ToolContent::default())
         }
     }
 
