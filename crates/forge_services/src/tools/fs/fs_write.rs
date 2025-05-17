@@ -285,7 +285,7 @@ mod test {
             .unwrap();
 
         // Normalize the output to remove temp directory paths
-        let normalized_result = TempDir::normalize(result.as_str());
+        let normalized_result = TempDir::normalize(&result.into_string());
         assert_snapshot!(normalized_result);
 
         // Verify both directory and file were created
@@ -327,7 +327,7 @@ mod test {
             .unwrap();
 
         // Normalize the output to remove temp directory paths
-        let normalized_result = TempDir::normalize(result.as_str());
+        let normalized_result = TempDir::normalize(&result.into_string());
         assert_snapshot!(normalized_result);
 
         // Verify entire path was created
@@ -370,7 +370,7 @@ mod test {
             .unwrap();
 
         // Normalize the output to remove temp directory paths
-        let normalized_result = TempDir::normalize(result.as_str());
+        let normalized_result = TempDir::normalize(&result.into_string());
         assert_snapshot!(normalized_result);
 
         // Convert to platform path and verify
