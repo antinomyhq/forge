@@ -9,6 +9,13 @@ commands:
     - Understand the current PR deeply using the GH CLI and update the PR title and description
     - Make sure the title follows conventional commits standard
     - Top-level summary should contain 2-3 lines about the core functionality improvements
+- name: check
+  description: Checks if the code is ready to be committed
+  prompt: |-
+    - Run the `lint` and `test` commands and verify if everything is fine.
+      <lint>cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace</lint>
+      <test>cargo insta test --accept --unreferenced=delete</test>
+    - Fix every issue found in the process
 model: anthropic/claude-3.7-sonnet
 max_walker_depth: 1024
 custom_rules: |-
