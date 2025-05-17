@@ -7,5 +7,4 @@ mod registry;
 mod shell;
 mod syn;
 
-
 pub use registry::ToolRegistry;

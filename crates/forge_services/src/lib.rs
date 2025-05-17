@@ -11,8 +11,8 @@ mod suggestion;
 mod template;
 mod tool_service;
 mod tools;
-mod workflow;
 mod utils;
+mod workflow;
 
 pub use clipper::*;
 pub use forge_services::*;

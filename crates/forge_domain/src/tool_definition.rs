@@ -88,8 +88,6 @@ impl ToolContent {
         }
     }
 
- 
-
     pub fn combine(self, other: ToolContent) -> Self {
         let mut items = self.items;
         items.extend(other.items);
