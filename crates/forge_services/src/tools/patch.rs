@@ -5,8 +5,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
-    EnvironmentService, ExecutableTool, ToolContent, FSPatchInput, NamedTool,
-    PatchOperation, ToolCallContext, ToolDescription, ToolName,
+    EnvironmentService, ExecutableTool, FSPatchInput, NamedTool, PatchOperation, ToolCallContext,
+    ToolContent, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use thiserror::Error;
