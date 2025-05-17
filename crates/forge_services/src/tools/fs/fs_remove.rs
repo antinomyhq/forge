@@ -55,7 +55,7 @@ impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
         // Remove the file
         self.0.file_remove_service().remove(path).await?;
 
-        Ok(ToolContent::new(format!(
+        Ok(ToolContent::text(format!(
             "Successfully removed file: {}",
             input.path
         )))

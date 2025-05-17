@@ -77,7 +77,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         context
             .send_text(TitleFormat::debug("Info").title(self.format_display_path(path)?))
             .await?;
-        Ok(ToolContent::new(format!("{meta:?}")))
+        Ok(ToolContent::text(format!("{meta:?}")))
     }
 }
 

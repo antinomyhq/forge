@@ -86,7 +86,7 @@ impl ExecutableTool for FSList {
             }
         }
 
-        Ok(ToolContent::new(format!(
+        Ok(ToolContent::text(format!(
             "<file_list path=\"{}\">
 {}
 </file_list>",

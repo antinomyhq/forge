@@ -208,7 +208,7 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
             _ => String::new(),
         };
 
-        Ok(ToolContent::new(format!(
+        Ok(ToolContent::text(format!(
             "{metadata}{output}{truncation_tag}",
         )))
     }

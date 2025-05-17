@@ -45,7 +45,7 @@ impl ExecutableTool for Completion {
         context.set_complete().await;
 
         // Return success with the message
-        Ok(ToolContent::new(input.result))
+        Ok(ToolContent::text(input.result))
     }
 }
 

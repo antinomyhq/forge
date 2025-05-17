@@ -147,7 +147,7 @@ mod test {
             _context: ToolCallContext,
             input: Self::Input,
         ) -> anyhow::Result<forge_domain::ToolContent> {
-            Ok(forge_domain::ToolContent::new(format!(
+            Ok(forge_domain::ToolContent::text(format!(
                 "Success with input: {input}"
             )))
         }
@@ -255,7 +255,7 @@ mod test {
         ) -> anyhow::Result<forge_domain::ToolContent> {
             // Simulate a long-running task that exceeds the timeout
             tokio::time::sleep(Duration::from_secs(400)).await;
-            Ok(forge_domain::ToolContent::new(
+            Ok(forge_domain::ToolContent::text(
                 "Slow tool completed".to_string(),
             ))
         }
