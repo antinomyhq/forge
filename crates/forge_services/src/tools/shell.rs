@@ -282,7 +282,9 @@ mod tests {
             )
             .await
             .unwrap();
-        assert!(result.contains("Mock command executed successfully"));
+        assert!(result
+            .into_string()
+            .contains("Mock command executed successfully"));
     }
 
     #[tokio::test]
@@ -484,8 +486,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(result.contains("executed successfully"));
-        assert!(!result.contains("failed"));
+        assert!(result
+            .clone()
+            .into_string()
+            .contains("executed successfully"));
+        assert!(!result.into_string().contains("failed"));
     }
 
     #[tokio::test]
@@ -503,8 +508,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(result.contains("executed successfully"));
-        assert!(!result.contains("failed"));
+        assert!(result
+            .clone()
+            .into_string()
+            .contains("executed successfully"));
+        assert!(!result.into_string().contains("failed"));
     }
 
     #[tokio::test]
@@ -522,8 +530,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(!result.is_empty());
-        assert!(!result.contains("Error:"));
+        assert!(!result.clone().into_string().is_empty());
+        assert!(!result.into_string().contains("Error:"));
     }
 
     #[tokio::test]

@@ -86,11 +86,4 @@ impl ToolContent {
             ToolContent::ImageUrl(image) => image.contains(needle),
         }
     }
-
-    pub fn is_empty(&self) -> bool {
-        match self {
-            ToolContent::Text(text) => text.is_empty(),
-            ToolContent::ImageUrl(image) => image.is_empty(),
-        }
-    }
 }
