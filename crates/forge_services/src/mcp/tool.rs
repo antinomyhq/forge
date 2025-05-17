@@ -29,7 +29,6 @@ impl<T: McpClient> ExecutableTool for McpExecutor<T> {
             .send_text(TitleFormat::info("MCP").sub_title(self.tool_name.as_str()))
             .await?;
 
-        let result = self.client.call(&self.tool_name, input).await?;
-        Ok(ToolContent::text(result))
+        self.client.call(&self.tool_name, input).await
     }
 }
