@@ -231,6 +231,7 @@ impl Context {
         mut self,
         content: impl ToString,
         model: ModelId,
+        // FIXME: This should be ToolCallResult
         tool_records: Vec<ToolCallRecord>,
         tool_supported: bool,
     ) -> Self {

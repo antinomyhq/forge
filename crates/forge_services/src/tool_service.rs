@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutputValue,
+    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
     ToolResult, ToolService,
 };
 use tokio::time::{timeout, Duration};
-use tracing::{debug, error};
+use tracing::debug;
 
 use crate::tools::ToolRegistry;
 use crate::Infrastructure;
@@ -31,6 +31,27 @@ impl<M: McpService> ForgeToolService<M> {
 
         Self { tools: Arc::new(tools), mcp }
     }
+
+    /// Get a tool by its name. If the tool is not found, it returns an error
+    /// with a list of available tools.
+    async fn get_tool(&self, name: &ToolName) -> anyhow::Result<Arc<Tool>> {
+        self.find(name).await?.ok_or_else(|| {
+            let mut available_tools = self
+                .tools
+                .keys()
+                .map(|name| name.to_string())
+                .collect::<Vec<_>>();
+
+            available_tools.sort();
+
+            // FIXME: Use typed errors instead of anyhow
+            anyhow::anyhow!(
+                "No tool with name '{}' was found. Please try again with one of these tools {}",
+                name.to_string(),
+                available_tools.join(", ")
+            )
+        })
+    }
 }
 
 #[async_trait::async_trait]
@@ -44,61 +65,20 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
 
-        let mut available_tools = self
-            .tools
-            .keys()
-            .map(|name| name.to_string())
-            .collect::<Vec<_>>();
-
-        available_tools.sort();
-
-        let output = match self.find(&name).await? {
-            Some(tool) => {
-                // Wrap tool call with timeout
-                match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
-                    Ok(result) => result,
-                    Err(_) => Err(anyhow::anyhow!(
-                        "Tool '{}' timed out after {} minutes",
-                        name.to_string(),
-                        TOOL_CALL_TIMEOUT.as_secs() / 60
-                    )),
-                }
+        let tool = self.get_tool(&name).await?;
+        let output = match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
+            Ok(output) => output,
+            Err(e) => {
+                return Err(anyhow::anyhow!(
+                    "Tool '{}' timed out after {} minutes",
+                    name.to_string(),
+                    TOOL_CALL_TIMEOUT.as_secs() / 60
+                )
+                .context(e))
             }
-            None => Err(anyhow::anyhow!(
-                "No tool with name '{}' was found. Please try again with one of these tools {}",
-                name.to_string(),
-                available_tools.join(", ")
-            )),
-        };
+        }?;
 
-        let result = match output {
-            Ok(output) => {
-                // Extract text from the first text item, if any
-                let text = output.values.into_iter().find_map(|item| {
-                    if let ToolOutputValue::Text(text) = item {
-                        Some(text)
-                    } else {
-                        None
-                    }
-                });
-
-                match text {
-                    Some(text) if output.is_error => {
-                        ToolResult::from(call).failure(anyhow::anyhow!("{text}"))
-                    }
-                    Some(text) => ToolResult::from(call).success(text),
-                    None => ToolResult::from(call)
-                        .failure(anyhow::anyhow!("Tool call returned no text")),
-                }
-            }
-            Err(output) => {
-                error!(error = ?output, "Tool call failed");
-                ToolResult::from(call).failure(output)
-            }
-        };
-
-        debug!(result = ?result, "Tool call result");
-        Ok(result)
+        Ok(ToolResult::new(call.name).output(output))
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
