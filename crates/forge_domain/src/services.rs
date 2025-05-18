@@ -83,6 +83,11 @@ pub trait AttachmentService {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>>;
 }
 
+pub trait KeyService: Send + Sync {
+    fn get(&self) -> anyhow::Result<String>;
+    fn set(&self, key: String, value: &str) -> anyhow::Result<()>;
+}
+
 pub trait EnvironmentService: Send + Sync {
     fn get_environment(&self) -> Environment;
 }
