@@ -145,6 +145,7 @@ impl ToolOutputValue {
 #[cfg(test)]
 mod tests {
     use insta::assert_snapshot;
+    use pretty_assertions::assert_eq;
     use serde_json::json;
 
     use super::*;
@@ -218,13 +219,13 @@ mod tests {
     fn test_success_and_failure_content() {
         let success = ToolResult::new(ToolName::new("test_tool")).success("success message");
         assert!(!success.is_error());
-        assert_eq!(format!("{:?}", success.content), "success message");
+        assert_eq!(success.content.as_str().unwrap(), "success message");
 
         let failure =
             ToolResult::new(ToolName::new("test_tool")).failure(anyhow::anyhow!("error message"));
         assert!(failure.is_error());
         assert_eq!(
-            format!("{:?}", failure.content),
+            failure.content.as_str().unwrap(),
             "\nERROR:\nCaused by: error message\n"
         );
     }
