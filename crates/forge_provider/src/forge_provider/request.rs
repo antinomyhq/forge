@@ -295,7 +295,7 @@ impl From<ToolCallFull> for ToolCall {
 impl From<ContextMessage> for Message {
     fn from(value: ContextMessage) -> Self {
         match value {
-            ContextMessage::ContentMessage(chat_message) => Message {
+            ContextMessage::Text(chat_message) => Message {
                 role: chat_message.role.into(),
                 content: Some(MessageContent::Text(chat_message.content)),
                 name: None,
@@ -304,7 +304,7 @@ impl From<ContextMessage> for Message {
                     .tool_calls
                     .map(|tool_calls| tool_calls.into_iter().map(ToolCall::from).collect()),
             },
-            ContextMessage::ToolMessage(tool_result) => Message {
+            ContextMessage::Tool(tool_result) => Message {
                 role: Role::Tool,
                 content: Some(MessageContent::Text(tool_result.to_string())),
                 name: Some(tool_result.name),
@@ -348,7 +348,7 @@ pub enum Role {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        ContentMessage, ContextMessage, Role, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use insta::assert_json_snapshot;
     use serde_json::json;
@@ -357,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_user_message_conversion() {
-        let user_message = ContextMessage::ContentMessage(ContentMessage {
+        let user_message = ContextMessage::Text(TextMessage {
             role: Role::User,
             content: "Hello".to_string(),
             tool_calls: None,
@@ -379,7 +379,7 @@ mod tests {
     </data>
 </task>"#;
 
-        let message = ContextMessage::ContentMessage(ContentMessage {
+        let message = ContextMessage::Text(TextMessage {
             role: Role::User,
             content: xml_content.to_string(),
             tool_calls: None,
@@ -397,7 +397,7 @@ mod tests {
             arguments: json!({"key": "value"}),
         };
 
-        let assistant_message = ContextMessage::ContentMessage(ContentMessage {
+        let assistant_message = ContextMessage::Text(TextMessage {
             role: Role::Assistant,
             content: "Using tool".to_string(),
             tool_calls: Some(vec![tool_call]),
@@ -419,7 +419,7 @@ mod tests {
             }"#,
             );
 
-        let tool_message = ContextMessage::ToolMessage(tool_result);
+        let tool_message = ContextMessage::Tool(tool_result);
         let router_message = Message::from(tool_message);
         assert_json_snapshot!(router_message);
     }
@@ -439,7 +439,7 @@ mod tests {
             }"#,
             );
 
-        let tool_message = ContextMessage::ToolMessage(tool_result);
+        let tool_message = ContextMessage::Tool(tool_result);
         let router_message = Message::from(tool_message);
         assert_json_snapshot!(router_message);
     }
@@ -450,7 +450,7 @@ mod tests {
             .call_id(ToolCallId::new("456"))
             .success(r#"{ "code": "fn main<T>(gt: T) {let b = &gt; }"}"#);
 
-        let tool_message = ContextMessage::ToolMessage(tool_result);
+        let tool_message = ContextMessage::Tool(tool_result);
         let router_message = Message::from(tool_message);
         assert_json_snapshot!(router_message);
     }

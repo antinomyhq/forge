@@ -36,7 +36,7 @@ impl TryFrom<forge_domain::Context> for Request {
         // context we pick the first system message available.
         // ref: https://docs.anthropic.com/en/api/messages#body-system
         let system = request.messages.iter().find_map(|message| {
-            if let ContextMessage::ContentMessage(chat_message) = message {
+            if let ContextMessage::Text(chat_message) = message {
                 if chat_message.role == forge_domain::Role::System {
                     Some(chat_message.content.clone())
                 } else {
@@ -53,7 +53,7 @@ impl TryFrom<forge_domain::Context> for Request {
                 .into_iter()
                 .filter(|message| {
                     // note: Anthropic does not support system messages in message field.
-                    if let ContextMessage::ContentMessage(chat_message) = message {
+                    if let ContextMessage::Text(chat_message) = message {
                         chat_message.role != forge_domain::Role::System
                     } else {
                         true
@@ -90,7 +90,7 @@ impl TryFrom<ContextMessage> for Message {
     type Error = anyhow::Error;
     fn try_from(value: ContextMessage) -> std::result::Result<Self, Self::Error> {
         Ok(match value {
-            ContextMessage::ContentMessage(chat_message) => {
+            ContextMessage::Text(chat_message) => {
                 let mut content = Vec::with_capacity(
                     chat_message
                         .tool_calls
@@ -119,7 +119,7 @@ impl TryFrom<ContextMessage> for Message {
                     }
                 }
             }
-            ContextMessage::ToolMessage(tool_result) => {
+            ContextMessage::Tool(tool_result) => {
                 Message { role: Role::User, content: vec![tool_result.try_into()?] }
             }
             ContextMessage::Image(url) => {
@@ -236,8 +236,8 @@ impl TryFrom<forge_domain::ToolResult> for Content {
             tool_use_id: call_id.as_str().to_string(),
             cache_control: None,
             content: value
-                .content
-                .items
+                .output
+                .values
                 .iter()
                 .filter_map(|item| item.as_str().map(|s| s.to_string()))
                 .next(),

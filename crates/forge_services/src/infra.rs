@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, EnvironmentService, McpServerConfig, ToolContent, ToolDefinition, ToolName,
+    CommandOutput, EnvironmentService, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
 
@@ -137,7 +137,7 @@ pub trait McpClient: Send + Sync + 'static {
         &self,
         tool_name: &ToolName,
         input: serde_json::Value,
-    ) -> anyhow::Result<ToolContent>;
+    ) -> anyhow::Result<ToolOutput>;
 }
 
 #[async_trait::async_trait]

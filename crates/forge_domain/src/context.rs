@@ -13,16 +13,14 @@ use crate::{ModelId, ToolCallRecord, ToolChoice, ToolDefinition};
 #[derive(Clone, Debug, Deserialize, From, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextMessage {
-    // TODO:Rename to TextMessage
-    ContentMessage(ContentMessage),
-    ToolMessage(ToolResult),
-    // TODO: Rename to ImageUrl
+    Text(TextMessage),
+    Tool(ToolResult),
     Image(String),
 }
 
 impl ContextMessage {
     pub fn user(content: impl ToString, model: Option<ModelId>) -> Self {
-        ContentMessage {
+        TextMessage {
             role: Role::User,
             content: content.to_string(),
             tool_calls: None,
@@ -32,7 +30,7 @@ impl ContextMessage {
     }
 
     pub fn system(content: impl ToString) -> Self {
-        ContentMessage {
+        TextMessage {
             role: Role::System,
             content: content.to_string(),
             tool_calls: None,
@@ -44,7 +42,7 @@ impl ContextMessage {
     pub fn assistant(content: impl ToString, tool_calls: Option<Vec<ToolCallFull>>) -> Self {
         let tool_calls =
             tool_calls.and_then(|calls| if calls.is_empty() { None } else { Some(calls) });
-        ContentMessage {
+        TextMessage {
             role: Role::Assistant,
             content: content.to_string(),
             tool_calls,
@@ -54,21 +52,21 @@ impl ContextMessage {
     }
 
     pub fn tool_result(result: ToolResult) -> Self {
-        Self::ToolMessage(result)
+        Self::Tool(result)
     }
 
     pub fn has_role(&self, role: Role) -> bool {
         match self {
-            ContextMessage::ContentMessage(message) => message.role == role,
-            ContextMessage::ToolMessage(_) => false,
+            ContextMessage::Text(message) => message.role == role,
+            ContextMessage::Tool(_) => false,
             ContextMessage::Image(_) => Role::User == role,
         }
     }
 
     pub fn has_tool_call(&self) -> bool {
         match self {
-            ContextMessage::ContentMessage(message) => message.tool_calls.is_some(),
-            ContextMessage::ToolMessage(_) => false,
+            ContextMessage::Text(message) => message.tool_calls.is_some(),
+            ContextMessage::Tool(_) => false,
             ContextMessage::Image(_) => false,
         }
     }
@@ -78,7 +76,7 @@ impl ContextMessage {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Setters)]
 #[setters(strip_option, into)]
 #[serde(rename_all = "snake_case")]
-pub struct ContentMessage {
+pub struct TextMessage {
     pub role: Role,
     pub content: String,
     pub tool_calls: Option<Vec<ToolCallFull>>,
@@ -86,7 +84,7 @@ pub struct ContentMessage {
     pub model: Option<ModelId>,
 }
 
-impl ContentMessage {
+impl TextMessage {
     pub fn assistant(content: impl ToString, model: Option<ModelId>) -> Self {
         Self {
             role: Role::Assistant,
@@ -161,8 +159,7 @@ impl Context {
         if self.messages.is_empty() {
             self.add_message(ContextMessage::system(content.into()))
         } else {
-            if let Some(ContextMessage::ContentMessage(content_message)) = self.messages.get_mut(0)
-            {
+            if let Some(ContextMessage::Text(content_message)) = self.messages.get_mut(0) {
                 if content_message.role == Role::System {
                     content_message.content = content.into();
                 } else {
@@ -181,7 +178,7 @@ impl Context {
 
         for message in self.messages.iter() {
             match message {
-                ContextMessage::ContentMessage(message) => {
+                ContextMessage::Text(message) => {
                     lines.push_str(&format!("<message role=\"{}\">", message.role));
                     lines.push_str(&format!("<content>{}</content>", message.content));
                     if let Some(tool_calls) = &message.tool_calls {
@@ -196,13 +193,13 @@ impl Context {
 
                     lines.push_str("</message>");
                 }
-                ContextMessage::ToolMessage(result) => {
+                ContextMessage::Tool(result) => {
                     lines.push_str("<message role=\"tool\">");
 
                     lines.push_str(&format!(
                         "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
                         result.name,
-                        serde_json::to_string(&result.content).unwrap()
+                        serde_json::to_string(&result.output).unwrap()
                     ));
                     lines.push_str("</message>");
                 }

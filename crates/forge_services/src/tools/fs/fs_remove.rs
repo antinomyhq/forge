@@ -2,8 +2,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use forge_domain::{
-    ExecutableTool, FSRemoveInput, NamedTool, ToolCallContext, ToolContent, ToolDescription,
-    ToolName,
+    ExecutableTool, FSRemoveInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 
@@ -38,7 +38,7 @@ impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
         &self,
         _context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolContent> {
+    ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -55,7 +55,7 @@ impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
         // Remove the file
         self.0.file_remove_service().remove(path).await?;
 
-        Ok(ToolContent::text(format!(
+        Ok(ToolOutput::text(format!(
             "Successfully removed file: {}",
             input.path
         )))

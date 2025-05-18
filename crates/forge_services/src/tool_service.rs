@@ -74,7 +74,7 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         let result = match output {
             Ok(output) => {
                 // Extract text from the first text item, if any
-                let text = output.items.into_iter().find_map(|item| {
+                let text = output.values.into_iter().find_map(|item| {
                     if let ToolOutputValue::Text(text) = item {
                         Some(text)
                     } else {
@@ -164,8 +164,8 @@ mod test {
             &self,
             _context: ToolCallContext,
             input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolContent> {
-            Ok(forge_domain::ToolContent::text(format!(
+        ) -> anyhow::Result<forge_domain::ToolOutput> {
+            Ok(forge_domain::ToolOutput::text(format!(
                 "Success with input: {input}"
             )))
         }
@@ -182,7 +182,7 @@ mod test {
             &self,
             _context: ToolCallContext,
             _input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolContent> {
+        ) -> anyhow::Result<forge_domain::ToolOutput> {
             bail!("Tool call failed with simulated failure".to_string())
         }
     }
@@ -270,10 +270,10 @@ mod test {
             &self,
             _context: ToolCallContext,
             _input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolContent> {
+        ) -> anyhow::Result<forge_domain::ToolOutput> {
             // Simulate a long-running task that exceeds the timeout
             tokio::time::sleep(Duration::from_secs(400)).await;
-            Ok(forge_domain::ToolContent::text(
+            Ok(forge_domain::ToolOutput::text(
                 "Slow tool completed".to_string(),
             ))
         }
@@ -310,8 +310,8 @@ mod test {
 
         // Assert that the result contains a timeout error message
         let content_str = &result
-            .content
-            .items
+            .output
+            .values
             .iter()
             .find_map(|i| i.as_str())
             .unwrap();

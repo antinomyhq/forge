@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_display::TitleFormat;
-use forge_domain::{ExecutableTool, ToolCallContext, ToolContent, ToolName};
+use forge_domain::{ExecutableTool, ToolCallContext, ToolName, ToolOutput};
 
 use crate::McpClient;
 
@@ -24,7 +24,7 @@ impl<T: McpClient> ExecutableTool for McpExecutor<T> {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolContent> {
+    ) -> anyhow::Result<ToolOutput> {
         context
             .send_text(TitleFormat::info("MCP").sub_title(self.tool_name.as_str()))
             .await?;
