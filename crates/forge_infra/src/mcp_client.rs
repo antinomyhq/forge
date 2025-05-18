@@ -1,9 +1,7 @@
 use std::borrow::Cow;
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
-use anyhow::Context;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{McpServerConfig, ToolDefinition, ToolName};
 use forge_services::McpClient;
@@ -14,26 +12,22 @@ use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceExt};
 use serde_json::Value;
 use tokio::process::Command;
-use tokio::sync::Mutex;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
     None => env!("CARGO_PKG_VERSION"),
 };
 
+type RmcpClient = RunningService<RoleClient, InitializeRequestParam>;
+
 pub struct ForgeMcpClient {
-    client: Arc<Mutex<Option<RunningService<RoleClient, InitializeRequestParam>>>>,
+    client: RwLock<Option<Arc<RmcpClient>>>,
     config: McpServerConfig,
-    reconnect: Arc<AtomicBool>,
 }
 
 impl ForgeMcpClient {
     pub fn new(config: McpServerConfig) -> Self {
-        Self {
-            client: Default::default(),
-            config,
-            reconnect: Arc::new(AtomicBool::new(false)),
-        }
+        Self { client: Default::default(), config }
     }
 
     fn client_info(&self) -> ClientInfo {
@@ -46,50 +40,53 @@ impl ForgeMcpClient {
 
     /// Connects to the MCP server. If `force` is true, it will reconnect even
     /// if already connected.
-    async fn connect(&self) -> anyhow::Result<()> {
-        let mut guard = self.client.lock().await;
-        if guard.is_none() || self.reconnect.load(Ordering::SeqCst) {
-            self.reconnect.store(false, Ordering::SeqCst);
-
-            let client = match &self.config {
-                McpServerConfig::Stdio(stdio) => {
-                    let command = stdio
-                        .command
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("Command not specified"))?;
-                    let mut cmd = Command::new(command);
-
-                    if let Some(env) = &stdio.env {
-                        for (key, value) in env {
-                            cmd.env(key, value);
-                        }
-                    }
-
-                    cmd.stdin(std::process::Stdio::inherit())
-                        .stdout(std::process::Stdio::piped())
-                        .stderr(std::process::Stdio::piped());
-                    self.client_info()
-                        .serve(TokioChildProcess::new(cmd.args(&stdio.args))?)
-                        .await?
-                }
-                McpServerConfig::Sse(sse) => {
-                    let url = sse
-                        .url
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("URL not specified"))?;
-                    let transport = rmcp::transport::SseTransport::start(url).await?;
-                    self.client_info().serve(transport).await?
-                }
-            };
-            *guard = Some(client);
+    async fn connect(&self) -> anyhow::Result<Arc<RmcpClient>> {
+        if let Some(client) = self.get_client() {
+            Ok(client.clone())
+        } else {
+            let client = self.create_connection().await?;
+            self.set_client(client.clone());
+            Ok(client.clone())
         }
-        Ok(())
+    }
+
+    fn get_client(&self) -> Option<Arc<RmcpClient>> {
+        let guard = self.client.read().unwrap();
+        guard.clone()
+    }
+
+    fn set_client(&self, client: Arc<RmcpClient>) {
+        let mut guard = self.client.write().unwrap();
+        *guard = Some(client);
+    }
+
+    async fn create_connection(&self) -> anyhow::Result<Arc<RmcpClient>> {
+        let client = match &self.config {
+            McpServerConfig::Stdio(stdio) => {
+                let mut cmd = Command::new(stdio.command.clone());
+
+                for (key, value) in &stdio.env {
+                    cmd.env(key, value);
+                }
+
+                cmd.stdin(std::process::Stdio::inherit())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped());
+                self.client_info()
+                    .serve(TokioChildProcess::new(cmd.args(&stdio.args))?)
+                    .await?
+            }
+            McpServerConfig::Sse(sse) => {
+                let transport = rmcp::transport::SseTransport::start(sse.url.clone()).await?;
+                self.client_info().serve(transport).await?
+            }
+        };
+
+        Ok(Arc::new(client))
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        self.connect().await?;
-        let client = self.client.lock().await;
-        let client = client.as_ref().context("Client is not running")?;
+        let client = self.connect().await?;
         let tools = client.list_tools(None).await?;
         Ok(tools
             .tools
@@ -110,10 +107,7 @@ impl ForgeMcpClient {
     }
 
     async fn call(&self, tool_name: &ToolName, input: &Value) -> anyhow::Result<String> {
-        self.connect().await?;
-        let client = self.client.lock().await;
-        let client = client.as_ref().context("Client is not running")?;
-
+        let client = self.connect().await?;
         let result = client
             .call_tool(CallToolRequestParam {
                 name: Cow::Owned(tool_name.to_string()),
@@ -150,7 +144,7 @@ impl ForgeMcpClient {
                 .unwrap_or(false);
 
             if is_transport {
-                self.reconnect.store(true, Ordering::SeqCst);
+                self.client.write().unwrap().take();
             }
 
             is_transport

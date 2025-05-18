@@ -309,9 +309,11 @@ impl<F: API + 'static> UI<F> {
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
             Command::Compact => {
+                self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
             Command::Dump(format) => {
+                self.spinner.start(Some("Creating a conversation dump"))?;
                 self.on_dump(format).await?;
             }
             Command::New => {
@@ -322,6 +324,7 @@ impl<F: API + 'static> UI<F> {
                 self.writeln(info)?;
             }
             Command::Message(ref content) => {
+                self.spinner.start(None)?;
                 self.on_message(content.clone()).await?;
             }
             Command::Act => {
@@ -335,8 +338,8 @@ impl<F: API + 'static> UI<F> {
                 self.writeln(info)?;
             }
             Command::Tools => {
-                use crate::tools_display::format_tools;
                 self.spinner.start(Some("Loading tools"))?;
+                use crate::tools_display::format_tools;
                 let tools = self.api.tools().await?;
 
                 let output = format_tools(&tools);
@@ -350,6 +353,7 @@ impl<F: API + 'static> UI<F> {
             }
 
             Command::Custom(event) => {
+                self.spinner.start(None)?;
                 self.on_custom_event(event.into()).await?;
             }
             Command::Model => {
@@ -373,7 +377,6 @@ impl<F: API + 'static> UI<F> {
     }
 
     async fn on_compaction(&mut self) -> Result<(), anyhow::Error> {
-        self.spinner.start(Some("Compacting"))?;
         let conversation_id = self.init_conversation().await?;
         let compaction_result = self.api.compact_conversation(&conversation_id).await?;
         let token_reduction = compaction_result.token_reduction_percentage();
@@ -483,7 +486,6 @@ impl<F: API + 'static> UI<F> {
             None => {
                 // Select a model if workflow doesn't have one
                 let workflow = self.init_state().await?;
-                self.command.register_all(&workflow);
 
                 // We need to try and get the conversation ID first before fetching the model
                 if let Some(ref path) = self.cli.conversation {
@@ -530,12 +532,13 @@ impl<F: API + 'static> UI<F> {
             .write_workflow(self.cli.workflow.as_deref(), &workflow)
             .await?;
 
+        self.command.register_all(&base_workflow);
         self.state = UIState::new(base_workflow).provider(self.api.environment().provider);
+
         Ok(workflow)
     }
 
     async fn on_message(&mut self, content: String) -> Result<()> {
-        self.spinner.start(None)?;
         let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
