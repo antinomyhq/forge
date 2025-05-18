@@ -120,7 +120,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn add_url(mut self, url: &str) -> Self {
+    pub fn add_base64_url(mut self, url: &str) -> Self {
         self.messages.push(ContextMessage::Image(url.to_string()));
         self
     }
@@ -231,11 +231,11 @@ impl Context {
         mut self,
         content: impl ToString,
         model: ModelId,
-        // FIXME: This should be ToolCallResult
         tool_records: Vec<ToolCallRecord>,
         tool_supported: bool,
     ) -> Self {
         if tool_supported {
+            // Adding tool calls
             self.add_message(ContextMessage::assistant(
                 content,
                 Some(
@@ -245,6 +245,7 @@ impl Context {
                         .collect::<Vec<_>>(),
                 ),
             ))
+            // Adding tool results
             .add_tool_results(
                 tool_records
                     .iter()
@@ -252,19 +253,28 @@ impl Context {
                     .collect::<Vec<_>>(),
             )
         } else {
+            // Adding tool calls
             self = self.add_message(ContextMessage::assistant(content.to_string(), None));
             if tool_records.is_empty() {
                 return self;
             }
-            let content = tool_records.iter().fold(String::new(), |mut acc, result| {
-                if !acc.is_empty() {
-                    acc.push_str("\n\n");
-                }
-                acc.push_str(result.to_string().as_str());
-                acc
-            });
 
-            self.add_message(ContextMessage::user(content, Some(model)))
+            // Adding tool results as user message
+            let outputs = tool_records
+                .iter()
+                .flat_map(|record| record.tool_result.output.values.iter());
+            for out in outputs {
+                match out {
+                    crate::ToolOutputValue::Text(text) => {
+                        self = self.add_message(ContextMessage::user(text, Some(model.clone())));
+                    }
+                    crate::ToolOutputValue::Base64URL(base64_url) => {
+                        self = self.add_base64_url(base64_url);
+                    }
+                    crate::ToolOutputValue::Empty => {}
+                }
+            }
+            self
         }
     }
 }

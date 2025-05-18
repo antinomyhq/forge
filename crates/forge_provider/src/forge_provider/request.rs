@@ -2,6 +2,7 @@ use derive_more::derive::Display;
 use derive_setters::Setters;
 use forge_domain::{
     Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
+    ToolOutputValue, ToolResult,
 };
 use serde::{Deserialize, Serialize};
 
@@ -306,9 +307,9 @@ impl From<ContextMessage> for Message {
             },
             ContextMessage::Tool(tool_result) => Message {
                 role: Role::Tool,
-                content: Some(MessageContent::Text(tool_result.to_string())),
-                name: Some(tool_result.name),
-                tool_call_id: tool_result.call_id,
+                tool_call_id: tool_result.call_id.clone(),
+                name: Some(tool_result.name.clone()),
+                content: Some(tool_result.into()),
                 tool_calls: None,
             },
             ContextMessage::Image(url) => {
@@ -323,6 +324,34 @@ impl From<ContextMessage> for Message {
                 }
             }
         }
+    }
+}
+
+impl From<ToolResult> for MessageContent {
+    fn from(result: ToolResult) -> Self {
+        if result.output.values.len() == 1 {
+            if let Some(text) = result.output.as_str() {
+                return MessageContent::Text(text.to_string());
+            }
+        }
+        let mut parts = Vec::new();
+        for value in result.output.values.into_iter() {
+            match value {
+                ToolOutputValue::Text(text) => {
+                    parts.push(ContentPart::Text { text, cache_control: None });
+                }
+                ToolOutputValue::Base64URL(url) => {
+                    let content =
+                        ContentPart::ImageUrl { image_url: ImageUrl { url, detail: None } };
+                    parts.push(content);
+                }
+                ToolOutputValue::Empty => {
+                    // Handle empty case if needed
+                }
+            }
+        }
+
+        MessageContent::Parts(parts)
     }
 }
 

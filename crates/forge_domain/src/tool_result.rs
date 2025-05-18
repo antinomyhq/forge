@@ -53,23 +53,6 @@ impl From<ToolCallFull> for ToolResult {
     }
 }
 
-impl std::fmt::Display for ToolResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<forge_tool_result>")?;
-        write!(f, "<forge_tool_name>{}</forge_tool_name>", self.name)?;
-
-        for content in self.output.values.iter().filter_map(|item| item.as_str()) {
-            let content = format!("<![CDATA[{content}]]>");
-            if self.is_error() {
-                write!(f, "<error>{content}</error>")?;
-            } else {
-                write!(f, "<success>{content}</success>")?;
-            }
-        }
-        write!(f, "</forge_tool_result>")
-    }
-}
-
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct ToolOutput {
@@ -141,76 +124,9 @@ impl ToolOutputValue {
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
-    use serde_json::json;
 
     use super::*;
-
-    #[test]
-    fn test_snapshot_minimal() {
-        let result = ToolResult::new(ToolName::new("test_tool"));
-        assert_snapshot!(result);
-    }
-
-    #[test]
-    fn test_snapshot_full() {
-        let result = ToolResult::new(ToolName::new("complex_tool"))
-            .call_id(ToolCallId::new("123"))
-            .failure(anyhow::anyhow!(
-                json!({"key": "value", "number": 42}).to_string()
-            ));
-        assert_snapshot!(result);
-    }
-
-    #[test]
-    fn test_snapshot_with_special_chars() {
-        let result = ToolResult::new(ToolName::new("xml_tool")).success(
-            json!({
-                "text": "Special chars: < > & ' \"",
-                "nested": {
-                    "html": "<div>Test</div>"
-                }
-            })
-            .to_string(),
-        );
-        assert_snapshot!(result);
-    }
-
-    #[test]
-    fn test_display_minimal() {
-        let result = ToolResult::new(ToolName::new("test_tool"));
-        assert_snapshot!(result.to_string());
-    }
-
-    #[test]
-    fn test_display_full() {
-        let result = ToolResult::new(ToolName::new("complex_tool"))
-            .call_id(ToolCallId::new("123"))
-            .success(
-                json!({
-                    "user": "John Doe",
-                    "age": 42,
-                    "address": [{"city": "New York"}, {"city": "Los Angeles"}]
-                })
-                .to_string(),
-            );
-        assert_snapshot!(result.to_string());
-    }
-
-    #[test]
-    fn test_display_special_chars() {
-        let result = ToolResult::new(ToolName::new("xml_tool")).success(
-            json!({
-                "text": "Special chars: < > & ' \"",
-                "nested": {
-                    "html": "<div>Test</div>"
-                }
-            })
-            .to_string(),
-        );
-        assert_snapshot!(result.to_string());
-    }
 
     #[test]
     fn test_success_and_failure_content() {
