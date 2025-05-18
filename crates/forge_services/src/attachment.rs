@@ -1,12 +1,9 @@
 use std::collections::HashSet;
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::Arc;
 
-use forge_domain::{
-    Attachment, AttachmentContent, AttachmentService, EnvironmentService, Image, MimeType,
-};
+use forge_domain::{Attachment, AttachmentContent, AttachmentService, EnvironmentService, Image};
 
 use crate::{FsReadService, Infrastructure};
 
@@ -19,12 +16,12 @@ pub struct ForgeChatRequest<F> {
 impl<F: Infrastructure> ForgeChatRequest<F> {
     async fn generate_image_content(
         path: &Path,
-        img_format: MimeType,
+        img_format: String,
         infra: &impl FsReadService,
     ) -> anyhow::Result<Image> {
         let bytes = infra.read(path).await?;
 
-        Ok(Image::new_base64(bytes, img_format))
+        Ok(Image::new_bytes(bytes, img_format))
     }
 
     async fn generate_text_content(
@@ -80,7 +77,12 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         }
 
         // Determine file type (text or image with format)
-        let mime_type = extension.and_then(|ext| MimeType::from_str(ext.as_str()).ok());
+        let mime_type = extension.and_then(|ext| match ext.as_str() {
+            "jpeg" | "jpg" => Some("jpeg".to_string()),
+            "png" => Some("png".to_string()),
+            "webp" => Some("webp".to_string()),
+            _ => None,
+        });
 
         let content = match mime_type {
             Some(mime_type) => AttachmentContent::Image(

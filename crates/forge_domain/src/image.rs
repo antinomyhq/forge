@@ -1,27 +1,23 @@
 use base64::Engine;
 use derive_getters::Getters;
 use serde::{Deserialize, Serialize};
-use strum_macros::{AsRefStr, EnumString};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Getters, PartialEq, Eq, Hash)]
 pub struct Image {
     url: String,
-    mime_type: MimeType,
-}
-
-#[derive(AsRefStr, EnumString, Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MimeType {
-    #[strum(serialize = "png")]
-    Png,
-    #[strum(serialize = "jpg", serialize = "jpeg")]
-    Jpeg,
+    mime_type: String,
 }
 
 impl Image {
-    pub fn new_base64(content: Vec<u8>, mime_type: MimeType) -> Self {
+    pub fn new_bytes(content: Vec<u8>, mime_type: impl ToString) -> Self {
+        let mime_type = mime_type.to_string();
         let base64_encoded = base64::engine::general_purpose::STANDARD.encode(&content);
-        let mime_type_str = mime_type.as_ref();
-        let content = format!("data:image/{mime_type_str};base64,{base64_encoded}");
+        Self::new_base64(base64_encoded, mime_type)
+    }
+
+    pub fn new_base64(base64_encoded: String, mime_type: impl ToString) -> Self {
+        let mime_type = mime_type.to_string();
+        let content = format!("data:{mime_type};base64,{base64_encoded}");
         Self { url: content, mime_type }
     }
 }
