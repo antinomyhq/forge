@@ -80,11 +80,11 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         }
 
         // Determine file type (text or image with format)
-        let img_format = extension.and_then(|ext| MimeType::from_str(ext.as_str()).ok());
+        let mime_type = extension.and_then(|ext| MimeType::from_str(ext.as_str()).ok());
 
-        let content = match img_format {
-            Some(format) => AttachmentContent::Image(
-                Self::generate_image_content(&path, format, self.infra.file_read_service()).await?,
+        let content = match mime_type {
+            Some(mime_type) => AttachmentContent::Image(
+                Self::generate_image_content(&path, mime_type, self.infra.file_read_service()).await?,
             ),
             None => AttachmentContent::FileContent(
                 Self::generate_text_content(&path, self.infra.file_read_service()).await?,

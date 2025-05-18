@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::future::Future;
 use std::sync::{Arc, RwLock};
 
+use anyhow::Context;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Image, McpServerConfig, MimeType, ToolDefinition, ToolName, ToolOutput};
 use forge_services::McpClient;
@@ -131,7 +132,12 @@ impl ForgeMcpClient {
                 rmcp::model::RawContent::Image(raw_image_content) => {
                     Ok(ToolOutput::image(Image::new_base64(
                         raw_image_content.data.as_bytes().to_vec(),
-                        MimeType::try_from(raw_image_content.mime_type.as_str())?,
+                        MimeType::try_from(raw_image_content.mime_type.as_str()).context(
+                            format!(
+                                "provided mime-type: {}",
+                                raw_image_content.mime_type.as_str()
+                            ),
+                        )?,
                     )))
                 }
                 rmcp::model::RawContent::Resource(_) => {
