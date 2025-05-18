@@ -1,5 +1,5 @@
 use anyhow::Result;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput};
+use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolContent};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -37,7 +37,7 @@ pub struct AttemptCompletionInput {
 impl ExecutableTool for Completion {
     type Input = AttemptCompletionInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> Result<ToolOutput> {
+    async fn call(&self, context: ToolCallContext, input: Self::Input) -> Result<ToolContent> {
         // Log the completion event
         context.send_summary(input.result.clone()).await?;
 
@@ -45,7 +45,7 @@ impl ExecutableTool for Completion {
         context.set_complete().await;
 
         // Return success with the message
-        Ok(ToolOutput::text(input.result))
+        Ok(ToolContent::text(input.result))
     }
 }
 

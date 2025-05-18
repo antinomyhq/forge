@@ -1,13 +1,13 @@
-use forge_domain::{ToolOutput, ToolOutputValue};
+use forge_domain::{ToolContent, ToolOutputValue};
 
 pub trait ToolContentExtension {
     fn into_string(self) -> String;
 }
 
-impl ToolContentExtension for ToolOutput {
+impl ToolContentExtension for ToolContent {
     /// To be used only in tests to convert the ToolContent into a string
     fn into_string(self) -> String {
-        let ToolOutput { items, .. } = self;
+        let ToolContent { items, .. } = self;
         items
             .into_iter()
             .filter_map(|item| match item {

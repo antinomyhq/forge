@@ -8,7 +8,8 @@ use crate::{ToolCallFull, ToolCallId, ToolName};
 pub struct ToolResult {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
-    pub output: ToolOutput,
+    //TODO: Rename to `output`
+    pub content: ToolContent,
 }
 
 impl ToolResult {
@@ -16,12 +17,12 @@ impl ToolResult {
         Self {
             name,
             call_id: Default::default(),
-            output: Default::default(),
+            content: Default::default(),
         }
     }
 
     pub fn success(mut self, content: impl Into<String>) -> Self {
-        self.output = ToolOutput::text(content.into());
+        self.content = ToolContent::text(content.into());
 
         self
     }
@@ -34,12 +35,12 @@ impl ToolResult {
             output.push_str(&format!("Caused by: {cause}\n"));
         }
 
-        self.output = ToolOutput::text(output).is_error(true);
+        self.content = ToolContent::text(output).is_error(true);
         self
     }
 
     pub fn is_error(&self) -> bool {
-        self.output.is_error
+        self.content.is_error
     }
 }
 
@@ -48,7 +49,7 @@ impl From<ToolCallFull> for ToolResult {
         Self {
             name: value.name,
             call_id: value.call_id,
-            output: Default::default(),
+            content: Default::default(),
         }
     }
 }
@@ -58,7 +59,7 @@ impl std::fmt::Display for ToolResult {
         write!(f, "<forge_tool_result>")?;
         write!(f, "<forge_tool_name>{}</forge_tool_name>", self.name)?;
 
-        for content in self.output.items.iter().filter_map(|item| item.as_str()) {
+        for content in self.content.items.iter().filter_map(|item| item.as_str()) {
             let content = format!("<![CDATA[{content}]]>");
             if self.is_error() {
                 write!(f, "<error>{content}</error>")?;
@@ -70,32 +71,33 @@ impl std::fmt::Display for ToolResult {
     }
 }
 
+//TODO: Rename to `ToolOutput`
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Setters)]
 #[setters(into, strip_option)]
-pub struct ToolOutput {
+pub struct ToolContent {
     pub items: Vec<ToolOutputValue>,
     pub is_error: bool,
 }
 
-impl ToolOutput {
+impl ToolContent {
     pub fn text(tool: String) -> Self {
-        ToolOutput {
+        ToolContent {
             is_error: Default::default(),
             items: vec![ToolOutputValue::Text(tool)],
         }
     }
 
     pub fn image(url: String) -> Self {
-        ToolOutput {
+        ToolContent {
             is_error: false,
             items: vec![ToolOutputValue::Base64URL(url)],
         }
     }
 
-    pub fn combine(self, other: ToolOutput) -> Self {
+    pub fn combine(self, other: ToolContent) -> Self {
         let mut items = self.items;
         items.extend(other.items);
-        ToolOutput { items, is_error: self.is_error || other.is_error }
+        ToolContent { items, is_error: self.is_error || other.is_error }
     }
 
     /// Returns the first item as a string if it exists
@@ -104,12 +106,12 @@ impl ToolOutput {
     }
 }
 
-impl<T> From<T> for ToolOutput
+impl<T> From<T> for ToolContent
 where
-    T: Iterator<Item = ToolOutput>,
+    T: Iterator<Item = ToolContent>,
 {
     fn from(item: T) -> Self {
-        item.fold(ToolOutput::default(), |acc, item| acc.combine(item))
+        item.fold(ToolContent::default(), |acc, item| acc.combine(item))
     }
 }
 
@@ -216,13 +218,13 @@ mod tests {
     fn test_success_and_failure_content() {
         let success = ToolResult::new(ToolName::new("test_tool")).success("success message");
         assert!(!success.is_error());
-        assert_eq!(format!("{:?}", success.output), "success message");
+        assert_eq!(format!("{:?}", success.content), "success message");
 
         let failure =
             ToolResult::new(ToolName::new("test_tool")).failure(anyhow::anyhow!("error message"));
         assert!(failure.is_error());
         assert_eq!(
-            format!("{:?}", failure.output),
+            format!("{:?}", failure.content),
             "\nERROR:\nCaused by: error message\n"
         );
     }

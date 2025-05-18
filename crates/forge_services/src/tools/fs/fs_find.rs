@@ -6,7 +6,7 @@ use anyhow::Context;
 use forge_display::{GrepFormat, TitleFormat};
 use forge_domain::{
     EnvironmentService, ExecutableTool, FSSearchInput, NamedTool, ToolCallContext, ToolDescription,
-    ToolName, ToolOutput,
+    ToolName, ToolContent,
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
@@ -279,11 +279,11 @@ impl<F: Infrastructure> ExecutableTool for FSFind<F> {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolOutput> {
+    ) -> anyhow::Result<ToolContent> {
         let result = self
             .call_inner(context, input, MAX_SEARCH_CHAR_LIMIT)
             .await?;
-        Ok(ToolOutput::text(result))
+        Ok(ToolContent::text(result))
     }
 }
 

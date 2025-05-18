@@ -7,7 +7,7 @@ use anyhow::{bail, Context};
 use forge_display::TitleFormat;
 use forge_domain::{
     EnvironmentService, ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolDescription,
-    ToolName, ToolOutput,
+    ToolName, ToolContent,
 };
 use forge_tool_macros::ToolDescription;
 
@@ -147,7 +147,7 @@ impl<F: Infrastructure> FSRead<F> {
         &self,
         context: ToolCallContext,
         input: FSReadInput,
-    ) -> anyhow::Result<ToolOutput> {
+    ) -> anyhow::Result<ToolContent> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -194,7 +194,7 @@ impl<F: Infrastructure> FSRead<F> {
         // Always include the content
         writeln!(response, "{}", &content)?;
 
-        Ok(ToolOutput::text(response))
+        Ok(ToolContent::text(response))
     }
 }
 
@@ -212,7 +212,7 @@ impl<F: Infrastructure> ExecutableTool for FSRead<F> {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolOutput> {
+    ) -> anyhow::Result<ToolContent> {
         self.call(context, input).await
     }
 }
@@ -229,7 +229,7 @@ mod test {
     use crate::utils::TempDir;
 
     // Helper function to test relative paths
-    async fn test_with_mock(path: &str) -> anyhow::Result<ToolOutput> {
+    async fn test_with_mock(path: &str) -> anyhow::Result<ToolContent> {
         let infra = Arc::new(MockInfrastructure::new());
         let fs_read = FSRead::new(infra);
         fs_read

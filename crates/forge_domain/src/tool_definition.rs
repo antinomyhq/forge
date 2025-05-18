@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::{NamedTool, ToolCallContext, ToolName, ToolOutput, ToolOutputValue};
+use crate::{NamedTool, ToolCallContext, ToolName, ToolContent, ToolOutputValue};
 
 ///
 /// Refer to the specification over here:
@@ -60,5 +60,5 @@ pub trait ExecutableTool {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolOutput>;
+    ) -> anyhow::Result<ToolContent>;
 }

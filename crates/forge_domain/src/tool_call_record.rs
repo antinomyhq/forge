@@ -17,7 +17,7 @@ pub struct ToolCallRecord {
 /// Formats the CallRecord as XML with tool name, arguments, and result
 impl Display for ToolCallRecord {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let content = &self.tool_result.output;
+        let content = &self.tool_result.content;
 
         for content in content.items.iter().filter_map(|item| item.as_str()) {
             let tool_name = self.tool_call.name.to_string();

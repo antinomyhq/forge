@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use forge_display::TitleFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput};
+use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolContent};
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 use schemars::JsonSchema;
@@ -155,7 +155,7 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolOutput> {
+    ) -> anyhow::Result<ToolContent> {
         let url = Url::parse(&input.url)
             .with_context(|| format!("Failed to parse URL: {}", input.url))?;
 
@@ -208,7 +208,7 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
             _ => String::new(),
         };
 
-        Ok(ToolOutput::text(format!(
+        Ok(ToolContent::text(format!(
             "{metadata}{output}{truncation_tag}",
         )))
     }

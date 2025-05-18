@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde_json::Value;
 
 use crate::{
-    ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription, ToolOutput,
+    ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription, ToolContent,
 };
 
 struct JsonTool<T>(T);
@@ -24,7 +24,7 @@ where
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolOutput> {
+    ) -> anyhow::Result<ToolContent> {
         let input: T::Input = serde_json::from_value(input)?;
         self.0.call(context, input).await
     }

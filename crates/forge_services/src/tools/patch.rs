@@ -6,7 +6,7 @@ use bytes::Bytes;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
     EnvironmentService, ExecutableTool, FSPatchInput, NamedTool, PatchOperation, ToolCallContext,
-    ToolDescription, ToolName, ToolOutput,
+    ToolDescription, ToolName, ToolContent,
 };
 use forge_tool_macros::ToolDescription;
 use thiserror::Error;
@@ -212,7 +212,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
         &self,
         context: ToolCallContext,
         patch: Self::Input,
-    ) -> anyhow::Result<ToolOutput> {
+    ) -> anyhow::Result<ToolContent> {
         let path = Path::new(&patch.path);
         assert_absolute_path(path)?;
 
@@ -270,7 +270,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
         context.send_text(diff).await?;
 
         // Return the final result
-        Ok(ToolOutput::text(result))
+        Ok(ToolContent::text(result))
     }
 }
 

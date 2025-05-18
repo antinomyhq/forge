@@ -236,7 +236,7 @@ impl TryFrom<forge_domain::ToolResult> for Content {
             tool_use_id: call_id.as_str().to_string(),
             cache_control: None,
             content: value
-                .output
+                .content
                 .items
                 .iter()
                 .filter_map(|item| item.as_str().map(|s| s.to_string()))

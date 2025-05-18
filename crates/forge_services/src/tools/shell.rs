@@ -5,7 +5,7 @@ use anyhow::bail;
 use forge_display::TitleFormat;
 use forge_domain::{
     CommandOutput, Environment, EnvironmentService, ExecutableTool, NamedTool, ShellInput,
-    ToolCallContext, ToolDescription, ToolName, ToolOutput,
+    ToolCallContext, ToolDescription, ToolName, ToolContent,
 };
 use forge_tool_macros::ToolDescription;
 use strip_ansi_escapes::strip;
@@ -180,7 +180,7 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolOutput> {
+    ) -> anyhow::Result<ToolContent> {
         // Validate empty command
         if input.command.trim().is_empty() {
             bail!("Command string is empty or contains only whitespace".to_string());
@@ -204,7 +204,7 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
             SUFFIX_CHARS,
         )
         .await?;
-        Ok(ToolOutput::text(result))
+        Ok(ToolContent::text(result))
     }
 }
 

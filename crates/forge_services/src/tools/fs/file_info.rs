@@ -5,7 +5,7 @@ use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{
     EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
-    ToolOutput,
+    ToolContent,
 };
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
@@ -66,7 +66,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolOutput> {
+    ) -> anyhow::Result<ToolContent> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -77,7 +77,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         context
             .send_text(TitleFormat::debug("Info").title(self.format_display_path(path)?))
             .await?;
-        Ok(ToolOutput::text(format!("{meta:?}")))
+        Ok(ToolContent::text(format!("{meta:?}")))
     }
 }
 

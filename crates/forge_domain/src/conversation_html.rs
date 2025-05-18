@@ -244,7 +244,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                     )
                                     .append(
                                         Element::new("pre")
-                                            .text(format!("{:?}", tool_result.output)),
+                                            .text(format!("{:?}", tool_result.content)),
                                     )
                             }
                             ContextMessage::Image(url) => {

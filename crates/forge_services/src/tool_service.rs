@@ -164,8 +164,8 @@ mod test {
             &self,
             _context: ToolCallContext,
             input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolOutput> {
-            Ok(forge_domain::ToolOutput::text(format!(
+        ) -> anyhow::Result<forge_domain::ToolContent> {
+            Ok(forge_domain::ToolContent::text(format!(
                 "Success with input: {input}"
             )))
         }
@@ -182,7 +182,7 @@ mod test {
             &self,
             _context: ToolCallContext,
             _input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolOutput> {
+        ) -> anyhow::Result<forge_domain::ToolContent> {
             bail!("Tool call failed with simulated failure".to_string())
         }
     }
@@ -270,10 +270,10 @@ mod test {
             &self,
             _context: ToolCallContext,
             _input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolOutput> {
+        ) -> anyhow::Result<forge_domain::ToolContent> {
             // Simulate a long-running task that exceeds the timeout
             tokio::time::sleep(Duration::from_secs(400)).await;
-            Ok(forge_domain::ToolOutput::text(
+            Ok(forge_domain::ToolContent::text(
                 "Slow tool completed".to_string(),
             ))
         }
@@ -309,7 +309,7 @@ mod test {
             .unwrap();
 
         // Assert that the result contains a timeout error message
-        let content_str = &result.output.items.iter().find_map(|i| i.as_str()).unwrap();
+        let content_str = &result.content.items.iter().find_map(|i| i.as_str()).unwrap();
         assert!(
             content_str.contains("timed out"),
             "Expected timeout error message"
