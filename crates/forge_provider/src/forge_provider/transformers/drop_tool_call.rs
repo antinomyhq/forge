@@ -29,7 +29,8 @@ impl Transformer for DropToolCalls {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        Context, ContextMessage, Role, ContentMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        ContentMessage, Context, ContextMessage, Role, ToolCallFull, ToolCallId, ToolName,
+        ToolResult,
     };
     use serde_json::json;
 

@@ -123,8 +123,7 @@ pub struct Context {
 
 impl Context {
     pub fn add_url(mut self, url: &str) -> Self {
-        self.messages
-            .push(ContextMessage::Image(url.to_string()));
+        self.messages.push(ContextMessage::Image(url.to_string()));
         self
     }
 
@@ -162,7 +161,8 @@ impl Context {
         if self.messages.is_empty() {
             self.add_message(ContextMessage::system(content.into()))
         } else {
-            if let Some(ContextMessage::ContentMessage(content_message)) = self.messages.get_mut(0) {
+            if let Some(ContextMessage::ContentMessage(content_message)) = self.messages.get_mut(0)
+            {
                 if content_message.role == Role::System {
                     content_message.content = content.into();
                 } else {

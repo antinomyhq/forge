@@ -40,7 +40,7 @@ impl Transformer for SetCache {
 mod tests {
     use std::collections::HashSet;
 
-    use forge_domain::{Context, ContextMessage, ModelId, Role, ContentMessage};
+    use forge_domain::{ContentMessage, Context, ContextMessage, ModelId, Role};
     use pretty_assertions::assert_eq;
 
     use super::*;

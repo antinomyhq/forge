@@ -348,7 +348,7 @@ pub enum Role {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        ContextMessage, Role, ContentMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        ContentMessage, ContextMessage, Role, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use insta::assert_json_snapshot;
     use serde_json::json;
