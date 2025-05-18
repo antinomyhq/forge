@@ -68,7 +68,7 @@ impl<A: Services> Orchestrator<A> {
         agent: &Agent,
         tool_calls: &[ToolCallFull],
         tool_context: ToolCallContext,
-    ) -> anyhow::Result<Vec<ToolCallRecord>> {
+    ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
@@ -90,8 +90,7 @@ impl<A: Services> Orchestrator<A> {
 
             // Add the result to our collection if completion wasn't achieved
             if !tool_context.get_complete().await {
-                tool_call_records
-                    .push(ToolCallRecord { tool_call: tool_call.clone(), tool_result });
+                tool_call_records.push((tool_call.clone(), tool_result));
             }
         }
 

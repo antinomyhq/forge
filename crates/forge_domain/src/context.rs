@@ -5,7 +5,7 @@ use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
-use crate::{ModelId, ToolCallRecord, ToolChoice, ToolDefinition};
+use crate::{ModelId, ToolChoice, ToolDefinition};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -231,7 +231,7 @@ impl Context {
         mut self,
         content: impl ToString,
         model: ModelId,
-        tool_records: Vec<ToolCallRecord>,
+        tool_records: Vec<(ToolCallFull, ToolResult)>,
         tool_supported: bool,
     ) -> Self {
         if tool_supported {
@@ -241,7 +241,7 @@ impl Context {
                 Some(
                     tool_records
                         .iter()
-                        .map(|record| record.tool_call.clone())
+                        .map(|record| record.0.clone())
                         .collect::<Vec<_>>(),
                 ),
             ))
@@ -249,7 +249,7 @@ impl Context {
             .add_tool_results(
                 tool_records
                     .iter()
-                    .map(|record| record.tool_result.clone())
+                    .map(|record| record.1.clone())
                     .collect::<Vec<_>>(),
             )
         } else {
@@ -262,7 +262,7 @@ impl Context {
             // Adding tool results as user message
             let outputs = tool_records
                 .iter()
-                .flat_map(|record| record.tool_result.output.values.iter());
+                .flat_map(|record| record.1.output.values.iter());
             for out in outputs {
                 match out {
                     crate::ToolOutputValue::Text(text) => {
