@@ -2,8 +2,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use forge_domain::{
-    ExecutableTool, FSRemoveInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
-    ToolContent,
+    ExecutableTool, FSRemoveInput, NamedTool, ToolCallContext, ToolContent, ToolDescription,
+    ToolName,
 };
 use forge_tool_macros::ToolDescription;
 

@@ -309,7 +309,12 @@ mod test {
             .unwrap();
 
         // Assert that the result contains a timeout error message
-        let content_str = &result.content.items.iter().find_map(|i| i.as_str()).unwrap();
+        let content_str = &result
+            .content
+            .items
+            .iter()
+            .find_map(|i| i.as_str())
+            .unwrap();
         assert!(
             content_str.contains("timed out"),
             "Expected timeout error message"

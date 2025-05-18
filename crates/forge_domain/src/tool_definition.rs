@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::{NamedTool, ToolCallContext, ToolName, ToolContent, ToolOutputValue};
+use crate::{NamedTool, ToolCallContext, ToolContent, ToolName};
 
 ///
 /// Refer to the specification over here:

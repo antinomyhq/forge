@@ -4,8 +4,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
-    ToolContent,
+    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolContent, ToolDescription,
+    ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;

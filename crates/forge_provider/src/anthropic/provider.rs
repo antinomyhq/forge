@@ -186,7 +186,7 @@ impl ProviderService for Anthropic {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolContent,
+        Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolContent, ToolName,
         ToolResult,
     };
 

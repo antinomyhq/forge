@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_display::TitleFormat;
-use forge_domain::{ExecutableTool, ToolCallContext, ToolName, ToolContent};
+use forge_domain::{ExecutableTool, ToolCallContext, ToolContent, ToolName};
 
 use crate::McpClient;
 

@@ -45,8 +45,8 @@ pub mod tests {
 
     use bytes::Bytes;
     use forge_domain::{
-        CommandOutput, Environment, EnvironmentService, Provider, ToolDefinition, ToolName,
-        ToolContent,
+        CommandOutput, Environment, EnvironmentService, Provider, ToolContent, ToolDefinition,
+        ToolName,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;

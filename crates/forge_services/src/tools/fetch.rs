@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use forge_display::TitleFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolContent};
+use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolContent, ToolDescription};
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 use schemars::JsonSchema;

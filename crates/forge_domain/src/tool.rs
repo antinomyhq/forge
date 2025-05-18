@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde_json::Value;
 
 use crate::{
-    ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription, ToolContent,
+    ExecutableTool, NamedTool, ToolCallContext, ToolContent, ToolDefinition, ToolDescription,
 };
 
 struct JsonTool<T>(T);

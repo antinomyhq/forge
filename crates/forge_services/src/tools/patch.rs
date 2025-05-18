@@ -6,7 +6,7 @@ use bytes::Bytes;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
     EnvironmentService, ExecutableTool, FSPatchInput, NamedTool, PatchOperation, ToolCallContext,
-    ToolDescription, ToolName, ToolContent,
+    ToolContent, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use thiserror::Error;

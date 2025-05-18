@@ -1,5 +1,5 @@
 use anyhow::Result;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolContent};
+use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolContent, ToolDescription};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;

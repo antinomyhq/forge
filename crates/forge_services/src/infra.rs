@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, EnvironmentService, McpServerConfig, ToolDefinition, ToolName, ToolContent,
+    CommandOutput, EnvironmentService, McpServerConfig, ToolContent, ToolDefinition, ToolName,
 };
 use forge_snaps::Snapshot;
 
