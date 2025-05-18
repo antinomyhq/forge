@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{ToolCallFull, ToolCallId, ToolName, ToolOutput};
+use crate::{ToolCallFull, ToolCallId, ToolName};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
 #[setters(strip_option, into)]
@@ -67,6 +67,49 @@ impl std::fmt::Display for ToolResult {
             }
         }
         write!(f, "</forge_tool_result>")
+    }
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Setters)]
+#[setters(into, strip_option)]
+pub struct ToolOutput {
+    pub items: Vec<ToolOutputValue>,
+    pub is_error: bool,
+}
+
+impl ToolOutput {
+    pub fn text(tool: String) -> Self {
+        ToolOutput {
+            is_error: Default::default(),
+            items: vec![ToolOutputValue::Text(tool)],
+        }
+    }
+
+    pub fn image(url: String) -> Self {
+        ToolOutput {
+            is_error: false,
+            items: vec![ToolOutputValue::Base64URL(url)],
+        }
+    }
+
+    pub fn combine(self, other: ToolOutput) -> Self {
+        let mut items = self.items;
+        items.extend(other.items);
+        ToolOutput { items, is_error: self.is_error || other.is_error }
+    }
+
+    /// Returns the first item as a string if it exists
+    pub fn as_str(&self) -> Option<&str> {
+        self.items.iter().find_map(|item| item.as_str())
+    }
+}
+
+impl<T> From<T> for ToolOutput
+where
+    T: Iterator<Item = ToolOutput>,
+{
+    fn from(item: T) -> Self {
+        item.fold(ToolOutput::default(), |acc, item| acc.combine(item))
     }
 }
 
