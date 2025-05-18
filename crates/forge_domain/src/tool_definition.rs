@@ -67,8 +67,11 @@ pub trait ExecutableTool {
 pub enum ToolContentItem {
     Text(String),
     Base64URL(String),
+    // FIXME: Drop this and use optional of ToolContentItem
+    Empty
 }
 
+// FIXME: Drop this and use ToolResult instead
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct ToolContent {
