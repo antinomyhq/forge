@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpService, Tool, ToolCallContext, ToolCallFull, ToolContentItem, ToolDefinition, ToolName,
+    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
     ToolResult, ToolService,
 };
 use tokio::time::{timeout, Duration};
@@ -75,7 +75,7 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
             Ok(output) => {
                 // Extract text from the first text item, if any
                 let text = output.items.into_iter().find_map(|item| {
-                    if let ToolContentItem::Text(text) = item {
+                    if let ToolOutput::Text(text) = item {
                         Some(text)
                     } else {
                         None

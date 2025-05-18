@@ -1,4 +1,4 @@
-use forge_domain::{ToolContent, ToolContentItem};
+use forge_domain::{ToolContent, ToolOutput};
 
 pub trait ToolContentExtension {
     fn into_string(self) -> String;
@@ -11,9 +11,9 @@ impl ToolContentExtension for ToolContent {
         items
             .into_iter()
             .filter_map(|item| match item {
-                ToolContentItem::Text(text) => Some(text),
-                ToolContentItem::Base64URL(_) => None,
-                ToolContentItem::Empty => None,
+                ToolOutput::Text(text) => Some(text),
+                ToolOutput::Base64URL(_) => None,
+                ToolOutput::Empty => None,
             })
             .collect()
     }

@@ -1,14 +1,14 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{ToolCallFull, ToolCallId, ToolContentItem, ToolName};
+use crate::{ToolCallFull, ToolCallId, ToolName};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
 #[setters(strip_option, into)]
 pub struct ToolResult {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
-    pub content: ToolContentItem,
+    pub content: ToolOutput,
     pub is_error: bool,
 }
 
@@ -23,7 +23,7 @@ impl ToolResult {
     }
 
     pub fn success(mut self, content: impl Into<String>) -> Self {
-        self.content = ToolContentItem::text(content.into());
+        self.content = ToolOutput::text(content.into());
         self.is_error = false;
         self
     }
@@ -36,7 +36,7 @@ impl ToolResult {
             output.push_str(&format!("Caused by: {cause}\n"));
         }
 
-        self.content = ToolContentItem::text(output);
+        self.content = ToolOutput::text(output);
         self.is_error = true;
         self
     }
@@ -55,7 +55,7 @@ impl From<ToolCallFull> for ToolResult {
 
 impl std::fmt::Display for ToolResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let ToolContentItem::Text(ref content) = self.content {
+        if let ToolOutput::Text(ref content) = self.content {
             write!(f, "<forge_tool_result>")?;
             write!(f, "<forge_tool_name>{}</forge_tool_name>", self.name)?;
             let content = format!("<![CDATA[{content}]]>");
@@ -68,6 +68,33 @@ impl std::fmt::Display for ToolResult {
             write!(f, "</forge_tool_result>")
         } else {
             Ok(())
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum ToolOutput {
+    Text(String),
+    Base64URL(String),
+    // FIXME: Drop this and use optional of ToolContentItem
+    #[default]
+    Empty,
+}
+
+impl ToolOutput {
+    pub fn text(text: String) -> Self {
+        ToolOutput::Text(text)
+    }
+
+    pub fn base64url(url: String) -> Self {
+        ToolOutput::Base64URL(url)
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            ToolOutput::Text(text) => Some(text),
+            ToolOutput::Base64URL(_) => None,
+            ToolOutput::Empty => None,
         }
     }
 }

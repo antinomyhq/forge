@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::{NamedTool, ToolCallContext, ToolName};
+use crate::{NamedTool, ToolCallContext, ToolName, ToolOutput};
 
 ///
 /// Refer to the specification over here:
@@ -63,51 +63,21 @@ pub trait ExecutableTool {
     ) -> anyhow::Result<ToolContent>;
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum ToolContentItem {
-    Text(String),
-    Base64URL(String),
-    // FIXME: Drop this and use optional of ToolContentItem
-    #[default]
-    Empty,
-}
-
-impl ToolContentItem {
-    pub fn text(text: String) -> Self {
-        ToolContentItem::Text(text)
-    }
-
-    pub fn base64url(url: String) -> Self {
-        ToolContentItem::Base64URL(url)
-    }
-
-    pub fn as_str(&self) -> Option<&str> {
-        match self {
-            ToolContentItem::Text(text) => Some(text),
-            ToolContentItem::Base64URL(_) => None,
-            ToolContentItem::Empty => None,
-        }
-    }
-}
-
 // FIXME: Drop this and use ToolResult instead
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct ToolContent {
-    pub items: Vec<ToolContentItem>,
+    pub items: Vec<ToolOutput>,
     pub is_error: bool,
 }
 
 impl ToolContent {
     pub fn text(tool: String) -> Self {
-        ToolContent { is_error: false, items: vec![ToolContentItem::Text(tool)] }
+        ToolContent { is_error: false, items: vec![ToolOutput::Text(tool)] }
     }
 
     pub fn image(url: String) -> Self {
-        ToolContent {
-            is_error: false,
-            items: vec![ToolContentItem::Base64URL(url)],
-        }
+        ToolContent { is_error: false, items: vec![ToolOutput::Base64URL(url)] }
     }
 
     pub fn combine(self, other: ToolContent) -> Self {
