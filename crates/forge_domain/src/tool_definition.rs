@@ -72,7 +72,10 @@ pub struct ToolOutput {
 
 impl ToolOutput {
     pub fn text(tool: String) -> Self {
-        ToolOutput { is_error: false, items: vec![ToolOutputValue::Text(tool)] }
+        ToolOutput {
+            is_error: Default::default(),
+            items: vec![ToolOutputValue::Text(tool)],
+        }
     }
 
     pub fn image(url: String) -> Self {

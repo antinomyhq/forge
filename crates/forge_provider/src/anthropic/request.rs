@@ -238,10 +238,10 @@ impl TryFrom<forge_domain::ToolResult> for Content {
             content: value
                 .output
                 .items
-                .into_iter()
+                .iter()
                 .filter_map(|item| item.as_str().map(|s| s.to_string()))
                 .next(),
-            is_error: Some(value.is_error),
+            is_error: Some(value.is_error()),
         })
     }
 }

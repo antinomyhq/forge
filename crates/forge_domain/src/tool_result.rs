@@ -9,7 +9,6 @@ pub struct ToolResult {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
     pub output: ToolOutput,
-    pub is_error: bool,
 }
 
 impl ToolResult {
@@ -18,13 +17,12 @@ impl ToolResult {
             name,
             call_id: Default::default(),
             output: Default::default(),
-            is_error: Default::default(),
         }
     }
 
     pub fn success(mut self, content: impl Into<String>) -> Self {
         self.output = ToolOutput::text(content.into());
-        self.is_error = false;
+
         self
     }
 
@@ -36,9 +34,12 @@ impl ToolResult {
             output.push_str(&format!("Caused by: {cause}\n"));
         }
 
-        self.output = ToolOutput::text(output);
-        self.is_error = true;
+        self.output = ToolOutput::text(output).is_error(true);
         self
+    }
+
+    pub fn is_error(&self) -> bool {
+        self.output.is_error
     }
 }
 
@@ -48,7 +49,6 @@ impl From<ToolCallFull> for ToolResult {
             name: value.name,
             call_id: value.call_id,
             output: Default::default(),
-            is_error: Default::default(),
         }
     }
 }
@@ -60,7 +60,7 @@ impl std::fmt::Display for ToolResult {
 
         for content in self.output.items.iter().filter_map(|item| item.as_str()) {
             let content = format!("<![CDATA[{content}]]>");
-            if self.is_error {
+            if self.is_error() {
                 write!(f, "<error>{content}</error>")?;
             } else {
                 write!(f, "<success>{content}</success>")?;
@@ -172,12 +172,12 @@ mod tests {
     #[test]
     fn test_success_and_failure_content() {
         let success = ToolResult::new(ToolName::new("test_tool")).success("success message");
-        assert!(!success.is_error);
+        assert!(!success.is_error());
         assert_eq!(format!("{:?}", success.output), "success message");
 
         let failure =
             ToolResult::new(ToolName::new("test_tool")).failure(anyhow::anyhow!("error message"));
-        assert!(failure.is_error);
+        assert!(failure.is_error());
         assert_eq!(
             format!("{:?}", failure.output),
             "\nERROR:\nCaused by: error message\n"

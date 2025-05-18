@@ -314,6 +314,6 @@ mod test {
             content_str.contains("timed out"),
             "Expected timeout error message"
         );
-        assert!(result.is_error, "Expected error result for timeout");
+        assert!(result.is_error(), "Expected error result for timeout");
     }
 }

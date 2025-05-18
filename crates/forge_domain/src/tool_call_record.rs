@@ -23,7 +23,7 @@ impl Display for ToolCallRecord {
             let tool_name = self.tool_call.name.to_string();
             writeln!(f, r#"<forge_tool_result tool_name="{tool_name}">"#,)?;
 
-            if self.tool_result.is_error {
+            if self.tool_result.is_error() {
                 writeln!(f, "<error>")?;
                 writeln!(f, "{content}")?;
                 writeln!(f, "</error>")?;
@@ -45,12 +45,12 @@ impl ToolCallRecord {
 
     /// Returns true if the tool execution was successful
     pub fn is_success(&self) -> bool {
-        !self.tool_result.is_error
+        !self.tool_result.is_error()
     }
 
     /// Returns true if the tool execution resulted in an error
     pub fn is_error(&self) -> bool {
-        self.tool_result.is_error
+        self.tool_result.is_error()
     }
 }
 
