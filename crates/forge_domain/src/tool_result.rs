@@ -1,14 +1,14 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{ToolCallFull, ToolCallId, ToolName};
+use crate::{ToolCallFull, ToolCallId, ToolName, ToolOutput};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
 #[setters(strip_option, into)]
 pub struct ToolResult {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
-    pub output: ToolOutputValue,
+    pub output: ToolOutput,
     pub is_error: bool,
 }
 
@@ -23,7 +23,7 @@ impl ToolResult {
     }
 
     pub fn success(mut self, content: impl Into<String>) -> Self {
-        self.output = ToolOutputValue::text(content.into());
+        self.output = ToolOutput::text(content.into());
         self.is_error = false;
         self
     }
@@ -36,7 +36,7 @@ impl ToolResult {
             output.push_str(&format!("Caused by: {cause}\n"));
         }
 
-        self.output = ToolOutputValue::text(output);
+        self.output = ToolOutput::text(output);
         self.is_error = true;
         self
     }
@@ -55,20 +55,18 @@ impl From<ToolCallFull> for ToolResult {
 
 impl std::fmt::Display for ToolResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let ToolOutputValue::Text(ref content) = self.output {
-            write!(f, "<forge_tool_result>")?;
-            write!(f, "<forge_tool_name>{}</forge_tool_name>", self.name)?;
+        write!(f, "<forge_tool_result>")?;
+        write!(f, "<forge_tool_name>{}</forge_tool_name>", self.name)?;
+
+        for content in self.output.items.iter().filter_map(|item| item.as_str()) {
             let content = format!("<![CDATA[{content}]]>");
             if self.is_error {
                 write!(f, "<error>{content}</error>")?;
             } else {
                 write!(f, "<success>{content}</success>")?;
             }
-
-            write!(f, "</forge_tool_result>")
-        } else {
-            Ok(())
         }
+        write!(f, "</forge_tool_result>")
     }
 }
 

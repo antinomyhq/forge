@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::{GrepFormat, TitleFormat};
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSSearchInput, NamedTool, ToolCallContext, ToolOutput,
-    ToolDescription, ToolName,
+    EnvironmentService, ExecutableTool, FSSearchInput, NamedTool, ToolCallContext, ToolDescription,
+    ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;

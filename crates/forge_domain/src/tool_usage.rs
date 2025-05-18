@@ -102,8 +102,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        ExecutableTool, NamedTool, ToolCallContext, ToolOutput, ToolDefinition, ToolDescription,
-        ToolName,
+        ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription, ToolName,
+        ToolOutput,
     };
 
     #[derive(Default)]

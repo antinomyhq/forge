@@ -6,8 +6,8 @@ use std::sync::Arc;
 use anyhow::{bail, Context};
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolOutput,
-    ToolDescription, ToolName,
+    EnvironmentService, ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolDescription,
+    ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 

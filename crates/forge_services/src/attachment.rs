@@ -122,7 +122,7 @@ pub mod tests {
     use bytes::Bytes;
     use forge_domain::{
         AttachmentService, CommandOutput, ContentType, Environment, EnvironmentService, Provider,
-        ToolOutput, ToolDefinition, ToolName,
+        ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;

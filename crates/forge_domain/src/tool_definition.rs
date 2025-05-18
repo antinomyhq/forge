@@ -63,8 +63,7 @@ pub trait ExecutableTool {
     ) -> anyhow::Result<ToolOutput>;
 }
 
-// FIXME: Drop this and use ToolResult instead
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Setters)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct ToolOutput {
     pub items: Vec<ToolOutputValue>,
@@ -77,13 +76,21 @@ impl ToolOutput {
     }
 
     pub fn image(url: String) -> Self {
-        ToolOutput { is_error: false, items: vec![ToolOutputValue::Base64URL(url)] }
+        ToolOutput {
+            is_error: false,
+            items: vec![ToolOutputValue::Base64URL(url)],
+        }
     }
 
     pub fn combine(self, other: ToolOutput) -> Self {
         let mut items = self.items;
         items.extend(other.items);
         ToolOutput { items, is_error: self.is_error || other.is_error }
+    }
+
+    /// Returns the first item as a string if it exists
+    pub fn as_str(&self) -> Option<&str> {
+        self.items.iter().find_map(|item| item.as_str())
     }
 }
 

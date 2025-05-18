@@ -5,7 +5,7 @@ use anyhow::bail;
 use forge_display::TitleFormat;
 use forge_domain::{
     CommandOutput, Environment, EnvironmentService, ExecutableTool, NamedTool, ShellInput,
-    ToolCallContext, ToolOutput, ToolDescription, ToolName,
+    ToolCallContext, ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use strip_ansi_escapes::strip;

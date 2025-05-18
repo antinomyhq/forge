@@ -3,7 +3,7 @@ use std::future::Future;
 use std::sync::{Arc, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
-use forge_domain::{McpServerConfig, ToolOutput, ToolDefinition, ToolName};
+use forge_domain::{McpServerConfig, ToolDefinition, ToolName, ToolOutput};
 use forge_services::McpClient;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::schemars::schema::RootSchema;
