@@ -311,7 +311,7 @@ mod test {
         // Assert that the result contains a timeout error message
         let content_str = &result.content;
         assert!(
-            content_str.contains("timed out"),
+            content_str.as_str().unwrap().contains("timed out"),
             "Expected timeout error message"
         );
         assert!(result.is_error, "Expected error result for timeout");

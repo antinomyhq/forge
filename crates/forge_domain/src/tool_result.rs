@@ -1,16 +1,14 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{ToolCallFull, ToolCallId, ToolName};
+use crate::{ToolCallFull, ToolCallId, ToolContentItem, ToolName};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
 #[setters(strip_option, into)]
 pub struct ToolResult {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
-    #[setters(skip)]
-    pub content: String,
-    #[setters(skip)]
+    pub content: ToolContentItem,
     pub is_error: bool,
 }
 
@@ -18,14 +16,14 @@ impl ToolResult {
     pub fn new(name: ToolName) -> ToolResult {
         Self {
             name,
-            call_id: None,
-            content: String::default(),
-            is_error: false,
+            call_id: Default::default(),
+            content: Default::default(),
+            is_error: Default::default(),
         }
     }
 
     pub fn success(mut self, content: impl Into<String>) -> Self {
-        self.content = content.into();
+        self.content = ToolContentItem::text(content.into());
         self.is_error = false;
         self
     }
@@ -38,7 +36,7 @@ impl ToolResult {
             output.push_str(&format!("Caused by: {cause}\n"));
         }
 
-        self.content = output;
+        self.content = ToolContentItem::text(output);
         self.is_error = true;
         self
     }
@@ -49,24 +47,28 @@ impl From<ToolCallFull> for ToolResult {
         Self {
             name: value.name,
             call_id: value.call_id,
-            content: String::default(),
-            is_error: false,
+            content: Default::default(),
+            is_error: Default::default(),
         }
     }
 }
 
 impl std::fmt::Display for ToolResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<forge_tool_result>")?;
-        write!(f, "<forge_tool_name>{}</forge_tool_name>", self.name)?;
-        let content = format!("<![CDATA[{}]]>", self.content);
-        if self.is_error {
-            write!(f, "<error>{content}</error>")?;
-        } else {
-            write!(f, "<success>{content}</success>")?;
-        }
+        if let ToolContentItem::Text(ref content) = self.content {
+            write!(f, "<forge_tool_result>")?;
+            write!(f, "<forge_tool_name>{}</forge_tool_name>", self.name)?;
+            let content = format!("<![CDATA[{content}]]>");
+            if self.is_error {
+                write!(f, "<error>{content}</error>")?;
+            } else {
+                write!(f, "<success>{content}</success>")?;
+            }
 
-        write!(f, "</forge_tool_result>")
+            write!(f, "</forge_tool_result>")
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -146,11 +148,14 @@ mod tests {
     fn test_success_and_failure_content() {
         let success = ToolResult::new(ToolName::new("test_tool")).success("success message");
         assert!(!success.is_error);
-        assert_eq!(success.content, "success message");
+        assert_eq!(format!("{:?}", success.content), "success message");
 
         let failure =
             ToolResult::new(ToolName::new("test_tool")).failure(anyhow::anyhow!("error message"));
         assert!(failure.is_error);
-        assert_eq!(failure.content, "\nERROR:\nCaused by: error message\n");
+        assert_eq!(
+            format!("{:?}", failure.content),
+            "\nERROR:\nCaused by: error message\n"
+        );
     }
 }

@@ -63,12 +63,31 @@ pub trait ExecutableTool {
     ) -> anyhow::Result<ToolContent>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ToolContentItem {
     Text(String),
     Base64URL(String),
     // FIXME: Drop this and use optional of ToolContentItem
-    Empty
+    #[default]
+    Empty,
+}
+
+impl ToolContentItem {
+    pub fn text(text: String) -> Self {
+        ToolContentItem::Text(text)
+    }
+
+    pub fn base64url(url: String) -> Self {
+        ToolContentItem::Base64URL(url)
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            ToolContentItem::Text(text) => Some(text),
+            ToolContentItem::Base64URL(_) => None,
+            ToolContentItem::Empty => None,
+        }
+    }
 }
 
 // FIXME: Drop this and use ToolResult instead
