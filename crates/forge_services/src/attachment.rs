@@ -84,7 +84,8 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
 
         let content = match mime_type {
             Some(mime_type) => AttachmentContent::Image(
-                Self::generate_image_content(&path, mime_type, self.infra.file_read_service()).await?,
+                Self::generate_image_content(&path, mime_type, self.infra.file_read_service())
+                    .await?,
             ),
             None => AttachmentContent::FileContent(
                 Self::generate_text_content(&path, self.infra.file_read_service()).await?,
