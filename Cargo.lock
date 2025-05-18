@@ -677,6 +677,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive-getters"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74ef43543e701c01ad77d3a5922755c6a1d71b22d942cb8042be4994b380caff"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.98",
+]
+
+[[package]]
 name = "derive_builder"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1030,7 +1041,9 @@ dependencies = [
  "async-recursion",
  "async-trait",
  "backon",
+ "base64 0.22.1",
  "chrono",
+ "derive-getters",
  "derive_more",
  "derive_setters",
  "forge_stream",

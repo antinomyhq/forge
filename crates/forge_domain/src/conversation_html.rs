@@ -242,16 +242,23 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                             .append(Element::new("strong").text("Tool Result: "))
                                             .append(Element::span(tool_result.name.as_str())),
                                     )
-                                    .append(
-                                        Element::new("pre")
-                                            .text(format!("{:?}", tool_result.output)),
-                                    )
+                                    .append(tool_result.output.values.iter().filter_map(|value| {
+                                        match value {
+                                            crate::ToolOutputValue::Text(text) => {
+                                                Some(Element::new("pre").text(text))
+                                            }
+                                            crate::ToolOutputValue::Image(image) => {
+                                                Some(Element::new("img").attr("src", image.url()))
+                                            }
+                                            crate::ToolOutputValue::Empty => None,
+                                        }
+                                    }))
                             }
-                            ContextMessage::Image(url) => {
+                            ContextMessage::Image(image) => {
                                 // Image message
                                 Element::new("div.message-card.message-user")
                                     .append(Element::new("strong").text("Image Attachment"))
-                                    .append(Element::new("p").text(format!("URL: {url}")))
+                                    .append(Element::new("img").attr("src", image.url()))
                             }
                         }
                     }),

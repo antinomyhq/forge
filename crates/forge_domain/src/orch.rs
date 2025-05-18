@@ -447,10 +447,10 @@ impl<A: Services> Orchestrator<A> {
         context = attachments
             .into_iter()
             .fold(context.clone(), |ctx, attachment| {
-                ctx.add_message(match attachment.content_type {
-                    ContentType::Image => ContextMessage::Image(attachment.content),
-                    ContentType::Text => {
-                        ContextMessage::user(attachment.content, model_id.clone().into())
+                ctx.add_message(match attachment.content {
+                    AttachmentContent::Image(image) => ContextMessage::Image(image),
+                    AttachmentContent::FileContent(content) => {
+                        ContextMessage::user(content, model_id.clone().into())
                     }
                 })
             });

@@ -312,9 +312,10 @@ impl From<ContextMessage> for Message {
                 content: Some(tool_result.into()),
                 tool_calls: None,
             },
-            ContextMessage::Image(url) => {
-                let content =
-                    vec![ContentPart::ImageUrl { image_url: ImageUrl { url, detail: None } }];
+            ContextMessage::Image(img) => {
+                let content = vec![ContentPart::ImageUrl {
+                    image_url: ImageUrl { url: img.url().clone(), detail: None },
+                }];
                 Message {
                     role: Role::User,
                     content: Some(MessageContent::Parts(content)),
@@ -340,9 +341,10 @@ impl From<ToolResult> for MessageContent {
                 ToolOutputValue::Text(text) => {
                     parts.push(ContentPart::Text { text, cache_control: None });
                 }
-                ToolOutputValue::Base64URL(url) => {
-                    let content =
-                        ContentPart::ImageUrl { image_url: ImageUrl { url, detail: None } };
+                ToolOutputValue::Image(img) => {
+                    let content = ContentPart::ImageUrl {
+                        image_url: ImageUrl { url: img.url().clone(), detail: None },
+                    };
                     parts.push(content);
                 }
                 ToolOutputValue::Empty => {

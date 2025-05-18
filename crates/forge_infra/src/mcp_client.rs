@@ -3,7 +3,7 @@ use std::future::Future;
 use std::sync::{Arc, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
-use forge_domain::{McpServerConfig, ToolDefinition, ToolName, ToolOutput};
+use forge_domain::{Image, McpServerConfig, MimeType, ToolDefinition, ToolName, ToolOutput};
 use forge_services::McpClient;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::schemars::schema::RootSchema;
@@ -129,15 +129,20 @@ impl ForgeMcpClient {
                     Ok(ToolOutput::text(raw_text_content.text))
                 }
                 rmcp::model::RawContent::Image(raw_image_content) => {
-                    Ok(ToolOutput::image(raw_image_content.data))
+                    Ok(ToolOutput::image(Image::new_base64(
+                        raw_image_content.data.as_bytes().to_vec(),
+                        MimeType::try_from(raw_image_content.mime_type.as_str())?,
+                    )))
                 }
                 rmcp::model::RawContent::Resource(_) => {
-                    Err(Error::UnsupportedMcpResponse("Resource"))
+                    Err(Error::UnsupportedMcpResponse("Resource").into())
                 }
 
-                rmcp::model::RawContent::Audio(_) => Err(Error::UnsupportedMcpResponse("Audio")),
+                rmcp::model::RawContent::Audio(_) => {
+                    Err(Error::UnsupportedMcpResponse("Audio").into())
+                }
             })
-            .collect::<crate::error::Result<Vec<ToolOutput>>>()?;
+            .collect::<anyhow::Result<Vec<ToolOutput>>>()?;
 
         Ok(ToolOutput::from(tool_contents.into_iter())
             .is_error(result.is_error.unwrap_or_default()))

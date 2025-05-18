@@ -5,17 +5,17 @@ use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
-use crate::{ModelId, ToolChoice, ToolDefinition};
+use crate::{Image, ModelId, ToolChoice, ToolDefinition};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
 /// of the message.
-#[derive(Clone, Debug, Deserialize, From, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, From, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextMessage {
     Text(TextMessage),
     Tool(ToolResult),
-    Image(String),
+    Image(Image),
 }
 
 impl ContextMessage {
@@ -104,7 +104,7 @@ pub enum Role {
 
 /// Represents a request being made to the LLM provider. By default the request
 /// is created with assuming the model supports use of external tools.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Setters, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize, Setters, Default, PartialEq)]
 #[setters(into, strip_option)]
 pub struct Context {
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -120,8 +120,8 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn add_base64_url(mut self, url: &str) -> Self {
-        self.messages.push(ContextMessage::Image(url.to_string()));
+    pub fn add_base64_url(mut self, image: Image) -> Self {
+        self.messages.push(ContextMessage::Image(image));
         self
     }
 
@@ -203,8 +203,8 @@ impl Context {
                     ));
                     lines.push_str("</message>");
                 }
-                ContextMessage::Image(url) => {
-                    lines.push_str(format!("<file_attachment path=\"{url}\">").as_str());
+                ContextMessage::Image(_) => {
+                    lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
                 }
             }
         }
@@ -268,8 +268,8 @@ impl Context {
                     crate::ToolOutputValue::Text(text) => {
                         self = self.add_message(ContextMessage::user(text, Some(model.clone())));
                     }
-                    crate::ToolOutputValue::Base64URL(base64_url) => {
-                        self = self.add_base64_url(base64_url);
+                    crate::ToolOutputValue::Image(base64_url) => {
+                        self = self.add_base64_url(base64_url.clone());
                     }
                     crate::ToolOutputValue::Empty => {}
                 }

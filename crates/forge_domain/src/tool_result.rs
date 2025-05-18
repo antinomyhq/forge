@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{ToolCallFull, ToolCallId, ToolName};
+use crate::{Image, ToolCallFull, ToolCallId, ToolName};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
 #[setters(strip_option, into)]
@@ -68,11 +68,8 @@ impl ToolOutput {
         }
     }
 
-    pub fn image(url: String) -> Self {
-        ToolOutput {
-            is_error: false,
-            values: vec![ToolOutputValue::Base64URL(url)],
-        }
+    pub fn image(img: Image) -> Self {
+        ToolOutput { is_error: false, values: vec![ToolOutputValue::Image(img)] }
     }
 
     pub fn combine(self, other: ToolOutput) -> Self {
@@ -96,10 +93,10 @@ where
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum ToolOutputValue {
     Text(String),
-    Base64URL(String),
+    Image(Image),
     #[default]
     Empty,
 }
@@ -109,14 +106,14 @@ impl ToolOutputValue {
         ToolOutputValue::Text(text)
     }
 
-    pub fn base64url(url: String) -> Self {
-        ToolOutputValue::Base64URL(url)
+    pub fn image(img: Image) -> Self {
+        ToolOutputValue::Image(img)
     }
 
     pub fn as_str(&self) -> Option<&str> {
         match self {
             ToolOutputValue::Text(text) => Some(text),
-            ToolOutputValue::Base64URL(_) => None,
+            ToolOutputValue::Image(_) => None,
             ToolOutputValue::Empty => None,
         }
     }
