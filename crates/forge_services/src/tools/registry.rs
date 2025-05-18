@@ -45,7 +45,7 @@ pub mod tests {
 
     use bytes::Bytes;
     use forge_domain::{
-        CommandOutput, Environment, EnvironmentService, Provider, ToolContent, ToolDefinition,
+        CommandOutput, Environment, EnvironmentService, Provider, ToolOutput, ToolDefinition,
         ToolName,
     };
     use forge_snaps::Snapshot;
@@ -217,8 +217,8 @@ pub mod tests {
             Ok(vec![])
         }
 
-        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<ToolContent> {
-            Ok(ToolContent::default())
+        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<ToolOutput> {
+            Ok(ToolOutput::default())
         }
     }
 

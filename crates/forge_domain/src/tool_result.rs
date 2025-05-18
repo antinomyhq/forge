@@ -8,7 +8,7 @@ use crate::{ToolCallFull, ToolCallId, ToolName};
 pub struct ToolResult {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
-    pub content: ToolOutput,
+    pub output: ToolOutputValue,
     pub is_error: bool,
 }
 
@@ -17,13 +17,13 @@ impl ToolResult {
         Self {
             name,
             call_id: Default::default(),
-            content: Default::default(),
+            output: Default::default(),
             is_error: Default::default(),
         }
     }
 
     pub fn success(mut self, content: impl Into<String>) -> Self {
-        self.content = ToolOutput::text(content.into());
+        self.output = ToolOutputValue::text(content.into());
         self.is_error = false;
         self
     }
@@ -36,7 +36,7 @@ impl ToolResult {
             output.push_str(&format!("Caused by: {cause}\n"));
         }
 
-        self.content = ToolOutput::text(output);
+        self.output = ToolOutputValue::text(output);
         self.is_error = true;
         self
     }
@@ -47,7 +47,7 @@ impl From<ToolCallFull> for ToolResult {
         Self {
             name: value.name,
             call_id: value.call_id,
-            content: Default::default(),
+            output: Default::default(),
             is_error: Default::default(),
         }
     }
@@ -55,7 +55,7 @@ impl From<ToolCallFull> for ToolResult {
 
 impl std::fmt::Display for ToolResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let ToolOutput::Text(ref content) = self.content {
+        if let ToolOutputValue::Text(ref content) = self.output {
             write!(f, "<forge_tool_result>")?;
             write!(f, "<forge_tool_name>{}</forge_tool_name>", self.name)?;
             let content = format!("<![CDATA[{content}]]>");
@@ -73,7 +73,7 @@ impl std::fmt::Display for ToolResult {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum ToolOutput {
+pub enum ToolOutputValue {
     Text(String),
     Base64URL(String),
     // FIXME: Drop this and use optional of ToolContentItem
@@ -81,20 +81,20 @@ pub enum ToolOutput {
     Empty,
 }
 
-impl ToolOutput {
+impl ToolOutputValue {
     pub fn text(text: String) -> Self {
-        ToolOutput::Text(text)
+        ToolOutputValue::Text(text)
     }
 
     pub fn base64url(url: String) -> Self {
-        ToolOutput::Base64URL(url)
+        ToolOutputValue::Base64URL(url)
     }
 
     pub fn as_str(&self) -> Option<&str> {
         match self {
-            ToolOutput::Text(text) => Some(text),
-            ToolOutput::Base64URL(_) => None,
-            ToolOutput::Empty => None,
+            ToolOutputValue::Text(text) => Some(text),
+            ToolOutputValue::Base64URL(_) => None,
+            ToolOutputValue::Empty => None,
         }
     }
 }
@@ -175,13 +175,13 @@ mod tests {
     fn test_success_and_failure_content() {
         let success = ToolResult::new(ToolName::new("test_tool")).success("success message");
         assert!(!success.is_error);
-        assert_eq!(format!("{:?}", success.content), "success message");
+        assert_eq!(format!("{:?}", success.output), "success message");
 
         let failure =
             ToolResult::new(ToolName::new("test_tool")).failure(anyhow::anyhow!("error message"));
         assert!(failure.is_error);
         assert_eq!(
-            format!("{:?}", failure.content),
+            format!("{:?}", failure.output),
             "\nERROR:\nCaused by: error message\n"
         );
     }

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use forge_domain::{
-    ExecutableTool, NamedTool, ToolCallContext, ToolContent, ToolDescription, ToolName,
+    ExecutableTool, NamedTool, ToolCallContext, ToolOutput, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
@@ -45,7 +45,7 @@ impl ExecutableTool for FSList {
         &self,
         _context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolContent> {
+    ) -> anyhow::Result<ToolOutput> {
         let dir = Path::new(&input.path);
         assert_absolute_path(dir)?;
 
@@ -86,7 +86,7 @@ impl ExecutableTool for FSList {
             }
         }
 
-        Ok(ToolContent::text(format!(
+        Ok(ToolOutput::text(format!(
             "<file_list path=\"{}\">
 {}
 </file_list>",

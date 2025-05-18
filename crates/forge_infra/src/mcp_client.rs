@@ -3,7 +3,7 @@ use std::future::Future;
 use std::sync::{Arc, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
-use forge_domain::{McpServerConfig, ToolContent, ToolDefinition, ToolName};
+use forge_domain::{McpServerConfig, ToolOutput, ToolDefinition, ToolName};
 use forge_services::McpClient;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::schemars::schema::RootSchema;
@@ -108,7 +108,7 @@ impl ForgeMcpClient {
             .collect())
     }
 
-    async fn call(&self, tool_name: &ToolName, input: &Value) -> anyhow::Result<ToolContent> {
+    async fn call(&self, tool_name: &ToolName, input: &Value) -> anyhow::Result<ToolOutput> {
         let client = self.connect().await?;
         let result = client
             .call_tool(CallToolRequestParam {
@@ -121,15 +121,15 @@ impl ForgeMcpClient {
             })
             .await?;
 
-        let tool_contents: Vec<ToolContent> = result
+        let tool_contents: Vec<ToolOutput> = result
             .content
             .into_iter()
             .map(|content| match content.raw {
                 rmcp::model::RawContent::Text(raw_text_content) => {
-                    Ok(ToolContent::text(raw_text_content.text))
+                    Ok(ToolOutput::text(raw_text_content.text))
                 }
                 rmcp::model::RawContent::Image(raw_image_content) => {
-                    Ok(ToolContent::image(raw_image_content.data))
+                    Ok(ToolOutput::image(raw_image_content.data))
                 }
                 rmcp::model::RawContent::Resource(_) => {
                     Err(Error::UnsupportedMcpResponse("Resource"))
@@ -137,9 +137,9 @@ impl ForgeMcpClient {
 
                 rmcp::model::RawContent::Audio(_) => Err(Error::UnsupportedMcpResponse("Audio")),
             })
-            .collect::<crate::error::Result<Vec<ToolContent>>>()?;
+            .collect::<crate::error::Result<Vec<ToolOutput>>>()?;
 
-        Ok(ToolContent::from(tool_contents.into_iter())
+        Ok(ToolOutput::from(tool_contents.into_iter())
             .is_error(result.is_error.unwrap_or_default()))
     }
 
@@ -174,7 +174,7 @@ impl McpClient for ForgeMcpClient {
         self.attempt_with_retry(|| self.list()).await
     }
 
-    async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<ToolContent> {
+    async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<ToolOutput> {
         self.attempt_with_retry(|| self.call(tool_name, &input))
             .await
     }

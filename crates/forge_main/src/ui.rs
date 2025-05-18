@@ -626,7 +626,7 @@ impl<F: API> UI<F> {
                 // Only track toolcall name in case of success else track the error.
                 let payload = if toolcall_result.is_error {
                     let mut r = ToolCallPayload::new(toolcall_result.name.to_string());
-                    if let Some(cause) = toolcall_result.content.as_str() {
+                    if let Some(cause) = toolcall_result.output.as_str() {
                         r = r.with_cause(cause.to_string());
                     }
                     r

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_domain::{
-    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
+    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutputValue,
     ToolResult, ToolService,
 };
 use tokio::time::{timeout, Duration};
@@ -75,7 +75,7 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
             Ok(output) => {
                 // Extract text from the first text item, if any
                 let text = output.items.into_iter().find_map(|item| {
-                    if let ToolOutput::Text(text) = item {
+                    if let ToolOutputValue::Text(text) = item {
                         Some(text)
                     } else {
                         None
@@ -164,8 +164,8 @@ mod test {
             &self,
             _context: ToolCallContext,
             input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolContent> {
-            Ok(forge_domain::ToolContent::text(format!(
+        ) -> anyhow::Result<forge_domain::ToolOutput> {
+            Ok(forge_domain::ToolOutput::text(format!(
                 "Success with input: {input}"
             )))
         }
@@ -182,7 +182,7 @@ mod test {
             &self,
             _context: ToolCallContext,
             _input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolContent> {
+        ) -> anyhow::Result<forge_domain::ToolOutput> {
             bail!("Tool call failed with simulated failure".to_string())
         }
     }
@@ -270,10 +270,10 @@ mod test {
             &self,
             _context: ToolCallContext,
             _input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolContent> {
+        ) -> anyhow::Result<forge_domain::ToolOutput> {
             // Simulate a long-running task that exceeds the timeout
             tokio::time::sleep(Duration::from_secs(400)).await;
-            Ok(forge_domain::ToolContent::text(
+            Ok(forge_domain::ToolOutput::text(
                 "Slow tool completed".to_string(),
             ))
         }
@@ -309,7 +309,7 @@ mod test {
             .unwrap();
 
         // Assert that the result contains a timeout error message
-        let content_str = &result.content;
+        let content_str = &result.output;
         assert!(
             content_str.as_str().unwrap().contains("timed out"),
             "Expected timeout error message"

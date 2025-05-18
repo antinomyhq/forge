@@ -7,7 +7,7 @@ use bytes::Bytes;
 use console::strip_ansi_codes;
 use forge_display::{DiffFormat, TitleFormat};
 // Using FSWriteInput from forge_domain
-use forge_domain::ToolContent;
+use forge_domain::ToolOutput;
 use forge_domain::{
     EnvironmentService, ExecutableTool, FSWriteInput, NamedTool, ToolCallContext, ToolDescription,
     ToolName,
@@ -61,7 +61,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolContent> {
+    ) -> anyhow::Result<ToolOutput> {
         // Validate absolute path requirement
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
@@ -142,7 +142,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
 
         context.send_text(diff).await?;
 
-        Ok(ToolContent::text(result))
+        Ok(ToolOutput::text(result))
     }
 }
 

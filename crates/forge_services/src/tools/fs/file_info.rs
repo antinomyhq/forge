@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolContent, ToolDescription,
+    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolOutput, ToolDescription,
     ToolName,
 };
 use forge_tool_macros::ToolDescription;
@@ -66,7 +66,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolContent> {
+    ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -77,7 +77,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         context
             .send_text(TitleFormat::debug("Info").title(self.format_display_path(path)?))
             .await?;
-        Ok(ToolContent::text(format!("{meta:?}")))
+        Ok(ToolOutput::text(format!("{meta:?}")))
     }
 }
 

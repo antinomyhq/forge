@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::{NamedTool, ToolCallContext, ToolName, ToolOutput};
+use crate::{NamedTool, ToolCallContext, ToolName, ToolOutputValue};
 
 ///
 /// Refer to the specification over here:
@@ -60,38 +60,38 @@ pub trait ExecutableTool {
         &self,
         context: ToolCallContext,
         input: Self::Input,
-    ) -> anyhow::Result<ToolContent>;
+    ) -> anyhow::Result<ToolOutput>;
 }
 
 // FIXME: Drop this and use ToolResult instead
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Setters)]
 #[setters(into, strip_option)]
-pub struct ToolContent {
-    pub items: Vec<ToolOutput>,
+pub struct ToolOutput {
+    pub items: Vec<ToolOutputValue>,
     pub is_error: bool,
 }
 
-impl ToolContent {
+impl ToolOutput {
     pub fn text(tool: String) -> Self {
-        ToolContent { is_error: false, items: vec![ToolOutput::Text(tool)] }
+        ToolOutput { is_error: false, items: vec![ToolOutputValue::Text(tool)] }
     }
 
     pub fn image(url: String) -> Self {
-        ToolContent { is_error: false, items: vec![ToolOutput::Base64URL(url)] }
+        ToolOutput { is_error: false, items: vec![ToolOutputValue::Base64URL(url)] }
     }
 
-    pub fn combine(self, other: ToolContent) -> Self {
+    pub fn combine(self, other: ToolOutput) -> Self {
         let mut items = self.items;
         items.extend(other.items);
-        ToolContent { items, is_error: self.is_error || other.is_error }
+        ToolOutput { items, is_error: self.is_error || other.is_error }
     }
 }
 
-impl<T> From<T> for ToolContent
+impl<T> From<T> for ToolOutput
 where
-    T: Iterator<Item = ToolContent>,
+    T: Iterator<Item = ToolOutput>,
 {
     fn from(item: T) -> Self {
-        item.fold(ToolContent::default(), |acc, item| acc.combine(item))
+        item.fold(ToolOutput::default(), |acc, item| acc.combine(item))
     }
 }
