@@ -295,7 +295,7 @@ impl From<ToolCallFull> for ToolCall {
 impl From<ContextMessage> for Message {
     fn from(value: ContextMessage) -> Self {
         match value {
-            ContextMessage::TextMessage(chat_message) => Message {
+            ContextMessage::ContentMessage(chat_message) => Message {
                 role: chat_message.role.into(),
                 content: Some(MessageContent::Text(chat_message.content)),
                 name: None,
@@ -311,7 +311,7 @@ impl From<ContextMessage> for Message {
                 tool_call_id: tool_result.call_id,
                 tool_calls: None,
             },
-            ContextMessage::ImageUrl(url) => {
+            ContextMessage::Image(url) => {
                 let content =
                     vec![ContentPart::ImageUrl { image_url: ImageUrl { url, detail: None } }];
                 Message {
@@ -348,7 +348,7 @@ pub enum Role {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        ContextMessage, Role, ContentMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use insta::assert_json_snapshot;
     use serde_json::json;
@@ -357,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_user_message_conversion() {
-        let user_message = ContextMessage::TextMessage(TextMessage {
+        let user_message = ContextMessage::ContentMessage(ContentMessage {
             role: Role::User,
             content: "Hello".to_string(),
             tool_calls: None,
@@ -379,7 +379,7 @@ mod tests {
     </data>
 </task>"#;
 
-        let message = ContextMessage::TextMessage(TextMessage {
+        let message = ContextMessage::ContentMessage(ContentMessage {
             role: Role::User,
             content: xml_content.to_string(),
             tool_calls: None,
@@ -397,7 +397,7 @@ mod tests {
             arguments: json!({"key": "value"}),
         };
 
-        let assistant_message = ContextMessage::TextMessage(TextMessage {
+        let assistant_message = ContextMessage::ContentMessage(ContentMessage {
             role: Role::Assistant,
             content: "Using tool".to_string(),
             tool_calls: Some(vec![tool_call]),

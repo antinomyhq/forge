@@ -13,14 +13,16 @@ use crate::{ModelId, ToolCallRecord, ToolChoice, ToolDefinition};
 #[derive(Clone, Debug, Deserialize, From, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextMessage {
-    TextMessage(TextMessage),
+    // TODO:Rename to TextMessage
+    ContentMessage(ContentMessage),
     ToolMessage(ToolResult),
-    ImageUrl(String),
+    // TODO: Rename to ImageUrl
+    Image(String),
 }
 
 impl ContextMessage {
     pub fn user(content: impl ToString, model: Option<ModelId>) -> Self {
-        TextMessage {
+        ContentMessage {
             role: Role::User,
             content: content.to_string(),
             tool_calls: None,
@@ -30,7 +32,7 @@ impl ContextMessage {
     }
 
     pub fn system(content: impl ToString) -> Self {
-        TextMessage {
+        ContentMessage {
             role: Role::System,
             content: content.to_string(),
             tool_calls: None,
@@ -42,7 +44,7 @@ impl ContextMessage {
     pub fn assistant(content: impl ToString, tool_calls: Option<Vec<ToolCallFull>>) -> Self {
         let tool_calls =
             tool_calls.and_then(|calls| if calls.is_empty() { None } else { Some(calls) });
-        TextMessage {
+        ContentMessage {
             role: Role::Assistant,
             content: content.to_string(),
             tool_calls,
@@ -57,25 +59,26 @@ impl ContextMessage {
 
     pub fn has_role(&self, role: Role) -> bool {
         match self {
-            ContextMessage::TextMessage(message) => message.role == role,
+            ContextMessage::ContentMessage(message) => message.role == role,
             ContextMessage::ToolMessage(_) => false,
-            ContextMessage::ImageUrl(_) => Role::User == role,
+            ContextMessage::Image(_) => Role::User == role,
         }
     }
 
     pub fn has_tool_call(&self) -> bool {
         match self {
-            ContextMessage::TextMessage(message) => message.tool_calls.is_some(),
+            ContextMessage::ContentMessage(message) => message.tool_calls.is_some(),
             ContextMessage::ToolMessage(_) => false,
-            ContextMessage::ImageUrl(_) => false,
+            ContextMessage::Image(_) => false,
         }
     }
 }
 
+//TODO: Rename to TextMessage
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Setters)]
 #[setters(strip_option, into)]
 #[serde(rename_all = "snake_case")]
-pub struct TextMessage {
+pub struct ContentMessage {
     pub role: Role,
     pub content: String,
     pub tool_calls: Option<Vec<ToolCallFull>>,
@@ -83,7 +86,7 @@ pub struct TextMessage {
     pub model: Option<ModelId>,
 }
 
-impl TextMessage {
+impl ContentMessage {
     pub fn assistant(content: impl ToString, model: Option<ModelId>) -> Self {
         Self {
             role: Role::Assistant,
@@ -121,7 +124,7 @@ pub struct Context {
 impl Context {
     pub fn add_url(mut self, url: &str) -> Self {
         self.messages
-            .push(ContextMessage::ImageUrl(url.to_string()));
+            .push(ContextMessage::Image(url.to_string()));
         self
     }
 
@@ -159,7 +162,7 @@ impl Context {
         if self.messages.is_empty() {
             self.add_message(ContextMessage::system(content.into()))
         } else {
-            if let Some(ContextMessage::TextMessage(content_message)) = self.messages.get_mut(0) {
+            if let Some(ContextMessage::ContentMessage(content_message)) = self.messages.get_mut(0) {
                 if content_message.role == Role::System {
                     content_message.content = content.into();
                 } else {
@@ -178,7 +181,7 @@ impl Context {
 
         for message in self.messages.iter() {
             match message {
-                ContextMessage::TextMessage(message) => {
+                ContextMessage::ContentMessage(message) => {
                     lines.push_str(&format!("<message role=\"{}\">", message.role));
                     lines.push_str(&format!("<content>{}</content>", message.content));
                     if let Some(tool_calls) = &message.tool_calls {
@@ -203,7 +206,7 @@ impl Context {
                     ));
                     lines.push_str("</message>");
                 }
-                ContextMessage::ImageUrl(url) => {
+                ContextMessage::Image(url) => {
                     lines.push_str(format!("<file_attachment path=\"{url}\">").as_str());
                 }
             }

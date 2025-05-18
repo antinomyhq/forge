@@ -29,7 +29,7 @@ impl Transformer for DropToolCalls {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        Context, ContextMessage, Role, ContentMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use serde_json::json;
 
@@ -49,7 +49,7 @@ mod tests {
 
         let context = Context {
             messages: vec![
-                ContextMessage::TextMessage(TextMessage {
+                ContextMessage::ContentMessage(ContentMessage {
                     role: Role::Assistant,
                     content: "Using tool".to_string(),
                     tool_calls: Some(vec![tool_call]),

@@ -40,7 +40,7 @@ impl Transformer for SetCache {
 mod tests {
     use std::collections::HashSet;
 
-    use forge_domain::{Context, ContextMessage, ModelId, Role, TextMessage};
+    use forge_domain::{Context, ContextMessage, ModelId, Role, ContentMessage};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -51,19 +51,19 @@ mod tests {
                 .to_string()
                 .chars()
                 .map(|c| match c {
-                    's' => ContextMessage::TextMessage(TextMessage {
+                    's' => ContextMessage::ContentMessage(ContentMessage {
                         role: Role::System,
                         content: c.to_string(),
                         tool_calls: None,
                         model: None,
                     }),
-                    'u' => ContextMessage::TextMessage(TextMessage {
+                    'u' => ContextMessage::ContentMessage(ContentMessage {
                         role: Role::User,
                         content: c.to_string(),
                         tool_calls: None,
                         model: ModelId::new("gpt-4").into(),
                     }),
-                    'a' => ContextMessage::TextMessage(TextMessage {
+                    'a' => ContextMessage::ContentMessage(ContentMessage {
                         role: Role::Assistant,
                         content: c.to_string(),
                         tool_calls: None,
