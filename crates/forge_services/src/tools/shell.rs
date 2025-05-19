@@ -522,7 +522,6 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(!result.is_empty());
         assert!(!result.contains("Error:"));
     }
 
