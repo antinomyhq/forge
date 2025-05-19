@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use forge_services::InquireService;
 use inquire::ui::{RenderConfig, Styled};
 use inquire::{InquireError, MultiSelect, Select, Text};
@@ -33,7 +33,7 @@ impl ForgeInquire {
         match result {
             Ok(value) => Ok(Some(value)),
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => Ok(None),
-            Err(e) => Err(anyhow!(e)),
+            Err(e) => Err(e.into()),
         }
     }
 }

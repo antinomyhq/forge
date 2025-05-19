@@ -21,10 +21,12 @@ impl<'a> ProviderPipeline<'a> {
 
 impl Transformer for ProviderPipeline<'_> {
     fn transform(&self, request: Request) -> Request {
+        // Only Anthropic and Gemini requires cache configuration to be set.
+        // ref: https://openrouter.ai/docs/features/prompt-caching
         let or_transformers = Identity
             .combine(DropToolCalls.when_model("mistral"))
             .combine(SetToolChoice::new(ToolChoice::Auto).when_model("gemini"))
-            .combine(SetCache.except_when_model("mistral|gemini|openai"))
+            .combine(SetCache.when_model("gemini|anthropic"))
             .when(move |_| self.0.is_open_router() || self.0.is_antinomy());
 
         let open_ai_compat =

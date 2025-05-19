@@ -6,6 +6,8 @@ use anyhow::Context;
 use bytes::Bytes;
 use console::strip_ansi_codes;
 use forge_display::{DiffFormat, TitleFormat};
+// Using FSWriteInput from forge_domain
+use forge_domain::ToolOutput;
 use forge_domain::{
     EnvironmentService, ExecutableTool, FSWriteInput, NamedTool, ToolCallContext, ToolDescription,
     ToolName,
@@ -13,10 +15,8 @@ use forge_domain::{
 use forge_tool_macros::ToolDescription;
 
 use crate::tools::syn;
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};
-
-// Using FSWriteInput from forge_domain
 
 /// Use it to create a new file at a specified path with the provided content.
 /// Always provide absolute paths for file locations. The tool
@@ -57,7 +57,11 @@ impl<F> NamedTool for FSWrite<F> {
 impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
     type Input = FSWriteInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolOutput> {
         // Validate absolute path requirement
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
@@ -138,7 +142,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
 
         context.send_text(diff).await?;
 
-        Ok(result)
+        Ok(ToolOutput::text(result))
     }
 }
 
@@ -152,7 +156,7 @@ mod test {
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
     use crate::{FsMetaService, FsReadService};
 
     async fn assert_path_exists(path: impl AsRef<Path>, infra: &MockInfrastructure) {
@@ -185,7 +189,8 @@ mod test {
                 },
             )
             .await
-            .unwrap();
+            .unwrap()
+            .into_string();
 
         // Normalize the output to remove temp directory paths
         let normalized_output = TempDir::normalize(&output);
@@ -218,7 +223,7 @@ mod test {
             )
             .await;
 
-        let output = result.unwrap();
+        let output = result.unwrap().into_string();
         // Normalize the output to remove temp directory paths
         let normalized_output = TempDir::normalize(&output);
         assert_snapshot!(normalized_output);
@@ -243,7 +248,7 @@ mod test {
             )
             .await;
 
-        let output = result.unwrap();
+        let output = result.unwrap().into_string();
         // Normalize the output to remove temp directory paths
         let normalized_output = TempDir::normalize(&output);
         assert_snapshot!(normalized_output);
@@ -280,7 +285,7 @@ mod test {
             .unwrap();
 
         // Normalize the output to remove temp directory paths
-        let normalized_result = TempDir::normalize(&result);
+        let normalized_result = TempDir::normalize(&result.into_string());
         assert_snapshot!(normalized_result);
 
         // Verify both directory and file were created
@@ -322,7 +327,7 @@ mod test {
             .unwrap();
 
         // Normalize the output to remove temp directory paths
-        let normalized_result = TempDir::normalize(&result);
+        let normalized_result = TempDir::normalize(&result.into_string());
         assert_snapshot!(normalized_result);
 
         // Verify entire path was created
@@ -365,7 +370,7 @@ mod test {
             .unwrap();
 
         // Normalize the output to remove temp directory paths
-        let normalized_result = TempDir::normalize(&result);
+        let normalized_result = TempDir::normalize(&result.into_string());
         assert_snapshot!(normalized_result);
 
         // Convert to platform path and verify
@@ -501,7 +506,7 @@ mod test {
 
         // Should be successful
         assert!(result.is_ok());
-        let success_msg = result.unwrap();
+        let success_msg = result.unwrap().into_string();
 
         // Normalize the output to remove temp directory paths
         let normalized_msg = TempDir::normalize(&success_msg);
