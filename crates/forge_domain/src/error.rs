@@ -45,9 +45,6 @@ pub enum Error {
 
     #[error("No model defined for agent: {0}")]
     NoModelDefined(AgentId),
-
-    #[error("Invalid mime-type: {0}")]
-    InvalidMimeType(String),
 }
 
 pub type Result<A> = std::result::Result<A, Error>;
