@@ -66,19 +66,20 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
 
         let tool = self.get_tool(&name).await?;
-        let output = match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
-            Ok(output) => output,
-            Err(e) => {
-                return Err(anyhow::anyhow!(
+
+        let result = match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
+            Ok(output) => ToolResult::new(call.name).output(output),
+            Err(elapsed) => ToolResult::new(call.name).failure(
+                anyhow::anyhow!(
                     "Tool '{}' timed out after {} minutes",
                     name.to_string(),
                     TOOL_CALL_TIMEOUT.as_secs() / 60
                 )
-                .context(e))
-            }
-        }?;
+                .context(elapsed),
+            ),
+        };
 
-        Ok(ToolResult::new(call.name).output(output))
+        Ok(result)
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {

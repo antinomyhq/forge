@@ -8,6 +8,7 @@ use crate::{Image, ToolCallFull, ToolCallId, ToolName};
 pub struct ToolResult {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
+    #[setters(skip)]
     pub output: ToolOutput,
 }
 
@@ -26,20 +27,31 @@ impl ToolResult {
         self
     }
 
-    pub fn failure(mut self, err: anyhow::Error) -> Self {
-        let mut output = String::new();
-        output.push_str("\nERROR:\n");
-
-        for cause in err.chain() {
-            output.push_str(&format!("Caused by: {cause}\n"));
-        }
-
-        self.output = ToolOutput::text(output).is_error(true);
-        self
+    pub fn failure(self, err: anyhow::Error) -> Self {
+        self.output(Err(err))
     }
 
     pub fn is_error(&self) -> bool {
         self.output.is_error
+    }
+
+    pub fn output(mut self, result: Result<ToolOutput, anyhow::Error>) -> Self {
+        match result {
+            Ok(output) => {
+                self.output = output;
+            }
+            Err(err) => {
+                let mut output = String::new();
+                output.push_str("\nERROR:\n");
+
+                for cause in err.chain() {
+                    output.push_str(&format!("Caused by: {cause}\n"));
+                }
+
+                self.output = ToolOutput::text(output).is_error(true);
+            }
+        }
+        self
     }
 }
 
