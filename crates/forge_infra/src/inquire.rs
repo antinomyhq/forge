@@ -33,7 +33,7 @@ impl ForgeInquire {
         match result {
             Ok(value) => Ok(Some(value)),
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => Ok(None),
-            Err(e) => Err(anyhow!(e)),
+            Err(e) => Err(e.into()),
         }
     }
 }
