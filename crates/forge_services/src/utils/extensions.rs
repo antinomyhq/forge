@@ -2,6 +2,7 @@ use forge_domain::{AttachmentContent, Image, ToolOutput, ToolOutputValue};
 
 pub trait ToolContentExtension {
     fn into_string(self) -> String;
+    fn contains(&self, needle: &str) -> bool;
 }
 
 impl ToolContentExtension for ToolOutput {
@@ -16,6 +17,14 @@ impl ToolContentExtension for ToolOutput {
                 ToolOutputValue::Empty => None,
             })
             .collect()
+    }
+
+    fn contains(&self, needle: &str) -> bool {
+        self.values.iter().any(|item| match item {
+            ToolOutputValue::Text(text) => text.contains(needle),
+            ToolOutputValue::Image(_) => false,
+            ToolOutputValue::Empty => false,
+        })
     }
 }
 

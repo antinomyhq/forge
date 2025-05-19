@@ -324,8 +324,8 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.clone().into_string().contains("test1.txt"));
-        assert!(result.into_string().contains("test2.txt"));
+        assert!(result.contains("test1.txt"));
+        assert!(result.contains("test2.txt"));
     }
 
     #[tokio::test]
@@ -353,7 +353,7 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.into_string().contains("test2.rs"));
+        assert!(result.contains("test2.rs"));
     }
 
     #[tokio::test]
@@ -384,9 +384,9 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.clone().into_string().contains("test1.txt"));
-        assert!(result.clone().into_string().contains("test2.txt"));
-        assert!(!result.into_string().contains("other.txt"));
+        assert!(result.contains("test1.txt"));
+        assert!(result.contains("test2.txt"));
+        assert!(!result.contains("other.txt"));
     }
 
     #[tokio::test]
@@ -412,7 +412,7 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.into_string().contains("test line"));
+        assert!(result.contains("test line"));
     }
 
     #[tokio::test]
@@ -446,9 +446,9 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.clone().into_string().contains("test1.txt"));
-        assert!(result.clone().into_string().contains("test2.txt"));
-        assert!(result.into_string().contains("best.txt"));
+        assert!(result.contains("test1.txt"));
+        assert!(result.contains("test2.txt"));
+        assert!(result.contains("best.txt"));
     }
 
     #[tokio::test]
@@ -476,8 +476,8 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.clone().into_string().contains("TEST CONTENT"));
-        assert!(result.into_string().contains("test content"));
+        assert!(result.contains("TEST CONTENT"));
+        assert!(result.contains("test content"));
     }
 
     #[tokio::test]
@@ -502,7 +502,7 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.into_string().contains("No matches found."));
+        assert!(result.contains("No matches found."));
     }
 
     #[tokio::test]
@@ -530,8 +530,8 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.clone().into_string().contains("file1.txt"));
-        assert!(result.into_string().contains("file2.rs"));
+        assert!(result.contains("file1.txt"));
+        assert!(result.contains("file2.rs"));
     }
 
     #[tokio::test]
@@ -630,7 +630,7 @@ mod test {
             .await
             .unwrap();
 
-        assert!(result.clone().into_string().contains(&format!(
+        assert!(result.contains(&format!(
             "{}:1:nice code.",
             temp_dir.path().join("best.txt").display()
         )));
@@ -647,10 +647,7 @@ mod test {
             )
             .await
             .unwrap();
-        assert!(result
-            .clone()
-            .into_string()
-            .contains(&format!("{}", temp_dir.path().join("best.txt").display())));
+        assert!(result.contains(&format!("{}", temp_dir.path().join("best.txt").display())));
     }
 
     #[tokio::test]

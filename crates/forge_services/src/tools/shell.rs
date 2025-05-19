@@ -490,7 +490,7 @@ mod tests {
             .clone()
             .into_string()
             .contains("executed successfully"));
-        assert!(!result.clone().into_string().contains("failed"));
+        assert!(!result.contains("failed"));
     }
 
     #[tokio::test]
@@ -512,7 +512,7 @@ mod tests {
             .clone()
             .into_string()
             .contains("executed successfully"));
-        assert!(!result.clone().into_string().contains("failed"));
+        assert!(!result.contains("failed"));
     }
 
     #[tokio::test]
@@ -531,7 +531,7 @@ mod tests {
             .unwrap();
 
         assert!(!result.clone().into_string().is_empty());
-        assert!(!result.clone().into_string().contains("Error:"));
+        assert!(!result.contains("Error:"));
     }
 
     #[tokio::test]
