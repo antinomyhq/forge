@@ -176,12 +176,16 @@ mod test {
         // without relying on tokio test mock time that might be flakey
         let result = tokio::time::timeout(
             Duration::from_millis(50), // Use a very short timeout for test speed
-            service.call(ToolCallContext::default(), call)
-        ).await;
-        
+            service.call(ToolCallContext::default(), call),
+        )
+        .await;
+
         // Verify we got an elapsed error
         assert!(result.is_err(), "Expected timeout error");
         let timeout_err = result.unwrap_err();
-        assert!(timeout_err.to_string().contains("elapsed"), "Expected 'elapsed' in timeout message");
+        assert!(
+            timeout_err.to_string().contains("elapsed"),
+            "Expected 'elapsed' in timeout message"
+        );
     }
 }
