@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use forge_services::InquireService;
 use inquire::ui::{RenderConfig, Styled};
 use inquire::{InquireError, MultiSelect, Select, Text};
