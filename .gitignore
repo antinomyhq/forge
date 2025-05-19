@@ -40,3 +40,4 @@ Cargo.lock
 *.log*
 *-dump.json
 *-dump.html
+.mcp.json

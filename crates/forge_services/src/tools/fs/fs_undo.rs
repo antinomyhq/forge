@@ -4,13 +4,14 @@ use std::sync::Arc;
 use forge_display::TitleFormat;
 use forge_domain::{
     EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::infra::FsSnapshotService;
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
 
 /// Reverts the most recent file operation (create/modify/delete) on a specific
@@ -60,7 +61,11 @@ pub struct UndoInput {
 #[async_trait::async_trait]
 impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
     type Input = UndoInput;
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -73,9 +78,9 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
         let message = TitleFormat::debug("Undo").sub_title(display_path.clone());
         context.send_text(message).await?;
 
-        Ok(format!(
+        Ok(ToolOutput::text(format!(
             "Successfully undid last operation on path: {display_path}"
-        ))
+        )))
     }
 }
 
@@ -109,10 +114,10 @@ mod tests {
         assert!(result.is_ok(), "Expected successful undo operation");
         assert_eq!(
             result.unwrap(),
-            format!(
+            ToolOutput::text(format!(
                 "Successfully undid last operation on path: {}",
                 test_path.display()
-            ),
+            )),
             "Unexpected success message"
         );
     }

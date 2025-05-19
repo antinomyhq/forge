@@ -36,6 +36,7 @@ pub trait Transformer {
         self.when_model_matches_condition(pattern, true)
     }
 
+    #[allow(dead_code)]
     fn except_when_model(self, pattern: &str) -> When<Self, impl Fn(&Request) -> bool>
     where
         Self: Sized,

@@ -103,6 +103,7 @@ mod tests {
     use super::*;
     use crate::{
         ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription, ToolName,
+        ToolOutput,
     };
 
     #[derive(Default)]
@@ -135,8 +136,8 @@ mod tests {
     impl ExecutableTool for MangoTool {
         type Input = ToolInput;
 
-        async fn call(&self, _: ToolCallContext, _: Self::Input) -> anyhow::Result<String> {
-            Ok("Completed".to_string())
+        async fn call(&self, _: ToolCallContext, _: Self::Input) -> anyhow::Result<ToolOutput> {
+            Ok(ToolOutput::text("Completed".to_string()))
         }
     }
 

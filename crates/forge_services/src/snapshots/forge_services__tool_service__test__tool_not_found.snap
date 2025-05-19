@@ -1,9 +1,0 @@
----
-source: crates/forge_services/src/tool_service.rs
-expression: result
-snapshot_kind: text
----
-<forge_tool_result><forge_tool_name>nonexistent_tool</forge_tool_name><error><![CDATA[
-ERROR:
-Caused by: No tool with name 'nonexistent_tool' was found. Please try again with one of these tools failure_tool, success_tool
-]]></error></forge_tool_result>

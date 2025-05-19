@@ -3,10 +3,11 @@ use std::sync::Arc;
 
 use forge_domain::{
     ExecutableTool, FSRemoveInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 
-use crate::tools::utils::assert_absolute_path;
+use crate::utils::assert_absolute_path;
 use crate::{FileRemoveService, FsMetaService, Infrastructure};
 
 // Using FSRemoveInput from forge_domain
@@ -33,7 +34,11 @@ impl<T> NamedTool for FSRemove<T> {
 impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
     type Input = FSRemoveInput;
 
-    async fn call(&self, _context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        _context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -50,7 +55,10 @@ impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
         // Remove the file
         self.0.file_remove_service().remove(path).await?;
 
-        Ok(format!("Successfully removed file: {}", input.path))
+        Ok(ToolOutput::text(format!(
+            "Successfully removed file: {}",
+            input.path
+        )))
     }
 }
 
@@ -60,7 +68,7 @@ mod test {
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
     use crate::{FsCreateDirsService, FsWriteService};
 
     #[tokio::test]

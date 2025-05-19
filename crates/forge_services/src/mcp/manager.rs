@@ -1,10 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use anyhow::Context;
 use bytes::Bytes;
 use forge_domain::{EnvironmentService, McpConfig, McpConfigManager, Scope};
+use merge::Merge;
 
-use crate::{FsReadService, FsWriteService, Infrastructure};
+use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};
 
 pub struct ForgeMcpManager<I> {
     infra: Arc<I>,
@@ -32,17 +34,29 @@ impl<I: Infrastructure> ForgeMcpManager<I> {
 impl<I: Infrastructure> McpConfigManager for ForgeMcpManager<I> {
     async fn read(&self) -> anyhow::Result<McpConfig> {
         let env = self.infra.environment_service().get_environment();
-        let mut user_config = self
-            .read_config(env.mcp_user_config().as_path())
-            .await
-            .unwrap_or_default();
-        let local_config = self
-            .read_config(env.mcp_local_config().as_path())
-            .await
-            .unwrap_or_default();
-        user_config.mcp_servers.extend(local_config.mcp_servers);
+        let paths = vec![
+            // Configs at lower levels take precedence, so we read them in reverse order.
+            env.mcp_user_config().as_path().to_path_buf(),
+            env.mcp_local_config().as_path().to_path_buf(),
+        ];
+        let mut config = McpConfig::default();
+        for path in paths {
+            if self
+                .infra
+                .file_meta_service()
+                .is_file(&path)
+                .await
+                .unwrap_or_default()
+            {
+                let new_config = self.read_config(&path).await.context(format!(
+                    "An error occurred while reading config at: {}",
+                    path.display()
+                ))?;
+                config.merge(new_config);
+            }
+        }
 
-        Ok(user_config)
+        Ok(config)
     }
 
     async fn write(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()> {

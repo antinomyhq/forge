@@ -1,10 +1,11 @@
 ---
 source: crates/forge_provider/src/forge_provider/request.rs
 expression: router_message
+snapshot_kind: text
 ---
 {
   "role": "tool",
-  "content": "<forge_tool_result><forge_tool_name>html_tool</forge_tool_name><success><![CDATA[{\n                \"html\": \"<div class=\\\"container\\\"><p>Hello <World></p></div>\",\n                \"elements\": [\"<span>\", \"<br/>\", \"<hr>\"],\n                \"attributes\": {\n                    \"style\": \"color: blue; font-size: 12px;\",\n                    \"data-test\": \"<test>&value</test>\"\n                }\n            }]]></success></forge_tool_result>",
+  "content": "{\n                \"html\": \"<div class=\\\"container\\\"><p>Hello <World></p></div>\",\n                \"elements\": [\"<span>\", \"<br/>\", \"<hr>\"],\n                \"attributes\": {\n                    \"style\": \"color: blue; font-size: 12px;\",\n                    \"data-test\": \"<test>&value</test>\"\n                }\n            }",
   "name": "html_tool",
   "tool_call_id": "456"
 }

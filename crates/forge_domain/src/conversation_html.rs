@@ -175,7 +175,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                 let context_messages = Element::new("div.context-section").append(
                     context.messages.iter().map(|message| {
                         match message {
-                            ContextMessage::ContentMessage(content_message) => {
+                            ContextMessage::Text(content_message) => {
                                 // Convert role to lowercase for the class
                                 let role_lowercase =
                                     content_message.role.to_string().to_lowercase();
@@ -234,7 +234,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                     message_div
                                 }
                             }
-                            ContextMessage::ToolMessage(tool_result) => {
+                            ContextMessage::Tool(tool_result) => {
                                 // Tool Message
                                 Element::new("details.message-card.message-tool")
                                     .append(
@@ -242,13 +242,23 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                             .append(Element::new("strong").text("Tool Result: "))
                                             .append(Element::span(tool_result.name.as_str())),
                                     )
-                                    .append(Element::new("pre").text(&tool_result.content))
+                                    .append(tool_result.output.values.iter().filter_map(|value| {
+                                        match value {
+                                            crate::ToolOutputValue::Text(text) => {
+                                                Some(Element::new("pre").text(text))
+                                            }
+                                            crate::ToolOutputValue::Image(image) => {
+                                                Some(Element::new("img").attr("src", image.url()))
+                                            }
+                                            crate::ToolOutputValue::Empty => None,
+                                        }
+                                    }))
                             }
-                            ContextMessage::Image(url) => {
+                            ContextMessage::Image(image) => {
                                 // Image message
                                 Element::new("div.message-card.message-user")
                                     .append(Element::new("strong").text("Image Attachment"))
-                                    .append(Element::new("p").text(format!("URL: {url}")))
+                                    .append(Element::new("img").attr("src", image.url()))
                             }
                         }
                     }),
