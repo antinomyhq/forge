@@ -78,9 +78,9 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
 
         // Determine file type (text or image with format)
         let mime_type = extension.and_then(|ext| match ext.as_str() {
-            "jpeg" | "jpg" => Some("jpeg".to_string()),
-            "png" => Some("png".to_string()),
-            "webp" => Some("webp".to_string()),
+            "jpeg" | "jpg" => Some("image/jpeg".to_string()),
+            "png" => Some("image/png".to_string()),
+            "webp" => Some("image/webp".to_string()),
             _ => None,
         });
 
