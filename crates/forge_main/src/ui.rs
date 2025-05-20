@@ -549,7 +549,7 @@ impl<F: API> UI<F> {
         }
     }
     async fn login(&mut self) -> Result<ForgeKey> {
-        self.writeln(TitleFormat::info(&"Initiating login...".to_string()))?;
+        self.writeln(TitleFormat::info("Initiating login..."))?;
         let auth = self.api.init_login().await?;
         self.writeln(TitleFormat::action(format!(
             "Please visit the following URL to log in: {}",

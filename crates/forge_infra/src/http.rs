@@ -2,13 +2,14 @@ use bytes::Bytes;
 use forge_services::HttpService;
 use reqwest::{Client, Response};
 
+#[derive(Default)]
 pub struct ForgeHttpService {
     client: Client,
 }
 
 impl ForgeHttpService {
     pub fn new() -> Self {
-        Self { client: Client::new() }
+        Default::default()
     }
     async fn body(resp: Response) -> anyhow::Result<Bytes> {
         if resp.status().is_success() {

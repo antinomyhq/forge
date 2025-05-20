@@ -157,7 +157,7 @@ impl CommandExecutorService for ForgeCommandExecutorService {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::Provider;
+
     use pretty_assertions::assert_eq;
 
     use super::*;

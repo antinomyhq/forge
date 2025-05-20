@@ -43,15 +43,14 @@ pub mod tests {
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
+    use forge_domain::AuthService;
     use forge_domain::{
-        CommandOutput, Environment, EnvironmentService, ForgeKey, InitAuth, Provider,
-        ToolDefinition, ToolName,
+        CommandOutput, Environment, EnvironmentService, InitAuth, ToolDefinition, ToolName,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
 
     use super::*;
-    use crate::infra::AuthService;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
         FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
@@ -181,11 +180,11 @@ pub mod tests {
             unimplemented!()
         }
 
-        async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
+        async fn login(&self, _auth: &InitAuth) -> anyhow::Result<()> {
             unimplemented!()
         }
 
-        async fn get(&self) -> anyhow::Result<ForgeKey> {
+        async fn logout(&self) -> anyhow::Result<()> {
             unimplemented!()
         }
     }
@@ -247,7 +246,6 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl Infrastructure for Stub {
-        type AuthService = Stub;
         type EnvironmentService = Stub;
         type FsReadService = Stub;
         type FsWriteService = Stub;
@@ -257,8 +255,9 @@ pub mod tests {
         type FsCreateDirsService = Stub;
         type CommandExecutorService = Stub;
         type InquireService = Stub;
-
         type McpServer = Stub;
+        type HttpService = ();
+        type ProviderService = ();
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             self
@@ -300,8 +299,16 @@ pub mod tests {
             self
         }
 
-        fn auth_service(&self) -> &Self::AuthService {
-            self
+        fn http_service(&self) -> &Self::HttpService {
+            // Return static placeholder since we are using unit type
+            static HTTP_SERVICE: () = ();
+            &HTTP_SERVICE
+        }
+
+        fn provider_service(&self) -> &Self::ProviderService {
+            // Return static placeholder since we are using unit type
+            static PROVIDER_SERVICE: () = ();
+            &PROVIDER_SERVICE
         }
     }
 
