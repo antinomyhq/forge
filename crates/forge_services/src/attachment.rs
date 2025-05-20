@@ -130,8 +130,8 @@ pub mod tests {
     use crate::attachment::ForgeChatRequest;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
-        McpClient, McpServer, TempDir,
+        FsReadService, FsSnapshotService, FsWriteService, HttpService, Infrastructure,
+        InquireService, McpClient, McpServer, ProviderService, TempDir,
     };
 
     #[derive(Debug)]
@@ -147,7 +147,6 @@ pub mod tests {
                 home: Some(PathBuf::from("/home/test")),
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/base"),
-                provider: Provider::open_router("test-key"),
                 retry_config: Default::default(),
             }
         }
@@ -508,6 +507,23 @@ pub mod tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl HttpService for () {
+        async fn get(&self, _: &str) -> anyhow::Result<Bytes> {
+            unimplemented!()
+        }
+
+        async fn post(&self, _: &str, _: Bytes) -> anyhow::Result<Bytes> {
+            unimplemented!()
+        }
+    }
+
+    impl ProviderService for () {
+        fn get(&self, _: &str) -> Provider {
+            unimplemented!()
+        }
+    }
+
     impl Infrastructure for MockInfrastructure {
         type EnvironmentService = MockEnvironmentService;
         type FsReadService = MockFileService;
@@ -519,6 +535,8 @@ pub mod tests {
         type CommandExecutorService = ();
         type InquireService = ();
         type McpServer = ();
+        type HttpService = ();
+        type ProviderService = ();
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
@@ -557,6 +575,13 @@ pub mod tests {
         }
 
         fn mcp_server(&self) -> &Self::McpServer {
+            &()
+        }
+
+        fn http_service(&self) -> &Self::HttpService {
+            &()
+        }
+        fn provider_service(&self) -> &Self::ProviderService {
             &()
         }
     }

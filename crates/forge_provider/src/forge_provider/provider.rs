@@ -1,7 +1,7 @@
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_domain::{
-    self, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ProviderService,
+    self, ChatCompletionMessage, ChatService, Context as ChatContext, ModelId, Provider,
     ResultStream,
 };
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
@@ -197,7 +197,7 @@ impl ForgeProvider {
 }
 
 #[async_trait::async_trait]
-impl ProviderService for ForgeProvider {
+impl ChatService for ForgeProvider {
     async fn chat(
         &self,
         model: &ModelId,

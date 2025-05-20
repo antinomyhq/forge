@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{CommandExecutorService, ForgeServices, Infrastructure};
+use forge_services::{CommandExecutorService, ForgeServices, Infrastructure, ProviderService};
 use forge_stream::MpscStream;
 use tracing::error;
 
@@ -37,7 +37,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
-        Ok(self.app.provider_service().models().await?)
+        Ok(self.app.chat_service().models().await?)
     }
 
     async fn chat(
@@ -152,5 +152,24 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .command_executor_service()
             .execute_command_raw(command, args)
             .await
+    }
+
+    async fn init_login(&self) -> Result<InitAuth> {
+        self.app.auth_service().init().await
+    }
+
+    async fn login(&self, auth: &InitAuth) -> Result<()> {
+        self.app.auth_service().login(auth).await
+    }
+
+    async fn logout(&self) -> Result<()> {
+        self.app.auth_service().logout().await
+    }
+
+    async fn api_key(&self) -> Option<ForgeKey> {
+        self.app.key_service().get().await
+    }
+    fn provider(&self, key: &ForgeKey) -> Provider {
+        self.app.provider_service().get(key.key.as_str())
     }
 }

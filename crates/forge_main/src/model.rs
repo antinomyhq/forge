@@ -182,6 +182,8 @@ impl ForgeCommandManager {
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
+            "/login" => Ok(Command::Login),
+            "/logout" => Ok(Command::Logout),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -263,6 +265,14 @@ pub enum Command {
     /// This can be triggered with commands starting with '!' character.
     #[strum(props(usage = "Execute a native shell command"))]
     Shell(String),
+
+    /// Log in
+    #[strum(props(usage = "Login"))]
+    Login,
+
+    #[strum(props(usage = "Logout of the current session"))]
+    /// Logs out of the current session.
+    Logout,
 }
 
 impl Command {
@@ -282,6 +292,8 @@ impl Command {
             Command::Tools => "/tools",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
+            Command::Login => "/login",
+            Command::Logout => "/logout",
         }
     }
 

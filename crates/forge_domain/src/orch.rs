@@ -388,7 +388,7 @@ impl<A: Services> Orchestrator<A> {
     ) -> anyhow::Result<ChatCompletionResult> {
         let response = self
             .services
-            .provider_service()
+            .chat_service()
             .chat(model_id, context.clone())
             .await?;
         self.collect_messages(agent, &context, response).await

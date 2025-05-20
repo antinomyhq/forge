@@ -40,17 +40,18 @@ impl<F: Infrastructure> ToolRegistry<F> {
 
 #[cfg(test)]
 pub mod tests {
-
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
     use forge_domain::{
-        CommandOutput, Environment, EnvironmentService, Provider, ToolDefinition, ToolName,
+        CommandOutput, Environment, EnvironmentService, ForgeKey, InitAuth, Provider,
+        ToolDefinition, ToolName,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
 
     use super::*;
+    use crate::infra::AuthService;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
         FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
@@ -70,7 +71,6 @@ pub mod tests {
                 },
                 base_path: PathBuf::new(),
                 pid: std::process::id(),
-                provider: Provider::anthropic("test-key"),
                 retry_config: Default::default(),
             },
         }
@@ -176,6 +176,21 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl AuthService for Stub {
+        async fn init(&self) -> anyhow::Result<InitAuth> {
+            unimplemented!()
+        }
+
+        async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn get(&self) -> anyhow::Result<ForgeKey> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
     impl InquireService for Stub {
         /// Prompts the user with question
         async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
@@ -232,6 +247,7 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl Infrastructure for Stub {
+        type AuthService = Stub;
         type EnvironmentService = Stub;
         type FsReadService = Stub;
         type FsWriteService = Stub;
@@ -281,6 +297,10 @@ pub mod tests {
         }
 
         fn mcp_server(&self) -> &Self::McpServer {
+            self
+        }
+
+        fn auth_service(&self) -> &Self::AuthService {
             self
         }
     }

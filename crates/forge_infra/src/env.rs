@@ -1,14 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
-use forge_domain::{Environment, Provider, RetryConfig};
+use forge_domain::{Environment, RetryConfig};
 
 pub struct ForgeEnvironmentService {
     restricted: bool,
     is_env_loaded: RwLock<bool>,
 }
-
-type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
 
 impl ForgeEnvironmentService {
     /// Creates a new EnvironmentFactory with current working directory
@@ -31,44 +29,6 @@ impl ForgeEnvironmentService {
             // Use user's preferred shell or fallback to sh
             std::env::var("SHELL").unwrap_or("/bin/sh".to_string())
         }
-    }
-
-    /// Resolves the provider key and provider from environment variables
-    ///
-    /// Returns a tuple of (provider_key, provider)
-    /// Panics if no API key is found in the environment
-    fn resolve_provider(&self) -> Provider {
-        let keys: [ProviderSearch; 4] = [
-            ("FORGE_KEY", Box::new(Provider::antinomy)),
-            ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
-            ("OPENAI_API_KEY", Box::new(Provider::openai)),
-            ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
-        ];
-
-        let env_variables = keys
-            .iter()
-            .map(|(key, _)| *key)
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        keys.into_iter()
-            .find_map(|(key, fun)| {
-                std::env::var(key).ok().map(|key| {
-                    let mut provider = fun(&key);
-
-                    if let Ok(url) = std::env::var("OPENAI_URL") {
-                        provider.open_ai_url(url);
-                    }
-
-                    // Check for Anthropic URL override
-                    if let Ok(url) = std::env::var("ANTHROPIC_URL") {
-                        provider.anthropic_url(url);
-                    }
-
-                    provider
-                })
-            })
-            .unwrap_or_else(|| panic!("No API key found. Please set one of: {env_variables}"))
     }
 
     /// Resolves retry configuration from environment variables or returns
@@ -117,7 +77,6 @@ impl ForgeEnvironmentService {
             Self::dot_env(&cwd);
         }
 
-        let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
 
         Environment {
@@ -129,7 +88,6 @@ impl ForgeEnvironmentService {
                 .map(|a| a.join("forge"))
                 .unwrap_or(PathBuf::from(".").join("forge")),
             home: dirs::home_dir(),
-            provider,
             retry_config,
         }
     }
