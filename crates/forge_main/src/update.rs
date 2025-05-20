@@ -84,7 +84,7 @@ async fn send_update_failure_event(error_msg: &str) -> anyhow::Result<()> {
     // Ignore the result since we are failing silently
     // This is safe because we're using a static tracker with 'static lifetime
     let _ = TRACKER
-        .dispatch(EventKind::Error(error_msg.to_string()))
+        .dispatch(EventKind::Error { message: error_msg.to_string(), conversation: None })
         .await;
 
     // Always return Ok since we want to fail silently

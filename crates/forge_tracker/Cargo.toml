@@ -23,6 +23,7 @@ regex.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
 anyhow.workspace = true
+forge_domain.workspace = true
 
 [dev-dependencies]
 lazy_static.workspace = true

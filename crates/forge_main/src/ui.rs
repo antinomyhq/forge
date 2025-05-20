@@ -208,7 +208,16 @@ impl<F: API> UI<F> {
                         Ok(exit) => if exit {return Ok(())},
                         Err(error) => {
                             tokio::spawn(
-                                TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{error:?}"))),
+                                TRACKER.dispatch(forge_tracker::EventKind::Error {
+                                    message: format!("{error:?}"),
+                                    conversation: {
+                                        if let Some(ref conversation_id) = self.state.conversation_id {
+                                            self.api.conversation(conversation_id).await.ok().flatten()
+                                        } else {
+                                            None
+                                        }
+                                    },
+                                }),
                             );
                             self.writeln(TitleFormat::error(format!("{error:?}")))?;
                         },
