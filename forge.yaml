@@ -1,5 +1,3 @@
-variables:
-  mode: PLAN
 commands:
 - name: fixme
   description: Looks for all the fixme comments in the code and attempts to fix them
