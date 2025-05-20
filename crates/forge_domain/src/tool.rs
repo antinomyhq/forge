@@ -1,7 +1,9 @@
 use schemars::JsonSchema;
 use serde_json::Value;
 
-use crate::{ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription};
+use crate::{
+    ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription, ToolOutput,
+};
 
 struct JsonTool<T>(T);
 
@@ -18,7 +20,11 @@ where
 {
     type Input = Value;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolOutput> {
         let input: T::Input = serde_json::from_value(input)?;
         self.0.call(context, input).await
     }

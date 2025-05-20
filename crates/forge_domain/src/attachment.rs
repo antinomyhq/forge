@@ -4,21 +4,18 @@ use nom::bytes::complete::{tag, take_until};
 use nom::combinator::value;
 use nom::Parser;
 
-#[derive(
-    Debug, schemars::JsonSchema, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash,
-)]
+use crate::Image;
+
+#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub struct Attachment {
-    pub content: String,
+    pub content: AttachmentContent,
     pub path: String,
-    pub content_type: ContentType,
 }
 
-#[derive(
-    Debug, schemars::JsonSchema, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash,
-)]
-pub enum ContentType {
-    Image,
-    Text,
+#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+pub enum AttachmentContent {
+    Image(Image),
+    FileContent(String),
 }
 
 impl Attachment {

@@ -5,22 +5,22 @@ use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
-use crate::{ModelId, ToolCallRecord, ToolChoice, ToolDefinition};
+use crate::{Image, ModelId, ToolChoice, ToolDefinition};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
 /// of the message.
-#[derive(Clone, Debug, Deserialize, From, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, From, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextMessage {
-    ContentMessage(ContentMessage),
-    ToolMessage(ToolResult),
-    Image(String),
+    Text(TextMessage),
+    Tool(ToolResult),
+    Image(Image),
 }
 
 impl ContextMessage {
     pub fn user(content: impl ToString, model: Option<ModelId>) -> Self {
-        ContentMessage {
+        TextMessage {
             role: Role::User,
             content: content.to_string(),
             tool_calls: None,
@@ -30,7 +30,7 @@ impl ContextMessage {
     }
 
     pub fn system(content: impl ToString) -> Self {
-        ContentMessage {
+        TextMessage {
             role: Role::System,
             content: content.to_string(),
             tool_calls: None,
@@ -42,7 +42,7 @@ impl ContextMessage {
     pub fn assistant(content: impl ToString, tool_calls: Option<Vec<ToolCallFull>>) -> Self {
         let tool_calls =
             tool_calls.and_then(|calls| if calls.is_empty() { None } else { Some(calls) });
-        ContentMessage {
+        TextMessage {
             role: Role::Assistant,
             content: content.to_string(),
             tool_calls,
@@ -52,30 +52,31 @@ impl ContextMessage {
     }
 
     pub fn tool_result(result: ToolResult) -> Self {
-        Self::ToolMessage(result)
+        Self::Tool(result)
     }
 
     pub fn has_role(&self, role: Role) -> bool {
         match self {
-            ContextMessage::ContentMessage(message) => message.role == role,
-            ContextMessage::ToolMessage(_) => false,
+            ContextMessage::Text(message) => message.role == role,
+            ContextMessage::Tool(_) => false,
             ContextMessage::Image(_) => Role::User == role,
         }
     }
 
     pub fn has_tool_call(&self) -> bool {
         match self {
-            ContextMessage::ContentMessage(message) => message.tool_calls.is_some(),
-            ContextMessage::ToolMessage(_) => false,
+            ContextMessage::Text(message) => message.tool_calls.is_some(),
+            ContextMessage::Tool(_) => false,
             ContextMessage::Image(_) => false,
         }
     }
 }
 
+//TODO: Rename to TextMessage
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Setters)]
 #[setters(strip_option, into)]
 #[serde(rename_all = "snake_case")]
-pub struct ContentMessage {
+pub struct TextMessage {
     pub role: Role,
     pub content: String,
     pub tool_calls: Option<Vec<ToolCallFull>>,
@@ -83,7 +84,7 @@ pub struct ContentMessage {
     pub model: Option<ModelId>,
 }
 
-impl ContentMessage {
+impl TextMessage {
     pub fn assistant(content: impl ToString, model: Option<ModelId>) -> Self {
         Self {
             role: Role::Assistant,
@@ -103,10 +104,12 @@ pub enum Role {
 
 /// Represents a request being made to the LLM provider. By default the request
 /// is created with assuming the model supports use of external tools.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Setters, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize, Setters, Default, PartialEq)]
 #[setters(into, strip_option)]
 pub struct Context {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub messages: Vec<ContextMessage>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<ToolDefinition>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<ToolChoice>,
@@ -117,8 +120,8 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn add_url(mut self, url: &str) -> Self {
-        self.messages.push(ContextMessage::Image(url.to_string()));
+    pub fn add_base64_url(mut self, image: Image) -> Self {
+        self.messages.push(ContextMessage::Image(image));
         self
     }
 
@@ -156,8 +159,7 @@ impl Context {
         if self.messages.is_empty() {
             self.add_message(ContextMessage::system(content.into()))
         } else {
-            if let Some(ContextMessage::ContentMessage(content_message)) = self.messages.get_mut(0)
-            {
+            if let Some(ContextMessage::Text(content_message)) = self.messages.get_mut(0) {
                 if content_message.role == Role::System {
                     content_message.content = content.into();
                 } else {
@@ -176,7 +178,7 @@ impl Context {
 
         for message in self.messages.iter() {
             match message {
-                ContextMessage::ContentMessage(message) => {
+                ContextMessage::Text(message) => {
                     lines.push_str(&format!("<message role=\"{}\">", message.role));
                     lines.push_str(&format!("<content>{}</content>", message.content));
                     if let Some(tool_calls) = &message.tool_calls {
@@ -191,18 +193,18 @@ impl Context {
 
                     lines.push_str("</message>");
                 }
-                ContextMessage::ToolMessage(result) => {
+                ContextMessage::Tool(result) => {
                     lines.push_str("<message role=\"tool\">");
 
                     lines.push_str(&format!(
                         "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
                         result.name,
-                        serde_json::to_string(&result.content).unwrap()
+                        serde_json::to_string(&result.output).unwrap()
                     ));
                     lines.push_str("</message>");
                 }
-                ContextMessage::Image(url) => {
-                    lines.push_str(format!("<file_attachment path=\"{url}\">").as_str());
+                ContextMessage::Image(_) => {
+                    lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
                 }
             }
         }
@@ -229,39 +231,50 @@ impl Context {
         mut self,
         content: impl ToString,
         model: ModelId,
-        tool_records: Vec<ToolCallRecord>,
+        tool_records: Vec<(ToolCallFull, ToolResult)>,
         tool_supported: bool,
     ) -> Self {
         if tool_supported {
+            // Adding tool calls
             self.add_message(ContextMessage::assistant(
                 content,
                 Some(
                     tool_records
                         .iter()
-                        .map(|record| record.tool_call.clone())
+                        .map(|record| record.0.clone())
                         .collect::<Vec<_>>(),
                 ),
             ))
+            // Adding tool results
             .add_tool_results(
                 tool_records
                     .iter()
-                    .map(|record| record.tool_result.clone())
+                    .map(|record| record.1.clone())
                     .collect::<Vec<_>>(),
             )
         } else {
+            // Adding tool calls
             self = self.add_message(ContextMessage::assistant(content.to_string(), None));
             if tool_records.is_empty() {
                 return self;
             }
-            let content = tool_records.iter().fold(String::new(), |mut acc, result| {
-                if !acc.is_empty() {
-                    acc.push_str("\n\n");
-                }
-                acc.push_str(result.to_string().as_str());
-                acc
-            });
 
-            self.add_message(ContextMessage::user(content, Some(model)))
+            // Adding tool results as user message
+            let outputs = tool_records
+                .iter()
+                .flat_map(|record| record.1.output.values.iter());
+            for out in outputs {
+                match out {
+                    crate::ToolOutputValue::Text(text) => {
+                        self = self.add_message(ContextMessage::user(text, Some(model.clone())));
+                    }
+                    crate::ToolOutputValue::Image(base64_url) => {
+                        self = self.add_base64_url(base64_url.clone());
+                    }
+                    crate::ToolOutputValue::Empty => {}
+                }
+            }
+            self
         }
     }
 }

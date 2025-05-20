@@ -55,7 +55,7 @@ impl ToolCallContext {
             self.send(AgentMessage::new(
                 agent_id.clone(),
                 ChatResponse::Text {
-                    text: content.as_str().to_string(),
+                    text: content,
                     is_complete: true,
                     is_md: false,
                     is_summary: true,

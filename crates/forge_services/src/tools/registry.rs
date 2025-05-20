@@ -46,6 +46,7 @@ pub mod tests {
     use forge_domain::AuthService;
     use forge_domain::{
         CommandOutput, Environment, EnvironmentService, InitAuth, ToolDefinition, ToolName,
+        ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -230,8 +231,8 @@ pub mod tests {
             Ok(vec![])
         }
 
-        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<String> {
-            Ok(String::new())
+        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<ToolOutput> {
+            Ok(ToolOutput::default())
         }
     }
 

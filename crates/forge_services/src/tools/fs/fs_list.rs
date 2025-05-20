@@ -1,13 +1,15 @@
 use std::path::Path;
 
 use anyhow::Context;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName};
+use forge_domain::{
+    ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName, ToolOutput,
+};
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::tools::utils::assert_absolute_path;
+use crate::utils::assert_absolute_path;
 
 #[derive(Deserialize, JsonSchema)]
 pub struct FSListInput {
@@ -39,7 +41,11 @@ impl NamedTool for FSList {
 impl ExecutableTool for FSList {
     type Input = FSListInput;
 
-    async fn call(&self, _context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        _context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolOutput> {
         let dir = Path::new(&input.path);
         assert_absolute_path(dir)?;
 
@@ -73,18 +79,20 @@ impl ExecutableTool for FSList {
 
             if !entry.path.is_empty() {
                 if entry.is_dir() {
-                    paths.push(format!(r#"<dir path="{}">"#, entry.path));
+                    paths.push(format!("<dir path=\"{}\">", entry.path));
                 } else {
-                    paths.push(format!(r#"<file path="{}">"#, entry.path));
+                    paths.push(format!("<file path=\"{}\">", entry.path));
                 };
             }
         }
 
-        Ok(format!(
-            "<file_list path=\"{}\">\n{}\n</file_list>",
+        Ok(ToolOutput::text(format!(
+            "<file_list path=\"{}\">
+{}
+</file_list>",
             input.path,
             paths.join("\n")
-        ))
+        )))
     }
 }
 
@@ -94,7 +102,7 @@ mod test {
     use tokio::fs;
 
     use super::*;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
 
     impl FSList {
         fn new(sorted: bool) -> Self {
@@ -116,9 +124,10 @@ mod test {
                 },
             )
             .await
-            .unwrap();
+            .unwrap()
+            .into_string();
 
-        assert_snapshot!(TempDir::normalize(&result));
+        assert_snapshot!(TempDir::normalize(result.as_str()));
     }
 
     #[tokio::test]
@@ -144,9 +153,10 @@ mod test {
                 },
             )
             .await
-            .unwrap();
+            .unwrap()
+            .into_string();
 
-        assert_snapshot!(TempDir::normalize(&result));
+        assert_snapshot!(TempDir::normalize(result.as_str()));
     }
 
     #[tokio::test]
@@ -192,7 +202,8 @@ mod test {
                 },
             )
             .await
-            .unwrap();
+            .unwrap()
+            .into_string();
 
         assert!(result.contains("regular.txt"));
         assert!(!result.contains(".hidden"));
@@ -230,9 +241,10 @@ mod test {
                 },
             )
             .await
-            .unwrap();
+            .unwrap()
+            .into_string();
 
-        assert_snapshot!(TempDir::normalize(&result));
+        assert_snapshot!(TempDir::normalize(result.as_str()));
     }
 
     #[tokio::test]

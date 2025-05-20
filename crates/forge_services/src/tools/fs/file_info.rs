@@ -5,12 +5,13 @@ use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{
     EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
 
 #[derive(Deserialize, JsonSchema)]
@@ -61,7 +62,11 @@ impl<F: Infrastructure> FSFileInfo<F> {
 impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
     type Input = FSFileInfoInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -72,7 +77,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         context
             .send_text(TitleFormat::debug("Info").title(self.format_display_path(path)?))
             .await?;
-        Ok(format!("{meta:?}"))
+        Ok(ToolOutput::text(format!("{meta:?}")))
     }
 }
 
@@ -81,7 +86,7 @@ mod test {
     use tokio::fs;
 
     use super::*;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
 
     #[tokio::test]
     async fn test_fs_file_info_on_file() {

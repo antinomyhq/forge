@@ -6,7 +6,7 @@ use bytes::Bytes;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
     EnvironmentService, ExecutableTool, FSPatchInput, NamedTool, PatchOperation, ToolCallContext,
-    ToolDescription, ToolName,
+    ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use thiserror::Error;
@@ -14,7 +14,7 @@ use tokio::fs;
 
 // No longer using dissimilar for fuzzy matching
 use crate::tools::syn;
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsWriteService, Infrastructure};
 
 // Removed fuzzy matching threshold as we only use exact matching now
@@ -208,7 +208,11 @@ impl<F: Infrastructure> ApplyPatchJson<F> {
 impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
     type Input = FSPatchInput;
 
-    async fn call(&self, context: ToolCallContext, patch: Self::Input) -> anyhow::Result<String> {
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        patch: Self::Input,
+    ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&patch.path);
         assert_absolute_path(path)?;
 
@@ -266,7 +270,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
         context.send_text(diff).await?;
 
         // Return the final result
-        Ok(result)
+        Ok(ToolOutput::text(result))
     }
 }
 
@@ -274,7 +278,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
 mod test {
 
     use super::*;
-    use crate::tools::utils::TempDir;
+    use crate::utils::TempDir;
 
     // Enhanced test helper for running multiple operations
     #[derive(Debug)]

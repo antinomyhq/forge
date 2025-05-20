@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription};
+use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput};
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -61,7 +61,7 @@ pub struct SelectInput {
 impl<F: Infrastructure> ExecutableTool for Followup<F> {
     type Input = SelectInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> Result<String> {
+    async fn call(&self, context: ToolCallContext, input: Self::Input) -> Result<ToolOutput> {
         let options = vec![
             input.option1,
             input.option2,
@@ -94,10 +94,12 @@ impl<F: Infrastructure> ExecutableTool for Followup<F> {
         };
 
         match result {
-            Some(answer) => Ok(answer),
+            Some(answer) => Ok(ToolOutput::text(answer)),
             None => {
                 context.set_complete().await;
-                Ok("User interrupted the selection".to_string())
+                Ok(ToolOutput::text(
+                    "User interrupted the selection".to_string(),
+                ))
             }
         }
     }

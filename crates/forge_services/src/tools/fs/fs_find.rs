@@ -6,14 +6,14 @@ use anyhow::Context;
 use forge_display::{GrepFormat, TitleFormat};
 use forge_domain::{
     EnvironmentService, ExecutableTool, FSSearchInput, NamedTool, ToolCallContext, ToolDescription,
-    ToolName,
+    ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
 
 use crate::metadata::Metadata;
-use crate::tools::utils::{assert_absolute_path, format_display_path};
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{Clipper, FsWriteService, Infrastructure};
 
 const MAX_SEARCH_CHAR_LIMIT: usize = 40_000;
@@ -275,8 +275,15 @@ impl<F> NamedTool for FSFind<F> {
 impl<F: Infrastructure> ExecutableTool for FSFind<F> {
     type Input = FSSearchInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> anyhow::Result<String> {
-        self.call_inner(context, input, MAX_SEARCH_CHAR_LIMIT).await
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: Self::Input,
+    ) -> anyhow::Result<ToolOutput> {
+        let result = self
+            .call_inner(context, input, MAX_SEARCH_CHAR_LIMIT)
+            .await?;
+        Ok(ToolOutput::text(result))
     }
 }
 
@@ -287,7 +294,7 @@ mod test {
 
     use super::*;
     use crate::attachment::tests::MockInfrastructure;
-    use crate::tools::utils::TempDir;
+    use crate::utils::{TempDir, ToolContentExtension};
 
     #[tokio::test]
     async fn test_fs_search_content() {

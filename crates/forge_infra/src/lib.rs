@@ -1,6 +1,7 @@
 pub mod executor;
 
 mod env;
+mod error;
 mod forge_infra;
 mod fs_create_dirs;
 mod fs_meta;

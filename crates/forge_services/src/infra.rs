@@ -2,9 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_domain::{
-    CommandOutput, EnvironmentService, McpServerConfig, Provider, ToolDefinition, ToolName,
-};
+use forge_domain::{CommandOutput, EnvironmentService, McpServerConfig, Provider, ToolDefinition, ToolName, ToolOutput};
 use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
@@ -133,7 +131,11 @@ pub trait InquireService: Send + Sync {
 #[async_trait::async_trait]
 pub trait McpClient: Send + Sync + 'static {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
-    async fn call(&self, tool_name: &ToolName, input: serde_json::Value) -> anyhow::Result<String>;
+    async fn call(
+        &self,
+        tool_name: &ToolName,
+        input: serde_json::Value,
+    ) -> anyhow::Result<ToolOutput>;
 }
 
 #[async_trait::async_trait]
