@@ -122,7 +122,11 @@ pub mod tests {
 
     use crate::attachment::ForgeChatRequest;
     use crate::utils::AttachmentExtension;
-    use crate::{CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService, FsReadService, FsSnapshotService, FsWriteService, HttpService, Infrastructure, InquireService, McpClient, McpServer, ProviderService};
+    use crate::{
+        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
+        FsReadService, FsSnapshotService, FsWriteService, HttpService, Infrastructure,
+        InquireService, McpClient, McpServer, ProviderService,
+    };
 
     #[derive(Debug)]
     pub struct MockEnvironmentService {}

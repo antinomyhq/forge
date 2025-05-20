@@ -43,10 +43,9 @@ pub mod tests {
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
-    use forge_domain::AuthService;
     use forge_domain::{
-        CommandOutput, Environment, EnvironmentService, InitAuth, ToolDefinition, ToolName,
-        ToolOutput,
+        AuthService, CommandOutput, Environment, EnvironmentService, InitAuth, ToolDefinition,
+        ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
