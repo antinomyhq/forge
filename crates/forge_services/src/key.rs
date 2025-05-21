@@ -1,5 +1,6 @@
-use forge_domain::{ConfigService, ForgeKey, KeyService};
 use std::sync::Arc;
+
+use forge_domain::{ConfigService, ForgeKey, KeyService};
 use tokio::sync::Mutex;
 
 pub struct ForgeKeyService<C> {
