@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use derive_builder::Builder;
-use forge_domain::{ChatCompletionMessage, ChatService, Context, Model, ModelId, ResultStream};
+use forge_domain::{ChatCompletionMessage, Context, Model, ModelId, ResultStream};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};

@@ -25,7 +25,7 @@ enum InnerClient {
 }
 
 impl Client {
-    pub fn new(provider: Provider, retry_status_codes: Vec<u16>) -> Result<Self> {
+    pub fn new(provider: Provider, retry_status_codes: Arc<Vec<u16>>) -> Result<Self> {
         let client = reqwest::Client::builder()
             .read_timeout(std::time::Duration::from_secs(60))
             .pool_idle_timeout(std::time::Duration::from_secs(90))
@@ -54,10 +54,7 @@ impl Client {
                     })?,
             ),
         };
-        Ok(Self {
-            inner: Arc::new(inner),
-            retry_status_codes: Arc::new(retry_status_codes),
-        })
+        Ok(Self { inner: Arc::new(inner), retry_status_codes })
     }
 
     fn retry<A>(&self, result: anyhow::Result<A>) -> anyhow::Result<A> {
