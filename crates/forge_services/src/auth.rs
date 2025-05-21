@@ -28,10 +28,6 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
             auth.session_id
         );
 
-        // FIXME: we should call cli/auth/token/{session_id} to get the token
-        // and send the token back to cli/auth/complete/{session_id} and expect
-        // `ForgeKey` in response. NOTE that this needs change in the backend.
-
         let response = self.infra.http_service().get(&url).await?;
         match response.status.as_u16() {
             200 => {
