@@ -1,15 +1,13 @@
-use std::collections::HashMap;
-use std::fmt::Display;
 use std::str::FromStr;
 
 use forge_domain::{
-    ChatCompletionMessage as ModelResponse, Content, FinishReason, ToolCallFull, ToolCallId,
-    ToolCallPart, ToolName, Usage,
+    ChatCompletionMessage, Content, FinishReason, ToolCallFull, ToolCallId, ToolCallPart, ToolName,
+    Usage,
 };
 use serde::{Deserialize, Serialize};
 
-use super::error::Error;
 use super::tool_choice::FunctionType;
+use crate::error::{Error, ErrorResponse};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
@@ -59,26 +57,6 @@ pub enum Choice {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ErrorResponse {
-    pub code: u32,
-    pub message: String,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub metadata: HashMap<String, serde_json::Value>,
-}
-
-impl Display for ErrorResponse {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "message: {}", self.message)?;
-        if !self.metadata.is_empty() {
-            if let Ok(str_repr) = serde_json::to_string(&self.metadata) {
-                write!(f, ", details: {str_repr}")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseMessage {
     pub content: Option<String>,
     pub role: Option<String>,
@@ -111,8 +89,8 @@ impl From<ResponseUsage> for Usage {
     }
 }
 
-impl TryFrom<Response> for ModelResponse {
-    type Error = Error;
+impl TryFrom<Response> for ChatCompletionMessage {
+    type Error = anyhow::Error;
 
     fn try_from(res: Response) -> Result<Self, Self::Error> {
         match res {
@@ -120,14 +98,14 @@ impl TryFrom<Response> for ModelResponse {
                 if let Some(choice) = choices.first() {
                     let mut response = match choice {
                         Choice::NonChat { text, finish_reason, .. } => {
-                            ModelResponse::assistant(Content::full(text)).finish_reason_opt(
+                            ChatCompletionMessage::assistant(Content::full(text)).finish_reason_opt(
                                 finish_reason
                                     .clone()
                                     .and_then(|s| FinishReason::from_str(&s).ok()),
                             )
                         }
                         Choice::NonStreaming { message, finish_reason, .. } => {
-                            let mut resp = ModelResponse::assistant(Content::full(
+                            let mut resp = ChatCompletionMessage::assistant(Content::full(
                                 message.content.clone().unwrap_or_default(),
                             ))
                             .finish_reason_opt(
@@ -153,7 +131,7 @@ impl TryFrom<Response> for ModelResponse {
                             resp
                         }
                         Choice::Streaming { delta, finish_reason, .. } => {
-                            let mut resp = ModelResponse::assistant(Content::part(
+                            let mut resp = ChatCompletionMessage::assistant(Content::part(
                                 delta.content.clone().unwrap_or_default(),
                             ))
                             .finish_reason_opt(
@@ -179,11 +157,11 @@ impl TryFrom<Response> for ModelResponse {
                     }
                     Ok(response)
                 } else {
-                    let default_response = ModelResponse::assistant(Content::full(""));
+                    let default_response = ChatCompletionMessage::assistant(Content::full(""));
                     Ok(default_response)
                 }
             }
-            Response::Failure { error } => Err(Error::Upstream(error)),
+            Response::Failure { error } => Err(Error::Response(error).into()),
         }
     }
 }
@@ -220,5 +198,18 @@ mod tests {
     fn test_antinomy_response_event() {
         let event = "{\"id\":\"gen-1739949430-JZMcABaj4fg8oFDtRNDZ\",\"provider\":\"OpenAI\",\"model\":\"openai/gpt-4o-mini\",\"object\":\"chat.completion.chunk\",\"created\":1739949430,\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"index\":0,\"id\":\"call_bhjvz9w48ov4DSRhM15qLMmh\",\"type\":\"function\",\"function\":{\"name\":\"forge_tool_process_shell\",\"arguments\":\"\"}}],\"refusal\":null},\"logprobs\":null,\"finish_reason\":null,\"native_finish_reason\":null}],\"system_fingerprint\":\"fp_00428b782a\"}";
         assert!(Fixture::test_response_compatibility(event));
+    }
+
+    #[test]
+    fn test_responses() -> anyhow::Result<()> {
+        let input = include_str!("./responses.jsonl").split("\n");
+        for (i, line) in input.enumerate() {
+            let i = i + 1;
+            let _: Response = serde_json::from_str(line).with_context(|| {
+                format!("Failed to parse response [responses.jsonl:{i}]: {line}")
+            })?;
+        }
+
+        Ok(())
     }
 }

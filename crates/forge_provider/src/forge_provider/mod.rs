@@ -1,4 +1,3 @@
-mod error;
 mod model;
 mod parameters;
 mod request;

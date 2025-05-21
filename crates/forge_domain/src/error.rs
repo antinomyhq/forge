@@ -1,5 +1,6 @@
 use std::pin::Pin;
 
+use derive_more::From;
 use thiserror::Error;
 
 use crate::{AgentId, ConversationId};
@@ -8,7 +9,7 @@ use crate::{AgentId, ConversationId};
 // up converting errors incorrectly without much context. For eg: You don't want
 // all serde error to be treated as the same. Instead we want to know exactly
 // where that serde failure happened and for what kind of value.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, From)]
 pub enum Error {
     #[error("Missing tool name")]
     ToolCallMissingName,
@@ -17,6 +18,7 @@ pub enum Error {
     ToolCallArgument(serde_json::Error),
 
     #[error("Invalid tool call XML: {0}")]
+    #[from(skip)]
     ToolCallParse(String),
 
     #[error("Invalid conversation id: {0}")]
@@ -26,6 +28,7 @@ pub enum Error {
     AgentUndefined(AgentId),
 
     #[error("Variable not found in output: {0}")]
+    #[from(skip)]
     UndefinedVariable(String),
 
     #[error("Head agent not found")]
@@ -38,13 +41,19 @@ pub enum Error {
     ConversationNotFound(ConversationId),
 
     #[error("Missing description for agent: {0}")]
+    #[from(skip)]
     MissingAgentDescription(AgentId),
 
     #[error("Missing model for agent: {0}")]
+    #[from(skip)]
     MissingModel(AgentId),
 
     #[error("No model defined for agent: {0}")]
+    #[from(skip)]
     NoModelDefined(AgentId),
+
+    #[error("{0}")]
+    Retryable(anyhow::Error),
 }
 
 pub type Result<A> = std::result::Result<A, Error>;

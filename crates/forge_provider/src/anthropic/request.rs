@@ -2,6 +2,8 @@ use derive_setters::Setters;
 use forge_domain::{ContextMessage, Image};
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
+
 #[derive(Serialize, Default, Setters)]
 #[setters(into, strip_option)]
 pub struct Request {
@@ -114,7 +116,7 @@ impl TryFrom<ContextMessage> for Message {
                     forge_domain::Role::System => {
                         // note: Anthropic doesn't support system role messages and they're already
                         // filtered out. so this state is unreachable.
-                        return Err(anyhow::anyhow!("system role messages are not supported in the context for anthropic provider".to_string()));
+                        return Err(Error::UnsupportedRole("System".to_string()).into());
                     }
                 }
             }
@@ -185,10 +187,7 @@ enum Content {
 impl TryFrom<forge_domain::ToolCallFull> for Content {
     type Error = anyhow::Error;
     fn try_from(value: forge_domain::ToolCallFull) -> std::result::Result<Self, Self::Error> {
-        let call_id = value
-            .call_id
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("`call_id` is required for tool_call"))?;
+        let call_id = value.call_id.as_ref().ok_or(Error::ToolCallMissingId)?;
 
         Ok(Content::ToolUse {
             id: call_id.as_str().to_string(),
@@ -202,10 +201,7 @@ impl TryFrom<forge_domain::ToolCallFull> for Content {
 impl TryFrom<forge_domain::ToolResult> for Content {
     type Error = anyhow::Error;
     fn try_from(value: forge_domain::ToolResult) -> std::result::Result<Self, Self::Error> {
-        let call_id = value
-            .call_id
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("`call_id` is required for tool_result"))?;
+        let call_id = value.call_id.as_ref().ok_or(Error::ToolCallMissingId)?;
         Ok(Content::ToolResult {
             tool_use_id: call_id.as_str().to_string(),
             cache_control: None,
