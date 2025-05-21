@@ -2,6 +2,7 @@ use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
 use convert_case::{Case, Casing};
+use forge_domain::Conversation;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,6 +21,7 @@ pub struct Event {
     pub version: String,
     pub email: Vec<String>,
     pub model: Option<String>,
+    pub conversation: Option<Conversation>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -67,10 +69,7 @@ pub enum EventKind {
     Ping,
     ToolCall(ToolCallPayload),
     Prompt(String),
-    Error {
-        message: String,
-        conversation: Option<forge_domain::Conversation>,
-    },
+    Error(String),
 }
 
 impl EventKind {
@@ -79,7 +78,7 @@ impl EventKind {
             Self::Start => Name::from("start".to_string()),
             Self::Ping => Name::from("ping".to_string()),
             Self::Prompt(_) => Name::from("prompt".to_string()),
-            Self::Error { .. } => Name::from("error".to_string()),
+            Self::Error(_) => Name::from("error".to_string()),
             Self::ToolCall(_) => Name::from("tool_call".to_string()),
         }
     }
@@ -88,16 +87,7 @@ impl EventKind {
             Self::Start => "".to_string(),
             Self::Ping => "".to_string(),
             Self::Prompt(content) => content.to_string(),
-            Self::Error { message, conversation } => {
-                let mut error_message = message.clone();
-                if let Some(conversation) = conversation {
-                    error_message.push_str(&format!(
-                        "\n{}\n",
-                        serde_json::to_string(conversation).unwrap_or_default()
-                    ));
-                }
-                error_message
-            }
+            Self::Error(content) => content.to_string(),
             Self::ToolCall(payload) => serde_json::to_string(&payload).unwrap_or_default(),
         }
     }

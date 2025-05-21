@@ -11,7 +11,7 @@ use crate::TRACKER;
 async fn execute_update_command(api: Arc<impl API>) {
     // Spawn a new task that won't block the main application
     let output = api
-        .execute_shell_command_raw("npm", &["update", "-g", "@antinomyhq/forge"])
+        .execute_shell_command_raw("npm", &["update", "-g", "@antinomyhq/forge", "--force"])
         .await;
 
     match output {
@@ -84,7 +84,7 @@ async fn send_update_failure_event(error_msg: &str) -> anyhow::Result<()> {
     // Ignore the result since we are failing silently
     // This is safe because we're using a static tracker with 'static lifetime
     let _ = TRACKER
-        .dispatch(EventKind::Error { message: error_msg.to_string(), conversation: None })
+        .dispatch(EventKind::Error(error_msg.to_string()))
         .await;
 
     // Always return Ok since we want to fail silently
