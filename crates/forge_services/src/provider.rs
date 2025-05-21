@@ -20,7 +20,9 @@ impl ForgeProviderService {
         let infra = infra.clone();
         let env = infra.environment_service().get_environment();
         let provider = env.provider.clone();
-        Self { client: Arc::new(Client::new(provider).unwrap()) }
+        Self {
+            client: Arc::new(Client::new(provider, env.retry_config.retry_status_codes).unwrap()),
+        }
     }
 }
 

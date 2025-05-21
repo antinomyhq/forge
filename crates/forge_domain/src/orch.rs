@@ -479,7 +479,7 @@ impl<A: Services> Orchestrator<A> {
                             .with_max_times(retry_config.max_retry_attempts)
                             .with_jitter(),
                     )
-                    .when(should_retry(&retry_config.retry_status_codes))
+                    .when(should_retry)
                     .await?;
 
             // Check if context requires compression and decide to compact
@@ -583,18 +583,11 @@ impl<A: Services> Orchestrator<A> {
     }
 }
 
-fn should_retry(status_codes: &[u16]) -> impl Fn(&anyhow::Error) -> bool + '_ {
-    move |error| {
-        error
-            .source()
-            .and_then(|err| err.downcast_ref::<reqwest_eventsource::Error>())
-            .map(|err| match err {
-                reqwest_eventsource::Error::Transport(_) => true,
-                reqwest_eventsource::Error::InvalidStatusCode(status_code, _) => {
-                    status_codes.contains(&status_code.as_u16())
-                }
-                _ => false,
-            })
-            .unwrap_or(false)
-    }
+fn should_retry(error: &anyhow::Error) -> bool {
+    let retry = error
+        .downcast_ref::<Error>()
+        .is_some_and(|error| matches!(error, Error::Retryable(_)));
+
+    tracing::error!(error = ?error, retry = retry, "Error");
+    retry
 }
