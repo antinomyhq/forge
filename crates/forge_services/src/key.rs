@@ -1,25 +1,37 @@
-use std::sync::Arc;
-
 use forge_domain::{ConfigService, ForgeKey, KeyService};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct ForgeKeyService<C> {
     config_service: Arc<C>,
+    key: Arc<Mutex<Option<ForgeKey>>>,
 }
 
 impl<C: ConfigService> ForgeKeyService<C> {
     pub fn new(config_service: Arc<C>) -> Self {
-        Self { config_service }
+        Self { config_service, key: Default::default() }
     }
-
-    // FIXME: Add cache
     async fn get(&self) -> Option<ForgeKey> {
-        let config = self.config_service.read().await.ok()?;
-        config.key_info
+        let mut lock = self.key.lock().await;
+        if let Some(key_info) = lock.clone() {
+            Some(key_info.clone())
+        } else {
+            let key = self
+                .config_service
+                .read()
+                .await
+                .ok()
+                .and_then(|v| v.key_info);
+            *lock = key.clone();
+
+            key
+        }
     }
     async fn set(&self, key: ForgeKey) -> anyhow::Result<()> {
         let mut config = self.config_service.read().await.unwrap_or_default();
         config.key_info = Some(key.clone());
         self.config_service.write(&config).await?;
+        self.key.lock().await.replace(key.clone());
 
         Ok(())
     }
@@ -27,6 +39,7 @@ impl<C: ConfigService> ForgeKeyService<C> {
         if let Ok(mut config) = self.config_service.read().await {
             config.key_info = None;
             self.config_service.write(&config).await?;
+            self.key.lock().await.take();
         }
         Ok(())
     }
