@@ -379,6 +379,7 @@ impl<F: API> UI<F> {
                 self.spinner.start(Some("Logging out"))?;
                 self.api.logout().await?;
                 self.spinner.stop(None)?;
+                self.writeln(TitleFormat::info("Logged out"))?;
             }
         }
 
