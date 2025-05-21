@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::{CommandExecutorService, ForgeServices, Infrastructure, ProviderService};
@@ -169,7 +169,10 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
     async fn api_key(&self) -> Option<ForgeKey> {
         self.app.key_service().get().await
     }
-    fn provider(&self, key: &ForgeKey) -> Provider {
-        self.app.provider_service().get(key.key.as_str())
+    fn provider(&self, key: Option<ForgeKey>) -> Result<Provider> {
+        self.app
+            .provider_service()
+            .get(key)
+            .context("User isn't logged in")
     }
 }

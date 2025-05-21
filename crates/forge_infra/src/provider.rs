@@ -1,4 +1,4 @@
-use forge_domain::Provider;
+use forge_domain::{ForgeKey, Provider};
 use forge_services::ProviderService;
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
@@ -7,8 +7,11 @@ type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
 pub struct ForgeProviderService;
 
 impl ProviderService for ForgeProviderService {
-    fn get(&self, key: &str) -> Provider {
-        resolve_env_provider().unwrap_or(Provider::antinomy(key))
+    fn get(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
+        if let Some(forge_key) = forge_key {
+            return Some(Provider::antinomy(&forge_key.key));
+        }
+        resolve_env_provider()
     }
 }
 

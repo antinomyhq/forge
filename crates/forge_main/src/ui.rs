@@ -542,11 +542,18 @@ impl<F: API> UI<F> {
         Ok(workflow)
     }
     async fn init_provider(&mut self) -> Result<Provider> {
-        if let Some(key) = self.api.api_key().await {
-            Ok(self.api.provider(&key))
-        } else {
-            let key = self.login().await?;
-            Ok(self.api.provider(&key))
+        match self.api.provider(None) {
+            // Use a key if it's available in the environment.
+            Ok(provider) => Ok(provider),
+            Err(_) => match self.api.api_key().await {
+                // Use the forge key if available in the config.
+                Some(forge_key) => self.api.provider(Some(forge_key)),
+                None => {
+                    // If no key is available, start the login flow.
+                    let key = self.login().await?;
+                    self.api.provider(Some(key))
+                }
+            },
         }
     }
     async fn login(&mut self) -> Result<ForgeKey> {

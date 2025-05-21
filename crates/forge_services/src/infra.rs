@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, EnvironmentService, McpServerConfig, Provider, Response, RetryConfig,
+    CommandOutput, EnvironmentService, ForgeKey, McpServerConfig, Provider, Response, RetryConfig,
     ToolDefinition, ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
@@ -162,7 +162,7 @@ pub trait HttpService: Send + Sync + 'static {
 }
 
 pub trait ProviderService: Send + Sync + 'static {
-    fn get(&self, key: &str) -> Provider;
+    fn get(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
 }
 
 pub trait Infrastructure: Send + Sync + Clone + 'static {

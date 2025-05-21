@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_domain::{
-    ChatCompletionMessage, ChatService, Context as ChatContext, EnvironmentService, KeyService,
-    Model, ModelId, ResultStream,
+    ChatCompletionMessage, ChatService, Context as ChatContext, EnvironmentService, ForgeKey,
+    KeyService, Model, ModelId, Provider, ResultStream,
 };
 use forge_provider::Client;
 
@@ -22,13 +22,21 @@ impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
         let retry_status_codes = Arc::new(env.retry_config.retry_status_codes);
         Self { key_service, infra, retry_status_codes }
     }
-    async fn key(&self) -> Result<String> {
+    async fn key(&self) -> Result<ForgeKey> {
         let forge_key = self
             .key_service
             .get()
             .await
-            .context("No key found, please log in first.")?;
-        Ok(forge_key.key)
+            .context("User isn't logged in")?;
+        Ok(forge_key)
+    }
+    async fn provider(&self) -> Result<Provider> {
+        let key = self.key().await?;
+
+        self.infra
+            .provider_service()
+            .get(Some(key))
+            .context("User isn't logged in")
     }
 }
 
@@ -39,11 +47,7 @@ impl<K: KeyService, I: Infrastructure> ChatService for ForgeProviderService<I, K
         model: &ModelId,
         request: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let key = self.key().await?;
-        let client = Client::new(
-            self.infra.provider_service().get(&key),
-            self.retry_status_codes.clone(),
-        )?;
+        let client = Client::new(self.provider().await?, self.retry_status_codes.clone())?;
 
         client
             .chat(model, request)
@@ -52,12 +56,7 @@ impl<K: KeyService, I: Infrastructure> ChatService for ForgeProviderService<I, K
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
-        let key = self.key().await?;
-
-        let client = Client::new(
-            self.infra.provider_service().get(&key),
-            self.retry_status_codes.clone(),
-        )?;
+        let client = Client::new(self.provider().await?, self.retry_status_codes.clone())?;
 
         client.models().await
     }

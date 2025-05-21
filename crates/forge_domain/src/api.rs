@@ -95,5 +95,5 @@ pub trait API: Sync + Send {
     async fn login(&self, auth: &InitAuth) -> Result<()>;
     async fn logout(&self) -> anyhow::Result<()>;
     async fn api_key(&self) -> Option<ForgeKey>;
-    fn provider(&self, key: &ForgeKey) -> Provider;
+    fn provider(&self, key: Option<ForgeKey>) -> anyhow::Result<Provider>;
 }

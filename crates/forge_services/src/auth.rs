@@ -17,6 +17,9 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
     async fn init(&self) -> anyhow::Result<InitAuth> {
         let init_url = format!("{}cli/auth/init", Provider::ANTINOMY_URL);
         let resp = self.infra.http_service().get(&init_url).await?;
+        if !resp.status.is_success() {
+            anyhow::bail!("Failed to initialize auth")
+        }
 
         Ok(serde_json::from_slice(&resp.body)?)
     }
