@@ -161,7 +161,6 @@ pub trait HttpService: Send + Sync + 'static {
         F: Future<Output = anyhow::Result<T>> + Send;
 }
 
-#[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {
     fn get(&self, key: &str) -> Provider;
 }
