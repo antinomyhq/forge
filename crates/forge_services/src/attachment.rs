@@ -521,7 +521,7 @@ pub mod tests {
     }
 
     impl ProviderService for () {
-        fn get(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
+        fn get(&self, _: Option<ForgeKey>) -> Option<Provider> {
             unimplemented!()
         }
     }
