@@ -62,12 +62,11 @@ impl ForgeEnvironmentService {
             })
             .unwrap_or_else(|| vec![429, 500, 502, 503, 504]); // Default values
 
-        RetryConfig {
-            initial_backoff_ms,
-            backoff_factor,
-            max_retry_attempts,
-            retry_status_codes,
-        }
+        RetryConfig::default()
+            .initial_backoff_ms(initial_backoff_ms)
+            .backoff_factor(backoff_factor)
+            .max_retry_attempts(max_retry_attempts)
+            .retry_status_codes(retry_status_codes)
     }
 
     fn get(&self) -> Environment {

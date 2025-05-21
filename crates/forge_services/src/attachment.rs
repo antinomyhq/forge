@@ -108,6 +108,7 @@ impl<F: Infrastructure> AttachmentService for ForgeChatRequest<F> {
 #[cfg(test)]
 pub mod tests {
     use std::collections::HashMap;
+    use std::future::Future;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
@@ -115,7 +116,7 @@ pub mod tests {
     use bytes::Bytes;
     use forge_domain::{
         AttachmentContent, AttachmentService, CommandOutput, Environment, EnvironmentService,
-        Provider, ToolDefinition, ToolName, ToolOutput,
+        Provider, Response, RetryConfig, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -503,11 +504,22 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl HttpService for () {
-        async fn get(&self, _: &str) -> anyhow::Result<Bytes> {
+        async fn get(&self, _: &str) -> anyhow::Result<Response<Bytes>> {
             unimplemented!()
         }
 
-        async fn post(&self, _: &str, _: Bytes) -> anyhow::Result<Bytes> {
+        async fn post(&self, _: &str, _: Bytes) -> anyhow::Result<Response<Bytes>> {
+            unimplemented!()
+        }
+
+        async fn poll<T, F>(
+            &self,
+            _: RetryConfig,
+            _: impl Fn() -> F + Send,
+        ) -> anyhow::Result<T>
+        where
+            F: Future<Output = anyhow::Result<T>> + Send,
+        {
             unimplemented!()
         }
     }

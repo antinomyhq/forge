@@ -1,10 +1,6 @@
-use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
 
-use anyhow::Context;
-use backon::{ExponentialBuilder, Retryable};
-use forge_domain::{AuthService, InitAuth, KeyService, Provider};
+use forge_domain::{AuthService, InitAuth, KeyService, Provider, RetryConfig};
 
 use crate::{HttpService, Infrastructure};
 
@@ -22,26 +18,11 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
         let init_url = format!("{}cli/auth/init", Provider::ANTINOMY_URL);
         let resp = self.infra.http_service().get(&init_url).await?;
 
-        Ok(serde_json::from_slice(&resp)?)
-    }
-
-    // TODO: move this to infra.
-    async fn poll<T, F>(&self, call: impl Fn() -> F) -> anyhow::Result<T>
-    where
-        F: Future<Output = anyhow::Result<T>>,
-    {
-        call.retry(
-            ExponentialBuilder::default()
-                .with_factor(1f32)
-                .with_max_delay(Duration::from_secs(2))
-                .with_max_times(300)
-                .with_jitter(),
-        )
-        .await
+        Ok(serde_json::from_slice(&resp.body)?)
     }
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
-        let poll_url = format!(
+        let url = format!(
             "{}cli/auth/token/{}",
             Provider::ANTINOMY_URL,
             auth.session_id
@@ -51,11 +32,16 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
         // and send the token back to cli/auth/complete/{session_id} and expect
         // `ForgeKey` in response. NOTE that this needs change in the backend.
 
-        self.key_service
-            .set(serde_json::from_slice(
-                &self.infra.http_service().get(&poll_url).await?,
-            )?)
-            .await
+        let response = self.infra.http_service().get(&url).await?;
+        match response.status.as_u16() {
+            200 => {
+                self.key_service
+                    .set(serde_json::from_slice(&response.body)?)
+                    .await
+            }
+            202 => anyhow::bail!("Login timeout"),
+            _ => anyhow::bail!("Failed to log in"),
+        }
     }
     async fn logout(&self) -> anyhow::Result<()> {
         self.key_service.delete().await
@@ -69,11 +55,17 @@ impl<I: Infrastructure, C: KeyService> AuthService for ForgeAuthService<I, C> {
     }
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
-        self.poll(|| self.login(auth))
+        self.infra
+            .http_service()
+            // TODO: Add `when` config to differentiate b/w 202 and other error codes.
+            .poll(
+                RetryConfig::default()
+                    .max_retry_attempts(300usize)
+                    .max_delay(2)
+                    .backoff_factor(1u64),
+                || self.login(auth),
+            )
             .await
-            .context("Failed to log in")?;
-
-        Ok(())
     }
 
     async fn logout(&self) -> anyhow::Result<()> {

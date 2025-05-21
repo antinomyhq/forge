@@ -1,10 +1,11 @@
+use std::future::Future;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, EnvironmentService, McpServerConfig, Provider, ToolDefinition, ToolName,
-    ToolOutput,
+    CommandOutput, EnvironmentService, McpServerConfig, Provider, Response, RetryConfig,
+    ToolDefinition, ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
 
@@ -149,8 +150,15 @@ pub trait McpServer: Send + Sync + 'static {
 
 #[async_trait::async_trait]
 pub trait HttpService: Send + Sync + 'static {
-    async fn get(&self, url: &str) -> anyhow::Result<Bytes>;
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Bytes>;
+    async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
+    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>>;
+    async fn poll<T, F>(
+        &self,
+        builder: RetryConfig,
+        call: impl Fn() -> F + Send,
+    ) -> anyhow::Result<T>
+    where
+        F: Future<Output = anyhow::Result<T>> + Send;
 }
 
 #[async_trait::async_trait]

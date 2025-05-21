@@ -1,6 +1,10 @@
+use backon::{ExponentialBuilder, Retryable};
 use bytes::Bytes;
+use forge_domain::{Response, RetryConfig};
 use forge_services::HttpService;
-use reqwest::{Client, Response};
+use reqwest::Client;
+use std::future::Future;
+use std::time::Duration;
 
 #[derive(Default)]
 pub struct ForgeHttpService {
@@ -11,23 +15,16 @@ impl ForgeHttpService {
     pub fn new() -> Self {
         Default::default()
     }
-    async fn body(resp: Response) -> anyhow::Result<Bytes> {
-        if resp.status().is_success() {
-            Ok(resp.bytes().await?)
-        } else {
-            Err(anyhow::anyhow!("Failed to fetch URL: {}", resp.url()))
-        }
-    }
-    async fn get(&self, url: &str) -> anyhow::Result<Bytes> {
+    async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
         let response = self
             .client
             .get(url)
             .header("User-Agent", "Forge")
             .send()
             .await?;
-        Self::body(response).await
+        Response::from_reqwest(response).await
     }
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Bytes> {
+    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>> {
         let response = self
             .client
             .post(url)
@@ -35,17 +32,35 @@ impl ForgeHttpService {
             .body(body)
             .send()
             .await?;
-        Self::body(response).await
+        Response::from_reqwest(response).await
     }
 }
 
 #[async_trait::async_trait]
 impl HttpService for ForgeHttpService {
-    async fn get(&self, url: &str) -> anyhow::Result<Bytes> {
+    async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
         self.get(url).await
     }
 
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Bytes> {
+    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>> {
         self.post(url, body).await
+    }
+    async fn poll<T, F>(
+        &self,
+        config: RetryConfig,
+        call: impl Fn() -> F + Send,
+    ) -> anyhow::Result<T>
+    where
+        F: Future<Output = anyhow::Result<T>> + Send,
+    {
+        let mut builder = ExponentialBuilder::default()
+            .with_factor(config.backoff_factor as f32)
+            .with_max_times(config.max_retry_attempts)
+            .with_jitter();
+        if let Some(max_delay) = config.max_delay {
+            builder = builder.with_max_delay(Duration::from_secs(max_delay))
+        }
+
+        call.retry(builder).await
     }
 }
