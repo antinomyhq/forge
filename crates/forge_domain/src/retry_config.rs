@@ -26,7 +26,7 @@ pub struct RetryConfig {
     /// 504)
     #[merge(strategy = crate::merge::std::overwrite)]
     pub retry_status_codes: Vec<u16>,
-    
+
     /// Maximum delay between retries in seconds
     #[merge(strategy = crate::merge::std::overwrite)]
     pub max_delay: Option<u64>,

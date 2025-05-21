@@ -1,10 +1,11 @@
+use std::future::Future;
+use std::time::Duration;
+
 use backon::{ExponentialBuilder, Retryable};
 use bytes::Bytes;
 use forge_domain::{Response, RetryConfig};
 use forge_services::HttpService;
 use reqwest::Client;
-use std::future::Future;
-use std::time::Duration;
 
 #[derive(Default)]
 pub struct ForgeHttpService {
