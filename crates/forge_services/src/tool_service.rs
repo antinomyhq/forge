@@ -65,7 +65,10 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
 
-        let tool = self.get_tool(&name).await?;
+        let tool = match self.get_tool(&name).await {
+            Ok(tool) => tool,
+            Err(err) => return Ok(ToolResult::new(call.name).failure(err)),
+        };
 
         let result = match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
             Ok(output) => ToolResult::new(call.name).output(output),
