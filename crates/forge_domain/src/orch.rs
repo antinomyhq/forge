@@ -89,8 +89,7 @@ impl<A: Services> Orchestrator<A> {
             let tool_name = tool_call.name.as_str();
             let is_tool_supported = available_tools
                 .iter()
-                .find(|tool| **tool == tool_name)
-                .is_some();
+                .any(|tool| *tool == tool_name);
 
             if !is_tool_supported {
                 let error = anyhow::anyhow!(
