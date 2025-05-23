@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use derive_setters::Setters;
-use forge_api::{ConversationId, Model, ModelId, Provider, Usage, Workflow};
+use forge_api::{ConversationId, ModelId, Provider, Usage, Workflow};
 use strum_macros::EnumString;
 
 use crate::prompt::ForgePrompt;
@@ -33,7 +33,6 @@ pub struct UIState {
     pub mode: Mode,
     pub is_first: bool,
     pub model: Option<ModelId>,
-    pub cached_models: Option<Vec<Model>>,
     pub provider: Option<Provider>,
 }
 
@@ -50,7 +49,6 @@ impl UIState {
             mode,
             is_first: true,
             model: workflow.model,
-            cached_models: Default::default(),
             provider: Default::default(),
         }
     }

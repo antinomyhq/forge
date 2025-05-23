@@ -67,17 +67,13 @@ impl<F: API> UI<F> {
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
         self.spinner.write_ln(content)
     }
-    /// Retrieve available models, using cache if present
+
+    /// Retrieve available models
     async fn get_models(&mut self) -> Result<Vec<Model>> {
-        if let Some(models) = &self.state.cached_models {
-            Ok(models.clone())
-        } else {
-            self.spinner.start(Some("Loading Models"))?;
-            let models = self.api.models().await?;
-            self.spinner.stop(None)?;
-            self.state.cached_models = Some(models.clone());
-            Ok(models)
-        }
+        self.spinner.start(Some("Loading Models"))?;
+        let models = self.api.models().await?;
+        self.spinner.stop(None)?;
+        Ok(models)
     }
 
     // Handle creating a new conversation
