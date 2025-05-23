@@ -64,19 +64,22 @@ impl<M: McpService> ForgeToolService<M> {
         tool_name: &ToolName,
     ) -> anyhow::Result<Arc<Tool>> {
         // Step 1: check if tool is supported by operating agent.
-        let agent_tools: Vec<_> = context
-            .agent
-            .iter()
-            .flat_map(|agent| agent.tools.as_ref())
-            .flat_map(|tools| tools.iter())
-            .map(|tool| tool.as_str())
-            .collect();
-        if agent_tools.iter().any(|tool| *tool == tool_name.as_str()) {
-            return Err(anyhow::anyhow!(
-                "No tool with name '{}' was found. Please try again with one of these tools {}",
-                tool_name,
-                agent_tools.join(", ")
-            ));
+        if let Some(agent) = &context.agent {
+            let agent_tools: Vec<_> = agent
+                .tools
+                .iter()
+                .flat_map(|tools| tools.iter())
+                .map(|tool| tool.as_str())
+                .collect();
+
+            if agent_tools.iter().any(|tool| *tool == tool_name.as_str()) {
+                return Err(anyhow::anyhow!(
+                    "No tool with name '{}' is supported by agent '{}'. Please try again with one of these tools {}",
+                    tool_name,
+                    agent.id,
+                    agent_tools.join(", ")
+                ));
+            }
         }
 
         // Step 2: check if tool is supported by system.
