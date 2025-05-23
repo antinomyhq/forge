@@ -86,4 +86,10 @@ pub trait API: Sync + Send {
     /// user's home directory Local configuration is stored in the current
     /// project directory
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
+
+    /// Retries the last user message in the given conversation
+    async fn retry(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> Result<MpscStream<Result<AgentMessage<ChatResponse>>>>;
 }

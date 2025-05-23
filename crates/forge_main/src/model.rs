@@ -182,6 +182,7 @@ impl ForgeCommandManager {
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
+            "/retry" => Ok(Command::Retry),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -263,6 +264,8 @@ pub enum Command {
     /// This can be triggered with commands starting with '!' character.
     #[strum(props(usage = "Execute a native shell command"))]
     Shell(String),
+    #[strum(props(usage = "Retry the last message"))]
+    Retry,
 }
 
 impl Command {
@@ -280,6 +283,7 @@ impl Command {
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
             Command::Tools => "/tools",
+            Command::Retry => "/retry",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
         }

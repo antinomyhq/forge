@@ -152,4 +152,33 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .execute_command_raw(command)
             .await
     }
+    async fn retry(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
+        let conversation = self
+            .app
+            .conversation_service()
+            .find(conversation_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
+
+        let last_task = conversation
+            .events
+            .iter()
+            .rev()
+            .find(|event| {
+                ["user_task_init", "user_task_update", "prompt"]
+                    .iter()
+                    .any(|suffix| event.name.ends_with(suffix))
+            })
+            .ok_or_else(|| anyhow::anyhow!("No retryable task event found in conversation"))?;
+
+        let chat_request = ChatRequest {
+            event: last_task.clone(),
+            conversation_id: conversation.id.clone(),
+        };
+
+        self.chat(chat_request).await
+    }
 }

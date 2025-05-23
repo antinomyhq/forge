@@ -360,6 +360,12 @@ impl<F: API> UI<F> {
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
+            Command::Retry => {
+                let conversation_id = self.init_conversation().await?;
+                self.writeln(TitleFormat::action("Retrying last message..."))?;
+                let mut stream = self.api.retry(&conversation_id).await?;
+                self.handle_chat_stream(&mut stream).await?;
+            }
         }
 
         Ok(false)
