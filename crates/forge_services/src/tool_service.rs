@@ -80,7 +80,7 @@ impl<M: McpService> ForgeToolService<M> {
         }
 
         // Step 2: check if tool is supported by system.
-        let tool = self.get_tool(&tool_name).await?;
+        let tool = self.get_tool(tool_name).await?;
         Ok(tool)
     }
 }
