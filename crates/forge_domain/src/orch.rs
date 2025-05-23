@@ -72,38 +72,7 @@ impl<A: Services> Orchestrator<A> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
-        // Tools available to the agent.
-        let available_tools = agent
-            .tools
-            .clone()
-            .map(|tools| {
-                tools
-                    .into_iter()
-                    .map(|tool| tool.to_string())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-
         for tool_call in tool_calls {
-            // Validate if tool is supported by operating agent.
-            let tool_name = tool_call.name.as_str();
-            let is_tool_supported = available_tools.iter().any(|tool| *tool == tool_name);
-
-            if !is_tool_supported {
-                let error = anyhow::anyhow!(
-                    "No tool with name '{}' was found. Please try again with one of these tools {}",
-                    tool_name.to_string(),
-                    available_tools.join(", ")
-                );
-                tool_call_records.push((
-                    tool_call.clone(),
-                    ToolResult::new(tool_name.into())
-                        .failure(error)
-                        .call_id(tool_call.call_id.clone()),
-                ));
-                continue;
-            }
-
             // Send the start notification
             self.send(agent, ChatResponse::ToolCallStart(tool_call.clone()))
                 .await?;
@@ -403,10 +372,10 @@ impl<A: Services> Orchestrator<A> {
     }
 
     // Get the ToolCallContext for an agent
-    fn get_tool_call_context(&self, agent_id: &AgentId) -> ToolCallContext {
+    fn get_tool_call_context(&self, agent: &Agent) -> ToolCallContext {
         // Create a new ToolCallContext with the agent ID
         ToolCallContext::default()
-            .agent_id(agent_id.clone())
+            .agent(Some(agent.clone()))
             .sender(self.sender.clone())
     }
 
@@ -488,7 +457,7 @@ impl<A: Services> Orchestrator<A> {
 
         self.set_context(&agent.id, context.clone()).await?;
 
-        let tool_context = self.get_tool_call_context(&agent.id);
+        let tool_context = self.get_tool_call_context(&agent);
 
         let mut empty_tool_call_count = 0;
 

@@ -52,6 +52,37 @@ impl<M: McpService> ForgeToolService<M> {
             )
         })
     }
+
+    /// Validates if a tool is supported by both the agent and the system.
+    ///
+    /// # Validation Process
+    /// 1. Verifies the tool is supported by the agent specified in the context
+    /// 2. If agent validation passes, checks if the system supports the tool
+    async fn validate_tool_call(
+        &self,
+        context: &ToolCallContext,
+        tool_name: &ToolName,
+    ) -> anyhow::Result<Arc<Tool>> {
+        // Step 1: check if tool is supported by operating agent.
+        let agent_tools: Vec<_> = context
+            .agent
+            .iter()
+            .flat_map(|agent| agent.tools.as_ref())
+            .flat_map(|tools| tools.iter())
+            .map(|tool| tool.as_str())
+            .collect();
+        if agent_tools.iter().any(|tool| *tool == tool_name.as_str()) {
+            return Err(anyhow::anyhow!(
+                "No tool with name '{}' was found. Please try again with one of these tools {}",
+                tool_name,
+                agent_tools.join(", ")
+            ));
+        }
+
+        // Step 2: check if tool is supported by system.
+        let tool = self.get_tool(&tool_name).await?;
+        Ok(tool)
+    }
 }
 
 #[async_trait::async_trait]
@@ -61,12 +92,11 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
 
-        let tool = match self.get_tool(&name).await {
+        // Checks if tool is supported by agent and system.
+        let tool = match self.validate_tool_call(&context, &call.name).await {
             Ok(tool) => tool,
             Err(err) => {
-                return ToolResult::new(call.name)
-                    .call_id(call.call_id.clone())
-                    .failure(err)
+                return ToolResult::new(name).call_id(call.call_id).failure(err);
             }
         };
 
