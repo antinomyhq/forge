@@ -87,9 +87,7 @@ impl<A: Services> Orchestrator<A> {
         for tool_call in tool_calls {
             // Validate if tool is supported by operating agent.
             let tool_name = tool_call.name.as_str();
-            let is_tool_supported = available_tools
-                .iter()
-                .any(|tool| *tool == tool_name);
+            let is_tool_supported = available_tools.iter().any(|tool| *tool == tool_name);
 
             if !is_tool_supported {
                 let error = anyhow::anyhow!(
