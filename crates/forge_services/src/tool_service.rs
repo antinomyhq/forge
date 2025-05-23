@@ -56,11 +56,7 @@ impl<M: McpService> ForgeToolService<M> {
 
 #[async_trait::async_trait]
 impl<M: McpService> ToolService for ForgeToolService<M> {
-    async fn call(
-        &self,
-        context: ToolCallContext,
-        call: ToolCallFull,
-    ) -> anyhow::Result<ToolResult> {
+    async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult {
         let name = call.name.clone();
         let input = call.arguments.clone();
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
@@ -68,9 +64,9 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         let tool = match self.get_tool(&name).await {
             Ok(tool) => tool,
             Err(err) => {
-                return Ok(ToolResult::new(call.name)
+                return ToolResult::new(call.name)
                     .call_id(call.call_id.clone())
-                    .failure(err))
+                    .failure(err)
             }
         };
 
@@ -87,7 +83,7 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
         }
         .call_id(call.call_id);
 
-        Ok(result)
+        result
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {

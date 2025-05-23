@@ -24,7 +24,7 @@ pub trait ToolService: Send + Sync {
         &self,
         context: ToolCallContext,
         call: ToolCallFull,
-    ) -> anyhow::Result<ToolResult>;
+    ) -> ToolResult;
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
     async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>>;
 }

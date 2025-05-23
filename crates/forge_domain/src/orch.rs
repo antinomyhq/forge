@@ -113,7 +113,7 @@ impl<A: Services> Orchestrator<A> {
                 .services
                 .tool_service()
                 .call(tool_context.clone(), tool_call.clone())
-                .await?;
+                .await;
 
             // Send the end notification
             self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
