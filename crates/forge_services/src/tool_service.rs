@@ -72,7 +72,7 @@ impl<M: McpService> ForgeToolService<M> {
                 .map(|tool| tool.as_str())
                 .collect();
 
-            if agent_tools.iter().any(|tool| *tool != tool_name.as_str()) {
+            if agent_tools.iter().all(|tool| *tool != tool_name.as_str()) {
                 return Err(anyhow::anyhow!(
                     "No tool with name '{}' is supported by agent '{}'. Please try again with one of these tools {}",
                     tool_name,
