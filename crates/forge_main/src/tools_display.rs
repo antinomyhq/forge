@@ -1,28 +1,27 @@
-use colored::Colorize;
 use forge_api::ToolDefinition;
-use serde_json::to_string_pretty;
 
-/// Formats the list of tools for display in the shell UI, following these
-/// rules:
-/// - Name: blue bold
-/// - Description: default
-/// - Input json schema: dimmed, pretty-printed, multi-line
-/// - Blank line between each tool
+/// Formats the list of tools for display in the shell UI, showing only the tool
+/// name as a blue bold heading with numbering for each tool.
 pub fn format_tools(tools: &[ToolDefinition]) -> String {
-    let mut out = String::new();
+    let mut output = String::new();
+
+    // Calculate the number of digits in the total count
+    let max_digits = tools.len().to_string().len();
 
     for (i, tool) in tools.iter().enumerate() {
-        let name = tool.name.to_string().blue().bold();
-        let description = &tool.description;
-        let schema_json = to_string_pretty(&tool.input_schema).unwrap_or_else(|_| "{}".to_string());
-        let schema = format!("{}", schema_json.dimmed());
+        // Add numbered tool name with consistent padding
+        output.push_str(&format!(
+            "{:>width$}. {}",
+            i + 1,
+            tool.name,
+            width = max_digits
+        ));
 
-        if i > 0 {
-            out.push('\n');
+        // Add newline between tools
+        if i < tools.len() - 1 {
+            output.push('\n');
         }
-
-        out.push_str(&format!("{name}\n{description}\n{schema}\n"));
     }
 
-    out
+    output
 }
