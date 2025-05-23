@@ -189,6 +189,7 @@ impl<F: API> UI<F> {
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
         self.init_state().await?;
+        self.restore_conversation().await?;
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -320,6 +321,7 @@ impl<F: API> UI<F> {
             Command::Message(ref content) => {
                 self.spinner.start(None)?;
                 self.on_message(content.clone()).await?;
+                self.save_conversation().await?;
             }
             Command::Act => {
                 self.on_mode_change(Mode::Act).await?;
@@ -653,6 +655,31 @@ impl<F: API> UI<F> {
         f(&mut config);
         self.api.write_mcp_config(scope, &config).await?;
 
+        Ok(())
+    }
+    async fn save_conversation(&self) -> Result<()> {
+        let conversation_id = self.state.conversation_id.clone();
+        if let Some(conversation_id) = conversation_id {
+            let conversation = self.api.conversation(&conversation_id).await?;
+            if let Some(conversation) = conversation {
+                self.api.save_conversation(&conversation).await?;
+            }
+        }
+        Ok(())
+    }
+    /// Load a conversation from a dump file if specified in the CLI
+    async fn restore_conversation(&mut self) -> Result<()> {
+        let convo = self.api.load_previous_conversation().await?;
+        if let Some(conversation) = convo {
+            let conversation_id = conversation.id.clone();
+            self.state.conversation_id = Some(conversation_id.clone());
+            self.update_model(conversation.main_model()?);
+            self.api.upsert_conversation(conversation).await?;
+            self.writeln(TitleFormat::action(format!(
+                "Restored conversation from: {conversation_id}"
+            )))?;
+        }
+        
         Ok(())
     }
 }

@@ -121,6 +121,12 @@ pub trait SuggestionService: Send + Sync {
     async fn suggestions(&self) -> anyhow::Result<Vec<File>>;
 }
 
+#[async_trait::async_trait]
+pub trait ConversationStore: Send + Sync {
+    async fn load(&self) -> anyhow::Result<Option<Conversation>>;
+    async fn save(&self, conversation: &Conversation) -> anyhow::Result<()>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -135,6 +141,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type WorkflowService: WorkflowService;
     type SuggestionService: SuggestionService;
     type McpConfigManager: McpConfigManager;
+    type ConversationStore: ConversationStore;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -146,4 +153,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn suggestion_service(&self) -> &Self::SuggestionService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
+    fn conversation_store(&self) -> &Self::ConversationStore;
 }
