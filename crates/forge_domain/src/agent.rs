@@ -173,60 +173,60 @@ pub struct Agent {
     pub id: AgentId,
 
     // The language model ID to be used by this agent
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub model: Option<ModelId>,
 
     // Human-readable description of the agent's purpose
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub description: Option<String>,
 
     // Template for the system prompt provided to the agent
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub system_prompt: Option<Template<SystemContext>>,
 
     // Template for the user prompt provided to the agent
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub user_prompt: Option<Template<EventContext>>,
 
     /// Suggests if the agent needs to maintain its state for the lifetime of
     /// the program.    
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub ephemeral: Option<bool>,
 
     /// Tools that the agent can use    
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub tools: Option<Vec<ToolName>>,
 
     // The transforms feature has been removed
     /// Used to specify the events the agent is interested in    
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = merge_subscription)]
     pub subscribe: Option<Vec<String>>,
 
     /// Maximum number of turns the agent can take    
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub max_turns: Option<u64>,
 
     /// Maximum depth to which the file walker should traverse for this agent
     /// If not provided, the maximum possible depth will be used
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub max_walker_depth: Option<usize>,
 
     /// Configuration for automatic context compaction
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
 
     /// A set of custom rules that the agent should follow
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub custom_rules: Option<String>,
 
