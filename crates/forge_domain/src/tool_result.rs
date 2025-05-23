@@ -25,7 +25,7 @@ impl ToolResult {
         self.call_id = call_id;
         self
     }
-    
+
     pub fn success(mut self, content: impl Into<String>) -> Self {
         self.output = ToolOutput::text(content.into());
 
