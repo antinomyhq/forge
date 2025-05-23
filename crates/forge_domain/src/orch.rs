@@ -99,7 +99,7 @@ impl<A: Services> Orchestrator<A> {
                     tool_call.clone(),
                     ToolResult::new(tool_name.into())
                         .failure(error)
-                        .with_call_id(tool_call.call_id.clone()),
+                        .call_id(tool_call.call_id.clone()),
                 ));
                 continue;
             }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Image, ToolCallFull, ToolCallId, ToolName};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
-#[setters(strip_option, into)]
+#[setters(into)]
 pub struct ToolResult {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
@@ -19,11 +19,6 @@ impl ToolResult {
             call_id: Default::default(),
             output: Default::default(),
         }
-    }
-
-    pub fn with_call_id(mut self, call_id: Option<ToolCallId>) -> Self {
-        self.call_id = call_id;
-        self
     }
 
     pub fn success(mut self, content: impl Into<String>) -> Self {

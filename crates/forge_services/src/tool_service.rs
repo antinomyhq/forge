@@ -67,7 +67,11 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
 
         let tool = match self.get_tool(&name).await {
             Ok(tool) => tool,
-            Err(err) => return Ok(ToolResult::new(call.name).failure(err)),
+            Err(err) => {
+                return Ok(ToolResult::new(call.name)
+                    .call_id(call.call_id.clone())
+                    .failure(err))
+            }
         };
 
         let result = match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
@@ -80,7 +84,8 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
                 )
                 .context(elapsed),
             ),
-        };
+        }
+        .call_id(call.call_id);
 
         Ok(result)
     }
