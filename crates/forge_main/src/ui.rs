@@ -465,23 +465,6 @@ impl<F: API> UI<F> {
         self.handle_chat_stream(&mut stream).await
     }
 
-    /// Load a conversation from a dump file if specified in the CLI
-    async fn load_conversation(&mut self) -> Result<Option<ConversationId>> {
-        if let Some(ref path) = self.cli.conversation {
-            let conversation: Conversation =
-                serde_json::from_str(ForgeFS::read_to_string(path.as_os_str()).await?.as_str())
-                    .context("Failed to parse Conversation")?;
-
-            let conversation_id = conversation.id.clone();
-            self.state.conversation_id = Some(conversation_id.clone());
-            self.update_model(conversation.main_model()?);
-            self.api.upsert_conversation(conversation).await?;
-            Ok(Some(conversation_id))
-        } else {
-            Ok(None)
-        }
-    }
-
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
@@ -490,7 +473,16 @@ impl<F: API> UI<F> {
                 let workflow = self.init_state().await?;
 
                 // We need to try and get the conversation ID first before fetching the model
-                if let Some(conversation_id) = self.load_conversation().await? {
+                if let Some(ref path) = self.cli.conversation {
+                    let conversation: Conversation = serde_json::from_str(
+                        ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
+                    )
+                    .context("Failed to parse Conversation")?;
+
+                    let conversation_id = conversation.id.clone();
+                    self.state.conversation_id = Some(conversation_id.clone());
+                    self.update_model(conversation.main_model()?);
+                    self.api.upsert_conversation(conversation).await?;
                     Ok(conversation_id)
                 } else {
                     let conversation = self.api.init_conversation(workflow).await?;
@@ -566,12 +558,7 @@ impl<F: API> UI<F> {
 
     /// Modified version of handle_dump that supports HTML format
     async fn on_dump(&mut self, format: Option<String>) -> Result<()> {
-        if let Some(conversation_id) = self
-            .state
-            .conversation_id
-            .clone()
-            .or(self.load_conversation().await?)
-        {
+        if let Some(conversation_id) = self.state.conversation_id.clone() {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
