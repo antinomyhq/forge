@@ -82,7 +82,7 @@ impl<A: Services> Orchestrator<A> {
                 .services
                 .tool_service()
                 .call(tool_context.clone(), tool_call.clone())
-                .await?;
+                .await;
 
             // Send the end notification
             self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
@@ -372,10 +372,10 @@ impl<A: Services> Orchestrator<A> {
     }
 
     // Get the ToolCallContext for an agent
-    fn get_tool_call_context(&self, agent_id: &AgentId) -> ToolCallContext {
+    fn get_tool_call_context(&self, agent: &Agent) -> ToolCallContext {
         // Create a new ToolCallContext with the agent ID
         ToolCallContext::default()
-            .agent_id(agent_id.clone())
+            .agent(Some(agent.clone()))
             .sender(self.sender.clone())
     }
 
@@ -457,7 +457,7 @@ impl<A: Services> Orchestrator<A> {
 
         self.set_context(&agent.id, context.clone()).await?;
 
-        let tool_context = self.get_tool_call_context(&agent.id);
+        let tool_context = self.get_tool_call_context(agent);
 
         let mut empty_tool_call_count = 0;
 

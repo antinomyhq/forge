@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Image, ToolCallFull, ToolCallId, ToolName};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
-#[setters(strip_option, into)]
+#[setters(into)]
 pub struct ToolResult {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,

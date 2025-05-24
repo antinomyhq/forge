@@ -12,6 +12,12 @@ impl ToolName {
     }
 }
 
+impl From<&str> for ToolName {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
+    }
+}
+
 impl ToolName {
     pub fn into_string(self) -> String {
         self.0
