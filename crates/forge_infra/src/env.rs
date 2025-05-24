@@ -71,6 +71,15 @@ impl ForgeEnvironmentService {
             .unwrap_or_else(|| panic!("No API key found. Please set one of: {env_variables}"))
     }
 
+    /// Resolves model cache TTL from environment variable or returns default
+    fn resolve_model_cache_ttl(&self) -> u64 {
+        // Parse model cache TTL in seconds
+        std::env::var("FORGE_MODEL_CACHE_TTL")
+            .ok()
+            .and_then(|val| val.parse::<u64>().ok())
+            .unwrap_or(3600) // Default to 1 hour (3600 seconds)
+    }
+
     /// Resolves retry configuration from environment variables or returns
     /// defaults
     fn resolve_retry_config(&self) -> RetryConfig {
@@ -119,6 +128,7 @@ impl ForgeEnvironmentService {
 
         let provider = self.resolve_provider();
         let retry_config = self.resolve_retry_config();
+        let model_cache_ttl = self.resolve_model_cache_ttl();
 
         Environment {
             os: std::env::consts::OS.to_string(),
@@ -131,6 +141,7 @@ impl ForgeEnvironmentService {
             home: dirs::home_dir(),
             provider,
             retry_config,
+            model_cache_ttl,
         }
     }
 

@@ -217,15 +217,25 @@ impl ForgeProvider {
     pub async fn models(&self) -> Result<Vec<forge_domain::Model>> {
         self.inner_models().await
     }
+
+    pub async fn model(&self, model_id: &ModelId) -> anyhow::Result<Option<forge_domain::Model>> {
+        let models = self.models().await?;
+        Ok(models.into_iter().find(|model| model.id == *model_id))
+    }
 }
 
 impl From<Model> for forge_domain::Model {
     fn from(value: Model) -> Self {
+        let tools_supported = value
+            .supported_parameters
+            .iter()
+            .any(|param| param == "tools");
         forge_domain::Model {
             id: value.id,
             name: value.name,
             description: value.description,
             context_length: value.context_length,
+            tools_supported: Some(tools_supported),
         }
     }
 }

@@ -143,6 +143,7 @@ pub mod tests {
                 base_path: PathBuf::from("/base"),
                 provider: Provider::open_router("test-key"),
                 retry_config: Default::default(),
+                model_cache_ttl: 60 * 60,
             }
         }
     }

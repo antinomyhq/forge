@@ -296,7 +296,11 @@ impl Agent {
         }
     }
 
-    pub async fn init_context(&self, mut forge_tools: Vec<ToolDefinition>) -> Result<Context> {
+    pub async fn init_context(
+        &self,
+        mut forge_tools: Vec<ToolDefinition>,
+        tool_supported: bool,
+    ) -> Result<Context> {
         let allowed = self.tools.iter().flatten().collect::<HashSet<_>>();
 
         // Adding Event tool to the list of tool definitions
@@ -306,9 +310,6 @@ impl Agent {
             .into_iter()
             .filter(|tool| allowed.contains(&tool.name))
             .collect::<Vec<_>>();
-
-        // Use the agent's tool_supported flag directly instead of querying the provider
-        let tool_supported = self.tool_supported.unwrap_or_default();
 
         let context = Context::default();
 

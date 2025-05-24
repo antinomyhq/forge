@@ -1134,6 +1134,7 @@ dependencies = [
  "derive_setters",
  "forge_domain",
  "insta",
+ "moka2",
  "pretty_assertions",
  "regex",
  "reqwest 0.12.12",

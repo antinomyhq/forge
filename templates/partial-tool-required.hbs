@@ -3,7 +3,9 @@ You did not use the tool or used it incorrectly in your previous response!
 Please retry with correct tool use
 </error>
 
+{{#if (not tool_supported)}}
 {{> partial-tool-use-example.hbs }}
+{{/if}}
 
 Next Steps: 
 If you have completed the user's task, use the `forge_tool_attempt_completion`

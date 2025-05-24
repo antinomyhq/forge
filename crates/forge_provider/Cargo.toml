@@ -21,6 +21,7 @@ forge_domain.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
+moka2 = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 insta.workspace = true

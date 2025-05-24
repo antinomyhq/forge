@@ -567,7 +567,6 @@ impl<F: API> UI<F> {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-
                 if let Some(format) = format {
                     if format == "html" {
                         // Export as HTML

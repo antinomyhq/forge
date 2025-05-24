@@ -21,7 +21,14 @@ impl ForgeProviderService {
         let env = infra.environment_service().get_environment();
         let provider = env.provider.clone();
         Self {
-            client: Arc::new(Client::new(provider, env.retry_config.retry_status_codes).unwrap()),
+            client: Arc::new(
+                Client::new(
+                    provider,
+                    env.retry_config.retry_status_codes,
+                    env.model_cache_ttl,
+                )
+                .unwrap(),
+            ),
         }
     }
 }
@@ -41,5 +48,9 @@ impl ProviderService for ForgeProviderService {
 
     async fn models(&self) -> Result<Vec<Model>> {
         self.client.models().await
+    }
+
+    async fn model(&self, model: &ModelId) -> Result<Option<Model>> {
+        self.client.model(model).await
     }
 }

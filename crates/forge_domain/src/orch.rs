@@ -124,6 +124,19 @@ impl<A: Services> Orchestrator<A> {
             .collect())
     }
 
+    // Returns if agent supports tool or not.
+    async fn is_tool_supported(&self, agent: &Agent) -> anyhow::Result<bool> {
+        let model_id = agent
+            .model
+            .as_ref()
+            .ok_or(Error::MissingModel(agent.id.clone()))?;
+        let model_info = self.services.provider_service().model(model_id).await?;
+
+        Ok(model_info
+            .and_then(|model| model.tools_supported)
+            .unwrap_or_else(|| agent.tool_supported.unwrap_or_default()))
+    }
+
     async fn set_system_prompt(
         &self,
         context: Context,
@@ -144,7 +157,8 @@ impl<A: Services> Orchestrator<A> {
 
             let current_time = Local::now().format("%Y-%m-%d %H:%M:%S %:z").to_string();
 
-            let tool_information = match agent.tool_supported.unwrap_or_default() {
+            let tool_supported = self.is_tool_supported(agent).await?;
+            let tool_information = match tool_supported {
                 true => None,
                 false => {
                     Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent).await?).to_string())
@@ -155,7 +169,7 @@ impl<A: Services> Orchestrator<A> {
                 current_time,
                 env: Some(env),
                 tool_information,
-                tool_supported: agent.tool_supported.unwrap_or_default(),
+                tool_supported,
                 files,
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
                 variables: variables.clone(),
@@ -203,7 +217,7 @@ impl<A: Services> Orchestrator<A> {
         let mut tool_interrupted = false;
 
         // Only interrupt the loop for XML tool calls if tool_supported is false
-        let should_interrupt_for_xml = !agent.tool_supported.unwrap_or_default();
+        let should_interrupt_for_xml = !self.is_tool_supported(agent).await?;
 
         while let Some(message) = response.next().await {
             let message = message?;
@@ -215,7 +229,7 @@ impl<A: Services> Orchestrator<A> {
                 .await?;
 
             // Process content
-            if let Some(content_part) = message.content.clone() {
+            if let Some(content_part) = message.content.as_ref() {
                 let content_part = content_part.as_str().to_string();
 
                 content.push_str(&content_part);
@@ -408,17 +422,18 @@ impl<A: Services> Orchestrator<A> {
             .model
             .clone()
             .ok_or(Error::MissingModel(agent.id.clone()))?;
+        let tool_supported = self.is_tool_supported(agent).await?;
 
         let mut context = if agent.ephemeral.unwrap_or_default() {
             agent
-                .init_context(self.get_allowed_tools(agent).await?)
+                .init_context(self.get_allowed_tools(agent).await?, tool_supported)
                 .await?
         } else {
             match conversation.context(&agent.id) {
                 Some(context) => context.clone(),
                 None => {
                     agent
-                        .init_context(self.get_allowed_tools(agent).await?)
+                        .init_context(self.get_allowed_tools(agent).await?, tool_supported)
                         .await?
                 }
             }
@@ -509,27 +524,24 @@ impl<A: Services> Orchestrator<A> {
                 model_id.clone(),
                 self.get_all_tool_results(agent, &tool_calls, tool_context.clone())
                     .await?,
-                agent.tool_supported.unwrap_or_default(),
+                tool_supported,
             );
 
             if empty_tool_calls {
                 // No tool calls present, which doesn't mean task is complete so reprompt the
                 // agent to ensure the task complete.
-                let content = self
-                    .services
-                    .template_service()
-                    .render("{{> partial-tool-required.hbs}}", &())?;
+                let content = self.services.template_service().render(
+                    "{{> partial-tool-required.hbs}}",
+                    &serde_json::json!({
+                        "tool_supported": tool_supported
+                    }),
+                )?;
                 context =
                     context.add_message(ContextMessage::user(content, model_id.clone().into()));
 
                 empty_tool_call_count += 1;
-                let model = agent
-                    .model
-                    .as_ref()
-                    .map(ModelId::as_str)
-                    .unwrap_or_default();
                 if empty_tool_call_count > 3 {
-                    bail!("Model '{model}' is unable to follow instructions, consider retrying or switching to a bigger model.");
+                    bail!("Model '{model_id}' is unable to follow instructions, consider retrying or switching to a bigger model.");
                 }
             } else {
                 empty_tool_call_count = 0;

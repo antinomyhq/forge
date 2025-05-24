@@ -183,6 +183,42 @@ impl Anthropic {
             },
         }
     }
+
+    pub async fn model(&self, model: &ModelId) -> anyhow::Result<Option<Model>> {
+        let url = self.url(&format!("models/{}", model.as_str()))?;
+        debug!(url = %url, "Fetching model details");
+
+        let result = self
+            .client
+            .get(url.clone())
+            .headers(self.headers())
+            .send()
+            .await;
+
+        match result {
+            Ok(response) => {
+                let ctx_msg = format_http_context(Some(response.status()), "GET", &url);
+                match response.text().await {
+                    Ok(text) => {
+                        let response: Model = serde_json::from_str(&text)
+                            .with_context(|| ctx_msg)
+                            .with_context(|| "Failed to deserialize model response")?;
+                        Ok(Some(response))
+                    }
+                    Err(err) => Err(err)
+                        .with_context(|| ctx_msg)
+                        .with_context(|| "Failed to decode response into text"),
+                }
+            }
+            Err(err) => {
+                debug!(error = %err, "Failed to fetch model details '{}'", model);
+                let ctx_msg = format_http_context(err.status(), "GET", &url);
+                Err(err)
+                    .with_context(|| ctx_msg)
+                    .with_context(|| format!("Failed to fetch model details for '{model}'"))
+            }
+        }
+    }
 }
 
 #[cfg(test)]

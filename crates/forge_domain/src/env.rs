@@ -31,6 +31,8 @@ pub struct Environment {
     pub provider: Provider,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
+    /// TTL in seconds for model cache
+    pub model_cache_ttl: u64,
 }
 
 impl Environment {
