@@ -5,6 +5,7 @@ use forge_domain::Services;
 use crate::attachment::ForgeChatRequest;
 use crate::compaction::ForgeCompactionService;
 use crate::conversation::ForgeConversationService;
+use crate::conversation_history::ForgeConversationStoreService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::provider::ForgeProviderService;
 use crate::suggestion::ForgeSuggestionService;
@@ -38,6 +39,7 @@ pub struct ForgeServices<F> {
     workflow_service: Arc<ForgeWorkflowService<F>>,
     suggestion_service: Arc<ForgeSuggestionService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
+    conversation_store: Arc<ForgeConversationStoreService<F>>,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
@@ -60,6 +62,7 @@ impl<F: Infrastructure> ForgeServices<F> {
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeSuggestionService::new(infra.clone()));
+        let conversation_store = Arc::new(ForgeConversationStoreService::new(infra.clone()));
         Self {
             infra,
             conversation_service,
@@ -71,6 +74,7 @@ impl<F: Infrastructure> ForgeServices<F> {
             workflow_service,
             suggestion_service,
             mcp_manager,
+            conversation_store,
         }
     }
 }
@@ -86,6 +90,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type WorkflowService = ForgeWorkflowService<F>;
     type SuggestionService = ForgeSuggestionService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
+    type ConversationStore = ForgeConversationStoreService<F>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -125,6 +130,10 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn mcp_config_manager(&self) -> &Self::McpConfigManager {
         self.mcp_manager.as_ref()
+    }
+
+    fn conversation_store(&self) -> &Self::ConversationStore {
+        self.conversation_store.as_ref()
     }
 }
 

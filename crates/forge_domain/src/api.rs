@@ -86,4 +86,9 @@ pub trait API: Sync + Send {
     /// user's home directory Local configuration is stored in the current
     /// project directory
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
+
+    /// Loads the previous conversation from history
+    async fn load_previous_conversation(&self) -> Result<Option<Conversation>>;
+    /// Saves the conversation to history
+    async fn save_conversation(&self, conversation: &Conversation) -> Result<()>;
 }

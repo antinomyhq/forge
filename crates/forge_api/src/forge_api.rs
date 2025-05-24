@@ -152,4 +152,12 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .execute_command_raw(command)
             .await
     }
+
+    async fn load_previous_conversation(&self) -> Result<Option<Conversation>> {
+        self.app.conversation_store().load().await
+    }
+
+    async fn save_conversation(&self, conversation: &Conversation) -> Result<()> {
+        self.app.conversation_store().save(conversation).await
+    }
 }
