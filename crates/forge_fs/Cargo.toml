@@ -9,6 +9,8 @@ anyhow.workspace = true
 infer = "0.15.0" # For binary file detection
 thiserror = "1.0"
 
+forge_domain.workspace = true
+
 [dev-dependencies]
 tempfile = "3.8.0"
 pretty_assertions = "1.4.0"

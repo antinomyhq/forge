@@ -1,18 +1,19 @@
 use std::cmp::min;
 use std::fmt::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{bail, Context};
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolDescription,
-    ToolName, ToolOutput,
+    EnvironmentService, ExecutableTool, FSReadInput, Image, MimeType, NamedTool, ToolCallContext,
+    ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
+use nom::AsBytes;
 
 use crate::utils::{assert_absolute_path, format_display_path};
-use crate::{FsReadService, Infrastructure};
+use crate::{FsMetaService, FsReadService, Infrastructure};
 
 // Define maximum character limits
 const MAX_RANGE_SIZE: u64 = 40_000;
@@ -142,15 +143,12 @@ impl<F: Infrastructure> FSRead<F> {
         Ok(())
     }
 
-    /// Helper function to read a file with range constraints
-    async fn call(
+    async fn read_binary(
         &self,
         context: ToolCallContext,
         input: FSReadInput,
+        path: PathBuf,
     ) -> anyhow::Result<ToolOutput> {
-        let path = Path::new(&input.path);
-        assert_absolute_path(path)?;
-
         let start_char = input.start_char.unwrap_or(0);
         let end_char = input.end_char.unwrap_or(MAX_RANGE_SIZE.saturating_sub(1));
 
@@ -160,12 +158,12 @@ impl<F: Infrastructure> FSRead<F> {
         let (content, file_info) = self
             .0
             .file_read_service()
-            .range_read_utf8(path, start_char, end_char)
+            .range_read_utf8(&path, start_char, end_char)
             .await
             .with_context(|| format!("Failed to read file content from {}", input.path))?;
 
         // Create and send the title using the extracted method
-        self.create_and_send_title(&context, &input, path, start_char, end_char, &file_info)
+        self.create_and_send_title(&context, &input, &path, start_char, end_char, &file_info)
             .await?;
 
         // Determine if the user requested an explicit range
@@ -195,6 +193,52 @@ impl<F: Infrastructure> FSRead<F> {
         writeln!(response, "{}", &content)?;
 
         Ok(ToolOutput::text(response))
+    }
+
+    async fn read_image(
+        &self,
+        context: ToolCallContext,
+        input: FSReadInput,
+        path: PathBuf,
+        ty: MimeType,
+    ) -> anyhow::Result<ToolOutput> {
+        let bytes = self
+            .0
+            .file_read_service()
+            .read(&path)
+            .await
+            .with_context(|| format!("Failed to read file content from {}", input.path))?;
+
+        let file_info = forge_fs::FileInfo::new(0, (bytes.len() - 1) as u64, bytes.len() as u64);
+        let image = Image::new_bytes(bytes.as_bytes(), ty.to_string());
+
+        self.create_and_send_title(
+            &context,
+            &input,
+            &path,
+            0,
+            (bytes.len() - 1) as u64,
+            &file_info,
+        )
+        .await?;
+
+        Ok(ToolOutput::image(image))
+    }
+
+    /// Helper function to read a file with range constraints
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        input: FSReadInput,
+    ) -> anyhow::Result<ToolOutput> {
+        let path = PathBuf::from(&input.path);
+        assert_absolute_path(&path)?;
+        let ty = self.0.file_meta_service().mime_type(&path).await?;
+        if matches!(&ty, MimeType::Image(_)) {
+            self.read_image(context, input, path, ty).await
+        } else {
+            self.read_binary(context, input, path).await
+        }
     }
 }
 

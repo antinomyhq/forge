@@ -1,27 +1,25 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
+use forge_domain::MimeType;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
 impl crate::ForgeFS {
     /// Checks if a file is binary by examining its content.
     /// This version takes a path and opens the file itself.
-    #[cfg(test)]
-    async fn is_binary_path<T: AsRef<std::path::Path>>(path: T) -> Result<(bool, String)> {
-        use anyhow::Context;
-
+    pub async fn is_binary<T: AsRef<std::path::Path>>(path: T) -> Result<(bool, MimeType)> {
         let path_ref = path.as_ref();
         let mut file = File::open(path_ref)
             .await
             .with_context(|| format!("Failed to open file {}", path_ref.display()))?;
 
-        Self::is_binary(&mut file).await
+        Self::is_binary_inner(&mut file).await
     }
 
     /// Checks if a file is binary by examining its content.
     /// This version takes an already opened file handle, allowing for reuse
     /// of the same file handle across multiple operations.
     /// This is a crate-private implementation detail.
-    pub(crate) async fn is_binary(file: &mut File) -> Result<(bool, String)> {
+    pub(crate) async fn is_binary_inner(file: &mut File) -> Result<(bool, MimeType)> {
         // Read sample data
         let mut sample = vec![0; 8192];
         let bytes_read = file.read(&mut sample).await?;
@@ -29,7 +27,7 @@ impl crate::ForgeFS {
 
         // Handle empty files
         if bytes_read == 0 {
-            return Ok((true, "Empty file".into()));
+            return Ok((true, MimeType::Other("text".to_string())));
         }
 
         // Get file type info
@@ -43,9 +41,9 @@ impl crate::ForgeFS {
 
         let description = infer::get(&sample)
             .map(|info| info.mime_type().to_string())
-            .unwrap_or_else(|| "Text file (no specific format detected)".into());
+            .unwrap_or_else(|| "text".into());
 
-        Ok((is_text, description))
+        Ok((is_text, MimeType::from(description.as_str())))
     }
 }
 
@@ -64,18 +62,17 @@ mod test {
     async fn test_is_binary_file() -> Result<()> {
         // Test text file
         let text_file = create_test_file(b"Hello, world!").await?;
-        let (is_text_or_doc, _) = crate::ForgeFS::is_binary_path(text_file.path()).await?;
+        let (is_text_or_doc, _) = crate::ForgeFS::is_binary(text_file.path()).await?;
         assert!(is_text_or_doc, "Text file should be identified as text");
 
         // Test binary data
         let binary_content = vec![0, 1, 2, 3, 0, 0, 0, 0, 5, 6, 7, 8];
         let binary_file = create_test_file(&binary_content).await?;
-        let (is_text_or_doc, file_type) =
-            crate::ForgeFS::is_binary_path(binary_file.path()).await?;
+        let (is_text_or_doc, file_type) = crate::ForgeFS::is_binary(binary_file.path()).await?;
 
         if !is_text_or_doc {
             assert!(
-                file_type.contains("binary") || !file_type.contains("text"),
+                file_type.to_string().contains("binary") || !file_type.to_string().contains("text"),
                 "Binary file type description should indicate binary"
             );
         }
@@ -87,16 +84,16 @@ mod test {
             0x00,
         ];
         let png_file = create_test_file(&png_header).await?;
-        let (is_text_or_doc, file_type) = crate::ForgeFS::is_binary_path(png_file.path()).await?;
+        let (is_text_or_doc, file_type) = crate::ForgeFS::is_binary(png_file.path()).await?;
         assert!(!is_text_or_doc, "PNG file should be identified as binary");
         assert!(
-            file_type.contains("image/png"),
+            file_type.to_string().contains("image/png"),
             "PNG file type should be correctly identified"
         );
 
         // Test empty file
         let empty_file = create_test_file(&[]).await?;
-        let (is_text_or_doc, _) = crate::ForgeFS::is_binary_path(empty_file.path()).await?;
+        let (is_text_or_doc, _) = crate::ForgeFS::is_binary(empty_file.path()).await?;
         assert!(is_text_or_doc, "Empty file should be considered text");
 
         Ok(())
