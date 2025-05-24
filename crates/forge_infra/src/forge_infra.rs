@@ -11,8 +11,10 @@ use crate::fs_read::ForgeFileReadService;
 use crate::fs_remove::ForgeFileRemoveService;
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fs_write::ForgeFileWriteService;
+use crate::http::ForgeHttpService;
 use crate::inquire::ForgeInquire;
 use crate::mcp_server::ForgeMcpServer;
+use crate::provider::ForgeProviderService;
 
 #[derive(Clone)]
 pub struct ForgeInfra {
@@ -26,6 +28,8 @@ pub struct ForgeInfra {
     command_executor_service: Arc<ForgeCommandExecutorService>,
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
+    http_service: Arc<ForgeHttpService>,
+    provider_service: ForgeProviderService,
 }
 
 impl ForgeInfra {
@@ -33,6 +37,7 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentService::new(restricted));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
+        let http_service = Arc::new(ForgeHttpService::new());
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -49,6 +54,8 @@ impl ForgeInfra {
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
+            http_service,
+            provider_service: ForgeProviderService,
         }
     }
 }
@@ -64,6 +71,8 @@ impl Infrastructure for ForgeInfra {
     type CommandExecutorService = ForgeCommandExecutorService;
     type InquireService = ForgeInquire;
     type McpServer = ForgeMcpServer;
+    type HttpService = ForgeHttpService;
+    type ProviderService = ForgeProviderService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         &self.environment_service
@@ -103,5 +112,11 @@ impl Infrastructure for ForgeInfra {
 
     fn mcp_server(&self) -> &Self::McpServer {
         &self.mcp_server
+    }
+    fn http_service(&self) -> &Self::HttpService {
+        &self.http_service
+    }
+    fn provider_service(&self) -> &Self::ProviderService {
+        &self.provider_service
     }
 }

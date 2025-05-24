@@ -159,7 +159,7 @@ impl CommandExecutorService for ForgeCommandExecutorService {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::Provider;
+
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -177,7 +177,6 @@ mod tests {
             }
             .to_string(),
             base_path: PathBuf::from("/base"),
-            provider: Provider::open_router("test-key"),
             retry_config: Default::default(),
         }
     }
