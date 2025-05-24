@@ -10,7 +10,7 @@ use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::infra::FsSnapshotService;
+use crate::infra::FsUndoService;
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
 
@@ -69,7 +69,7 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        self.0.file_snapshot_service().undo_snapshot(path).await?;
+        self.0.file_undo_service().undo(path).await?;
 
         // Format the path for display
         let display_path = self.format_display_path(path)?;

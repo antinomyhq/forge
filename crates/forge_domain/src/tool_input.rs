@@ -43,10 +43,6 @@ pub enum ToolInput {
     #[serde(rename = "forge_tool_net_fetch")]
     NetFetch(NetFetchInput),
 
-    /// Input for the followup tool
-    #[serde(rename = "forge_tool_followup")]
-    Followup(FollowupInput),
-
     /// Input for the completion tool
     #[serde(rename = "forge_tool_attempt_completion")]
     AttemptCompletion(AttemptCompletionInput),
@@ -186,38 +182,6 @@ pub struct NetFetchInput {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub raw: Option<bool>,
-}
-
-/// Input type for the followup tool
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct FollowupInput {
-    /// Question to ask the user
-    pub question: String,
-
-    /// If true, allows selecting multiple options; if false (default), only one
-    /// option can be selected
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub multiple: Option<bool>,
-
-    /// First option to choose from
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub option1: Option<String>,
-
-    /// Second option to choose from
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub option2: Option<String>,
-
-    /// Third option to choose from
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub option3: Option<String>,
-
-    /// Fourth option to choose from
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub option4: Option<String>,
-
-    /// Fifth option to choose from
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub option5: Option<String>,
 }
 
 /// Input type for the attempt completion tool

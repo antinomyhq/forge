@@ -3,15 +3,15 @@ use std::sync::Arc;
 use forge_domain::EnvironmentService;
 use forge_services::Infrastructure;
 
+use crate::dir_create::ForgeDirCreateService;
 use crate::env::ForgeEnvironmentService;
 use crate::executor::ForgeCommandExecutorService;
-use crate::fs_create_dirs::ForgeCreateDirsService;
 use crate::fs_meta::ForgeFileMetaService;
 use crate::fs_read::ForgeFileReadService;
 use crate::fs_remove::ForgeFileRemoveService;
 use crate::fs_snap::ForgeFileSnapshotService;
+use crate::fs_undo::ForgeFileUndoService;
 use crate::fs_write::ForgeFileWriteService;
-use crate::inquire::ForgeInquire;
 use crate::mcp_server::ForgeMcpServer;
 
 #[derive(Clone)]
@@ -22,9 +22,9 @@ pub struct ForgeInfra {
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     file_meta_service: Arc<ForgeFileMetaService>,
     file_remove_service: Arc<ForgeFileRemoveService<ForgeFileSnapshotService>>,
-    create_dirs_service: Arc<ForgeCreateDirsService>,
+    file_undo_service: Arc<ForgeFileUndoService>,
+    dir_create_service: Arc<ForgeDirCreateService>,
     command_executor_service: Arc<ForgeCommandExecutorService>,
-    inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
 }
 
@@ -40,14 +40,14 @@ impl ForgeInfra {
             file_remove_service: Arc::new(ForgeFileRemoveService::new(
                 file_snapshot_service.clone(),
             )),
+            file_undo_service: Arc::new(ForgeFileUndoService::with_env(env.clone())),
             environment_service,
             file_snapshot_service,
-            create_dirs_service: Arc::new(ForgeCreateDirsService),
+            dir_create_service: Arc::new(ForgeDirCreateService),
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
                 restricted,
                 env.clone(),
             )),
-            inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
         }
     }
@@ -60,9 +60,9 @@ impl Infrastructure for ForgeInfra {
     type FsMetaService = ForgeFileMetaService;
     type FsSnapshotService = ForgeFileSnapshotService;
     type FsRemoveService = ForgeFileRemoveService<ForgeFileSnapshotService>;
-    type FsCreateDirsService = ForgeCreateDirsService;
+    type FsUndoService = ForgeFileUndoService;
+    type DirCreateService = ForgeDirCreateService;
     type CommandExecutorService = ForgeCommandExecutorService;
-    type InquireService = ForgeInquire;
     type McpServer = ForgeMcpServer;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
@@ -89,16 +89,16 @@ impl Infrastructure for ForgeInfra {
         &self.file_remove_service
     }
 
-    fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
-        &self.create_dirs_service
+    fn file_undo_service(&self) -> &Self::FsUndoService {
+        &self.file_undo_service
+    }
+
+    fn dir_create_service(&self) -> &Self::DirCreateService {
+        &self.dir_create_service
     }
 
     fn command_executor_service(&self) -> &Self::CommandExecutorService {
         &self.command_executor_service
-    }
-
-    fn inquire_service(&self) -> &Self::InquireService {
-        &self.inquire_service
     }
 
     fn mcp_server(&self) -> &Self::McpServer {
