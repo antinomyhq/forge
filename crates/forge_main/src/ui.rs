@@ -207,19 +207,15 @@ impl<F: API> UI<F> {
                     match result {
                         Ok(exit) => if exit {return Ok(())},
                         Err(error) => {
-                            let err = format!("{error:?}");
-                            let err_clone = err.clone();
                             if let Some(conversation_id) = self.state.conversation_id.as_ref() {
                                 if let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten() {
                                     TRACKER.set_conversation(conversation).await;
                                 }
                             }
                             tokio::spawn(
-                                async move {
-                                    TRACKER.dispatch(forge_tracker::EventKind::Error(err_clone)).await
-                                }
+                                TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{error:?}"))),
                             );
-                            self.writeln(TitleFormat::error(err))?;
+                            self.writeln(TitleFormat::error(format!("{error:?}")))?;
                         },
                     }
                 }
