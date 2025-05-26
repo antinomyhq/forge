@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use forge_domain::{AuthService, InitAuth, KeyService, Provider, RetryConfig};
+use forge_domain::{AuthService, InitAuth, KeyService, Provider, ProviderUrl, RetryConfig};
 
-use crate::{HttpService, Infrastructure};
+use crate::{HttpService, Infrastructure, ProviderService};
 
 #[derive(Default, Clone)]
 pub struct ForgeAuthService<I, K> {
@@ -15,7 +15,14 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
         Self { infra, key_service }
     }
     async fn init(&self) -> anyhow::Result<InitAuth> {
-        let init_url = format!("{}cli/auth/init", Provider::ANTINOMY_URL);
+        let init_url = format!(
+            "{}cli/auth/init",
+            self.infra
+                .provider_service()
+                .provider_url()
+                .map(ProviderUrl::into_string)
+                .unwrap_or(Provider::ANTINOMY_URL.to_string())
+        );
         let resp = self.infra.http_service().get(&init_url).await?;
         if !resp.status.is_success() {
             anyhow::bail!("Failed to initialize auth")
@@ -27,7 +34,11 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
         let url = format!(
             "{}cli/auth/token/{}",
-            Provider::ANTINOMY_URL,
+            self.infra
+                .provider_service()
+                .provider_url()
+                .map(ProviderUrl::into_string)
+                .unwrap_or(Provider::ANTINOMY_URL.to_string()),
             auth.session_id
         );
 

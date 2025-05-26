@@ -1,4 +1,4 @@
-use forge_domain::{ForgeKey, Provider};
+use forge_domain::{ForgeKey, Provider, ProviderUrl};
 use forge_services::ProviderService;
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
@@ -9,14 +9,27 @@ pub struct ForgeProviderService;
 impl ProviderService for ForgeProviderService {
     fn get(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
         if let Some(forge_key) = forge_key {
-            return Some(Provider::antinomy(&forge_key.key));
+            let provider = Provider::antinomy(&forge_key.key);
+            return Some(override_url(provider, self.provider_url()));
         }
-        resolve_env_provider()
+        resolve_env_provider(self.provider_url())
+    }
+
+    fn provider_url(&self) -> Option<ProviderUrl> {
+        if let Ok(url) = std::env::var("OPENAI_URL") {
+            return Some(ProviderUrl::OpenAI(url));
+        }
+
+        // Check for Anthropic URL override
+        if let Ok(url) = std::env::var("ANTHROPIC_URL") {
+            return Some(ProviderUrl::Anthropic(url));
+        }
+        None
     }
 }
 
 // For backwards compatibility
-fn resolve_env_provider() -> Option<Provider> {
+fn resolve_env_provider(url: Option<ProviderUrl>) -> Option<Provider> {
     let keys: [ProviderSearch; 4] = [
         ("FORGE_KEY", Box::new(Provider::antinomy)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
@@ -26,18 +39,15 @@ fn resolve_env_provider() -> Option<Provider> {
 
     keys.into_iter().find_map(|(key, fun)| {
         std::env::var(key).ok().map(|key| {
-            let mut provider = fun(&key);
-
-            if let Ok(url) = std::env::var("OPENAI_URL") {
-                provider.open_ai_url(url);
-            }
-
-            // Check for Anthropic URL override
-            if let Ok(url) = std::env::var("ANTHROPIC_URL") {
-                provider.anthropic_url(url);
-            }
-
-            provider
+            let provider = fun(&key);
+            override_url(provider, url.clone())
         })
     })
+}
+
+fn override_url(mut provider: Provider, url: Option<ProviderUrl>) -> Provider {
+    if let Some(url) = url {
+        provider.url(url);
+    }
+    provider
 }

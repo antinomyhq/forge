@@ -116,7 +116,8 @@ pub mod tests {
     use bytes::Bytes;
     use forge_domain::{
         AttachmentContent, AttachmentService, CommandOutput, Environment, EnvironmentService,
-        ForgeKey, Provider, Response, RetryConfig, ToolDefinition, ToolName, ToolOutput,
+        ForgeKey, Provider, ProviderUrl, Response, RetryConfig, ToolDefinition, ToolName,
+        ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -523,6 +524,10 @@ pub mod tests {
     impl ProviderService for () {
         fn get(&self, _: Option<ForgeKey>) -> Option<Provider> {
             unimplemented!()
+        }
+
+        fn provider_url(&self) -> Option<ProviderUrl> {
+            None
         }
     }
 
