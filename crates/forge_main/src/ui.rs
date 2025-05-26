@@ -371,7 +371,6 @@ impl<F: API> UI<F> {
             }
             Command::Login => {
                 self.spinner.start(Some("Logging in"))?;
-                // TODO: not sure if we should force login or check for token.
                 self.login().await?;
                 self.spinner.stop(None)?;
             }
@@ -380,6 +379,8 @@ impl<F: API> UI<F> {
                 self.api.logout().await?;
                 self.spinner.stop(None)?;
                 self.writeln(TitleFormat::info("Logged out"))?;
+                // Exit the UI after logout
+                return Ok(true);
             }
         }
 
