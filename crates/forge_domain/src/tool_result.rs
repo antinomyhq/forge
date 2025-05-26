@@ -41,14 +41,7 @@ impl ToolResult {
                 self.output = output;
             }
             Err(err) => {
-                let mut output = String::new();
-                output.push_str("\nERROR:\n");
-
-                for cause in err.chain() {
-                    output.push_str(&format!("Caused by: {cause}\n"));
-                }
-
-                self.output = ToolOutput::text(output).is_error(true);
+                self.output = ToolOutput::text(format!("{err:?}")).is_error(true);
             }
         }
         self

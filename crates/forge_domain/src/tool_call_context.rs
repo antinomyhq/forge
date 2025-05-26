@@ -12,6 +12,7 @@ type ArcSender = Arc<Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
 /// Provides additional context for tool calls.
 #[derive(Default, Clone, Debug, Setters)]
 pub struct ToolCallContext {
+    #[setters(strip_option)]
     pub agent: Option<Agent>,
     pub sender: Option<ArcSender>,
     /// Indicates whether the tool execution has been completed

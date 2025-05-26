@@ -375,7 +375,7 @@ impl<A: Services> Orchestrator<A> {
     fn get_tool_call_context(&self, agent: &Agent) -> ToolCallContext {
         // Create a new ToolCallContext with the agent ID
         ToolCallContext::default()
-            .agent(Some(agent.clone()))
+            .agent(agent.clone())
             .sender(self.sender.clone())
     }
 
