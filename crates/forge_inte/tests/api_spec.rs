@@ -78,7 +78,7 @@ impl Fixture {
             let response = self.get_model_response().await;
 
             if check_response(&response) {
-                println!(
+                eprintln!(
                     "[{}] Successfully checked response in {} attempts",
                     self.model,
                     attempt + 1
@@ -87,7 +87,7 @@ impl Fixture {
             }
 
             if attempt < MAX_RETRIES - 1 {
-                println!("[{}] Attempt {}/{}", self.model, attempt + 1, MAX_RETRIES);
+                eprintln!("[{}] Attempt {}/{}", self.model, attempt + 1, MAX_RETRIES);
             }
         }
         Err(format!(
@@ -103,7 +103,7 @@ macro_rules! generate_model_test {
         #[tokio::test]
         async fn test_find_cat_name() {
             if !should_run_api_tests() {
-                println!(
+                eprintln!(
                     "Skipping API test for {} as RUN_API_TESTS is not set to 'true'",
                     $model
                 );

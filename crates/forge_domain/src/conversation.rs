@@ -42,6 +42,7 @@ pub struct Conversation {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AgentState {
     pub turn_count: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<Context>,
     /// holds the events that are waiting to be processed
     pub queue: VecDeque<Event>,

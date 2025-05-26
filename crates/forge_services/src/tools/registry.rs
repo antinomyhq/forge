@@ -286,14 +286,14 @@ pub mod tests {
     fn test_tool_description_length() {
         const MAX_DESCRIPTION_LENGTH: usize = 1024;
 
-        println!("\nTool description lengths:");
+        eprintln!("\nTool description lengths:");
 
         let mut any_exceeded = false;
         let stub = Arc::new(stub());
         let registry = ToolRegistry::new(stub.clone());
         for tool in registry.tools() {
             let desc_len = tool.definition.description.len();
-            println!(
+            eprintln!(
                 "{:?}: {} chars {}",
                 tool.definition.name,
                 desc_len,

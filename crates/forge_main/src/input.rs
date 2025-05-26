@@ -48,7 +48,7 @@ impl Console {
                     match self.command.parse(&text) {
                         Ok(command) => return Ok(command),
                         Err(e) => {
-                            println!("{}", TitleFormat::error(e.to_string()));
+                            eprintln!("{}", TitleFormat::error(e.to_string()));
                         }
                     }
                 }

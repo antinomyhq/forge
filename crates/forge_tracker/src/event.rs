@@ -2,6 +2,7 @@ use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
 use convert_case::{Case, Casing};
+use forge_domain::Conversation;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,6 +21,7 @@ pub struct Event {
     pub version: String,
     pub email: Vec<String>,
     pub model: Option<String>,
+    pub conversation: Option<Conversation>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

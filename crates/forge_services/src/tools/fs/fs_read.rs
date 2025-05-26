@@ -256,11 +256,6 @@ mod test {
         // Read the file directly
         let content = tokio::fs::read_to_string(path).await.unwrap();
 
-        // Display a message - just for testing
-        let title = "Read";
-        let message = TitleFormat::debug(title).sub_title(path.display().to_string());
-        println!("{message}");
-
         // Assert the content matches
         assert_eq!(content, test_content);
     }
@@ -408,7 +403,6 @@ mod test {
                 if start_char == 0 && end_char == 0 {
                     // For probe requests (when end = start = 0), return info about a large file
                     // This will trigger the auto-limiting behavior
-                    println!("Probe request detected, returning large file info");
                     return Ok((
                         "".to_string(),
                         forge_fs::FileInfo::new(0, 0, 50_000), // Simulate a large file (50k chars)
@@ -416,7 +410,6 @@ mod test {
                 } else if start_char == 0 && end_char == 39999 {
                     // This is the expected auto-limit range that should be requested for large
                     // files
-                    println!("Auto-limit range request detected: 0-39999");
                     return Err(anyhow::anyhow!(
                         "Auto-limit detected: start={}, end={}",
                         start_char,
@@ -425,7 +418,6 @@ mod test {
                 }
 
                 // For any other range requests, return an identifying error
-                println!("Unexpected range request: {}-{}", start_char, end_char);
                 Err(anyhow::anyhow!(
                     "Unexpected range_read called with start={}, end={}",
                     start_char,
@@ -511,16 +503,11 @@ mod test {
         // to fail
         assert!(result.is_err());
 
-        // Print the error message for debugging purposes
-        let err_msg = result.unwrap_err().to_string();
-        println!("Error message: {err_msg}");
-
         // Verify that our auto-limit was applied (should be 0-39999)
         let range_call = tracking_infra.get_last_range_call();
         assert!(range_call.is_some(), "Range read should have been called");
 
         if let Some((start, end)) = range_call {
-            println!("Tracked range call: {start:?} to {end:?}");
             assert_eq!(start, Some(0), "Auto-limit should start at character 0");
             assert_eq!(
                 end,
