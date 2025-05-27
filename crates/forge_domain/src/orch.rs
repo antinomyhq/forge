@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use anyhow::{bail, Context as AnyhowContext};
+use anyhow::Context as AnyhowContext;
 use async_recursion::async_recursion;
 use backon::{ExponentialBuilder, Retryable};
 use chrono::Local;
