@@ -549,7 +549,13 @@ impl<A: Services> Orchestrator<A> {
 
                 empty_tool_call_count += 1;
                 if empty_tool_call_count > 3 {
-                    bail!("Model '{model_id}' is unable to follow instructions, consider retrying or switching to a bigger model.");
+                    tracing::warn!(
+                        agent_id = %agent.id,
+                        model_id = %model_id,
+                        empty_tool_call_count,
+                        "Agent is unable to follow instructions"
+                    );
+                    tool_context.set_complete().await;
                 }
             } else {
                 empty_tool_call_count = 0;
@@ -608,6 +614,6 @@ fn should_retry(error: &anyhow::Error) -> bool {
         .downcast_ref::<Error>()
         .is_some_and(|error| matches!(error, Error::Retryable(_)));
 
-    tracing::error!(error = ?error, retry = retry, "Error");
+    tracing::error!(error = ?error, retry = retry, "Retrying on error");
     retry
 }

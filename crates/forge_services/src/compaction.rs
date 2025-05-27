@@ -70,6 +70,7 @@ impl<T: TemplateService, P: ProviderService> ForgeCompactionService<T, P> {
             summary = %summary,
             sequence_start = sequence.0,
             sequence_end = sequence.1,
+            sequence_length = sequence_messages.len(),
             "Created context compaction summary"
         );
 
