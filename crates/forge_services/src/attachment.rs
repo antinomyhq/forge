@@ -509,7 +509,7 @@ pub mod tests {
             unimplemented!()
         }
 
-        async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
+        async fn delete(&self, _: &str) -> anyhow::Result<Response<Bytes>> {
             unimplemented!()
         }
 
