@@ -1,6 +1,7 @@
+use std::sync::Arc;
+
 use anyhow::bail;
 use forge_domain::{AuthService, InitAuth, KeyService, Provider, ProviderUrl, RetryConfig};
-use std::sync::Arc;
 
 use crate::{HttpService, Infrastructure, ProviderService};
 
