@@ -509,6 +509,10 @@ pub mod tests {
             unimplemented!()
         }
 
+        async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
+            unimplemented!()
+        }
+
         async fn poll<T, F>(&self, _: RetryConfig, _: impl Fn() -> F + Send) -> anyhow::Result<T>
         where
             F: Future<Output = anyhow::Result<T>> + Send,

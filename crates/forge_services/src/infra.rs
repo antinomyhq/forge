@@ -148,6 +148,7 @@ pub trait McpServer: Send + Sync + 'static {
 pub trait HttpService: Send + Sync + 'static {
     async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
     async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>>;
+    async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
     async fn poll<T, F>(
         &self,
         builder: RetryConfig,

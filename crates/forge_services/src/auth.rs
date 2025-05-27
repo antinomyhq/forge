@@ -1,8 +1,12 @@
+use anyhow::bail;
+use forge_domain::{AuthService, InitAuth, KeyService, Provider, ProviderUrl, RetryConfig};
 use std::sync::Arc;
 
-use forge_domain::{AuthService, InitAuth, KeyService, Provider, ProviderUrl, RetryConfig};
-
 use crate::{HttpService, Infrastructure, ProviderService};
+
+const TOKEN_POLL_ROUTE: &str = "cli/auth/token/";
+const AUTH_INIT_ROUTE: &str = "cli/auth/init";
+const AUTH_CANCEL_ROUTE: &str = "cli/auth/cancel/";
 
 #[derive(Default, Clone)]
 pub struct ForgeAuthService<I, K> {
@@ -16,7 +20,7 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
     }
     async fn init(&self) -> anyhow::Result<InitAuth> {
         let init_url = format!(
-            "{}cli/auth/init",
+            "{}{AUTH_INIT_ROUTE}",
             self.infra
                 .provider_service()
                 .provider_url()
@@ -25,15 +29,30 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
         );
         let resp = self.infra.http_service().get(&init_url).await?;
         if !resp.status.is_success() {
-            anyhow::bail!("Failed to initialize auth")
+            bail!("Failed to initialize auth")
         }
 
         Ok(serde_json::from_slice(&resp.body)?)
     }
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
+        if self.key_service.get().await.is_some() {
+            let url = format!(
+                "{}{AUTH_CANCEL_ROUTE}{}",
+                self.infra
+                    .provider_service()
+                    .provider_url()
+                    .map(ProviderUrl::into_string)
+                    .unwrap_or(Provider::ANTINOMY_URL.to_string()),
+                auth.session_id,
+            );
+
+            // Delete the session if auth is already completed in another session.
+            self.infra.http_service().delete(&url).await?;
+            return Ok(());
+        }
         let url = format!(
-            "{}cli/auth/token/{}",
+            "{}{TOKEN_POLL_ROUTE}{}",
             self.infra
                 .provider_service()
                 .provider_url()
@@ -49,8 +68,8 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
                     .set(serde_json::from_slice(&response.body)?)
                     .await
             }
-            202 => anyhow::bail!("Login timeout"),
-            _ => anyhow::bail!("Failed to log in"),
+            202 => bail!("Login timeout"),
+            _ => bail!("Failed to log in"),
         }
     }
     async fn logout(&self) -> anyhow::Result<()> {

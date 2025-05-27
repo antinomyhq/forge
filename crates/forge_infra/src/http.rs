@@ -35,6 +35,15 @@ impl ForgeHttpService {
             .await?;
         Response::from_reqwest(response).await
     }
+    async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
+        let response = self
+            .client
+            .delete(url)
+            .header("User-Agent", "Forge")
+            .send()
+            .await?;
+        Response::from_reqwest(response).await
+    }
 }
 
 #[async_trait::async_trait]
@@ -46,6 +55,11 @@ impl HttpService for ForgeHttpService {
     async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>> {
         self.post(url, body).await
     }
+
+    async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
+        self.delete(url).await
+    }
+
     async fn poll<T, F>(
         &self,
         config: RetryConfig,
