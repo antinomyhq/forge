@@ -363,6 +363,7 @@ impl<F: API> UI<F> {
             }
             Command::Login => {
                 self.spinner.start(Some("Logging in"))?;
+                self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
             }
