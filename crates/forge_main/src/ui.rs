@@ -150,7 +150,7 @@ impl<F: API> UI<F> {
             command,
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
-            _guard: forge_tracker::init_tracing(env.log_path())?,
+            _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
 

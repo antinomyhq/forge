@@ -15,3 +15,4 @@ forge_domain.workspace = true
 
 [dependencies]
 dotenv.workspace = true
+lazy_static.workspace = true
