@@ -66,13 +66,6 @@ impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
 
         Ok(client)
     }
-
-    /// Invalidates the cached client, forcing a new one to be created on next
-    /// use
-    pub async fn invalidate_client_cache(&self) {
-        let mut client_guard = self.cached_client.write().await;
-        *client_guard = None;
-    }
 }
 
 #[async_trait::async_trait]
