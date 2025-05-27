@@ -4,7 +4,7 @@ use derive_setters::Setters;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::RwLock;
 
-use crate::{AgentId, AgentMessage, ChatResponse};
+use crate::{Agent, AgentMessage, ChatResponse};
 
 /// Type alias for Arc<Sender<Result<AgentMessage<ChatResponse>>>>
 type ArcSender = Arc<Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
@@ -13,7 +13,7 @@ type ArcSender = Arc<Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
 #[derive(Default, Clone, Debug, Setters)]
 pub struct ToolCallContext {
     #[setters(strip_option)]
-    pub agent_id: Option<AgentId>,
+    pub agent: Option<Agent>,
     pub sender: Option<ArcSender>,
     /// Indicates whether the tool execution has been completed
     /// This is wrapped in an RWLock for thread-safety
@@ -25,7 +25,7 @@ impl ToolCallContext {
     /// Creates a new ToolCallContext with default values
     pub fn new() -> Self {
         Self {
-            agent_id: None,
+            agent: None,
             sender: None,
             is_complete: Arc::new(RwLock::new(false)),
         }
@@ -51,9 +51,9 @@ impl ToolCallContext {
     }
 
     pub async fn send_summary(&self, content: String) -> anyhow::Result<()> {
-        if let Some(agent_id) = &self.agent_id {
+        if let Some(agent) = &self.agent {
             self.send(AgentMessage::new(
-                agent_id.clone(),
+                agent.id.clone(),
                 ChatResponse::Text {
                     text: content,
                     is_complete: true,
@@ -68,9 +68,9 @@ impl ToolCallContext {
     }
 
     pub async fn send_text(&self, content: impl ToString) -> anyhow::Result<()> {
-        if let Some(agent_id) = &self.agent_id {
+        if let Some(agent) = &self.agent {
             self.send(AgentMessage::new(
-                agent_id.clone(),
+                agent.id.clone(),
                 ChatResponse::Text {
                     text: content.to_string(),
                     is_complete: true,

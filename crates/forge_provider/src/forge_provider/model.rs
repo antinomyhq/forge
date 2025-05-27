@@ -12,6 +12,7 @@ pub struct Model {
     pub pricing: Option<Pricing>,
     pub top_provider: Option<TopProvider>,
     pub per_request_limits: Option<serde_json::Value>,
+    pub supported_parameters: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

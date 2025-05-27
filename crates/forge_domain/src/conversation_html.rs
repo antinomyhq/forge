@@ -36,6 +36,8 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
                 .append(create_agent_states_section(conversation))
                 // Agents Section
                 .append(create_agents_section(conversation))
+                // All Subscriptions Section
+                .append(create_all_subscriptions_section(conversation))
                 // Events Section
                 .append(create_events_section(conversation)),
         );
@@ -134,6 +136,57 @@ fn create_agents_section(conversation: &Conversation) -> Element {
 
         section.append(agent_div)
     })
+}
+
+fn create_all_subscriptions_section(conversation: &Conversation) -> Element {
+    let section = Element::new("div.section").append(Element::new("h2").text("All Subscriptions"));
+
+    // Check if any agents have subscriptions
+    let has_subscriptions = conversation.agents.iter().any(|agent| {
+        agent
+            .subscribe
+            .as_ref()
+            .is_some_and(|subs| !subs.is_empty())
+    });
+
+    if !has_subscriptions {
+        return section.append(Element::new("p").text("No subscriptions found."));
+    }
+
+    // Create a table with agents and their subscriptions using iterators
+    let table = Element::new("table")
+        .append(
+            Element::new("tr")
+                .append(Element::new("th").text("Agent"))
+                .append(Element::new("th").text("Subscribed Events"))
+                .append(Element::new("th").text("Count")),
+        )
+        .append(
+            conversation
+                .agents
+                .iter()
+                .filter(|agent| {
+                    agent
+                        .subscribe
+                        .as_ref()
+                        .is_some_and(|subs| !subs.is_empty())
+                })
+                .map(|agent| {
+                    let subscriptions = agent.subscribe.as_ref().unwrap();
+                    let events_list = subscriptions.join(", ");
+                    let count = subscriptions.len();
+
+                    Element::new("tr")
+                        .append(
+                            Element::new("td")
+                                .append(Element::new("strong").text(agent.id.as_str())),
+                        )
+                        .append(Element::new("td").text(events_list))
+                        .append(Element::new("td").text(count.to_string()))
+                }),
+        );
+
+    section.append(table)
 }
 
 fn create_events_section(conversation: &Conversation) -> Element {
@@ -271,8 +324,7 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                         Element::new("div.tool-call")
                             .append(
                                 Element::new("p")
-                                    .append(Element::new("strong").text("Tool: "))
-                                    .text(tool.name.to_string()),
+                                    .append(Element::new("strong").text(tool.name.to_string())),
                             )
                             .append(
                                 Element::new("p")
@@ -287,12 +339,6 @@ fn create_agent_states_section(conversation: &Conversation) -> Element {
                                 Element::new("pre")
                                     .text(to_string_pretty(&tool.input_schema).unwrap_or_default()),
                             )
-                            .append(tool.output_schema.as_ref().map(|schema| {
-                                Element::new("pre").append(
-                                    Element::new("strong")
-                                        .text(format!("Output Schema: {schema:?}")),
-                                )
-                            }))
                             .append(tool.output_schema.as_ref().map(|schema| {
                                 Element::new("pre")
                                     .text(to_string_pretty(schema).unwrap_or_default())

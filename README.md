@@ -382,6 +382,71 @@ temperature: 0.7 # Balanced creativity and focus
 
 ---
 
+<details>
+<summary><strong>Multi-agent Communication Protocol (MCP)</strong></summary>
+
+The MCP feature allows AI agents to communicate with external tools and services. This implementation follows Anthropic's [Model Context Protocol](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp) design.
+
+### MCP Configuration
+
+Configure MCP servers using the CLI:
+
+```bash
+# List all MCP servers
+forge mcp list
+
+# Add a new server
+forge mcp add
+
+# Add a server using JSON format
+forge mcp add-json
+
+# Get server details
+forge mcp get
+
+# Remove a server
+forge mcp remove
+```
+
+Or manually create a `.mcp.json` file with the following structure:
+
+```json
+{
+  "mcp_servers": {
+    "server_name": {
+      "command": "command_to_execute",
+      "args": ["arg1", "arg2"],
+      "env": {"ENV_VAR": "value"}
+    },
+    "another_server": {
+      "url": "http://localhost:3000/events"
+    }
+  }
+}
+```
+
+MCP configurations are read from two locations (in order of precedence):
+
+1. Local configuration (project-specific)
+2. User configuration (user-specific)
+
+### Example Use Cases
+
+MCP can be used for various integrations:
+
+- Web browser automation
+- External API interactions
+- Tool integration
+- Custom service connections
+
+### Usage in Multi-Agent Workflows
+
+MCP tools can be used as part of multi-agent workflows, allowing specialized agents to interact with external systems as part of a collaborative problem-solving approach.
+
+</details>
+
+---
+
 ## Documentation
 
 For comprehensive documentation on all features and capabilities, please visit the [documentation site](https://github.com/antinomyhq/forge/tree/main/docs).

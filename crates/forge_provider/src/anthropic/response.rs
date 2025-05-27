@@ -22,6 +22,7 @@ impl From<Model> for forge_domain::Model {
             name: Some(value.display_name),
             description: None,
             context_length: None,
+            tools_supported: Some(true),
         }
     }
 }

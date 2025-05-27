@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use forge_domain::{
-    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult,
-    ToolService,
+    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
+    ToolResult, ToolService,
 };
 use tokio::time::{timeout, Duration};
 use tracing::debug;
@@ -52,34 +53,74 @@ impl<M: McpService> ForgeToolService<M> {
             )
         })
     }
-}
 
-#[async_trait::async_trait]
-impl<M: McpService> ToolService for ForgeToolService<M> {
+    /// Validates if a tool is supported by both the agent and the system.
+    ///
+    /// # Validation Process
+    /// 1. Verifies the tool is supported by the agent specified in the context
+    /// 2. If agent validation passes, checks if the system supports the tool
+    async fn validate_tool_call(
+        &self,
+        context: &ToolCallContext,
+        tool_name: &ToolName,
+    ) -> anyhow::Result<Arc<Tool>> {
+        // Step 1: check if tool is supported by operating agent.
+        if let Some(agent) = &context.agent {
+            let agent_tools: Vec<_> = agent
+                .tools
+                .iter()
+                .flat_map(|tools| tools.iter())
+                .map(|tool| tool.as_str())
+                .collect();
+
+            if !agent_tools.contains(&tool_name.as_str()) {
+                return Err(anyhow::anyhow!(
+                    "No tool with name '{}' is supported by agent '{}'. Please try again with one of these tools {}",
+                    tool_name,
+                    agent.id,
+                    agent_tools.join(", ")
+                ));
+            }
+        }
+
+        // Step 2: check if tool is supported by system.
+        let tool = self.get_tool(tool_name).await?;
+        Ok(tool)
+    }
+
     async fn call(
         &self,
         context: ToolCallContext,
         call: ToolCallFull,
-    ) -> anyhow::Result<ToolResult> {
-        let name = call.name.clone();
-        let input = call.arguments.clone();
+    ) -> anyhow::Result<ToolOutput> {
         debug!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
 
-        let tool = self.get_tool(&name).await?;
+        // Checks if tool is supported by agent and system.
+        let tool = self.validate_tool_call(&context, &call.name).await?;
 
-        let result = match timeout(TOOL_CALL_TIMEOUT, tool.executable.call(context, input)).await {
-            Ok(output) => ToolResult::new(call.name).output(output),
-            Err(elapsed) => ToolResult::new(call.name).failure(
-                anyhow::anyhow!(
-                    "Tool '{}' timed out after {} minutes",
-                    name.to_string(),
-                    TOOL_CALL_TIMEOUT.as_secs() / 60
-                )
-                .context(elapsed),
-            ),
-        };
+        let output = timeout(
+            TOOL_CALL_TIMEOUT,
+            tool.executable.call(context, call.arguments),
+        )
+        .await
+        .with_context(|| {
+            format!(
+                "Tool '{}' timed out after {} minutes",
+                call.name,
+                TOOL_CALL_TIMEOUT.as_secs() / 60
+            )
+        })?;
 
-        Ok(result)
+        output
+    }
+}
+
+#[async_trait::async_trait]
+impl<M: McpService> ToolService for ForgeToolService<M> {
+    async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult {
+        ToolResult::new(call.name.clone())
+            .call_id(call.call_id.clone())
+            .output(self.call(context, call).await)
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {

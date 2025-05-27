@@ -129,10 +129,10 @@ impl ForgeProvider {
                             Some(Err(Error::InvalidStatusCode(status.as_u16())).with_context(
                                 || match body {
                                     Some(body) => {
-                                        format!("Invalid status code: {status} Reason: {body}")
+                                        format!("{status} Reason: {body}")
                                     }
                                     None => {
-                                        format!("Invalid status code: {status} Reason: [Unknown]")
+                                        format!("{status} Reason: [Unknown]")
                                     }
                                 },
                             ))
@@ -221,11 +221,16 @@ impl ForgeProvider {
 
 impl From<Model> for forge_domain::Model {
     fn from(value: Model) -> Self {
+        let tools_supported = value
+            .supported_parameters
+            .iter()
+            .any(|param| param == "tools");
         forge_domain::Model {
             id: value.id,
             name: value.name,
             description: value.description,
             context_length: value.context_length,
+            tools_supported: Some(tools_supported),
         }
     }
 }

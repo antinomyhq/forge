@@ -20,15 +20,14 @@ agents:
       retention_window: 6
       message_threshold: 200
       prompt: "{{> system-prompt-context-summarizer.hbs }}"
-    tool_supported: false
     model: *advanced_model
     system_prompt: |-
       {{> system-prompt-engineer-act.hbs }}
     user_prompt: |-
-      {{#if (eq event.name 'act/user_task_init')}}
-      <task>{{event.value}}</task>
-      {{else}}
+      {{#if (eq event.name 'act/user_task_update')}}
       <feedback>{{event.value}}</feedback>
+      {{else}}
+      <task>{{event.value}}</task>
       {{/if}}
     ephemeral: false
     tools:
@@ -54,19 +53,17 @@ agents:
       retention_window: 6
       message_threshold: 200
       prompt: "{{> system-prompt-context-summarizer.hbs }}"
-    tool_supported: false
     model: *advanced_model
     system_prompt: |-
       {{> system-prompt-engineer-plan.hbs }}
     user_prompt: |-
-      {{#if (eq event.name 'plan/user_task_init')}}
-      <task>{{event.value}}</task>
-      {{else}}
+      {{#if (eq event.name 'plan/user_task_update')}}
       <feedback>{{event.value}}</feedback>
+      {{else}}
+      <task>{{event.value}}</task>
       {{/if}}
       Only create new plans or update existing ones.
       Do not modify, create, or delete any code files.
-      
     ephemeral: false
     tools:
       - forge_tool_fs_read
