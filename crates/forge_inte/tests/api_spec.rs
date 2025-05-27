@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use forge_api::ForgeAPI;
 use forge_domain::{AgentMessage, ChatRequest, ChatResponse, Event, ModelId, API};
+use forge_tracker::Tracker;
 use tokio_stream::StreamExt;
 
 const MAX_RETRIES: usize = 5;
@@ -22,12 +23,16 @@ struct Fixture {
     _guard: forge_tracker::Guard,
 }
 
+lazy_static::lazy_static! {
+    static ref tracker: Tracker = Tracker::default();
+}
+
 impl Fixture {
     /// Create a new test fixture with the given task
     fn new(model: ModelId) -> Self {
         Self {
             model,
-            _guard: forge_tracker::init_tracing(PathBuf::from(".")).unwrap(),
+            _guard: forge_tracker::init_tracing(PathBuf::from("."), tracker.clone()).unwrap(),
         }
     }
 

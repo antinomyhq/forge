@@ -1118,6 +1118,7 @@ dependencies = [
  "forge_domain",
  "forge_tracker",
  "futures",
+ "lazy_static",
  "serde_yml",
  "tokio",
  "tokio-stream",

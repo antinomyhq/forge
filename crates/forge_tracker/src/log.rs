@@ -4,11 +4,12 @@ use tracing::debug;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{self};
 
-pub fn init_tracing(log_path: PathBuf) -> anyhow::Result<Guard> {
+use crate::Tracker;
+
+pub fn init_tracing(log_path: PathBuf, tracker: Tracker) -> anyhow::Result<Guard> {
     debug!(path = %log_path.display(), "Initializing logging system in JSON format");
 
-    let append = tracing_appender::rolling::daily(log_path, "forge.log");
-    let (non_blocking, guard) = tracing_appender::non_blocking(append);
+    let (non_blocking, guard) = tracing_appender::non_blocking(PostHogWriter::new(tracker));
 
     tracing_subscriber::fmt()
         .json()
@@ -29,3 +30,33 @@ pub fn init_tracing(log_path: PathBuf) -> anyhow::Result<Guard> {
 }
 
 pub struct Guard(#[allow(dead_code)] WorkerGuard);
+
+struct PostHogWriter {
+    tracker: Tracker,
+    runtime: tokio::runtime::Runtime,
+}
+
+impl PostHogWriter {
+    pub fn new(tracker: Tracker) -> Self {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create Tokio runtime");
+        Self { tracker, runtime }
+    }
+}
+
+impl std::io::Write for PostHogWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let tracker = self.tracker.clone();
+        let event_kind = crate::EventKind::Trace(buf.to_vec());
+        self.runtime.spawn(async move {
+            let _ = tracker.dispatch(event_kind).await;
+        });
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
