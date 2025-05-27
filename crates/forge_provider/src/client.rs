@@ -140,7 +140,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, vec![]).unwrap();
+        let client = Client::new(provider, Arc::new(vec![])).unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -153,7 +153,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, vec![]).unwrap();
+        let client = Client::new(provider, Arc::new(vec![])).unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)
