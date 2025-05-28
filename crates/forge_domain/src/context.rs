@@ -5,6 +5,8 @@ use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
+use crate::top_k::TopK;
+use crate::top_p::TopP;
 use crate::{Image, ModelId, ToolChoice, ToolDefinition};
 
 /// Represents a message being sent to the LLM provider
@@ -117,6 +119,10 @@ pub struct Context {
     pub max_tokens: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature: Option<Temperature>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<TopP>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<TopK>,
 }
 
 impl Context {

@@ -105,6 +105,14 @@ impl Conversation {
                 agent.temperature = Some(temperature);
             }
 
+            if let Some(top_p) = workflow.top_p {
+                agent.top_p = Some(top_p);
+            }
+
+            if let Some(top_k) = workflow.top_k {
+                agent.top_k = Some(top_k);
+            }
+
             if let Some(model) = workflow.model.clone() {
                 agent.model = Some(model.clone());
 

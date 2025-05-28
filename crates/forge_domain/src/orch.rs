@@ -468,6 +468,14 @@ impl<A: Services> Orchestrator<A> {
             context = context.temperature(temperature);
         }
 
+        if let Some(top_p) = agent.top_p {
+            context = context.top_p(top_p);
+        }
+
+        if let Some(top_k) = agent.top_k {
+            context = context.top_k(top_k);
+        }
+
         // Process attachments in a more declarative way
         let attachments = self
             .services
