@@ -248,7 +248,7 @@ impl<F: API> UI<F> {
                     self.update_mcp_config(&scope, |config| {
                         config.mcp_servers.insert(name.to_string(), server);
                     })
-                    .await?;
+                        .await?;
 
                     self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))?;
                 }
@@ -271,7 +271,7 @@ impl<F: API> UI<F> {
                     self.update_mcp_config(&scope, |config| {
                         config.mcp_servers.remove(name.as_str());
                     })
-                    .await?;
+                        .await?;
 
                     self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
                 }
@@ -295,7 +295,7 @@ impl<F: API> UI<F> {
                     self.update_mcp_config(&scope, |config| {
                         config.mcp_servers.insert(name.clone(), server);
                     })
-                    .await?;
+                        .await?;
 
                     self.writeln(TitleFormat::info(format!(
                         "Added server: {}",
@@ -637,6 +637,7 @@ impl<F: API> UI<F> {
                 }
             }
             ChatResponse::Usage(usage) => {
+                tracing::info!("Usage: {}",serde_json::to_string_pretty(&usage).unwrap_or_default());
                 self.state.usage = usage;
             }
         }
