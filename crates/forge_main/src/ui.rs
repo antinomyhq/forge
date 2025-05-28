@@ -479,19 +479,10 @@ impl<F: API> UI<F> {
 
                 // We need to try and get the conversation ID first before fetching the model
                 if let Some(ref path) = self.cli.conversation {
-                    let content = match ForgeFS::read_to_string(path.as_os_str()).await {
-                        Ok(content) => content,
-                        Err(e) => {
-                            tracing::error!(
-                                "Failed to read conversation file at {}: {}",
-                                path.display(),
-                                e
-                            );
-                            return Err(e);
-                        }
-                    };
-                    let conversation: Conversation = serde_json::from_str(content.as_str())
-                        .context("Failed to parse Conversation")?;
+                    let conversation: Conversation = serde_json::from_str(
+                        ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
+                    )
+                    .context("Failed to parse Conversation")?;
 
                     let conversation_id = conversation.id.clone();
                     self.state.conversation_id = Some(conversation_id.clone());
@@ -637,10 +628,6 @@ impl<F: API> UI<F> {
                 }
             }
             ChatResponse::Usage(usage) => {
-                tracing::info!(
-                    "Usage: {}",
-                    serde_json::to_string_pretty(&usage).unwrap_or_default()
-                );
                 self.state.usage = usage;
             }
         }

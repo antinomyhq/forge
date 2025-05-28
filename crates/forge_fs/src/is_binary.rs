@@ -10,18 +10,9 @@ impl crate::ForgeFS {
         use anyhow::Context;
 
         let path_ref = path.as_ref();
-        let mut file = match File::open(path_ref).await {
-            Ok(file) => file,
-            Err(e) => {
-                tracing::error!(
-                    "Failed to open file for binary check {}: {}",
-                    path_ref.display(),
-                    e
-                );
-                return Err(e)
-                    .with_context(|| format!("Failed to open file {}", path_ref.display()));
-            }
-        };
+        let mut file = File::open(path_ref)
+            .await
+            .with_context(|| format!("Failed to open file {}", path_ref.display()))?;
 
         Self::is_binary(&mut file).await
     }
