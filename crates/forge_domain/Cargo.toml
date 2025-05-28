@@ -35,5 +35,5 @@ base64.workspace = true
 derive-getters = "0.5.0"
 
 [dev-dependencies]
-insta.workspace = true
+insta = { workspace = true, features = ["yaml"] }
 pretty_assertions.workspace = true

@@ -1,7 +1,6 @@
 ---
 source: crates/forge_services/src/tools/fs/fs_write.rs
 expression: normalized_result
-snapshot_kind: text
 ---
 ---
 path: [TEMP_DIR]/new_dir/test.txt

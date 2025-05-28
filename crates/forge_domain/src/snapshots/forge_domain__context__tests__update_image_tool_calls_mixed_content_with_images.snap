@@ -1,0 +1,38 @@
+---
+source: crates/forge_domain/src/context.rs
+expression: actual
+---
+messages:
+  - text:
+      role: System
+      content: System message
+      tool_calls: ~
+      model: ~
+  - text:
+      role: User
+      content: User question
+      tool_calls: ~
+      model: ~
+  - text:
+      role: Assistant
+      content: Assistant response
+      tool_calls: ~
+      model: ~
+  - tool:
+      name: mixed_tool
+      call_id: call1
+      output:
+        values:
+          - Text: Before image
+          - Text: "[The image with ID 0 will be sent as an attachment in the next message]"
+          - Text: After image
+          - Empty
+        is_error: false
+  - text:
+      role: User
+      content: "[Here is the image attachment for ID 0]"
+      tool_calls: ~
+      model: ~
+  - image:
+      url: "data:image/png;base64,test123"
+      mime_type: image/png

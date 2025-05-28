@@ -1,7 +1,6 @@
 ---
 source: crates/forge_services/src/tools/patch.rs
 expression: test
-snapshot_kind: text
 ---
 PatchTest {
     initial: "Hello World",
