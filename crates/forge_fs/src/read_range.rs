@@ -21,18 +21,9 @@ impl crate::ForgeFS {
         let path_ref = path.as_ref();
 
         // Open the file for binary check
-        let mut file = match tokio::fs::File::open(path_ref).await {
-            Ok(file) => file,
-            Err(e) => {
-                tracing::error!(
-                    "Failed to open file for range read {}: {}",
-                    path_ref.display(),
-                    e
-                );
-                return Err(e)
-                    .with_context(|| format!("Failed to open file {}", path_ref.display()));
-            }
-        };
+        let mut file = tokio::fs::File::open(path_ref)
+            .await
+            .with_context(|| format!("Failed to open file {}", path_ref.display()))?;
 
         // Check if the file is binary
         let (is_text, file_type) = Self::is_binary(&mut file).await?;
@@ -41,19 +32,9 @@ impl crate::ForgeFS {
         }
 
         // Read the file content
-        let content = match tokio::fs::read_to_string(path_ref).await {
-            Ok(content) => content,
-            Err(e) => {
-                tracing::error!(
-                    "Failed to read file content for range read from {}: {}",
-                    path_ref.display(),
-                    e
-                );
-                return Err(e).with_context(|| {
-                    format!("Failed to read file content from {}", path_ref.display())
-                });
-            }
-        };
+        let content = tokio::fs::read_to_string(path_ref)
+            .await
+            .with_context(|| format!("Failed to read file content from {}", path_ref.display()))?;
 
         let total_chars = content.chars().count() as u64;
 
