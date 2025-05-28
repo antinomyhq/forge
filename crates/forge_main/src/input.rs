@@ -8,7 +8,6 @@ use tokio::fs;
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{Command, ForgeCommandManager};
 use crate::prompt::ForgePrompt;
-use crate::TRACKER;
 
 /// Console implementation for handling user input via command line.
 #[derive(Debug)]

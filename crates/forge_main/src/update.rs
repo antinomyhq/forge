@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use colored::Colorize;
 use forge_api::{Update, API};
-use forge_tracker::{EventKind, VERSION};
+use forge_tracker::VERSION;
 use update_informer::{registry, Check, Version};
 
-use crate::TRACKER;
 
 const UPDATE_COMMAND: &str = "npm update -g @antinomyhq/forge --force";
 
