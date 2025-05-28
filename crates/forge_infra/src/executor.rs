@@ -58,7 +58,7 @@ impl ForgeCommandExecutorService {
         #[cfg(unix)]
         command.arg(command_str);
 
-        tracing::info!("Executing command: {}", command_str);
+        tracing::info!(command = command_str, "Executing command");
 
         command.kill_on_drop(true);
 
