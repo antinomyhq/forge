@@ -111,8 +111,8 @@ impl<M: McpService> ForgeToolService<M> {
             )
         })?;
 
-        if let Err(e) = &output {
-            tracing::error!(error = %e, "Tool '{}' call failed", call.name);
+        if let Err(error) = &output {
+            tracing::error!(error = %error, tool = ?call.name, "Tool Call Failure");
         }
 
         output
