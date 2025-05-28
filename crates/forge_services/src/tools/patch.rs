@@ -202,16 +202,13 @@ impl<F: Infrastructure> ApplyPatchJson<F> {
         // Use the shared utility function
         format_display_path(path, cwd)
     }
-}
 
-#[async_trait::async_trait]
-impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
-    type Input = FSPatchInput;
-
-    async fn call(
+    /// Inner function that performs the actual patch operation
+    /// without error logging - errors are handled at the trait level
+    async fn call_inner(
         &self,
         context: ToolCallContext,
-        patch: Self::Input,
+        patch: FSPatchInput,
     ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&patch.path);
         assert_absolute_path(path)?;
@@ -271,6 +268,25 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
 
         // Return the final result
         Ok(ToolOutput::text(result))
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
+    type Input = FSPatchInput;
+
+    async fn call(
+        &self,
+        context: ToolCallContext,
+        patch: Self::Input,
+    ) -> anyhow::Result<ToolOutput> {
+        match self.call_inner(context, patch.clone()).await {
+            Ok(output) => Ok(output),
+            Err(e) => {
+                tracing::error!("Patch operation failed for path {}: {}", patch.path, e);
+                Err(e)
+            }
+        }
     }
 }
 

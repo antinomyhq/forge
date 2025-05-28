@@ -197,7 +197,9 @@ impl<F: API> UI<F> {
 
         loop {
             tokio::select! {
-                _ = tokio::signal::ctrl_c() => {}
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("User interrupted operation with Ctrl+C");
+                }
                 result = self.on_command(command) => {
                     match result {
                         Ok(exit) => if exit {return Ok(())},
@@ -477,10 +479,19 @@ impl<F: API> UI<F> {
 
                 // We need to try and get the conversation ID first before fetching the model
                 if let Some(ref path) = self.cli.conversation {
-                    let conversation: Conversation = serde_json::from_str(
-                        ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
-                    )
-                    .context("Failed to parse Conversation")?;
+                    let content = match ForgeFS::read_to_string(path.as_os_str()).await {
+                        Ok(content) => content,
+                        Err(e) => {
+                            tracing::error!(
+                                "Failed to read conversation file at {}: {}",
+                                path.display(),
+                                e
+                            );
+                            return Err(e);
+                        }
+                    };
+                    let conversation: Conversation = serde_json::from_str(content.as_str())
+                        .context("Failed to parse Conversation")?;
 
                     let conversation_id = conversation.id.clone();
                     self.state.conversation_id = Some(conversation_id.clone());

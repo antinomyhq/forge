@@ -10,14 +10,28 @@ impl crate::ForgeFS {
     }
 
     pub async fn read<T: AsRef<Path>>(path: T) -> Result<Vec<u8>> {
-        tokio::fs::read(path.as_ref())
-            .await
-            .with_context(|| format!("Failed to read file {}", path.as_ref().display()))
+        match tokio::fs::read(path.as_ref()).await {
+            Ok(content) => Ok(content),
+            Err(e) => {
+                tracing::error!("Failed to read file {}: {}", path.as_ref().display(), e);
+                Err(e).with_context(|| format!("Failed to read file {}", path.as_ref().display()))
+            }
+        }
     }
 
     pub async fn read_to_string<T: AsRef<Path>>(path: T) -> Result<String> {
-        tokio::fs::read_to_string(path.as_ref())
-            .await
-            .with_context(|| format!("Failed to read file as string {}", path.as_ref().display()))
+        match tokio::fs::read_to_string(path.as_ref()).await {
+            Ok(content) => Ok(content),
+            Err(e) => {
+                tracing::error!(
+                    "Failed to read file as string {}: {}",
+                    path.as_ref().display(),
+                    e
+                );
+                Err(e).with_context(|| {
+                    format!("Failed to read file as string {}", path.as_ref().display())
+                })
+            }
+        }
     }
 }

@@ -156,7 +156,7 @@ impl<F: Infrastructure> FSFind<F> {
             }
 
             // Content matching mode - read and search file contents
-            let content = match tokio::fs::read_to_string(&path).await {
+            let content = match forge_fs::ForgeFS::read_to_string(&path).await {
                 Ok(content) => content,
                 Err(e) => {
                     // Skip binary or unreadable files silently

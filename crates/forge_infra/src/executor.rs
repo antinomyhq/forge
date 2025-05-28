@@ -58,6 +58,8 @@ impl ForgeCommandExecutorService {
         #[cfg(unix)]
         command.arg(command_str);
 
+        tracing::debug!("Executing command: {}", command_str);
+
         command.kill_on_drop(true);
 
         // Set the working directory
