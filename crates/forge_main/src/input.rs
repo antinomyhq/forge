@@ -44,7 +44,7 @@ impl Console {
                 ReadResult::Exit => return Ok(Command::Exit),
                 ReadResult::Empty => continue,
                 ReadResult::Success(text) => {
-                    tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::Prompt(text.clone())));
+                    tracing::info!("Prompt: {}", text);
                     match self.command.parse(&text) {
                         Ok(command) => return Ok(command),
                         Err(e) => {

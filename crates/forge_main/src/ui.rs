@@ -209,9 +209,7 @@ impl<F: API> UI<F> {
                                     TRACKER.set_conversation(conversation).await;
                                 }
                             }
-                            tokio::spawn(
-                                TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{error:?}"))),
-                            );
+                            tracing::error!("Error processing command: {error:?}");
                             self.spinner.stop(None)?;
                             eprintln!("{}", TitleFormat::error(format!("{error:?}")));
                         },
@@ -620,7 +618,7 @@ impl<F: API> UI<F> {
                 } else {
                     ToolCallPayload::new(toolcall_result.name.to_string())
                 };
-                tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::ToolCall(payload)));
+                tracing::info!("Tool call result: {payload:?}");
 
                 self.spinner.start(None)?;
                 if !self.cli.verbose {

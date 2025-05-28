@@ -83,10 +83,7 @@ pub async fn on_update(api: Arc<impl API>, update: Option<&Update>) {
 async fn send_update_failure_event(error_msg: &str) -> anyhow::Result<()> {
     // Ignore the result since we are failing silently
     // This is safe because we're using a static tracker with 'static lifetime
-    let _ = TRACKER
-        .dispatch(EventKind::Error(error_msg.to_string()))
-        .await;
-
+    tracing::error!("Update failed: {}", error_msg);
     // Always return Ok since we want to fail silently
     Ok(())
 }
