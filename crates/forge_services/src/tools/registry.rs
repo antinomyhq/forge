@@ -7,7 +7,6 @@ use super::fetch::Fetch;
 use super::fs::*;
 use super::patch::*;
 use super::shell::Shell;
-use crate::tools::followup::Followup;
 use crate::Infrastructure;
 
 pub struct ToolRegistry<F> {
@@ -32,7 +31,6 @@ impl<F: Infrastructure> ToolRegistry<F> {
             ApplyPatchJson::new(self.infra.clone()).into(),
             Shell::new(self.infra.clone()).into(),
             Completion.into(),
-            Followup::new(self.infra.clone()).into(),
             Fetch::new(self.infra.clone()).into(),
         ]
     }
@@ -54,7 +52,7 @@ pub mod tests {
     use super::*;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
+        FsReadService, FsSnapshotService, FsWriteService, McpClient, McpServer,
     };
 
     /// Create a default test environment
@@ -138,6 +136,14 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl crate::infra::FsUndoService for Stub {
+        async fn undo(&self, _file_path: &Path) -> anyhow::Result<()> {
+            // For tests, just return success
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
     impl FsMetaService for Stub {
         async fn is_file(&self, _: &Path) -> anyhow::Result<bool> {
             unimplemented!()
@@ -173,41 +179,6 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl InquireService for Stub {
-        /// Prompts the user with question
-        async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
-            // For testing, we can just return the question as the answer
-            Ok(Some(question.to_string()))
-        }
-
-        /// Prompts the user to select a single option from a list
-        async fn select_one(
-            &self,
-            _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<String>> {
-            // For testing, we can just return the first option
-            if options.is_empty() {
-                return Err(anyhow::anyhow!("No options provided"));
-            }
-            Ok(Some(options[0].clone()))
-        }
-
-        /// Prompts the user to select multiple options from a list
-        async fn select_many(
-            &self,
-            _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<Vec<String>>> {
-            // For testing, we can just return all options
-            if options.is_empty() {
-                return Err(anyhow::anyhow!("No options provided"));
-            }
-            Ok(Some(options))
-        }
-    }
-
-    #[async_trait::async_trait]
     impl McpClient for Stub {
         async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
             Ok(vec![])
@@ -235,10 +206,9 @@ pub mod tests {
         type FsRemoveService = Stub;
         type FsMetaService = Stub;
         type FsSnapshotService = Stub;
-        type FsCreateDirsService = Stub;
+        type FsUndoService = Stub;
+        type DirCreateService = Stub;
         type CommandExecutorService = Stub;
-        type InquireService = Stub;
-
         type McpServer = Stub;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
@@ -261,19 +231,19 @@ pub mod tests {
             self
         }
 
+        fn file_undo_service(&self) -> &Self::FsUndoService {
+            self
+        }
+
         fn file_remove_service(&self) -> &Self::FsRemoveService {
             self
         }
 
-        fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
+        fn dir_create_service(&self) -> &Self::DirCreateService {
             self
         }
 
         fn command_executor_service(&self) -> &Self::CommandExecutorService {
-            self
-        }
-
-        fn inquire_service(&self) -> &Self::InquireService {
             self
         }
 

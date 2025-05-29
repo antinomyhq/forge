@@ -7,13 +7,13 @@ use forge_services::FsSnapshotService;
 use forge_snaps::Snapshot;
 
 pub struct ForgeFileSnapshotService {
-    inner: Arc<forge_snaps::SnapshotService>,
+    inner: Arc<forge_snaps::SnapshotController>,
 }
 
 impl ForgeFileSnapshotService {
     pub fn new(env: Environment) -> Self {
         Self {
-            inner: Arc::new(forge_snaps::SnapshotService::new(env.snapshot_path())),
+            inner: Arc::new(forge_snaps::SnapshotController::new(env.snapshot_path())),
         }
     }
 }

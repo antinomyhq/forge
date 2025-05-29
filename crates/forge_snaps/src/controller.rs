@@ -7,21 +7,21 @@ use crate::snapshot::Snapshot;
 
 /// Implementation of the SnapshotService
 #[derive(Debug)]
-pub struct SnapshotService {
+pub struct SnapshotController {
     /// Base directory for storing snapshots
     snapshots_directory: PathBuf,
 }
 
-impl SnapshotService {
+impl SnapshotController {
     /// Create a new FileSystemSnapshotService with a specific home path
     pub fn new(snapshot_base_dir: PathBuf) -> Self {
         Self { snapshots_directory: snapshot_base_dir }
     }
 }
 
-impl SnapshotService {
+impl SnapshotController {
     pub async fn create_snapshot(&self, path: PathBuf) -> Result<Snapshot> {
-        let snapshot = Snapshot::create(path).await?;
+        let snapshot = Snapshot::create(path)?;
 
         // Create intermediary directories if they don't exist
         let snapshot_path = snapshot.snapshot_path(Some(self.snapshots_directory.clone()));
@@ -29,9 +29,9 @@ impl SnapshotService {
             ForgeFS::create_dir_all(parent).await?;
         }
 
-        snapshot
-            .save(Some(self.snapshots_directory.clone()))
-            .await?;
+        let content = ForgeFS::read(&snapshot.path).await?;
+        let path = snapshot.snapshot_path(Some(snapshot_path));
+        ForgeFS::write(path, content).await?;
 
         Ok(snapshot)
     }
@@ -57,7 +57,7 @@ impl SnapshotService {
     }
 
     pub async fn undo_snapshot(&self, path: PathBuf) -> Result<()> {
-        let snapshot = Snapshot::create(path.clone()).await?;
+        let snapshot = Snapshot::create(path.clone())?;
 
         // All the snaps for `path` are stored in `snapshot.path_hash()` directory.
         let snapshot_dir = self.snapshots_directory.join(snapshot.path_hash());
@@ -94,7 +94,7 @@ mod tests {
         _temp_dir: TempDir,
         _snapshots_dir: PathBuf,
         test_file: PathBuf,
-        service: SnapshotService,
+        service: SnapshotController,
     }
 
     impl TestContext {
@@ -102,7 +102,7 @@ mod tests {
             let temp_dir = TempDir::new()?;
             let snapshots_dir = temp_dir.path().join("snapshots");
             let test_file = temp_dir.path().join("test.txt");
-            let service = SnapshotService::new(snapshots_dir.clone());
+            let service = SnapshotController::new(snapshots_dir.clone());
 
             Ok(Self {
                 _temp_dir: temp_dir,

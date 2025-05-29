@@ -89,6 +89,13 @@ pub trait FsSnapshotService: Send + Sync {
     async fn undo_snapshot(&self, file_path: &Path) -> Result<()>;
 }
 
+/// Service for undoing file operations
+#[async_trait::async_trait]
+pub trait FsUndoService: Send + Sync {
+    /// Undoes the most recent operation on the specified file path
+    async fn undo(&self, file_path: &Path) -> Result<()>;
+}
+
 /// Service for executing shell commands
 #[async_trait::async_trait]
 pub trait CommandExecutorService: Send + Sync {
@@ -101,29 +108,6 @@ pub trait CommandExecutorService: Send + Sync {
 
     /// execute the shell command on present stdio.
     async fn execute_command_raw(&self, command: &str) -> anyhow::Result<std::process::ExitStatus>;
-}
-
-#[async_trait::async_trait]
-pub trait InquireService: Send + Sync {
-    /// Prompts the user with question
-    /// Returns None if the user interrupts the prompt
-    async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>>;
-
-    /// Prompts the user to select a single option from a list
-    /// Returns None if the user interrupts the selection
-    async fn select_one(
-        &self,
-        message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<String>>;
-
-    /// Prompts the user to select multiple options from a list
-    /// Returns None if the user interrupts the selection
-    async fn select_many(
-        &self,
-        message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<Vec<String>>>;
 }
 
 #[async_trait::async_trait]
@@ -142,16 +126,16 @@ pub trait McpServer: Send + Sync + 'static {
     async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
 }
 
-pub trait Infrastructure: Send + Sync + Clone + 'static {
+pub trait Infrastructure: Send + Sync + 'static {
     type EnvironmentService: EnvironmentService;
     type FsMetaService: FsMetaService;
     type FsReadService: FsReadService;
     type FsRemoveService: FileRemoveService;
     type FsSnapshotService: FsSnapshotService;
     type FsWriteService: FsWriteService;
-    type FsCreateDirsService: FsCreateDirsService;
+    type DirCreateService: FsCreateDirsService;
+    type FsUndoService: FsUndoService;
     type CommandExecutorService: CommandExecutorService;
-    type InquireService: InquireService;
     type McpServer: McpServer;
 
     fn environment_service(&self) -> &Self::EnvironmentService;
@@ -160,8 +144,8 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     fn file_remove_service(&self) -> &Self::FsRemoveService;
     fn file_snapshot_service(&self) -> &Self::FsSnapshotService;
     fn file_write_service(&self) -> &Self::FsWriteService;
-    fn create_dirs_service(&self) -> &Self::FsCreateDirsService;
+    fn dir_create_service(&self) -> &Self::DirCreateService;
+    fn file_undo_service(&self) -> &Self::FsUndoService;
     fn command_executor_service(&self) -> &Self::CommandExecutorService;
-    fn inquire_service(&self) -> &Self::InquireService;
     fn mcp_server(&self) -> &Self::McpServer;
 }

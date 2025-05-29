@@ -124,8 +124,7 @@ pub mod tests {
     use crate::utils::AttachmentExtension;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
-        McpClient, McpServer,
+        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, McpClient, McpServer,
     };
 
     #[derive(Debug)]
@@ -303,6 +302,14 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl crate::infra::FsUndoService for MockSnapService {
+        async fn undo(&self, _file_path: &Path) -> anyhow::Result<()> {
+            // For tests, just indicate success
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
     impl FsMetaService for MockFileService {
         async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
             Ok(self
@@ -463,51 +470,16 @@ pub mod tests {
         }
     }
 
-    #[async_trait::async_trait]
-    impl InquireService for () {
-        /// Prompts the user with question
-        async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
-            // For testing, we can just return the question as the answer
-            Ok(Some(question.to_string()))
-        }
-
-        /// Prompts the user to select a single option from a list
-        async fn select_one(
-            &self,
-            _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<String>> {
-            // For testing, we can just return the first option
-            if options.is_empty() {
-                return Err(anyhow::anyhow!("No options provided"));
-            }
-            Ok(Some(options[0].clone()))
-        }
-
-        /// Prompts the user to select multiple options from a list
-        async fn select_many(
-            &self,
-            _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<Vec<String>>> {
-            // For testing, we can just return all options
-            if options.is_empty() {
-                return Err(anyhow::anyhow!("No options provided"));
-            }
-            Ok(Some(options))
-        }
-    }
-
     impl Infrastructure for MockInfrastructure {
         type EnvironmentService = MockEnvironmentService;
         type FsReadService = MockFileService;
         type FsWriteService = MockFileService;
         type FsRemoveService = MockFileService;
         type FsMetaService = MockFileService;
-        type FsCreateDirsService = MockFileService;
+        type DirCreateService = MockFileService;
         type FsSnapshotService = MockSnapService;
+        type FsUndoService = MockSnapService;
         type CommandExecutorService = ();
-        type InquireService = ();
         type McpServer = ();
 
         fn environment_service(&self) -> &Self::EnvironmentService {
@@ -530,19 +502,19 @@ pub mod tests {
             &self.file_snapshot_service
         }
 
+        fn file_undo_service(&self) -> &Self::FsUndoService {
+            &self.file_snapshot_service
+        }
+
         fn file_remove_service(&self) -> &Self::FsRemoveService {
             &self.file_service
         }
 
-        fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
+        fn dir_create_service(&self) -> &Self::DirCreateService {
             &self.file_service
         }
 
         fn command_executor_service(&self) -> &Self::CommandExecutorService {
-            &()
-        }
-
-        fn inquire_service(&self) -> &Self::InquireService {
             &()
         }
 

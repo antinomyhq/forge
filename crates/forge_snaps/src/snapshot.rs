@@ -3,7 +3,6 @@ use std::hash::Hasher;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use forge_fs::ForgeFS;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -63,7 +62,7 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub async fn create(path: PathBuf) -> anyhow::Result<Self> {
+    pub fn create(path: PathBuf) -> anyhow::Result<Self> {
         let path = path.canonicalize()?;
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?;
 
@@ -97,12 +96,5 @@ impl Snapshot {
         } else {
             path
         }
-    }
-
-    pub async fn save(&self, path: Option<PathBuf>) -> anyhow::Result<()> {
-        let content = ForgeFS::read(&self.path).await?;
-        let path = self.snapshot_path(path);
-        ForgeFS::write(path, content).await?;
-        Ok(())
     }
 }

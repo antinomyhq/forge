@@ -128,7 +128,7 @@ mod test {
 
         // Create a test directory
         infra
-            .create_dirs_service()
+            .dir_create_service()
             .create_dirs(dir_path.as_path())
             .await
             .unwrap();

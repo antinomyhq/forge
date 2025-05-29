@@ -40,7 +40,7 @@ pub struct ForgeServices<F> {
     mcp_manager: Arc<ForgeMcpManager<F>>,
 }
 
-impl<F: Infrastructure> ForgeServices<F> {
+impl<F: Infrastructure + Clone> ForgeServices<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
         let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
@@ -75,7 +75,7 @@ impl<F: Infrastructure> ForgeServices<F> {
     }
 }
 
-impl<F: Infrastructure> Services for ForgeServices<F> {
+impl<F: Infrastructure + Clone> Services for ForgeServices<F> {
     type ToolService = ForgeToolService<McpService<F>>;
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService<Self::CompactionService, McpService<F>>;
@@ -128,16 +128,16 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     }
 }
 
-impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
+impl<F: Infrastructure + Clone> Infrastructure for ForgeServices<F> {
     type EnvironmentService = F::EnvironmentService;
     type FsReadService = F::FsReadService;
     type FsWriteService = F::FsWriteService;
     type FsMetaService = F::FsMetaService;
     type FsSnapshotService = F::FsSnapshotService;
     type FsRemoveService = F::FsRemoveService;
-    type FsCreateDirsService = F::FsCreateDirsService;
+    type FsUndoService = F::FsUndoService;
+    type DirCreateService = F::DirCreateService;
     type CommandExecutorService = F::CommandExecutorService;
-    type InquireService = F::InquireService;
     type McpServer = F::McpServer;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
@@ -164,16 +164,16 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
         self.infra.file_remove_service()
     }
 
-    fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
-        self.infra.create_dirs_service()
+    fn file_undo_service(&self) -> &Self::FsUndoService {
+        self.infra.file_undo_service()
+    }
+
+    fn dir_create_service(&self) -> &Self::DirCreateService {
+        self.infra.dir_create_service()
     }
 
     fn command_executor_service(&self) -> &Self::CommandExecutorService {
         self.infra.command_executor_service()
-    }
-
-    fn inquire_service(&self) -> &Self::InquireService {
-        self.infra.inquire_service()
     }
 
     fn mcp_server(&self) -> &Self::McpServer {
