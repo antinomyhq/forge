@@ -59,7 +59,11 @@ impl ForgeProvider {
             );
         }
         headers.insert("X-Title", HeaderValue::from_static("forge"));
-        headers.insert("X-Client", HeaderValue::from_str(format!("@antinomyhq/forge@{}", VERSION).as_str()).unwrap_or(HeaderValue::from_static("@antinomyhq/forge")));
+        headers.insert(
+            "X-Client",
+            HeaderValue::from_str(format!("@antinomyhq/forge@{VERSION}").as_str())
+                .unwrap_or(HeaderValue::from_static("@antinomyhq/forge")),
+        );
         headers.insert(
             "HTTP-Referer",
             HeaderValue::from_static("https://github.com/antinomyhq/forge"),
@@ -256,7 +260,7 @@ mod tests {
             "code": 400
           }
         }))
-            .unwrap();
+        .unwrap();
         let message = serde_json::from_str::<Response>(&content)
             .with_context(|| "Failed to parse response")?;
         let message = ChatCompletionMessage::try_from(message.clone());
