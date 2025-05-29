@@ -1,6 +1,6 @@
 ---
 source: crates/forge_services/src/tools/shell.rs
-expression: result
+expression: "&result.into_string()"
 ---
 ---
 command: echo 'to stderr' >&2; echo 'to stdout'

@@ -156,11 +156,14 @@ impl<F: Infrastructure> FSFind<F> {
             }
 
             // Content matching mode - read and search file contents
-            let content = match tokio::fs::read_to_string(&path).await {
+            let content = match forge_fs::ForgeFS::read_to_string(&path).await {
                 Ok(content) => content,
                 Err(e) => {
                     // Skip binary or unreadable files silently
-                    if e.kind() != std::io::ErrorKind::InvalidData {
+                    if let Some(e) = e
+                        .downcast_ref::<std::io::ErrorKind>()
+                        .map(|e| std::io::ErrorKind::InvalidData.eq(e))
+                    {
                         matches.push(format!(
                             "Error reading {}: {}",
                             self.format_display_path(&path)?,

@@ -20,6 +20,7 @@ use crate::utils::format_http_context;
 pub struct ForgeProvider {
     client: Client,
     provider: Provider,
+    version: String,
 }
 
 impl ForgeProvider {
@@ -45,6 +46,9 @@ impl ForgeProvider {
         })
     }
 
+    // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
+    // - `HTTP-Referer`: Identifies your app on openrouter.ai
+    // - `X-Title`: Sets/modifies your app's title
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         if let Some(ref api_key) = self.provider.key() {
@@ -54,6 +58,11 @@ impl ForgeProvider {
             );
         }
         headers.insert("X-Title", HeaderValue::from_static("forge"));
+        headers.insert(
+            "x-app-version",
+            HeaderValue::from_str(format!("v{}", self.version).as_str())
+                .unwrap_or(HeaderValue::from_static("v0.1.0-dev")),
+        );
         headers.insert(
             "HTTP-Referer",
             HeaderValue::from_static("https://github.com/antinomyhq/forge"),
@@ -224,6 +233,7 @@ impl From<Model> for forge_domain::Model {
         let tools_supported = value
             .supported_parameters
             .iter()
+            .flatten()
             .any(|param| param == "tools");
         forge_domain::Model {
             id: value.id,

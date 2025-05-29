@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -10,7 +11,7 @@ use futures::future::join_all;
 use futures::{Stream, StreamExt};
 use serde_json::Value;
 use tokio::sync::RwLock;
-use tracing::debug;
+use tracing::{debug, info, warn};
 
 // Use retry_config default values directly in this file
 use crate::services::Services;
@@ -40,7 +41,7 @@ pub struct Orchestrator<Services> {
 struct ChatCompletionResult {
     pub content: String,
     pub tool_calls: Vec<ToolCallFull>,
-    pub usage: Option<Usage>,
+    pub usage: Usage,
 }
 
 impl<A: Services> Orchestrator<A> {
@@ -83,6 +84,16 @@ impl<A: Services> Orchestrator<A> {
                 .tool_service()
                 .call(tool_context.clone(), tool_call.clone())
                 .await;
+
+            if tool_result.is_error() {
+                warn!(
+                    agent_id = %agent.id,
+                    name = %tool_call.name,
+                    arguments = %tool_call.arguments,
+                    output = ?tool_result.output,
+                    "Tool call failed",
+                );
+            }
 
             // Send the end notification
             self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
@@ -203,19 +214,20 @@ impl<A: Services> Orchestrator<A> {
     }
 
     /// Process usage information from a chat completion message
-    async fn calculate_usage(
+    fn update_usage(
         &self,
         message: &ChatCompletionMessage,
         context: &Context,
-        request_usage: Option<Usage>,
-        agent: &Agent,
-    ) -> anyhow::Result<Option<Usage>> {
+        request_usage: Usage,
+    ) -> Usage {
         // If usage information is provided by provider use that else depend on
         // estimates.
-        let mut usage = message.usage.clone().unwrap_or_default();
-        usage.estimated_tokens = Some(context.estimate_token_count());
-        self.send(agent, ChatResponse::Usage(usage.clone())).await?;
-        Ok(request_usage.or(Some(usage)))
+
+        let mut usage = message.usage.clone().unwrap_or(request_usage);
+        let content_length = context.to_text().len();
+        usage.estimated_tokens = estimate_token_count(content_length) as u64;
+        usage.content_length = content_length as u64;
+        usage
     }
 
     async fn collect_messages(
@@ -225,7 +237,7 @@ impl<A: Services> Orchestrator<A> {
         mut response: impl Stream<Item = anyhow::Result<ChatCompletionMessage>> + std::marker::Unpin,
     ) -> anyhow::Result<ChatCompletionResult> {
         let mut messages = Vec::new();
-        let mut request_usage: Option<Usage> = None;
+        let mut usage: Usage = Default::default();
         let mut content = String::new();
         let mut xml_tool_calls = None;
         let mut tool_interrupted = false;
@@ -238,9 +250,7 @@ impl<A: Services> Orchestrator<A> {
             messages.push(message.clone());
 
             // Process usage information
-            request_usage = self
-                .calculate_usage(&message, context, request_usage, agent)
-                .await?;
+            usage = self.update_usage(&message, context, usage);
 
             // Process content
             if let Some(content_part) = message.content.as_ref() {
@@ -343,7 +353,7 @@ impl<A: Services> Orchestrator<A> {
             .chain(xml_tool_calls)
             .collect();
 
-        Ok(ChatCompletionResult { content, tool_calls, usage: request_usage })
+        Ok(ChatCompletionResult { content, tool_calls, usage })
     }
 
     pub async fn dispatch(&self, event: Event) -> anyhow::Result<()> {
@@ -459,6 +469,14 @@ impl<A: Services> Orchestrator<A> {
             context = context.temperature(temperature);
         }
 
+        if let Some(top_p) = agent.top_p {
+            context = context.top_p(top_p);
+        }
+
+        if let Some(top_k) = agent.top_k {
+            context = context.top_k(top_k);
+        }
+
         // Process attachments in a more declarative way
         let attachments = self
             .services
@@ -505,9 +523,19 @@ impl<A: Services> Orchestrator<A> {
                     .when(should_retry)
                     .await?;
 
+            // Send the usage information if available
+
+            info!(
+                token_usage = usage.prompt_tokens,
+                estimated_token_usage = usage.estimated_tokens,
+                content_length = usage.content_length,
+                "Processing usage information"
+            );
+            self.send(agent, ChatResponse::Usage(usage.clone())).await?;
+
             // Check if context requires compression and decide to compact
-            if agent.should_compact(&context, usage.map(|usage| usage.prompt_tokens as usize)) {
-                debug!(agent_id = %agent.id, "Compaction needed, applying compaction");
+            if agent.should_compact(&context, max(usage.prompt_tokens, usage.estimated_tokens)) {
+                info!(agent_id = %agent.id, "Compaction needed, applying compaction");
                 context = self
                     .services
                     .compaction_service()
@@ -547,13 +575,20 @@ impl<A: Services> Orchestrator<A> {
                 context =
                     context.add_message(ContextMessage::user(content, model_id.clone().into()));
 
+                warn!(
+                    agent_id = %agent.id,
+                    model_id = %model_id,
+                    empty_tool_call_count,
+                    "Agent is unable to follow instructions"
+                );
+
                 empty_tool_call_count += 1;
                 if empty_tool_call_count > 3 {
-                    tracing::warn!(
+                    warn!(
                         agent_id = %agent.id,
                         model_id = %model_id,
                         empty_tool_call_count,
-                        "Agent is unable to follow instructions"
+                        "Forced completion due to repeated empty tool calls"
                     );
                     tool_context.set_complete().await;
                 }
@@ -614,6 +649,6 @@ fn should_retry(error: &anyhow::Error) -> bool {
         .downcast_ref::<Error>()
         .is_some_and(|error| matches!(error, Error::Retryable(_)));
 
-    tracing::error!(error = ?error, retry = retry, "Retrying on error");
+    warn!(error = %error, retry = retry, "Retrying on error");
     retry
 }

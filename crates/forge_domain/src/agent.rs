@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::collections::HashSet;
 
 use derive_more::derive::Display;
@@ -12,7 +11,7 @@ use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
     Context, Error, Event, EventContext, ModelId, Result, Role, SystemContext, ToolDefinition,
-    ToolName,
+    ToolName, TopK, TopP,
 };
 
 // Unique identifier for an agent
@@ -108,15 +107,11 @@ impl Compact {
 
     /// Determines if compaction should be triggered based on the current
     /// context
-    pub fn should_compact(&self, context: &Context, prompt_tokens: Option<usize>) -> bool {
+    pub fn should_compact(&self, context: &Context, token_count: u64) -> bool {
         // Check if any of the thresholds have been exceeded
         if let Some(token_threshold) = self.token_threshold {
-            let estimate_token_count = context.estimate_token_count();
-            debug!(tokens = ?prompt_tokens, estimated = estimate_token_count, "Token count");
+            debug!(tokens = ?token_count, "Token count");
             // use provided prompt_tokens if available, otherwise estimate token count
-            let token_count = prompt_tokens
-                .map(|tokens| max(tokens as u64, estimate_token_count))
-                .unwrap_or_else(|| estimate_token_count);
             if token_count >= token_threshold {
                 return true;
             }
@@ -244,6 +239,31 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub temperature: Option<Temperature>,
+
+    /// Top-p (nucleus sampling) used for agent
+    ///
+    /// Controls the diversity of the model's output by considering only the
+    /// most probable tokens up to a cumulative probability threshold.
+    /// - Lower values (e.g., 0.1) make responses more focused
+    /// - Higher values (e.g., 0.9) make responses more diverse
+    /// - Valid range is 0.0 to 1.0
+    /// - If not specified, the model provider's default will be used
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub top_p: Option<TopP>,
+
+    /// Top-k used for agent
+    ///
+    /// Controls the number of highest probability vocabulary tokens to keep.
+    /// - Lower values (e.g., 10) make responses more focused
+    /// - Higher values (e.g., 100) make responses more diverse
+    /// - Valid range is 1 to 1000
+    /// - If not specified, the model provider's default will be used
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub top_k: Option<TopK>,
 }
 
 fn merge_subscription(base: &mut Option<Vec<String>>, other: Option<Vec<String>>) {
@@ -276,6 +296,8 @@ impl Agent {
             custom_rules: None,
             hide_content: None,
             temperature: None,
+            top_p: None,
+            top_k: None,
         }
     }
 
@@ -287,10 +309,10 @@ impl Agent {
             .description(self.description.clone().unwrap()))
     }
     /// Checks if compaction should be applied
-    pub fn should_compact(&self, context: &Context, prompt_tokens: Option<usize>) -> bool {
+    pub fn should_compact(&self, context: &Context, token_count: u64) -> bool {
         // Return false if compaction is not configured
         if let Some(compact) = &self.compact {
-            compact.should_compact(context, prompt_tokens)
+            compact.should_compact(context, token_count)
         } else {
             false
         }
@@ -336,10 +358,10 @@ impl Key for Agent {
 /// tokenizer
 /// Estimates token count from a string representation
 /// Re-exported for compaction reporting
-pub fn estimate_token_count(text: &str) -> u64 {
+pub fn estimate_token_count(count: usize) -> usize {
     // A very rough estimation that assumes ~4 characters per token on average
     // In a real implementation, this should use a proper LLM-specific tokenizer
-    text.len() as u64 / 4
+    count / 4
 }
 
 // The Transform enum has been removed
@@ -523,5 +545,93 @@ mod tests {
 
         let agent: Agent = serde_json::from_value(json).unwrap();
         assert_eq!(agent.temperature, None);
+    }
+
+    #[test]
+    fn test_top_p_validation() {
+        // Valid top_p values should deserialize correctly
+        let valid_values = [0.0, 0.1, 0.5, 0.9, 1.0];
+        for value in valid_values {
+            let json = json!({
+                "id": "test-agent",
+                "top_p": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(agent.is_ok(), "Valid top_p {value} should deserialize");
+            assert_eq!(agent.unwrap().top_p.unwrap().value(), value);
+        }
+
+        // Invalid top_p values should fail deserialization
+        let invalid_values = [-0.1, 1.1, 2.0, -1.0, 10.0];
+        for value in invalid_values {
+            let json = json!({
+                "id": "test-agent",
+                "top_p": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(
+                agent.is_err(),
+                "Invalid top_p {value} should fail deserialization"
+            );
+            let err = agent.unwrap_err().to_string();
+            assert!(
+                err.contains("top_p must be between 0.0 and 1.0"),
+                "Error should mention valid range: {err}"
+            );
+        }
+
+        // No top_p should deserialize to None
+        let json = json!({
+            "id": "test-agent"
+        });
+
+        let agent: Agent = serde_json::from_value(json).unwrap();
+        assert_eq!(agent.top_p, None);
+    }
+
+    #[test]
+    fn test_top_k_validation() {
+        // Valid top_k values should deserialize correctly
+        let valid_values = [1, 10, 50, 100, 500, 1000];
+        for value in valid_values {
+            let json = json!({
+                "id": "test-agent",
+                "top_k": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(agent.is_ok(), "Valid top_k {value} should deserialize");
+            assert_eq!(agent.unwrap().top_k.unwrap().value(), value);
+        }
+
+        // Invalid top_k values should fail deserialization
+        let invalid_values = [0, 1001, 2000, 5000];
+        for value in invalid_values {
+            let json = json!({
+                "id": "test-agent",
+                "top_k": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(
+                agent.is_err(),
+                "Invalid top_k {value} should fail deserialization"
+            );
+            let err = agent.unwrap_err().to_string();
+            assert!(
+                err.contains("top_k must be between 1 and 1000"),
+                "Error should mention valid range: {err}"
+            );
+        }
+
+        // No top_k should deserialize to None
+        let json = json!({
+            "id": "test-agent"
+        });
+
+        let agent: Agent = serde_json::from_value(json).unwrap();
+        assert_eq!(agent.top_k, None);
     }
 }

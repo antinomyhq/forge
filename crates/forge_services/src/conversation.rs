@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::{Context as AnyhowContext, Result};
 use forge_domain::{
-    AgentId, CompactionResult, CompactionService, Conversation, ConversationId,
-    ConversationService, McpService, Workflow,
+    estimate_token_count, AgentId, CompactionResult, CompactionService, Conversation,
+    ConversationId, ConversationService, McpService, Workflow,
 };
 use tokio::sync::Mutex;
 
@@ -88,7 +88,7 @@ impl<C: CompactionService, M: McpService> ConversationService for ForgeConversat
             .unwrap_or_default();
 
         // Compute original metrics
-        let original_tokens = context.estimate_token_count() as usize;
+        let original_tokens = estimate_token_count(context.to_text().len());
         let original_messages = context.messages.len();
 
         // Perform compaction
@@ -98,7 +98,7 @@ impl<C: CompactionService, M: McpService> ConversationService for ForgeConversat
             .await?;
 
         // Compute compacted metrics
-        let compacted_tokens = new_context.estimate_token_count() as usize;
+        let compacted_tokens = estimate_token_count(new_context.to_text().len());
         let compacted_messages = new_context.messages.len();
 
         // Persist the updated context

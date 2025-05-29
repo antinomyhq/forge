@@ -37,5 +37,5 @@ reqwest.workspace = true
 bytes.workspace = true
 
 [dev-dependencies]
-insta.workspace = true
+insta = { workspace = true, features = ["yaml"] }
 pretty_assertions.workspace = true

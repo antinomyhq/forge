@@ -78,6 +78,8 @@ mod tests {
             tool_choice: None,
             max_tokens: None,
             temperature: None,
+            top_p: None,
+            top_k: None,
         };
 
         let request = Request::from(context);

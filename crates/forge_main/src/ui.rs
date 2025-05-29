@@ -197,7 +197,9 @@ impl<F: API> UI<F> {
 
         loop {
             tokio::select! {
-                _ = tokio::signal::ctrl_c() => {}
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("User interrupted operation with Ctrl+C");
+                }
                 result = self.on_command(command) => {
                     match result {
                         Ok(exit) => if exit {return Ok(())},
@@ -486,11 +488,13 @@ impl<F: API> UI<F> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
             None => {
+                self.spinner.start(Some("Initializing conversation"))?;
+
                 // Select a model if workflow doesn't have one
                 let workflow = self.init_state().await?;
 
                 // We need to try and get the conversation ID first before fetching the model
-                if let Some(ref path) = self.cli.conversation {
+                let id = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation = serde_json::from_str(
                         ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
                     )
@@ -500,13 +504,17 @@ impl<F: API> UI<F> {
                     self.state.conversation_id = Some(conversation_id.clone());
                     self.update_model(conversation.main_model()?);
                     self.api.upsert_conversation(conversation).await?;
-                    Ok(conversation_id)
+                    conversation_id
                 } else {
                     let conversation = self.api.init_conversation(workflow).await?;
                     self.state.conversation_id = Some(conversation.id.clone());
                     self.update_model(conversation.main_model()?);
-                    Ok(conversation.id)
-                }
+                    conversation.id
+                };
+
+                self.spinner.stop(None)?;
+
+                Ok(id)
             }
         }
     }
@@ -648,6 +656,7 @@ impl<F: API> UI<F> {
             ChatResponse::Text { mut text, is_complete, is_md, is_summary } => {
                 if is_complete && !text.trim().is_empty() {
                     if is_md || is_summary {
+                        tracing::info!(message = %text, "Agent Response");
                         text = self.markdown.render(&text);
                     }
 

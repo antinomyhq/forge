@@ -2,10 +2,8 @@ use std::sync::Arc;
 
 use colored::Colorize;
 use forge_api::{Update, API};
-use forge_tracker::{EventKind, VERSION};
+use forge_tracker::VERSION;
 use update_informer::{registry, Check, Version};
-
-use crate::TRACKER;
 
 const UPDATE_COMMAND: &str = "npm update -g @antinomyhq/forge --force";
 
@@ -81,12 +79,7 @@ pub async fn on_update(api: Arc<impl API>, update: Option<&Update>) {
 
 /// Sends an event to the tracker when an update fails
 async fn send_update_failure_event(error_msg: &str) -> anyhow::Result<()> {
-    // Ignore the result since we are failing silently
-    // This is safe because we're using a static tracker with 'static lifetime
-    let _ = TRACKER
-        .dispatch(EventKind::Error(error_msg.to_string()))
-        .await;
-
+    tracing::error!(error = error_msg, "Update failed");
     // Always return Ok since we want to fail silently
     Ok(())
 }

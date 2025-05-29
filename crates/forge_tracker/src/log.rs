@@ -1,32 +1,56 @@
 use std::path::PathBuf;
 
 use tracing::debug;
-use tracing_appender::non_blocking::WorkerGuard;
+use tracing_appender::non_blocking::{self, WorkerGuard};
 use tracing_subscriber::{self};
 
+use crate::can_track::can_track;
 use crate::Tracker;
 
 pub fn init_tracing(log_path: PathBuf, tracker: Tracker) -> anyhow::Result<Guard> {
     debug!(path = %log_path.display(), "Initializing logging system in JSON format");
 
-    let (non_blocking, guard) = tracing_appender::non_blocking(PostHogWriter::new(tracker));
+    // If tracking is enabled, use PostHog for logging; otherwise, use a rolling
+    // file appender.
+    let (writer, guard, level) = prepare_writer(log_path, tracker);
 
     tracing_subscriber::fmt()
         .json()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_env("FORGE_LOG")
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("forge=info")),
-        )
+        .with_env_filter(tracing_subscriber::EnvFilter::try_from_env("FORGE_LOG").unwrap_or(level))
         .with_timer(tracing_subscriber::fmt::time::uptime())
         .with_thread_ids(false)
         .with_target(false)
         .with_file(true)
         .with_line_number(true)
-        .with_writer(non_blocking)
+        .with_writer(writer)
         .init();
 
     debug!("JSON logging system initialized successfully");
     Ok(Guard(guard))
+}
+
+fn prepare_writer(
+    log_path: PathBuf,
+    tracker: Tracker,
+) -> (
+    non_blocking::NonBlocking,
+    WorkerGuard,
+    tracing_subscriber::EnvFilter,
+) {
+    let ((non_blocking, guard), env) = if can_track() {
+        let append = PostHogWriter::new(tracker);
+        (
+            tracing_appender::non_blocking(append),
+            tracing_subscriber::EnvFilter::new("forge=info"),
+        )
+    } else {
+        let append = tracing_appender::rolling::daily(log_path, "forge.log");
+        (
+            tracing_appender::non_blocking(append),
+            tracing_subscriber::EnvFilter::new("forge=debug"),
+        )
+    };
+    (non_blocking, guard, env)
 }
 
 pub struct Guard(#[allow(dead_code)] WorkerGuard);

@@ -92,11 +92,7 @@ impl Prompt for ForgePrompt {
             .unwrap_or(&Usage::default())
             .prompt_tokens;
 
-        let estimated = self
-            .usage
-            .as_ref()
-            .and_then(|u| u.estimated_tokens)
-            .unwrap_or(0);
+        let estimated = self.usage.as_ref().map_or(0, |u| u.estimated_tokens);
 
         if estimated > reported {
             write!(result, "/~{estimated}").unwrap();
@@ -219,7 +215,7 @@ mod tests {
             prompt_tokens: 10,
             completion_tokens: 20,
             total_tokens: 30,
-            estimated_tokens: None,
+            ..Default::default()
         };
         let mut prompt = ForgePrompt::default();
         prompt.usage(usage);
@@ -296,7 +292,7 @@ mod tests {
             prompt_tokens: 10,
             completion_tokens: 20,
             total_tokens: 30,
-            estimated_tokens: None,
+            ..Default::default()
         };
         let mut prompt = ForgePrompt::default();
         prompt.usage(usage);

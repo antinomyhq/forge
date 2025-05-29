@@ -1,6 +1,9 @@
 variables:
   mode: ACT
 
+top_p: 0.8
+top_k: 30
+
 updates:
   frequency: "daily"
   auto_update: false
@@ -8,8 +11,7 @@ updates:
 # Define model anchors with simpler, purpose-based names
 models:
   # Role-based model definitions - easy to swap implementation
-  - &advanced_model anthropic/claude-3.7-sonnet
-  - &standard_model anthropic/claude-3.5-haiku
+  - &advanced_model anthropic/claude-sonnet-4
 
 agents:
   - id: software-engineer
