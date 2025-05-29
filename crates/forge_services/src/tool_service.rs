@@ -93,7 +93,7 @@ impl<M: McpService> ForgeToolService<M> {
         context: ToolCallContext,
         call: ToolCallFull,
     ) -> anyhow::Result<ToolOutput> {
-        info!(tool_name = %call.name, arguments = %call.arguments, "Executing tool call");
+        info!(tool_name = ?call.name, arguments = ?call.arguments, "Executing tool call");
 
         // Checks if tool is supported by agent and system.
         let tool = self.validate_tool_call(&context, &call.name).await?;

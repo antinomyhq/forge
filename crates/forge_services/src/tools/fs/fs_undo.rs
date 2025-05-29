@@ -58,6 +58,7 @@ pub struct UndoInput {
     pub path: String,
     /// Concise explanation of the operation being performed.
     #[serde(default)]
+    #[allow(dead_code)]
     pub explanation: Option<String>,
 }
 

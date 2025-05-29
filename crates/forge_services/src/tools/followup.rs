@@ -57,6 +57,7 @@ pub struct SelectInput {
     pub multiple: Option<bool>,
     /// Concise explanation of the operation being performed.
     #[serde(default)]
+    #[allow(dead_code)]
     pub explanation: Option<String>,
 }
 
