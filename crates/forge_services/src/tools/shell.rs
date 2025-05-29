@@ -204,7 +204,7 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
             SUFFIX_CHARS,
         )
         .await?;
-        Ok(ToolOutput::text(result))
+        Ok(ToolOutput::text(result, None))
     }
 }
 

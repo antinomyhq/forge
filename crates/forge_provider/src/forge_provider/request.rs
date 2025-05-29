@@ -448,6 +448,7 @@ mod tests {
                "age": 30,
                "address": [{"city": "New York"}, {"city": "San Francisco"}]
             }"#,
+                None,
             );
 
         let tool_message = ContextMessage::Tool(tool_result);
@@ -468,6 +469,7 @@ mod tests {
                     "data-test": "<test>&value</test>"
                 }
             }"#,
+                None,
             );
 
         let tool_message = ContextMessage::Tool(tool_result);
@@ -479,7 +481,7 @@ mod tests {
     fn test_tool_message_typescript_code() {
         let tool_result = ToolResult::new(ToolName::new("rust_tool"))
             .call_id(ToolCallId::new("456"))
-            .success(r#"{ "code": "fn main<T>(gt: T) {let b = &gt; }"}"#);
+            .success(r#"{ "code": "fn main<T>(gt: T) {let b = &gt; }"}"#, None);
 
         let tool_message = ContextMessage::Tool(tool_result);
         let router_message = Message::from(tool_message);

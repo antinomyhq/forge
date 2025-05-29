@@ -68,6 +68,7 @@ pub struct FSReadInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_char: Option<u64>,
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -89,6 +90,7 @@ pub struct FSWriteInput {
     #[serde(skip_serializing_if = "is_default")]
     pub overwrite: bool,
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -111,6 +113,7 @@ pub struct FSSearchInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_pattern: Option<String>,
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -120,6 +123,7 @@ pub struct FSRemoveInput {
     /// The path of the file to remove (absolute path required)
     pub path: String,
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -160,6 +164,7 @@ pub struct FSPatchInput {
     pub content: String,
 
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 

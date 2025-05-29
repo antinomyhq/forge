@@ -19,6 +19,7 @@ pub struct FSFileInfoInput {
     /// The path of the file or directory to inspect (absolute path required)
     pub path: String,
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -79,7 +80,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         context
             .send_text(TitleFormat::debug("Info").title(self.format_display_path(path)?))
             .await?;
-        Ok(ToolOutput::text(format!("{meta:?}")))
+        Ok(ToolOutput::text(format!("{meta:?}"), input.explanation))
     }
 }
 
@@ -102,7 +103,10 @@ mod test {
         let result = fs_info
             .call(
                 ToolCallContext::default(),
-                FSFileInfoInput { path: file_path.to_string_lossy().to_string() },
+                FSFileInfoInput {
+                    path: file_path.to_string_lossy().to_string(),
+                    explanation: None,
+                },
             )
             .await
             .unwrap();
@@ -124,7 +128,10 @@ mod test {
         let result = fs_info
             .call(
                 ToolCallContext::default(),
-                FSFileInfoInput { path: dir_path.to_string_lossy().to_string() },
+                FSFileInfoInput {
+                    path: dir_path.to_string_lossy().to_string(),
+                    explanation: None,
+                },
             )
             .await
             .unwrap();
@@ -145,7 +152,10 @@ mod test {
         let result = fs_info
             .call(
                 ToolCallContext::default(),
-                FSFileInfoInput { path: nonexistent_path.to_string_lossy().to_string() },
+                FSFileInfoInput {
+                    path: nonexistent_path.to_string_lossy().to_string(),
+                    explanation: None,
+                },
             )
             .await;
 
@@ -160,7 +170,7 @@ mod test {
         let result = fs_info
             .call(
                 ToolCallContext::default(),
-                FSFileInfoInput { path: "relative/path.txt".to_string() },
+                FSFileInfoInput { path: "relative/path.txt".to_string(), explanation: None },
             )
             .await;
 

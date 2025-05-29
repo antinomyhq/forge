@@ -15,6 +15,7 @@ messages:
         values:
           - Text: Text output
         is_error: false
+        explanation: ~
   - tool:
       name: image_tool1
       call_id: call2
@@ -22,6 +23,7 @@ messages:
         values:
           - Text: "[The image with ID 0 will be sent as an attachment in the next message]"
         is_error: false
+        explanation: ~
   - tool:
       name: image_tool2
       call_id: call3
@@ -29,6 +31,7 @@ messages:
         values:
           - Text: "[The image with ID 1 will be sent as an attachment in the next message]"
         is_error: false
+        explanation: ~
   - text:
       role: User
       content: "[Here is the image attachment for ID 0]"

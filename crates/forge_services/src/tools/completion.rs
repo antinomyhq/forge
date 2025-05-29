@@ -33,6 +33,7 @@ pub struct AttemptCompletionInput {
     result: String,
 
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -48,7 +49,7 @@ impl ExecutableTool for Completion {
         context.set_complete().await;
 
         // Return success with the message
-        Ok(ToolOutput::text(input.result))
+        Ok(ToolOutput::text(input.result, input.explanation))
     }
 }
 
@@ -63,8 +64,10 @@ mod tests {
     async fn test_attempt_completion() {
         // Create fixture
         let tool = Completion;
-        let input =
-            AttemptCompletionInput { result: "All required features implemented".to_string() };
+        let input = AttemptCompletionInput {
+            result: "All required features implemented".to_string(),
+            explanation: None,
+        };
 
         // Execute the fixture
         let actual = tool

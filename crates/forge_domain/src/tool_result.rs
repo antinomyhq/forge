@@ -21,8 +21,8 @@ impl ToolResult {
         }
     }
 
-    pub fn success(mut self, content: impl Into<String>) -> Self {
-        self.output = ToolOutput::text(content.into());
+    pub fn success(mut self, content: impl Into<String>, explanation: Option<String>) -> Self {
+        self.output = ToolOutput::text(content.into(), explanation);
 
         self
     }
@@ -41,7 +41,7 @@ impl ToolResult {
                 self.output = output;
             }
             Err(err) => {
-                self.output = ToolOutput::text(format!("{err:?}")).is_error(true);
+                self.output = ToolOutput::text(format!("{err:?}"), None).is_error(true);
             }
         }
         self
@@ -63,24 +63,34 @@ impl From<ToolCallFull> for ToolResult {
 pub struct ToolOutput {
     pub values: Vec<ToolOutputValue>,
     pub is_error: bool,
+    pub explanation: Option<String>,
 }
 
 impl ToolOutput {
-    pub fn text(tool: String) -> Self {
+    pub fn text(tool: String, explanation: Option<String>) -> Self {
         ToolOutput {
             is_error: Default::default(),
             values: vec![ToolOutputValue::Text(tool)],
+            explanation,
         }
     }
 
-    pub fn image(img: Image) -> Self {
-        ToolOutput { is_error: false, values: vec![ToolOutputValue::Image(img)] }
+    pub fn image(img: Image, explanation: Option<String>) -> Self {
+        ToolOutput {
+            is_error: false,
+            values: vec![ToolOutputValue::Image(img)],
+            explanation,
+        }
     }
 
     pub fn combine(self, other: ToolOutput) -> Self {
         let mut items = self.values;
         items.extend(other.values);
-        ToolOutput { values: items, is_error: self.is_error || other.is_error }
+        ToolOutput {
+            values: items,
+            is_error: self.is_error || other.is_error,
+            explanation: other.explanation,
+        }
     }
 
     /// Returns the first item as a string if it exists
@@ -132,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_success_and_failure_content() {
-        let success = ToolResult::new(ToolName::new("test_tool")).success("success message");
+        let success = ToolResult::new(ToolName::new("test_tool")).success("success message", None);
         assert!(!success.is_error());
         assert_eq!(success.output.as_str().unwrap(), "success message");
 

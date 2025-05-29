@@ -111,8 +111,17 @@ impl<M: McpService> ForgeToolService<M> {
             )
         })?;
 
-        if let Err(error) = &output {
-            tracing::warn!(cause = ?error, tool = %call.name, "Tool Call Failure");
+        match output.as_ref() {
+            Ok(result) => {
+                if let Some(explanation) = &result.explanation {
+                    tracing::info!(tool = %call.name, explanation = %explanation, "Tool Call Success");
+                } else {
+                    tracing::info!(tool = %call.name, "Tool Call Success");
+                }
+            }
+            Err(error) => {
+                tracing::warn!(cause = ?error, tool = %call.name, "Tool Call Failure");
+            }
         }
 
         output
@@ -193,6 +202,7 @@ mod test {
             tokio::time::sleep(Duration::from_secs(400)).await;
             Ok(forge_domain::ToolOutput::text(
                 "Slow tool completed".to_string(),
+                None,
             ))
         }
     }

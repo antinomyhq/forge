@@ -270,7 +270,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
         context.send_text(diff).await?;
 
         // Return the final result
-        Ok(ToolOutput::text(result))
+        Ok(ToolOutput::text(result, patch.explanation))
     }
 }
 

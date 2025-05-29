@@ -15,6 +15,7 @@ messages:
         values:
           - Text: Text output
         is_error: false
+        explanation: ~
   - tool:
       name: empty_tool
       call_id: call2
@@ -22,3 +23,4 @@ messages:
         values:
           - Empty
         is_error: false
+        explanation: ~

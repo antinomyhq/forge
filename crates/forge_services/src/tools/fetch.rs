@@ -53,6 +53,7 @@ pub struct FetchInput {
     #[serde(default = "default_raw")]
     raw: Option<bool>,
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -210,9 +211,10 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
             _ => String::new(),
         };
 
-        Ok(ToolOutput::text(format!(
-            "{metadata}{output}{truncation_tag}",
-        )))
+        Ok(ToolOutput::text(
+            format!("{metadata}{output}{truncation_tag}",),
+            input.explanation,
+        ))
     }
 }
 
@@ -279,7 +281,11 @@ mod tests {
             .with_body("User-agent: *\nAllow: /")
             .create();
 
-        let input = FetchInput { url: format!("{}/test.html", server.url()), raw: Some(false) };
+        let input = FetchInput {
+            url: format!("{}/test.html", server.url()),
+            raw: Some(false),
+            explanation: None,
+        };
 
         let result = fetch
             .call(ToolCallContext::default(), input)
@@ -309,7 +315,11 @@ mod tests {
             .with_body("User-agent: *\nAllow: /")
             .create();
 
-        let input = FetchInput { url: format!("{}/test.txt", server.url()), raw: Some(true) };
+        let input = FetchInput {
+            url: format!("{}/test.txt", server.url()),
+            raw: Some(true),
+            explanation: None,
+        };
 
         let result = fetch
             .call(ToolCallContext::default(), input)
@@ -340,7 +350,11 @@ mod tests {
             .with_body("<html><body>Test page</body></html>")
             .create();
 
-        let input = FetchInput { url: format!("{}/test/page.html", server.url()), raw: None };
+        let input = FetchInput {
+            url: format!("{}/test/page.html", server.url()),
+            raw: None,
+            explanation: None,
+        };
 
         let result = fetch.call(ToolCallContext::default(), input).await;
         assert!(result.is_err());
@@ -371,7 +385,11 @@ mod tests {
             .create();
 
         // First page
-        let input = FetchInput { url: format!("{}/long.txt", server.url()), raw: Some(true) };
+        let input = FetchInput {
+            url: format!("{}/long.txt", server.url()),
+            raw: Some(true),
+            explanation: None,
+        };
 
         let result = fetch
             .call(ToolCallContext::default(), input)
@@ -410,7 +428,11 @@ mod tests {
             .with_body("User-agent: *\nAllow: /")
             .create();
 
-        let input = FetchInput { url: format!("{}/large.txt", server.url()), raw: Some(true) };
+        let input = FetchInput {
+            url: format!("{}/large.txt", server.url()),
+            raw: Some(true),
+            explanation: None,
+        };
 
         // Execute the fetch
         let context = ToolCallContext::default();
@@ -451,7 +473,11 @@ mod tests {
         };
         let rt = Runtime::new().unwrap();
 
-        let input = FetchInput { url: "not a valid url".to_string(), raw: None };
+        let input = FetchInput {
+            url: "not a valid url".to_string(),
+            raw: None,
+            explanation: None,
+        };
 
         let result = rt.block_on(fetch.call(ToolCallContext::default(), input));
 
@@ -472,7 +498,11 @@ mod tests {
             .with_body("User-agent: *\nAllow: /")
             .create();
 
-        let input = FetchInput { url: format!("{}/not-found", server.url()), raw: None };
+        let input = FetchInput {
+            url: format!("{}/not-found", server.url()),
+            raw: None,
+            explanation: None,
+        };
 
         let result = fetch.call(ToolCallContext::default(), input).await;
         assert!(result.is_err());

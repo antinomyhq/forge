@@ -231,7 +231,7 @@ mod tests {
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("math"),
                 call_id: Some(ToolCallId::new("math-1")),
-                output: ToolOutput::text(serde_json::json!({"result": 4}).to_string()),
+                output: ToolOutput::text(serde_json::json!({"result": 4}).to_string(), None),
             }])
             .tool_choice(ToolChoice::Call(ToolName::new("math")));
         let request = Request::try_from(context)

@@ -126,10 +126,11 @@ impl ForgeMcpClient {
             .into_iter()
             .map(|content| match content.raw {
                 rmcp::model::RawContent::Text(raw_text_content) => {
-                    Ok(ToolOutput::text(raw_text_content.text))
+                    Ok(ToolOutput::text(raw_text_content.text, None))
                 }
                 rmcp::model::RawContent::Image(raw_image_content) => Ok(ToolOutput::image(
                     Image::new_base64(raw_image_content.data, raw_image_content.mime_type.as_str()),
+                    None,
                 )),
                 rmcp::model::RawContent::Resource(_) => {
                     Err(Error::UnsupportedMcpResponse("Resource").into())

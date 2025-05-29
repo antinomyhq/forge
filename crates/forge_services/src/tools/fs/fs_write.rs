@@ -142,7 +142,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
 
         context.send_text(diff).await?;
 
-        Ok(ToolOutput::text(result))
+        Ok(ToolOutput::text(result, input.explanation))
     }
 }
 
@@ -183,6 +183,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: file_path.to_string_lossy().to_string(),
                     content: content.to_string(),
                     overwrite: false,
@@ -216,6 +217,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: file_path.to_string_lossy().to_string(),
                     content: "fn main() { let x = ".to_string(),
                     overwrite: false,
@@ -241,6 +243,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: file_path.to_string_lossy().to_string(),
                     content: content.to_string(),
                     overwrite: false,
@@ -276,6 +279,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: nested_path.to_string_lossy().to_string(),
                     content: content.to_string(),
                     overwrite: false,
@@ -318,6 +322,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: deep_path.to_string_lossy().to_string(),
                     content: content.to_string(),
                     overwrite: false,
@@ -361,6 +366,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: path_str,
                     content: content.to_string(),
                     overwrite: false,
@@ -398,6 +404,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: "relative/path/file.txt".to_string(),
                     content: "test content".to_string(),
                     overwrite: false,
@@ -435,6 +442,7 @@ mod test {
                     path: file_path.to_string_lossy().to_string(),
                     content: "New content".to_string(),
                     overwrite: false,
+                    explanation: None,
                 },
             )
             .await;
@@ -500,6 +508,7 @@ mod test {
                     path: file_path.to_string_lossy().to_string(),
                     content: new_content.to_string(),
                     overwrite: true,
+                    explanation: None,
                 },
             )
             .await;

@@ -57,6 +57,7 @@ pub struct UndoInput {
     /// snapshot for this path.
     pub path: String,
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -80,9 +81,10 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
         let message = TitleFormat::debug("Undo").sub_title(display_path.clone());
         context.send_text(message).await?;
 
-        Ok(ToolOutput::text(format!(
-            "Successfully undid last operation on path: {display_path}"
-        )))
+        Ok(ToolOutput::text(
+            format!("Successfully undid last operation on path: {display_path}"),
+            input.explanation,
+        ))
     }
 }
 
@@ -108,7 +110,10 @@ mod tests {
         let result = undo
             .call(
                 ToolCallContext::default(),
-                UndoInput { path: test_path.to_string_lossy().to_string() },
+                UndoInput {
+                    path: test_path.to_string_lossy().to_string(),
+                    explanation: None,
+                },
             )
             .await;
 
@@ -116,10 +121,13 @@ mod tests {
         assert!(result.is_ok(), "Expected successful undo operation");
         assert_eq!(
             result.unwrap(),
-            ToolOutput::text(format!(
-                "Successfully undid last operation on path: {}",
-                test_path.display()
-            )),
+            ToolOutput::text(
+                format!(
+                    "Successfully undid last operation on path: {}",
+                    test_path.display()
+                ),
+                None
+            ),
             "Unexpected success message"
         );
     }

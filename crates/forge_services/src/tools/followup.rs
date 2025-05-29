@@ -56,6 +56,7 @@ pub struct SelectInput {
     #[schemars(default)]
     pub multiple: Option<bool>,
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -96,11 +97,12 @@ impl<F: Infrastructure> ExecutableTool for Followup<F> {
         };
 
         match result {
-            Some(answer) => Ok(ToolOutput::text(answer)),
+            Some(answer) => Ok(ToolOutput::text(answer, input.explanation)),
             None => {
                 context.set_complete().await;
                 Ok(ToolOutput::text(
                     "User interrupted the selection".to_string(),
+                    input.explanation,
                 ))
             }
         }

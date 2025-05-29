@@ -19,6 +19,7 @@ pub struct FSListInput {
     /// or omit for top-level only.
     pub recursive: Option<bool>,
     /// Concise explanation of the operation being performed.
+    #[serde(default)]
     pub explanation: Option<String>,
 }
 
@@ -88,13 +89,16 @@ impl ExecutableTool for FSList {
             }
         }
 
-        Ok(ToolOutput::text(format!(
-            "<file_list path=\"{}\">
+        Ok(ToolOutput::text(
+            format!(
+                "<file_list path=\"{}\">
 {}
 </file_list>",
-            input.path,
-            paths.join("\n")
-        )))
+                input.path,
+                paths.join("\n")
+            ),
+            input.explanation,
+        ))
     }
 }
 
@@ -121,6 +125,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSListInput {
+                    explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     recursive: None,
                 },
@@ -150,6 +155,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSListInput {
+                    explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     recursive: None,
                 },
@@ -171,6 +177,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSListInput {
+                    explanation: None,
                     path: nonexistent_dir.to_string_lossy().to_string(),
                     recursive: None,
                 },
@@ -199,6 +206,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSListInput {
+                    explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     recursive: None,
                 },
@@ -238,6 +246,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSListInput {
+                    explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     recursive: Some(true),
                 },
@@ -255,7 +264,11 @@ mod test {
         let result = fs_list
             .call(
                 ToolCallContext::default(),
-                FSListInput { path: "relative/path".to_string(), recursive: None },
+                FSListInput {
+                    path: "relative/path".to_string(),
+                    recursive: None,
+                    explanation: None,
+                },
             )
             .await;
 

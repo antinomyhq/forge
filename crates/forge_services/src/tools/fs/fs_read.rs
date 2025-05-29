@@ -194,7 +194,7 @@ impl<F: Infrastructure> FSRead<F> {
         // Always include the content
         writeln!(response, "{}", &content)?;
 
-        Ok(ToolOutput::text(response))
+        Ok(ToolOutput::text(response, input.explanation))
     }
 }
 
@@ -235,7 +235,12 @@ mod test {
         fs_read
             .call(
                 ToolCallContext::default(),
-                FSReadInput { path: path.to_string(), start_char: None, end_char: None },
+                FSReadInput {
+                    path: path.to_string(),
+                    start_char: None,
+                    end_char: None,
+                    explanation: None,
+                },
             )
             .await
     }
@@ -280,6 +285,7 @@ mod test {
                     path: file_path.to_string_lossy().to_string(),
                     start_char: Some(10),
                     end_char: Some(20),
+                    explanation: None,
                 },
             )
             .await;
@@ -310,6 +316,7 @@ mod test {
                     path: file_path.to_string_lossy().to_string(),
                     start_char: Some(20),
                     end_char: Some(10),
+                    explanation: None,
                 },
             )
             .await;
@@ -492,6 +499,7 @@ mod test {
             .call(
                 ToolCallContext::default(),
                 FSReadInput {
+                    explanation: None,
                     path: "/test/large_file.txt".to_string(),
                     start_char: None,
                     end_char: None,
