@@ -39,10 +39,6 @@ impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
         _context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
-        if let Some(explanation) = &input.explanation {
-            tracing::info!(explanation = %explanation, "Removing file");
-        }
-
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 

@@ -69,10 +69,6 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
-        if let Some(explanation) = &input.explanation {
-            tracing::info!(explanation = %explanation, "Undoing last operation");
-        }
-
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 

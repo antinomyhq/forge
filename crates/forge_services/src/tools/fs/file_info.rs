@@ -70,10 +70,6 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
-        if let Some(explanation) = &input.explanation {
-            tracing::info!(explanation = %explanation, "Getting file info");
-        }
-
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 

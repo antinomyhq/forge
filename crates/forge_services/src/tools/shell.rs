@@ -181,10 +181,6 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
-        if let Some(explanation) = input.explanation {
-            tracing::info!(explanation = %explanation, "Executing shell command");
-        }
-
         // Validate empty command
         if input.command.trim().is_empty() {
             bail!("Command string is empty or contains only whitespace".to_string());

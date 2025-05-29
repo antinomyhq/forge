@@ -213,10 +213,6 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
         context: ToolCallContext,
         patch: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
-        if let Some(explanation) = &patch.explanation {
-            tracing::info!(explanation = %explanation, "Applying patch");
-        }
-
         let path = Path::new(&patch.path);
         assert_absolute_path(path)?;
 

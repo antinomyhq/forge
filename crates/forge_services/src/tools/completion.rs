@@ -42,9 +42,6 @@ impl ExecutableTool for Completion {
     type Input = AttemptCompletionInput;
 
     async fn call(&self, context: ToolCallContext, input: Self::Input) -> Result<ToolOutput> {
-        if let Some(explanation) = &input.explanation {
-            tracing::info!(explanation = %explanation, "Attempting completion");
-        }
         // Log the completion event
         context.send_summary(input.result.clone()).await?;
 

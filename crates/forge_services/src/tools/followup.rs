@@ -65,9 +65,6 @@ impl<F: Infrastructure> ExecutableTool for Followup<F> {
     type Input = SelectInput;
 
     async fn call(&self, context: ToolCallContext, input: Self::Input) -> Result<ToolOutput> {
-        if let Some(explanation) = &input.explanation {
-            tracing::info!(explanation = %explanation, "Selecting followup suggestion");
-        }
         let options = vec![
             input.option1,
             input.option2,
