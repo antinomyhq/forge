@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput};
+use forge_domain::{
+    ExecutableTool, NamedTool, SelectInput, ToolCallContext, ToolDescription, ToolOutput,
+};
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::infra::InquireService;
 use crate::Infrastructure;
@@ -28,37 +28,6 @@ impl<F: Infrastructure> NamedTool for Followup<F> {
     fn tool_name() -> forge_domain::ToolName {
         forge_domain::ToolName::new("forge_tool_followup")
     }
-}
-
-/// Input for the select tool
-#[derive(Deserialize, JsonSchema)]
-pub struct SelectInput {
-    /// Question to ask the user
-    pub question: String,
-
-    /// First option to choose from
-    pub option1: Option<String>,
-
-    /// Second option to choose from
-    pub option2: Option<String>,
-
-    /// Third option to choose from
-    pub option3: Option<String>,
-
-    /// Fourth option to choose from
-    pub option4: Option<String>,
-
-    /// Fifth option to choose from
-    pub option5: Option<String>,
-
-    /// If true, allows selecting multiple options; if false (default), only one
-    /// option can be selected
-    #[schemars(default)]
-    pub multiple: Option<bool>,
-    /// Concise explanation of the operation being performed.
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub explanation: Option<String>,
 }
 
 #[async_trait::async_trait]

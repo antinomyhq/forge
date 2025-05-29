@@ -244,9 +244,29 @@ pub struct FollowupInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AttemptCompletionInput {
     /// The result of the task. Formulate this result in a way that is final and
-    /// does not require further input from the user. Don't end your result
-    /// with questions or offers for further assistance.
+    /// does not require further input from the user. Don't end your result with
+    /// questions or offers for further assistance.
     pub result: String,
+
+    /// Concise explanation of the operation being performed.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+fn default_raw() -> Option<bool> {
+    Some(false)
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct FetchInput {
+    /// URL to fetch
+    pub url: String,
+    /// Get raw content without any markdown conversion (default: false)
+    #[serde(default = "default_raw")]
+    pub raw: Option<bool>,
+    /// Concise explanation of the operation being performed.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -278,6 +298,36 @@ pub struct UndoInput {
     /// original path it had before deletion. The system requires a prior
     /// snapshot for this path.
     pub path: String,
+    /// Concise explanation of the operation being performed.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Input for the select tool
+#[derive(Deserialize, JsonSchema)]
+pub struct SelectInput {
+    /// Question to ask the user
+    pub question: String,
+
+    /// First option to choose from
+    pub option1: Option<String>,
+
+    /// Second option to choose from
+    pub option2: Option<String>,
+
+    /// Third option to choose from
+    pub option3: Option<String>,
+
+    /// Fourth option to choose from
+    pub option4: Option<String>,
+
+    /// Fifth option to choose from
+    pub option5: Option<String>,
+
+    /// If true, allows selecting multiple options; if false (default), only one
+    /// option can be selected
+    #[schemars(default)]
+    pub multiple: Option<bool>,
     /// Concise explanation of the operation being performed.
     #[serde(default)]
     pub explanation: Option<String>,

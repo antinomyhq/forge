@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use forge_display::TitleFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput};
+use forge_domain::{
+    ExecutableTool, FetchInput, NamedTool, ToolCallContext, ToolDescription, ToolOutput,
+};
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::clipper::Clipper;
 use crate::metadata::Metadata;
@@ -39,23 +39,6 @@ impl<F: Infrastructure> Fetch<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { client: Client::new(), infra }
     }
-}
-
-fn default_raw() -> Option<bool> {
-    Some(false)
-}
-
-#[derive(Deserialize, JsonSchema)]
-pub struct FetchInput {
-    /// URL to fetch
-    url: String,
-    /// Get raw content without any markdown conversion (default: false)
-    #[serde(default = "default_raw")]
-    raw: Option<bool>,
-    /// Concise explanation of the operation being performed.
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub explanation: Option<String>,
 }
 
 impl<F: Infrastructure> Fetch<F> {

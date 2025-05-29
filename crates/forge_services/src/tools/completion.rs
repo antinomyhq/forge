@@ -1,8 +1,8 @@
 use anyhow::Result;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput};
+use forge_domain::{
+    AttemptCompletionInput, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput,
+};
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 /// After each tool use, the user will respond with the result of
 /// that tool use, i.e. if it succeeded or failed, along with any reasons for
@@ -23,19 +23,6 @@ impl NamedTool for Completion {
     fn tool_name() -> forge_domain::ToolName {
         forge_domain::ToolName::new("forge_tool_attempt_completion")
     }
-}
-
-#[derive(Deserialize, JsonSchema)]
-pub struct AttemptCompletionInput {
-    /// The result of the task. Formulate this result in a way that is final and
-    /// does not require further input from the user. Don't end your result with
-    /// questions or offers for further assistance.
-    result: String,
-
-    /// Concise explanation of the operation being performed.
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub explanation: Option<String>,
 }
 
 #[async_trait::async_trait]
