@@ -28,7 +28,11 @@ enum InnerClient {
 }
 
 impl Client {
-    pub fn new(provider: Provider, retry_status_codes: Arc<Vec<u16>>, version: impl ToString) -> Result<Self> {
+    pub fn new(
+        provider: Provider,
+        retry_status_codes: Arc<Vec<u16>>,
+        version: impl ToString,
+    ) -> Result<Self> {
         let client = reqwest::Client::builder()
             .read_timeout(std::time::Duration::from_secs(60))
             .pool_idle_timeout(std::time::Duration::from_secs(90))
@@ -141,7 +145,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, Arc::new(vec![]),"dev").unwrap();
+        let client = Client::new(provider, Arc::new(vec![]), "dev").unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -154,12 +158,12 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, Arc::new(vec![]),"dev").unwrap();
+        let client = Client::new(provider, Arc::new(vec![]), "dev").unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)
         let result = client.refresh_models().await;
         assert!(result.is_err()); // Expected to fail since we're not hitting a
-        // real API
+                                  // real API
     }
 }
