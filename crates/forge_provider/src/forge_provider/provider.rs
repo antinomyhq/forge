@@ -3,7 +3,7 @@ use derive_builder::Builder;
 use forge_domain::{
     self, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, REFERER};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
@@ -56,12 +56,12 @@ impl ForgeProvider {
         }
         headers.insert("X-Title", HeaderValue::from_static("forge"));
         headers.insert(
-            "X-Client",
-            HeaderValue::from_str(format!("@antinomyhq/forge@{}", self.version).as_str())
+            "x-app-version",
+            HeaderValue::from_str(format!("v{}", self.version).as_str())
                 .unwrap_or(HeaderValue::from_static("@antinomyhq/forge")),
         );
         headers.insert(
-            "HTTP-Referer",
+            REFERER,
             HeaderValue::from_static("https://github.com/antinomyhq/forge"),
         );
         headers.insert(
