@@ -28,7 +28,11 @@ enum InnerClient {
 }
 
 impl Client {
-    pub fn new(provider: Provider, retry_status_codes: Vec<u16>) -> Result<Self> {
+    pub fn new(
+        provider: Provider,
+        retry_status_codes: Vec<u16>,
+        version: impl ToString,
+    ) -> Result<Self> {
         let client = reqwest::Client::builder()
             .read_timeout(std::time::Duration::from_secs(60))
             .pool_idle_timeout(std::time::Duration::from_secs(90))
@@ -41,6 +45,7 @@ impl Client {
                 ForgeProvider::builder()
                     .client(client)
                     .provider(provider.clone())
+                    .version(version.to_string())
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             ),
@@ -140,7 +145,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, vec![]).unwrap();
+        let client = Client::new(provider, vec![], "dev").unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -153,7 +158,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, vec![]).unwrap();
+        let client = Client::new(provider, vec![], "dev").unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)

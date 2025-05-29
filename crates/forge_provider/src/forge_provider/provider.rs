@@ -16,15 +16,11 @@ use crate::error::Error;
 use crate::forge_provider::transformers::{ProviderPipeline, Transformer};
 use crate::utils::format_http_context;
 
-const VERSION: &str = match option_env!("APP_VERSION") {
-    Some(val) => val,
-    None => env!("CARGO_PKG_VERSION"),
-};
-
 #[derive(Clone, Builder)]
 pub struct ForgeProvider {
     client: Client,
     provider: Provider,
+    version: String,
 }
 
 impl ForgeProvider {
@@ -61,7 +57,7 @@ impl ForgeProvider {
         headers.insert("X-Title", HeaderValue::from_static("forge"));
         headers.insert(
             "X-Client",
-            HeaderValue::from_str(format!("@antinomyhq/forge@{VERSION}").as_str())
+            HeaderValue::from_str(format!("@antinomyhq/forge@{}", self.version).as_str())
                 .unwrap_or(HeaderValue::from_static("@antinomyhq/forge")),
         );
         headers.insert(
