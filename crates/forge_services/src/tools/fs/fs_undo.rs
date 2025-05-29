@@ -4,7 +4,7 @@ use std::sync::Arc;
 use forge_display::TitleFormat;
 use forge_domain::{
     EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
-    ToolOutput,
+    ToolOutput, UndoInput,
 };
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
@@ -46,20 +46,6 @@ impl<F> NamedTool for FsUndo<F> {
     fn tool_name() -> ToolName {
         ToolName::new("forge_tool_fs_undo")
     }
-}
-
-#[derive(Deserialize, JsonSchema)]
-pub struct UndoInput {
-    /// The absolute path of the file to revert to its previous state. Must be
-    /// the exact path that was previously modified, created, or deleted by
-    /// a Forge file operation. If the file was deleted, provide the
-    /// original path it had before deletion. The system requires a prior
-    /// snapshot for this path.
-    pub path: String,
-    /// Concise explanation of the operation being performed.
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub explanation: Option<String>,
 }
 
 #[async_trait::async_trait]

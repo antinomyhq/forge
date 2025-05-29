@@ -249,6 +249,40 @@ pub struct AttemptCompletionInput {
     pub result: String,
 }
 
+#[derive(Deserialize, JsonSchema)]
+pub struct FSListInput {
+    /// The path of the directory to list contents for (absolute path required)
+    pub path: String,
+    /// Whether to list files recursively. Use true for recursive listing, false
+    /// or omit for top-level only.
+    pub recursive: Option<bool>,
+    /// Concise explanation of the operation being performed.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct FSFileInfoInput {
+    /// The path of the file or directory to inspect (absolute path required)
+    pub path: String,
+    /// Concise explanation of the operation being performed.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct UndoInput {
+    /// The absolute path of the file to revert to its previous state. Must be
+    /// the exact path that was previously modified, created, or deleted by
+    /// a Forge file operation. If the file was deleted, provide the
+    /// original path it had before deletion. The system requires a prior
+    /// snapshot for this path.
+    pub path: String,
+    /// Concise explanation of the operation being performed.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
 /// Helper function to check if a value equals its default value
 fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     t == &T::default()

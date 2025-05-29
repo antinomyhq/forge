@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use forge_domain::{
-    ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName, ToolOutput,
+    ExecutableTool, FSListInput, NamedTool, ToolCallContext, ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
@@ -10,19 +10,6 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::utils::assert_absolute_path;
-
-#[derive(Deserialize, JsonSchema)]
-pub struct FSListInput {
-    /// The path of the directory to list contents for (absolute path required)
-    pub path: String,
-    /// Whether to list files recursively. Use true for recursive listing, false
-    /// or omit for top-level only.
-    pub recursive: Option<bool>,
-    /// Concise explanation of the operation being performed.
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub explanation: Option<String>,
-}
 
 /// Request to list files and directories within the specified directory. If
 /// recursive is true, it will list all files and directories recursively. If

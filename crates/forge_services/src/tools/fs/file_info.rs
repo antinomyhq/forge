@@ -4,8 +4,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
-    ToolOutput,
+    EnvironmentService, ExecutableTool, FSFileInfoInput, NamedTool, ToolCallContext,
+    ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
@@ -13,16 +13,6 @@ use serde::Deserialize;
 
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
-
-#[derive(Deserialize, JsonSchema)]
-pub struct FSFileInfoInput {
-    /// The path of the file or directory to inspect (absolute path required)
-    pub path: String,
-    /// Concise explanation of the operation being performed.
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub explanation: Option<String>,
-}
 
 /// Request to retrieve detailed metadata about a file or directory at the
 /// specified path. Returns comprehensive information including size, creation
