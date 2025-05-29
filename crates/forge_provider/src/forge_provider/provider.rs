@@ -64,7 +64,7 @@ impl ForgeProvider {
                 .unwrap_or(HeaderValue::from_static("v0.1.0-dev")),
         );
         headers.insert(
-            REFERER,
+            "HTTP-Referer",
             HeaderValue::from_static("https://github.com/antinomyhq/forge"),
         );
         headers.insert(
