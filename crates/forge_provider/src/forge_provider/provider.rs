@@ -46,6 +46,9 @@ impl ForgeProvider {
         })
     }
 
+    // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
+    // - `HTTP-Referer`: Identifies your app on openrouter.ai
+    // - `X-Title`: Sets/modifies your app's title
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         if let Some(ref api_key) = self.provider.key() {
@@ -58,7 +61,7 @@ impl ForgeProvider {
         headers.insert(
             "x-app-version",
             HeaderValue::from_str(format!("v{}", self.version).as_str())
-                .unwrap_or(HeaderValue::from_static("@antinomyhq/forge")),
+                .unwrap_or(HeaderValue::from_static("v0.1.0-dev")),
         );
         headers.insert(
             REFERER,
@@ -256,7 +259,7 @@ mod tests {
             "code": 400
           }
         }))
-        .unwrap();
+            .unwrap();
         let message = serde_json::from_str::<Response>(&content)
             .with_context(|| "Failed to parse response")?;
         let message = ChatCompletionMessage::try_from(message.clone());
