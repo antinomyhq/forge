@@ -52,7 +52,7 @@ pub enum Error {
     #[from(skip)]
     NoModelDefined(AgentId),
 
-    #[error("{0}")]
+    #[error("{0:?}")]
     Retryable(anyhow::Error),
 }
 

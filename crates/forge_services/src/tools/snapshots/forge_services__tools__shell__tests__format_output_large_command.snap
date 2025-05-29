@@ -1,7 +1,6 @@
 ---
 source: crates/forge_services/src/tools/shell.rs
-expression: normalize_path(&preserved)
-snapshot_kind: text
+expression: "TempDir::normalize(&preserved)"
 ---
 ---
 command: ls -la

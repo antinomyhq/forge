@@ -39,6 +39,8 @@ mod tool_input;
 mod tool_name;
 mod tool_result;
 mod tool_usage;
+mod top_k;
+mod top_p;
 mod workflow;
 
 pub use agent::*;
@@ -79,5 +81,7 @@ pub use tool_input::*;
 pub use tool_name::*;
 pub use tool_result::*;
 pub use tool_usage::*;
+pub use top_k::*;
+pub use top_p::*;
 pub use update::*;
 pub use workflow::*;

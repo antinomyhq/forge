@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::temperature::Temperature;
 use crate::update::Update;
-use crate::{Agent, AgentId, ModelId};
+use crate::{Agent, AgentId, ModelId, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -66,6 +66,33 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::option)]
     pub temperature: Option<Temperature>,
 
+    /// Top-p (nucleus sampling) used for all agents
+    ///
+    /// Controls the diversity of the model's output by considering only the
+    /// most probable tokens up to a cumulative probability threshold.
+    /// - Lower values (e.g., 0.1) make responses more focused
+    /// - Higher values (e.g., 0.9) make responses more diverse
+    /// - Valid range is 0.0 to 1.0
+    /// - If not specified, each agent's individual setting or the model
+    ///   provider's default will be used
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub top_p: Option<TopP>,
+
+    /// Top-k used for all agents
+    ///
+    /// Controls the number of highest probability vocabulary tokens to keep.
+    /// - Lower values (e.g., 10) make responses more focused
+    /// - Higher values (e.g., 100) make responses more diverse
+    /// - Valid range is 1 to 1000
+    /// - If not specified, each agent's individual setting or the model
+    ///   provider's default will be used
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub top_k: Option<TopK>,
+
     /// Flag to enable/disable tool support for all agents in this workflow.
     /// If not specified, each agent's individual setting will be used.
     /// Default is false (tools disabled) when not specified.
@@ -107,6 +134,8 @@ impl Workflow {
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
+            top_p: None,
+            top_k: None,
             tool_supported: None,
             updates: None,
         }
@@ -143,6 +172,8 @@ mod tests {
         assert_eq!(actual.max_walker_depth, None);
         assert_eq!(actual.custom_rules, None);
         assert_eq!(actual.temperature, None);
+        assert_eq!(actual.top_p, None);
+        assert_eq!(actual.top_k, None);
         assert_eq!(actual.tool_supported, None);
     }
 

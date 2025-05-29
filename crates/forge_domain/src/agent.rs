@@ -11,7 +11,7 @@ use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
     Context, Error, Event, EventContext, ModelId, Result, Role, SystemContext, ToolDefinition,
-    ToolName,
+    ToolName, TopK, TopP,
 };
 
 // Unique identifier for an agent
@@ -239,6 +239,31 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub temperature: Option<Temperature>,
+
+    /// Top-p (nucleus sampling) used for agent
+    ///
+    /// Controls the diversity of the model's output by considering only the
+    /// most probable tokens up to a cumulative probability threshold.
+    /// - Lower values (e.g., 0.1) make responses more focused
+    /// - Higher values (e.g., 0.9) make responses more diverse
+    /// - Valid range is 0.0 to 1.0
+    /// - If not specified, the model provider's default will be used
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub top_p: Option<TopP>,
+
+    /// Top-k used for agent
+    ///
+    /// Controls the number of highest probability vocabulary tokens to keep.
+    /// - Lower values (e.g., 10) make responses more focused
+    /// - Higher values (e.g., 100) make responses more diverse
+    /// - Valid range is 1 to 1000
+    /// - If not specified, the model provider's default will be used
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub top_k: Option<TopK>,
 }
 
 fn merge_subscription(base: &mut Option<Vec<String>>, other: Option<Vec<String>>) {
@@ -271,6 +296,8 @@ impl Agent {
             custom_rules: None,
             hide_content: None,
             temperature: None,
+            top_p: None,
+            top_k: None,
         }
     }
 
@@ -518,5 +545,93 @@ mod tests {
 
         let agent: Agent = serde_json::from_value(json).unwrap();
         assert_eq!(agent.temperature, None);
+    }
+
+    #[test]
+    fn test_top_p_validation() {
+        // Valid top_p values should deserialize correctly
+        let valid_values = [0.0, 0.1, 0.5, 0.9, 1.0];
+        for value in valid_values {
+            let json = json!({
+                "id": "test-agent",
+                "top_p": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(agent.is_ok(), "Valid top_p {value} should deserialize");
+            assert_eq!(agent.unwrap().top_p.unwrap().value(), value);
+        }
+
+        // Invalid top_p values should fail deserialization
+        let invalid_values = [-0.1, 1.1, 2.0, -1.0, 10.0];
+        for value in invalid_values {
+            let json = json!({
+                "id": "test-agent",
+                "top_p": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(
+                agent.is_err(),
+                "Invalid top_p {value} should fail deserialization"
+            );
+            let err = agent.unwrap_err().to_string();
+            assert!(
+                err.contains("top_p must be between 0.0 and 1.0"),
+                "Error should mention valid range: {err}"
+            );
+        }
+
+        // No top_p should deserialize to None
+        let json = json!({
+            "id": "test-agent"
+        });
+
+        let agent: Agent = serde_json::from_value(json).unwrap();
+        assert_eq!(agent.top_p, None);
+    }
+
+    #[test]
+    fn test_top_k_validation() {
+        // Valid top_k values should deserialize correctly
+        let valid_values = [1, 10, 50, 100, 500, 1000];
+        for value in valid_values {
+            let json = json!({
+                "id": "test-agent",
+                "top_k": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(agent.is_ok(), "Valid top_k {value} should deserialize");
+            assert_eq!(agent.unwrap().top_k.unwrap().value(), value);
+        }
+
+        // Invalid top_k values should fail deserialization
+        let invalid_values = [0, 1001, 2000, 5000];
+        for value in invalid_values {
+            let json = json!({
+                "id": "test-agent",
+                "top_k": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(
+                agent.is_err(),
+                "Invalid top_k {value} should fail deserialization"
+            );
+            let err = agent.unwrap_err().to_string();
+            assert!(
+                err.contains("top_k must be between 1 and 1000"),
+                "Error should mention valid range: {err}"
+            );
+        }
+
+        // No top_k should deserialize to None
+        let json = json!({
+            "id": "test-agent"
+        });
+
+        let agent: Agent = serde_json::from_value(json).unwrap();
+        assert_eq!(agent.top_k, None);
     }
 }

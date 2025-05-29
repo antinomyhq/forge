@@ -88,7 +88,8 @@ impl<A: Services> Orchestrator<A> {
             if tool_result.is_error() {
                 warn!(
                     agent_id = %agent.id,
-                    tool_call = ?tool_call,
+                    name = %tool_call.name,
+                    arguments = %tool_call.arguments,
                     output = ?tool_result.output,
                     "Tool call failed",
                 );
@@ -468,6 +469,14 @@ impl<A: Services> Orchestrator<A> {
             context = context.temperature(temperature);
         }
 
+        if let Some(top_p) = agent.top_p {
+            context = context.top_p(top_p);
+        }
+
+        if let Some(top_k) = agent.top_k {
+            context = context.top_k(top_k);
+        }
+
         // Process attachments in a more declarative way
         let attachments = self
             .services
@@ -517,9 +526,9 @@ impl<A: Services> Orchestrator<A> {
             // Send the usage information if available
 
             info!(
-                token_usage= ?usage.prompt_tokens,
-                estimated_token_usage= ?usage.estimated_tokens,
-                content_length = ?usage.content_length,
+                token_usage = usage.prompt_tokens,
+                estimated_token_usage = usage.estimated_tokens,
+                content_length = usage.content_length,
                 "Processing usage information"
             );
             self.send(agent, ChatResponse::Usage(usage.clone())).await?;
@@ -640,6 +649,6 @@ fn should_retry(error: &anyhow::Error) -> bool {
         .downcast_ref::<Error>()
         .is_some_and(|error| matches!(error, Error::Retryable(_)));
 
-    warn!(error = ?error, retry = retry, "Retrying on error");
+    warn!(error = %error, retry = retry, "Retrying on error");
     retry
 }

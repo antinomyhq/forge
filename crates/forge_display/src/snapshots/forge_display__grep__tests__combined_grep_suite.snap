@@ -1,7 +1,6 @@
 ---
 source: crates/forge_display/src/grep.rs
 expression: suite
-snapshot_kind: text
 ---
 [Basic single file with two matches]
 [RAW]
