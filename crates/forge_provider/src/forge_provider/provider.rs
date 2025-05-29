@@ -259,7 +259,7 @@ mod tests {
             "code": 400
           }
         }))
-            .unwrap();
+        .unwrap();
         let message = serde_json::from_str::<Response>(&content)
             .with_context(|| "Failed to parse response")?;
         let message = ChatCompletionMessage::try_from(message.clone());
