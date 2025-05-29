@@ -7,8 +7,6 @@ use forge_domain::{
     ToolOutput, UndoInput,
 };
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::infra::FsSnapshotService;
 use crate::utils::{assert_absolute_path, format_display_path};

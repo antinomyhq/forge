@@ -6,8 +6,6 @@ use forge_domain::{
 };
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::utils::assert_absolute_path;
 

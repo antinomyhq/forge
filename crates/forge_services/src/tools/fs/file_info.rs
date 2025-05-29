@@ -8,8 +8,6 @@ use forge_domain::{
     ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
