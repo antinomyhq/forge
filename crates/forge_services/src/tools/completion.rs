@@ -31,6 +31,9 @@ pub struct AttemptCompletionInput {
     /// does not require further input from the user. Don't end your result with
     /// questions or offers for further assistance.
     result: String,
+
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 #[async_trait::async_trait]

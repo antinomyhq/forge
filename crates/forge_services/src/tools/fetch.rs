@@ -52,6 +52,8 @@ pub struct FetchInput {
     /// Get raw content without any markdown conversion (default: false)
     #[serde(default = "default_raw")]
     raw: Option<bool>,
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 impl<F: Infrastructure> Fetch<F> {

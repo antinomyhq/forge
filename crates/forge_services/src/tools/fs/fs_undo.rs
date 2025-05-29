@@ -56,6 +56,8 @@ pub struct UndoInput {
     /// original path it had before deletion. The system requires a prior
     /// snapshot for this path.
     pub path: String,
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 #[async_trait::async_trait]

@@ -18,6 +18,8 @@ use crate::Infrastructure;
 pub struct FSFileInfoInput {
     /// The path of the file or directory to inspect (absolute path required)
     pub path: String,
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 /// Request to retrieve detailed metadata about a file or directory at the

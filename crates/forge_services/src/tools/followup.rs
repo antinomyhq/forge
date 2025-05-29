@@ -55,6 +55,8 @@ pub struct SelectInput {
     /// option can be selected
     #[schemars(default)]
     pub multiple: Option<bool>,
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 #[async_trait::async_trait]

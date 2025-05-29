@@ -67,6 +67,8 @@ pub struct FSReadInput {
     /// will end at this character position.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_char: Option<u64>,
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 /// Input type for the file write tool
@@ -86,6 +88,8 @@ pub struct FSWriteInput {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub overwrite: bool,
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 /// Input type for the file search tool
@@ -106,6 +110,8 @@ pub struct FSSearchInput {
     /// If not provided, it will search all files (*).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_pattern: Option<String>,
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 /// Input type for the file remove tool
@@ -113,6 +119,8 @@ pub struct FSSearchInput {
 pub struct FSRemoveInput {
     /// The path of the file to remove (absolute path required)
     pub path: String,
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 /// Operation types that can be performed on matched text
@@ -150,6 +158,9 @@ pub struct FSPatchInput {
     /// The content to use for the operation (replacement text, text to
     /// prepend/append, or target text for swap operations)
     pub content: String,
+
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 /// Input type for the file undo tool

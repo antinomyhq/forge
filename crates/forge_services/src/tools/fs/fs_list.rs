@@ -18,6 +18,8 @@ pub struct FSListInput {
     /// Whether to list files recursively. Use true for recursive listing, false
     /// or omit for top-level only.
     pub recursive: Option<bool>,
+    /// Concise explanation of the operation being performed.
+    pub explanation: Option<String>,
 }
 
 /// Request to list files and directories within the specified directory. If
