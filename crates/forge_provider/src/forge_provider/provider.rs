@@ -3,7 +3,7 @@ use derive_builder::Builder;
 use forge_domain::{
     self, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, REFERER};
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
