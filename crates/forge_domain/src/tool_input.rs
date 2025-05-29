@@ -190,6 +190,10 @@ pub struct ShellInput {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub keep_ansi: bool,
+
+    /// Concise explanation of the operation being performed.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the net fetch tool

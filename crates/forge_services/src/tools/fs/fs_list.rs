@@ -49,6 +49,10 @@ impl ExecutableTool for FSList {
         _context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
+        if let Some(explanation) = &input.explanation {
+            tracing::info!(explanation = %explanation, "Listing directory");
+        }
+
         let dir = Path::new(&input.path);
         assert_absolute_path(dir)?;
 
@@ -89,16 +93,13 @@ impl ExecutableTool for FSList {
             }
         }
 
-        Ok(ToolOutput::text(
-            format!(
-                "<file_list path=\"{}\">
+        Ok(ToolOutput::text(format!(
+            "<file_list path=\"{}\">
 {}
 </file_list>",
-                input.path,
-                paths.join("\n")
-            ),
-            input.explanation,
-        ))
+            input.path,
+            paths.join("\n")
+        )))
     }
 }
 

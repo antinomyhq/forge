@@ -194,7 +194,7 @@ impl<F: Infrastructure> FSRead<F> {
         // Always include the content
         writeln!(response, "{}", &content)?;
 
-        Ok(ToolOutput::text(response, input.explanation))
+        Ok(ToolOutput::text(response))
     }
 }
 
@@ -213,6 +213,9 @@ impl<F: Infrastructure> ExecutableTool for FSRead<F> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
+        if let Some(explanation) = &input.explanation {
+            tracing::info!(explanation = %explanation, "Reading file");
+        }
         self.call(context, input).await
     }
 }

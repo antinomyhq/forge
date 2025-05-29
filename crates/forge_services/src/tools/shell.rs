@@ -181,6 +181,10 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
+        if let Some(explanation) = input.explanation {
+            tracing::info!(explanation = %explanation, "Executing shell command");
+        }
+
         // Validate empty command
         if input.command.trim().is_empty() {
             bail!("Command string is empty or contains only whitespace".to_string());
@@ -204,7 +208,7 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
             SUFFIX_CHARS,
         )
         .await?;
-        Ok(ToolOutput::text(result, None))
+        Ok(ToolOutput::text(result))
     }
 }
 
@@ -278,6 +282,7 @@ mod tests {
                     command: "echo 'Hello, World!'".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -301,6 +306,7 @@ mod tests {
                     },
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -319,6 +325,7 @@ mod tests {
                     command: "echo 'to stdout' && echo 'to stderr' >&2".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -343,6 +350,7 @@ mod tests {
                     },
                     cwd: temp_dir.clone(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -363,6 +371,7 @@ mod tests {
                     command: "non_existent_command".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await;
@@ -392,6 +401,7 @@ mod tests {
                     command: "".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await;
@@ -427,6 +437,7 @@ mod tests {
                     },
                     cwd: current_dir.clone(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -462,6 +473,7 @@ mod tests {
                     command: "echo 'first' && echo 'second'".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -479,6 +491,7 @@ mod tests {
                     command: "true".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -498,6 +511,7 @@ mod tests {
                     command: "echo ''".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -517,6 +531,7 @@ mod tests {
                     command: "echo $PATH".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -542,6 +557,7 @@ mod tests {
                     command: cmd.to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await;

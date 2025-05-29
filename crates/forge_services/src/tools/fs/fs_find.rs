@@ -283,11 +283,14 @@ impl<F: Infrastructure> ExecutableTool for FSFind<F> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
-        let explanation = input.explanation.clone();
+        if let Some(explanation) = &input.explanation {
+            tracing::info!(explanation = %explanation, "Searching files");
+        }
+
         let result = self
             .call_inner(context, input, MAX_SEARCH_CHAR_LIMIT)
             .await?;
-        Ok(ToolOutput::text(result, explanation))
+        Ok(ToolOutput::text(result))
     }
 }
 

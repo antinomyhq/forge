@@ -405,7 +405,7 @@ mod tests {
         let tool_result = ToolResult {
             name: crate::ToolName::new("test_tool"),
             call_id: Some(crate::ToolCallId::new("call123")),
-            output: crate::ToolOutput::text("Tool output".to_string(), None),
+            output: crate::ToolOutput::text("Tool output".to_string()),
         };
 
         let actual = fixture.append_message(
@@ -445,13 +445,13 @@ mod tests {
         let tool_result1 = ToolResult {
             name: crate::ToolName::new("tool1"),
             call_id: Some(crate::ToolCallId::new("call1")),
-            output: crate::ToolOutput::text("Tool 1 output".to_string(), None),
+            output: crate::ToolOutput::text("Tool 1 output".to_string()),
         };
 
         let tool_result2 = ToolResult {
             name: crate::ToolName::new("tool2"),
             call_id: Some(crate::ToolCallId::new("call2")),
-            output: crate::ToolOutput::text("Tool 2 output".to_string(), None),
+            output: crate::ToolOutput::text("Tool 2 output".to_string()),
         };
 
         let actual = fixture.append_message(
@@ -501,7 +501,7 @@ mod tests {
         let tool_result = ToolResult {
             name: crate::ToolName::new("test_tool"),
             call_id: Some(crate::ToolCallId::new("call123")),
-            output: crate::ToolOutput::text("Tool output".to_string(), None),
+            output: crate::ToolOutput::text("Tool output".to_string()),
         };
 
         let actual = fixture.append_message(
@@ -534,7 +534,7 @@ mod tests {
         let tool_result = ToolResult {
             name: crate::ToolName::new("image_tool"),
             call_id: Some(crate::ToolCallId::new("call123")),
-            output: crate::ToolOutput::image(image.clone(), None),
+            output: crate::ToolOutput::image(image.clone()),
         };
 
         let actual = fixture.append_message(
@@ -568,7 +568,6 @@ mod tests {
             output: crate::ToolOutput {
                 values: vec![crate::ToolOutputValue::Empty],
                 is_error: false,
-                explanation: None,
             },
         };
 
@@ -601,7 +600,7 @@ mod tests {
         let tool_result1 = ToolResult {
             name: crate::ToolName::new("text_tool"),
             call_id: Some(crate::ToolCallId::new("call1")),
-            output: crate::ToolOutput::text("Text result".to_string(), None),
+            output: crate::ToolOutput::text("Text result".to_string()),
         };
 
         let tool_call2 = ToolCallFull {
@@ -613,7 +612,7 @@ mod tests {
         let tool_result2 = ToolResult {
             name: crate::ToolName::new("image_tool"),
             call_id: Some(crate::ToolCallId::new("call2")),
-            output: crate::ToolOutput::image(image.clone(), None),
+            output: crate::ToolOutput::image(image.clone()),
         };
 
         let actual = fixture.append_message(
@@ -655,7 +654,6 @@ mod tests {
                     crate::ToolOutputValue::Empty,
                 ],
                 is_error: false,
-                explanation: None,
             },
         };
 
@@ -691,7 +689,7 @@ mod tests {
         let tool_result = ToolResult {
             name: crate::ToolName::new("test_tool"),
             call_id: Some(crate::ToolCallId::new("call123")),
-            output: crate::ToolOutput::text("Tool output".to_string(), None),
+            output: crate::ToolOutput::text("Tool output".to_string()),
         };
 
         let actual = fixture.append_message(
@@ -741,7 +739,7 @@ mod tests {
                 ToolResult {
                     name: crate::ToolName::new("text_tool"),
                     call_id: Some(crate::ToolCallId::new("call1")),
-                    output: crate::ToolOutput::text("Text output".to_string(), None),
+                    output: crate::ToolOutput::text("Text output".to_string()),
                 },
                 ToolResult {
                     name: crate::ToolName::new("empty_tool"),
@@ -749,7 +747,6 @@ mod tests {
                     output: crate::ToolOutput {
                         values: vec![crate::ToolOutputValue::Empty],
                         is_error: false,
-                        explanation: None,
                     },
                 },
             ]);
@@ -767,7 +764,7 @@ mod tests {
             .add_tool_results(vec![ToolResult {
                 name: crate::ToolName::new("image_tool"),
                 call_id: Some(crate::ToolCallId::new("call1")),
-                output: crate::ToolOutput::image(image, None),
+                output: crate::ToolOutput::image(image),
             }]);
 
         let actual = update_image_tool_calls(fixture);
@@ -790,7 +787,6 @@ mod tests {
                     crate::ToolOutputValue::Image(image2),
                 ],
                 is_error: false,
-                explanation: None,
             },
         }]);
 
@@ -809,17 +805,17 @@ mod tests {
                 ToolResult {
                     name: crate::ToolName::new("text_tool"),
                     call_id: Some(crate::ToolCallId::new("call1")),
-                    output: crate::ToolOutput::text("Text output".to_string(), None),
+                    output: crate::ToolOutput::text("Text output".to_string()),
                 },
                 ToolResult {
                     name: crate::ToolName::new("image_tool1"),
                     call_id: Some(crate::ToolCallId::new("call2")),
-                    output: crate::ToolOutput::image(image1, None),
+                    output: crate::ToolOutput::image(image1),
                 },
                 ToolResult {
                     name: crate::ToolName::new("image_tool2"),
                     call_id: Some(crate::ToolCallId::new("call3")),
-                    output: crate::ToolOutput::image(image2, None),
+                    output: crate::ToolOutput::image(image2),
                 },
             ]);
 
@@ -846,7 +842,6 @@ mod tests {
                         crate::ToolOutputValue::Empty,
                     ],
                     is_error: false,
-                    explanation: None,
                 },
             }]);
 
@@ -864,7 +859,6 @@ mod tests {
             output: crate::ToolOutput {
                 values: vec![crate::ToolOutputValue::Image(image)],
                 is_error: true,
-                explanation: None,
             },
         }]);
 

@@ -69,6 +69,10 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
+        if let Some(explanation) = &input.explanation {
+            tracing::info!(explanation = %explanation, "Undoing last operation");
+        }
+
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -81,10 +85,9 @@ impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
         let message = TitleFormat::debug("Undo").sub_title(display_path.clone());
         context.send_text(message).await?;
 
-        Ok(ToolOutput::text(
-            format!("Successfully undid last operation on path: {display_path}"),
-            input.explanation,
-        ))
+        Ok(ToolOutput::text(format!(
+            "Successfully undid last operation on path: {display_path}"
+        )))
     }
 }
 
@@ -121,13 +124,10 @@ mod tests {
         assert!(result.is_ok(), "Expected successful undo operation");
         assert_eq!(
             result.unwrap(),
-            ToolOutput::text(
-                format!(
-                    "Successfully undid last operation on path: {}",
-                    test_path.display()
-                ),
-                None
-            ),
+            ToolOutput::text(format!(
+                "Successfully undid last operation on path: {}",
+                test_path.display()
+            ),),
             "Unexpected success message"
         );
     }

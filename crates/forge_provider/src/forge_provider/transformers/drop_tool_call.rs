@@ -45,7 +45,7 @@ mod tests {
 
         let tool_result = ToolResult::new(ToolName::new("test_tool"))
             .call_id(ToolCallId::new("123"))
-            .success("test result", None);
+            .success("test result");
 
         let context = Context {
             messages: vec![

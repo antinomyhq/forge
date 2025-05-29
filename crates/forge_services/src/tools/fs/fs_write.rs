@@ -62,6 +62,10 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
+        if let Some(explanation) = &input.explanation {
+            tracing::info!(explanation = %explanation, "Writing file");
+        }
+
         // Validate absolute path requirement
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
@@ -142,7 +146,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
 
         context.send_text(diff).await?;
 
-        Ok(ToolOutput::text(result, input.explanation))
+        Ok(ToolOutput::text(result))
     }
 }
 

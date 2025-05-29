@@ -28,7 +28,6 @@ messages:
           - Text: After image
           - Empty
         is_error: false
-        explanation: ~
   - text:
       role: User
       content: "[Here is the image attachment for ID 0]"

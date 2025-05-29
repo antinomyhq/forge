@@ -70,6 +70,10 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
+        if let Some(explanation) = &input.explanation {
+            tracing::info!(explanation = %explanation, "Getting file info");
+        }
+
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
@@ -80,7 +84,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
         context
             .send_text(TitleFormat::debug("Info").title(self.format_display_path(path)?))
             .await?;
-        Ok(ToolOutput::text(format!("{meta:?}"), input.explanation))
+        Ok(ToolOutput::text(format!("{meta:?}")))
     }
 }
 

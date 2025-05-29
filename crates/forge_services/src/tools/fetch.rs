@@ -159,6 +159,10 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
         context: ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
+        if let Some(explanation) = &input.explanation {
+            tracing::info!(explanation = %explanation, "Fetching URL");
+        }
+
         let url = Url::parse(&input.url)
             .with_context(|| format!("Failed to parse URL: {}", input.url))?;
 
@@ -211,10 +215,9 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
             _ => String::new(),
         };
 
-        Ok(ToolOutput::text(
-            format!("{metadata}{output}{truncation_tag}",),
-            input.explanation,
-        ))
+        Ok(ToolOutput::text(format!(
+            "{metadata}{output}{truncation_tag}",
+        )))
     }
 }
 
