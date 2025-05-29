@@ -14,6 +14,26 @@ use serde::Deserialize;
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
 
+/// Information about a file or file range read operation
+#[derive(Debug, Clone, PartialEq)]
+pub struct FileInfo {
+    /// Starting character position of the read operation
+    pub start_char: u64,
+
+    /// Ending character position of the read operation
+    pub end_char: u64,
+
+    /// Total number of characters in the file
+    pub total_chars: u64,
+}
+
+impl FileInfo {
+    /// Creates a new FileInfo with the specified parameters
+    pub fn new(start_char: u64, end_char: u64, total_chars: u64) -> Self {
+        Self { start_char, end_char, total_chars }
+    }
+}
+
 #[derive(Deserialize, JsonSchema)]
 pub struct FSFileInfoInput {
     /// The path of the file or directory to inspect (absolute path required)

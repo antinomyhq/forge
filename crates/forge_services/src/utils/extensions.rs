@@ -15,6 +15,7 @@ impl ToolContentExtension for ToolOutput {
                 ToolOutputValue::Text(text) => Some(text),
                 ToolOutputValue::Image(_) => None,
                 ToolOutputValue::Empty => None,
+                ToolOutputValue::Pdf(_) => None,
             })
             .collect()
     }
@@ -24,6 +25,7 @@ impl ToolContentExtension for ToolOutput {
             ToolOutputValue::Text(text) => text.contains(needle),
             ToolOutputValue::Image(_) => false,
             ToolOutputValue::Empty => false,
+            ToolOutputValue::Pdf(_) => false,
         })
     }
 }

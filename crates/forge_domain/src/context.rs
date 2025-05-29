@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use super::{ToolCallFull, ToolResult};
+use super::{Pdf, ToolCallFull, ToolOutputValue, ToolResult};
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
@@ -18,6 +18,7 @@ pub enum ContextMessage {
     Text(TextMessage),
     Tool(ToolResult),
     Image(Image),
+    Pdf(Pdf),
 }
 
 impl ContextMessage {
@@ -61,7 +62,7 @@ impl ContextMessage {
         match self {
             ContextMessage::Text(message) => message.role == role,
             ContextMessage::Tool(_) => false,
-            ContextMessage::Image(_) => Role::User == role,
+            ContextMessage::Image(_) | ContextMessage::Pdf(_) => Role::User == role,
         }
     }
 
@@ -70,6 +71,7 @@ impl ContextMessage {
             ContextMessage::Text(message) => message.tool_calls.is_some(),
             ContextMessage::Tool(_) => false,
             ContextMessage::Image(_) => false,
+            ContextMessage::Pdf(_) => false,
         }
     }
 }
@@ -126,6 +128,10 @@ pub struct Context {
 }
 
 impl Context {
+    pub fn add_pdf(mut self, pdf: Pdf) -> Self {
+        self.messages.push(ContextMessage::Pdf(pdf));
+        self
+    }
     pub fn add_base64_url(mut self, image: Image) -> Self {
         self.messages.push(ContextMessage::Image(image));
         self
@@ -212,6 +218,9 @@ impl Context {
                 ContextMessage::Image(_) => {
                     lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
                 }
+                ContextMessage::Pdf(_) => {
+                    lines.push_str("<pdf path=\"[base64 URL]\">".to_string().as_str());
+                }
             }
         }
 
@@ -269,6 +278,9 @@ impl Context {
                     crate::ToolOutputValue::Image(base64_url) => {
                         self = self.add_base64_url(base64_url.clone());
                     }
+                    ToolOutputValue::Pdf(pdf) => {
+                        self = self.add_pdf(pdf.clone());
+                    }
                     crate::ToolOutputValue::Empty => {}
                 }
             }
@@ -281,6 +293,7 @@ impl Context {
 // results that contain images into user messages
 fn update_image_tool_calls(mut context: Context) -> Context {
     let mut images = Vec::new();
+    let mut pdfs = Vec::new();
 
     // Step 1: Replace the image value with a text message
     context
@@ -303,6 +316,14 @@ fn update_image_tool_calls(mut context: Context) -> Context {
                 ));
                 images.push((id, image));
             }
+            ToolOutputValue::Pdf(pdf) => {
+                let pdf = std::mem::take(pdf);
+                let id = pdfs.len();
+                *value = ToolOutputValue::Text(format!(
+                    "[The pdf with ID {id} will be sent as an attachment in the next message]"
+                ));
+                pdfs.push((id, pdf));
+            }
             crate::ToolOutputValue::Text(_) => {}
             crate::ToolOutputValue::Empty => {}
         });
@@ -314,6 +335,14 @@ fn update_image_tool_calls(mut context: Context) -> Context {
             None,
         ));
         context.messages.push(ContextMessage::Image(image));
+    });
+
+    pdfs.into_iter().for_each(|(id, pdf)| {
+        context.messages.push(ContextMessage::user(
+            format!("[Here is the pdf for ID {id}]"),
+            None,
+        ));
+        context.messages.push(ContextMessage::Pdf(pdf));
     });
 
     context
