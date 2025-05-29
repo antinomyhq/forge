@@ -13,6 +13,7 @@ mod tool_service;
 mod tools;
 mod utils;
 mod workflow;
+mod conversation_history;
 
 pub use clipper::*;
 pub use forge_services::*;
