@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -35,4 +35,7 @@ pub struct SystemContext {
     // Variables to pass to the system context
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub variables: HashMap<String, Value>,
+
+    // tools available
+    pub available_tools: HashSet<String>,
 }

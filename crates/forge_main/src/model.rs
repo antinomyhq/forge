@@ -40,6 +40,18 @@ pub struct ForgeCommand {
     pub value: Option<String>,
 }
 
+impl From<Command> for ForgeCommand {
+    fn from(command: Command) -> Self {
+        let name = command.name();
+        let desc = command.usage();
+        Self {
+            name: name.to_string(),
+            description: desc.to_string(),
+            value: None,
+        }
+    }
+}
+
 impl From<&Workflow> for ForgeCommandManager {
     fn from(value: &Workflow) -> Self {
         let cmd = ForgeCommandManager::default();
@@ -66,11 +78,8 @@ impl ForgeCommandManager {
             .filter(|command| !matches!(command, Command::Message(_)))
             .filter(|command| !matches!(command, Command::Custom(_)))
             .filter(|command| !matches!(command, Command::Shell(_)))
-            .map(|command| ForgeCommand {
-                name: command.name().to_string(),
-                description: command.usage().to_string(),
-                value: None,
-            })
+            .filter(|command| !matches!(command, Command::Index))
+            .map(Into::into)
             .collect::<Vec<_>>()
     }
 
@@ -88,6 +97,19 @@ impl ForgeCommandManager {
 
             ForgeCommand { name, description, value }
         }));
+
+        // include commands that depend on tool only when tool is available on agent.
+        for agent in workflow.agents.iter() {
+            if let Some(tools) = agent.tools.as_ref() {
+                if tools
+                    .iter()
+                    .any(|tool_name| tool_name.as_str() == "forge_tool_codebase_search")
+                {
+                    commands.push(Command::Index.into());
+                    break;
+                }
+            }
+        }
 
         *guard = commands;
     }

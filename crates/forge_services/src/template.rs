@@ -4,6 +4,9 @@ use forge_domain::TemplateService;
 use handlebars::Handlebars;
 use rust_embed::Embed;
 
+mod helpers;
+use helpers::ARRAY_CONTAINS_HELPER;
+
 #[derive(Embed)]
 #[folder = "../../templates/"]
 struct Templates;
@@ -24,6 +27,9 @@ impl ForgeTemplateService {
         let mut hb = Handlebars::new();
         hb.set_strict_mode(true);
         hb.register_escape_fn(|str| str.to_string());
+
+        // Register helpers
+        hb.register_helper("array_contains", Box::new(ARRAY_CONTAINS_HELPER));
 
         // Register all partial templates
         hb.register_embed_templates::<Templates>().unwrap();

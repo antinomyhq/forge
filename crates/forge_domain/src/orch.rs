@@ -185,11 +185,10 @@ impl<A: Services> Orchestrator<A> {
             let current_time = Local::now().format("%Y-%m-%d %H:%M:%S %:z").to_string();
 
             let tool_supported = self.is_tool_supported(agent).await?;
+            let available_tools = self.get_allowed_tools(agent).await?;
             let tool_information = match tool_supported {
                 true => None,
-                false => {
-                    Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent).await?).to_string())
-                }
+                false => Some(ToolUsagePrompt::from(&available_tools).to_string()),
             };
 
             let ctx = SystemContext {
@@ -200,6 +199,10 @@ impl<A: Services> Orchestrator<A> {
                 files,
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
                 variables: variables.clone(),
+                available_tools: available_tools
+                    .into_iter()
+                    .map(|tool| tool.name.into_string())
+                    .collect(),
             };
 
             let system_message = self
