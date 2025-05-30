@@ -37,7 +37,9 @@ impl ExecutableTool for Completion {
         context.set_complete().await;
 
         // Return success with the message
-        Ok(ToolOutput::text(input.result))
+        Ok(ToolOutput::text(
+            "[Task was completed successfully. Now wait for user feedback]".to_string(),
+        ))
     }
 }
 

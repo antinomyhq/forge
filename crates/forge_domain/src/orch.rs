@@ -64,7 +64,7 @@ impl<A: Services> Orchestrator<A> {
 
     // Helper function to get all tool results from a vector of tool calls
     #[async_recursion]
-    async fn get_all_tool_results(
+    async fn execute_tool_calls(
         &self,
         agent: &Agent,
         tool_calls: &[ToolCallFull],
@@ -99,10 +99,9 @@ impl<A: Services> Orchestrator<A> {
             self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
                 .await?;
 
-            // Add the result to our collection if completion wasn't achieved
-            if !tool_context.get_complete().await {
-                tool_call_records.push((tool_call.clone(), tool_result));
-            }
+            // Ensure all tool calls and results are recorded
+            // Adding task completion records is critical for compaction to work correctly
+            tool_call_records.push((tool_call.clone(), tool_result));
         }
 
         Ok(tool_call_records)
@@ -547,18 +546,13 @@ impl<A: Services> Orchestrator<A> {
 
             let empty_tool_calls = tool_calls.is_empty();
 
-            debug!(
-                agent_id = %agent.id,
-                tool_call_count = empty_tool_calls,
-                "Tool call count: {}",
-                empty_tool_calls
-            );
+            debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
             // Process tool calls and update context
             context = context.append_message(
                 content,
                 model_id.clone(),
-                self.get_all_tool_results(agent, &tool_calls, tool_context.clone())
+                self.execute_tool_calls(agent, &tool_calls, tool_context.clone())
                     .await?,
                 tool_supported,
             );
