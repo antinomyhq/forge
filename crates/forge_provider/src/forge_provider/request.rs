@@ -109,6 +109,7 @@ pub struct FunctionDescription {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Tool {
+    pub name: String,
     // TODO: should be an enum
     pub r#type: FunctionType,
     pub function: FunctionDescription,
@@ -218,6 +219,7 @@ pub enum Transform {
 impl From<ToolDefinition> for Tool {
     fn from(value: ToolDefinition) -> Self {
         Tool {
+            name: value.name.to_string(),
             r#type: FunctionType,
             function: FunctionDescription {
                 description: Some(value.description),
