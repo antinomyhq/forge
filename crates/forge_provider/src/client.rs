@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use forge_domain::{
-    ChatCompletionMessage, Context, Model, ModelId, Provider, ProviderService, ResultStream,
+    ChatCompletionMessage, ChatService, Context, Model, ModelId, Provider, ResultStream,
 };
 use reqwest::redirect::Policy;
 use tokio::sync::RwLock;
@@ -30,7 +30,7 @@ enum InnerClient {
 impl Client {
     pub fn new(
         provider: Provider,
-        retry_status_codes: Vec<u16>,
+        retry_status_codes: Arc<Vec<u16>>,
         version: impl ToString,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
@@ -65,7 +65,7 @@ impl Client {
 
         Ok(Self {
             inner: Arc::new(inner),
-            retry_status_codes: Arc::new(retry_status_codes),
+            retry_status_codes,
             models_cache: Arc::new(RwLock::new(HashMap::new())),
         })
     }
@@ -95,7 +95,7 @@ impl Client {
 }
 
 #[async_trait::async_trait]
-impl ProviderService for Client {
+impl ChatService for Client {
     async fn chat(
         &self,
         model: &ModelId,
@@ -145,7 +145,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, vec![], "dev").unwrap();
+        let client = Client::new(provider, Arc::new(vec![]), "dev").unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -158,7 +158,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, vec![], "dev").unwrap();
+        let client = Client::new(provider, Arc::new(vec![]), "dev").unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)

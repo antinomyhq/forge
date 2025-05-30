@@ -108,6 +108,7 @@ impl<F: Infrastructure> AttachmentService for ForgeChatRequest<F> {
 #[cfg(test)]
 pub mod tests {
     use std::collections::HashMap;
+    use std::future::Future;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
@@ -115,7 +116,8 @@ pub mod tests {
     use bytes::Bytes;
     use forge_domain::{
         AttachmentContent, AttachmentService, CommandOutput, Environment, EnvironmentService,
-        Provider, ToolDefinition, ToolName, ToolOutput,
+        ForgeKey, Provider, ProviderUrl, Response, RetryConfig, ToolDefinition, ToolName,
+        ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -124,8 +126,8 @@ pub mod tests {
     use crate::utils::AttachmentExtension;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
-        McpClient, McpServer,
+        FsReadService, FsSnapshotService, FsWriteService, HttpService, Infrastructure,
+        InquireService, McpClient, McpServer, ProviderService,
     };
 
     #[derive(Debug)]
@@ -141,7 +143,6 @@ pub mod tests {
                 home: Some(PathBuf::from("/home/test")),
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/base"),
-                provider: Provider::open_router("test-key"),
                 retry_config: Default::default(),
             }
         }
@@ -498,6 +499,38 @@ pub mod tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl HttpService for () {
+        async fn get(&self, _: &str) -> anyhow::Result<Response<Bytes>> {
+            unimplemented!()
+        }
+
+        async fn post(&self, _: &str, _: Bytes) -> anyhow::Result<Response<Bytes>> {
+            unimplemented!()
+        }
+
+        async fn delete(&self, _: &str) -> anyhow::Result<Response<Bytes>> {
+            unimplemented!()
+        }
+
+        async fn poll<T, F>(&self, _: RetryConfig, _: impl Fn() -> F + Send) -> anyhow::Result<T>
+        where
+            F: Future<Output = anyhow::Result<T>> + Send,
+        {
+            unimplemented!()
+        }
+    }
+
+    impl ProviderService for () {
+        fn get(&self, _: Option<ForgeKey>) -> Option<Provider> {
+            unimplemented!()
+        }
+
+        fn provider_url(&self) -> Option<ProviderUrl> {
+            None
+        }
+    }
+
     impl Infrastructure for MockInfrastructure {
         type EnvironmentService = MockEnvironmentService;
         type FsReadService = MockFileService;
@@ -509,6 +542,8 @@ pub mod tests {
         type CommandExecutorService = ();
         type InquireService = ();
         type McpServer = ();
+        type HttpService = ();
+        type ProviderService = ();
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
@@ -547,6 +582,13 @@ pub mod tests {
         }
 
         fn mcp_server(&self) -> &Self::McpServer {
+            &()
+        }
+
+        fn http_service(&self) -> &Self::HttpService {
+            &()
+        }
+        fn provider_service(&self) -> &Self::ProviderService {
             &()
         }
     }

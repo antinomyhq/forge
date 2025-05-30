@@ -148,7 +148,7 @@ impl<A: Services> Orchestrator<A> {
             None => {
                 // If not defined at agent level, check model level
 
-                let model = self.services.provider_service().model(model_id).await?;
+                let model = self.services.chat_service().model(model_id).await?;
                 model
                     .and_then(|model| model.tools_supported)
                     .unwrap_or_default()
@@ -425,7 +425,7 @@ impl<A: Services> Orchestrator<A> {
     ) -> anyhow::Result<ChatCompletionResult> {
         let response = self
             .services
-            .provider_service()
+            .chat_service()
             .chat(model_id, context.clone())
             .await?;
         self.collect_messages(agent, &context, response).await
