@@ -121,7 +121,6 @@ impl From<Signal> for ReadResult {
 fn read_history_capacity_from_env() -> usize {
     std::env::var("FORGE_HISTSIZE")
         .ok()
-        .map(|s| s.parse::<usize>().ok())
-        .flatten()
+        .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(10000)
 }
