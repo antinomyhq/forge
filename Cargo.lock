@@ -981,6 +981,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "update-informer",
+ "url",
 ]
 
 [[package]]

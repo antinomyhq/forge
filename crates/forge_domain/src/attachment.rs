@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 
-use nom::bytes::complete::{tag, take_until};
-use nom::combinator::value;
+use nom::bytes::complete::{tag, take_until, take_while1};
+use nom::sequence::preceded;
 use nom::Parser;
+use url::form_urlencoded;
 
 use crate::Image;
 
@@ -19,10 +20,9 @@ pub enum AttachmentContent {
 }
 
 impl Attachment {
-    /// Parses a string and extracts all file paths in the format
-    /// @[path/to/file]. File paths can contain spaces and are considered to
-    /// extend until the closing bracket. If the closing bracket is missing,
-    /// consider everything until the end of the string as the path.
+    /// Parses a string and extracts all file paths in the format @path/to/file.
+    /// File paths are considered to extend until whitespace is encountered.
+    /// If the path is URL encoded (contains % characters), it will be decoded.
     pub fn parse_all<T: ToString>(text: T) -> HashSet<String> {
         let input = text.to_string();
         let mut remaining = input.as_str();
@@ -30,7 +30,15 @@ impl Attachment {
         while !remaining.is_empty() {
             match Self::parse(remaining) {
                 Ok((next_remaining, path)) => {
-                    paths.insert(path.to_string());
+                    // Decode URL-encoded path if necessary
+                    let decoded_path = if path.contains('%') {
+                        form_urlencoded::parse(path.as_bytes())
+                            .map(|(k, v)| format!("{k}{v}"))
+                            .collect::<String>()
+                    } else {
+                        path.to_string()
+                    };
+                    paths.insert(decoded_path);
                     remaining = next_remaining;
                 }
                 Err(_) => {
@@ -45,12 +53,15 @@ impl Attachment {
     }
 
     fn parse(input: &str) -> nom::IResult<&str, &str> {
-        let (remaining, _) = take_until("@[")(input)?;
+        // Find @ symbol
+        let (remaining, _) = take_until("@")(input)?;
 
-        value((), tag("@["))
-            .and(take_until("]"))
-            .map(|data| data.1)
-            .parse(remaining)
+        // Parse the path after @ until whitespace or another special char
+        preceded(
+            tag("@"),
+            take_while1(|c: char| !c.is_whitespace() && c != '@'),
+        )
+        .parse(remaining)
     }
 }
 
@@ -69,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_attachment_parse_all_simple() {
-        let text = String::from("Check this file @[/path/to/file.txt]");
+        let text = String::from("Check this file @/path/to/file.txt");
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 1);
 
@@ -79,7 +90,7 @@ mod tests {
 
     #[test]
     fn test_attachment_parse_all_with_spaces() {
-        let text = String::from("Check this file @[/path/with spaces/file.txt]");
+        let text = String::from("Check this file @/path/with%20spaces/file.txt");
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 1);
 
@@ -90,7 +101,7 @@ mod tests {
     #[test]
     fn test_attachment_parse_all_multiple() {
         let text = String::from(
-            "Check @[/file1.txt] and also @[/path/with spaces/file2.txt] and @[/file3.txt]",
+            "Check @/file1.txt and also @/path/with%20spaces/file2.txt and @/file3.txt",
         );
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 3);
@@ -102,14 +113,7 @@ mod tests {
 
     #[test]
     fn test_attachment_parse_all_at_end() {
-        let text = String::from("Check this file @[");
-        let paths = Attachment::parse_all(text);
-        assert_eq!(paths.len(), 0);
-    }
-
-    #[test]
-    fn test_attachment_parse_all_unclosed_bracket() {
-        let text = String::from("Check this file @[/path/with spaces/unclosed");
+        let text = String::from("Check this file @");
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 0);
     }
@@ -117,7 +121,7 @@ mod tests {
     #[test]
     fn test_attachment_parse_all_with_multibyte_chars() {
         let text = String::from(
-            "Check this file @[🚀/path/with spaces/file.txt🔥] and also @[🌟simple_path]",
+            "Check this file @🚀/path/with%20spaces/file.txt🔥 and also @🌟simple_path",
         );
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 2);

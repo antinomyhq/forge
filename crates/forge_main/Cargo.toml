@@ -42,6 +42,7 @@ update-informer = { version = "1.2.0", default-features = false, features = [
     "ureq",
     "rustls-tls",
 ] }
+url.workspace = true
 
 
 [dev-dependencies]
