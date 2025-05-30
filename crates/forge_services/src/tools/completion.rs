@@ -37,7 +37,9 @@ impl ExecutableTool for Completion {
         context.set_complete().await;
 
         // Return success with the message
-        Ok(ToolOutput::text(input.result))
+        Ok(ToolOutput::text(
+            "[Task was completed successfully. Now wait for user feedback]".to_string(),
+        ))
     }
 }
 
@@ -65,7 +67,7 @@ mod tests {
             .into_string();
 
         // Define expected result
-        let expected = "All required features implemented";
+        let expected = "[Task was completed successfully. Now wait for user feedback]";
 
         // Assert that the actual result matches the expected result
         assert_eq!(actual, expected);
