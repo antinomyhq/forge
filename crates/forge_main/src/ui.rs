@@ -143,16 +143,10 @@ impl<F: API> UI<F> {
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
 
-        let workflow = get_merged_workflow(&cli, api.clone()).await?;
-
-        let history_capacity = workflow
-            .history_capacity
-            .expect("history_capacity from forge.default is the fallback so must be provided");
-
         Ok(Self {
             state: Default::default(),
             api,
-            console: Console::new(env.clone(), command.clone(), history_capacity),
+            console: Console::new(env.clone(), command.clone()),
             cli,
             command,
             spinner: SpinnerManager::new(),

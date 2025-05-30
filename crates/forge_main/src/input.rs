@@ -15,17 +15,12 @@ use crate::TRACKER;
 pub struct Console {
     env: Environment,
     command: Arc<ForgeCommandManager>,
-    history_capacity: usize,
 }
 
 impl Console {
     /// Creates a new instance of `Console`.
-    pub fn new(
-        env: Environment,
-        command: Arc<ForgeCommandManager>,
-        history_capacity: usize,
-    ) -> Self {
-        Self { env, command, history_capacity }
+    pub fn new(env: Environment, command: Arc<ForgeCommandManager>) -> Self {
+        Self { env, command }
     }
 }
 
@@ -39,11 +34,7 @@ impl Console {
     }
 
     pub async fn prompt(&self, prompt: Option<ForgePrompt>) -> anyhow::Result<Command> {
-        let mut engine = ForgeEditor::new(
-            self.env.clone(),
-            self.command.clone(),
-            self.history_capacity,
-        );
+        let mut engine = ForgeEditor::new(self.env.clone(), self.command.clone());
         let prompt: ForgePrompt = prompt.unwrap_or_default();
 
         loop {

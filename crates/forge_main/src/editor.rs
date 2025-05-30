@@ -61,13 +61,11 @@ impl ForgeEditor {
         keybindings
     }
 
-    pub fn new(
-        env: Environment,
-        manager: Arc<ForgeCommandManager>,
-        history_capacity: usize,
-    ) -> Self {
+    pub fn new(env: Environment, manager: Arc<ForgeCommandManager>) -> Self {
         // Store file history in system config directory
         let history_file = env.history_path();
+
+        let history_capacity = read_history_capacity_from_env();
 
         let history = Box::new(
             FileBackedHistory::with_file(history_capacity, history_file).unwrap_or_default(),
@@ -118,4 +116,12 @@ impl From<Signal> for ReadResult {
             Signal::CtrlD => ReadResult::Exit,
         }
     }
+}
+
+fn read_history_capacity_from_env() -> usize {
+    std::env::var("FORGE_HISTSIZE")
+        .ok()
+        .map(|s| s.parse::<usize>().ok())
+        .flatten()
+        .unwrap_or(10000)
 }

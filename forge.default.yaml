@@ -8,8 +8,6 @@ updates:
   frequency: "daily"
   auto_update: false
 
-history_capacity: 1024
-
 # Define model anchors with simpler, purpose-based names
 models:
   # Role-based model definitions - easy to swap implementation
