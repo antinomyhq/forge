@@ -29,6 +29,12 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
 
+    /// configurations that can be used to control history capacity
+    /// for forge commands
+    #[merge(strategy = crate::merge::option)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history_capacity: Option<usize>,
+
     /// Commands that can be used to interact with the workflow
     #[merge(strategy = crate::merge::vec::append)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -138,6 +144,7 @@ impl Workflow {
             top_k: None,
             tool_supported: None,
             updates: None,
+            history_capacity: None,
         }
     }
 
@@ -175,6 +182,7 @@ mod tests {
         assert_eq!(actual.top_p, None);
         assert_eq!(actual.top_k, None);
         assert_eq!(actual.tool_supported, None);
+        assert_eq!(actual.history_capacity, None);
     }
 
     #[test]

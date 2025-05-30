@@ -138,14 +138,21 @@ impl<F: API> UI<F> {
         )
     }
 
-    pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
+    pub async fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
         // Parse CLI arguments first to get flags
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
+
+        let workflow = get_merged_workflow(&cli, api.clone()).await?;
+
+        let history_capacity = workflow
+            .history_capacity
+            .expect("history_capacity from forge.default is the fallback so must be provided");
+
         Ok(Self {
             state: Default::default(),
             api,
-            console: Console::new(env.clone(), command.clone()),
+            console: Console::new(env.clone(), command.clone(), history_capacity),
             cli,
             command,
             spinner: SpinnerManager::new(),
@@ -507,7 +514,7 @@ impl<F: API> UI<F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self) -> Result<Workflow> {
-        let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+        let mut workflow = get_merged_workflow(&self.cli, self.api.clone()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(
                 self.select_model()
@@ -515,15 +522,13 @@ impl<F: API> UI<F> {
                     .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
             );
         }
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow.clone());
-        on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+        on_update(self.api.clone(), workflow.updates.as_ref()).await;
         self.api
             .write_workflow(self.cli.workflow.as_deref(), &workflow)
             .await?;
 
-        self.command.register_all(&base_workflow);
-        self.state = UIState::new(base_workflow).provider(self.api.environment().provider);
+        self.command.register_all(&workflow);
+        self.state = UIState::new(workflow.clone()).provider(self.api.environment().provider);
 
         Ok(workflow)
     }
@@ -672,4 +677,14 @@ fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
             }
         })
         .collect()
+}
+
+async fn get_merged_workflow<F>(cli: &Cli, api: Arc<F>) -> Result<Workflow>
+where
+    F: API,
+{
+    let workflow = api.read_workflow(cli.workflow.as_deref()).await?;
+    let mut base_workflow = Workflow::default();
+    base_workflow.merge(workflow.clone());
+    Ok(base_workflow)
 }
