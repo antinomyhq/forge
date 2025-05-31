@@ -50,6 +50,26 @@ pub enum ToolInput {
     /// Input for the completion tool
     #[serde(rename = "forge_tool_attempt_completion")]
     AttemptCompletion(AttemptCompletionInput),
+
+    /// Codebase Search tool
+    #[serde(rename = "forge_tool_codebase_search")]
+    CodebaseSearch(CodebaseSearchInput),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CodebaseSearchInput {
+    /// The search query to find relevant code.
+    /// You should reuse the user's exact query/most recent message with their
+    /// wording unless there is a clear reason not to.
+    pub query: String,
+
+    ///Glob patterns for directories to search over
+    pub target_directories: Option<Vec<String>>,
+
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the file read tool

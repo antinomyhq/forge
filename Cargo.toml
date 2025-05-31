@@ -109,3 +109,5 @@ forge_fs = { path = "crates/forge_fs" }
 forge_snaps = { path = "crates/forge_snaps" }
 forge_spinner = { path = "crates/forge_spinner" }
 forge_template = { path = "crates/forge_template" }
+forge_treesitter = { path = "crates/forge_treesitter" }
+forge_indexer = { path = "crates/forge_indexer" }

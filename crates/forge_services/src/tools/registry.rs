@@ -7,6 +7,7 @@ use super::fetch::Fetch;
 use super::fs::*;
 use super::patch::*;
 use super::shell::Shell;
+use crate::tools::codebase_search::CodebaseSearch;
 use crate::tools::followup::Followup;
 use crate::Infrastructure;
 
@@ -34,6 +35,7 @@ impl<F: Infrastructure> ToolRegistry<F> {
             Completion.into(),
             Followup::new(self.infra.clone()).into(),
             Fetch::new(self.infra.clone()).into(),
+            CodebaseSearch::new(self.infra.clone()).into(),
         ]
     }
 }
@@ -49,12 +51,14 @@ pub mod tests {
         ToolOutput,
     };
     use forge_snaps::Snapshot;
+    use serde::de::DeserializeOwned;
     use serde_json::Value;
 
     use super::*;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
+        FsReadService, FsSnapshotService, FsWriteService, IndexerService, InquireService,
+        McpClient, McpServer, QueryOptions,
     };
 
     /// Create a default test environment
@@ -228,6 +232,20 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl IndexerService for Stub {
+        async fn index(&self, _path: &Path) -> anyhow::Result<()> {
+            todo!()
+        }
+        async fn query<V: DeserializeOwned + Send + Sync>(
+            &self,
+            _query: &str,
+            _options: QueryOptions,
+        ) -> anyhow::Result<Vec<V>> {
+            todo!()
+        }
+    }
+
+    #[async_trait::async_trait]
     impl Infrastructure for Stub {
         type EnvironmentService = Stub;
         type FsReadService = Stub;
@@ -238,6 +256,7 @@ pub mod tests {
         type FsCreateDirsService = Stub;
         type CommandExecutorService = Stub;
         type InquireService = Stub;
+        type IndexerService = Stub;
 
         type McpServer = Stub;
 
@@ -278,6 +297,10 @@ pub mod tests {
         }
 
         fn mcp_server(&self) -> &Self::McpServer {
+            self
+        }
+
+        fn indexer_service(&self) -> &Self::IndexerService {
             self
         }
     }

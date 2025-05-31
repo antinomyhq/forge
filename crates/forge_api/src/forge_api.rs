@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{CommandExecutorService, ForgeServices, Infrastructure};
+use forge_services::{CommandExecutorService, ForgeServices, IndexerService, Infrastructure};
 use forge_stream::MpscStream;
 use tracing::error;
 
@@ -151,5 +151,9 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .command_executor_service()
             .execute_command_raw(command)
             .await
+    }
+
+    async fn index(&self, path: &Path) -> anyhow::Result<()> {
+        self.app.indexer_service().index(path).await
     }
 }

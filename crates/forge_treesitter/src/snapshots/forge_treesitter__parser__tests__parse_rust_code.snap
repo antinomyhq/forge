@@ -1,0 +1,120 @@
+---
+source: crates/forge_treesitter/src/parser.rs
+expression: blocks
+---
+[
+    Block {
+        kind: TypeAlias,
+        path: "./test.rs",
+        snippet: "/// wrapper type with error of string type.\n            type Result<I> = std::result::Result<I, String>;",
+        offset: Offset {
+            start: 13,
+            end: 117,
+        },
+        span: Span {
+            start: Location {
+                line: 1,
+                column: 12,
+            },
+            end: Location {
+                line: 2,
+                column: 60,
+            },
+        },
+    },
+    Block {
+        kind: Constant,
+        path: "./test.rs",
+        snippet: "const DATA: &'static str = \"test\";",
+        offset: Offset {
+            start: 131,
+            end: 165,
+        },
+        span: Span {
+            start: Location {
+                line: 4,
+                column: 12,
+            },
+            end: Location {
+                line: 4,
+                column: 46,
+            },
+        },
+    },
+    Block {
+        kind: Struct,
+        path: "./test.rs",
+        snippet: "/// Represents user information\n            /// in the system\n            struct User {\n                name: String,\n                age: u32,\n            }",
+        offset: Offset {
+            start: 178,
+            end: 335,
+        },
+        span: Span {
+            start: Location {
+                line: 5,
+                column: 12,
+            },
+            end: Location {
+                line: 10,
+                column: 13,
+            },
+        },
+    },
+    Block {
+        kind: Enum,
+        path: "./test.rs",
+        snippet: "/// type of status supported by system\n            enum Status {\n                Active,\n                Inactive,\n                Pending,\n            }",
+        offset: Offset {
+            start: 361,
+            end: 514,
+        },
+        span: Span {
+            start: Location {
+                line: 12,
+                column: 12,
+            },
+            end: Location {
+                line: 17,
+                column: 13,
+            },
+        },
+    },
+    Block {
+        kind: Function,
+        path: "./test.rs",
+        snippet: "/// returns the status reference\n                pub fn status(&self) -> &Status {\n                    self\n                }",
+        offset: Offset {
+            start: 570,
+            end: 695,
+        },
+        span: Span {
+            start: Location {
+                line: 20,
+                column: 16,
+            },
+            end: Location {
+                line: 23,
+                column: 17,
+            },
+        },
+    },
+    Block {
+        kind: Function,
+        path: "./test.rs",
+        snippet: "#[test]\n            /// process user in test env.\n            fn process_user(user: &User) -> Status {\n                if user.age > 18 {\n                    Status::Active\n                } else {\n                    Status::Pending\n                }\n            }",
+        offset: Offset {
+            start: 723,
+            end: 988,
+        },
+        span: Span {
+            start: Location {
+                line: 26,
+                column: 12,
+            },
+            end: Location {
+                line: 34,
+                column: 13,
+            },
+        },
+    },
+]

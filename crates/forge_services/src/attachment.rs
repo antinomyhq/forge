@@ -118,14 +118,15 @@ pub mod tests {
         Provider, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
+    use serde::de::DeserializeOwned;
     use serde_json::Value;
 
     use crate::attachment::ForgeChatRequest;
     use crate::utils::AttachmentExtension;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
-        McpClient, McpServer,
+        FsReadService, FsSnapshotService, FsWriteService, IndexerService, Infrastructure,
+        InquireService, McpClient, McpServer, QueryOptions,
     };
 
     #[derive(Debug)]
@@ -498,6 +499,20 @@ pub mod tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl IndexerService for () {
+        async fn index(&self, _path: &Path) -> anyhow::Result<()> {
+            todo!()
+        }
+        async fn query<V: DeserializeOwned + Send + Sync>(
+            &self,
+            _query: &str,
+            _options: QueryOptions,
+        ) -> anyhow::Result<Vec<V>> {
+            todo!()
+        }
+    }
+
     impl Infrastructure for MockInfrastructure {
         type EnvironmentService = MockEnvironmentService;
         type FsReadService = MockFileService;
@@ -509,6 +524,7 @@ pub mod tests {
         type CommandExecutorService = ();
         type InquireService = ();
         type McpServer = ();
+        type IndexerService = ();
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
@@ -547,6 +563,10 @@ pub mod tests {
         }
 
         fn mcp_server(&self) -> &Self::McpServer {
+            &()
+        }
+
+        fn indexer_service(&self) -> &Self::IndexerService {
             &()
         }
     }

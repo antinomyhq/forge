@@ -1,3 +1,4 @@
+mod codebase_search;
 mod completion;
 mod fetch;
 mod followup;
