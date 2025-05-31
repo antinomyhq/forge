@@ -24,3 +24,4 @@ rmcp.workspace = true
 tracing.workspace = true
 backon.workspace = true
 thiserror.workspace = true
+schemars.workspace = true
