@@ -7,7 +7,7 @@ use forge_api::{
     Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Scope};
+use forge_domain::{Buffer, BufferEvent, McpConfig, McpServerConfig, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -64,8 +64,12 @@ pub struct UI<F> {
 impl<F: API> UI<F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
-    fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
-        self.spinner.write_ln(content)
+    async fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
+        let content = content.to_string();
+        self.spinner.write_ln(&content)?;
+        self.api
+            .set_buffer_state(Buffer { event: BufferEvent::Output, content })
+            .await
     }
 
     /// Retrieve available models
@@ -111,7 +115,8 @@ impl<F: API> UI<F> {
         self.writeln(TitleFormat::action(format!(
             "Switched to '{}' mode (context cleared)",
             self.state.mode
-        )))?;
+        )))
+        .await?;
 
         Ok(())
     }
@@ -250,19 +255,21 @@ impl<F: API> UI<F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))?;
+                    self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))
+                        .await?;
                 }
                 McpCommand::List => {
                     let mcp_servers = self.api.read_mcp_config().await?;
                     if mcp_servers.is_empty() {
-                        self.writeln(TitleFormat::error("No MCP servers found"))?;
+                        self.writeln(TitleFormat::error("No MCP servers found"))
+                            .await?;
                     }
 
                     let mut output = String::new();
                     for (name, server) in mcp_servers.mcp_servers {
                         output.push_str(&format!("{name}: {server}"));
                     }
-                    self.writeln(output)?;
+                    self.writeln(output).await?;
                 }
                 McpCommand::Remove(rm) => {
                     let name = rm.name.clone();
@@ -273,7 +280,8 @@ impl<F: API> UI<F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
+                    self.writeln(TitleFormat::info(format!("Removed server: {name}")))
+                        .await?;
                 }
                 McpCommand::Get(val) => {
                     let name = val.name.clone();
@@ -285,7 +293,7 @@ impl<F: API> UI<F> {
 
                     let mut output = String::new();
                     output.push_str(&format!("{name}: {server}"));
-                    self.writeln(TitleFormat::info(output))?;
+                    self.writeln(TitleFormat::info(output)).await?;
                 }
                 McpCommand::AddJson(add_json) => {
                     let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
@@ -300,7 +308,8 @@ impl<F: API> UI<F> {
                     self.writeln(TitleFormat::info(format!(
                         "Added server: {}",
                         add_json.name
-                    )))?;
+                    )))
+                    .await?;
                 }
             },
         }
@@ -322,7 +331,7 @@ impl<F: API> UI<F> {
             }
             Command::Info => {
                 let info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
-                self.writeln(info)?;
+                self.writeln(info).await?;
             }
             Command::Message(ref content) => {
                 self.spinner.start(None)?;
@@ -336,7 +345,7 @@ impl<F: API> UI<F> {
             }
             Command::Help => {
                 let info = Info::from(self.command.as_ref());
-                self.writeln(info)?;
+                self.writeln(info).await?;
             }
             Command::Tools => {
                 self.spinner.start(Some("Loading"))?;
@@ -344,7 +353,7 @@ impl<F: API> UI<F> {
                 let tools = self.api.tools().await?;
 
                 let output = format_tools(&tools);
-                self.writeln(output)?;
+                self.writeln(output).await?;
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
@@ -374,7 +383,7 @@ impl<F: API> UI<F> {
         let token_reduction = compaction_result.token_reduction_percentage();
         let message_reduction = compaction_result.message_reduction_percentage();
         let content = TitleFormat::action(format!("Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"));
-        self.writeln(content)?;
+        self.writeln(content).await?;
         Ok(())
     }
 
@@ -450,7 +459,8 @@ impl<F: API> UI<F> {
             // Update the UI state with the new model
             self.update_model(model.clone());
 
-            self.writeln(TitleFormat::action(format!("Switched to model: {model}")))?;
+            self.writeln(TitleFormat::action(format!("Switched to model: {model}")))
+                .await?;
         }
 
         Ok(())
@@ -528,6 +538,9 @@ impl<F: API> UI<F> {
 
     async fn on_message(&mut self, content: String) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
+        self.api
+            .set_buffer_state(Buffer { event: BufferEvent::Input, content: content.clone() })
+            .await?;
 
         // Create a ChatRequest with the appropriate event type
         let event = if self.state.is_first {
@@ -548,7 +561,7 @@ impl<F: API> UI<F> {
 
         while let Some(message) = stream.next().await {
             match message {
-                Ok(message) => self.handle_chat_response(message)?,
+                Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
                     self.spinner.stop(None)?;
                     return Err(err);
@@ -577,7 +590,8 @@ impl<F: API> UI<F> {
                         self.writeln(
                             TitleFormat::action("Conversation HTML dump created".to_string())
                                 .sub_title(path.to_string()),
-                        )?;
+                        )
+                        .await?;
                         return Ok(());
                     }
                 } else {
@@ -589,7 +603,8 @@ impl<F: API> UI<F> {
                     self.writeln(
                         TitleFormat::action("Conversation JSON dump created".to_string())
                             .sub_title(path.to_string()),
-                    )?;
+                    )
+                    .await?;
                 }
             } else {
                 return Err(anyhow::anyhow!("Could not create dump"))
@@ -599,7 +614,7 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
-    fn handle_chat_response(&mut self, message: AgentMessage<ChatResponse>) -> Result<()> {
+    async fn handle_chat_response(&mut self, message: AgentMessage<ChatResponse>) -> Result<()> {
         match message.message {
             ChatResponse::Text { mut text, is_complete, is_md, is_summary } => {
                 if is_complete && !text.trim().is_empty() {
@@ -608,7 +623,7 @@ impl<F: API> UI<F> {
                         text = self.markdown.render(&text);
                     }
 
-                    self.writeln(text)?;
+                    self.writeln(text).await?;
                 }
             }
             ChatResponse::ToolCallStart(_) => {

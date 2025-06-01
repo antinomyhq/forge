@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, EnvironmentService, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
+    Buffer, CommandOutput, EnvironmentService, JsonlIterator, McpServerConfig, ToolDefinition,
+    ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
 
@@ -142,6 +143,13 @@ pub trait McpServer: Send + Sync + 'static {
     async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
 }
 
+#[async_trait::async_trait]
+pub trait BufferService: Send + Sync + 'static {
+    /// Returns an iterator that yields Buffer items from JSONL format
+    async fn read(&self, path: &Path) -> anyhow::Result<JsonlIterator>;
+    async fn write(&self, path: &Path, buffer: Buffer) -> anyhow::Result<()>;
+}
+
 pub trait Infrastructure: Send + Sync + Clone + 'static {
     type EnvironmentService: EnvironmentService;
     type FsMetaService: FsMetaService;
@@ -153,6 +161,7 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     type CommandExecutorService: CommandExecutorService;
     type InquireService: InquireService;
     type McpServer: McpServer;
+    type BufferService: BufferService;
 
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn file_meta_service(&self) -> &Self::FsMetaService;
@@ -164,4 +173,5 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     fn command_executor_service(&self) -> &Self::CommandExecutorService;
     fn inquire_service(&self) -> &Self::InquireService;
     fn mcp_server(&self) -> &Self::McpServer;
+    fn buffer_service(&self) -> &Self::BufferService;
 }

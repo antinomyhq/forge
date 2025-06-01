@@ -114,8 +114,8 @@ pub mod tests {
     use base64::Engine;
     use bytes::Bytes;
     use forge_domain::{
-        AttachmentContent, AttachmentService, CommandOutput, Environment, EnvironmentService,
-        Provider, ToolDefinition, ToolName, ToolOutput,
+        AttachmentContent, AttachmentService, Buffer, CommandOutput, Environment,
+        EnvironmentService, JsonlIterator, Provider, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -123,9 +123,9 @@ pub mod tests {
     use crate::attachment::ForgeChatRequest;
     use crate::utils::AttachmentExtension;
     use crate::{
-        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
-        McpClient, McpServer,
+        BufferService, CommandExecutorService, FileRemoveService, FsCreateDirsService,
+        FsMetaService, FsReadService, FsSnapshotService, FsWriteService, Infrastructure,
+        InquireService, McpClient, McpServer,
     };
 
     #[derive(Debug)]
@@ -464,6 +464,17 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl BufferService for () {
+        async fn read(&self, _: &Path) -> anyhow::Result<JsonlIterator> {
+            unimplemented!()
+        }
+
+        async fn write(&self, _: &Path, _: Buffer) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
     impl InquireService for () {
         /// Prompts the user with question
         async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
@@ -509,6 +520,7 @@ pub mod tests {
         type CommandExecutorService = ();
         type InquireService = ();
         type McpServer = ();
+        type BufferService = ();
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
@@ -547,6 +559,10 @@ pub mod tests {
         }
 
         fn mcp_server(&self) -> &Self::McpServer {
+            &()
+        }
+
+        fn buffer_service(&self) -> &Self::BufferService {
             &()
         }
     }

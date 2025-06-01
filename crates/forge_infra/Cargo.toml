@@ -24,3 +24,5 @@ rmcp.workspace = true
 tracing.workspace = true
 backon.workspace = true
 thiserror.workspace = true
+forge_buffer.workspace = true
+futures.workspace = true

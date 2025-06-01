@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::{
-    Agent, Attachment, ChatCompletionMessage, CompactionResult, Context, Conversation,
+    Agent, Attachment, Buffer, ChatCompletionMessage, CompactionResult, Context, Conversation,
     ConversationId, Environment, File, McpConfig, Model, ModelId, ResultStream, Scope, Tool,
     ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
@@ -118,6 +118,15 @@ pub trait SuggestionService: Send + Sync {
     async fn suggestions(&self) -> anyhow::Result<Vec<File>>;
 }
 
+#[async_trait::async_trait]
+pub trait ConversationSessionManager: Send + Sync {
+    async fn load(&self) -> anyhow::Result<Conversation>;
+    async fn state(&self, n: usize) -> anyhow::Result<Vec<Buffer>>;
+    async fn buffer_update(&self, state: Buffer) -> anyhow::Result<()>;
+    async fn conversation_update(&self, conversation: &Conversation) -> anyhow::Result<()>;
+    async fn clear(&self) -> anyhow::Result<()>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -132,6 +141,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type WorkflowService: WorkflowService;
     type SuggestionService: SuggestionService;
     type McpConfigManager: McpConfigManager;
+    type ConversationSessionManager: ConversationSessionManager;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -143,4 +153,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn suggestion_service(&self) -> &Self::SuggestionService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
+    fn conversation_session_manager(&self) -> &Self::ConversationSessionManager;
 }

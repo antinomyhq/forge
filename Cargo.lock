@@ -1007,6 +1007,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_buffer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "forge_ci"
 version = "0.1.0"
 dependencies = [
@@ -1053,6 +1066,7 @@ dependencies = [
  "insta",
  "merge",
  "nom 8.0.0",
+ "pin-project",
  "pretty_assertions",
  "regex",
  "reqwest-eventsource",
@@ -1093,10 +1107,12 @@ dependencies = [
  "bytes",
  "dirs",
  "dotenv",
+ "forge_buffer",
  "forge_domain",
  "forge_fs",
  "forge_services",
  "forge_snaps",
+ "futures",
  "inquire",
  "pretty_assertions",
  "reqwest 0.12.12",

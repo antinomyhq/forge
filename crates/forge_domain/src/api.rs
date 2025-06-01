@@ -86,4 +86,16 @@ pub trait API: Sync + Send {
     /// user's home directory Local configuration is stored in the current
     /// project directory
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
+
+    /// Returns previous conversation for cwd
+    async fn restore_conversation(&self) -> Result<Conversation>;
+
+    /// Returns buffer state of last n conversations
+    async fn restore_buffer_state(&self, n: usize) -> Result<Vec<Buffer>>;
+
+    /// Adds state to the buffer
+    async fn set_buffer_state(&self, state: Buffer) -> Result<()>;
+
+    /// Clears buffer and convo for cwd
+    async fn clear_state(&self) -> Result<()>;
 }

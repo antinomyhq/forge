@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 regex.workspace = true
 anyhow.workspace = true
+pin-project.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
 derive_more.workspace = true

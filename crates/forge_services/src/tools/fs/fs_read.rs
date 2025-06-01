@@ -443,8 +443,8 @@ mod test {
             type FsSnapshotService = crate::attachment::tests::MockSnapService;
             type CommandExecutorService = ();
             type InquireService = ();
-
             type McpServer = ();
+            type BufferService = ();
 
             fn environment_service(&self) -> &Self::EnvironmentService {
                 self.inner.environment_service()
@@ -484,6 +484,10 @@ mod test {
 
             fn mcp_server(&self) -> &Self::McpServer {
                 self.inner.mcp_server()
+            }
+
+            fn buffer_service(&self) -> &Self::BufferService {
+                &()
             }
         }
 

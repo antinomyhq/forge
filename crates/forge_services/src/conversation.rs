@@ -4,33 +4,43 @@ use std::sync::Arc;
 use anyhow::{Context as AnyhowContext, Result};
 use forge_domain::{
     estimate_token_count, AgentId, CompactionResult, CompactionService, Conversation,
-    ConversationId, ConversationService, McpService, Workflow,
+    ConversationId, ConversationService, ConversationSessionManager, McpService, Workflow,
 };
 use tokio::sync::Mutex;
 
 /// Service for managing conversations, including creation, retrieval, and
 /// updates
 #[derive(Clone)]
-pub struct ForgeConversationService<C, M> {
+pub struct ForgeConversationService<C, M, Manager> {
     workflows: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
     compaction_service: Arc<C>,
     mcp_service: Arc<M>,
+    conversation_session_manager: Arc<Manager>,
 }
 
-impl<C: CompactionService, M: McpService> ForgeConversationService<C, M> {
+impl<C: CompactionService, M: McpService, Manager: ConversationSessionManager>
+    ForgeConversationService<C, M, Manager>
+{
     /// Creates a new ForgeConversationService with the provided compaction
     /// service
-    pub fn new(compaction_service: Arc<C>, mcp_service: Arc<M>) -> Self {
+    pub fn new(
+        compaction_service: Arc<C>,
+        mcp_service: Arc<M>,
+        conversation_session_manager: Arc<Manager>,
+    ) -> Self {
         Self {
             workflows: Arc::new(Mutex::new(HashMap::new())),
             compaction_service,
             mcp_service,
+            conversation_session_manager,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<C: CompactionService, M: McpService> ConversationService for ForgeConversationService<C, M> {
+impl<C: CompactionService, M: McpService, Manager: ConversationSessionManager> ConversationService
+    for ForgeConversationService<C, M, Manager>
+{
     async fn update<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
@@ -45,6 +55,10 @@ impl<C: CompactionService, M: McpService> ConversationService for ForgeConversat
     }
 
     async fn upsert(&self, conversation: Conversation) -> Result<()> {
+        self.conversation_session_manager
+            .conversation_update(&conversation)
+            .await?;
+
         self.workflows
             .lock()
             .await
@@ -64,10 +78,7 @@ impl<C: CompactionService, M: McpService> ConversationService for ForgeConversat
                 .map(|a| a.name)
                 .collect(),
         );
-        self.workflows
-            .lock()
-            .await
-            .insert(id.clone(), conversation.clone());
+        self.upsert(conversation.clone()).await?;
         Ok(conversation)
     }
 

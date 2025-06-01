@@ -152,4 +152,23 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .execute_command_raw(command)
             .await
     }
+
+    async fn restore_conversation(&self) -> Result<Conversation> {
+        self.app.conversation_session_manager().load().await
+    }
+
+    async fn restore_buffer_state(&self, n: usize) -> Result<Vec<Buffer>> {
+        self.app.conversation_session_manager().state(n).await
+    }
+
+    async fn set_buffer_state(&self, state: Buffer) -> Result<()> {
+        self.app
+            .conversation_session_manager()
+            .buffer_update(state)
+            .await
+    }
+
+    async fn clear_state(&self) -> Result<()> {
+        self.app.conversation_session_manager().clear().await
+    }
 }

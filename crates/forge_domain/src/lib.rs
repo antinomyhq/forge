@@ -7,6 +7,7 @@ mod compaction_result;
 mod conversation_html;
 mod update;
 
+mod buffer;
 mod context;
 mod conversation;
 mod env;
@@ -46,6 +47,7 @@ mod workflow;
 pub use agent::*;
 pub use api::*;
 pub use attachment::*;
+pub use buffer::*;
 pub use chat_request::*;
 pub use chat_response::*;
 pub use compaction_result::*;
