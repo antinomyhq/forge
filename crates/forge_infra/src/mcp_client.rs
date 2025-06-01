@@ -6,10 +6,10 @@ use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
 use forge_services::McpClient;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
-use rmcp::schemars::schema::RootSchema;
 use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceExt};
+use schemars::Schema;
 use serde_json::Value;
 use tokio::process::Command;
 
@@ -98,10 +98,8 @@ impl ForgeMcpClient {
                     ToolDefinition::new(tool.name)
                         .description(tool.description.unwrap_or_default())
                         .input_schema(
-                            serde_json::from_value::<RootSchema>(Value::Object(
-                                tool.input_schema.as_ref().clone(),
-                            ))
-                            .ok()?,
+                            Schema::try_from(Value::Object(tool.input_schema.as_ref().clone()))
+                                .ok()?,
                         ),
                 )
             })

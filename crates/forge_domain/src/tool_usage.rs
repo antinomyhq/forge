@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Display;
 
-use schemars::schema::{InstanceType, SingleOrVec};
 use serde::Serialize;
 
 use crate::ToolDefinition;
@@ -19,43 +18,50 @@ impl<'a> From<&'a Vec<ToolDefinition>> for ToolUsagePrompt<'a> {
 impl Display for ToolUsagePrompt<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for tool in self.tools.iter() {
-            let required = tool
-                .input_schema
-                .schema
-                .clone()
-                .object
+            // Get the schema as an object
+            let schema_obj = match tool.input_schema.as_object() {
+                Some(obj) => obj,
+                None => continue, // Skip if not an object schema
+            };
+
+            // Extract required fields
+            let required = schema_obj
+                .get("required")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect::<HashSet<_>>()
+                })
+                .unwrap_or_default();
+
+            // Extract properties
+            let empty_map = serde_json::Map::new();
+            let properties = schema_obj
+                .get("properties")
+                .and_then(|v| v.as_object())
+                .unwrap_or(&empty_map);
+
+            let parameters = properties
                 .iter()
-                .flat_map(|object| object.required.clone().into_iter())
-                .collect::<HashSet<_>>();
+                .filter_map(|(name, prop_schema)| {
+                    let prop_obj = prop_schema.as_object()?;
 
-            let parameters = tool
-                .input_schema
-                .schema
-                .object
-                .clone()
-                .into_iter()
-                .flat_map(|object| object.properties.into_iter())
-                .flat_map(|(name, props)| {
-                    let object = props.into_object();
-                    let instance = object.instance_type.clone();
-                    object
-                        .metadata
-                        .into_iter()
-                        .map(move |meta| (name.clone(), meta, instance.clone()))
-                })
-                .flat_map(|(name, meta, instance)| {
-                    meta.description
-                        .into_iter()
-                        .map(move |desc| (name.clone(), desc, instance.clone()))
-                })
-                .map(|(name, desc, instance)| {
-                    let parameter = Parameter {
-                        description: desc,
-                        type_of: instance,
-                        is_required: required.contains(&name),
-                    };
+                    // Extract description
+                    let description = prop_obj
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
 
-                    (name, parameter)
+                    // Extract type information
+                    let type_of = prop_obj.get("type").cloned();
+
+                    let parameter =
+                        Parameter { description, type_of, is_required: required.contains(name) };
+
+                    Some((name.clone(), parameter))
                 })
                 .collect::<BTreeMap<_, _>>();
 
@@ -83,7 +89,7 @@ struct Schema {
 struct Parameter {
     description: String,
     #[serde(rename = "type")]
-    type_of: Option<SingleOrVec<InstanceType>>,
+    type_of: Option<serde_json::Value>,
     is_required: bool,
 }
 
