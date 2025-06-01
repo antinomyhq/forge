@@ -443,6 +443,7 @@ mod test {
             type FsSnapshotService = crate::attachment::tests::MockSnapService;
             type CommandExecutorService = ();
             type InquireService = ();
+            type IndexerService = ();
 
             type McpServer = ();
 
@@ -484,6 +485,10 @@ mod test {
 
             fn mcp_server(&self) -> &Self::McpServer {
                 self.inner.mcp_server()
+            }
+
+            fn indexer_service(&self) -> &Self::IndexerService {
+                self.inner.indexer_service()
             }
         }
 

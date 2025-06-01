@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use forge_api::{Model, Workflow};
 use strum::{EnumProperty, IntoEnumIterator};
-use strum_macros::{EnumIter, EnumProperty};
+use strum_macros::EnumIter;
 
 use crate::info::Info;
 use crate::ui::PartialEvent;
@@ -182,6 +182,7 @@ impl ForgeCommandManager {
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
+            "/index" => Ok(Command::Index),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -210,7 +211,7 @@ impl ForgeCommandManager {
 /// - System commands (starting with '/')
 /// - Regular chat messages
 /// - File content
-#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, EnumIter)]
+#[derive(Debug, Clone, PartialEq, Eq, strum_macros::EnumProperty, EnumIter)]
 pub enum Command {
     /// Compact the conversation context. This can be triggered with the
     /// '/compact' command.
@@ -257,6 +258,10 @@ pub enum Command {
     /// This can be triggered with the '/tools' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
     Tools,
+    /// Index the current codebase for semantic search
+    /// This can be triggered with the '/index' command.
+    #[strum(props(usage = "Index the current codebase for semantic search"))]
+    Index,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
     /// Executes a native shell command.
@@ -280,6 +285,7 @@ impl Command {
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
             Command::Tools => "/tools",
+            Command::Index => "/index",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
         }

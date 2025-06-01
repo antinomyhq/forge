@@ -61,7 +61,7 @@ pub struct UI<F> {
     _guard: forge_tracker::Guard,
 }
 
-impl<F: API> UI<F> {
+impl<F: API + 'static> UI<F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -345,6 +345,14 @@ impl<F: API> UI<F> {
 
                 let output = format_tools(&tools);
                 self.writeln(output)?;
+            }
+            Command::Index => {
+                self.spinner.start(Some("Indexing codebase"))?;
+                let cwd = self.api.environment().cwd.clone();
+                self.api.index(&cwd).await?;
+                self.writeln(TitleFormat::action(
+                    "Codebase indexing completed successfully",
+                ))?;
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;

@@ -139,6 +139,7 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     type CommandExecutorService = F::CommandExecutorService;
     type InquireService = F::InquireService;
     type McpServer = F::McpServer;
+    type IndexerService = F::IndexerService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
@@ -178,5 +179,9 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
 
     fn mcp_server(&self) -> &Self::McpServer {
         self.infra.mcp_server()
+    }
+
+    fn indexer_service(&self) -> &Self::IndexerService {
+        self.infra.indexer_service()
     }
 }

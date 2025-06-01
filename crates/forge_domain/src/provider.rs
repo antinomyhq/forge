@@ -65,6 +65,13 @@ impl Provider {
         }
     }
 
+    pub fn url(&self) -> &Url {
+        match self {
+            Provider::OpenAI { url, .. } => url,
+            Provider::Anthropic { url, .. } => url,
+        }
+    }
+
     pub fn key(&self) -> Option<&str> {
         match self {
             Provider::OpenAI { key, .. } => key.as_deref(),
