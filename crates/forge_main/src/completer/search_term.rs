@@ -24,18 +24,38 @@ impl SearchTerm {
     pub fn process(&self) -> Option<TermResult<'_>> {
         // Get all the indexes of the '@' chars
         // Get all chars between @ and the cursor
-        self.line
-            .chars()
+        let char_indices: Vec<(usize, char)> = self.line.char_indices().collect();
+
+        // Find cursor position in char indices
+        let cursor_char_pos = char_indices
+            .iter()
+            .position(|(byte_idx, _)| *byte_idx >= self.position)
+            .unwrap_or(char_indices.len());
+
+        char_indices
+            .iter()
             .enumerate()
-            .filter(|(_, c)| *c == '@')
-            .map(|(i, _)| i)
-            .filter(|at| *at < self.position)
-            .max_by(|a, b| a.cmp(b))
-            .map(|at| TermResult {
-                span: Span::new(at + 1, self.position),
-                term: &self.line[at + 1..self.position],
+            .filter(|(_, (_, c))| *c == '@')
+            .map(|(char_pos, (byte_idx, _))| (char_pos, *byte_idx))
+            .filter(|(char_pos, _)| *char_pos < cursor_char_pos)
+            .max_by(|a, b| a.0.cmp(&b.0))
+            .and_then(|(char_pos, _)| {
+                // Find the byte index after '@' character
+                let start_byte_idx = char_indices.get(char_pos + 1)?.0;
+                // Find the byte index at cursor position
+                let end_byte_idx = if cursor_char_pos < char_indices.len() {
+                    char_indices[cursor_char_pos].0
+                } else {
+                    self.line.len()
+                };
+
+                let term = &self.line[start_byte_idx..end_byte_idx];
+                if term.contains(" ") {
+                    None
+                } else {
+                    Some(TermResult { span: Span::new(start_byte_idx, end_byte_idx), term })
+                }
             })
-            .filter(|s| !s.term.contains(" "))
     }
 }
 
