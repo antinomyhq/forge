@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::bail;
-use forge_domain::{AuthService, InitAuth, KeyService, Provider, ProviderUrl, RetryConfig};
+use forge_domain::{InitAuth, Provider, ProviderUrl, RetryConfig};
 
-use crate::{HttpService, Infrastructure, ProviderService};
+use crate::{AuthService, HttpService, Infrastructure, KeyService, ProviderService};
 
 const TOKEN_POLL_ROUTE: &str = "cli/auth/token/";
 const AUTH_INIT_ROUTE: &str = "cli/auth/init";

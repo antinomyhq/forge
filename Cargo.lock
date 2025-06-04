@@ -944,47 +944,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "forge"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.22.1",
- "chrono",
- "clap",
- "colored 3.0.0",
- "convert_case",
- "derive_setters",
- "forge_api",
- "forge_display",
- "forge_domain",
- "forge_fs",
- "forge_snaps",
- "forge_spinner",
- "forge_tracker",
- "forge_walker",
- "inquire",
- "insta",
- "lazy_static",
- "merge",
- "nu-ansi-term 0.50.1",
- "open",
- "pretty_assertions",
- "reedline",
- "serde",
- "serde_json",
- "serde_yml",
- "strum 0.27.1",
- "strum_macros 0.27.1",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "update-informer",
-]
-
-[[package]]
 name = "forge_api"
 version = "0.1.0"
 dependencies = [
@@ -997,6 +956,7 @@ dependencies = [
  "forge_snaps",
  "forge_stream",
  "forge_walker",
+ "futures",
  "insta",
  "merge",
  "serde",
@@ -1052,6 +1012,7 @@ dependencies = [
  "forge_template",
  "forge_walker",
  "futures",
+ "handlebars",
  "insta",
  "merge",
  "nom 8.0.0",
@@ -1059,6 +1020,7 @@ dependencies = [
  "regex",
  "reqwest 0.12.12",
  "reqwest-eventsource",
+ "rust-embed",
  "schemars",
  "serde",
  "serde_json",
@@ -1129,6 +1091,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_main"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "clap",
+ "colored 3.0.0",
+ "convert_case",
+ "derive_setters",
+ "forge_api",
+ "forge_display",
+ "forge_domain",
+ "forge_fs",
+ "forge_snaps",
+ "forge_spinner",
+ "forge_tracker",
+ "forge_walker",
+ "inquire",
+ "insta",
+ "lazy_static",
+ "merge",
+ "nu-ansi-term 0.50.1",
+ "open",
+ "pretty_assertions",
+ "reedline",
+ "serde",
+ "serde_json",
+ "serde_yml",
+ "strum 0.27.1",
+ "strum_macros 0.27.1",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "update-informer",
+]
+
+[[package]]
 name = "forge_provider"
 version = "0.1.0"
 dependencies = [
@@ -1158,6 +1161,7 @@ name = "forge_services"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-recursion",
  "async-trait",
  "backon",
  "base64 0.22.1",

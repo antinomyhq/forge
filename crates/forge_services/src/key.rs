@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use forge_domain::{ConfigService, ForgeKey, KeyService};
+use forge_domain::ForgeKey;
 use tokio::sync::Mutex;
+
+use crate::{ConfigService, KeyService};
 
 pub struct ForgeKeyService<C> {
     config_service: Arc<C>,

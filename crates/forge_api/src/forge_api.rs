@@ -4,7 +4,11 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{AttachmentService, ChatService, CommandExecutorService, ConversationService, EnvironmentService, ForgeServices, Infrastructure, McpConfigManager, ProviderService, Services, SuggestionService, ToolService, WorkflowService};
+use forge_services::{
+    AttachmentService, AuthService, ChatService, CommandExecutorService, ConversationService,
+    EnvironmentService, ForgeServices, Infrastructure, KeyService, McpConfigManager,
+    ProviderService, Services, SuggestionService, ToolService, WorkflowService,
+};
 use forge_stream::MpscStream;
 use tracing::error;
 
@@ -54,7 +58,7 @@ impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
             .expect("conversation for the request should've been created at this point.");
 
         let tool_definitions = app.tool_service().list().await?;
-        let models = app.provider_service().models().await?;
+        let models = app.chat_service().models().await?;
 
         // Always try to get attachments and overwrite them
         let attachments = app
@@ -198,7 +202,7 @@ impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
         self.app.key_service().get().await
     }
     fn provider(&self, key: Option<ForgeKey>) -> Result<Provider> {
-        self.app
+        self.infra
             .provider_service()
             .get(key)
             .context("User isn't logged in")

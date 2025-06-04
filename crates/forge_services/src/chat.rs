@@ -2,31 +2,34 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_domain::{
-    ChatCompletionMessage, ChatService, Context as ChatContext, EnvironmentService, ForgeKey,
-    KeyService, Model, ModelId, Provider, ResultStream,
+    ChatCompletionMessage, Context as ChatContext, ForgeKey, Model, ModelId, Provider,
+    ResultStream, RetryConfig,
 };
 use forge_provider::Client;
 use tokio::sync::RwLock;
 
-use crate::{Infrastructure, ProviderService};
+use crate::{ChatService, EnvironmentService, Infrastructure, KeyService, ProviderService};
 
 #[derive(Clone)]
 pub struct ForgeProviderService<I, K> {
     infra: Arc<I>,
     key_service: Arc<K>,
-    retry_status_codes: Arc<Vec<u16>>,
+    retry_config: Arc<RetryConfig>,
     cached_client: Arc<RwLock<Option<Client>>>,
+    version: String,
 }
 
 impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
     pub fn new(infra: Arc<I>, key_service: Arc<K>) -> Self {
         let env = infra.environment_service().get_environment();
-        let retry_status_codes = Arc::new(env.retry_config.retry_status_codes);
+        let version = env.version();
+        let retry_config = Arc::new(env.retry_config);
         Self {
             key_service,
             infra,
-            retry_status_codes,
+            retry_config,
             cached_client: Arc::new(RwLock::new(None)),
+            version,
         }
     }
     async fn key(&self) -> Result<ForgeKey> {
@@ -56,7 +59,7 @@ impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
 
         // Client doesn't exist, create new one
         let provider = self.provider().await?;
-        let client = Client::new(provider, self.retry_status_codes.clone())?;
+        let client = Client::new(provider, self.retry_config.clone(), &self.version)?;
 
         // Cache the new client
         {
@@ -87,11 +90,5 @@ impl<K: KeyService, I: Infrastructure> ChatService for ForgeProviderService<I, K
         let client = self.client().await?;
 
         client.models().await
-    }
-
-    async fn model(&self, model: &ModelId) -> Result<Option<Model>> {
-        let client = self.client().await?;
-
-        client.model(model).await
     }
 }

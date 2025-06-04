@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use forge_domain::{
-    ChatCompletionMessage, ChatService, Context, Model, ModelId, Provider, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
 use reqwest::redirect::Policy;
 use tokio::sync::RwLock;
@@ -30,7 +30,7 @@ enum InnerClient {
 impl Client {
     pub fn new(
         provider: Provider,
-        retry_config: RetryConfig,
+        retry_config: Arc<RetryConfig>,
         version: impl ToString,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
@@ -65,7 +65,7 @@ impl Client {
 
         Ok(Self {
             inner: Arc::new(inner),
-            retry_config: Arc::new(retry_config),
+            retry_config,
             models_cache: Arc::new(RwLock::new(HashMap::new())),
         })
     }
@@ -144,7 +144,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, RetryConfig::default(), "dev").unwrap();
+        let client = Client::new(provider, Arc::new(RetryConfig::default()), "dev").unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -157,7 +157,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, RetryConfig::default(), "dev").unwrap();
+        let client = Client::new(provider, Arc::new(RetryConfig::default()), "dev").unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)

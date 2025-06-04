@@ -3,7 +3,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_domain::{CommandOutput, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response, RetryConfig, ToolDefinition, ToolName, ToolOutput};
+use forge_domain::{
+    CommandOutput, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response, RetryConfig,
+    ToolDefinition, ToolName, ToolOutput,
+};
 use forge_snaps::Snapshot;
 
 use crate::services::EnvironmentService;

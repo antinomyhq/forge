@@ -9,7 +9,6 @@ mod infra;
 mod key;
 mod mcp;
 mod metadata;
-mod provider;
 mod services;
 mod suggestion;
 mod template;

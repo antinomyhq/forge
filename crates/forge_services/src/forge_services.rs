@@ -4,23 +4,21 @@ use forge_domain::{Agent, AgentService};
 
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
+use crate::chat::ForgeProviderService;
 use crate::config::ForgeConfigService;
 use crate::conversation::ForgeConversationService;
 use crate::key::ForgeKeyService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
-use crate::provider::ForgeProviderService;
 use crate::services::{Services, ToolService};
 use crate::suggestion::ForgeSuggestionService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::workflow::ForgeWorkflowService;
-use crate::Infrastructure;
+use crate::{ChatService, Infrastructure};
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F>;
 type AuthService<F> = ForgeAuthService<F, KeyService<F>>;
 type KeyService<F> = ForgeKeyService<ForgeConfigService<F>>;
-type ChatService<F> = ForgeProviderService;
-type ConversationService<F> = ForgeConversationService<McpService<F>>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -32,8 +30,7 @@ type ConversationService<F> = ForgeConversationService<McpService<F>>;
 pub struct ForgeServices<F> {
     infra: Arc<F>,
     tool_service: Arc<ForgeToolService<McpService<F>>>,
-    chat_service: Arc<ChatService<F>>,
-    provider_service: Arc<ForgeProviderService>,
+    chat_service: Arc<ForgeProviderService<F, KeyService<F>>>,
     conversation_service: Arc<ForgeConversationService<McpService<F>>>,
     template_service: Arc<ForgeTemplateService>,
     attachment_service: Arc<ForgeChatRequest<F>>,
@@ -55,7 +52,6 @@ impl<F: Infrastructure> ForgeServices<F> {
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeSuggestionService::new(infra.clone()));
-        let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
 
         let conversation_service = Arc::new(ForgeConversationService::new(mcp_service));
 
@@ -72,7 +68,6 @@ impl<F: Infrastructure> ForgeServices<F> {
             conversation_service,
             tool_service,
             attachment_service,
-            provider_service,
             template_service,
             workflow_service,
             suggestion_service,
@@ -87,7 +82,7 @@ impl<F: Infrastructure> ForgeServices<F> {
 
 impl<F: Infrastructure> Services for ForgeServices<F> {
     type ToolService = ForgeToolService<McpService<F>>;
-    type ChatService = ChatService<F>;
+    type ChatService = ForgeProviderService<F, Self::KeyService>;
     type ConversationService = ForgeConversationService<McpService<F>>;
     type TemplateService = ForgeTemplateService;
     type AttachmentService = ForgeChatRequest<F>;
@@ -217,7 +212,7 @@ impl<F: Infrastructure> AgentService for ForgeServices<F> {
         model_id: &forge_domain::ModelId,
         context: forge_domain::Context,
     ) -> forge_domain::ResultStream<forge_domain::ChatCompletionMessage, anyhow::Error> {
-        self.provider_service().chat(model_id, context).await
+        self.chat_service().chat(model_id, context).await
     }
 
     async fn call(
