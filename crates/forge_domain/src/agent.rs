@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use merge::Merge;
@@ -10,8 +8,8 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, Error, Event, EventContext, ModelId, Result, SystemContext, ToolDefinition, ToolName,
-    TopK, TopP,
+    Context, Error, EventContext, ModelId, Result, SystemContext, ToolDefinition, ToolName, TopK,
+    TopP,
 };
 
 // Unique identifier for an agent
@@ -76,12 +74,6 @@ pub struct Agent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub user_prompt: Option<Template<EventContext>>,
-
-    /// Suggests if the agent needs to maintain its state for the lifetime of
-    /// the program.    
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = crate::merge::option)]
-    pub ephemeral: Option<bool>,
 
     /// Tools that the agent can use    
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -176,7 +168,6 @@ impl Agent {
             description: None,
             system_prompt: None,
             user_prompt: None,
-            ephemeral: None,
             tools: None,
             // transforms field removed
             subscribe: None,
@@ -206,30 +197,6 @@ impl Agent {
         } else {
             false
         }
-    }
-
-    pub fn init_context(
-        &self,
-        mut forge_tools: Vec<ToolDefinition>,
-        tool_supported: bool,
-    ) -> Result<Context> {
-        let allowed = self.tools.iter().flatten().collect::<HashSet<_>>();
-
-        // Adding Event tool to the list of tool definitions
-        forge_tools.push(Event::tool_definition());
-
-        let tool_defs = forge_tools
-            .into_iter()
-            .filter(|tool| allowed.contains(&tool.name))
-            .collect::<Vec<_>>();
-
-        let context = Context::default();
-
-        Ok(context.extend_tools(if tool_supported {
-            tool_defs
-        } else {
-            Vec::new()
-        }))
     }
 }
 
@@ -328,15 +295,6 @@ mod tests {
         let other = Agent::new("Other").disable(true);
         base.merge(other);
         assert_eq!(base.disable, Some(true));
-    }
-
-    #[test]
-    fn test_merge_ephemeral_flag() {
-        // Test ephemeral flag with option strategy
-        let mut base = Agent::new("Base").ephemeral(true);
-        let other = Agent::new("Other").ephemeral(false);
-        base.merge(other);
-        assert_eq!(base.ephemeral, Some(false));
     }
 
     #[test]
