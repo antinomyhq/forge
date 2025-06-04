@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use forge_domain::{Environment, RetryConfig};
+use forge_services::EnvironmentService;
 
 pub struct ForgeEnvironmentService {
     restricted: bool,
@@ -114,7 +115,7 @@ impl ForgeEnvironmentService {
     }
 }
 
-impl forge_domain::EnvironmentService for ForgeEnvironmentService {
+impl EnvironmentService for ForgeEnvironmentService {
     fn get_environment(&self) -> Environment {
         self.get()
     }

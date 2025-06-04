@@ -5,13 +5,14 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSPatchInput, NamedTool, PatchOperation, ToolCallContext,
-    ToolDescription, ToolName, ToolOutput,
+    ExecutableTool, FSPatchInput, NamedTool, PatchOperation, ToolCallContext, ToolDescription,
+    ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use thiserror::Error;
 use tokio::fs;
 
+use crate::services::EnvironmentService;
 // No longer using dissimilar for fuzzy matching
 use crate::tools::syn;
 use crate::utils::{assert_absolute_path, format_display_path};
@@ -210,7 +211,7 @@ impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         patch: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&patch.path);

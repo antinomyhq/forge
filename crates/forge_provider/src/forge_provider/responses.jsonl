@@ -1,6 +1,7 @@
 {"error": {"code": "ERR_STREAM_PREMATURE_CLOSE"}}
 {"error": {"errno": -104, "code": "ECONNRESET", "syscall": "read"}}
 {"error": {"errno": -110, "code": "ETIMEDOUT", "syscall": "read"}}
+{"error": {"error": {"code": "ERR_STREAM_PREMATURE_CLOSE"}}}
 {"error": {"error": {"message": "Provider returned error", "code": 400, "metadata": {"raw": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"input length and `max_tokens` exceed context limit: MIN + MAX > 200000, decrease input length or `max_tokens` and try again\"}}", "provider_name": "Google"}}, "code": 400}}
 {"error": {"error": {"message": "Provider returned error", "code": 413, "metadata": {"raw": "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Prompt is too long\"}}", "provider_name": "Google"}}, "code": 413}}
 {"error": {"error": {"message": "Provider returned error", "code": 503, "metadata": {"raw": "{\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"The service is currently unavailable.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n", "provider_name": "Google AI Studio"}}, "code": 503}}

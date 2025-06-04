@@ -145,11 +145,6 @@ impl Context {
         self
     }
 
-    pub fn extend_tools(mut self, tools: Vec<impl Into<ToolDefinition>>) -> Self {
-        self.tools.extend(tools.into_iter().map(Into::into));
-        self
-    }
-
     pub fn add_tool_results(mut self, results: Vec<ToolResult>) -> Self {
         if !results.is_empty() {
             debug!(results = ?results, "Adding tool results to context");

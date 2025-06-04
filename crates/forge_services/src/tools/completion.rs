@@ -1,8 +1,8 @@
 use anyhow::Result;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput};
+use forge_domain::{
+    AttemptCompletionInput, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput,
+};
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 /// After each tool use, the user will respond with the result of
 /// that tool use, i.e. if it succeeded or failed, along with any reasons for
@@ -25,19 +25,11 @@ impl NamedTool for Completion {
     }
 }
 
-#[derive(Deserialize, JsonSchema)]
-pub struct AttemptCompletionInput {
-    /// The result of the task. Formulate this result in a way that is final and
-    /// does not require further input from the user. Don't end your result with
-    /// questions or offers for further assistance.
-    result: String,
-}
-
 #[async_trait::async_trait]
 impl ExecutableTool for Completion {
     type Input = AttemptCompletionInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> Result<ToolOutput> {
+    async fn call(&self, context: &mut ToolCallContext, input: Self::Input) -> Result<ToolOutput> {
         // Log the completion event
         context.send_summary(input.result.clone()).await?;
 
@@ -45,7 +37,9 @@ impl ExecutableTool for Completion {
         context.set_complete().await;
 
         // Return success with the message
-        Ok(ToolOutput::text(input.result))
+        Ok(ToolOutput::text(
+            "[Task was completed successfully. Now wait for user feedback]".to_string(),
+        ))
     }
 }
 
@@ -60,18 +54,20 @@ mod tests {
     async fn test_attempt_completion() {
         // Create fixture
         let tool = Completion;
-        let input =
-            AttemptCompletionInput { result: "All required features implemented".to_string() };
+        let input = AttemptCompletionInput {
+            result: "All required features implemented".to_string(),
+            explanation: None,
+        };
 
         // Execute the fixture
         let actual = tool
-            .call(ToolCallContext::default(), input)
+            .call(&mut ToolCallContext::default(), input)
             .await
             .unwrap()
             .into_string();
 
         // Define expected result
-        let expected = "All required features implemented";
+        let expected = "[Task was completed successfully. Now wait for user feedback]";
 
         // Assert that the actual result matches the expected result
         assert_eq!(actual, expected);

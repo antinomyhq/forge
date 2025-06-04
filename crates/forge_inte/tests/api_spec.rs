@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use forge_api::ForgeAPI;
-use forge_domain::{AgentMessage, ChatRequest, ChatResponse, Event, ModelId, API};
+use forge_domain::{ChatRequest, ChatResponse, Event, ModelId, API};
 use forge_tracker::Tracker;
 use tokio_stream::StreamExt;
 
@@ -67,7 +67,7 @@ impl Fixture {
             .with_context(|| "Failed to initialize chat")
             .unwrap()
             .filter_map(|message| match message.unwrap() {
-                AgentMessage { message: ChatResponse::Text { text, .. }, .. } => Some(text),
+                ChatResponse::Text { text, .. } => Some(text),
                 _ => None,
             })
             .collect::<Vec<_>>()

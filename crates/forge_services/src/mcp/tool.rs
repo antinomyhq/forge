@@ -22,7 +22,7 @@ impl<T: McpClient> ExecutableTool for McpExecutor<T> {
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         context

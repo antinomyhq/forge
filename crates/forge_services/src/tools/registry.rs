@@ -43,18 +43,13 @@ pub mod tests {
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
-    use forge_domain::{
-        AuthService, CommandOutput, Environment, EnvironmentService, InitAuth, ToolDefinition,
-        ToolName, ToolOutput,
-    };
+    use forge_domain::{CommandOutput, Environment, InitAuth, Provider, ToolDefinition, ToolName, ToolOutput};
     use forge_snaps::Snapshot;
     use serde_json::Value;
 
     use super::*;
-    use crate::{
-        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
-    };
+    use crate::services::EnvironmentService;
+    use crate::{AuthService, CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService, FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer};
 
     /// Create a default test environment
     fn stub() -> Stub {

@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput};
+use forge_domain::{
+    ExecutableTool, NamedTool, SelectInput, ToolCallContext, ToolDescription, ToolOutput,
+};
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::infra::InquireService;
 use crate::Infrastructure;
@@ -30,38 +30,11 @@ impl<F: Infrastructure> NamedTool for Followup<F> {
     }
 }
 
-/// Input for the select tool
-#[derive(Deserialize, JsonSchema)]
-pub struct SelectInput {
-    /// Question to ask the user
-    pub question: String,
-
-    /// First option to choose from
-    pub option1: Option<String>,
-
-    /// Second option to choose from
-    pub option2: Option<String>,
-
-    /// Third option to choose from
-    pub option3: Option<String>,
-
-    /// Fourth option to choose from
-    pub option4: Option<String>,
-
-    /// Fifth option to choose from
-    pub option5: Option<String>,
-
-    /// If true, allows selecting multiple options; if false (default), only one
-    /// option can be selected
-    #[schemars(default)]
-    pub multiple: Option<bool>,
-}
-
 #[async_trait::async_trait]
 impl<F: Infrastructure> ExecutableTool for Followup<F> {
     type Input = SelectInput;
 
-    async fn call(&self, context: ToolCallContext, input: Self::Input) -> Result<ToolOutput> {
+    async fn call(&self, context: &mut ToolCallContext, input: Self::Input) -> Result<ToolOutput> {
         let options = vec![
             input.option1,
             input.option2,

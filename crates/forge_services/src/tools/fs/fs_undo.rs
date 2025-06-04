@@ -3,14 +3,12 @@ use std::sync::Arc;
 
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
-    ToolOutput,
+    ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName, ToolOutput, UndoInput,
 };
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::infra::FsSnapshotService;
+use crate::services::EnvironmentService;
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
 
@@ -48,22 +46,12 @@ impl<F> NamedTool for FsUndo<F> {
     }
 }
 
-#[derive(Deserialize, JsonSchema)]
-pub struct UndoInput {
-    /// The absolute path of the file to revert to its previous state. Must be
-    /// the exact path that was previously modified, created, or deleted by
-    /// a Forge file operation. If the file was deleted, provide the
-    /// original path it had before deletion. The system requires a prior
-    /// snapshot for this path.
-    pub path: String,
-}
-
 #[async_trait::async_trait]
 impl<F: Infrastructure> ExecutableTool for FsUndo<F> {
     type Input = UndoInput;
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
@@ -105,8 +93,11 @@ mod tests {
         // Act
         let result = undo
             .call(
-                ToolCallContext::default(),
-                UndoInput { path: test_path.to_string_lossy().to_string() },
+                &mut ToolCallContext::default(),
+                UndoInput {
+                    path: test_path.to_string_lossy().to_string(),
+                    explanation: None,
+                },
             )
             .await;
 
@@ -117,7 +108,7 @@ mod tests {
             ToolOutput::text(format!(
                 "Successfully undid last operation on path: {}",
                 test_path.display()
-            )),
+            ),),
             "Unexpected success message"
         );
     }

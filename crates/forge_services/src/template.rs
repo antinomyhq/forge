@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use forge_domain::TemplateService;
 use handlebars::Handlebars;
 use rust_embed::Embed;
+
+use crate::services::TemplateService;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]

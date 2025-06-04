@@ -88,7 +88,7 @@ impl Clipper {
     ///
     /// # Returns
     /// A TruncationResult containing the truncated content
-    pub fn clip<'a>(self, content: &'a str) -> ClipperResult<'a> {
+    pub fn clip(self, content: &str) -> ClipperResult {
         // If content is empty, return as is
         if content.is_empty() {
             return ClipperResult { prefix: None, suffix: None, actual: content };

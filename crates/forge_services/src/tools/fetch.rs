@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use forge_display::TitleFormat;
-use forge_domain::{ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput};
+use forge_domain::{
+    ExecutableTool, FetchInput, NamedTool, ToolCallContext, ToolDescription, ToolOutput,
+};
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
-use schemars::JsonSchema;
-use serde::Deserialize;
 
 use crate::clipper::Clipper;
 use crate::metadata::Metadata;
@@ -39,19 +39,6 @@ impl<F: Infrastructure> Fetch<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { client: Client::new(), infra }
     }
-}
-
-fn default_raw() -> Option<bool> {
-    Some(false)
-}
-
-#[derive(Deserialize, JsonSchema)]
-pub struct FetchInput {
-    /// URL to fetch
-    url: String,
-    /// Get raw content without any markdown conversion (default: false)
-    #[serde(default = "default_raw")]
-    raw: Option<bool>,
 }
 
 impl<F: Infrastructure> Fetch<F> {
@@ -153,14 +140,14 @@ impl<F: Infrastructure> ExecutableTool for Fetch<F> {
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         let url = Url::parse(&input.url)
             .with_context(|| format!("Failed to parse URL: {}", input.url))?;
 
         let (content, prefix) = self
-            .fetch_url(&url, &context, input.raw.unwrap_or(false))
+            .fetch_url(&url, context, input.raw.unwrap_or(false))
             .await?;
 
         let original_length = content.len();
@@ -277,10 +264,14 @@ mod tests {
             .with_body("User-agent: *\nAllow: /")
             .create();
 
-        let input = FetchInput { url: format!("{}/test.html", server.url()), raw: Some(false) };
+        let input = FetchInput {
+            url: format!("{}/test.html", server.url()),
+            raw: Some(false),
+            explanation: None,
+        };
 
         let result = fetch
-            .call(ToolCallContext::default(), input)
+            .call(&mut ToolCallContext::default(), input)
             .await
             .unwrap()
             .into_string();
@@ -307,10 +298,14 @@ mod tests {
             .with_body("User-agent: *\nAllow: /")
             .create();
 
-        let input = FetchInput { url: format!("{}/test.txt", server.url()), raw: Some(true) };
+        let input = FetchInput {
+            url: format!("{}/test.txt", server.url()),
+            raw: Some(true),
+            explanation: None,
+        };
 
         let result = fetch
-            .call(ToolCallContext::default(), input)
+            .call(&mut ToolCallContext::default(), input)
             .await
             .unwrap()
             .into_string();
@@ -338,9 +333,13 @@ mod tests {
             .with_body("<html><body>Test page</body></html>")
             .create();
 
-        let input = FetchInput { url: format!("{}/test/page.html", server.url()), raw: None };
+        let input = FetchInput {
+            url: format!("{}/test/page.html", server.url()),
+            raw: None,
+            explanation: None,
+        };
 
-        let result = fetch.call(ToolCallContext::default(), input).await;
+        let result = fetch.call(&mut ToolCallContext::default(), input).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -369,10 +368,14 @@ mod tests {
             .create();
 
         // First page
-        let input = FetchInput { url: format!("{}/long.txt", server.url()), raw: Some(true) };
+        let input = FetchInput {
+            url: format!("{}/long.txt", server.url()),
+            raw: Some(true),
+            explanation: None,
+        };
 
         let result = fetch
-            .call(ToolCallContext::default(), input)
+            .call(&mut ToolCallContext::default(), input)
             .await
             .unwrap()
             .into_string();
@@ -408,10 +411,14 @@ mod tests {
             .with_body("User-agent: *\nAllow: /")
             .create();
 
-        let input = FetchInput { url: format!("{}/large.txt", server.url()), raw: Some(true) };
+        let input = FetchInput {
+            url: format!("{}/large.txt", server.url()),
+            raw: Some(true),
+            explanation: None,
+        };
 
         // Execute the fetch
-        let context = ToolCallContext::default();
+        let context = &mut ToolCallContext::default();
         let result: String = fetch.call(context, input).await.unwrap().into_string();
 
         // For testing purposes, we can modify the result to simulate the truncation
@@ -449,9 +456,13 @@ mod tests {
         };
         let rt = Runtime::new().unwrap();
 
-        let input = FetchInput { url: "not a valid url".to_string(), raw: None };
+        let input = FetchInput {
+            url: "not a valid url".to_string(),
+            raw: None,
+            explanation: None,
+        };
 
-        let result = rt.block_on(fetch.call(ToolCallContext::default(), input));
+        let result = rt.block_on(fetch.call(&mut ToolCallContext::default(), input));
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("parse"));
@@ -470,9 +481,13 @@ mod tests {
             .with_body("User-agent: *\nAllow: /")
             .create();
 
-        let input = FetchInput { url: format!("{}/not-found", server.url()), raw: None };
+        let input = FetchInput {
+            url: format!("{}/not-found", server.url()),
+            raw: None,
+            explanation: None,
+        };
 
-        let result = fetch.call(ToolCallContext::default(), input).await;
+        let result = fetch.call(&mut ToolCallContext::default(), input).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("404"));
     }

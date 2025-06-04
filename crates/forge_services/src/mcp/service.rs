@@ -3,12 +3,11 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{
-    McpConfig, McpConfigManager, McpServerConfig, McpService, Tool, ToolDefinition, ToolName,
-};
+use forge_domain::{McpConfig, McpServerConfig, Tool, ToolDefinition, ToolName};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
+use crate::services::{McpConfigManager, McpService};
 use crate::{Infrastructure, McpClient, McpServer};
 
 #[derive(Clone)]

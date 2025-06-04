@@ -1,7 +1,11 @@
 [package]
-name = "forge"
+name = "forge_main"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name = "forge"
+path = "src/main.rs"
 
 
 [dependencies]

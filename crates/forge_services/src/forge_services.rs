@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use forge_domain::Services;
+use forge_domain::{Agent, AgentService};
 
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
-use crate::chat::ForgeProviderService;
-use crate::compaction::ForgeCompactionService;
 use crate::config::ForgeConfigService;
 use crate::conversation::ForgeConversationService;
 use crate::key::ForgeKeyService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
+use crate::provider::ForgeProviderService;
+use crate::services::{Services, ToolService};
 use crate::suggestion::ForgeSuggestionService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
@@ -19,9 +19,8 @@ use crate::Infrastructure;
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F>;
 type AuthService<F> = ForgeAuthService<F, KeyService<F>>;
 type KeyService<F> = ForgeKeyService<ForgeConfigService<F>>;
-type ChatService<F> = ForgeProviderService<F, KeyService<F>>;
-type CompactionService<F> = ForgeCompactionService<ForgeTemplateService, ChatService<F>>;
-type ConversationService<F> = ForgeConversationService<CompactionService<F>, McpService<F>>;
+type ChatService<F> = ForgeProviderService;
+type ConversationService<F> = ForgeConversationService<McpService<F>>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -34,10 +33,10 @@ pub struct ForgeServices<F> {
     infra: Arc<F>,
     tool_service: Arc<ForgeToolService<McpService<F>>>,
     chat_service: Arc<ChatService<F>>,
-    conversation_service: Arc<ConversationService<F>>,
+    provider_service: Arc<ForgeProviderService>,
+    conversation_service: Arc<ForgeConversationService<McpService<F>>>,
     template_service: Arc<ForgeTemplateService>,
     attachment_service: Arc<ForgeChatRequest<F>>,
-    compaction_service: Arc<CompactionService<F>>,
     workflow_service: Arc<ForgeWorkflowService<F>>,
     suggestion_service: Arc<ForgeSuggestionService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
@@ -56,6 +55,9 @@ impl<F: Infrastructure> ForgeServices<F> {
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeSuggestionService::new(infra.clone()));
+        let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
+
+        let conversation_service = Arc::new(ForgeConversationService::new(mcp_service));
 
         let config_service = Arc::new(ForgeConfigService::new(infra.clone()));
         let key_service = Arc::new(ForgeKeyService::new(config_service.clone()));
@@ -65,23 +67,12 @@ impl<F: Infrastructure> ForgeServices<F> {
             infra.clone(),
             key_service.clone(),
         ));
-        let compaction_service = Arc::new(ForgeCompactionService::new(
-            template_service.clone(),
-            chat_service.clone(),
-        ));
-
-        let conversation_service = Arc::new(ForgeConversationService::new(
-            compaction_service.clone(),
-            mcp_service,
-        ));
-
         Self {
             infra,
             conversation_service,
             tool_service,
             attachment_service,
-            compaction_service,
-            chat_service,
+            provider_service,
             template_service,
             workflow_service,
             suggestion_service,
@@ -89,6 +80,7 @@ impl<F: Infrastructure> ForgeServices<F> {
             config_service,
             auth_service,
             key_service,
+            chat_service,
         }
     }
 }
@@ -96,11 +88,10 @@ impl<F: Infrastructure> ForgeServices<F> {
 impl<F: Infrastructure> Services for ForgeServices<F> {
     type ToolService = ForgeToolService<McpService<F>>;
     type ChatService = ChatService<F>;
-    type ConversationService = ForgeConversationService<Self::CompactionService, McpService<F>>;
+    type ConversationService = ForgeConversationService<McpService<F>>;
     type TemplateService = ForgeTemplateService;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
-    type CompactionService = ForgeCompactionService<Self::TemplateService, Self::ChatService>;
     type WorkflowService = ForgeWorkflowService<F>;
     type SuggestionService = ForgeSuggestionService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
@@ -130,10 +121,6 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
-    }
-
-    fn compaction_service(&self) -> &Self::CompactionService {
-        self.compaction_service.as_ref()
     }
 
     fn workflow_service(&self) -> &Self::WorkflowService {
@@ -220,5 +207,25 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     }
     fn provider_service(&self) -> &Self::ProviderService {
         self.infra.provider_service()
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Infrastructure> AgentService for ForgeServices<F> {
+    async fn chat(
+        &self,
+        model_id: &forge_domain::ModelId,
+        context: forge_domain::Context,
+    ) -> forge_domain::ResultStream<forge_domain::ChatCompletionMessage, anyhow::Error> {
+        self.provider_service().chat(model_id, context).await
+    }
+
+    async fn call(
+        &self,
+        agent: &Agent,
+        context: &mut forge_domain::ToolCallContext,
+        call: forge_domain::ToolCallFull,
+    ) -> forge_domain::ToolResult {
+        self.tool_service().call(agent, context, call).await
     }
 }

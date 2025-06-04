@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{EnvironmentService, File, SuggestionService};
+use forge_domain::File;
 use forge_walker::Walker;
 
+use crate::services::{EnvironmentService, SuggestionService};
 use crate::Infrastructure;
 
 pub struct ForgeSuggestionService<F> {

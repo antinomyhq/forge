@@ -4,38 +4,66 @@ use std::sync::Arc;
 
 use anyhow::Context as AnyhowContext;
 use async_recursion::async_recursion;
-use backon::{ExponentialBuilder, Retryable};
 use chrono::Local;
+use derive_setters::Setters;
 use forge_walker::Walker;
-use futures::future::join_all;
 use futures::{Stream, StreamExt};
+use handlebars::Handlebars;
+use rust_embed::Embed;
 use serde_json::Value;
-use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-// Use retry_config default values directly in this file
-use crate::services::Services;
-use crate::*;
+use crate::{find_compact_sequence, *};
 
-type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<AgentMessage<ChatResponse>>>>;
+/// Minimal trait that defines only the methods Orchestrator needs from services
+#[async_trait::async_trait]
+pub trait AgentService: Send + Sync + Clone + 'static {
+    /// Perform a chat request with the provider
+    async fn chat(
+        &self,
+        model_id: &ModelId,
+        context: Context,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
 
-#[derive(Debug, Clone)]
-pub struct AgentMessage<T> {
-    pub agent: AgentId,
-    pub message: T,
+    /// Execute a tool call
+    async fn call(
+        &self,
+        agent: &Agent,
+        context: &mut ToolCallContext,
+        call: ToolCallFull,
+    ) -> ToolResult;
 }
 
-impl<T> AgentMessage<T> {
-    pub fn new(agent: AgentId, message: T) -> Self {
-        Self { agent, message }
-    }
+#[derive(Embed)]
+#[folder = "../../templates/"]
+struct Templates;
+
+/// Pure function to render templates without service dependency
+fn render_template(template: &str, object: &impl serde::Serialize) -> anyhow::Result<String> {
+    // Create handlebars instance with same configuration as ForgeTemplateService
+    let mut hb = Handlebars::new();
+    hb.set_strict_mode(true);
+    hb.register_escape_fn(|str| str.to_string());
+
+    // Register all partial templates
+    hb.register_embed_templates::<Templates>()?;
+
+    // Render the template
+    let rendered = hb.render_template(template, object)?;
+    Ok(rendered)
 }
 
-#[derive(Clone)]
-pub struct Orchestrator<Services> {
-    services: Arc<Services>,
+pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
+
+#[derive(Clone, Setters)]
+#[setters(into, strip_option)]
+pub struct Orchestrator<S> {
+    services: Arc<S>,
     sender: Option<ArcSender>,
-    conversation: Arc<RwLock<Conversation>>,
+    conversation: Conversation,
+    environment: Environment,
+    tool_definitions: Vec<ToolDefinition>,
+    models: Vec<Model>,
 }
 
 struct ChatCompletionResult {
@@ -44,31 +72,30 @@ struct ChatCompletionResult {
     pub usage: Usage,
 }
 
-impl<A: Services> Orchestrator<A> {
-    pub fn new(
-        services: Arc<A>,
-        mut conversation: Conversation,
-        sender: Option<ArcSender>,
-    ) -> Self {
-        // since self is a new request, we clear the queue
-        conversation.state.values_mut().for_each(|state| {
-            state.queue.clear();
-        });
-
+impl<S: AgentService> Orchestrator<S> {
+    pub fn new(services: Arc<S>, environment: Environment, conversation: Conversation) -> Self {
         Self {
+            conversation,
+            environment,
             services,
-            sender,
-            conversation: Arc::new(RwLock::new(conversation)),
+            sender: Default::default(),
+            tool_definitions: Default::default(),
+            models: Default::default(),
         }
+    }
+
+    /// Get a reference to the internal conversation
+    pub fn get_conversation(&self) -> &Conversation {
+        &self.conversation
     }
 
     // Helper function to get all tool results from a vector of tool calls
     #[async_recursion]
-    async fn get_all_tool_results(
-        &self,
+    async fn execute_tool_calls(
+        &mut self,
         agent: &Agent,
         tool_calls: &[ToolCallFull],
-        tool_context: ToolCallContext,
+        tool_context: &mut ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
@@ -81,8 +108,7 @@ impl<A: Services> Orchestrator<A> {
             // Execute the tool
             let tool_result = self
                 .services
-                .tool_service()
-                .call(tool_context.clone(), tool_call.clone())
+                .call(agent, tool_context, tool_call.clone())
                 .await;
 
             if tool_result.is_error() {
@@ -99,44 +125,44 @@ impl<A: Services> Orchestrator<A> {
             self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
                 .await?;
 
-            // Add the result to our collection if completion wasn't achieved
-            if !tool_context.get_complete().await {
-                tool_call_records.push((tool_call.clone(), tool_result));
-            }
+            // Ensure all tool calls and results are recorded
+            // Adding task completion records is critical for compaction to work correctly
+            tool_call_records.push((tool_call.clone(), tool_result));
         }
 
         Ok(tool_call_records)
     }
 
-    async fn send(&self, agent: &Agent, message: ChatResponse) -> anyhow::Result<()> {
+    async fn send(&mut self, agent: &Agent, message: ChatResponse) -> anyhow::Result<()> {
         if let Some(sender) = &self.sender {
             // Send message if it's a Custom type or if hide_content is false
             let show_text = !agent.hide_content.unwrap_or_default();
             let can_send = !matches!(&message, ChatResponse::Text { .. }) || show_text;
             if can_send {
-                sender
-                    .send(Ok(AgentMessage { agent: agent.id.clone(), message }))
-                    .await?
+                sender.send(Ok(message)).await?
             }
         }
         Ok(())
     }
 
     /// Get the allowed tools for an agent
-    async fn get_allowed_tools(&self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
-        let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
-        Ok(self
-            .services
-            .tool_service()
-            .list()
-            .await?
-            .into_iter()
-            .filter(|tool| allowed.contains(&tool.name))
-            .collect())
+    fn get_allowed_tools(&mut self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
+        if self.tool_definitions.is_empty() {
+            // If no tools are defined, return an empty vector
+            Ok(vec![])
+        } else {
+            let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
+            Ok(self
+                .tool_definitions
+                .iter()
+                .filter(|tool| allowed.contains(&tool.name))
+                .cloned()
+                .collect())
+        }
     }
 
     // Returns if agent supports tool or not.
-    async fn is_tool_supported(&self, agent: &Agent) -> anyhow::Result<bool> {
+    fn is_tool_supported(&mut self, agent: &Agent) -> anyhow::Result<bool> {
         let model_id = agent
             .model
             .as_ref()
@@ -148,7 +174,7 @@ impl<A: Services> Orchestrator<A> {
             None => {
                 // If not defined at agent level, check model level
 
-                let model = self.services.chat_service().model(model_id).await?;
+                let model = self.models.iter().find(|model| &model.id == model_id);
                 model
                     .and_then(|model| model.tools_supported)
                     .unwrap_or_default()
@@ -164,14 +190,164 @@ impl<A: Services> Orchestrator<A> {
         Ok(tool_supported)
     }
 
+    /// Apply compaction to the context if requested
+    async fn compact_context(
+        &mut self,
+        agent: &Agent,
+        context: Context,
+    ) -> anyhow::Result<Context> {
+        // Return early if agent doesn't have compaction configured
+        if let Some(ref compact) = agent.compact {
+            debug!(agent_id = %agent.id, "Context compaction triggered");
+
+            // Identify and compress the first compressible sequence
+            // Get all compressible sequences, considering the preservation window
+            match find_compact_sequence(&context, compact.retention_window)
+                .into_iter()
+                .next()
+            {
+                Some(sequence) => {
+                    debug!(agent_id = %agent.id, "Compressing sequence");
+                    self.compress_single_sequence(compact, context, sequence)
+                        .await
+                }
+                None => {
+                    debug!(agent_id = %agent.id, "No compressible sequences found");
+                    Ok(context)
+                }
+            }
+        } else {
+            Ok(context)
+        }
+    }
+
+    /// Compress a single identified sequence of assistant messages
+    async fn compress_single_sequence(
+        &mut self,
+        compact: &Compact,
+        mut context: Context,
+        sequence: (usize, usize),
+    ) -> anyhow::Result<Context> {
+        let (start, end) = sequence;
+
+        // Extract the sequence to summarize
+        let sequence_messages = &context.messages[start..=end].to_vec();
+
+        // Generate summary for this sequence
+        let summary = self
+            .generate_summary_for_sequence(compact, sequence_messages)
+            .await?;
+
+        // Log the summary for debugging
+        info!(
+            summary = %summary,
+            sequence_start = sequence.0,
+            sequence_end = sequence.1,
+            sequence_length = sequence_messages.len(),
+            "Created context compaction summary"
+        );
+
+        let summary = format!(
+            r#"Continuing from a prior analysis. Below is a compacted summary of the ongoing session. Use this summary as authoritative context for your reasoning and decision-making. You do not need to repeat or reanalyze it unless specifically asked: <summary>{summary}</summary> Proceed based on this context.
+        "#
+        );
+
+        // Replace the sequence with a single summary message using splice
+        // This removes the sequence and inserts the summary message in-place
+        context.messages.splice(
+            start..=end,
+            std::iter::once(ContextMessage::assistant(summary, None)),
+        );
+
+        Ok(context)
+    }
+
+    /// Generate a summary for a specific sequence of assistant messages
+    async fn generate_summary_for_sequence(
+        &mut self,
+        compact: &Compact,
+        messages: &[ContextMessage],
+    ) -> anyhow::Result<String> {
+        // Create a temporary context with just the sequence for summarization
+        let sequence_context = messages
+            .iter()
+            .fold(Context::default(), |ctx, msg| ctx.add_message(msg.clone()));
+
+        // Render the summarization prompt
+        let summary_tag = compact.summary_tag.as_ref().cloned().unwrap_or_default();
+        let ctx = serde_json::json!({
+            "context": sequence_context.to_text(),
+            "summary_tag": summary_tag
+        });
+
+        let prompt = render_template(
+            compact
+                .prompt
+                .as_deref()
+                .unwrap_or("{{> system-prompt-context-summarizer.hbs}}"),
+            &ctx,
+        )?;
+
+        // Create a new context
+        let mut context = Context::default()
+            .add_message(ContextMessage::user(prompt, compact.model.clone().into()));
+
+        // Set max_tokens for summary
+        if let Some(max_token) = compact.max_tokens {
+            context = context.max_tokens(max_token);
+        }
+
+        // Get summary from the provider
+        let response = self.services.chat(&compact.model, context).await?;
+
+        self.collect_completion_stream_content(compact, response)
+            .await
+    }
+
+    /// Collects the content from a streaming ChatCompletionMessage response
+    /// and extracts text within the configured tag if present
+    async fn collect_completion_stream_content(
+        &mut self,
+        compact: &Compact,
+        mut stream: impl Stream<Item = anyhow::Result<ChatCompletionMessage>> + std::marker::Unpin,
+    ) -> anyhow::Result<String> {
+        let mut result_content = String::new();
+
+        while let Some(message_result) = stream.next().await {
+            let message = message_result?;
+            if let Some(content) = message.content {
+                result_content.push_str(content.as_str());
+            }
+        }
+
+        // Extract content from within configured tags if present and if tag is
+        // configured
+        // TODO: If no tag is found, it could be a misformed LLM call. We should
+        // consider retrying.
+        if let Some(extracted) = extract_tag_content(
+            &result_content,
+            compact
+                .summary_tag
+                .as_ref()
+                .cloned()
+                .unwrap_or_default()
+                .as_str(),
+        ) {
+            return Ok(extracted.to_string());
+        }
+
+        // If no tag extraction performed, return the original content
+        Ok(result_content)
+    }
+
     async fn set_system_prompt(
-        &self,
+        &mut self,
         context: Context,
         agent: &Agent,
         variables: &HashMap<String, Value>,
     ) -> anyhow::Result<Context> {
         Ok(if let Some(system_prompt) = &agent.system_prompt {
-            let env = self.services.environment_service().get_environment();
+            let env = self.environment.clone();
             let walker = Walker::max_all().max_depth(agent.max_walker_depth.unwrap_or(1));
             let mut files = walker
                 .cwd(env.cwd.clone())
@@ -184,12 +360,10 @@ impl<A: Services> Orchestrator<A> {
 
             let current_time = Local::now().format("%Y-%m-%d %H:%M:%S %:z").to_string();
 
-            let tool_supported = self.is_tool_supported(agent).await?;
+            let tool_supported = self.is_tool_supported(agent)?;
             let tool_information = match tool_supported {
                 true => None,
-                false => {
-                    Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent).await?).to_string())
-                }
+                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)?).to_string()),
             };
 
             let ctx = SystemContext {
@@ -202,10 +376,7 @@ impl<A: Services> Orchestrator<A> {
                 variables: variables.clone(),
             };
 
-            let system_message = self
-                .services
-                .template_service()
-                .render(system_prompt.template.as_str(), &ctx)?;
+            let system_message = render_template(system_prompt.template.as_str(), &ctx)?;
 
             context.set_first_system_message(system_message)
         } else {
@@ -215,7 +386,7 @@ impl<A: Services> Orchestrator<A> {
 
     /// Process usage information from a chat completion message
     fn update_usage(
-        &self,
+        &mut self,
         message: &ChatCompletionMessage,
         context: &Context,
         request_usage: Usage,
@@ -231,7 +402,7 @@ impl<A: Services> Orchestrator<A> {
     }
 
     async fn collect_messages(
-        &self,
+        &mut self,
         agent: &Agent,
         context: &Context,
         mut response: impl Stream<Item = anyhow::Result<ChatCompletionMessage>> + std::marker::Unpin,
@@ -243,7 +414,7 @@ impl<A: Services> Orchestrator<A> {
         let mut tool_interrupted = false;
 
         // Only interrupt the loop for XML tool calls if tool_supported is false
-        let should_interrupt_for_xml = !self.is_tool_supported(agent).await?;
+        let should_interrupt_for_xml = !self.is_tool_supported(agent)?;
 
         while let Some(message) = response.next().await {
             let message = message?;
@@ -343,6 +514,7 @@ impl<A: Services> Orchestrator<A> {
             .collect();
 
         // Process partial tool calls
+        // TODO: Parse failure should be retried
         let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts)
             .with_context(|| format!("Failed to parse tool call: {tool_call_parts:?}"))?;
 
@@ -356,114 +528,61 @@ impl<A: Services> Orchestrator<A> {
         Ok(ChatCompletionResult { content, tool_calls, usage })
     }
 
-    pub async fn dispatch(&self, event: Event) -> anyhow::Result<()> {
-        let inactive_agents = {
-            let mut conversation = self.conversation.write().await;
+    pub async fn dispatch(&mut self, event: Event) -> anyhow::Result<()> {
+        let target_agents = {
             debug!(
-                conversation_id = %conversation.id,
+                conversation_id = %self.conversation.id.clone(),
                 event_name = %event.name,
                 event_value = %event.value,
                 "Dispatching event"
             );
-            conversation.dispatch_event(event)
+            self.conversation.dispatch_event(event.clone())
         };
 
-        // Execute all initialization futures in parallel
-        join_all(inactive_agents.iter().map(|id| self.wake_agent(id)))
-            .await
-            .into_iter()
-            .collect::<anyhow::Result<Vec<()>>>()?;
+        // Execute all agent initialization with the event
+        for agent_id in &target_agents {
+            self.init_agent(agent_id, &event).await?;
+        }
 
         Ok(())
-    }
-    async fn sync_conversation(&self) -> anyhow::Result<()> {
-        let conversation = self.conversation.read().await.clone();
-        self.services
-            .conversation_service()
-            .upsert(conversation)
-            .await?;
-        Ok(())
-    }
-
-    async fn get_conversation(&self) -> anyhow::Result<Conversation> {
-        Ok(self.conversation.read().await.clone())
-    }
-
-    async fn complete_turn(&self, agent_id: &AgentId) -> anyhow::Result<()> {
-        let mut conversation = self.conversation.write().await;
-        conversation
-            .state
-            .entry(agent_id.clone())
-            .or_default()
-            .turn_count += 1;
-        Ok(())
-    }
-
-    async fn set_context(&self, agent_id: &AgentId, context: Context) -> anyhow::Result<()> {
-        let mut conversation = self.conversation.write().await;
-        conversation
-            .state
-            .entry(agent_id.clone())
-            .or_default()
-            .context = Some(context);
-        Ok(())
-    }
-
-    // Get the ToolCallContext for an agent
-    fn get_tool_call_context(&self, agent: &Agent) -> ToolCallContext {
-        // Create a new ToolCallContext with the agent ID
-        ToolCallContext::default()
-            .agent(agent.clone())
-            .sender(self.sender.clone())
     }
 
     async fn chat(
-        &self,
+        &mut self,
         agent: &Agent,
         model_id: &ModelId,
         context: Context,
     ) -> anyhow::Result<ChatCompletionResult> {
-        let response = self
-            .services
-            .chat_service()
-            .chat(model_id, context.clone())
-            .await?;
+        let response = self.services.chat(model_id, context.clone()).await?;
         self.collect_messages(agent, &context, response).await
     }
 
     // Create a helper method with the core functionality
-    async fn init_agent(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
-        let conversation = self.get_conversation().await?;
-        let variables = &conversation.variables;
+    async fn init_agent(&mut self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
+        let variables = self.conversation.variables.clone();
         debug!(
-            conversation_id = %conversation.id,
+            conversation_id = %self.conversation.id,
             agent = %agent_id,
             event = ?event,
             "Initializing agent"
         );
-        let agent = conversation.get_agent(agent_id)?;
+        let agent = self.conversation.get_agent(agent_id)?.clone();
         let model_id = agent
             .model
             .clone()
             .ok_or(Error::MissingModel(agent.id.clone()))?;
-        let tool_supported = self.is_tool_supported(agent).await?;
+        let tool_supported = self.is_tool_supported(&agent)?;
 
-        let mut context = if agent.ephemeral.unwrap_or_default() {
-            agent.init_context(self.get_allowed_tools(agent).await?, tool_supported)?
-        } else {
-            match conversation.context(&agent.id) {
-                Some(context) => context.clone(),
-                None => agent.init_context(self.get_allowed_tools(agent).await?, tool_supported)?,
-            }
-        };
+        let mut context = self.conversation.context.clone().unwrap_or_default();
+
+        // Reset all the available tools
+        context = context.tools(self.get_allowed_tools(&agent)?);
 
         // Render the system prompts with the variables
-        context = self.set_system_prompt(context, agent, variables).await?;
+        context = self.set_system_prompt(context, &agent, &variables).await?;
 
         // Render user prompts
-        context = self
-            .set_user_prompt(context, agent, variables, event)
-            .await?;
+        context = self.set_user_prompt(context, &agent, &variables, event)?;
 
         if let Some(temperature) = agent.temperature {
             context = context.temperature(temperature);
@@ -477,12 +596,8 @@ impl<A: Services> Orchestrator<A> {
             context = context.top_k(top_k);
         }
 
-        // Process attachments in a more declarative way
-        let attachments = self
-            .services
-            .attachment_service()
-            .attachments(&event.value.to_string())
-            .await?;
+        // Process attachments from the event if they exist
+        let attachments = event.attachments.clone();
 
         // Process each attachment and fold the results into the context
         context = attachments
@@ -496,32 +611,18 @@ impl<A: Services> Orchestrator<A> {
                 })
             });
 
-        self.set_context(&agent.id, context.clone()).await?;
+        self.conversation.context = Some(context.clone());
 
-        let tool_context = self.get_tool_call_context(agent);
+        let mut tool_context = ToolCallContext::default().sender(self.sender.clone());
 
         let mut empty_tool_call_count = 0;
 
-        let retry_config = self
-            .services
-            .environment_service()
-            .get_environment()
-            .retry_config;
-
         while !tool_context.get_complete().await {
             // Set context for the current loop iteration
-            self.set_context(&agent.id, context.clone()).await?;
+            self.conversation.context = Some(context.clone());
 
             let ChatCompletionResult { tool_calls, content, usage } =
-                (|| self.chat(agent, &model_id, context.clone()))
-                    .retry(
-                        ExponentialBuilder::default()
-                            .with_factor(retry_config.backoff_factor as f32)
-                            .with_max_times(retry_config.max_retry_attempts)
-                            .with_jitter(),
-                    )
-                    .when(should_retry)
-                    .await?;
+                self.chat(&agent, &model_id, context.clone()).await?;
 
             // Send the usage information if available
 
@@ -531,34 +632,26 @@ impl<A: Services> Orchestrator<A> {
                 content_length = usage.content_length,
                 "Processing usage information"
             );
-            self.send(agent, ChatResponse::Usage(usage.clone())).await?;
+            self.send(&agent, ChatResponse::Usage(usage.clone()))
+                .await?;
 
             // Check if context requires compression and decide to compact
             if agent.should_compact(&context, max(usage.prompt_tokens, usage.estimated_tokens)) {
                 info!(agent_id = %agent.id, "Compaction needed, applying compaction");
-                context = self
-                    .services
-                    .compaction_service()
-                    .compact_context(agent, context)
-                    .await?;
+                context = self.compact_context(&agent, context).await?;
             } else {
                 debug!(agent_id = %agent.id, "Compaction not needed");
             }
 
             let empty_tool_calls = tool_calls.is_empty();
 
-            debug!(
-                agent_id = %agent.id,
-                tool_call_count = empty_tool_calls,
-                "Tool call count: {}",
-                empty_tool_calls
-            );
+            debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
             // Process tool calls and update context
             context = context.append_message(
                 content,
                 model_id.clone(),
-                self.get_all_tool_results(agent, &tool_calls, tool_context.clone())
+                self.execute_tool_calls(&agent, &tool_calls, &mut tool_context)
                     .await?,
                 tool_supported,
             );
@@ -566,7 +659,7 @@ impl<A: Services> Orchestrator<A> {
             if empty_tool_calls {
                 // No tool calls present, which doesn't mean task is complete so reprompt the
                 // agent to ensure the task complete.
-                let content = self.services.template_service().render(
+                let content = render_template(
                     "{{> partial-tool-required.hbs}}",
                     &serde_json::json!({
                         "tool_supported": tool_supported
@@ -597,18 +690,14 @@ impl<A: Services> Orchestrator<A> {
             }
 
             // Update context in the conversation
-            self.set_context(&agent.id, context.clone()).await?;
-            self.sync_conversation().await?;
+            self.conversation.context = Some(context.clone());
         }
-
-        self.complete_turn(&agent.id).await?;
-        self.sync_conversation().await?;
 
         Ok(())
     }
 
-    async fn set_user_prompt(
-        &self,
+    fn set_user_prompt(
+        &mut self,
         mut context: Context,
         agent: &Agent,
         variables: &HashMap<String, Value>,
@@ -617,9 +706,7 @@ impl<A: Services> Orchestrator<A> {
         let content = if let Some(user_prompt) = &agent.user_prompt {
             let event_context = EventContext::new(event.clone()).variables(variables.clone());
             debug!(event_context = ?event_context, "Event context");
-            self.services
-                .template_service()
-                .render(user_prompt.template.as_str(), &event_context)?
+            render_template(user_prompt.template.as_str(), &event_context)?
         } else {
             // Use the raw event value as content if no user_prompt is provided
             event.value.to_string()
@@ -631,24 +718,54 @@ impl<A: Services> Orchestrator<A> {
 
         Ok(context)
     }
-
-    async fn wake_agent(&self, agent_id: &AgentId) -> anyhow::Result<()> {
-        while let Some(event) = {
-            let mut conversation = self.conversation.write().await;
-            conversation.poll_event(agent_id)
-        } {
-            self.init_agent(agent_id, &event).await?
-        }
-
-        Ok(())
-    }
 }
 
-fn should_retry(error: &anyhow::Error) -> bool {
-    let retry = error
-        .downcast_ref::<Error>()
-        .is_some_and(|error| matches!(error, Error::Retryable(_)));
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use serde_json::json;
 
-    warn!(error = %error, retry = retry, "Retrying on error");
-    retry
+    use super::*;
+
+    #[test]
+    fn test_render_template_simple() {
+        // Fixture: Create test data
+        let data = json!({
+            "name": "Forge",
+            "version": "1.0",
+            "features": ["templates", "rendering", "handlebars"]
+        });
+
+        // Actual: Render a simple template
+        let template = "App: {{name}} v{{version}} - Features: {{#each features}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}";
+        let actual = render_template(template, &data).unwrap();
+
+        // Expected: Result should match the expected string
+        let expected = "App: Forge v1.0 - Features: templates, rendering, handlebars";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_render_template_with_partial() {
+        // Fixture: Create test data
+        let data = json!({
+            "env": {
+                "os": "test-os",
+                "cwd": "/test/path",
+                "shell": "/bin/test",
+                "home": "/home/test"
+            },
+            "files": [
+                "/file1.txt",
+                "/file2.txt"
+            ]
+        });
+
+        // Actual: Render the partial-system-info template
+        let actual = render_template("{{> partial-system-info.hbs }}", &data).unwrap();
+
+        // Expected: Result should contain the rendered system info with substituted
+        // values
+        assert!(actual.contains("<operating_system>test-os</operating_system>"));
+    }
 }

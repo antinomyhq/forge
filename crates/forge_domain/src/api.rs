@@ -19,10 +19,7 @@ pub trait API: Sync + Send {
     async fn models(&self) -> Result<Vec<Model>>;
 
     /// Executes a chat request and returns a stream of responses
-    async fn chat(
-        &self,
-        chat: ChatRequest,
-    ) -> Result<MpscStream<Result<AgentMessage<ChatResponse>>>>;
+    async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
 
     /// Returns the current environment
     fn environment(&self) -> Environment;
