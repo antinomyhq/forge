@@ -45,13 +45,13 @@ pub mod tests {
 
     use bytes::Bytes;
     use forge_domain::{
-        CommandOutput, Environment, EnvironmentService, Provider, ToolDefinition, ToolName,
-        ToolOutput,
+        CommandOutput, Environment, Provider, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
 
     use super::*;
+    use crate::services::EnvironmentService;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
         FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
@@ -286,14 +286,14 @@ pub mod tests {
     fn test_tool_description_length() {
         const MAX_DESCRIPTION_LENGTH: usize = 1024;
 
-        println!("\nTool description lengths:");
+        eprintln!("\nTool description lengths:");
 
         let mut any_exceeded = false;
         let stub = Arc::new(stub());
         let registry = ToolRegistry::new(stub.clone());
         for tool in registry.tools() {
             let desc_len = tool.definition.description.len();
-            println!(
+            eprintln!(
                 "{:?}: {} chars {}",
                 tool.definition.name,
                 desc_len,

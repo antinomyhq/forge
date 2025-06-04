@@ -67,6 +67,10 @@ pub struct FSReadInput {
     /// will end at this character position.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_char: Option<u64>,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the file write tool
@@ -86,6 +90,10 @@ pub struct FSWriteInput {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub overwrite: bool,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the file search tool
@@ -106,6 +114,10 @@ pub struct FSSearchInput {
     /// If not provided, it will search all files (*).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_pattern: Option<String>,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the file remove tool
@@ -113,6 +125,10 @@ pub struct FSSearchInput {
 pub struct FSRemoveInput {
     /// The path of the file to remove (absolute path required)
     pub path: String,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Operation types that can be performed on matched text
@@ -150,6 +166,11 @@ pub struct FSPatchInput {
     /// The content to use for the operation (replacement text, text to
     /// prepend/append, or target text for swap operations)
     pub content: String,
+
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the file undo tool
@@ -157,6 +178,10 @@ pub struct FSPatchInput {
 pub struct FSUndoInput {
     /// The absolute path of the file to revert to its previous state.
     pub path: String,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the shell command tool
@@ -174,6 +199,11 @@ pub struct ShellInput {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub keep_ansi: bool,
+
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the net fetch tool
@@ -186,6 +216,11 @@ pub struct NetFetchInput {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub raw: Option<bool>,
+
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the followup tool
@@ -218,15 +253,110 @@ pub struct FollowupInput {
     /// Fifth option to choose from
     #[serde(skip_serializing_if = "Option::is_none")]
     pub option5: Option<String>,
+
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Input type for the attempt completion tool
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AttemptCompletionInput {
     /// The result of the task. Formulate this result in a way that is final and
-    /// does not require further input from the user. Don't end your result
-    /// with questions or offers for further assistance.
+    /// does not require further input from the user. Don't end your result with
+    /// questions or offers for further assistance.
     pub result: String,
+
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+fn default_raw() -> Option<bool> {
+    Some(false)
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct FetchInput {
+    /// URL to fetch
+    pub url: String,
+    /// Get raw content without any markdown conversion (default: false)
+    #[serde(default = "default_raw")]
+    pub raw: Option<bool>,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct FSListInput {
+    /// The path of the directory to list contents for (absolute path required)
+    pub path: String,
+    /// Whether to list files recursively. Use true for recursive listing, false
+    /// or omit for top-level only.
+    pub recursive: Option<bool>,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct FSFileInfoInput {
+    /// The path of the file or directory to inspect (absolute path required)
+    pub path: String,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct UndoInput {
+    /// The absolute path of the file to revert to its previous state. Must be
+    /// the exact path that was previously modified, created, or deleted by
+    /// a Forge file operation. If the file was deleted, provide the
+    /// original path it had before deletion. The system requires a prior
+    /// snapshot for this path.
+    pub path: String,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Input for the select tool
+#[derive(Deserialize, JsonSchema)]
+pub struct SelectInput {
+    /// Question to ask the user
+    pub question: String,
+
+    /// First option to choose from
+    pub option1: Option<String>,
+
+    /// Second option to choose from
+    pub option2: Option<String>,
+
+    /// Third option to choose from
+    pub option3: Option<String>,
+
+    /// Fourth option to choose from
+    pub option4: Option<String>,
+
+    /// Fifth option to choose from
+    pub option5: Option<String>,
+
+    /// If true, allows selecting multiple options; if false (default), only one
+    /// option can be selected
+    #[schemars(default)]
+    pub multiple: Option<bool>,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
 }
 
 /// Helper function to check if a value equals its default value

@@ -383,7 +383,7 @@ temperature: 0.7 # Balanced creativity and focus
 ---
 
 <details>
-<summary><strong>Multi-agent Communication Protocol (MCP)</strong></summary>
+<summary><strong>Model Context Protocol (MCP)</strong></summary>
 
 The MCP feature allows AI agents to communicate with external tools and services. This implementation follows Anthropic's [Model Context Protocol](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp) design.
 

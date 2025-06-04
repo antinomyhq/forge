@@ -58,7 +58,7 @@ pub trait ExecutableTool {
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput>;
 }

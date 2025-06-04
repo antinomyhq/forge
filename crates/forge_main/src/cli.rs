@@ -106,10 +106,10 @@ pub struct McpAddArgs {
     pub env: Vec<String>,
 
     /// Name of the server
-    pub name: Option<String>,
+    pub name: String,
 
     /// URL or command for the MCP server
-    pub command_or_url: Option<String>,
+    pub command_or_url: String,
 
     /// Additional arguments to pass to the server
     #[arg(short = 'a', long = "args")]

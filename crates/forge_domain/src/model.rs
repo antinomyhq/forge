@@ -9,6 +9,7 @@ pub struct Model {
     pub description: Option<String>,
     pub context_length: Option<u64>,
     // TODO: add provider information to the model
+    pub tools_supported: Option<bool>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]

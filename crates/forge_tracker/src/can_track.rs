@@ -10,11 +10,11 @@ pub const VERSION: &str = match option_env!("APP_VERSION") {
 
 /// Checks if tracking is enabled
 pub fn can_track() -> bool {
-    let is_prod = !VERSION.contains("dev");
+    let is_dev = VERSION.contains("dev") | VERSION.contains("0.1.0");
     let usage_enabled = env::var(LONG_ENV_FILTER_VAR_NAME)
         .map(|v| !v.eq_ignore_ascii_case("false"))
         .ok();
-    can_track_inner(is_prod, usage_enabled)
+    can_track_inner(!is_dev, usage_enabled)
 }
 
 fn can_track_inner(is_prod_build: bool, usage_enabled: Option<bool>) -> bool {

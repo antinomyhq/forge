@@ -69,6 +69,8 @@ impl TryFrom<forge_domain::Context> for Request {
                 .collect::<std::result::Result<Vec<_>, _>>()?,
             system,
             temperature: request.temperature.map(|t| t.value()),
+            top_p: request.top_p.map(|t| t.value()),
+            top_k: request.top_k.map(|t| t.value() as u64),
             tool_choice: request.tool_choice.map(ToolChoice::from),
             ..Default::default()
         })

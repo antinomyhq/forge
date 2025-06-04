@@ -136,7 +136,11 @@ mod tests {
     impl ExecutableTool for MangoTool {
         type Input = ToolInput;
 
-        async fn call(&self, _: ToolCallContext, _: Self::Input) -> anyhow::Result<ToolOutput> {
+        async fn call(
+            &self,
+            _: &mut ToolCallContext,
+            _: Self::Input,
+        ) -> anyhow::Result<ToolOutput> {
             Ok(ToolOutput::text("Completed".to_string()))
         }
     }

@@ -4,21 +4,14 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    ExecutableTool, FSFileInfoInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
     ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use serde::Deserialize;
 
+use crate::services::EnvironmentService;
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::Infrastructure;
-
-#[derive(Deserialize, JsonSchema)]
-pub struct FSFileInfoInput {
-    /// The path of the file or directory to inspect (absolute path required)
-    pub path: String,
-}
 
 /// Request to retrieve detailed metadata about a file or directory at the
 /// specified path. Returns comprehensive information including size, creation
@@ -64,7 +57,7 @@ impl<F: Infrastructure> ExecutableTool for FSFileInfo<F> {
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
@@ -99,8 +92,11 @@ mod test {
         let fs_info = FSFileInfo::new(stub);
         let result = fs_info
             .call(
-                ToolCallContext::default(),
-                FSFileInfoInput { path: file_path.to_string_lossy().to_string() },
+                &mut ToolCallContext::default(),
+                FSFileInfoInput {
+                    path: file_path.to_string_lossy().to_string(),
+                    explanation: None,
+                },
             )
             .await
             .unwrap();
@@ -121,8 +117,11 @@ mod test {
         let fs_info = FSFileInfo::new(stub);
         let result = fs_info
             .call(
-                ToolCallContext::default(),
-                FSFileInfoInput { path: dir_path.to_string_lossy().to_string() },
+                &mut ToolCallContext::default(),
+                FSFileInfoInput {
+                    path: dir_path.to_string_lossy().to_string(),
+                    explanation: None,
+                },
             )
             .await
             .unwrap();
@@ -142,8 +141,11 @@ mod test {
         let fs_info = FSFileInfo::new(stub);
         let result = fs_info
             .call(
-                ToolCallContext::default(),
-                FSFileInfoInput { path: nonexistent_path.to_string_lossy().to_string() },
+                &mut ToolCallContext::default(),
+                FSFileInfoInput {
+                    path: nonexistent_path.to_string_lossy().to_string(),
+                    explanation: None,
+                },
             )
             .await;
 
@@ -157,8 +159,8 @@ mod test {
         let fs_info = FSFileInfo::new(stub);
         let result = fs_info
             .call(
-                ToolCallContext::default(),
-                FSFileInfoInput { path: "relative/path.txt".to_string() },
+                &mut ToolCallContext::default(),
+                FSFileInfoInput { path: "relative/path.txt".to_string(), explanation: None },
             )
             .await;
 

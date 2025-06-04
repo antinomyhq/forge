@@ -6,11 +6,11 @@ use std::sync::Arc;
 use anyhow::{bail, Context};
 use forge_display::TitleFormat;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolDescription,
-    ToolName, ToolOutput,
+    ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 
+use crate::services::EnvironmentService;
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsReadService, Infrastructure};
 
@@ -44,17 +44,16 @@ pub fn assert_valid_range(start_char: u64, end_char: u64) -> anyhow::Result<()> 
 
 // Using FSReadInput from forge_domain
 
-/// Reads file contents at specified path. Use for analyzing code, config files,
-/// documentation or text data. Extracts text from PDF/DOCX files and preserves
-/// original formatting. Returns content as string. Always use absolute paths.
-/// Read-only with no file modifications.
-///
-/// Files larger than 40,000 characters will automatically be read using range
-/// functionality, returning only the first 40,000 characters by default. For
-/// large files, you can specify custom ranges using start_char and end_char
-/// parameters. The total range must not exceed 40,000 characters (an error will
-/// be thrown if (end_char - start_char) > 40,000). Binary files are
-/// automatically detected and rejected.
+/// Reads file contents from the specified absolute path. Ideal for analyzing
+/// code, configuration files, documentation, or textual data. Automatically
+/// extracts text from PDF and DOCX files, preserving the original formatting.
+/// Returns the content as a string. For files larger than 40,000 characters,
+/// the tool automatically returns only the first 40,000 characters. You should
+/// always rely on this default behavior and avoid specifying custom ranges
+/// unless absolutely necessary. If needed, specify a range with the start_char
+/// and end_char parameters, ensuring the total range does not exceed 40,000
+/// characters. Specifying a range exceeding this limit will result in an error.
+/// Binary files are automatically detected and rejected.
 #[derive(ToolDescription)]
 pub struct FSRead<F>(Arc<F>);
 
@@ -145,7 +144,7 @@ impl<F: Infrastructure> FSRead<F> {
     /// Helper function to read a file with range constraints
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: FSReadInput,
     ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
@@ -165,7 +164,7 @@ impl<F: Infrastructure> FSRead<F> {
             .with_context(|| format!("Failed to read file content from {}", input.path))?;
 
         // Create and send the title using the extracted method
-        self.create_and_send_title(&context, &input, path, start_char, end_char, &file_info)
+        self.create_and_send_title(context, &input, path, start_char, end_char, &file_info)
             .await?;
 
         // Determine if the user requested an explicit range
@@ -210,7 +209,7 @@ impl<F: Infrastructure> ExecutableTool for FSRead<F> {
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         self.call(context, input).await
@@ -234,8 +233,13 @@ mod test {
         let fs_read = FSRead::new(infra);
         fs_read
             .call(
-                ToolCallContext::default(),
-                FSReadInput { path: path.to_string(), start_char: None, end_char: None },
+                &mut ToolCallContext::default(),
+                FSReadInput {
+                    path: path.to_string(),
+                    start_char: None,
+                    end_char: None,
+                    explanation: None,
+                },
             )
             .await
     }
@@ -256,11 +260,6 @@ mod test {
         // Read the file directly
         let content = tokio::fs::read_to_string(path).await.unwrap();
 
-        // Display a message - just for testing
-        let title = "Read";
-        let message = TitleFormat::debug(title).sub_title(path.display().to_string());
-        println!("{message}");
-
         // Assert the content matches
         assert_eq!(content, test_content);
     }
@@ -280,11 +279,12 @@ mod test {
         // Test to read middle range of the file
         let result = fs_read
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSReadInput {
                     path: file_path.to_string_lossy().to_string(),
                     start_char: Some(10),
                     end_char: Some(20),
+                    explanation: None,
                 },
             )
             .await;
@@ -310,11 +310,12 @@ mod test {
         // Test with an invalid range (start > end)
         let result = fs_read
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSReadInput {
                     path: file_path.to_string_lossy().to_string(),
                     start_char: Some(20),
                     end_char: Some(10),
+                    explanation: None,
                 },
             )
             .await;
@@ -408,7 +409,6 @@ mod test {
                 if start_char == 0 && end_char == 0 {
                     // For probe requests (when end = start = 0), return info about a large file
                     // This will trigger the auto-limiting behavior
-                    println!("Probe request detected, returning large file info");
                     return Ok((
                         "".to_string(),
                         forge_fs::FileInfo::new(0, 0, 50_000), // Simulate a large file (50k chars)
@@ -416,7 +416,6 @@ mod test {
                 } else if start_char == 0 && end_char == 39999 {
                     // This is the expected auto-limit range that should be requested for large
                     // files
-                    println!("Auto-limit range request detected: 0-39999");
                     return Err(anyhow::anyhow!(
                         "Auto-limit detected: start={}, end={}",
                         start_char,
@@ -425,7 +424,6 @@ mod test {
                 }
 
                 // For any other range requests, return an identifying error
-                println!("Unexpected range request: {}-{}", start_char, end_char);
                 Err(anyhow::anyhow!(
                     "Unexpected range_read called with start={}, end={}",
                     start_char,
@@ -498,8 +496,9 @@ mod test {
         // Call with a path but no explicit range parameters
         let result = fs_read
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSReadInput {
+                    explanation: None,
                     path: "/test/large_file.txt".to_string(),
                     start_char: None,
                     end_char: None,
@@ -511,16 +510,11 @@ mod test {
         // to fail
         assert!(result.is_err());
 
-        // Print the error message for debugging purposes
-        let err_msg = result.unwrap_err().to_string();
-        println!("Error message: {err_msg}");
-
         // Verify that our auto-limit was applied (should be 0-39999)
         let range_call = tracking_infra.get_last_range_call();
         assert!(range_call.is_some(), "Range read should have been called");
 
         if let Some((start, end)) = range_call {
-            println!("Tracked range call: {start:?} to {end:?}");
             assert_eq!(start, Some(0), "Auto-limit should start at character 0");
             assert_eq!(
                 end,

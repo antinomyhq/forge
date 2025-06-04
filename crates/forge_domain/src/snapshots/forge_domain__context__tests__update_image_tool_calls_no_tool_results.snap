@@ -1,0 +1,20 @@
+---
+source: crates/forge_domain/src/context.rs
+expression: actual
+---
+messages:
+  - text:
+      role: System
+      content: System message
+      tool_calls: ~
+      model: ~
+  - text:
+      role: User
+      content: User message
+      tool_calls: ~
+      model: ~
+  - text:
+      role: Assistant
+      content: Assistant message
+      tool_calls: ~
+      model: ~

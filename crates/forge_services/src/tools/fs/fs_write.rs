@@ -9,11 +9,11 @@ use forge_display::{DiffFormat, TitleFormat};
 // Using FSWriteInput from forge_domain
 use forge_domain::ToolOutput;
 use forge_domain::{
-    EnvironmentService, ExecutableTool, FSWriteInput, NamedTool, ToolCallContext, ToolDescription,
-    ToolName,
+    ExecutableTool, FSWriteInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 
+use crate::services::EnvironmentService;
 use crate::tools::syn;
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};
@@ -59,7 +59,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         // Validate absolute path requirement
@@ -181,8 +181,9 @@ mod test {
         let fs_write = FSWrite::new(infra.clone());
         let output = fs_write
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: file_path.to_string_lossy().to_string(),
                     content: content.to_string(),
                     overwrite: false,
@@ -214,8 +215,9 @@ mod test {
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: file_path.to_string_lossy().to_string(),
                     content: "fn main() { let x = ".to_string(),
                     overwrite: false,
@@ -239,8 +241,9 @@ mod test {
         let content = "fn main() { let x = 42; }";
         let result = fs_write
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: file_path.to_string_lossy().to_string(),
                     content: content.to_string(),
                     overwrite: false,
@@ -274,8 +277,9 @@ mod test {
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: nested_path.to_string_lossy().to_string(),
                     content: content.to_string(),
                     overwrite: false,
@@ -316,8 +320,9 @@ mod test {
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: deep_path.to_string_lossy().to_string(),
                     content: content.to_string(),
                     overwrite: false,
@@ -359,8 +364,9 @@ mod test {
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: path_str,
                     content: content.to_string(),
                     overwrite: false,
@@ -396,8 +402,9 @@ mod test {
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSWriteInput {
+                    explanation: None,
                     path: "relative/path/file.txt".to_string(),
                     content: "test content".to_string(),
                     overwrite: false,
@@ -430,11 +437,12 @@ mod test {
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSWriteInput {
                     path: file_path.to_string_lossy().to_string(),
                     content: "New content".to_string(),
                     overwrite: false,
+                    explanation: None,
                 },
             )
             .await;
@@ -495,11 +503,12 @@ mod test {
         let fs_write = FSWrite::new(infra.clone());
         let result = fs_write
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 FSWriteInput {
                     path: file_path.to_string_lossy().to_string(),
                     content: new_content.to_string(),
                     overwrite: true,
+                    explanation: None,
                 },
             )
             .await;

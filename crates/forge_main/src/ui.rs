@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
-    Workflow, API,
+    ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Scope};
@@ -70,7 +69,7 @@ impl<F: API> UI<F> {
 
     /// Retrieve available models
     async fn get_models(&mut self) -> Result<Vec<Model>> {
-        self.spinner.start(Some("Loading Models"))?;
+        self.spinner.start(Some("Loading"))?;
         let models = self.api.models().await?;
         self.spinner.stop(None)?;
         Ok(models)
@@ -86,7 +85,6 @@ impl<F: API> UI<F> {
 
     // Set the current mode and update conversation variable
     async fn on_mode_change(&mut self, mode: Mode) -> Result<()> {
-        self.on_new().await?;
         // Set the mode variable in the conversation if a conversation exists
         let conversation_id = self.init_conversation().await?;
 
@@ -109,7 +107,7 @@ impl<F: API> UI<F> {
             .await?;
 
         self.writeln(TitleFormat::action(format!(
-            "Switched to '{}' mode (context cleared)",
+            "Switched to '{}' mode",
             self.state.mode
         )))?;
 
@@ -150,7 +148,7 @@ impl<F: API> UI<F> {
             command,
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
-            _guard: forge_tracker::init_tracing(env.log_path())?,
+            _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
 
@@ -163,8 +161,7 @@ impl<F: API> UI<F> {
         match self.run_inner().await {
             Ok(_) => {}
             Err(error) => {
-                self.writeln(TitleFormat::error(format!("{error:?}")))
-                    .unwrap();
+                eprintln!("{}", TitleFormat::error(format!("{error:?}")));
             }
         }
     }
@@ -199,15 +196,23 @@ impl<F: API> UI<F> {
 
         loop {
             tokio::select! {
-                _ = tokio::signal::ctrl_c() => {}
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("User interrupted operation with Ctrl+C");
+                }
                 result = self.on_command(command) => {
                     match result {
                         Ok(exit) => if exit {return Ok(())},
                         Err(error) => {
+                            if let Some(conversation_id) = self.state.conversation_id.as_ref() {
+                                if let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten() {
+                                    TRACKER.set_conversation(conversation).await;
+                                }
+                            }
                             tokio::spawn(
                                 TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{error:?}"))),
                             );
-                            self.writeln(TitleFormat::error(format!("{error:?}")))?;
+                            self.spinner.stop(None)?;
+                            eprintln!("{}", TitleFormat::error(format!("{error:?}")));
                         },
                     }
                 }
@@ -224,18 +229,16 @@ impl<F: API> UI<F> {
         match subcommand {
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Add(add) => {
-                    let name = add.name.context("Server name is required")?;
+                    let name = add.name;
                     let scope: Scope = add.scope.into();
                     // Create the appropriate server type based on transport
                     let server = match add.transport {
                         Transport::Stdio => McpServerConfig::new_stdio(
-                            add.command_or_url.clone().unwrap_or_default(),
+                            add.command_or_url.clone(),
                             add.args.clone(),
                             Some(parse_env(add.env.clone())),
                         ),
-                        Transport::Sse => {
-                            McpServerConfig::new_sse(add.command_or_url.clone().unwrap_or_default())
-                        }
+                        Transport::Sse => McpServerConfig::new_sse(add.command_or_url.clone()),
                     };
                     // Command/URL already set in the constructor
 
@@ -308,7 +311,7 @@ impl<F: API> UI<F> {
                 self.on_compaction().await?;
             }
             Command::Dump(format) => {
-                self.spinner.start(Some("Creating a conversation dump"))?;
+                self.spinner.start(Some("Dumping"))?;
                 self.on_dump(format).await?;
             }
             Command::New => {
@@ -334,7 +337,7 @@ impl<F: API> UI<F> {
                 self.writeln(info)?;
             }
             Command::Tools => {
-                self.spinner.start(Some("Loading tools"))?;
+                self.spinner.start(Some("Loading"))?;
                 use crate::tools_display::format_tools;
                 let tools = self.api.tools().await?;
 
@@ -462,20 +465,20 @@ impl<F: API> UI<F> {
         // Create the chat request with the event
         let chat = ChatRequest::new(event.into(), conversation_id);
 
-        // Process the event
-        let mut stream = self.api.chat(chat).await?;
-        self.handle_chat_stream(&mut stream).await
+        self.on_chat(chat).await
     }
 
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
             None => {
+                self.spinner.start(Some("Initializing"))?;
+
                 // Select a model if workflow doesn't have one
                 let workflow = self.init_state().await?;
 
                 // We need to try and get the conversation ID first before fetching the model
-                if let Some(ref path) = self.cli.conversation {
+                let id = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation = serde_json::from_str(
                         ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
                     )
@@ -485,13 +488,15 @@ impl<F: API> UI<F> {
                     self.state.conversation_id = Some(conversation_id.clone());
                     self.update_model(conversation.main_model()?);
                     self.api.upsert_conversation(conversation).await?;
-                    Ok(conversation_id)
+                    conversation_id
                 } else {
                     let conversation = self.api.init_conversation(workflow).await?;
                     self.state.conversation_id = Some(conversation.id.clone());
                     self.update_model(conversation.main_model()?);
-                    Ok(conversation.id)
-                }
+                    conversation.id
+                };
+
+                Ok(id)
             }
         }
     }
@@ -533,16 +538,12 @@ impl<F: API> UI<F> {
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
 
-        match self.api.chat(chat).await {
-            Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
-            Err(err) => Err(err),
-        }
+        self.on_chat(chat).await
     }
 
-    async fn handle_chat_stream(
-        &mut self,
-        stream: &mut (impl StreamExt<Item = Result<AgentMessage<ChatResponse>>> + Unpin),
-    ) -> Result<()> {
+    async fn on_chat(&mut self, chat: ChatRequest) -> Result<()> {
+        let mut stream = self.api.chat(chat).await?;
+
         while let Some(message) = stream.next().await {
             match message {
                 Ok(message) => self.handle_chat_response(message)?,
@@ -564,7 +565,6 @@ impl<F: API> UI<F> {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-
                 if let Some(format) = format {
                     if format == "html" {
                         // Export as HTML
@@ -597,11 +597,12 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
-    fn handle_chat_response(&mut self, message: AgentMessage<ChatResponse>) -> Result<()> {
-        match message.message {
+    fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
+        match message {
             ChatResponse::Text { mut text, is_complete, is_md, is_summary } => {
                 if is_complete && !text.trim().is_empty() {
                     if is_md || is_summary {
+                        tracing::info!(message = %text, "Agent Response");
                         text = self.markdown.render(&text);
                     }
 
@@ -644,10 +645,7 @@ impl<F: API> UI<F> {
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
         let chat = ChatRequest::new(event, conversation_id);
-        match self.api.chat(chat).await {
-            Ok(mut stream) => self.handle_chat_stream(&mut stream).await,
-            Err(err) => Err(err),
-        }
+        self.on_chat(chat).await
     }
 
     async fn update_mcp_config(&self, scope: &Scope, f: impl FnOnce(&mut McpConfig)) -> Result<()> {

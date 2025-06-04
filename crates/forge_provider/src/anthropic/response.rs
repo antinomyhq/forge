@@ -22,6 +22,7 @@ impl From<Model> for forge_domain::Model {
             name: Some(value.display_name),
             description: None,
             context_length: None,
+            tools_supported: Some(true),
         }
     }
 }
@@ -50,7 +51,7 @@ impl From<Usage> for forge_domain::Usage {
             prompt_tokens: usage.input_tokens.unwrap_or(0),
             completion_tokens: usage.output_tokens.unwrap_or(0),
             total_tokens: usage.input_tokens.unwrap_or(0) + usage.output_tokens.unwrap_or(0),
-            estimated_tokens: None,
+            ..Default::default()
         }
     }
 }

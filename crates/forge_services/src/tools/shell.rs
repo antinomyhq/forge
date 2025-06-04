@@ -4,13 +4,14 @@ use std::sync::Arc;
 use anyhow::bail;
 use forge_display::TitleFormat;
 use forge_domain::{
-    CommandOutput, Environment, EnvironmentService, ExecutableTool, NamedTool, ShellInput,
-    ToolCallContext, ToolDescription, ToolName, ToolOutput,
+    CommandOutput, Environment, ExecutableTool, NamedTool, ShellInput, ToolCallContext,
+    ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use strip_ansi_escapes::strip;
 
 use crate::metadata::Metadata;
+use crate::services::EnvironmentService;
 use crate::{Clipper, ClipperResult, CommandExecutorService, FsWriteService, Infrastructure};
 
 /// Number of characters to keep at the start of truncated output
@@ -178,7 +179,7 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         // Validate empty command
@@ -273,11 +274,12 @@ mod tests {
         let shell = Shell::new(infra);
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: "echo 'Hello, World!'".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -292,7 +294,7 @@ mod tests {
         // Use a command that writes to both stdout and stderr
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: if cfg!(target_os = "windows") {
                         "echo 'to stderr' 1>&2 && echo 'to stdout'".to_string()
@@ -301,6 +303,7 @@ mod tests {
                     },
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -314,11 +317,12 @@ mod tests {
         let shell = Shell::new(infra);
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: "echo 'to stdout' && echo 'to stderr' >&2".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -334,7 +338,7 @@ mod tests {
 
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: if cfg!(target_os = "windows") {
                         "cd".to_string()
@@ -343,6 +347,7 @@ mod tests {
                     },
                     cwd: temp_dir.clone(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -358,11 +363,12 @@ mod tests {
         let shell = Shell::new(Arc::new(MockInfrastructure::new()));
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: "non_existent_command".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await;
@@ -387,11 +393,12 @@ mod tests {
         let shell = Shell::new(infra);
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: "".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await;
@@ -418,7 +425,7 @@ mod tests {
         let current_dir = env::current_dir().unwrap();
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: if cfg!(target_os = "windows") {
                         "cd".to_string()
@@ -427,6 +434,7 @@ mod tests {
                     },
                     cwd: current_dir.clone(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -457,11 +465,12 @@ mod tests {
         let shell = Shell::new(Arc::new(MockInfrastructure::new()));
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: "echo 'first' && echo 'second'".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -474,11 +483,12 @@ mod tests {
         let shell = Shell::new(Arc::new(MockInfrastructure::new()));
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: "true".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -493,11 +503,12 @@ mod tests {
         let shell = Shell::new(Arc::new(MockInfrastructure::new()));
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: "echo ''".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -512,11 +523,12 @@ mod tests {
         let shell = Shell::new(Arc::new(MockInfrastructure::new()));
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: "echo $PATH".to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await
@@ -537,11 +549,12 @@ mod tests {
 
         let result = shell
             .call(
-                ToolCallContext::default(),
+                &mut ToolCallContext::default(),
                 ShellInput {
                     command: cmd.to_string(),
                     cwd: env::current_dir().unwrap(),
                     keep_ansi: true,
+                    explanation: None,
                 },
             )
             .await;

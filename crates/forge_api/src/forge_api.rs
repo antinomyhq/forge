@@ -4,30 +4,35 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{CommandExecutorService, ForgeServices, Infrastructure};
+use forge_services::{
+    AttachmentService, CommandExecutorService, ConversationService, EnvironmentService,
+    ForgeServices, Infrastructure, McpConfigManager, ProviderService, Services, SuggestionService,
+    ToolService, WorkflowService,
+};
 use forge_stream::MpscStream;
 use tracing::error;
 
-pub struct ForgeAPI<F> {
-    app: Arc<F>,
+pub struct ForgeAPI<A, F> {
+    app: Arc<A>,
+    infra: Arc<F>,
 }
 
-impl<F: Services + Infrastructure> ForgeAPI<F> {
-    pub fn new(app: Arc<F>) -> Self {
-        Self { app: app.clone() }
+impl<A: Services + AgentService, F: Infrastructure> ForgeAPI<A, F> {
+    pub fn new(app: Arc<A>, infra: Arc<F>) -> Self {
+        Self { app, infra }
     }
 }
 
-impl ForgeAPI<ForgeServices<ForgeInfra>> {
+impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
     pub fn init(restricted: bool) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted));
-        let app = Arc::new(ForgeServices::new(infra));
-        ForgeAPI::new(app)
+        let app = Arc::new(ForgeServices::new(infra.clone()));
+        ForgeAPI::new(app, infra)
     }
 }
 
 #[async_trait::async_trait]
-impl<F: Services + Infrastructure> API for ForgeAPI<F> {
+impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
     async fn suggestions(&self) -> Result<Vec<File>> {
         self.app.suggestion_service().suggestions().await
     }
@@ -42,8 +47,8 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
 
     async fn chat(
         &self,
-        chat: ChatRequest,
-    ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
+        mut chat: ChatRequest,
+    ) -> anyhow::Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
         let app = self.app.clone();
         let conversation = app
             .conversation_service()
@@ -52,17 +57,45 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        Ok(MpscStream::spawn(move |tx| async move {
-            let tx = Arc::new(tx);
+        let tool_definitions = app.tool_service().list().await?;
+        let models = app.provider_service().models().await?;
 
-            let orch = Orchestrator::new(app, conversation, Some(tx.clone()));
+        // Always try to get attachments and overwrite them
+        let attachments = app
+            .attachment_service()
+            .attachments(&chat.event.value.to_string())
+            .await?;
+        chat.event = chat.event.attachments(attachments);
+        let orch = Orchestrator::new(
+            app.clone(),
+            app.environment_service().get_environment().clone(),
+            conversation,
+        )
+        .tool_definitions(tool_definitions)
+        .models(models);
 
-            if let Err(err) = orch.dispatch(chat.event).await {
-                if let Err(e) = tx.send(Err(err)).await {
-                    error!("Failed to send error to stream: {:#?}", e);
+        let stream = MpscStream::spawn(|tx| {
+            async move {
+                let tx = Arc::new(tx);
+
+                // Execute dispatch and always save conversation afterwards
+                let mut orch = orch.sender(tx.clone());
+                let dispatch_result = orch.dispatch(chat.event).await;
+
+                // Always save conversation using get_conversation()
+                let conversation = orch.get_conversation().clone();
+                let save_result = app.conversation_service().upsert(conversation).await;
+
+                // Send any error to the stream (prioritize dispatch error over save error)
+                if let Some(err) = dispatch_result.err().or(save_result.err()) {
+                    if let Err(e) = tx.send(Err(err)).await {
+                        error!("Failed to send error to stream: {:#?}", e);
+                    }
                 }
             }
-        }))
+        });
+
+        Ok(stream)
     }
 
     async fn init_conversation<W: Into<Workflow> + Send + Sync>(
@@ -122,7 +155,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         command: &str,
         working_dir: PathBuf,
     ) -> anyhow::Result<CommandOutput> {
-        self.app
+        self.infra
             .command_executor_service()
             .execute_command(command.to_string(), working_dir)
             .await
@@ -147,7 +180,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         &self,
         command: &str,
     ) -> anyhow::Result<std::process::ExitStatus> {
-        self.app
+        self.infra
             .command_executor_service()
             .execute_command_raw(command)
             .await

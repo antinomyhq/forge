@@ -4,7 +4,8 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use forge_api::ForgeAPI;
-use forge_domain::{AgentMessage, ChatRequest, ChatResponse, Event, ModelId, API};
+use forge_domain::{ChatRequest, ChatResponse, Event, ModelId, API};
+use forge_tracker::Tracker;
 use tokio_stream::StreamExt;
 
 const MAX_RETRIES: usize = 5;
@@ -22,12 +23,16 @@ struct Fixture {
     _guard: forge_tracker::Guard,
 }
 
+lazy_static::lazy_static! {
+    static ref tracker: Tracker = Tracker::default();
+}
+
 impl Fixture {
     /// Create a new test fixture with the given task
     fn new(model: ModelId) -> Self {
         Self {
             model,
-            _guard: forge_tracker::init_tracing(PathBuf::from(".")).unwrap(),
+            _guard: forge_tracker::init_tracing(PathBuf::from("."), tracker.clone()).unwrap(),
         }
     }
 
@@ -62,7 +67,7 @@ impl Fixture {
             .with_context(|| "Failed to initialize chat")
             .unwrap()
             .filter_map(|message| match message.unwrap() {
-                AgentMessage { message: ChatResponse::Text { text, .. }, .. } => Some(text),
+                ChatResponse::Text { text, .. } => Some(text),
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -78,7 +83,7 @@ impl Fixture {
             let response = self.get_model_response().await;
 
             if check_response(&response) {
-                println!(
+                eprintln!(
                     "[{}] Successfully checked response in {} attempts",
                     self.model,
                     attempt + 1
@@ -87,7 +92,7 @@ impl Fixture {
             }
 
             if attempt < MAX_RETRIES - 1 {
-                println!("[{}] Attempt {}/{}", self.model, attempt + 1, MAX_RETRIES);
+                eprintln!("[{}] Attempt {}/{}", self.model, attempt + 1, MAX_RETRIES);
             }
         }
         Err(format!(
@@ -103,7 +108,7 @@ macro_rules! generate_model_test {
         #[tokio::test]
         async fn test_find_cat_name() {
             if !should_run_api_tests() {
-                println!(
+                eprintln!(
                     "Skipping API test for {} as RUN_API_TESTS is not set to 'true'",
                     $model
                 );

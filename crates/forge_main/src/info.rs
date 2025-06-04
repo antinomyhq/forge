@@ -92,7 +92,7 @@ impl From<&UIState> for Info {
         }
 
         let usage = &value.usage;
-        let estimated = usage.estimated_tokens.unwrap_or(0);
+        let estimated = usage.estimated_tokens;
 
         info = info.add_title("Usage".to_string());
 

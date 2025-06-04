@@ -5,15 +5,17 @@ use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{NamedTool, ToolCallFull, ToolDefinition, ToolName};
+use crate::{Attachment, NamedTool, ToolCallFull, ToolDefinition, ToolName};
 
 // We'll use simple strings for JSON schema compatibility
 #[derive(Debug, Deserialize, Serialize, Clone, Setters)]
+#[setters(into, strip_option)]
 pub struct Event {
     pub id: String,
     pub name: String,
     pub value: Value,
     pub timestamp: String,
+    pub attachments: Vec<Attachment>,
 }
 
 #[derive(Debug, JsonSchema, Deserialize, Serialize, Clone)]
@@ -79,6 +81,12 @@ impl Event {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
 
-        Self { id, name: name.to_string(), value: value.into(), timestamp }
+        Self {
+            id,
+            name: name.to_string(),
+            value: value.into(),
+            timestamp,
+            attachments: Vec::new(),
+        }
     }
 }

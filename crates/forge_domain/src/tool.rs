@@ -22,7 +22,7 @@ where
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         let input: T::Input = serde_json::from_value(input)?;

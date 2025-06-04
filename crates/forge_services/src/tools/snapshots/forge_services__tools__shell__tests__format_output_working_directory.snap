@@ -1,6 +1,6 @@
 ---
 source: crates/forge_services/src/tools/shell.rs
-expression: "TempDir::normalize(&result)"
+expression: "TempDir::normalize(&result.into_string())"
 ---
 ---
 command: pwd

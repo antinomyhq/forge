@@ -2,7 +2,7 @@ use base64::Engine;
 use derive_getters::Getters;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize, Getters, PartialEq, Eq, Hash)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, Getters, PartialEq, Eq, Hash)]
 pub struct Image {
     url: String,
     mime_type: String,
