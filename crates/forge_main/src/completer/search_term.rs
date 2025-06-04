@@ -41,7 +41,12 @@ impl SearchTerm {
             .max_by(|a, b| a.0.cmp(&b.0))
             .and_then(|(char_pos, _)| {
                 // Find the byte index after '@' character
-                let start_byte_idx = char_indices.get(char_pos + 1)?.0;
+                let start_byte_idx = if char_pos + 1 < char_indices.len() {
+                    char_indices[char_pos + 1].0
+                } else {
+                    // If '@' is the last character, start after it
+                    self.line.len()
+                };
                 // Find the byte index at cursor position
                 let end_byte_idx = if cursor_char_pos < char_indices.len() {
                     char_indices[cursor_char_pos].0
@@ -73,13 +78,51 @@ mod tests {
 
     impl SearchTerm {
         fn test(line: &str) -> Vec<TermSpec> {
-            (1..line.len() + 1)
-                .map(|i| {
-                    let input = SearchTerm::new(line, i);
+            let char_indices: Vec<(usize, char)> = line.char_indices().collect();
+
+            // Test at each character boundary plus one position at the end, starting from
+            // position 1
+            let mut positions = Vec::new();
+
+            // Add position for each character boundary (skip position 0 to match original
+            // behavior)
+            for (byte_idx, _) in &char_indices {
+                if *byte_idx > 0 {
+                    positions.push(*byte_idx);
+                }
+            }
+            if !char_indices.is_empty() {
+                positions.insert(0, 1); // Always start testing from position 1
+            }
+
+            // Add position at the end of string
+            positions.push(line.len());
+
+            // Remove duplicates and sort
+            positions.sort();
+            positions.dedup();
+
+            positions
+                .into_iter()
+                .map(|pos| {
+                    let input = SearchTerm::new(line, pos);
                     let output = input.process();
-                    let (a, b) = line.split_at(i);
+
+                    // Find the character position for display
+                    let char_pos = char_indices
+                        .iter()
+                        .position(|(byte_idx, _)| *byte_idx >= pos)
+                        .unwrap_or(char_indices.len());
+
+                    let (a, b) = if char_pos < char_indices.len() {
+                        let split_byte_pos = char_indices[char_pos].0;
+                        line.split_at(split_byte_pos)
+                    } else {
+                        (line, "")
+                    };
+
                     TermSpec {
-                        pos: i,
+                        pos,
                         input: format!("{a}[{b}"),
                         output: output.as_ref().map(|term| term.term.to_string()),
                         span_start: output.as_ref().map(|term| term.span.start),
@@ -103,6 +146,30 @@ mod tests {
     #[test]
     fn test_marker_based_search() {
         let results = SearchTerm::test("@abc @def ghi@");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_marker_based_search_chinese() {
+        let results = SearchTerm::test("@你好 @世界 测试@");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_marker_based_search_mixed_chinese_english() {
+        let results = SearchTerm::test("@hello @世界 test@中文");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_marker_based_search_chinese_with_spaces() {
+        let results = SearchTerm::test("@中 文 @测试");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_marker_based_search_emoji() {
+        let results = SearchTerm::test("@🚀 @🌟 emoji@");
         assert_debug_snapshot!(results);
     }
 }
