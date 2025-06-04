@@ -40,12 +40,11 @@ impl<F: Infrastructure> ToolRegistry<F> {
 
 #[cfg(test)]
 pub mod tests {
-
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
     use forge_domain::{
-        CommandOutput, Environment, Provider, ToolDefinition, ToolName, ToolOutput,
+        CommandOutput, Environment, MimeType, Provider, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -144,6 +143,10 @@ pub mod tests {
         }
 
         async fn exists(&self, _: &Path) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+
+        async fn mime_type(&self, _: &Path) -> anyhow::Result<MimeType> {
             unimplemented!()
         }
     }

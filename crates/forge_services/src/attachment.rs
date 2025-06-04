@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_domain::{Attachment, AttachmentContent, Image};
+use nom::AsBytes;
 
 use crate::services::{AttachmentService, EnvironmentService};
 use crate::{FsReadService, Infrastructure};
@@ -22,7 +23,7 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
     ) -> anyhow::Result<Image> {
         let bytes = infra.read(path).await?;
 
-        Ok(Image::new_bytes(bytes, img_format))
+        Ok(Image::new_bytes(bytes.as_bytes(), img_format))
     }
 
     async fn generate_text_content(
@@ -115,8 +116,8 @@ pub mod tests {
     use base64::Engine;
     use bytes::Bytes;
     use forge_domain::{
-        AttachmentContent, CommandOutput, Environment, Provider, ToolDefinition, ToolName,
-        ToolOutput,
+        AttachmentContent, CommandOutput, Environment, MimeType, Provider, ToolDefinition,
+        ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -318,6 +319,10 @@ pub mod tests {
 
         async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
             Ok(self.files.lock().unwrap().iter().any(|(p, _)| p == path))
+        }
+
+        async fn mime_type(&self, _: &Path) -> anyhow::Result<MimeType> {
+            Ok(MimeType::Text)
         }
     }
 

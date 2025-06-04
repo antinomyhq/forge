@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{Image, ToolCallFull, ToolCallId, ToolName};
+use crate::{Image, Pdf, ToolCallFull, ToolCallId, ToolName};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
 #[setters(into)]
@@ -76,6 +76,9 @@ impl ToolOutput {
     pub fn image(img: Image) -> Self {
         ToolOutput { is_error: false, values: vec![ToolOutputValue::Image(img)] }
     }
+    pub fn pdf(pdf: Pdf) -> Self {
+        ToolOutput { is_error: false, values: vec![ToolOutputValue::Pdf(pdf)] }
+    }
 
     pub fn combine(self, other: ToolOutput) -> Self {
         let mut items = self.values;
@@ -102,6 +105,7 @@ where
 pub enum ToolOutputValue {
     Text(String),
     Image(Image),
+    Pdf(Pdf),
     #[default]
     Empty,
 }
@@ -119,6 +123,7 @@ impl ToolOutputValue {
         match self {
             ToolOutputValue::Text(text) => Some(text),
             ToolOutputValue::Image(_) => None,
+            ToolOutputValue::Pdf(_) => None,
             ToolOutputValue::Empty => None,
         }
     }

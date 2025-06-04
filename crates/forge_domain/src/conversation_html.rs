@@ -3,6 +3,7 @@ use serde_json::to_string_pretty;
 
 use crate::context::ContextMessage;
 use crate::conversation::Conversation;
+use crate::ToolOutputValue;
 
 pub fn render_conversation_html(conversation: &Conversation) -> String {
     let html = Element::new("html")
@@ -293,6 +294,9 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                     crate::ToolOutputValue::Image(image) => {
                                         Some(Element::new("img").attr("src", image.url()))
                                     }
+                                    ToolOutputValue::Pdf(pdf) => {
+                                        Some(Element::new("pdf").attr("src", pdf.file_data()))
+                                    }
                                     crate::ToolOutputValue::Empty => None,
                                 },
                             ))
@@ -303,6 +307,9 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                             .append(Element::new("strong").text("Image Attachment"))
                             .append(Element::new("img").attr("src", image.url()))
                     }
+                    ContextMessage::Pdf(pdf) => Element::new("div.message-card.message-user")
+                        .append(Element::new("strong").text("Image Attachment"))
+                        .append(Element::new("img").attr("src", pdf.file_data())),
                 }
             }));
 

@@ -128,6 +128,9 @@ impl TryFrom<ContextMessage> for Message {
             ContextMessage::Image(img) => {
                 Message { content: vec![Content::from(img)], role: Role::User }
             }
+            ContextMessage::Pdf(_) => {
+                todo!()
+            }
         })
     }
 }

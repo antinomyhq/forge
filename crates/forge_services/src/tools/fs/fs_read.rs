@@ -1,21 +1,31 @@
 use std::cmp::min;
 use std::fmt::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{bail, Context};
 use forge_display::TitleFormat;
 use forge_domain::{
-    ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolDescription, ToolName, ToolOutput,
+    ExecutableTool, FSReadInput, Image, MimeType, NamedTool, Pdf, ToolCallContext, ToolDescription,
+    ToolName, ToolOutput,
 };
+use forge_fs::FileInfo;
 use forge_tool_macros::ToolDescription;
 
 use crate::services::EnvironmentService;
 use crate::utils::{assert_absolute_path, format_display_path};
-use crate::{FsReadService, Infrastructure};
+use crate::{FsMetaService, FsReadService, Infrastructure};
 
 // Define maximum character limits
 const MAX_RANGE_SIZE: u64 = 40_000;
+
+/// Parameters for creating and sending a title for the fs_read operation
+struct TitleParams<'a> {
+    read_params: (&'a ToolCallContext, &'a FSReadInput, &'a Path),
+    range_params: (u64, u64),
+    file_info: &'a FileInfo,
+    is_image: bool,
+}
 
 /// Ensures that the given character range is valid and doesn't exceed the
 /// maximum size
@@ -81,20 +91,23 @@ impl<F: Infrastructure> FSRead<F> {
     /// Sets the title and subtitle based on whether this was an explicit user
     /// range request or an automatic limit for large files, then sends it
     /// via the context channel.
-    async fn create_and_send_title(
-        &self,
-        context: &ToolCallContext,
-        input: &FSReadInput,
-        path: &Path,
-        start_char: u64,
-        end_char: u64,
-        file_info: &forge_fs::FileInfo,
-    ) -> anyhow::Result<()> {
+    async fn create_and_send_title(&self, params: TitleParams<'_>) -> anyhow::Result<()> {
+        let (context, input, path) = params.read_params;
+        let (start_char, end_char) = params.range_params;
+
+        // For images, use simple "Image" title and don't show range information
+        if params.is_image {
+            let display_path = self.format_display_path(path)?;
+            let message = TitleFormat::debug("Image read").sub_title(display_path);
+            context.send_text(message).await?;
+            return Ok(());
+        }
+
         // Determine if the user requested an explicit range
         let is_explicit_range = input.start_char.is_some() | input.end_char.is_some();
 
         // Determine if the file is larger than the limit and needs truncation
-        let is_truncated = file_info.total_chars > end_char;
+        let is_truncated = params.file_info.total_chars > end_char;
 
         // Determine if range information is relevant to display
         let is_range_relevant = is_explicit_range || is_truncated;
@@ -111,11 +124,11 @@ impl<F: Infrastructure> FSRead<F> {
             "Read"
         };
 
-        let end_info = min(end_char, file_info.total_chars);
+        let end_info = min(end_char, params.file_info.total_chars);
 
         let range_info = format!(
             "char range: {}-{}, total chars: {}",
-            start_char, end_info, file_info.total_chars
+            start_char, end_info, params.file_info.total_chars
         );
 
         // Format a response with metadata
@@ -141,15 +154,12 @@ impl<F: Infrastructure> FSRead<F> {
         Ok(())
     }
 
-    /// Helper function to read a file with range constraints
-    async fn call(
+    async fn read_text(
         &self,
         context: &mut ToolCallContext,
         input: FSReadInput,
+        path: PathBuf,
     ) -> anyhow::Result<ToolOutput> {
-        let path = Path::new(&input.path);
-        assert_absolute_path(path)?;
-
         let start_char = input.start_char.unwrap_or(0);
         let end_char = input.end_char.unwrap_or(MAX_RANGE_SIZE.saturating_sub(1));
 
@@ -159,13 +169,22 @@ impl<F: Infrastructure> FSRead<F> {
         let (content, file_info) = self
             .0
             .file_read_service()
-            .range_read_utf8(path, start_char, end_char)
+            .range_read_utf8(&path, start_char, end_char)
             .await
             .with_context(|| format!("Failed to read file content from {}", input.path))?;
 
         // Create and send the title using the extracted method
-        self.create_and_send_title(context, &input, path, start_char, end_char, &file_info)
-            .await?;
+        self.create_and_send_title(TitleParams {
+            read_params: (context, &input, &path),
+            range_params: (start_char, end_char),
+            file_info: &FileInfo {
+                start_char: file_info.start_char,
+                end_char: file_info.end_char,
+                total_chars: file_info.total_chars,
+            },
+            is_image: false,
+        })
+        .await?;
 
         // Determine if the user requested an explicit range
         let is_explicit_range = input.start_char.is_some() | input.end_char.is_some();
@@ -194,6 +213,69 @@ impl<F: Infrastructure> FSRead<F> {
         writeln!(response, "{}", &content)?;
 
         Ok(ToolOutput::text(response))
+    }
+
+    async fn read_file(
+        &self,
+        context: &mut ToolCallContext,
+        input: FSReadInput,
+        path: PathBuf,
+        ty: MimeType,
+    ) -> anyhow::Result<ToolOutput> {
+        let bytes = self
+            .0
+            .file_read_service()
+            .read(&path)
+            .await
+            .with_context(|| format!("Failed to read file content from {}", input.path))?;
+
+        let file_info = FileInfo::new(0, (bytes.len() - 1) as u64, bytes.len() as u64);
+
+        self.create_and_send_title(TitleParams {
+            read_params: (context, &input, &path),
+            range_params: (0, (bytes.len() - 1) as u64),
+            file_info: &file_info,
+            is_image: true,
+        })
+        .await?;
+
+        Ok(Self::tool_output(
+            path.file_name()
+                .context("Unable to extract filename")?
+                .to_string_lossy()
+                .as_ref(),
+            &bytes,
+            ty,
+        ))
+    }
+    fn tool_output(path: &str, bytes: &[u8], mime_type: MimeType) -> ToolOutput {
+        match mime_type {
+            MimeType::Image(_) => ToolOutput::image(Image::new_bytes(bytes, mime_type.to_string())),
+            MimeType::Pdf => ToolOutput::pdf(Pdf::new_bytes(path, bytes, mime_type.to_string())),
+            MimeType::Text => unreachable!(),
+            MimeType::Other(_) => unreachable!(),
+        }
+    }
+
+    /// Helper function to read a file with range constraints
+    async fn call(
+        &self,
+        context: &mut ToolCallContext,
+        input: FSReadInput,
+    ) -> anyhow::Result<ToolOutput> {
+        let path = PathBuf::from(&input.path);
+        assert_absolute_path(&path)?;
+        let ty = self.0.file_meta_service().mime_type(&path).await?;
+        match &ty {
+            MimeType::Text => self.read_text(context, input, path).await,
+            MimeType::Pdf | MimeType::Image(_) => self.read_file(context, input, path, ty).await,
+            MimeType::Other(_) => {
+                bail!(
+                    "Unsupported file type: {}. Only text and image files are supported.",
+                    ty
+                );
+            }
+        }
     }
 }
 
