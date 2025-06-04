@@ -1,8 +1,12 @@
+use std::future::Future;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_domain::{CommandOutput, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
+use forge_domain::{
+    CommandOutput, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response, RetryConfig,
+    ToolDefinition, ToolName, ToolOutput,
+};
 use forge_snaps::Snapshot;
 
 use crate::services::EnvironmentService;
@@ -142,6 +146,25 @@ pub trait McpServer: Send + Sync + 'static {
     async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
 }
 
+#[async_trait::async_trait]
+pub trait HttpService: Send + Sync + 'static {
+    async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
+    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>>;
+    async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
+    async fn poll<T, F>(
+        &self,
+        builder: RetryConfig,
+        call: impl Fn() -> F + Send,
+    ) -> anyhow::Result<T>
+    where
+        F: Future<Output = anyhow::Result<T>> + Send;
+}
+
+pub trait ProviderService: Send + Sync + 'static {
+    fn get(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
+    fn provider_url(&self) -> Option<ProviderUrl>;
+}
+
 pub trait Infrastructure: Send + Sync + Clone + 'static {
     type EnvironmentService: EnvironmentService;
     type FsMetaService: FsMetaService;
@@ -153,6 +176,8 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     type CommandExecutorService: CommandExecutorService;
     type InquireService: InquireService;
     type McpServer: McpServer;
+    type HttpService: HttpService;
+    type ProviderService: ProviderService;
 
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn file_meta_service(&self) -> &Self::FsMetaService;
@@ -164,4 +189,6 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     fn command_executor_service(&self) -> &Self::CommandExecutorService;
     fn inquire_service(&self) -> &Self::InquireService;
     fn mcp_server(&self) -> &Self::McpServer;
+    fn http_service(&self) -> &Self::HttpService;
+    fn provider_service(&self) -> &Self::ProviderService;
 }

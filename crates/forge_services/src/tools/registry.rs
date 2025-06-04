@@ -40,12 +40,11 @@ impl<F: Infrastructure> ToolRegistry<F> {
 
 #[cfg(test)]
 pub mod tests {
-
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
     use forge_domain::{
-        CommandOutput, Environment, Provider, ToolDefinition, ToolName, ToolOutput,
+        CommandOutput, Environment, InitAuth, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -53,7 +52,7 @@ pub mod tests {
     use super::*;
     use crate::services::EnvironmentService;
     use crate::{
-        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
+        AuthService, CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
         FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
     };
 
@@ -71,7 +70,6 @@ pub mod tests {
                 },
                 base_path: PathBuf::new(),
                 pid: std::process::id(),
-                provider: Provider::anthropic("test-key"),
                 retry_config: Default::default(),
             },
         }
@@ -173,6 +171,21 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl AuthService for Stub {
+        async fn init(&self) -> anyhow::Result<InitAuth> {
+            unimplemented!()
+        }
+
+        async fn login(&self, _auth: &InitAuth) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn logout(&self) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
     impl InquireService for Stub {
         /// Prompts the user with question
         async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
@@ -238,8 +251,9 @@ pub mod tests {
         type FsCreateDirsService = Stub;
         type CommandExecutorService = Stub;
         type InquireService = Stub;
-
         type McpServer = Stub;
+        type HttpService = ();
+        type ProviderService = ();
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             self
@@ -279,6 +293,18 @@ pub mod tests {
 
         fn mcp_server(&self) -> &Self::McpServer {
             self
+        }
+
+        fn http_service(&self) -> &Self::HttpService {
+            // Return static placeholder since we are using unit type
+            static HTTP_SERVICE: () = ();
+            &HTTP_SERVICE
+        }
+
+        fn provider_service(&self) -> &Self::ProviderService {
+            // Return static placeholder since we are using unit type
+            static PROVIDER_SERVICE: () = ();
+            &PROVIDER_SERVICE
         }
     }
 

@@ -1,13 +1,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::{
-    AttachmentService, CommandExecutorService, ConversationService, EnvironmentService,
-    ForgeServices, Infrastructure, McpConfigManager, ProviderService, Services, SuggestionService,
-    ToolService, WorkflowService,
+    AttachmentService, AuthService, ChatService, CommandExecutorService, ConversationService,
+    EnvironmentService, ForgeServices, Infrastructure, KeyService, McpConfigManager,
+    ProviderService, Services, SuggestionService, ToolService, WorkflowService,
 };
 use forge_stream::MpscStream;
 use tracing::error;
@@ -42,7 +42,7 @@ impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
-        Ok(self.app.provider_service().models().await?)
+        Ok(self.app.chat_service().models().await?)
     }
 
     async fn chat(
@@ -58,7 +58,7 @@ impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
             .expect("conversation for the request should've been created at this point.");
 
         let tool_definitions = app.tool_service().list().await?;
-        let models = app.provider_service().models().await?;
+        let models = app.chat_service().models().await?;
 
         // Always try to get attachments and overwrite them
         let attachments = app
@@ -184,5 +184,27 @@ impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
             .command_executor_service()
             .execute_command_raw(command)
             .await
+    }
+
+    async fn init_login(&self) -> Result<InitAuth> {
+        self.app.auth_service().init().await
+    }
+
+    async fn login(&self, auth: &InitAuth) -> Result<()> {
+        self.app.auth_service().login(auth).await
+    }
+
+    async fn logout(&self) -> Result<()> {
+        self.app.auth_service().logout().await
+    }
+
+    async fn api_key(&self) -> Option<ForgeKey> {
+        self.app.key_service().get().await
+    }
+    fn provider(&self, key: Option<ForgeKey>) -> Result<Provider> {
+        self.infra
+            .provider_service()
+            .get(key)
+            .context("User isn't logged in")
     }
 }

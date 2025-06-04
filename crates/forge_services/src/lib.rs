@@ -1,11 +1,14 @@
 mod attachment;
+mod auth;
+mod chat;
 mod clipper;
+mod config;
 mod conversation;
 mod forge_services;
 mod infra;
+mod key;
 mod mcp;
 mod metadata;
-mod provider;
 mod services;
 mod suggestion;
 mod template;
@@ -13,7 +16,6 @@ mod tool_service;
 mod tools;
 mod utils;
 mod workflow;
-
 pub use clipper::*;
 pub use forge_services::*;
 pub use infra::*;

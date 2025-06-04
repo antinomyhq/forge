@@ -6,7 +6,7 @@ use forge_api::{
     ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Scope};
+use forge_domain::{ForgeKey, McpConfig, McpServerConfig, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -359,6 +359,20 @@ impl<F: API> UI<F> {
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
+            Command::Login => {
+                self.spinner.start(Some("Logging in"))?;
+                self.api.logout().await?;
+                self.login().await?;
+                self.spinner.stop(None)?;
+            }
+            Command::Logout => {
+                self.spinner.start(Some("Logging out"))?;
+                self.api.logout().await?;
+                self.spinner.stop(None)?;
+                self.writeln(TitleFormat::info("Logged out"))?;
+                // Exit the UI after logout
+                return Ok(true);
+            }
         }
 
         Ok(false)
@@ -517,9 +531,45 @@ impl<F: API> UI<F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(base_workflow).provider(self.api.environment().provider);
+        self.state = UIState::new(base_workflow).provider(self.init_provider().await?);
 
         Ok(workflow)
+    }
+    async fn init_provider(&mut self) -> Result<Provider> {
+        match self.api.provider(None) {
+            // Use a key if it's available in the environment.
+            Ok(provider) => Ok(provider),
+            Err(_) => match self.api.api_key().await {
+                // Use the forge key if available in the config.
+                Some(forge_key) => self.api.provider(Some(forge_key)),
+                None => {
+                    // If no key is available, start the login flow.
+                    let key = self.login().await?;
+                    self.api.provider(Some(key))
+                }
+            },
+        }
+    }
+    async fn login(&mut self) -> Result<ForgeKey> {
+        self.writeln(TitleFormat::info("Initiating login..."))?;
+        let auth = self.api.init_login().await?;
+        self.writeln(TitleFormat::action(format!(
+            "Please visit the following URL to log in: {}",
+            auth.auth_url
+        )))?;
+        open::that(auth.auth_url.as_str()).ok();
+        self.spinner
+            .start(Some("Waiting for login to complete..."))?;
+        self.api.login(&auth).await?;
+
+        let result = self
+            .api
+            .api_key()
+            .await
+            .context("Failed to retrieve an API key")?;
+
+        self.spinner.stop(None)?;
+        Ok(result)
     }
 
     async fn on_message(&mut self, content: String) -> Result<()> {
