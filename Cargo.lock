@@ -1134,17 +1134,22 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
+ "chrono",
  "derive_builder",
  "derive_more",
  "derive_setters",
  "forge_domain",
+ "hmac",
  "insta",
+ "obfstr",
  "pretty_assertions",
  "regex",
  "reqwest 0.12.12",
  "reqwest-eventsource",
  "serde",
  "serde_json",
+ "sha2",
  "strum 0.27.1",
  "strum_macros 0.27.1",
  "thiserror 2.0.12",
@@ -2526,6 +2531,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
+name = "obfstr"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0d354e9a302760d07e025701d40534f17dd1fe4c4db955b4e3bd2907c63bdee"
+
+[[package]]
 name = "object"
 version = "0.36.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3510,9 +3521,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.8"
+version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
 dependencies = [
  "cfg-if",
  "cpufeatures",

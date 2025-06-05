@@ -1,11 +1,15 @@
 use anyhow::{Context as _, Result};
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use derive_builder::Builder;
 use forge_domain::{
     self, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
+use hmac::{Hmac, Mac};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
+use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 use tracing::debug;
 
@@ -83,6 +87,8 @@ impl ForgeProvider {
         request = ProviderPipeline::new(&self.provider).transform(request);
 
         let url = self.url("chat/completions")?;
+        let timestamp = chrono::Utc::now().to_rfc3339();
+        let sig = Self::sign(&timestamp, &request);
 
         debug!(
             url = %url,
@@ -96,6 +102,8 @@ impl ForgeProvider {
             .client
             .post(url.clone())
             .headers(self.headers())
+            .header("X-Forge-Timestamp", timestamp)
+            .header("X-Forge-Signature", sig)
             .json(&request)
             .eventsource()
             .with_context(|| format_http_context(None, "POST", &url))?;
@@ -211,6 +219,21 @@ impl ForgeProvider {
                     .with_context(|| "Failed to fetch the models")
             }
         }
+    }
+    fn sign<T: AsRef<[u8]>>(timestamp: T, request: &Request) -> String {
+        // hash the secret key so it never fails for key length.
+        let secret_hash = Sha256::digest(obfstr::obfstr!(env!("FORGE_SECRET")));
+        let mut mac = Hmac::<Sha256>::new_from_slice(secret_hash.as_slice()).unwrap();
+        mac.update(timestamp.as_ref());
+        mac.update(
+            serde_json::to_string(&request)
+                .unwrap_or_default()
+                .as_bytes(),
+        );
+
+        let result = mac.finalize().into_bytes();
+
+        BASE64_STANDARD.encode(result)
     }
 }
 
