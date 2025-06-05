@@ -17,6 +17,7 @@ impl Transformer for MakeOpenAiCompat {
         request.repetition_penalty = None;
         request.min_p = None;
         request.top_a = None;
+        request.usage = None;
 
         let tools_present = request
             .tools
