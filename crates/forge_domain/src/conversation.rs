@@ -165,10 +165,6 @@ impl Conversation {
         self.agents
             .iter()
             .filter(|a| {
-                // Filter out disabled agents
-                !a.disable.unwrap_or_default()
-            })
-            .filter(|a| {
                 a.subscribe
                     .as_ref()
                     .is_some_and(|subs| subs.contains(&event_name.to_string()))

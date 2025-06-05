@@ -57,6 +57,7 @@ impl ProviderService for ForgeProviderService {
         model: &ModelId,
         request: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        //FIXME: retry on message error
         self.attempt_retry(|| self.client.chat(model, request.clone()))
             .await
     }
