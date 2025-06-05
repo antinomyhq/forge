@@ -35,4 +35,8 @@ pub struct SystemContext {
     // Variables to pass to the system context
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub variables: HashMap<String, Value>,
+
+    /// Indicates whether the agent supports parallel tool calls.
+    #[serde(default)]
+    pub supports_parallel_tool_calls: bool,
 }
