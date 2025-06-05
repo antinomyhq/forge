@@ -21,6 +21,11 @@ forge_domain.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
+chrono.workspace = true
+hmac = "0.12.1"
+sha2 = "0.10.9"
+hex = "0.4.3"
+uuid.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
