@@ -1027,6 +1027,7 @@ dependencies = [
  "insta",
  "merge",
  "nom 8.0.0",
+ "obfstr",
  "pretty_assertions",
  "regex",
  "reqwest-eventsource",

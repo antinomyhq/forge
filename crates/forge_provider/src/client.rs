@@ -32,6 +32,7 @@ impl Client {
         provider: Provider,
         retry_config: RetryConfig,
         version: impl ToString,
+        secret: impl ToString,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
             .read_timeout(std::time::Duration::from_secs(10))
@@ -46,6 +47,7 @@ impl Client {
                     .client(client)
                     .provider(provider.clone())
                     .version(version.to_string())
+                    .secret(secret.to_string())
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             ),
@@ -144,7 +146,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, RetryConfig::default(), "dev").unwrap();
+        let client = Client::new(provider, RetryConfig::default(), "dev", "secret").unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -157,7 +159,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, RetryConfig::default(), "dev").unwrap();
+        let client = Client::new(provider, RetryConfig::default(), "dev", "secret").unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)

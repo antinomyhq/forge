@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_domain::{
@@ -9,7 +7,6 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use sha2::Digest;
-use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 use totp_rs::{Algorithm, TOTP};
 use tracing::debug;
@@ -26,6 +23,7 @@ pub struct ForgeProvider {
     client: Client,
     provider: Provider,
     version: String,
+    secret: String,
 }
 
 impl ForgeProvider {
@@ -92,7 +90,7 @@ impl ForgeProvider {
         // which will give you a 32 byte base64 encoded string.
 
         // here we are using api key as IV, to generate a unique key for each user.
-        let key = format!("{}-{}", api_key, obfstr::obfstr!(env!("FORGE_SECRET")));
+        let key = format!("{}-{}", api_key, self.secret);
 
         // This is redundant step but it's quite useful to:
         // 1. Ensure the key is at least 16 bytes long.
@@ -100,16 +98,14 @@ impl ForgeProvider {
         //    wasteful, so it avoids a long key.
         let secret_key = sha2::Sha256::digest(key.as_bytes());
 
-        let totp = TOTP::new(
+        TOTP::new(
             Algorithm::SHA256,
             8, // digits
             1,
             30, // period in seconds
             secret_key.to_vec(),
         )
-        .unwrap();
-
-        totp
+        .unwrap()
     }
 
     async fn inner_chat(

@@ -58,4 +58,7 @@ impl Environment {
     pub fn version(&self) -> String {
         VERSION.to_string()
     }
+    pub fn secret(&self) -> String {
+        obfstr::obfstr!(env!("FORGE_SECRET")).to_string()
+    }
 }
