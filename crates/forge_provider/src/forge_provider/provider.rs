@@ -26,8 +26,6 @@ pub struct ForgeProvider {
     client: Client,
     provider: Provider,
     version: String,
-    #[builder(setter(skip))]
-    totp: Arc<RwLock<Option<Arc<TOTP>>>>,
 }
 
 impl ForgeProvider {
@@ -56,10 +54,10 @@ impl ForgeProvider {
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
     // - `HTTP-Referer`: Identifies your app on openrouter.ai
     // - `X-Title`: Sets/modifies your app's title
-    async fn headers(&self) -> HeaderMap {
+    fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         if let Some(ref api_key) = self.provider.key() {
-            let totp = self.totp(api_key).await;
+            let totp = self.totp(api_key);
             headers.insert(
                 AUTHORIZATION,
                 HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
@@ -86,10 +84,7 @@ impl ForgeProvider {
         headers
     }
 
-    async fn totp(&self, api_key: &str) -> Arc<TOTP> {
-        if let Some(totp) = self.totp.read().await.as_ref() {
-            return totp.clone();
-        }
+    fn totp(&self, api_key: &str) -> TOTP {
         // README:
         // secret must be a base32 encoded string
         // and at least 16 bytes long.
@@ -105,17 +100,15 @@ impl ForgeProvider {
         //    wasteful, so it avoids a long key.
         let secret_key = sha2::Sha256::digest(key.as_bytes());
 
-        let totp = Arc::new(
-            TOTP::new(
-                Algorithm::SHA256,
-                8, // digits
-                1,
-                10, // period in seconds
-                secret_key.to_vec(),
-            )
-            .unwrap(),
-        );
-        self.totp.write().await.replace(totp.clone());
+        let totp = TOTP::new(
+            Algorithm::SHA256,
+            8, // digits
+            1,
+            30, // period in seconds
+            secret_key.to_vec(),
+        )
+        .unwrap();
+
         totp
     }
 
@@ -140,7 +133,7 @@ impl ForgeProvider {
         let es = self
             .client
             .post(url.clone())
-            .headers(self.headers().await)
+            .headers(self.headers())
             .json(&request)
             .eventsource()
             .with_context(|| format_http_context(None, "POST", &url))?;
@@ -232,7 +225,7 @@ impl ForgeProvider {
         match self
             .client
             .get(url.clone())
-            .headers(self.headers().await)
+            .headers(self.headers())
             .send()
             .await
         {
