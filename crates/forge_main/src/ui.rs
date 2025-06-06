@@ -6,9 +6,9 @@ use forge_api::{
     ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Scope};
+use forge_domain::{Buffer, BufferEvent, McpConfig, McpServerConfig, Scope};
 use forge_fs::ForgeFS;
-use forge_spinner::SpinnerManager;
+use forge_spinner::{ConsoleService, SpinnerManager};
 use forge_tracker::ToolCallPayload;
 use inquire::error::InquireError;
 use inquire::ui::{RenderConfig, Styled};
@@ -19,6 +19,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::editor::ReadResult;
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
@@ -48,6 +49,23 @@ impl From<PartialEvent> for Event {
     }
 }
 
+struct ConsoleWriter<F> {
+    api: Arc<F>,
+}
+
+impl<F> ConsoleWriter<F> {
+    fn new(api: Arc<F>) -> Self {
+        Self { api }
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: API> ConsoleService for ConsoleWriter<F> {
+    async fn print(&self, text: &str) -> Result<()> {
+        self.api.print(text).await
+    }
+}
+
 pub struct UI<F> {
     markdown: MarkdownFormat,
     state: UIState,
@@ -55,7 +73,7 @@ pub struct UI<F> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    spinner: SpinnerManager,
+    spinner: SpinnerManager<ConsoleWriter<F>>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
@@ -63,15 +81,17 @@ pub struct UI<F> {
 impl<F: API> UI<F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
-    fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
-        self.spinner.write_ln(content)
+    async fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
+        let content = content.to_string();
+        self.spinner.write_ln(&content).await?;
+        Ok(())
     }
 
     /// Retrieve available models
     async fn get_models(&mut self) -> Result<Vec<Model>> {
-        self.spinner.start(Some("Loading"))?;
+        self.spinner.start(Some("Loading")).await?;
         let models = self.api.models().await?;
-        self.spinner.stop(None)?;
+        self.spinner.stop(None).await?;
         Ok(models)
     }
 
@@ -79,7 +99,7 @@ impl<F: API> UI<F> {
     async fn on_new(&mut self) -> Result<()> {
         self.init_state().await?;
         banner::display()?;
-
+        self.api.clear_state().await.ok();
         Ok(())
     }
 
@@ -109,7 +129,8 @@ impl<F: API> UI<F> {
         self.writeln(TitleFormat::action(format!(
             "Switched to '{}' mode",
             self.state.mode
-        )))?;
+        )))
+        .await?;
 
         Ok(())
     }
@@ -142,11 +163,11 @@ impl<F: API> UI<F> {
         let command = Arc::new(ForgeCommandManager::default());
         Ok(Self {
             state: Default::default(),
+            spinner: SpinnerManager::new(Arc::new(ConsoleWriter::new(api.clone()))),
             api,
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
@@ -155,6 +176,15 @@ impl<F: API> UI<F> {
     async fn prompt(&self) -> Result<Command> {
         // Prompt the user for input
         self.console.prompt(Some(self.state.clone().into())).await
+    }
+    /// Load a conversation from a file path and initialize it in the API
+    /// Returns the conversation ID of the loaded conversation
+    async fn load_conversation(&mut self, conversation: Conversation) -> Result<ConversationId> {
+        let conversation_id = conversation.id.clone();
+        self.state.conversation_id = Some(conversation_id.clone());
+        self.update_model(conversation.main_model()?);
+        self.api.upsert_conversation(conversation).await?;
+        Ok(conversation_id)
     }
 
     pub async fn run(&mut self) {
@@ -183,9 +213,11 @@ impl<F: API> UI<F> {
             return Ok(());
         }
 
-        // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
-        self.init_state().await?;
+        if !self.restore_conversation().await? {
+            // Display the banner in dimmed colors since we're in interactive mode
+            banner::display()?;
+            self.init_state().await?;
+        }
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -210,14 +242,14 @@ impl<F: API> UI<F> {
                             tokio::spawn(
                                 TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{error:?}"))),
                             );
-                            self.spinner.stop(None)?;
+                            self.spinner.stop(None).await?;
                             eprintln!("{}", TitleFormat::error(format!("{error:?}")));
                         },
                     }
                 }
             }
 
-            self.spinner.stop(None)?;
+            self.spinner.stop(None).await?;
 
             // Centralized prompt call at the end of the loop
             command = self.prompt().await?;
@@ -246,19 +278,21 @@ impl<F: API> UI<F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))?;
+                    self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))
+                        .await?;
                 }
                 McpCommand::List => {
                     let mcp_servers = self.api.read_mcp_config().await?;
                     if mcp_servers.is_empty() {
-                        self.writeln(TitleFormat::error("No MCP servers found"))?;
+                        self.writeln(TitleFormat::error("No MCP servers found"))
+                            .await?;
                     }
 
                     let mut output = String::new();
                     for (name, server) in mcp_servers.mcp_servers {
                         output.push_str(&format!("{name}: {server}"));
                     }
-                    self.writeln(output)?;
+                    self.writeln(output).await?;
                 }
                 McpCommand::Remove(rm) => {
                     let name = rm.name.clone();
@@ -269,7 +303,8 @@ impl<F: API> UI<F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
+                    self.writeln(TitleFormat::info(format!("Removed server: {name}")))
+                        .await?;
                 }
                 McpCommand::Get(val) => {
                     let name = val.name.clone();
@@ -281,7 +316,7 @@ impl<F: API> UI<F> {
 
                     let mut output = String::new();
                     output.push_str(&format!("{name}: {server}"));
-                    self.writeln(TitleFormat::info(output))?;
+                    self.writeln(TitleFormat::info(output)).await?;
                 }
                 McpCommand::AddJson(add_json) => {
                     let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
@@ -296,7 +331,8 @@ impl<F: API> UI<F> {
                     self.writeln(TitleFormat::info(format!(
                         "Added server: {}",
                         add_json.name
-                    )))?;
+                    )))
+                    .await?;
                 }
             },
         }
@@ -306,11 +342,11 @@ impl<F: API> UI<F> {
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
             Command::Compact => {
-                self.spinner.start(Some("Compacting"))?;
+                self.spinner.start(Some("Compacting")).await?;
                 self.on_compaction().await?;
             }
             Command::Dump(format) => {
-                self.spinner.start(Some("Dumping"))?;
+                self.spinner.start(Some("Dumping")).await?;
                 self.on_dump(format).await?;
             }
             Command::New => {
@@ -318,10 +354,10 @@ impl<F: API> UI<F> {
             }
             Command::Info => {
                 let info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
-                self.writeln(info)?;
+                self.writeln(info).await?;
             }
             Command::Message(ref content) => {
-                self.spinner.start(None)?;
+                self.spinner.start(None).await?;
                 self.on_message(content.clone()).await?;
             }
             Command::Act => {
@@ -332,15 +368,15 @@ impl<F: API> UI<F> {
             }
             Command::Help => {
                 let info = Info::from(self.command.as_ref());
-                self.writeln(info)?;
+                self.writeln(info).await?;
             }
             Command::Tools => {
-                self.spinner.start(Some("Loading"))?;
+                self.spinner.start(Some("Loading")).await?;
                 use crate::tools_display::format_tools;
                 let tools = self.api.tools().await?;
 
                 let output = format_tools(&tools);
-                self.writeln(output)?;
+                self.writeln(output).await?;
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
@@ -350,7 +386,7 @@ impl<F: API> UI<F> {
             }
 
             Command::Custom(event) => {
-                self.spinner.start(None)?;
+                self.spinner.start(None).await?;
                 self.on_custom_event(event.into()).await?;
             }
             Command::Model => {
@@ -370,7 +406,7 @@ impl<F: API> UI<F> {
         let token_reduction = compaction_result.token_reduction_percentage();
         let message_reduction = compaction_result.message_reduction_percentage();
         let content = TitleFormat::action(format!("Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"));
-        self.writeln(content)?;
+        self.writeln(content).await?;
         Ok(())
     }
 
@@ -446,7 +482,8 @@ impl<F: API> UI<F> {
             // Update the UI state with the new model
             self.update_model(model.clone());
 
-            self.writeln(TitleFormat::action(format!("Switched to model: {model}")))?;
+            self.writeln(TitleFormat::action(format!("Switched to model: {model}")))
+                .await?;
         }
 
         Ok(())
@@ -466,11 +503,39 @@ impl<F: API> UI<F> {
         self.on_chat(chat).await
     }
 
+    async fn restore_conversation(&mut self) -> Result<bool> {
+        if let Ok(conversation) = self.api.restore_conversation().await {
+            if let Ok(buffer_events) = self.api.restore_buffer_state(10).await {
+                // Iterate over buffer events and handle them appropriately
+                for buffer in buffer_events {
+                    match buffer.event {
+                        BufferEvent::Input => {
+                            // Mimic an input by processing it through the console
+                            let command = self
+                                .console
+                                .process_read(ReadResult::Success(buffer.content))
+                                .await?;
+                            if let Some(Command::Message(message)) = command {
+                                println!("❯ {}", message.replace("\n", "\n::: "));
+                            }
+                        }
+                        BufferEvent::Output => {
+                            println!("{}", buffer.content);
+                        }
+                    }
+                }
+            }
+            self.load_conversation(conversation).await?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
             None => {
-                self.spinner.start(Some("Initializing"))?;
+                self.spinner.start(Some("Initializing")).await?;
 
                 // Select a model if workflow doesn't have one
                 let workflow = self.init_state().await?;
@@ -482,11 +547,7 @@ impl<F: API> UI<F> {
                     )
                     .context("Failed to parse Conversation")?;
 
-                    let conversation_id = conversation.id.clone();
-                    self.state.conversation_id = Some(conversation_id.clone());
-                    self.update_model(conversation.main_model()?);
-                    self.api.upsert_conversation(conversation).await?;
-                    conversation_id
+                    self.load_conversation(conversation).await?
                 } else {
                     let conversation = self.api.init_conversation(workflow).await?;
                     self.state.conversation_id = Some(conversation.id.clone());
@@ -524,6 +585,9 @@ impl<F: API> UI<F> {
 
     async fn on_message(&mut self, content: String) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
+        self.api
+            .set_buffer_state(Buffer::input(content.clone()))
+            .await?;
 
         // Create a ChatRequest with the appropriate event type
         let event = if self.state.is_first {
@@ -544,15 +608,15 @@ impl<F: API> UI<F> {
 
         while let Some(message) = stream.next().await {
             match message {
-                Ok(message) => self.handle_chat_response(message)?,
+                Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
-                    self.spinner.stop(None)?;
+                    self.spinner.stop(None).await?;
                     return Err(err);
                 }
             }
         }
 
-        self.spinner.stop(None)?;
+        self.spinner.stop(None).await?;
 
         Ok(())
     }
@@ -573,7 +637,8 @@ impl<F: API> UI<F> {
                         self.writeln(
                             TitleFormat::action("Conversation HTML dump created".to_string())
                                 .sub_title(path.to_string()),
-                        )?;
+                        )
+                        .await?;
                         return Ok(());
                     }
                 } else {
@@ -585,7 +650,8 @@ impl<F: API> UI<F> {
                     self.writeln(
                         TitleFormat::action("Conversation JSON dump created".to_string())
                             .sub_title(path.to_string()),
-                    )?;
+                    )
+                    .await?;
                 }
             } else {
                 return Err(anyhow::anyhow!("Could not create dump"))
@@ -595,7 +661,7 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
-    fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
+    async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         match message {
             ChatResponse::Text { mut text, is_complete, is_md, is_summary } => {
                 if is_complete && !text.trim().is_empty() {
@@ -604,11 +670,11 @@ impl<F: API> UI<F> {
                         text = self.markdown.render(&text);
                     }
 
-                    self.writeln(text)?;
+                    self.writeln(text).await?;
                 }
             }
             ChatResponse::ToolCallStart(_) => {
-                self.spinner.stop(None)?;
+                self.spinner.stop(None).await?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -623,7 +689,7 @@ impl<F: API> UI<F> {
                 };
                 tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::ToolCall(payload)));
 
-                self.spinner.start(None)?;
+                self.spinner.start(None).await?;
                 if !self.cli.verbose {
                     return Ok(());
                 }

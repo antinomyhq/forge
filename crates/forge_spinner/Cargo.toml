@@ -9,3 +9,4 @@ colored.workspace = true
 tokio.workspace = true
 indicatif = "0.17.11"
 rand = "0.8.5"
+async-trait.workspace = true

@@ -1,5 +1,7 @@
 pub mod executor;
 
+mod buffer_service;
+mod console;
 mod env;
 mod error;
 mod forge_infra;

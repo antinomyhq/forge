@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 regex.workspace = true
 anyhow.workspace = true
+pin-project.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
@@ -35,6 +36,7 @@ base64.workspace = true
 derive-getters = "0.5.0"
 handlebars.workspace = true
 rust-embed.workspace = true
+async-jsonl.workspace = true
 
 [dev-dependencies]
 insta = { workspace = true, features = ["yaml"] }

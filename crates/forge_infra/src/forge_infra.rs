@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use forge_services::{EnvironmentService, Infrastructure};
 
+use crate::buffer_service::ForgeBufferService;
+use crate::console::ForgeConsoleService;
 use crate::env::ForgeEnvironmentService;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
@@ -25,6 +27,8 @@ pub struct ForgeInfra {
     command_executor_service: Arc<ForgeCommandExecutorService>,
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
+    forge_buffer_service: Arc<ForgeBufferService>,
+    console_service: Arc<ForgeConsoleService>,
 }
 
 impl ForgeInfra {
@@ -48,6 +52,8 @@ impl ForgeInfra {
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
+            forge_buffer_service: Arc::new(ForgeBufferService::new()),
+            console_service: Arc::new(ForgeConsoleService),
         }
     }
 }
@@ -63,6 +69,8 @@ impl Infrastructure for ForgeInfra {
     type CommandExecutorService = ForgeCommandExecutorService;
     type InquireService = ForgeInquire;
     type McpServer = ForgeMcpServer;
+    type BufferService = ForgeBufferService;
+    type ConsolePrintService = ForgeConsoleService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         &self.environment_service
@@ -102,5 +110,12 @@ impl Infrastructure for ForgeInfra {
 
     fn mcp_server(&self) -> &Self::McpServer {
         &self.mcp_server
+    }
+
+    fn buffer_service(&self) -> &Self::BufferService {
+        &self.forge_buffer_service
+    }
+    fn console_print_service(&self) -> &Self::ConsolePrintService {
+        self.console_service.as_ref()
     }
 }

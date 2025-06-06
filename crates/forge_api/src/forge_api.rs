@@ -5,9 +5,9 @@ use anyhow::Result;
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::{
-    AttachmentService, CommandExecutorService, ConversationService, EnvironmentService,
-    ForgeServices, Infrastructure, McpConfigManager, ProviderService, Services, SuggestionService,
-    ToolService, WorkflowService,
+    AttachmentService, CommandExecutorService, ConsoleService, ConversationService,
+    ConversationSessionManager, EnvironmentService, ForgeServices, Infrastructure,
+    McpConfigManager, ProviderService, Services, SuggestionService, ToolService, WorkflowService,
 };
 use forge_stream::MpscStream;
 use tracing::error;
@@ -184,5 +184,28 @@ impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
             .command_executor_service()
             .execute_command_raw(command)
             .await
+    }
+
+    async fn restore_conversation(&self) -> Result<Conversation> {
+        self.app.conversation_session_manager().load().await
+    }
+
+    async fn restore_buffer_state(&self, n: usize) -> Result<Vec<Buffer>> {
+        self.app.conversation_session_manager().state(n).await
+    }
+
+    async fn set_buffer_state(&self, state: Buffer) -> Result<()> {
+        self.app
+            .conversation_session_manager()
+            .buffer_update(state)
+            .await
+    }
+
+    async fn clear_state(&self) -> Result<()> {
+        self.app.conversation_session_manager().clear().await
+    }
+
+    async fn print(&self, text: &str) -> Result<()> {
+        self.app.console_service().print(text).await
     }
 }

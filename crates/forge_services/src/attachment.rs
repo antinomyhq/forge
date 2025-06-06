@@ -115,8 +115,8 @@ pub mod tests {
     use base64::Engine;
     use bytes::Bytes;
     use forge_domain::{
-        AttachmentContent, CommandOutput, Environment, Provider, ToolDefinition, ToolName,
-        ToolOutput,
+        AttachmentContent, Buffer, CommandOutput, Environment, JsonlIterator, Provider,
+        ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -125,9 +125,9 @@ pub mod tests {
     use crate::services::{AttachmentService, EnvironmentService};
     use crate::utils::AttachmentExtension;
     use crate::{
-        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
-        McpClient, McpServer,
+        BufferService, CommandExecutorService, FileRemoveService, FsCreateDirsService,
+        FsMetaService, FsReadService, FsSnapshotService, FsWriteService, Infrastructure,
+        InquireService, McpClient, McpServer,
     };
 
     #[derive(Debug)]
@@ -227,6 +227,7 @@ pub mod tests {
         env_service: Arc<MockEnvironmentService>,
         file_service: Arc<MockFileService>,
         file_snapshot_service: Arc<MockSnapService>,
+        console_service: Arc<MockConsoleService>,
     }
 
     impl MockInfrastructure {
@@ -235,6 +236,7 @@ pub mod tests {
                 env_service: Arc::new(MockEnvironmentService {}),
                 file_service: Arc::new(MockFileService::new()),
                 file_snapshot_service: Arc::new(MockSnapService),
+                console_service: Arc::new(MockConsoleService),
             }
         }
     }
@@ -466,6 +468,28 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl BufferService for () {
+        async fn read_last(&self, _: &Path, _: usize) -> anyhow::Result<JsonlIterator> {
+            unimplemented!()
+        }
+
+        async fn write(&self, _: &Path, _: Buffer) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct MockConsoleService;
+
+    #[async_trait::async_trait]
+    impl crate::infra::ConsolePrintService for MockConsoleService {
+        async fn print(&self, _output: &str) -> anyhow::Result<()> {
+            // Mock implementation - just ignore the output
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
     impl InquireService for () {
         /// Prompts the user with question
         async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
@@ -511,6 +535,8 @@ pub mod tests {
         type CommandExecutorService = ();
         type InquireService = ();
         type McpServer = ();
+        type BufferService = ();
+        type ConsolePrintService = MockConsoleService;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
@@ -550,6 +576,14 @@ pub mod tests {
 
         fn mcp_server(&self) -> &Self::McpServer {
             &()
+        }
+
+        fn buffer_service(&self) -> &Self::BufferService {
+            &()
+        }
+
+        fn console_print_service(&self) -> &Self::ConsolePrintService {
+            &self.console_service
         }
     }
 

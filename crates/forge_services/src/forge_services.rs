@@ -3,17 +3,23 @@ use std::sync::Arc;
 use forge_domain::{Agent, AgentService};
 
 use crate::attachment::ForgeChatRequest;
+use crate::console::ForgeConsoleService;
 use crate::conversation::ForgeConversationService;
+use crate::convo_manager_service::ForgeConversationSessionManager;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::provider::ForgeProviderService;
-use crate::services::{ProviderService, Services, ToolService};
+use crate::services::{Services, ToolService};
 use crate::suggestion::ForgeSuggestionService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::workflow::ForgeWorkflowService;
-use crate::Infrastructure;
+use crate::{Infrastructure, ProviderService};
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F>;
+type ConversationService<F> =
+    ForgeConversationService<McpService<F>, ForgeConversationSessionManager<F>>;
+
+type ConsoleService<F> = ForgeConsoleService<F, ForgeConversationSessionManager<F>>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -26,12 +32,14 @@ pub struct ForgeServices<F> {
     infra: Arc<F>,
     tool_service: Arc<ForgeToolService<McpService<F>>>,
     provider_service: Arc<ForgeProviderService>,
-    conversation_service: Arc<ForgeConversationService<McpService<F>>>,
+    conversation_service: Arc<ConversationService<F>>,
     template_service: Arc<ForgeTemplateService>,
     attachment_service: Arc<ForgeChatRequest<F>>,
     workflow_service: Arc<ForgeWorkflowService<F>>,
     suggestion_service: Arc<ForgeSuggestionService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
+    convo_session_manager: Arc<ForgeConversationSessionManager<F>>,
+    console_service: Arc<ConsoleService<F>>,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
@@ -43,10 +51,19 @@ impl<F: Infrastructure> ForgeServices<F> {
         let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
 
-        let conversation_service = Arc::new(ForgeConversationService::new(mcp_service));
-
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeSuggestionService::new(infra.clone()));
+
+        let convo_session_manager = Arc::new(ForgeConversationSessionManager::new(infra.clone()));
+        let conversation_service = Arc::new(ForgeConversationService::new(
+            mcp_service,
+            convo_session_manager.clone(),
+        ));
+
+        let console_service = Arc::new(ForgeConsoleService::new(
+            infra.clone(),
+            convo_session_manager.clone(),
+        ));
         Self {
             infra,
             conversation_service,
@@ -57,6 +74,8 @@ impl<F: Infrastructure> ForgeServices<F> {
             workflow_service,
             suggestion_service,
             mcp_manager,
+            convo_session_manager,
+            console_service,
         }
     }
 }
@@ -64,13 +83,15 @@ impl<F: Infrastructure> ForgeServices<F> {
 impl<F: Infrastructure> Services for ForgeServices<F> {
     type ToolService = ForgeToolService<McpService<F>>;
     type ProviderService = ForgeProviderService;
-    type ConversationService = ForgeConversationService<McpService<F>>;
+    type ConversationService = ConversationService<F>;
     type TemplateService = ForgeTemplateService;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
     type WorkflowService = ForgeWorkflowService<F>;
     type SuggestionService = ForgeSuggestionService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
+    type ConversationSessionManager = ForgeConversationSessionManager<F>;
+    type ConsoleService = ConsoleService<F>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -107,6 +128,14 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     fn mcp_config_manager(&self) -> &Self::McpConfigManager {
         self.mcp_manager.as_ref()
     }
+
+    fn conversation_session_manager(&self) -> &Self::ConversationSessionManager {
+        self.convo_session_manager.as_ref()
+    }
+
+    fn console_service(&self) -> &Self::ConsoleService {
+        self.console_service.as_ref()
+    }
 }
 
 impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
@@ -120,6 +149,8 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     type CommandExecutorService = F::CommandExecutorService;
     type InquireService = F::InquireService;
     type McpServer = F::McpServer;
+    type BufferService = F::BufferService;
+    type ConsolePrintService = F::ConsolePrintService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
@@ -159,6 +190,14 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
 
     fn mcp_server(&self) -> &Self::McpServer {
         self.infra.mcp_server()
+    }
+
+    fn buffer_service(&self) -> &Self::BufferService {
+        self.infra.buffer_service()
+    }
+
+    fn console_print_service(&self) -> &Self::ConsolePrintService {
+        self.infra.console_print_service()
     }
 }
 

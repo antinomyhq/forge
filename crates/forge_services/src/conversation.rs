@@ -6,24 +6,32 @@ use forge_domain::{CompactionResult, Conversation, ConversationId, Workflow};
 use tokio::sync::Mutex;
 
 use crate::services::{ConversationService, McpService};
+use crate::ConversationSessionManager;
 
 /// Service for managing conversations, including creation, retrieval, and
 /// updates
 #[derive(Clone)]
-pub struct ForgeConversationService<M> {
+pub struct ForgeConversationService<M, Manager> {
     workflows: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
     mcp_service: Arc<M>,
+    conversation_session_manager: Arc<Manager>,
 }
 
-impl<M: McpService> ForgeConversationService<M> {
+impl<M: McpService, Manager: ConversationSessionManager> ForgeConversationService<M, Manager> {
     /// Creates a new ForgeConversationService with the provided MCP service
-    pub fn new(mcp_service: Arc<M>) -> Self {
-        Self { workflows: Arc::new(Mutex::new(HashMap::new())), mcp_service }
+    pub fn new(mcp_service: Arc<M>, conversation_session_manager: Arc<Manager>) -> Self {
+        Self {
+            workflows: Arc::new(Mutex::new(HashMap::new())),
+            mcp_service,
+            conversation_session_manager,
+        }
     }
 }
 
 #[async_trait::async_trait]
-impl<M: McpService> ConversationService for ForgeConversationService<M> {
+impl<M: McpService, Manager: ConversationSessionManager> ConversationService
+    for ForgeConversationService<M, Manager>
+{
     async fn update<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
@@ -38,6 +46,10 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
     }
 
     async fn upsert(&self, conversation: Conversation) -> Result<()> {
+        self.conversation_session_manager
+            .conversation_update(&conversation)
+            .await?;
+
         self.workflows
             .lock()
             .await
@@ -57,10 +69,7 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
                 .map(|a| a.name)
                 .collect(),
         );
-        self.workflows
-            .lock()
-            .await
-            .insert(id.clone(), conversation.clone());
+        self.upsert(conversation.clone()).await?;
         Ok(conversation)
     }
 
