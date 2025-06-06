@@ -6,7 +6,9 @@ use forge_domain::{
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
+use sha2::Digest;
 use tokio_stream::StreamExt;
+use totp_rs::{Algorithm, TOTP};
 use tracing::debug;
 
 use super::model::{ListModelResponse, Model};
@@ -21,6 +23,7 @@ pub struct ForgeProvider {
     client: Client,
     provider: Provider,
     version: String,
+    secret: String,
 }
 
 impl ForgeProvider {
@@ -52,9 +55,14 @@ impl ForgeProvider {
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         if let Some(ref api_key) = self.provider.key() {
+            let totp = self.totp(api_key);
             headers.insert(
                 AUTHORIZATION,
                 HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
+            );
+            headers.insert(
+                "X-Forge-Signature",
+                HeaderValue::from_str(&totp.generate_current().unwrap()).unwrap(),
             );
         }
         headers.insert("X-Title", HeaderValue::from_static("forge"));
@@ -72,6 +80,32 @@ impl ForgeProvider {
             HeaderValue::from_static("keep-alive"),
         );
         headers
+    }
+
+    fn totp(&self, api_key: &str) -> TOTP {
+        // README:
+        // secret must be a base32 encoded string
+        // and at least 16 bytes long.
+        // The best way to generate a secret is to use: `openssl rand -base64 32`
+        // which will give you a 32 byte base64 encoded string.
+
+        // here we are using api key as IV, to generate a unique key for each user.
+        let key = format!("{}-{}", api_key, self.secret);
+
+        // This is redundant step but it's quite useful to:
+        // 1. Ensure the key is at least 16 bytes long.
+        // 2. Anything longer than what HMAC can process directly is unnecessary and
+        //    wasteful, so it avoids a long key.
+        let secret_key = sha2::Sha256::digest(key.as_bytes());
+
+        TOTP::new(
+            Algorithm::SHA256,
+            8, // digits
+            1,
+            30, // period in seconds
+            secret_key.to_vec(),
+        )
+        .unwrap()
     }
 
     async fn inner_chat(

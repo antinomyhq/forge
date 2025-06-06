@@ -24,7 +24,9 @@ impl ForgeProviderService {
         let retry_config = env.retry_config.clone();
         let version = env.version();
         Self {
-            client: Arc::new(Client::new(provider, retry_config.clone(), version).unwrap()),
+            client: Arc::new(
+                Client::new(provider, retry_config.clone(), version, env.secret()).unwrap(),
+            ),
             retry_config,
         }
     }
