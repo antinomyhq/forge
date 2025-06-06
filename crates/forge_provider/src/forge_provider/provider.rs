@@ -68,7 +68,7 @@ impl ForgeProvider {
             );
             headers.insert(
                 "X-Forge-Signature",
-                HeaderValue::from_str(&BASE64_STANDARD.encode(totp.generate_current().unwrap()))
+                HeaderValue::from_str(&totp.generate_current().unwrap())
                     .unwrap(),
             );
         }
@@ -114,9 +114,7 @@ impl ForgeProvider {
                 8, // digits
                 1,
                 10, // period in seconds
-                Secret::Encoded(BASE64_STANDARD.encode(secret_key.as_slice()))
-                    .to_bytes()
-                    .unwrap(),
+                secret_key.to_vec(),
             )
             .unwrap(),
         );
