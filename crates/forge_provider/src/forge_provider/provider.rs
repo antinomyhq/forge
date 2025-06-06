@@ -1,4 +1,8 @@
+use std::sync::Arc;
+
 use anyhow::{Context as _, Result};
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use derive_builder::Builder;
 use forge_domain::{
     self, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
@@ -6,7 +10,10 @@ use forge_domain::{
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
+use sha2::Digest;
+use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
+use totp_rs::{Algorithm, Secret, TOTP};
 use tracing::debug;
 
 use super::model::{ListModelResponse, Model};
@@ -21,6 +28,8 @@ pub struct ForgeProvider {
     client: Client,
     provider: Provider,
     version: String,
+    #[builder(setter(skip))]
+    totp: Arc<RwLock<Option<Arc<TOTP>>>>,
 }
 
 impl ForgeProvider {
@@ -49,12 +58,18 @@ impl ForgeProvider {
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
     // - `HTTP-Referer`: Identifies your app on openrouter.ai
     // - `X-Title`: Sets/modifies your app's title
-    fn headers(&self) -> HeaderMap {
+    async fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         if let Some(ref api_key) = self.provider.key() {
+            let totp = self.totp(api_key).await;
             headers.insert(
                 AUTHORIZATION,
                 HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
+            );
+            headers.insert(
+                "X-Forge-Signature",
+                HeaderValue::from_str(&BASE64_STANDARD.encode(totp.generate_current().unwrap()))
+                    .unwrap(),
             );
         }
         headers.insert("X-Title", HeaderValue::from_static("forge"));
@@ -72,6 +87,41 @@ impl ForgeProvider {
             HeaderValue::from_static("keep-alive"),
         );
         headers
+    }
+
+    async fn totp(&self, api_key: &str) -> Arc<TOTP> {
+        if let Some(totp) = self.totp.read().await.as_ref() {
+            return totp.clone();
+        }
+        // README:
+        // secret must be a base32 encoded string
+        // and at least 16 bytes long.
+        // The best way to generate a secret is to use: `openssl rand -base64 32`
+        // which will give you a 32 byte base64 encoded string.
+
+        // here we are using api key as IV, to generate a unique key for each user.
+        let key = format!("{}-{}", api_key, obfstr::obfstr!(env!("FORGE_SECRET")));
+
+        // This is redundant step but it's quite useful to:
+        // 1. Ensure the key is at least 16 bytes long.
+        // 2. Anything longer than what HMAC can process directly is unnecessary and
+        //    wasteful, so it avoids a long key.
+        let secret_key = sha2::Sha256::digest(key.as_bytes());
+
+        let totp = Arc::new(
+            TOTP::new(
+                Algorithm::SHA256,
+                8, // digits
+                1,
+                10, // period in seconds
+                Secret::Encoded(BASE64_STANDARD.encode(secret_key.as_slice()))
+                    .to_bytes()
+                    .unwrap(),
+            )
+            .unwrap(),
+        );
+        self.totp.write().await.replace(totp.clone());
+        totp
     }
 
     async fn inner_chat(
@@ -95,7 +145,7 @@ impl ForgeProvider {
         let es = self
             .client
             .post(url.clone())
-            .headers(self.headers())
+            .headers(self.headers().await)
             .json(&request)
             .eventsource()
             .with_context(|| format_http_context(None, "POST", &url))?;
@@ -187,7 +237,7 @@ impl ForgeProvider {
         match self
             .client
             .get(url.clone())
-            .headers(self.headers())
+            .headers(self.headers().await)
             .send()
             .await
         {
