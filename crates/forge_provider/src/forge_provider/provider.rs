@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine;
 use derive_builder::Builder;
 use forge_domain::{
     self, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
@@ -13,7 +11,7 @@ use reqwest_eventsource::{Event, RequestBuilderExt};
 use sha2::Digest;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
-use totp_rs::{Algorithm, Secret, TOTP};
+use totp_rs::{Algorithm, TOTP};
 use tracing::debug;
 
 use super::model::{ListModelResponse, Model};
@@ -68,8 +66,7 @@ impl ForgeProvider {
             );
             headers.insert(
                 "X-Forge-Signature",
-                HeaderValue::from_str(&totp.generate_current().unwrap())
-                    .unwrap(),
+                HeaderValue::from_str(&totp.generate_current().unwrap()).unwrap(),
             );
         }
         headers.insert("X-Title", HeaderValue::from_static("forge"));
