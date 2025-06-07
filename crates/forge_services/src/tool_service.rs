@@ -215,7 +215,6 @@ mod test {
                 name: ToolName::new("pending_tool"),
                 description: "A test tool that never completes".to_string(),
                 input_schema: schemars::schema_for!(serde_json::Value),
-                output_schema: Some(schemars::schema_for!(String)),
             },
             executable: Box::new(AlwaysPendingTool(was_called.clone())),
         };

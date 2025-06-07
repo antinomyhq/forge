@@ -7,12 +7,12 @@ messages:
       name: multi_image_tool
       call_id: call1
       output:
-        values:
-          - Text: First text
-          - Text: "[The image with ID 0 will be sent as an attachment in the next message]"
-          - Text: Second text
-          - Text: "[The image with ID 1 will be sent as an attachment in the next message]"
         is_error: false
+        values:
+          - text: First text
+          - text: "[The image with ID 0 will be sent as an attachment in the next message]"
+          - text: Second text
+          - text: "[The image with ID 1 will be sent as an attachment in the next message]"
   - text:
       role: User
       content: "[Here is the image attachment for ID 0]"

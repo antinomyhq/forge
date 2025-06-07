@@ -1,11 +1,14 @@
+use forge_domain::Transformer;
+
 use crate::forge_provider::request::{Request, Role};
-use crate::forge_provider::transformers::Transformer;
 
 /// Transformer that caches the last user/system message for supported models
 pub struct SetCache;
 
 impl Transformer for SetCache {
-    fn transform(&self, mut request: Request) -> Request {
+    type Value = Request;
+
+    fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         if let Some(messages) = request.messages.as_mut() {
             let mut last_was_user = false;
             let mut cache_positions = Vec::new();
@@ -84,7 +87,8 @@ mod tests {
         };
 
         let request = Request::from(context);
-        let request = SetCache.transform(request);
+        let mut transformer = SetCache;
+        let request = transformer.transform(request);
         let mut output = String::new();
         let sequences = request
             .messages

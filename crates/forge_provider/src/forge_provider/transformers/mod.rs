@@ -1,12 +1,10 @@
-mod combine;
 mod drop_tool_call;
-mod identity;
 mod make_openai_compat;
 mod pipeline;
 mod set_cache;
 mod tool_choice;
-mod transformer;
-mod when;
+mod when_model;
 
+// Use the Transformer trait from forge_domain
+pub use forge_domain::Transformer;
 pub use pipeline::ProviderPipeline;
-pub use transformer::Transformer;

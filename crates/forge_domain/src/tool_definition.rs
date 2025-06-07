@@ -15,7 +15,6 @@ pub struct ToolDefinition {
     pub name: ToolName,
     pub description: String,
     pub input_schema: RootSchema,
-    pub output_schema: Option<RootSchema>,
 }
 
 impl ToolDefinition {
@@ -25,7 +24,6 @@ impl ToolDefinition {
             name: ToolName::new(name),
             description: String::new(),
             input_schema: schemars::schema_for!(()), // Empty input schema
-            output_schema: None,
         }
     }
 }
@@ -37,13 +35,11 @@ where
 {
     fn from(t: &T) -> Self {
         let input: RootSchema = schemars::schema_for!(T::Input);
-        let output: RootSchema = schemars::schema_for!(String);
 
         ToolDefinition {
             name: T::tool_name(),
             description: t.description(),
             input_schema: input,
-            output_schema: Some(output),
         }
     }
 }

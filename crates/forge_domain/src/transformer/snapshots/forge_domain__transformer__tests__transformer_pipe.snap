@@ -1,0 +1,45 @@
+---
+source: crates/forge_domain/src/transformer/mod.rs
+expression: snapshot
+---
+transformation: TransformToolCalls.pipe(ImageHandling)
+before:
+  messages:
+    - text:
+        role: System
+        content: System message
+        tool_calls: ~
+        model: ~
+    - text:
+        role: Assistant
+        content: "I'll help you"
+        tool_calls:
+          - name: test_tool
+            call_id: call_123
+            arguments:
+              param: value
+        model: ~
+    - tool:
+        name: test_tool
+        call_id: call_123
+        output:
+          is_error: false
+          values:
+            - text: Tool result text
+after:
+  messages:
+    - text:
+        role: System
+        content: System message
+        tool_calls: ~
+        model: ~
+    - text:
+        role: Assistant
+        content: "I'll help you"
+        tool_calls: ~
+        model: ~
+    - text:
+        role: User
+        content: Tool result text
+        tool_calls: ~
+        model: ~

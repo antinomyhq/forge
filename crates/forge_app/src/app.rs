@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
 
@@ -68,10 +69,15 @@ impl<S: Services> ForgeApp<S> {
         chat.event = chat.event.attachments(attachments);
 
         // Create the orchestrator with all necessary dependencies
-        let orch = Orchestrator::new(services.clone(), environment.clone(), conversation)
-            .tool_definitions(tool_definitions)
-            .models(models)
-            .files(files);
+        let orch = Orchestrator::new(
+            services.clone(),
+            environment.clone(),
+            conversation,
+            Local::now(),
+        )
+        .tool_definitions(tool_definitions)
+        .models(models)
+        .files(files);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
@@ -108,7 +114,7 @@ impl<S: Services> ForgeApp<S> {
         &self,
         conversation_id: &ConversationId,
     ) -> Result<CompactionResult> {
-        use crate::compaction::Compactor;
+        use crate::compact::Compactor;
 
         // Get the conversation
         let mut conversation = self

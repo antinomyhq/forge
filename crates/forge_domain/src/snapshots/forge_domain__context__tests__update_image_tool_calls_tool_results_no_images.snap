@@ -12,13 +12,13 @@ messages:
       name: text_tool
       call_id: call1
       output:
-        values:
-          - Text: Text output
         is_error: false
+        values:
+          - text: Text output
   - tool:
       name: empty_tool
       call_id: call2
       output:
-        values:
-          - Empty
         is_error: false
+        values:
+          - empty

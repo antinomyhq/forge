@@ -327,9 +327,6 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                         Element::new("pre")
                             .text(to_string_pretty(&tool.input_schema).unwrap_or_default()),
                     )
-                    .append(tool.output_schema.as_ref().map(|schema| {
-                        Element::new("pre").text(to_string_pretty(schema).unwrap_or_default())
-                    }))
             }));
 
         // Create tool choice section if available

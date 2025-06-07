@@ -6,12 +6,17 @@ Here's the context you need to analyze:
 {{context}}
 </context>
 
+The summary tag to be used in the final output is:
+
+<summary_tag>
+{{summary_tag}}
+</summary_tag>
+
 Your task is to process and summarize this context following these steps:
 
 1. Carefully read and analyze the provided context.
 
 2. Organize your analysis within the following framework:
-
    a) Primary Objective
    b) Initial Information Assessment
    c) File Changes Tracking
@@ -22,8 +27,7 @@ Your task is to process and summarize this context following these steps:
    h) Clarifying Questions
    i) Current Status Assessment
 
-3. For each section of the framework, wrap your thought process in <thought_process> tags:
-   - Document your reasoning
+3. For each section of the framework, wrap your reasoning inside <thought_process> tags:
    - Quote relevant parts of the context
    - Consider multiple perspectives or interpretations
    - Explain why missing information is important
@@ -70,7 +74,6 @@ Your task is to process and summarize this context following these steps:
    - [Next action description] - [Reason] - [Outcome]
    </action_log>
 
-
    <user_feedback>
    - Initial Request: [Original request verbatim]
    - Clarifications Provided: [User responses and their impact]
@@ -110,12 +113,11 @@ Your task is to process and summarize this context following these steps:
    - Feedback - [Critical user feedback]
    </{{summary_tag}}>
 
-
 5. Focus on the most important clarifying questions to fill any critical information gaps.
 
 6. If the user provides answers to your clarifying questions, update your summary and relevant sections accordingly. Continuously incorporate user feedback into your analysis and summary.
 
-Remember these guidelines:
+Important guidelines:
 - Be specific and avoid vague statements
 - Include all relevant information in your summary
 - Structure information logically with clear bullet points
@@ -125,8 +127,12 @@ Remember these guidelines:
 - Maintain clear records of all files changed and actions taken
 - Summarize tool calls in one line and don't miss any
 - Do not use markdown syntax in your summary
+- Keep all <thought_process> tags separate from the final summary output
 
 Begin your analysis of the provided context, showing your thought process in <thought_process> tags before presenting each section of the framework. For each section:
 - Quote relevant parts of the context to support your analysis
-- For the gaps analysis, explain why each piece of missing information is important
-- For clarifying questions, explain how each question relates to filling a specific information gap
+- For the "File Changes Tracking" and "Actions Performed Log" sections, list out each change/action with a number prefix to ensure completeness
+- For the gaps analysis, explain why each piece of missing information is important and its potential impact
+- For clarifying questions, explicitly link each question to a specific information gap you've identified
+
+Remember to keep your <thought_process> sections separate from the final summary output to avoid confusion.

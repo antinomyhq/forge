@@ -1036,6 +1036,7 @@ dependencies = [
  "merge",
  "nom 8.0.0",
  "pretty_assertions",
+ "regex",
  "schemars",
  "serde",
  "serde_json",

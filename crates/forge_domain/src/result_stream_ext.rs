@@ -1,0 +1,206 @@
+use anyhow::Context as _;
+use tokio_stream::StreamExt;
+
+use crate::{ChatCompletionMessage, ChatCompletionMessageFull, ToolCallFull, ToolCallPart, Usage};
+
+/// Extension trait for ResultStream to provide additional functionality
+#[async_trait::async_trait]
+pub trait ResultStreamExt<E> {
+    /// Collects all messages from the stream into a single
+    /// ChatCompletionMessageFull
+    ///
+    /// # Arguments
+    /// * `should_interrupt_for_xml` - Whether to interrupt the stream when XML
+    ///   tool calls are detected
+    ///
+    /// # Returns
+    /// A ChatCompletionMessageFull containing the aggregated content, tool
+    /// calls, and usage information
+    async fn into_full(
+        self,
+        should_interrupt_for_xml: bool,
+    ) -> Result<ChatCompletionMessageFull, E>;
+}
+
+#[async_trait::async_trait]
+impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, anyhow::Error> {
+    async fn into_full(
+        mut self,
+        should_interrupt_for_xml: bool,
+    ) -> anyhow::Result<ChatCompletionMessageFull> {
+        let mut messages = Vec::new();
+        let mut usage: Usage = Default::default();
+        let mut content = String::new();
+        let mut xml_tool_calls = None;
+        let mut tool_interrupted = false;
+
+        while let Some(message) = self.next().await {
+            let message =
+                anyhow::Ok(message?).with_context(|| "Failed to process message stream")?;
+            messages.push(message.clone());
+
+            // Process usage information
+            usage = message.usage.unwrap_or_default();
+
+            // Process content
+            if let Some(content_part) = message.content.as_ref() {
+                let content_part = content_part.as_str().to_string();
+                content.push_str(&content_part);
+
+                // Check for XML tool calls in the content, but only interrupt if flag is set
+                if should_interrupt_for_xml {
+                    // Use match instead of ? to avoid propagating errors
+                    if let Some(tool_call) = ToolCallFull::try_from_xml(&content)
+                        .ok()
+                        .into_iter()
+                        .flatten()
+                        .next()
+                    {
+                        xml_tool_calls = Some(tool_call);
+                        tool_interrupted = true;
+
+                        // Break the loop since we found an XML tool call and interruption is
+                        // enabled
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Get the full content from all messages
+        let mut content = messages
+            .iter()
+            .flat_map(|m| m.content.iter())
+            .map(|content| content.as_str())
+            .collect::<Vec<_>>()
+            .join("");
+
+        #[allow(clippy::collapsible_if)]
+        if tool_interrupted && !content.trim().ends_with("</forge_tool_call>") {
+            if let Some((i, right)) = content.rmatch_indices("</forge_tool_call>").next() {
+                content.truncate(i + right.len());
+
+                // Add a comment for the assistant to signal interruption
+                content.push('\n');
+                content.push_str("<forge_feedback>");
+                content.push_str(
+                    "Response interrupted by tool result. Use only one tool at the end of the message",
+                );
+                content.push_str("</forge_feedback>");
+            }
+        }
+
+        // Extract all tool calls in a fully declarative way with combined sources
+        // Start with complete tool calls (for non-streaming mode)
+        let initial_tool_calls: Vec<ToolCallFull> = messages
+            .iter()
+            .flat_map(|message| &message.tool_calls)
+            .filter_map(|tool_call| tool_call.as_full().cloned())
+            .collect();
+
+        // Get partial tool calls
+        let tool_call_parts: Vec<ToolCallPart> = messages
+            .iter()
+            .flat_map(|message| &message.tool_calls)
+            .filter_map(|tool_call| tool_call.as_partial().cloned())
+            .collect();
+
+        // Process partial tool calls
+        // TODO: Parse failure should be retried
+        let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts)
+            .with_context(|| format!("Failed to parse tool call: {tool_call_parts:?}"))?;
+
+        // Combine all sources of tool calls
+        let tool_calls: Vec<ToolCallFull> = initial_tool_calls
+            .into_iter()
+            .chain(partial_tool_calls)
+            .chain(xml_tool_calls)
+            .collect();
+
+        Ok(ChatCompletionMessageFull { content, tool_calls, usage })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use serde_json::Value;
+
+    use super::*;
+    use crate::{BoxStream, Content, ToolCall, ToolCallId, ToolName};
+
+    #[tokio::test]
+    async fn test_into_full_basic() {
+        // Fixture: Create a stream of messages
+        let messages = vec![
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("Hello "))
+                .usage(Usage {
+                    prompt_tokens: 10,
+                    completion_tokens: 5,
+                    total_tokens: 15,
+                    estimated_tokens: 15,
+                    content_length: 6,
+                })),
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("world!"))
+                .usage(Usage {
+                    prompt_tokens: 10,
+                    completion_tokens: 10,
+                    total_tokens: 20,
+                    estimated_tokens: 20,
+                    content_length: 12,
+                })),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Combined content and latest usage
+        let expected = ChatCompletionMessageFull {
+            content: "Hello world!".to_string(),
+            tool_calls: vec![],
+            usage: Usage {
+                prompt_tokens: 10,
+                completion_tokens: 10,
+                total_tokens: 20,
+                estimated_tokens: 20,
+                content_length: 12,
+            },
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_with_tool_calls() {
+        // Fixture: Create a stream with tool calls
+        let tool_call = ToolCallFull {
+            name: ToolName::new("test_tool"),
+            call_id: Some(ToolCallId::new("call_123")),
+            arguments: Value::String("test_arg".to_string()),
+        };
+
+        let messages = vec![Ok(ChatCompletionMessage::default()
+            .content(Content::part("Processing..."))
+            .add_tool_call(ToolCall::Full(tool_call.clone())))];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Content and tool calls
+        let expected = ChatCompletionMessageFull {
+            content: "Processing...".to_string(),
+            tool_calls: vec![tool_call],
+            usage: Usage::default(),
+        };
+
+        assert_eq!(actual, expected);
+    }
+}

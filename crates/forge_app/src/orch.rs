@@ -2,39 +2,15 @@ use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use anyhow::Context as AnyhowContext;
 use async_recursion::async_recursion;
-use chrono::Local;
 use derive_setters::Setters;
 use forge_domain::*;
-use futures::{Stream, StreamExt};
-use handlebars::Handlebars;
-use rust_embed::Embed;
 use serde_json::Value;
 use tracing::{debug, info, warn};
 
-use crate::compaction::Compactor;
-use crate::services::{ProviderService, Services, ToolService};
-use crate::utils::{remove_tag_with_prefix, try_from_xml};
-
-#[derive(Embed)]
-#[folder = "../../templates/"]
-struct Templates;
-
-/// Pure function to render templates without service dependency
-pub fn render_template(template: &str, object: &impl serde::Serialize) -> anyhow::Result<String> {
-    // Create handlebars instance with same configuration as ForgeTemplateService
-    let mut hb = Handlebars::new();
-    hb.set_strict_mode(true);
-    hb.register_escape_fn(|str| str.to_string());
-
-    // Register all partial templates
-    hb.register_embed_templates::<Templates>()?;
-
-    // Render the template
-    let rendered = hb.render_template(template, object)?;
-    Ok(rendered)
-}
+use crate::agent::AgentService;
+use crate::compact::Compactor;
+use crate::template::Templates;
 
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
@@ -48,16 +24,16 @@ pub struct Orchestrator<S> {
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     files: Vec<String>,
+    current_time: chrono::DateTime<chrono::Local>,
 }
 
-struct ChatCompletionMessageFull {
-    pub content: String,
-    pub tool_calls: Vec<ToolCallFull>,
-    pub usage: Usage,
-}
-
-impl<S: Services> Orchestrator<S> {
-    pub fn new(services: Arc<S>, environment: Environment, conversation: Conversation) -> Self {
+impl<S: AgentService> Orchestrator<S> {
+    pub fn new(
+        services: Arc<S>,
+        environment: Environment,
+        conversation: Conversation,
+        current_time: chrono::DateTime<chrono::Local>,
+    ) -> Self {
         Self {
             conversation,
             environment,
@@ -66,6 +42,7 @@ impl<S: Services> Orchestrator<S> {
             tool_definitions: Default::default(),
             models: Default::default(),
             files: Default::default(),
+            current_time,
         }
     }
 
@@ -93,7 +70,6 @@ impl<S: Services> Orchestrator<S> {
             // Execute the tool
             let tool_result = self
                 .services
-                .tool_service()
                 .call(agent, tool_context, tool_call.clone())
                 .await;
 
@@ -171,7 +147,7 @@ impl<S: Services> Orchestrator<S> {
         Ok(tool_supported)
     }
 
-    async fn set_system_prompt(
+    fn set_system_prompt(
         &mut self,
         context: Context,
         agent: &Agent,
@@ -182,7 +158,10 @@ impl<S: Services> Orchestrator<S> {
             let mut files = self.files.clone();
             files.sort();
 
-            let current_time = Local::now().format("%Y-%m-%d %H:%M:%S %:z").to_string();
+            let current_time = self
+                .current_time
+                .format("%Y-%m-%d %H:%M:%S %:z")
+                .to_string();
 
             let tool_supported = self.is_tool_supported(agent)?;
             let tool_information = match tool_supported {
@@ -200,126 +179,12 @@ impl<S: Services> Orchestrator<S> {
                 variables: variables.clone(),
             };
 
-            let system_message = render_template(system_prompt.template.as_str(), &ctx)?;
+            let system_message = Templates::render(system_prompt.template.as_str(), &ctx)?;
 
             context.set_first_system_message(system_message)
         } else {
             context
         })
-    }
-
-    async fn collect_messages(
-        &self,
-        mut response: impl Stream<Item = anyhow::Result<ChatCompletionMessage>> + std::marker::Unpin,
-        should_interrupt_for_xml: bool,
-    ) -> anyhow::Result<ChatCompletionMessageFull> {
-        let mut messages = Vec::new();
-        let mut usage: Usage = Default::default();
-        let mut content = String::new();
-        let mut xml_tool_calls = None;
-        let mut tool_interrupted = false;
-
-        while let Some(message) = response.next().await {
-            let message = message.with_context(|| "Failed to process message stream")?;
-            messages.push(message.clone());
-
-            // Process usage information
-            usage = message.usage.unwrap_or_default();
-
-            // Process content
-            if let Some(content_part) = message.content.as_ref() {
-                let content_part = content_part.as_str().to_string();
-
-                content.push_str(&content_part);
-
-                // Send partial content to the client
-                self.send(ChatResponse::Text {
-                    text: content_part,
-                    is_complete: false,
-                    is_md: false,
-                    is_summary: false,
-                })
-                .await?;
-
-                // Check for XML tool calls in the content, but only interrupt if flag is set
-                if should_interrupt_for_xml {
-                    // Use match instead of ? to avoid propagating errors
-                    if let Some(tool_call) =
-                        try_from_xml(&content).ok().into_iter().flatten().next()
-                    {
-                        xml_tool_calls = Some(tool_call);
-                        tool_interrupted = true;
-
-                        // Break the loop since we found an XML tool call and interruption is
-                        // enabled
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Get the full content from all messages
-        let mut content = messages
-            .iter()
-            .flat_map(|m| m.content.iter())
-            .map(|content| content.as_str())
-            .collect::<Vec<_>>()
-            .join("");
-
-        #[allow(clippy::collapsible_if)]
-        if tool_interrupted && !content.trim().ends_with("</forge_tool_call>") {
-            if let Some((i, right)) = content.rmatch_indices("</forge_tool_call>").next() {
-                content.truncate(i + right.len());
-
-                // Add a comment for the assistant to signal interruption
-                content.push('\n');
-                content.push_str("<forge_feedback>");
-                content.push_str(
-                    "Response interrupted by tool result. Use only one tool at the end of the message",
-                );
-                content.push_str("</forge_feedback>");
-            }
-        }
-
-        // Send the complete message
-        self.send(ChatResponse::Text {
-            text: remove_tag_with_prefix(&content, "forge_")
-                .as_str()
-                .to_string(),
-            is_complete: true,
-            is_md: true,
-            is_summary: false,
-        })
-        .await?;
-
-        // Extract all tool calls in a fully declarative way with combined sources
-        // Start with complete tool calls (for non-streaming mode)
-        let initial_tool_calls: Vec<ToolCallFull> = messages
-            .iter()
-            .flat_map(|message| &message.tool_calls)
-            .filter_map(|tool_call| tool_call.as_full().cloned())
-            .collect();
-
-        // Get partial tool calls
-        let tool_call_parts: Vec<ToolCallPart> = messages
-            .iter()
-            .flat_map(|message| &message.tool_calls)
-            .filter_map(|tool_call| tool_call.as_partial().cloned())
-            .collect();
-
-        // Process partial tool calls
-        // TODO: Parse failure should be retried
-        let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts)
-            .with_context(|| format!("Failed to parse tool call: {tool_call_parts:?}"))?;
-
-        // Combine all sources of tool calls
-        let tool_calls: Vec<ToolCallFull> = initial_tool_calls
-            .into_iter()
-            .chain(partial_tool_calls)
-            .chain(xml_tool_calls)
-            .collect();
-
-        Ok(ChatCompletionMessageFull { content, tool_calls, usage })
     }
 
     pub async fn chat(&mut self, event: Event) -> anyhow::Result<()> {
@@ -343,18 +208,18 @@ impl<S: Services> Orchestrator<S> {
 
     async fn execute_chat_turn(
         &self,
-        agent: &Agent,
         model_id: &ModelId,
         context: Context,
+        tool_supported: bool,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
-        let services = self.services.clone();
-        let response = services.provider_service().chat(model_id, context).await?;
-
-        // Only interrupt for XML tool calls if tool_supported is false
-        let should_interrupt_for_xml = !self.is_tool_supported(agent)?;
-
-        self.collect_messages(response, should_interrupt_for_xml)
-            .await
+        let mut transformers = TransformToolCalls::new()
+            .when(|_| !tool_supported)
+            .pipe(ImageHandling::new());
+        let response = self
+            .services
+            .chat(model_id, transformers.transform(context))
+            .await?;
+        response.into_full(true).await
     }
 
     // Create a helper method with the core functionality
@@ -382,7 +247,7 @@ impl<S: Services> Orchestrator<S> {
         context = context.tools(self.get_allowed_tools(&agent)?);
 
         // Render the system prompts with the variables
-        context = self.set_system_prompt(context, &agent, &variables).await?;
+        context = self.set_system_prompt(context, &agent, &variables)?;
 
         // Render user prompts
         context = self.set_user_prompt(context, &agent, &variables, event)?;
@@ -419,7 +284,7 @@ impl<S: Services> Orchestrator<S> {
         let mut tool_context = ToolCallContext::default().sender(self.sender.clone());
 
         let mut empty_tool_call_count = 0;
-
+        let is_tool_supported = self.is_tool_supported(&agent)?;
         while !tool_context.get_complete().await {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
@@ -427,7 +292,7 @@ impl<S: Services> Orchestrator<S> {
             let ChatCompletionMessageFull { tool_calls, content, mut usage } = self
                 .environment
                 .retry_config
-                .retry(|| self.execute_chat_turn(&agent, &model_id, context.clone()))
+                .retry(|| self.execute_chat_turn(&model_id, context.clone(), is_tool_supported))
                 .await?;
 
             // Set estimated tokens
@@ -458,17 +323,17 @@ impl<S: Services> Orchestrator<S> {
 
             // Process tool calls and update context
             context = context.append_message(
-                content,
-                model_id.clone(),
+                content.clone(),
                 self.execute_tool_calls(&agent, &tool_calls, &mut tool_context)
                     .await?,
-                tool_supported,
             );
+
+            context = SetModel::new(model_id.clone()).transform(context);
 
             if empty_tool_calls {
                 // No tool calls present, which doesn't mean task is complete so reprompt the
                 // agent to ensure the task complete.
-                let content = render_template(
+                let content = Templates::render(
                     "{{> partial-tool-required.hbs}}",
                     &serde_json::json!({
                         "tool_supported": tool_supported
@@ -496,6 +361,16 @@ impl<S: Services> Orchestrator<S> {
                 }
             } else {
                 empty_tool_call_count = 0;
+
+                self.send(ChatResponse::Text {
+                    text: remove_tag_with_prefix(&content, "forge_")
+                        .as_str()
+                        .to_string(),
+                    is_complete: true,
+                    is_md: true,
+                    is_summary: false,
+                })
+                .await?;
             }
 
             // Update context in the conversation
@@ -513,9 +388,15 @@ impl<S: Services> Orchestrator<S> {
         event: &Event,
     ) -> anyhow::Result<Context> {
         let content = if let Some(user_prompt) = &agent.user_prompt {
-            let event_context = EventContext::new(event.clone()).variables(variables.clone());
+            let event_context = EventContext::new(event.clone())
+                .variables(variables.clone())
+                .current_time(
+                    self.current_time
+                        .format("%Y-%m-%d %H:%M:%S %:z")
+                        .to_string(),
+                );
             debug!(event_context = ?event_context, "Event context");
-            render_template(user_prompt.template.as_str(), &event_context)?
+            Templates::render(user_prompt.template.as_str(), &event_context)?
         } else {
             // Use the raw event value as content if no user_prompt is provided
             event.value.to_string()
@@ -547,7 +428,7 @@ mod tests {
 
         // Actual: Render a simple template
         let template = "App: {{name}} v{{version}} - Features: {{#each features}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}";
-        let actual = render_template(template, &data).unwrap();
+        let actual = Templates::render(template, &data).unwrap();
 
         // Expected: Result should match the expected string
         let expected = "App: Forge v1.0 - Features: templates, rendering, handlebars";
@@ -567,11 +448,12 @@ mod tests {
             "files": [
                 "/file1.txt",
                 "/file2.txt"
-            ]
+            ],
+            "current_time": "2024-01-01 12:00:00 +00:00"
         });
 
         // Actual: Render the partial-system-info template
-        let actual = render_template("{{> partial-system-info.hbs }}", &data).unwrap();
+        let actual = Templates::render("{{> partial-system-info.hbs }}", &data).unwrap();
 
         // Expected: Result should contain the rendered system info with substituted
         // values
@@ -588,7 +470,7 @@ mod tests {
         });
 
         // Actual: Render the partial-summary-frame template
-        let actual = render_template("{{> partial-summary-frame.hbs}}", &data).unwrap();
+        let actual = Templates::render("{{> partial-summary-frame.hbs}}", &data).unwrap();
 
         // Expected: Result should contain the framed summary text
         let expected = "Use the following summary as the authoritative reference for all coding\nsuggestions and decisions. Do not re-explain or revisit it unless I ask.\n\n<summary>\nThis is a test summary of the conversation\n</summary>\n\nProceed with implementation based on this context.";

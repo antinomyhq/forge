@@ -1,11 +1,10 @@
-use forge_domain::Provider;
+use forge_domain::{DefaultTransformation, Provider, Transformer};
 
 use super::drop_tool_call::DropToolCalls;
-use super::identity::Identity;
 use super::make_openai_compat::MakeOpenAiCompat;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
-use super::Transformer;
+use super::when_model::when_model;
 use crate::forge_provider::request::Request;
 use crate::forge_provider::tool_choice::ToolChoice;
 
@@ -20,18 +19,22 @@ impl<'a> ProviderPipeline<'a> {
 }
 
 impl Transformer for ProviderPipeline<'_> {
-    fn transform(&self, request: Request) -> Request {
+    type Value = Request;
+
+    fn transform(&mut self, request: Self::Value) -> Self::Value {
         // Only Anthropic and Gemini requires cache configuration to be set.
         // ref: https://openrouter.ai/docs/features/prompt-caching
-        let or_transformers = Identity
-            .combine(DropToolCalls.when_model("mistral"))
-            .combine(SetToolChoice::new(ToolChoice::Auto).when_model("gemini"))
-            .combine(SetCache.when_model("gemini|anthropic"))
-            .when(move |_| supports_open_router_params(self.0));
+        let provider = self.0;
+        let or_transformers = DefaultTransformation::<Request>::new()
+            .pipe(DropToolCalls.when(when_model("mistral")))
+            .pipe(SetToolChoice::new(ToolChoice::Auto).when(when_model("gemini")))
+            .pipe(SetCache.when(when_model("gemini|anthropic")))
+            .when(move |_| supports_open_router_params(provider));
 
-        let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(self.0));
+        let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
-        or_transformers.combine(open_ai_compat).transform(request)
+        let mut combined = or_transformers.pipe(open_ai_compat);
+        combined.transform(request)
     }
 }
 

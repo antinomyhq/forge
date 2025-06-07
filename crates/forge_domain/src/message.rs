@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumString;
 
-use super::ToolCall;
+use super::{ToolCall, ToolCallFull};
 
 #[derive(Default, Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct Usage {
@@ -117,6 +117,16 @@ impl ChatCompletionMessage {
         self.content = Some(Content::Full(ContentFull(content.to_string())));
         self
     }
+}
+
+/// Represents a complete message from the LLM provider with all content
+/// collected This is typically used after processing a stream of
+/// ChatCompletionMessage
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChatCompletionMessageFull {
+    pub content: String,
+    pub tool_calls: Vec<ToolCallFull>,
+    pub usage: Usage,
 }
 
 #[cfg(test)]
