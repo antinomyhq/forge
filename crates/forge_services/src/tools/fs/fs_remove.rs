@@ -1,13 +1,15 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use forge_display::TitleFormat;
 use forge_domain::{
     ExecutableTool, FSRemoveInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
     ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 
-use crate::utils::assert_absolute_path;
+use crate::services::EnvironmentService;
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FileRemoveService, FsMetaService, Infrastructure};
 
 // Using FSRemoveInput from forge_domain
@@ -21,6 +23,40 @@ pub struct FSRemove<T>(Arc<T>);
 impl<T: Infrastructure> FSRemove<T> {
     pub fn new(infra: Arc<T>) -> Self {
         Self(infra)
+    }
+
+    /// Formats a path for display, converting absolute paths to relative when
+    /// possible
+    ///
+    /// If the path starts with the current working directory, returns a
+    /// relative path. Otherwise, returns the original absolute path.
+    fn format_display_path(&self, path: &Path) -> anyhow::Result<String> {
+        // Get the current working directory
+        let env = self.0.environment_service().get_environment();
+        let cwd = env.cwd.as_path();
+
+        // Use the shared utility function
+        format_display_path(path, cwd)
+    }
+
+    /// Creates and sends a title for the fs_remove operation
+    ///
+    /// Sets the title and subtitle for the remove operation, then sends it
+    /// via the context channel.
+    async fn create_and_send_title(
+        &self,
+        context: &ToolCallContext,
+        path: &Path,
+    ) -> anyhow::Result<()> {
+        // Format a response with metadata
+        let display_path = self.format_display_path(path)?;
+
+        let message = TitleFormat::debug("Remove").sub_title(display_path);
+
+        // Send the formatted message
+        context.send_text(message).await?;
+
+        Ok(())
     }
 }
 
@@ -36,7 +72,7 @@ impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
 
     async fn call(
         &self,
-        _context: &mut ToolCallContext,
+        context: &mut ToolCallContext,
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         let path = Path::new(&input.path);
@@ -44,20 +80,27 @@ impl<T: Infrastructure> ExecutableTool for FSRemove<T> {
 
         // Check if the file exists
         if !self.0.file_meta_service().exists(path).await? {
-            return Err(anyhow::anyhow!("File not found: {}", input.path));
+            let display_path = self.format_display_path(path)?;
+            return Err(anyhow::anyhow!("File not found: {}", display_path));
         }
 
         // Check if it's a file
         if !self.0.file_meta_service().is_file(path).await? {
-            return Err(anyhow::anyhow!("Path is not a file: {}", input.path));
+            let display_path = self.format_display_path(path)?;
+            return Err(anyhow::anyhow!("Path is not a file: {}", display_path));
         }
+
+        // Create and send the title using the extracted method
+        self.create_and_send_title(context, path).await?;
 
         // Remove the file
         self.0.file_remove_service().remove(path).await?;
 
+        // Format the success response with appropriate context
+        let display_path = self.format_display_path(path)?;
+
         Ok(ToolOutput::text(format!(
-            "Successfully removed file: {}",
-            input.path
+            "Successfully removed file: {display_path}"
         )))
     }
 }
@@ -101,6 +144,7 @@ mod test {
             .await
             .unwrap();
 
+        // Don't test exact message content as paths may vary
         assert!(result.contains("Successfully removed file"));
         assert!(!infra.file_meta_service().exists(&file_path).await.unwrap());
     }

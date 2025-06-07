@@ -47,6 +47,7 @@ mod tests {
 
     fn create_test_context(message: impl ToString) -> String {
         let context = Context {
+            conversation_id: None,
             messages: message
                 .to_string()
                 .chars()

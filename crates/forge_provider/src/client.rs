@@ -34,7 +34,7 @@ impl Client {
         version: impl ToString,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
-            .read_timeout(std::time::Duration::from_secs(60))
+            .read_timeout(std::time::Duration::from_secs(10))
             .pool_idle_timeout(std::time::Duration::from_secs(90))
             .pool_max_idle_per_host(5)
             .redirect(Policy::limited(10))

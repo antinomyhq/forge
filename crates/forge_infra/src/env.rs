@@ -75,40 +75,38 @@ impl ForgeEnvironmentService {
     /// Resolves retry configuration from environment variables or returns
     /// defaults
     fn resolve_retry_config(&self) -> RetryConfig {
-        // Parse initial backoff in milliseconds
-        let initial_backoff_ms = std::env::var("FORGE_RETRY_INITIAL_BACKOFF_MS")
-            .ok()
-            .and_then(|val| val.parse::<u64>().ok())
-            .unwrap_or(200); // Default value
+        let mut config = RetryConfig::default();
 
-        // Parse backoff factor
-        let backoff_factor = std::env::var("FORGE_RETRY_BACKOFF_FACTOR")
-            .ok()
-            .and_then(|val| val.parse::<u64>().ok())
-            .unwrap_or(2); // Default value
-
-        // Parse maximum retry attempts
-        let max_retry_attempts = std::env::var("FORGE_RETRY_MAX_ATTEMPTS")
-            .ok()
-            .and_then(|val| val.parse::<usize>().ok())
-            .unwrap_or(8); // Default value
-
-        // Parse retry status codes
-        let retry_status_codes = std::env::var("FORGE_RETRY_STATUS_CODES")
-            .ok()
-            .map(|val| {
-                val.split(',')
-                    .filter_map(|code| code.trim().parse::<u16>().ok())
-                    .collect::<Vec<u16>>()
-            })
-            .unwrap_or_else(|| vec![429, 500, 502, 503, 504]); // Default values
-
-        RetryConfig {
-            initial_backoff_ms,
-            backoff_factor,
-            max_retry_attempts,
-            retry_status_codes,
+        // Override with environment variables if available
+        if let Ok(val) = std::env::var("FORGE_RETRY_INITIAL_BACKOFF_MS") {
+            if let Ok(parsed) = val.parse::<u64>() {
+                config.initial_backoff_ms = parsed;
+            }
         }
+
+        if let Ok(val) = std::env::var("FORGE_RETRY_BACKOFF_FACTOR") {
+            if let Ok(parsed) = val.parse::<u64>() {
+                config.backoff_factor = parsed;
+            }
+        }
+
+        if let Ok(val) = std::env::var("FORGE_RETRY_MAX_ATTEMPTS") {
+            if let Ok(parsed) = val.parse::<usize>() {
+                config.max_retry_attempts = parsed;
+            }
+        }
+
+        if let Ok(val) = std::env::var("FORGE_RETRY_STATUS_CODES") {
+            let status_codes: Vec<u16> = val
+                .split(',')
+                .filter_map(|code| code.trim().parse::<u16>().ok())
+                .collect();
+            if !status_codes.is_empty() {
+                config.retry_status_codes = status_codes;
+            }
+        }
+
+        config
     }
 
     fn get(&self) -> Environment {
@@ -253,5 +251,134 @@ mod tests {
         ForgeEnvironmentService::dot_env(&cwd);
 
         assert_eq!(env::var("A2").unwrap(), "STD_ENV");
+    }
+
+    #[test]
+    fn test_retry_config_comprehensive() {
+        // Test 1: Default consistency
+        {
+            // Clean up any existing environment variables first
+            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+            env::remove_var("FORGE_RETRY_STATUS_CODES");
+
+            // Verify that the environment service uses the same default as RetryConfig
+            let env_service = ForgeEnvironmentService::new(false);
+            let retry_config_from_env = env_service.resolve_retry_config();
+            let default_retry_config = RetryConfig::default();
+
+            assert_eq!(
+                retry_config_from_env.max_retry_attempts,
+                default_retry_config.max_retry_attempts,
+                "Environment service and RetryConfig should have consistent default max_retry_attempts"
+            );
+
+            assert_eq!(
+                retry_config_from_env.initial_backoff_ms,
+                default_retry_config.initial_backoff_ms,
+                "Environment service and RetryConfig should have consistent default initial_backoff_ms"
+            );
+
+            assert_eq!(
+                retry_config_from_env.backoff_factor, default_retry_config.backoff_factor,
+                "Environment service and RetryConfig should have consistent default backoff_factor"
+            );
+
+            assert_eq!(
+                retry_config_from_env.retry_status_codes,
+                default_retry_config.retry_status_codes,
+                "Environment service and RetryConfig should have consistent default retry_status_codes"
+            );
+        }
+
+        // Test 2: Environment variable override
+        {
+            // Clean up any existing environment variables first
+            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+            env::remove_var("FORGE_RETRY_STATUS_CODES");
+
+            // Set environment variables to override defaults
+            env::set_var("FORGE_RETRY_INITIAL_BACKOFF_MS", "500");
+            env::set_var("FORGE_RETRY_BACKOFF_FACTOR", "3");
+            env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "5");
+            env::set_var("FORGE_RETRY_STATUS_CODES", "429,500,502");
+
+            let env_service = ForgeEnvironmentService::new(false);
+            let config = env_service.resolve_retry_config();
+
+            assert_eq!(config.initial_backoff_ms, 500);
+            assert_eq!(config.backoff_factor, 3);
+            assert_eq!(config.max_retry_attempts, 5);
+            assert_eq!(config.retry_status_codes, vec![429, 500, 502]);
+
+            // Clean up environment variables
+            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+            env::remove_var("FORGE_RETRY_STATUS_CODES");
+        }
+
+        // Test 3: Partial environment variable override
+        {
+            // Clean up any existing environment variables first
+            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+            env::remove_var("FORGE_RETRY_STATUS_CODES");
+
+            // Set only some environment variables
+            env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "10");
+            env::set_var("FORGE_RETRY_STATUS_CODES", "503,504");
+
+            let env_service = ForgeEnvironmentService::new(false);
+            let config = env_service.resolve_retry_config();
+            let default_config = RetryConfig::default();
+
+            // Overridden values
+            assert_eq!(config.max_retry_attempts, 10);
+            assert_eq!(config.retry_status_codes, vec![503, 504]);
+
+            // Default values should remain
+            assert_eq!(config.initial_backoff_ms, default_config.initial_backoff_ms);
+            assert_eq!(config.backoff_factor, default_config.backoff_factor);
+
+            // Clean up environment variables
+            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+            env::remove_var("FORGE_RETRY_STATUS_CODES");
+        }
+
+        // Test 4: Invalid environment variable values
+        {
+            // Clean up any existing environment variables first
+            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+            env::remove_var("FORGE_RETRY_STATUS_CODES");
+
+            // Set invalid environment variables
+            env::set_var("FORGE_RETRY_INITIAL_BACKOFF_MS", "invalid");
+            env::set_var("FORGE_RETRY_BACKOFF_FACTOR", "not_a_number");
+            env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "abc");
+            env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes,here");
+
+            let env_service = ForgeEnvironmentService::new(false);
+            let config = env_service.resolve_retry_config();
+            let default_config = RetryConfig::default();
+
+            // Should fall back to defaults when parsing fails
+            assert_eq!(config.initial_backoff_ms, default_config.initial_backoff_ms);
+            assert_eq!(config.backoff_factor, default_config.backoff_factor);
+            assert_eq!(config.max_retry_attempts, default_config.max_retry_attempts);
+            assert_eq!(config.retry_status_codes, default_config.retry_status_codes);
+
+            // Clean up environment variables
+            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+            env::remove_var("FORGE_RETRY_STATUS_CODES");
+        }
     }
 }

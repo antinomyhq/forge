@@ -48,6 +48,7 @@ mod tests {
             .success("test result");
 
         let context = Context {
+            conversation_id: None,
             messages: vec![
                 ContextMessage::Text(TextMessage {
                     role: Role::Assistant,

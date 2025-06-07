@@ -66,7 +66,7 @@ pub struct Orchestrator<S> {
     models: Vec<Model>,
 }
 
-struct ChatCompletionResult {
+struct ChatCompletionMessageFull {
     pub content: String,
     pub tool_calls: Vec<ToolCallFull>,
     pub usage: Usage,
@@ -102,7 +102,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         for tool_call in tool_calls {
             // Send the start notification
-            self.send(agent, ChatResponse::ToolCallStart(tool_call.clone()))
+            self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                 .await?;
 
             // Execute the tool
@@ -122,7 +122,7 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Send the end notification
-            self.send(agent, ChatResponse::ToolCallEnd(tool_result.clone()))
+            self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
                 .await?;
 
             // Ensure all tool calls and results are recorded
@@ -133,14 +133,9 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(tool_call_records)
     }
 
-    async fn send(&mut self, agent: &Agent, message: ChatResponse) -> anyhow::Result<()> {
+    async fn send(&self, message: ChatResponse) -> anyhow::Result<()> {
         if let Some(sender) = &self.sender {
-            // Send message if it's a Custom type or if hide_content is false
-            let show_text = !agent.hide_content.unwrap_or_default();
-            let can_send = !matches!(&message, ChatResponse::Text { .. }) || show_text;
-            if can_send {
-                sender.send(Ok(message)).await?
-            }
+            sender.send(Ok(message)).await?
         }
         Ok(())
     }
@@ -162,7 +157,7 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     // Returns if agent supports tool or not.
-    fn is_tool_supported(&mut self, agent: &Agent) -> anyhow::Result<bool> {
+    fn is_tool_supported(&self, agent: &Agent) -> anyhow::Result<bool> {
         let model_id = agent
             .model
             .as_ref()
@@ -247,16 +242,16 @@ impl<S: AgentService> Orchestrator<S> {
             "Created context compaction summary"
         );
 
-        let summary = format!(
-            r#"Continuing from a prior analysis. Below is a compacted summary of the ongoing session. Use this summary as authoritative context for your reasoning and decision-making. You do not need to repeat or reanalyze it unless specifically asked: <summary>{summary}</summary> Proceed based on this context.
-        "#
-        );
+        let summary = render_template(
+            "{{> partial-summary-frame.hbs}}",
+            &serde_json::json!({ "summary": summary }),
+        )?;
 
         // Replace the sequence with a single summary message using splice
         // This removes the sequence and inserts the summary message in-place
         context.messages.splice(
             start..=end,
-            std::iter::once(ContextMessage::assistant(summary, None)),
+            std::iter::once(ContextMessage::user(summary, None)),
         );
 
         Ok(context)
@@ -290,7 +285,8 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Create a new context
         let mut context = Context::default()
-            .add_message(ContextMessage::user(prompt, compact.model.clone().into()));
+            .add_message(ContextMessage::user(prompt, compact.model.clone().into()))
+            .conversation_id(self.conversation.id.clone());
 
         // Set max_tokens for summary
         if let Some(max_token) = compact.max_tokens {
@@ -385,8 +381,8 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     /// Process usage information from a chat completion message
-    fn update_usage(
-        &mut self,
+    fn estimate_usage(
+        &self,
         message: &ChatCompletionMessage,
         context: &Context,
         request_usage: Usage,
@@ -402,11 +398,11 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     async fn collect_messages(
-        &mut self,
+        &self,
         agent: &Agent,
         context: &Context,
         mut response: impl Stream<Item = anyhow::Result<ChatCompletionMessage>> + std::marker::Unpin,
-    ) -> anyhow::Result<ChatCompletionResult> {
+    ) -> anyhow::Result<ChatCompletionMessageFull> {
         let mut messages = Vec::new();
         let mut usage: Usage = Default::default();
         let mut content = String::new();
@@ -417,11 +413,11 @@ impl<S: AgentService> Orchestrator<S> {
         let should_interrupt_for_xml = !self.is_tool_supported(agent)?;
 
         while let Some(message) = response.next().await {
-            let message = message?;
+            let message = message.with_context(|| "Failed to process message stream")?;
             messages.push(message.clone());
 
             // Process usage information
-            usage = self.update_usage(&message, context, usage);
+            usage = self.estimate_usage(&message, context, usage);
 
             // Process content
             if let Some(content_part) = message.content.as_ref() {
@@ -430,15 +426,12 @@ impl<S: AgentService> Orchestrator<S> {
                 content.push_str(&content_part);
 
                 // Send partial content to the client
-                self.send(
-                    agent,
-                    ChatResponse::Text {
-                        text: content_part,
-                        is_complete: false,
-                        is_md: false,
-                        is_summary: false,
-                    },
-                )
+                self.send(ChatResponse::Text {
+                    text: content_part,
+                    is_complete: false,
+                    is_md: false,
+                    is_summary: false,
+                })
                 .await?;
 
                 // Check for XML tool calls in the content, but only interrupt if tool_supported
@@ -485,17 +478,14 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         // Send the complete message
-        self.send(
-            agent,
-            ChatResponse::Text {
-                text: remove_tag_with_prefix(&content, "forge_")
-                    .as_str()
-                    .to_string(),
-                is_complete: true,
-                is_md: true,
-                is_summary: false,
-            },
-        )
+        self.send(ChatResponse::Text {
+            text: remove_tag_with_prefix(&content, "forge_")
+                .as_str()
+                .to_string(),
+            is_complete: true,
+            is_md: true,
+            is_summary: false,
+        })
         .await?;
 
         // Extract all tool calls in a fully declarative way with combined sources
@@ -525,7 +515,7 @@ impl<S: AgentService> Orchestrator<S> {
             .chain(xml_tool_calls)
             .collect();
 
-        Ok(ChatCompletionResult { content, tool_calls, usage })
+        Ok(ChatCompletionMessageFull { content, tool_calls, usage })
     }
 
     pub async fn dispatch(&mut self, event: Event) -> anyhow::Result<()> {
@@ -548,11 +538,11 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     async fn chat(
-        &mut self,
+        &self,
         agent: &Agent,
         model_id: &ModelId,
         context: Context,
-    ) -> anyhow::Result<ChatCompletionResult> {
+    ) -> anyhow::Result<ChatCompletionMessageFull> {
         let response = self.services.chat(model_id, context.clone()).await?;
         self.collect_messages(agent, &context, response).await
     }
@@ -574,6 +564,9 @@ impl<S: AgentService> Orchestrator<S> {
         let tool_supported = self.is_tool_supported(&agent)?;
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
+
+        // attach the conversation ID to the context
+        context = context.conversation_id(self.conversation.id.clone());
 
         // Reset all the available tools
         context = context.tools(self.get_allowed_tools(&agent)?);
@@ -621,8 +614,11 @@ impl<S: AgentService> Orchestrator<S> {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
 
-            let ChatCompletionResult { tool_calls, content, usage } =
-                self.chat(&agent, &model_id, context.clone()).await?;
+            let ChatCompletionMessageFull { tool_calls, content, usage } = self
+                .environment
+                .retry_config
+                .retry(|| self.chat(&agent, &model_id, context.clone()))
+                .await?;
 
             // Send the usage information if available
 
@@ -632,8 +628,7 @@ impl<S: AgentService> Orchestrator<S> {
                 content_length = usage.content_length,
                 "Processing usage information"
             );
-            self.send(&agent, ChatResponse::Usage(usage.clone()))
-                .await?;
+            self.send(ChatResponse::Usage(usage.clone())).await?;
 
             // Check if context requires compression and decide to compact
             if agent.should_compact(&context, max(usage.prompt_tokens, usage.estimated_tokens)) {
@@ -767,5 +762,22 @@ mod tests {
         // Expected: Result should contain the rendered system info with substituted
         // values
         assert!(actual.contains("<operating_system>test-os</operating_system>"));
+    }
+
+    #[test]
+    fn test_render_template_summary_frame() {
+        use pretty_assertions::assert_eq;
+
+        // Fixture: Create test data for the summary frame template
+        let data = serde_json::json!({
+            "summary": "This is a test summary of the conversation"
+        });
+
+        // Actual: Render the partial-summary-frame template
+        let actual = render_template("{{> partial-summary-frame.hbs}}", &data).unwrap();
+
+        // Expected: Result should contain the framed summary text
+        let expected = "Use the following summary as the authoritative reference for all coding\nsuggestions and decisions. Do not re-explain or revisit it unless I ask.\n\n<summary>\nThis is a test summary of the conversation\n</summary>\n\nProceed with implementation based on this context.";
+        assert_eq!(actual.trim(), expected);
     }
 }

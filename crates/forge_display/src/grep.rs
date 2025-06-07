@@ -64,7 +64,7 @@ impl GrepFormat {
     }
 
     /// Collect file entries and determine the maximum line number width
-    fn collect_entries(&self) -> (BTreeMap<&str, Lines>, usize) {
+    fn collect_entries<'a>(&'a self) -> (BTreeMap<&'a str, Lines<'a>>, usize) {
         self.lines
             .iter()
             .map(String::as_str)

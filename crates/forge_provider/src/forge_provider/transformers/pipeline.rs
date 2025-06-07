@@ -27,11 +27,31 @@ impl Transformer for ProviderPipeline<'_> {
             .combine(DropToolCalls.when_model("mistral"))
             .combine(SetToolChoice::new(ToolChoice::Auto).when_model("gemini"))
             .combine(SetCache.when_model("gemini|anthropic"))
-            .when(move |_| self.0.is_open_router() || self.0.is_antinomy());
+            .when(move |_| supports_open_router_params(self.0));
 
-        let open_ai_compat =
-            MakeOpenAiCompat.when(move |_| !self.0.is_open_router() || !self.0.is_antinomy());
+        let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(self.0));
 
         or_transformers.combine(open_ai_compat).transform(request)
+    }
+}
+
+/// function checks if provider supports open-router parameters.
+fn supports_open_router_params(provider: &Provider) -> bool {
+    provider.is_open_router() || provider.is_antinomy()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_supports_open_router_params() {
+        assert!(supports_open_router_params(&Provider::antinomy("antinomy")));
+        assert!(supports_open_router_params(&Provider::open_router(
+            "open-router"
+        )));
+
+        assert!(!supports_open_router_params(&Provider::openai("openai")));
+        assert!(!supports_open_router_params(&Provider::anthropic("claude")));
     }
 }

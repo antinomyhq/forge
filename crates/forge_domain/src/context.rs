@@ -7,7 +7,7 @@ use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
-use crate::{Image, ModelId, ToolChoice, ToolDefinition};
+use crate::{ConversationId, Image, ModelId, ToolChoice, ToolDefinition};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -109,6 +109,8 @@ pub enum Role {
 #[derive(Clone, Debug, Deserialize, Serialize, Setters, Default, PartialEq)]
 #[setters(into, strip_option)]
 pub struct Context {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<ConversationId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub messages: Vec<ContextMessage>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
