@@ -108,8 +108,8 @@ pub mod tests {
         async fn range_read_utf8(
             &self,
             _path: &Path,
-            _start_char: u64,
-            _end_char: u64,
+            _start_line: u64,
+            _end_line: u64,
         ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
             unimplemented!()
         }

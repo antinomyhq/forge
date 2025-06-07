@@ -15,9 +15,9 @@ use regex::Regex;
 use crate::metadata::Metadata;
 use crate::services::EnvironmentService;
 use crate::utils::{assert_absolute_path, format_display_path};
-use crate::{Clipper, FsWriteService, Infrastructure};
+use crate::{FsWriteService, Infrastructure};
 
-const MAX_SEARCH_CHAR_LIMIT: usize = 40_000;
+const MAX_SEARCH_LINE_LIMIT: u64 = 2_000;
 
 // Using FSSearchInput from forge_domain
 
@@ -73,8 +73,8 @@ impl FSSearchHelper<'_> {
 /// (when regex omitted). Uses case-insensitive Rust regex syntax. Requires
 /// absolute paths. Avoids binary files and excluded directories. Best for code
 /// exploration, API usage discovery, configuration settings, or finding
-/// patterns across projects. For large pages, returns the first 40,000
-/// characters and stores the complete content in a temporary file for
+/// patterns across projects. For large pages, returns the first 2,000
+/// lines and stores the complete content in a temporary file for
 /// subsequent access.
 #[derive(ToolDescription)]
 pub struct FSFind<F>(Arc<F>);
@@ -119,7 +119,7 @@ impl<F: Infrastructure> FSFind<F> {
         &self,
         context: &mut ToolCallContext,
         input: FSSearchInput,
-        max_char_limit: usize,
+        max_line_limit: u64,
     ) -> anyhow::Result<String> {
         let helper = FSSearchHelper(&input);
         let path = Path::new(helper.path());
@@ -215,15 +215,23 @@ impl<F: Infrastructure> FSFind<F> {
         context.send_text(formatted_output.format()).await?;
 
         let matches = matches.join("\n");
+        let total_lines = matches.lines().count() as u64;
+
         let metadata = Metadata::default()
             .add("path", input.path)
             .add_optional("regex", input.regex)
             .add_optional("file_pattern", input.file_pattern)
-            .add("total_chars", matches.len())
-            .add("start_char", 0);
+            .add("total_lines", total_lines)
+            .add("start_line", 1);
 
-        let truncated_result = Clipper::from_start(max_char_limit).clip(&matches);
-        if let Some(truncated) = truncated_result.prefix_content() {
+        if total_lines > max_line_limit {
+            // Take only the first max_line_limit lines
+            let limited_matches = matches
+                .lines()
+                .take(max_line_limit as usize)
+                .collect::<Vec<_>>()
+                .join("\n");
+
             let path = self
                 .0
                 .file_write_service()
@@ -231,15 +239,15 @@ impl<F: Infrastructure> FSFind<F> {
                 .await?;
 
             let metadata = metadata
-                .add("end_char", truncated.len())
+                .add("end_line", max_line_limit)
                 .add("temp_file", path.display());
 
-            let truncation_tag = format!("\n<truncation>content is truncated to {} chars, remaining content can be read from path:{}</truncation>", 
-            max_char_limit,path.to_string_lossy());
+            let truncation_tag = format!("\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>", 
+            max_line_limit, path.to_string_lossy());
 
-            Ok(format!("{metadata}{truncated}{truncation_tag}"))
+            Ok(format!("{metadata}{limited_matches}{truncation_tag}"))
         } else {
-            let metadata = metadata.add("end_char", matches.len());
+            let metadata = metadata.add("end_line", total_lines);
             Ok(format!("{metadata}{matches}"))
         }
     }
@@ -285,7 +293,7 @@ impl<F: Infrastructure> ExecutableTool for FSFind<F> {
         input: Self::Input,
     ) -> anyhow::Result<ToolOutput> {
         let result = self
-            .call_inner(context, input, MAX_SEARCH_CHAR_LIMIT)
+            .call_inner(context, input, MAX_SEARCH_LINE_LIMIT)
             .await?;
         Ok(ToolOutput::text(result))
     }
@@ -670,7 +678,10 @@ mod test {
     async fn test_fs_large_result() {
         let temp_dir = TempDir::new().unwrap();
 
-        let content = "content".repeat(10);
+        let content = (0..20)
+            .map(|i| format!("line {} content", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         fs::write(temp_dir.path().join("file1.txt"), &content)
             .await
             .unwrap();
@@ -686,10 +697,10 @@ mod test {
                     regex: Some("content*".into()),
                     file_pattern: None,
                 },
-                100,
+                10,
             )
             .await
             .unwrap();
-        assert!(result.contains("content is truncated to 100 chars"))
+        assert!(result.contains("content is truncated to 10 lines"))
     }
 }

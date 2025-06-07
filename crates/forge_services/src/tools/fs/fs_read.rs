@@ -14,29 +14,31 @@ use crate::services::EnvironmentService;
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsReadService, Infrastructure};
 
-// Define maximum character limits
-const MAX_RANGE_SIZE: u64 = 40_000;
+// Define maximum line limits
+const MAX_RANGE_SIZE: u64 = 2_000;
 
-/// Ensures that the given character range is valid and doesn't exceed the
+/// Ensures that the given line range is valid and doesn't exceed the
 /// maximum size
 ///
 /// # Arguments
-/// * `start_char` - The starting character position
-/// * `end_char` - The ending character position
+/// * `start_line` - The starting line position
+/// * `end_line` - The ending line position
 /// * `max_size` - The maximum allowed range size
 ///
 /// # Returns
 /// * `Ok(())` if the range is valid and within size limits
 /// * `Err(String)` with an error message if the range is invalid or too large
-pub fn assert_valid_range(start_char: u64, end_char: u64) -> anyhow::Result<()> {
-    // Check that end_char is not less than start_char
-    if end_char < start_char {
-        bail!("Invalid range: end character ({end_char}) must not be less than start character ({start_char})")
+pub fn assert_valid_range(start_line: u64, end_line: u64) -> anyhow::Result<()> {
+    // Check that end_line is not less than start_line
+    if end_line < start_line {
+        bail!(
+            "Invalid range: end line ({end_line}) must not be less than start line ({start_line})"
+        )
     }
 
     // Check that the range size doesn't exceed the maximum
-    if end_char.saturating_sub(start_char) > MAX_RANGE_SIZE {
-        bail!("The requested range exceeds the maximum size of {MAX_RANGE_SIZE} characters. Please specify a smaller range.")
+    if end_line.saturating_sub(start_line) > MAX_RANGE_SIZE {
+        bail!("The requested range exceeds the maximum size of {MAX_RANGE_SIZE} lines. Please specify a smaller range.")
     }
 
     Ok(())
@@ -47,12 +49,12 @@ pub fn assert_valid_range(start_char: u64, end_char: u64) -> anyhow::Result<()> 
 /// Reads file contents from the specified absolute path. Ideal for analyzing
 /// code, configuration files, documentation, or textual data. Automatically
 /// extracts text from PDF and DOCX files, preserving the original formatting.
-/// Returns the content as a string. For files larger than 40,000 characters,
-/// the tool automatically returns only the first 40,000 characters. You should
+/// Returns the content as a string. For files larger than 2,000 lines,
+/// the tool automatically returns only the first 2,000 lines. You should
 /// always rely on this default behavior and avoid specifying custom ranges
-/// unless absolutely necessary. If needed, specify a range with the start_char
-/// and end_char parameters, ensuring the total range does not exceed 40,000
-/// characters. Specifying a range exceeding this limit will result in an error.
+/// unless absolutely necessary. If needed, specify a range with the start_line
+/// and end_line parameters, ensuring the total range does not exceed 2,000
+/// lines. Specifying a range exceeding this limit will result in an error.
 /// Binary files are automatically detected and rejected.
 #[derive(ToolDescription)]
 pub struct FSRead<F>(Arc<F>);
@@ -86,15 +88,15 @@ impl<F: Infrastructure> FSRead<F> {
         context: &ToolCallContext,
         input: &FSReadInput,
         path: &Path,
-        start_char: u64,
-        end_char: u64,
+        start_line: u64,
+        end_line: u64,
         file_info: &forge_fs::FileInfo,
     ) -> anyhow::Result<()> {
         // Determine if the user requested an explicit range
-        let is_explicit_range = input.start_char.is_some() | input.end_char.is_some();
+        let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
 
         // Determine if the file is larger than the limit and needs truncation
-        let is_truncated = file_info.total_chars > end_char;
+        let is_truncated = file_info.total_lines > end_line;
 
         // Determine if range information is relevant to display
         let is_range_relevant = is_explicit_range || is_truncated;
@@ -111,11 +113,11 @@ impl<F: Infrastructure> FSRead<F> {
             "Read"
         };
 
-        let end_info = min(end_char, file_info.total_chars);
+        let end_info = min(end_line, file_info.total_lines);
 
         let range_info = format!(
-            "char range: {}-{}, total chars: {}",
-            start_char, end_info, file_info.total_chars
+            "line range: {}-{}, total lines: {}",
+            start_line, end_info, file_info.total_lines
         );
 
         // Format a response with metadata
@@ -150,28 +152,28 @@ impl<F: Infrastructure> FSRead<F> {
         let path = Path::new(&input.path);
         assert_absolute_path(path)?;
 
-        let start_char = input.start_char.unwrap_or(0);
-        let end_char = input.end_char.unwrap_or(MAX_RANGE_SIZE.saturating_sub(1));
+        let start_line = input.start_line.unwrap_or(1);
+        let end_line = input.end_line.unwrap_or(MAX_RANGE_SIZE);
 
         // Validate the range size using the module-level assertion function
-        assert_valid_range(start_char, end_char)?;
+        assert_valid_range(start_line, end_line)?;
 
         let (content, file_info) = self
             .0
             .file_read_service()
-            .range_read_utf8(path, start_char, end_char)
+            .range_read_utf8(path, start_line, end_line)
             .await
             .with_context(|| format!("Failed to read file content from {}", input.path))?;
 
         // Create and send the title using the extracted method
-        self.create_and_send_title(context, &input, path, start_char, end_char, &file_info)
+        self.create_and_send_title(context, &input, path, start_line, end_line, &file_info)
             .await?;
 
         // Determine if the user requested an explicit range
-        let is_explicit_range = input.start_char.is_some() | input.end_char.is_some();
+        let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
 
         // Determine if the file is larger than the limit and needs truncation
-        let is_truncated = file_info.total_chars > end_char;
+        let is_truncated = file_info.total_lines > end_line;
 
         // Determine if range information is relevant to display
         let is_range_relevant = is_explicit_range || is_truncated;
@@ -183,9 +185,9 @@ impl<F: Infrastructure> FSRead<F> {
         writeln!(response, "---")?;
         writeln!(response, "path: {}", path.display())?;
         if is_range_relevant {
-            writeln!(response, "start_char: {}", file_info.start_char)?;
-            writeln!(response, "end_char: {}", file_info.end_char)?;
-            writeln!(response, "total_chars: {}", file_info.total_chars)?;
+            writeln!(response, "start_line: {}", file_info.start_line)?;
+            writeln!(response, "end_line: {}", file_info.end_line)?;
+            writeln!(response, "total_lines: {}", file_info.total_lines)?;
         }
 
         writeln!(response, "---")?;
@@ -236,8 +238,8 @@ mod test {
                 &mut ToolCallContext::default(),
                 FSReadInput {
                     path: path.to_string(),
-                    start_char: None,
-                    end_char: None,
+                    start_line: None,
+                    end_line: None,
                     explanation: None,
                 },
             )
@@ -282,8 +284,8 @@ mod test {
                 &mut ToolCallContext::default(),
                 FSReadInput {
                     path: file_path.to_string_lossy().to_string(),
-                    start_char: Some(10),
-                    end_char: Some(20),
+                    start_line: Some(2),
+                    end_line: Some(5),
                     explanation: None,
                 },
             )
@@ -313,8 +315,8 @@ mod test {
                 &mut ToolCallContext::default(),
                 FSReadInput {
                     path: file_path.to_string_lossy().to_string(),
-                    start_char: Some(20),
-                    end_char: Some(10),
+                    start_line: Some(20),
+                    end_line: Some(10),
                     explanation: None,
                 },
             )
@@ -393,12 +395,12 @@ mod test {
             async fn range_read_utf8(
                 &self,
                 _path: &Path,
-                start_char: u64,
-                end_char: u64,
+                start_line: u64,
+                end_line: u64,
             ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
                 // Convert to Option for tracking with the old method signature
-                let start_opt = Some(start_char);
-                let end_opt = Some(end_char);
+                let start_opt = Some(start_line);
+                let end_opt = Some(end_line);
 
                 // Record the range parameters that were requested
                 self.set_last_range_call(start_opt, end_opt);
@@ -406,28 +408,28 @@ mod test {
                 // Always record the range call parameters for tracking
                 self.set_last_range_call(start_opt, end_opt);
 
-                if start_char == 0 && end_char == 0 {
+                if start_line == 0 && end_line == 0 {
                     // For probe requests (when end = start = 0), return info about a large file
                     // This will trigger the auto-limiting behavior
                     return Ok((
                         "".to_string(),
-                        forge_fs::FileInfo::new(0, 0, 50_000), // Simulate a large file (50k chars)
+                        forge_fs::FileInfo::new(0, 0, 50_000), // Simulate a large file (50k lines)
                     ));
-                } else if start_char == 0 && end_char == 39999 {
+                } else if start_line == 1 && end_line == 2000 {
                     // This is the expected auto-limit range that should be requested for large
                     // files
                     return Err(anyhow::anyhow!(
                         "Auto-limit detected: start={}, end={}",
-                        start_char,
-                        end_char
+                        start_line,
+                        end_line
                     ));
                 }
 
                 // For any other range requests, return an identifying error
                 Err(anyhow::anyhow!(
                     "Unexpected range_read called with start={}, end={}",
-                    start_char,
-                    end_char
+                    start_line,
+                    end_line
                 ))
             }
         }
@@ -500,8 +502,8 @@ mod test {
                 FSReadInput {
                     explanation: None,
                     path: "/test/large_file.txt".to_string(),
-                    start_char: None,
-                    end_char: None,
+                    start_line: None,
+                    end_line: None,
                 },
             )
             .await;
@@ -510,17 +512,13 @@ mod test {
         // to fail
         assert!(result.is_err());
 
-        // Verify that our auto-limit was applied (should be 0-39999)
+        // Verify that our auto-limit was applied (should be 1-2000)
         let range_call = tracking_infra.get_last_range_call();
         assert!(range_call.is_some(), "Range read should have been called");
 
         if let Some((start, end)) = range_call {
-            assert_eq!(start, Some(0), "Auto-limit should start at character 0");
-            assert_eq!(
-                end,
-                Some(39999),
-                "Auto-limit should end at character 39999 (40k-1)"
-            );
+            assert_eq!(start, Some(1), "Auto-limit should start at line 1");
+            assert_eq!(end, Some(2000), "Auto-limit should end at line 2000");
         }
     }
 

@@ -12,19 +12,72 @@ use strip_ansi_escapes::strip;
 
 use crate::metadata::Metadata;
 use crate::services::EnvironmentService;
-use crate::{Clipper, ClipperResult, CommandExecutorService, FsWriteService, Infrastructure};
-
-/// Number of characters to keep at the start of truncated output
-const PREFIX_CHARS: usize = 10_000;
-
-/// Number of characters to keep at the end of truncated output
-const SUFFIX_CHARS: usize = 10_000;
-
-// Using ShellInput from forge_domain
+use crate::{ClipperResult, CommandExecutorService, FsWriteService, Infrastructure};
 
 // Strips out the ansi codes from content.
 fn strip_ansi(content: String) -> String {
     String::from_utf8_lossy(&strip(content.as_bytes())).into_owned()
+}
+
+/// Number of lines to keep at the start of truncated output
+const PREFIX_LINES: usize = 1_000;
+
+/// Number of lines to keep at the end of truncated output
+const SUFFIX_LINES: usize = 1_000;
+
+// Using ShellInput from forge_domain
+
+/// Clips text content based on line count instead of character count
+fn clip_by_lines(content: &str, prefix_lines: usize, suffix_lines: usize) -> ClipperResult<'_> {
+    let lines: Vec<&str> = content.lines().collect();
+    let total_lines = lines.len();
+
+    // If content fits within limits, return it as-is
+    if total_lines <= prefix_lines + suffix_lines {
+        return ClipperResult { prefix: None, suffix: None, actual: content };
+    }
+
+    // Calculate character positions for line-based ranges
+    let mut char_pos = 0;
+    let mut prefix_end_char = 0;
+    let mut suffix_start_char = 0;
+
+    // Find character position for end of prefix lines
+    for (i, line) in lines.iter().enumerate() {
+        if i < prefix_lines {
+            char_pos += line.len();
+            if i < lines.len() - 1 {
+                // Add newline except for last line
+                char_pos += 1;
+            }
+            prefix_end_char = char_pos;
+        } else if i >= total_lines - suffix_lines {
+            if suffix_start_char == 0 {
+                suffix_start_char = char_pos;
+            }
+            break;
+        } else {
+            char_pos += line.len() + 1; // Include newline
+        }
+    }
+
+    // Calculate suffix start position
+    if suffix_start_char == 0 {
+        char_pos = 0;
+        for (i, line) in lines.iter().enumerate() {
+            if i >= total_lines - suffix_lines {
+                suffix_start_char = char_pos;
+                break;
+            }
+            char_pos += line.len() + 1;
+        }
+    }
+
+    ClipperResult {
+        prefix: Some(0..prefix_end_char),
+        suffix: Some(suffix_start_char..content.len()),
+        actual: content,
+    }
 }
 
 /// Formats command output by wrapping non-empty stdout/stderr in XML tags.
@@ -36,8 +89,8 @@ async fn format_output<F: Infrastructure>(
     infra: &Arc<F>,
     mut output: CommandOutput,
     keep_ansi: bool,
-    prefix_chars: usize,
-    suffix_chars: usize,
+    prefix_lines: usize,
+    suffix_lines: usize,
 ) -> anyhow::Result<String> {
     let mut formatted_output = String::new();
 
@@ -55,7 +108,7 @@ async fn format_output<F: Infrastructure>(
 
     // Format stdout if not empty
     if !output.stdout.trim().is_empty() {
-        let result = Clipper::from_start_end(prefix_chars, suffix_chars).clip(&output.stdout);
+        let result = clip_by_lines(&output.stdout, prefix_lines, suffix_lines);
 
         if result.is_truncated() {
             metadata = metadata.add("total_stdout_chars", output.stdout.len());
@@ -69,7 +122,7 @@ async fn format_output<F: Infrastructure>(
         if !formatted_output.is_empty() {
             formatted_output.push('\n');
         }
-        let result = Clipper::from_start_end(prefix_chars, suffix_chars).clip(&output.stderr);
+        let result = clip_by_lines(&output.stderr, prefix_lines, suffix_lines);
 
         if result.is_truncated() {
             metadata = metadata.add("total_stderr_chars", output.stderr.len());
@@ -201,8 +254,8 @@ impl<I: Infrastructure> ExecutableTool for Shell<I> {
             &self.infra,
             output,
             input.keep_ansi,
-            PREFIX_CHARS,
-            SUFFIX_CHARS,
+            PREFIX_LINES,
+            SUFFIX_LINES,
         )
         .await?;
         Ok(ToolOutput::text(result))
@@ -244,6 +297,297 @@ mod tests {
             "format_output_no_truncation",
             TempDir::normalize(&large_result)
         );
+    }
+
+    #[test]
+    fn test_clip_by_lines_no_truncation() {
+        let fixture = "line1\nline2\nline3";
+        let actual = clip_by_lines(fixture, 5, 5);
+        let expected = ClipperResult { prefix: None, suffix: None, actual: fixture };
+        assert_eq!(actual.prefix, expected.prefix);
+        assert_eq!(actual.suffix, expected.suffix);
+        assert_eq!(actual.actual, expected.actual);
+        assert_eq!(actual.is_truncated(), false);
+    }
+
+    #[test]
+    fn test_clip_by_lines_with_truncation() {
+        let fixture = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8";
+        let actual = clip_by_lines(fixture, 2, 2);
+
+        // Should have both prefix and suffix ranges
+        assert!(actual.is_truncated());
+        assert!(actual.prefix.is_some());
+        assert!(actual.suffix.is_some());
+
+        let prefix_content = actual.prefix_content().unwrap();
+        let suffix_content = actual.suffix_content().unwrap();
+
+        assert_eq!(prefix_content, "line1\nline2\n");
+        assert_eq!(suffix_content, "line7\nline8");
+    }
+
+    #[test]
+    fn test_clip_by_lines_single_line() {
+        let fixture = "single line";
+        let actual = clip_by_lines(fixture, 1, 1);
+        let expected = ClipperResult { prefix: None, suffix: None, actual: fixture };
+        assert_eq!(actual.prefix, expected.prefix);
+        assert_eq!(actual.suffix, expected.suffix);
+        assert_eq!(actual.is_truncated(), false);
+    }
+
+    #[test]
+    fn test_clip_by_lines_empty_content() {
+        let fixture = "";
+        let actual = clip_by_lines(fixture, 5, 5);
+        assert_eq!(actual.is_truncated(), false);
+        assert_eq!(actual.actual, "");
+    }
+
+    #[test]
+    fn test_clip_by_lines_exact_boundary() {
+        let fixture = "line1\nline2\nline3\nline4";
+        let actual = clip_by_lines(fixture, 2, 2);
+        // Exactly 4 lines with 2+2 limit should not truncate
+        assert_eq!(actual.is_truncated(), false);
+    }
+
+    #[test]
+    fn test_clip_by_lines_newline_handling() {
+        let fixture = "line1\nline2\nline3\nline4\nline5\nline6";
+        let actual = clip_by_lines(fixture, 2, 1);
+
+        assert!(actual.is_truncated());
+        let prefix_content = actual.prefix_content().unwrap();
+        let suffix_content = actual.suffix_content().unwrap();
+
+        assert_eq!(prefix_content, "line1\nline2\n");
+        assert_eq!(suffix_content, "line6");
+    }
+
+    #[test]
+    fn test_strip_ansi_with_codes() {
+        let fixture = "\x1b[32mGreen text\x1b[0m\x1b[1mBold\x1b[0m".to_string();
+        let actual = strip_ansi(fixture);
+        let expected = "Green textBold";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_strip_ansi_without_codes() {
+        let fixture = "Plain text".to_string();
+        let actual = strip_ansi(fixture.clone());
+        let expected = fixture;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_strip_ansi_empty() {
+        let fixture = "".to_string();
+        let actual = strip_ansi(fixture);
+        let expected = "";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_tag_output_no_truncation() {
+        let fixture = "simple output";
+        let result = ClipperResult { prefix: None, suffix: None, actual: fixture };
+        let actual = tag_output(result, "stdout", fixture);
+        let expected = "<stdout>\nsimple output\n</stdout>";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_tag_output_with_truncation() {
+        let fixture = "This is a long line that will be truncated";
+        let result = ClipperResult {
+            prefix: Some(0..8),   // "This is "
+            suffix: Some(35..42), // "cated"
+            actual: fixture,
+        };
+        let actual = tag_output(result, "stderr", fixture);
+
+        assert!(actual.contains("<stderr chars=\"0-8\">"));
+        assert!(actual.contains("This is "));
+        assert!(actual.contains("<stderr chars=\"35-42\">"));
+        assert!(actual.contains("cated"));
+        assert!(actual.contains("truncated"));
+    }
+
+    #[tokio::test]
+    async fn test_format_output_empty_stdout_stderr() {
+        let infra = Arc::new(MockInfrastructure::new());
+        let fixture = CommandOutput {
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+            command: "true".into(),
+            exit_code: Some(0),
+        };
+        let actual = format_output(&infra, fixture, false, 100, 100)
+            .await
+            .unwrap();
+        assert!(actual.contains("Command executed successfully with no output"));
+    }
+
+    #[tokio::test]
+    async fn test_format_output_empty_with_failure() {
+        let infra = Arc::new(MockInfrastructure::new());
+        let fixture = CommandOutput {
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+            command: "false".into(),
+            exit_code: Some(-1), // Negative exit code indicates failure
+        };
+        let result = format_output(&infra, fixture, false, 100, 100).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Command failed with no output"));
+    }
+
+    #[tokio::test]
+    async fn test_format_output_whitespace_only() {
+        let infra = Arc::new(MockInfrastructure::new());
+        let fixture = CommandOutput {
+            stdout: "   \t\n  ".to_string(),
+            stderr: "  \n\t  ".to_string(),
+            command: "echo".into(),
+            exit_code: Some(0),
+        };
+        let actual = format_output(&infra, fixture, false, 100, 100)
+            .await
+            .unwrap();
+        // Whitespace-only output should be treated as empty
+        assert!(actual.contains("Command executed successfully with no output"));
+    }
+
+    #[tokio::test]
+    async fn test_format_output_metadata_fields() {
+        let infra = Arc::new(MockInfrastructure::new());
+        let fixture = CommandOutput {
+            stdout: "test output".to_string(),
+            stderr: "".to_string(),
+            command: "test command".into(),
+            exit_code: Some(42),
+        };
+        let actual = format_output(&infra, fixture, false, 100, 100)
+            .await
+            .unwrap();
+
+        assert!(actual.contains("command: test command"));
+        assert!(actual.contains("exit_code: 42"));
+        assert!(actual.contains("<stdout>\ntest output"));
+    }
+
+    #[tokio::test]
+    async fn test_format_output_no_exit_code() {
+        let infra = Arc::new(MockInfrastructure::new());
+        let fixture = CommandOutput {
+            stdout: "output".to_string(),
+            stderr: "".to_string(),
+            command: "test".into(),
+            exit_code: None,
+        };
+        let actual = format_output(&infra, fixture, false, 100, 100)
+            .await
+            .unwrap();
+
+        assert!(actual.contains("command: test"));
+        // Should not contain exit_code field when it's None
+        assert!(!actual.contains("exit_code"));
+    }
+
+    #[tokio::test]
+    async fn test_shell_whitespace_command() {
+        let infra = Arc::new(MockInfrastructure::new());
+        let shell = Shell::new(infra);
+        let result = shell
+            .call(
+                &mut ToolCallContext::default(),
+                ShellInput {
+                    command: "   \t  ".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    keep_ansi: true,
+                    explanation: None,
+                },
+            )
+            .await;
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Command string is empty or contains only whitespace"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_shell_command_with_quotes() {
+        let infra = Arc::new(MockInfrastructure::new());
+        let shell = Shell::new(infra);
+        let result = shell
+            .call(
+                &mut ToolCallContext::default(),
+                ShellInput {
+                    command: "echo \"hello world\"".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
+                    explanation: None,
+                },
+            )
+            .await
+            .unwrap();
+        // The MockInfrastructure will return "hello world\n" for echo commands
+        // which gets wrapped in metadata and stdout tags
+        assert!(result.contains("hello world"));
+    }
+
+    #[tokio::test]
+    async fn test_shell_keep_ansi_false() {
+        let infra = Arc::new(MockInfrastructure::new());
+        let shell = Shell::new(infra);
+        let result = shell
+            .call(
+                &mut ToolCallContext::default(),
+                ShellInput {
+                    command: "echo test".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    keep_ansi: false,
+                    explanation: None,
+                },
+            )
+            .await
+            .unwrap();
+        // The MockInfrastructure will return "test\n" for this echo command
+        assert!(result.contains("test"));
+    }
+
+    #[tokio::test]
+    async fn test_shell_with_explanation() {
+        let infra = Arc::new(MockInfrastructure::new());
+        let shell = Shell::new(infra);
+        let result = shell
+            .call(
+                &mut ToolCallContext::default(),
+                ShellInput {
+                    command: "echo test".to_string(),
+                    cwd: env::current_dir().unwrap(),
+                    keep_ansi: true,
+                    explanation: Some("Testing echo command".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        // The MockInfrastructure will return "test\n" for this echo command
+        assert!(result.contains("test"));
+    }
+
+    #[test]
+    fn test_tool_name() {
+        let actual = Shell::<MockInfrastructure>::tool_name();
+        let expected = ToolName::new("forge_tool_process_shell");
+        assert_eq!(actual, expected);
     }
     use std::env;
     use std::sync::Arc;
@@ -577,7 +921,7 @@ mod tests {
             command: "ls -la".into(),
             exit_code: Some(0),
         };
-        let preserved = format_output(&infra, ansi_output, true, PREFIX_CHARS, SUFFIX_CHARS)
+        let preserved = format_output(&infra, ansi_output, true, PREFIX_LINES, SUFFIX_LINES)
             .await
             .unwrap();
         insta::assert_snapshot!("format_output_ansi_preserved", preserved);
@@ -589,7 +933,7 @@ mod tests {
             command: "ls -la".into(),
             exit_code: Some(0),
         };
-        let stripped = format_output(&infra, ansi_output, false, PREFIX_CHARS, SUFFIX_CHARS)
+        let stripped = format_output(&infra, ansi_output, false, PREFIX_LINES, SUFFIX_LINES)
             .await
             .unwrap();
         insta::assert_snapshot!("format_output_ansi_stripped", stripped);
