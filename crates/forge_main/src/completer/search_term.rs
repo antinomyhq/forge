@@ -22,45 +22,28 @@ impl SearchTerm {
     /// Otherwise, returns the word at the cursor position.
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
-        // Get all the indexes of the '@' chars
-        // Get all chars between @ and the cursor
-        let char_indices: Vec<(usize, char)> = self.line.char_indices().collect();
+        // Ensure position is on a UTF-8 character boundary to prevent panics
+        let safe_position = if self.line.is_char_boundary(self.position) {
+            self.position
+        } else {
+            // Find the nearest lower character boundary
+            (0..self.position)
+                .rev()
+                .find(|&i| self.line.is_char_boundary(i))
+                .unwrap_or(0)
+        };
 
-        // Find cursor position in char indices
-        let cursor_char_pos = char_indices
-            .iter()
-            .position(|(byte_idx, _)| *byte_idx >= self.position)
-            .unwrap_or(char_indices.len());
+        let prefix = &self.line[..safe_position];
+        let at_pos = prefix.rfind('@')?;
+        let start_pos = at_pos + 1;
+        let term = &self.line[start_pos..safe_position];
 
-        char_indices
-            .iter()
-            .enumerate()
-            .filter(|(_, (_, c))| *c == '@')
-            .map(|(char_pos, (byte_idx, _))| (char_pos, *byte_idx))
-            .filter(|(char_pos, _)| *char_pos < cursor_char_pos)
-            .max_by(|a, b| a.0.cmp(&b.0))
-            .and_then(|(char_pos, _)| {
-                // Find the byte index after '@' character
-                let start_byte_idx = if char_pos + 1 < char_indices.len() {
-                    char_indices[char_pos + 1].0
-                } else {
-                    // If '@' is the last character, start after it
-                    self.line.len()
-                };
-                // Find the byte index at cursor position
-                let end_byte_idx = if cursor_char_pos < char_indices.len() {
-                    char_indices[cursor_char_pos].0
-                } else {
-                    self.line.len()
-                };
+        // Reject terms containing spaces
+        if term.contains(' ') {
+            return None;
+        }
 
-                let term = &self.line[start_byte_idx..end_byte_idx];
-                if term.contains(" ") {
-                    None
-                } else {
-                    Some(TermResult { span: Span::new(start_byte_idx, end_byte_idx), term })
-                }
-            })
+        Some(TermResult { span: Span::new(start_pos, safe_position), term })
     }
 }
 
@@ -78,48 +61,13 @@ mod tests {
 
     impl SearchTerm {
         fn test(line: &str) -> Vec<TermSpec> {
-            let char_indices: Vec<(usize, char)> = line.char_indices().collect();
-
-            // Test at each character boundary plus one position at the end, starting from
-            // position 1
-            let mut positions = Vec::new();
-
-            // Add position for each character boundary (skip position 0 to match original
-            // behavior)
-            for (byte_idx, _) in &char_indices {
-                if *byte_idx > 0 {
-                    positions.push(*byte_idx);
-                }
-            }
-            if !char_indices.is_empty() {
-                positions.insert(0, 1); // Always start testing from position 1
-            }
-
-            // Add position at the end of string
-            positions.push(line.len());
-
-            // Remove duplicates and sort
-            positions.sort();
-            positions.dedup();
-
-            positions
-                .into_iter()
+            // Test at each valid character boundary position, starting from 1
+            (1..=line.len())
+                .filter(|&pos| line.is_char_boundary(pos))
                 .map(|pos| {
                     let input = SearchTerm::new(line, pos);
                     let output = input.process();
-
-                    // Find the character position for display
-                    let char_pos = char_indices
-                        .iter()
-                        .position(|(byte_idx, _)| *byte_idx >= pos)
-                        .unwrap_or(char_indices.len());
-
-                    let (a, b) = if char_pos < char_indices.len() {
-                        let split_byte_pos = char_indices[char_pos].0;
-                        line.split_at(split_byte_pos)
-                    } else {
-                        (line, "")
-                    };
+                    let (a, b) = line.split_at(pos);
 
                     TermSpec {
                         pos,
