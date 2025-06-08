@@ -184,11 +184,7 @@ pub trait FollowUp: Send + Sync {
         &self,
         question: String,
         multiple: Option<bool>,
-        option1: Option<String>,
-        option2: Option<String>,
-        option3: Option<String>,
-        option4: Option<String>,
-        option5: Option<String>,
+        options: Vec<String>,
         explanation: Option<String>,
     ) -> anyhow::Result<String>;
 }
