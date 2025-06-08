@@ -6,6 +6,7 @@ use forge_domain::{
     File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool, ToolCallContext,
     ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
+
 use crate::tool_output::{FetchOutput, PatchOutput, ReadOutput, SearchResult, ShellOutput};
 
 #[async_trait::async_trait]
@@ -192,8 +193,12 @@ pub trait NetFetchService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ShellService: Send + Sync {
     /// Executes a shell command and returns the output.
-    async fn shell(&self, command: String, cwd: PathBuf, keep_ansi: bool)
-    -> anyhow::Result<ShellOutput>;
+    async fn shell(
+        &self,
+        command: String,
+        cwd: PathBuf,
+        keep_ansi: bool,
+    ) -> anyhow::Result<ShellOutput>;
 }
 
 /// Core app trait providing access to services and repositories.

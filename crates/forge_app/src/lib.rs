@@ -5,8 +5,8 @@ mod error;
 mod orch;
 mod services;
 mod template;
-mod tool_registry;
 mod tool_output;
+mod tool_registry;
 
 pub use agent::*;
 pub use app::*;

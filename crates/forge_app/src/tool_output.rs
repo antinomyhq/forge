@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+
 use forge_domain::Image;
 
 pub struct ShellOutput {
@@ -30,4 +31,3 @@ pub struct FetchOutput {
     pub content: String,
     pub code: u16,
 }
-
