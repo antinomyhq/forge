@@ -1,6 +1,8 @@
-use crate::Services;
-use forge_domain::{Tool, ToolCallFull, ToolDefinition, ToolName, ToolResult};
 use std::sync::Arc;
+
+use forge_domain::{Tool, ToolCallFull, ToolDefinition, ToolName, ToolResult};
+
+use crate::Services;
 
 pub struct ToolRegistry<S> {
     #[allow(dead_code)]
