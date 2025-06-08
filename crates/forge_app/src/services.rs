@@ -3,11 +3,39 @@ use std::sync::Arc;
 
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, Context, Conversation, ConversationId, Environment,
-    File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool, ToolCallContext,
-    ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
+    File, Image, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
+    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
-use crate::tool_output::{FetchOutput, PatchOutput, ReadOutput, SearchResult, ShellOutput};
+pub struct ShellOutput {
+    pub stdout: String,
+    pub stderr: String,
+}
+
+pub struct PatchOutput {
+    pub before: String,
+    pub after: String,
+}
+
+pub struct ReadOutput {
+    pub content: Content,
+}
+
+pub enum Content {
+    File(String),
+    Image(Image),
+}
+
+pub struct SearchResult {
+    pub line: String,
+    pub matches: Vec<String>,
+    pub path: Option<PathBuf>,
+}
+
+pub struct FetchOutput {
+    pub content: String,
+    pub code: u16,
+}
 
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {
