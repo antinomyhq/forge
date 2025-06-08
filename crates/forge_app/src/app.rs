@@ -5,7 +5,7 @@ use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
 
-use crate::tools::ToolRegistry;
+use crate::tool_registry::ToolRegistry;
 use crate::{
     AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, Orchestrator,
     ProviderService, Services, ToolService, WorkflowService,
