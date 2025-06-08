@@ -115,11 +115,7 @@ pub trait FileDiscoveryService: Send + Sync {
 #[async_trait::async_trait]
 pub trait AttemptCompletion: Send + Sync {
     /// Attempts to complete a tool call with the given context.
-    async fn attempt_completion(
-        &self,
-        result: String,
-        explanation: Option<String>,
-    ) -> anyhow::Result<String>;
+    async fn attempt_completion(&self, result: String) -> anyhow::Result<String>;
 }
 
 #[async_trait::async_trait]
@@ -130,7 +126,6 @@ pub trait FsCreate: Send + Sync {
         path: String,
         content: String,
         overwrite: bool,
-        explanation: Option<String>,
     ) -> anyhow::Result<String>;
 }
 
@@ -143,7 +138,6 @@ pub trait FsPatch: Send + Sync {
         search: String,
         operation: PatchOperation,
         content: String,
-        explanation: Option<String>,
     ) -> anyhow::Result<String>;
 }
 
@@ -155,7 +149,6 @@ pub trait FsRead: Send + Sync {
         path: String,
         start_line: Option<u64>,
         end_line: Option<u64>,
-        explanation: Option<String>,
     ) -> anyhow::Result<String>;
 }
 
@@ -173,7 +166,6 @@ pub trait FsSearch: Send + Sync {
         path: String,
         regex: Option<String>,
         file_pattern: Option<String>,
-        explanation: Option<String>,
     ) -> anyhow::Result<String>;
 }
 
@@ -185,7 +177,6 @@ pub trait FollowUp: Send + Sync {
         question: String,
         multiple: Option<bool>,
         options: Vec<String>,
-        explanation: Option<String>,
     ) -> anyhow::Result<String>;
 }
 
@@ -198,24 +189,14 @@ pub trait FsUndo: Send + Sync {
 #[async_trait::async_trait]
 pub trait NetFetch: Send + Sync {
     /// Fetches content from a URL and returns it as a string.
-    async fn fetch(
-        &self,
-        url: String,
-        raw: Option<bool>,
-        explanation: Option<String>,
-    ) -> anyhow::Result<String>;
+    async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<String>;
 }
 
 #[async_trait::async_trait]
 pub trait ProcessShell: Send + Sync {
     /// Executes a shell command and returns the output.
-    async fn shell(
-        &self,
-        command: String,
-        cwd: PathBuf,
-        keep_ansi: bool,
-        explanation: Option<String>,
-    ) -> anyhow::Result<String>;
+    async fn shell(&self, command: String, cwd: PathBuf, keep_ansi: bool)
+    -> anyhow::Result<String>;
 }
 
 /// Core app trait providing access to services and repositories.
