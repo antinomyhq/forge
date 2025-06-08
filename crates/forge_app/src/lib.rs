@@ -6,6 +6,7 @@ mod orch;
 mod services;
 mod template;
 mod tool_registry;
+mod tool_output;
 
 pub use agent::*;
 pub use app::*;

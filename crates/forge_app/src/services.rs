@@ -6,6 +6,7 @@ use forge_domain::{
     File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool, ToolCallContext,
     ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
+use crate::tool_output::{FetchOutput, PatchOutput, ReadOutput, SearchResult, ShellOutput};
 
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {
@@ -113,13 +114,13 @@ pub trait FileDiscoveryService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait AttemptCompletion: Send + Sync {
+pub trait AttemptCompletionService: Send + Sync {
     /// Attempts to complete a tool call with the given context.
     async fn attempt_completion(&self, result: String) -> anyhow::Result<String>;
 }
 
 #[async_trait::async_trait]
-pub trait FsCreate: Send + Sync {
+pub trait FsCreateService: Send + Sync {
     /// Create a file at the specified path with the given content.
     async fn create(
         &self,
@@ -130,7 +131,7 @@ pub trait FsCreate: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait FsPatch: Send + Sync {
+pub trait FsPatchService: Send + Sync {
     /// Patches a file at the specified path with the given content.
     async fn patch(
         &self,
@@ -138,39 +139,34 @@ pub trait FsPatch: Send + Sync {
         search: String,
         operation: PatchOperation,
         content: String,
-    ) -> anyhow::Result<String>;
+    ) -> anyhow::Result<PatchOutput>;
 }
 
 #[async_trait::async_trait]
-pub trait FsRead: Send + Sync {
+pub trait FsReadService: Send + Sync {
     /// Reads a file at the specified path and returns its content.
-    async fn read(
-        &self,
-        path: String,
-        start_line: Option<u64>,
-        end_line: Option<u64>,
-    ) -> anyhow::Result<String>;
+    async fn read(&self, path: String) -> anyhow::Result<ReadOutput>;
 }
 
 #[async_trait::async_trait]
-pub trait FsRemove: Send + Sync {
+pub trait FsRemoveService: Send + Sync {
     /// Removes a file at the specified path.
     async fn remove(&self, path: String, explanation: Option<String>) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
-pub trait FsSearch: Send + Sync {
+pub trait FsSearchService: Send + Sync {
     /// Searches for a file at the specified path and returns its content.
     async fn search(
         &self,
         path: String,
         regex: Option<String>,
         file_pattern: Option<String>,
-    ) -> anyhow::Result<String>;
+    ) -> anyhow::Result<Vec<SearchResult>>;
 }
 
 #[async_trait::async_trait]
-pub trait FollowUp: Send + Sync {
+pub trait FollowUpService: Send + Sync {
     /// Follows up on a tool call with the given context.
     async fn follow_up(
         &self,
@@ -181,22 +177,23 @@ pub trait FollowUp: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait FsUndo: Send + Sync {
+pub trait FsUndoService: Send + Sync {
     /// Undoes the last file operation at the specified path.
-    async fn undo(&self, path: String, explanation: Option<String>) -> anyhow::Result<()>;
+    /// And returns the content of the undone file.
+    async fn undo(&self, path: String, explanation: Option<String>) -> anyhow::Result<String>;
 }
 
 #[async_trait::async_trait]
-pub trait NetFetch: Send + Sync {
+pub trait NetFetchService: Send + Sync {
     /// Fetches content from a URL and returns it as a string.
-    async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<String>;
+    async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<FetchOutput>;
 }
 
 #[async_trait::async_trait]
-pub trait ProcessShell: Send + Sync {
+pub trait ShellService: Send + Sync {
     /// Executes a shell command and returns the output.
     async fn shell(&self, command: String, cwd: PathBuf, keep_ansi: bool)
-    -> anyhow::Result<String>;
+    -> anyhow::Result<ShellOutput>;
 }
 
 /// Core app trait providing access to services and repositories.
