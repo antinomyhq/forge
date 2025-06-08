@@ -5,6 +5,7 @@ mod error;
 mod orch;
 mod services;
 mod template;
+mod tools;
 
 pub use agent::*;
 pub use app::*;

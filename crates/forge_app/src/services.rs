@@ -1,10 +1,10 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, Context, Conversation, ConversationId, Environment,
-    File, McpConfig, Model, ModelId, ResultStream, Scope, Tool, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolName, ToolResult, Workflow,
+    File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool, ToolCallContext,
+    ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 #[async_trait::async_trait]
@@ -110,6 +110,116 @@ pub trait WorkflowService {
 #[async_trait::async_trait]
 pub trait FileDiscoveryService: Send + Sync {
     async fn collect(&self, max_depth: Option<usize>) -> anyhow::Result<Vec<File>>;
+}
+
+#[async_trait::async_trait]
+pub trait AttemptCompletion: Send + Sync {
+    /// Attempts to complete a tool call with the given context.
+    async fn attempt_completion(
+        &self,
+        result: String,
+        explanation: Option<String>,
+    ) -> anyhow::Result<String>;
+}
+
+#[async_trait::async_trait]
+pub trait FsCreate: Send + Sync {
+    /// Create a file at the specified path with the given content.
+    async fn create(
+        &self,
+        path: String,
+        content: String,
+        overwrite: bool,
+        explanation: Option<String>,
+    ) -> anyhow::Result<String>;
+}
+
+#[async_trait::async_trait]
+pub trait FsPatch: Send + Sync {
+    /// Patches a file at the specified path with the given content.
+    async fn patch(
+        &self,
+        path: String,
+        search: String,
+        operation: PatchOperation,
+        content: String,
+        explanation: Option<String>,
+    ) -> anyhow::Result<String>;
+}
+
+#[async_trait::async_trait]
+pub trait FsRead: Send + Sync {
+    /// Reads a file at the specified path and returns its content.
+    async fn read(
+        &self,
+        path: String,
+        start_line: Option<u64>,
+        end_line: Option<u64>,
+        explanation: Option<String>,
+    ) -> anyhow::Result<String>;
+}
+
+#[async_trait::async_trait]
+pub trait FsRemove: Send + Sync {
+    /// Removes a file at the specified path.
+    async fn remove(&self, path: String, explanation: Option<String>) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait FsSearch: Send + Sync {
+    /// Searches for a file at the specified path and returns its content.
+    async fn search(
+        &self,
+        path: String,
+        regex: Option<String>,
+        file_pattern: Option<String>,
+        explanation: Option<String>,
+    ) -> anyhow::Result<String>;
+}
+
+#[async_trait::async_trait]
+pub trait FollowUp: Send + Sync {
+    /// Follows up on a tool call with the given context.
+    async fn follow_up(
+        &self,
+        question: String,
+        multiple: Option<bool>,
+        option1: Option<String>,
+        option2: Option<String>,
+        option3: Option<String>,
+        option4: Option<String>,
+        option5: Option<String>,
+        explanation: Option<String>,
+    ) -> anyhow::Result<String>;
+}
+
+#[async_trait::async_trait]
+pub trait FsUndo: Send + Sync {
+    /// Undoes the last file operation at the specified path.
+    async fn undo(&self, path: String, explanation: Option<String>) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait NetFetch: Send + Sync {
+    /// Fetches content from a URL and returns it as a string.
+    async fn fetch(
+        &self,
+        url: String,
+        raw: Option<bool>,
+        explanation: Option<String>,
+    ) -> anyhow::Result<String>;
+}
+
+#[async_trait::async_trait]
+pub trait ProcessShell: Send + Sync {
+    /// Executes a shell command and returns the output.
+    async fn shell(
+        &self,
+        command: String,
+        cwd: PathBuf,
+        keep_ansi: bool,
+        explanation: Option<String>,
+    ) -> anyhow::Result<String>;
 }
 
 /// Core app trait providing access to services and repositories.

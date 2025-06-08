@@ -5,6 +5,7 @@ use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
 
+use crate::tools::ToolRegistry;
 use crate::{
     AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, Orchestrator,
     ProviderService, Services, ToolService, WorkflowService,
@@ -15,12 +16,14 @@ use crate::{
 /// ForgeAPI chat method.
 pub struct ForgeApp<S: Services> {
     services: Arc<S>,
+    #[allow(dead_code)]
+    tool_registry: ToolRegistry<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
     /// Creates a new ForgeApp instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+        Self { tool_registry: ToolRegistry::new(services.clone()), services }
     }
 
     /// Executes a chat request and returns a stream of responses.
