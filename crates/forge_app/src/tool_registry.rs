@@ -223,12 +223,9 @@ fn format_net_fetch(out: FetchOutput) -> anyhow::Result<String> {
     if let Some(path) = out.path.as_ref() {
         writeln!(
             result,
-            "truncation: {}",
-            format!(
-                "Content is truncated to {} chars; Remaining content can be read from path: {}",
-                out.max_length,
-                path.display()
-            )
+            "truncation: Content is truncated to {} chars; Remaining content can be read from path: {}",
+            out.max_length,
+            path.display()
         )?;
     }
 
