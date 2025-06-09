@@ -231,6 +231,8 @@ pub trait FollowUpService: Send + Sync {
 pub trait FsUndoService: Send + Sync {
     /// Undoes the last file operation at the specified path.
     /// And returns the content of the undone file.
+    // TODO: We should move Snapshot service to Services from infra
+    // and drop FsUndoService.
     async fn undo(&self, path: String) -> anyhow::Result<FsUndoOutput>;
 }
 
