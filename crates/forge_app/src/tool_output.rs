@@ -5,6 +5,7 @@ use forge_domain::{Environment, ToolInput, ToolName, ToolResult};
 
 use crate::front_matter::FrontMatter;
 use crate::truncation::FETCH_MAX_LENGTH;
+use crate::utils::display_path;
 use crate::{
     Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
     SearchResult, Services, ShellOutput, create_temp_file, truncate_search_output,
@@ -349,11 +350,4 @@ impl ToolOutput {
             ToolOutput::AttemptCompletion => Ok(None),
         }
     }
-}
-
-fn display_path(env: &Environment, path: &Path) -> anyhow::Result<String> {
-    let cwd = env.cwd.as_path();
-
-    // Use the shared utility function
-    crate::utils::format_display_path(Path::new(path), cwd)
 }
