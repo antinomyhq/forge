@@ -8,7 +8,7 @@ use forge_domain::{
 };
 use serde_json::Value;
 
-use crate::metadata::Metadata;
+use crate::front_matter::FrontMatter;
 use crate::{
     AttemptCompletionService, FollowUpService, FsCreateService, FsPatchService, FsReadService,
     FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput, ReadOutput,
@@ -52,7 +52,7 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
 
                 let operation = if out.exists { "OVERWRITE" } else { "CREATE" };
-                let metadata = Metadata::default()
+                let metadata = FrontMatter::default()
                     .add("path", &out.path)
                     .add("operation", operation)
                     .add("total_chars", out.chars)
@@ -254,7 +254,7 @@ async fn format_net_fetch_truncated<S: Services>(
     truncated_output: TruncatedFetchOutput,
     services: &S,
 ) -> anyhow::Result<String> {
-    let mut metadata = Metadata::default()
+    let mut metadata = FrontMatter::default()
         .add("URL", &truncated_output.url)
         .add("total_chars", truncated_output.original_length)
         .add("start_char", truncated_output.start_char)
@@ -298,7 +298,7 @@ async fn format_shell_truncated<S: Services>(
     truncated_output: TruncatedShellOutput,
     services: &S,
 ) -> anyhow::Result<String> {
-    let mut metadata = Metadata::default().add("command", &shell_output.output.command);
+    let mut metadata = FrontMatter::default().add("command", &shell_output.output.command);
 
     if let Some(exit_code) = shell_output.output.exit_code {
         metadata = metadata.add("exit_code", exit_code);
@@ -365,7 +365,7 @@ fn format_fs_undo(output: String) -> String {
 }
 
 fn format_fs_patch(output: PatchOutput) -> anyhow::Result<String> {
-    let metadata = Metadata::default()
+    let metadata = FrontMatter::default()
         .add("path", &output.path)
         .add("total_chars", output.chars)
         .add_optional("warning", output.warning.as_ref());
@@ -377,7 +377,7 @@ async fn format_fs_search_truncated<S: Services>(
     truncated_output: TruncatedSearchOutput,
     services: &S,
 ) -> anyhow::Result<String> {
-    let metadata = Metadata::default()
+    let metadata = FrontMatter::default()
         .add("path", &truncated_output.path)
         .add_optional("regex", truncated_output.regex.as_ref())
         .add_optional("file_pattern", truncated_output.file_pattern.as_ref())
@@ -443,7 +443,7 @@ async fn send_read_context(ctx: &mut ToolCallContext, out: &ReadOutput) -> anyho
 fn format_fs_read(out: ReadOutput) -> anyhow::Result<String> {
     let is_range_relevant = out.is_explicit_range || out.is_truncated;
 
-    let mut metadata = Metadata::default().add("path", &out.path);
+    let mut metadata = FrontMatter::default().add("path", &out.path);
 
     if is_range_relevant {
         metadata = metadata

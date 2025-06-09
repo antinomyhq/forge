@@ -2,9 +2,9 @@ use std::fmt::Display;
 
 /// Holds Metadata about truncating, file paths, chars ranges.
 #[derive(Default)]
-pub struct Metadata(Vec<(&'static str, String)>);
+pub struct FrontMatter(Vec<(&'static str, String)>);
 
-impl Display for Metadata {
+impl Display for FrontMatter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "---")?;
         for (k, v) in self.0.iter() {
@@ -14,7 +14,7 @@ impl Display for Metadata {
     }
 }
 
-impl Metadata {
+impl FrontMatter {
     /// Add a key-value pair to the metadata
     pub fn add<S: ToString>(mut self, key: &'static str, value: S) -> Self {
         self.0.push((key, value.to_string()));
