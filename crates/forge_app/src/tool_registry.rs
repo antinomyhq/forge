@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -32,13 +33,15 @@ impl<S: Services> ToolRegistry<S> {
         let input = serde_json::from_value::<ToolInput>(arguments)?;
         match input {
             ToolInput::FSRead(input) => {
-                let _tool_output = format_fs_read(
-                    self.services.fs_read_service().read(input.path).await?,
-                    input.start_line,
-                    input.end_line,
-                )
-                .await?;
-                unimplemented!()
+                let output = self
+                    .services
+                    .fs_read_service()
+                    .read(input.path, input.start_line, input.end_line)
+                    .await?;
+                
+                send_read_context(context, &output).await?;
+                
+                Ok(ToolOutput::text(format_fs_read(output)?))
             }
             ToolInput::FSWrite(input) => {
                 let out = self
@@ -384,10 +387,56 @@ async fn format_fs_search(
     }
 }
 
-async fn format_fs_read(
-    _read_output: ReadOutput,
-    _start: Option<u64>,
-    _end: Option<u64>,
-) -> anyhow::Result<ToolOutput> {
-    todo!()
+async fn send_read_context(ctx: &mut ToolCallContext, out: &ReadOutput) -> anyhow::Result<()> {
+    let is_range_relevant = out.is_explicit_range || out.is_truncated;
+    // Set the title based on whether this was an explicit user range request
+    // or an automatic limit for large files that actually needed truncation
+    let title = if out.is_explicit_range {
+        "Read (Range)"
+    } else if out.is_truncated {
+        // Only show "Auto-Limited" if the file was actually truncated
+        "Read (Auto-Limited)"
+    } else {
+        // File was smaller than the limit, so no truncation occurred
+        "Read"
+    };
+    let end_info = min(out.end_line, out.total_lines);
+    let range_info = format!(
+        "line range: {}-{}, total lines: {}",
+        out.start_line, end_info, out.total_lines
+    );
+    // Build the subtitle conditionally using a string buffer
+    let mut subtitle = String::new();
+
+    // Always include the file path
+    subtitle.push_str(&out.display_path);
+
+    // Add range info if relevant
+    if is_range_relevant {
+        // Add range info for explicit ranges or truncated files
+        subtitle.push_str(&format!(" ({range_info})"));
+    }
+    let message = TitleFormat::debug(title).sub_title(subtitle);
+    ctx.send_text(message).await?;
+    Ok(())
+}
+
+fn format_fs_read(out: ReadOutput) -> anyhow::Result<String> {
+    let mut result = String::new();
+
+    writeln!(result, "---")?;
+    writeln!(result, "path: {}", out.path)?;
+    // Determine if range information is relevant to display
+    let is_range_relevant = out.is_explicit_range || out.is_truncated;
+    
+    if is_range_relevant {
+        writeln!(result, "start_line: {}", out.start_line)?;
+        writeln!(result, "end_line: {}", out.end_line)?;
+        writeln!(result, "total_lines: {}", out.total_lines)?;
+    }
+    
+    writeln!(result, "---")?;
+    writeln!(result, "{}", out.content)?;
+    
+    Ok(result)
 }

@@ -1,11 +1,41 @@
-use std::sync::Arc;
-
-use forge_app::{Content, FsReadService, ReadOutput};
+use anyhow::{bail, Context};
+use forge_app::{Content, EnvironmentService, FsReadService, ReadOutput};
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
+use std::path::Path;
+use std::sync::Arc;
 
-use crate::utils::assert_absolute_path;
+use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsReadService as _, Infrastructure};
+
+const MAX_RANGE_SIZE: u64 = 500;
+
+/// Ensures that the given line range is valid and doesn't exceed the
+/// maximum size
+///
+/// # Arguments
+/// * `start_line` - The starting line position
+/// * `end_line` - The ending line position
+/// * `max_size` - The maximum allowed range size
+///
+/// # Returns
+/// * `Ok(())` if the range is valid and within size limits
+/// * `Err(String)` with an error message if the range is invalid or too large
+pub fn assert_valid_range(start_line: u64, end_line: u64) -> anyhow::Result<()> {
+    // Check that end_line is not less than start_line
+    if end_line < start_line {
+        bail!(
+            "Invalid range: end line ({end_line}) must not be less than start line ({start_line})"
+        )
+    }
+
+    // Check that the range size doesn't exceed the maximum
+    if end_line.saturating_sub(start_line) > MAX_RANGE_SIZE {
+        bail!("The requested range exceeds the maximum size of {MAX_RANGE_SIZE} lines. Please specify a smaller range.")
+    }
+
+    Ok(())
+}
 
 /// Reads file contents from the specified absolute path. Ideal for analyzing
 /// code, configuration files, documentation, or textual data. Automatically
@@ -24,14 +54,61 @@ impl<F: Infrastructure> ForgeFsRead<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self(infra)
     }
+    /// Formats a path for display, converting absolute paths to relative when
+    /// possible
+    ///
+    /// If the path starts with the current working directory, returns a
+    /// relative path. Otherwise, returns the original absolute path.
+    fn format_display_path(&self, path: &Path) -> anyhow::Result<String> {
+        // Get the current working directory
+        let env = self.0.environment_service().get_environment();
+        let cwd = env.cwd.as_path();
+
+        // Use the shared utility function
+        format_display_path(path, cwd)
+    }
 }
 
 #[async_trait::async_trait]
 impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
-    async fn read(&self, path: String) -> anyhow::Result<ReadOutput> {
-        let path = std::path::Path::new(&path);
+    async fn read(
+        &self,
+        path: String,
+        istart_line: Option<u64>,
+        iend_line: Option<u64>,
+    ) -> anyhow::Result<ReadOutput> {
+        let path = Path::new(&path);
         assert_absolute_path(path)?;
-        let content = self.0.file_read_service().read_utf8(path).await?;
-        Ok(ReadOutput { content: Content::File(content) })
+
+        let start_line = istart_line.unwrap_or(1);
+        let end_line = iend_line.unwrap_or(MAX_RANGE_SIZE);
+
+        // Validate the range size using the module-level assertion function
+        assert_valid_range(start_line, end_line)?;
+
+        let (content, file_info) = self
+            .0
+            .file_read_service()
+            .range_read_utf8(path, start_line, end_line)
+            .await
+            .with_context(|| format!("Failed to read file content from {}", path.display()))?;
+
+        // Determine if the user requested an explicit range
+        let is_explicit_range = istart_line.is_some() | iend_line.is_some();
+
+        // Determine if the file is larger than the limit and needs truncation
+        let is_truncated = file_info.total_lines > end_line;
+        let display_path = self.format_display_path(path)?;
+
+        Ok(ReadOutput {
+            content: Content::File(content),
+            path: path.display().to_string(),
+            start_line: file_info.start_line,
+            end_line: file_info.end_line,
+            total_lines: file_info.total_lines,
+            is_explicit_range,
+            is_truncated,
+            display_path,
+        })
     }
 }

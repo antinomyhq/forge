@@ -1,11 +1,12 @@
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use regex::Regex;
+use std::fmt::{Display, Formatter};
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, Image, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
     ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
+use regex::Regex;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub struct ShellOutput {
     pub stdout: String,
@@ -28,11 +29,27 @@ pub struct PatchOutput {
 
 pub struct ReadOutput {
     pub content: Content,
+    pub path: String,
+    pub start_line: u64,
+    pub end_line: u64,
+    pub total_lines: u64,
+    pub is_explicit_range: bool,
+    pub is_truncated: bool,
+    pub display_path: String,
 }
 
 pub enum Content {
     File(String),
     Image(Image),
+}
+
+impl Display for Content {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Content::File(content) => write!(f, "{}", content),
+            Content::Image(_) => todo!(),
+        }
+    }
 }
 
 pub struct SearchResult {
@@ -208,7 +225,12 @@ pub trait FsPatchService: Send + Sync {
 #[async_trait::async_trait]
 pub trait FsReadService: Send + Sync {
     /// Reads a file at the specified path and returns its content.
-    async fn read(&self, path: String) -> anyhow::Result<ReadOutput>;
+    async fn read(
+        &self,
+        path: String,
+        start_line: Option<u64>,
+        end_line: Option<u64>,
+    ) -> anyhow::Result<ReadOutput>;
 }
 
 #[async_trait::async_trait]
