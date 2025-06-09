@@ -23,6 +23,7 @@ regex.workspace = true
 thiserror.workspace = true
 forge_display.workspace = true
 console.workspace = true
+derive_more.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

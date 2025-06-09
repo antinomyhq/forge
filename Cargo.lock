@@ -977,6 +977,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "console",
+ "derive_more",
  "derive_setters",
  "forge_display",
  "forge_domain",
