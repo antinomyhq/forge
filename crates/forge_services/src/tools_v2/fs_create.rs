@@ -32,6 +32,7 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
         path: String,
         content: String,
         overwrite: bool,
+        capture_snapshot: bool,
     ) -> anyhow::Result<FsCreateOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
@@ -70,7 +71,7 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
         // Write file only after validation passes and directories are created
         self.0
             .file_write_service()
-            .write(path, Bytes::from(content))
+            .write(path, Bytes::from(content), capture_snapshot)
             .await?;
 
         Ok(FsCreateOutput {

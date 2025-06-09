@@ -169,6 +169,7 @@ pub trait FsCreateService: Send + Sync {
         path: String,
         content: String,
         overwrite: bool,
+        capture_snapshot: bool,
     ) -> anyhow::Result<FsCreateOutput>;
 }
 

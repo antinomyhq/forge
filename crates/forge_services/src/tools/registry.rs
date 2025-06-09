@@ -117,7 +117,12 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsWriteService for Stub {
-        async fn write(&self, _: &Path, _: Bytes) -> anyhow::Result<()> {
+        async fn write(
+            &self,
+            path: &Path,
+            contents: Bytes,
+            capture_snapshot: bool,
+        ) -> anyhow::Result<()> {
             unimplemented!()
         }
 

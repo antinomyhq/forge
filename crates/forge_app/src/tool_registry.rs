@@ -68,7 +68,7 @@ impl<S: Services> ToolRegistry<S> {
                 let out = self
                     .services
                     .fs_create_service()
-                    .create(input.path.clone(), input.content, input.overwrite)
+                    .create(input.path.clone(), input.content, input.overwrite, true)
                     .await?;
 
                 let formatted_path = display_path(self.services.as_ref(), Path::new(&out.path))?;

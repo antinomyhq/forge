@@ -47,7 +47,12 @@ pub trait FsReadService: Send + Sync {
 #[async_trait::async_trait]
 pub trait FsWriteService: Send + Sync {
     /// Writes the content of a file at the specified path.
-    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()>;
+    async fn write(
+        &self,
+        path: &Path,
+        contents: Bytes,
+        capture_snapshot: bool,
+    ) -> anyhow::Result<()>;
 
     /// Writes content to a temporary file with the given prefix and extension,
     /// and returns its path. The file will be kept (not deleted) after

@@ -203,7 +203,7 @@ impl<F: Infrastructure> FsPatchService for ForgeFsPatch<F> {
         // Write final content to file after all patches are applied
         self.0
             .file_write_service()
-            .write(path, Bytes::from(current_content.clone()))
+            .write(path, Bytes::from(current_content.clone()), true)
             .await?;
 
         Ok(PatchOutput {
