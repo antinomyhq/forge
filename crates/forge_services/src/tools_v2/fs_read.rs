@@ -1,9 +1,10 @@
+use std::path::Path;
+use std::sync::Arc;
+
 use anyhow::{bail, Context};
 use forge_app::{Content, EnvironmentService, FsReadService, ReadOutput};
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
-use std::path::Path;
-use std::sync::Arc;
 
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsReadService as _, Infrastructure};

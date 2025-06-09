@@ -38,9 +38,9 @@ impl<S: Services> ToolRegistry<S> {
                     .fs_read_service()
                     .read(input.path, input.start_line, input.end_line)
                     .await?;
-                
+
                 send_read_context(context, &output).await?;
-                
+
                 Ok(ToolOutput::text(format_fs_read(output)?))
             }
             ToolInput::FSWrite(input) => {
@@ -357,12 +357,12 @@ async fn format_fs_search(
         Some(output) => {
             let mut result = String::new();
             writeln!(result, "---")?;
-            writeln!(result, "path: {}", path)?;
+            writeln!(result, "path: {path}")?;
             if let Some(regex) = regex {
-                writeln!(result, "regex: {}", regex)?;
+                writeln!(result, "regex: {regex}")?;
             }
             if let Some(file_pattern) = file_pattern {
-                writeln!(result, "file_pattern: {}", file_pattern)?;
+                writeln!(result, "file_pattern: {file_pattern}")?;
             }
             writeln!(result, "total_lines: {}", output.total_lines)?;
             writeln!(result, "start_line: 1")?;
@@ -428,15 +428,15 @@ fn format_fs_read(out: ReadOutput) -> anyhow::Result<String> {
     writeln!(result, "path: {}", out.path)?;
     // Determine if range information is relevant to display
     let is_range_relevant = out.is_explicit_range || out.is_truncated;
-    
+
     if is_range_relevant {
         writeln!(result, "start_line: {}", out.start_line)?;
         writeln!(result, "end_line: {}", out.end_line)?;
         writeln!(result, "total_lines: {}", out.total_lines)?;
     }
-    
+
     writeln!(result, "---")?;
     writeln!(result, "{}", out.content)?;
-    
+
     Ok(result)
 }
