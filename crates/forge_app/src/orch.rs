@@ -118,6 +118,16 @@ impl<S: AgentService> Orchestrator<S> {
         }
     }
 
+    /// Checks if parallel tool calls is supported by agent
+    fn is_parallel_tool_call_supported(&self, agent: &Agent) -> bool {
+        agent
+            .model
+            .as_ref()
+            .and_then(|model_id| self.models.iter().find(|model| &model.id == model_id))
+            .and_then(|model| model.supports_parallel_tool_calls)
+            .unwrap_or_default()
+    }
+
     // Returns if agent supports tool or not.
     fn is_tool_supported(&self, agent: &Agent) -> anyhow::Result<bool> {
         let model_id = agent
@@ -164,6 +174,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .to_string();
 
             let tool_supported = self.is_tool_supported(agent)?;
+            let supports_parallel_tool_calls = self.is_parallel_tool_call_supported(agent);
             let tool_information = match tool_supported {
                 true => None,
                 false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)?).to_string()),
@@ -177,6 +188,7 @@ impl<S: AgentService> Orchestrator<S> {
                 files,
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
                 variables: variables.clone(),
+                supports_parallel_tool_calls,
             };
 
             let system_message = Templates::render(system_prompt.template.as_str(), &ctx)?;

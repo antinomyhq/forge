@@ -147,19 +147,32 @@ mod tests {
             ToolCallPart {
                 call_id: Some(ToolCallId("call_1".to_string())),
                 name: Some(ToolName::new("forge_tool_fs_read")),
-                arguments_part: "{\"path\": \"crates/forge_services/src/fixtures/mascot.md\"}"
-                    .to_string(),
+                arguments_part: "{\"path\": \"crates/forge_services/src/fixtures/".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "mascot.md\"}".to_string(),
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_2".to_string())),
                 name: Some(ToolName::new("forge_tool_fs_read")),
-                arguments_part: "{\"path\": \"docs/onboarding.md\"}".to_string(),
+                arguments_part: "{\"path\": \"docs/".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "onboarding.md\"}".to_string(),
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_3".to_string())),
                 name: Some(ToolName::new("forge_tool_fs_read")),
-                arguments_part: "{\"path\": \"crates/forge_services/src/service/service.md\"}"
-                    .to_string(),
+                arguments_part: "{\"path\": \"crates/forge_services/src/service/".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "service.md\"}".to_string(),
             },
         ];
 
