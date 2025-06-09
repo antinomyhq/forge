@@ -4,8 +4,6 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{EnvironmentService, FsSearchService, SearchResult};
-use forge_domain::ToolDescription;
-use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
 
@@ -69,7 +67,6 @@ impl FSSearchHelper<'_> {
 /// patterns across projects. For large pages, returns the first 200
 /// lines and stores the complete content in a temporary file for
 /// subsequent access.
-#[derive(ToolDescription)]
 pub struct ForgeFsSearch<F>(Arc<F>);
 
 impl<F: Infrastructure> ForgeFsSearch<F> {

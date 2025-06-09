@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use forge_app::FollowUpService;
-use forge_domain::ToolDescription;
-use forge_tool_macros::ToolDescription;
 
 use crate::{Infrastructure, InquireService};
 
@@ -10,7 +8,7 @@ use crate::{Infrastructure, InquireService};
 /// more details to proceed effectively. Use this tool judiciously to maintain a
 /// balance between gathering necessary information and avoiding excessive
 /// back-and-forth.
-#[derive(Debug, ToolDescription)]
+#[derive(Debug)]
 pub struct ForgeFollowup<F> {
     infra: Arc<F>,
 }

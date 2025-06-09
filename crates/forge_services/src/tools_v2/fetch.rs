@@ -1,7 +1,5 @@
 use anyhow::{anyhow, Context};
 use forge_app::{FetchOutput, NetFetchService};
-use forge_domain::ToolDescription;
-use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
 
 /// Retrieves content from URLs as markdown or raw text. Enables access to
@@ -12,7 +10,7 @@ use reqwest::{Client, Url};
 /// requiring authentication. Respects robots.txt and may be blocked by
 /// anti-scraping measures. For large pages, returns the first 40,000 characters
 /// and stores the complete content in a temporary file for subsequent access.
-#[derive(Debug, ToolDescription)]
+#[derive(Debug)]
 pub struct ForgeFetch {
     client: Client,
 }

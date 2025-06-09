@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{FsPatchService, PatchOutput};
-use forge_domain::{PatchOperation, ToolDescription};
-use forge_tool_macros::ToolDescription;
+use forge_domain::PatchOperation;
 use thiserror::Error;
 use tokio::fs;
 
@@ -170,7 +169,6 @@ fn apply_replacement(
 /// pattern occurrences - use forge_tool_fs_create instead for complete
 /// rewrites and forge_tool_fs_undo for undoing the last operation. Fails if
 /// search pattern isn't found.
-#[derive(ToolDescription)]
 pub struct ForgeFsPatch<F>(Arc<F>);
 
 impl<F: Infrastructure> ForgeFsPatch<F> {

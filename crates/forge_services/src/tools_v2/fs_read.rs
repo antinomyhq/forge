@@ -3,8 +3,6 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context};
 use forge_app::{Content, FsReadService, ReadOutput};
-use forge_domain::ToolDescription;
-use forge_tool_macros::ToolDescription;
 
 use crate::utils::assert_absolute_path;
 use crate::{FsReadService as _, Infrastructure};
@@ -48,7 +46,6 @@ pub fn assert_valid_range(start_line: u64, end_line: u64) -> anyhow::Result<()> 
 /// and end_line parameters, ensuring the total range does not exceed 2,000
 /// lines. Specifying a range exceeding this limit will result in an error.
 /// Binary files are automatically detected and rejected.
-#[derive(ToolDescription)]
 pub struct ForgeFsRead<F>(Arc<F>);
 
 impl<F: Infrastructure> ForgeFsRead<F> {

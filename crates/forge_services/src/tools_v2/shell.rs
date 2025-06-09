@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use forge_app::{EnvironmentService, ShellOutput, ShellService};
-use forge_domain::{Environment, ToolDescription};
-use forge_tool_macros::ToolDescription;
+use forge_domain::Environment;
 use strip_ansi_escapes::strip;
 
 use crate::{CommandExecutorService, Infrastructure};
@@ -21,7 +20,6 @@ fn strip_ansi(content: String) -> String {
 /// unrestricted access, advise users to run forge CLI with '-u' flag. Returns
 /// complete output including stdout, stderr, and exit code for diagnostic
 /// purposes.
-#[derive(ToolDescription)]
 pub struct ForgeShell<I> {
     env: Environment,
     infra: Arc<I>,

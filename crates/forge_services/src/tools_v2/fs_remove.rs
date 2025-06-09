@@ -2,8 +2,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use forge_app::{EnvironmentService, FsRemoveOutput, FsRemoveService};
-use forge_domain::ToolDescription;
-use forge_tool_macros::ToolDescription;
 
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FileRemoveService, FsMetaService, Infrastructure};
@@ -11,7 +9,6 @@ use crate::{FileRemoveService, FsMetaService, Infrastructure};
 /// Request to remove a file at the specified path. Use this when you need to
 /// delete an existing file. The path must be absolute. This operation cannot
 /// be undone, so use it carefully.
-#[derive(ToolDescription)]
 pub struct ForgeFsRemove<T>(Arc<T>);
 
 impl<T: Infrastructure> ForgeFsRemove<T> {

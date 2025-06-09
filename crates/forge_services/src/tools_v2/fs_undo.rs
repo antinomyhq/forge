@@ -2,8 +2,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use forge_app::{EnvironmentService, FsUndoOutput, FsUndoService};
-use forge_domain::ToolDescription;
-use forge_tool_macros::ToolDescription;
 
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsSnapshotService, Infrastructure};
@@ -11,7 +9,7 @@ use crate::{FsSnapshotService, Infrastructure};
 /// Reverts the most recent file operation (create/modify/delete) on a specific
 /// file. Use this tool when you need to recover from incorrect file changes or
 /// if a revert is requested by the user.
-#[derive(Default, ToolDescription)]
+#[derive(Default)]
 pub struct ForgeFsUndo<F>(Arc<F>);
 
 impl<F: Infrastructure> ForgeFsUndo<F> {

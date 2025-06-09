@@ -4,8 +4,6 @@ use std::sync::Arc;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::{FsCreateOutput, FsCreateService};
-use forge_domain::ToolDescription;
-use forge_tool_macros::ToolDescription;
 
 use crate::utils::assert_absolute_path;
 use crate::{FsCreateDirsService, FsMetaService, FsReadService, FsWriteService, Infrastructure};
@@ -16,7 +14,6 @@ use crate::{FsCreateDirsService, FsMetaService, FsReadService, FsWriteService, I
 /// in the specified path.
 /// IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the
 /// shell tool instead.
-#[derive(ToolDescription)]
 pub struct ForgeFsCreate<F>(Arc<F>);
 
 impl<F: Infrastructure> ForgeFsCreate<F> {
