@@ -1,14 +1,14 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use forge_app::{
-    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
-    ProviderService, Services, ToolService, WorkflowService,
+    AuthService, ChatService, ConversationService, EnvironmentService, FileDiscoveryService,
+    ForgeApp, KeyService, McpConfigManager, Services, ToolService, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{CommandExecutorService, ForgeServices, Infrastructure};
+use forge_services::{CommandExecutorService, ForgeServices, Infrastructure, ProviderService};
 use forge_stream::MpscStream;
 
 use crate::API;
@@ -43,7 +43,7 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
-        Ok(self.app.provider_service().models().await?)
+        Ok(self.app.chat_service().models().await?)
     }
 
     async fn chat(
@@ -139,5 +139,27 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
             .command_executor_service()
             .execute_command_raw(command)
             .await
+    }
+
+    async fn init_login(&self) -> Result<InitAuth> {
+        self.app.auth_service().init().await
+    }
+
+    async fn login(&self, auth: &InitAuth) -> Result<()> {
+        self.app.auth_service().login(auth).await
+    }
+
+    async fn logout(&self) -> Result<()> {
+        self.app.auth_service().logout().await
+    }
+
+    async fn api_key(&self) -> Option<ForgeKey> {
+        self.app.key_service().get().await
+    }
+    fn provider(&self, key: Option<ForgeKey>) -> Result<Provider> {
+        self.infra
+            .provider_service()
+            .get(key)
+            .context("User isn't logged in")
     }
 }

@@ -3,7 +3,7 @@ use forge_domain::{
     ToolResult,
 };
 
-use crate::{ProviderService, Services, ToolService};
+use crate::{ChatService, Services, ToolService};
 
 /// Agent service trait that provides core chat and tool call functionality.
 /// This trait abstracts the essential operations needed by the Orchestrator.
@@ -36,7 +36,7 @@ where
         id: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.provider_service().chat(id, context).await
+        self.chat_service().chat(id, context).await
     }
 
     async fn call(

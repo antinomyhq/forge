@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, Context, Conversation, ConversationId, Environment,
-    File, Image, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
-    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
+    File, ForgeConfig, ForgeKey, Image, InitAuth, McpConfig, Model, ModelId, PatchOperation,
+    ResultStream, Scope, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult,
+    Workflow,
 };
 
 pub struct ShellOutput {
@@ -38,7 +39,7 @@ pub struct FetchOutput {
 }
 
 #[async_trait::async_trait]
-pub trait ProviderService: Send + Sync + 'static {
+pub trait ChatService: Send + Sync {
     async fn chat(
         &self,
         id: &ModelId,
@@ -102,6 +103,13 @@ pub trait TemplateService: Send + Sync {
 #[async_trait::async_trait]
 pub trait AttachmentService {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>>;
+}
+
+#[async_trait::async_trait]
+pub trait KeyService: Send + Sync {
+    async fn get(&self) -> Option<ForgeKey>;
+    async fn set(&self, key: ForgeKey) -> anyhow::Result<()>;
+    async fn delete(&self) -> anyhow::Result<()>;
 }
 
 pub trait EnvironmentService: Send + Sync {
@@ -229,12 +237,25 @@ pub trait ShellService: Send + Sync {
     ) -> anyhow::Result<ShellOutput>;
 }
 
+#[async_trait::async_trait]
+pub trait ConfigService: Send + Sync {
+    async fn read(&self) -> anyhow::Result<ForgeConfig>;
+    async fn write(&self, config: &ForgeConfig) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait AuthService: Send + Sync {
+    async fn init(&self) -> anyhow::Result<InitAuth>;
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<()>;
+    async fn logout(&self) -> anyhow::Result<()>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
 pub trait Services: Send + Sync + 'static + Clone {
     type ToolService: ToolService;
-    type ProviderService: ProviderService;
+    type ChatService: ChatService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
@@ -242,9 +263,12 @@ pub trait Services: Send + Sync + 'static + Clone {
     type WorkflowService: WorkflowService;
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
+    type AuthService: AuthService;
+    type ConfigService: ConfigService;
+    type KeyService: KeyService;
 
     fn tool_service(&self) -> &Self::ToolService;
-    fn provider_service(&self) -> &Self::ProviderService;
+    fn chat_service(&self) -> &Self::ChatService;
     fn conversation_service(&self) -> &Self::ConversationService;
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
@@ -252,4 +276,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
+    fn auth_service(&self) -> &Self::AuthService;
+    fn config_service(&self) -> &Self::ConfigService;
+    fn key_service(&self) -> &Self::KeyService;
 }
