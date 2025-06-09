@@ -153,16 +153,22 @@ impl<S: Services> ToolRegistry<S> {
                 Ok(ToolOutput::text(formatted_output))
             }
             ToolInput::FSRemove(input) => {
-                let output = self.services.fs_remove_service().remove(input.path).await?;
+                let _output = self
+                    .services
+                    .fs_remove_service()
+                    .remove(input.path.clone())
+                    .await?;
+                
+                let display_path = display_path(self.services.as_ref(), Path::new(&input.path))?;
 
-                let message = TitleFormat::debug("Remove").sub_title(&output.display_path);
+                let message = TitleFormat::debug("Remove").sub_title(&display_path);
 
                 // Send the formatted message
                 context.send_text(message).await?;
 
                 Ok(ToolOutput::text(format!(
                     "Successfully removed file: {}",
-                    output.display_path
+                    display_path
                 )))
             }
             ToolInput::FSPatch(input) => {

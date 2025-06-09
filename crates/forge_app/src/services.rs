@@ -47,7 +47,7 @@ pub struct FsCreateOutput {
 }
 
 pub struct FsRemoveOutput {
-    pub display_path: String,
+    pub completed: bool,
 }
 
 #[async_trait::async_trait]
