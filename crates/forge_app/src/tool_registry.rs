@@ -171,14 +171,14 @@ impl<S: Services> ToolRegistry<S> {
         let result = self.call_internal(tool_input.clone(), context).await;
         match result {
             Ok(out) => {
-                let Ok(trancuation_path) = out.to_create_temp(self.services.as_ref()).await else {
+                let Ok(truncation_path) = out.to_create_temp(self.services.as_ref()).await else {
                     return ToolResult::new(input.name)
                         .failure(anyhow::anyhow!("Failed to truncate output"));
                 };
 
                 let env = self.services.environment_service().get_environment();
 
-                out.to_tool_result(input.name, Some(tool_input), trancuation_path, &env)
+                out.to_tool_result(input.name, Some(tool_input), truncation_path, &env)
             }
             Err(err) => ToolResult::new(input.name).failure(err),
         }
