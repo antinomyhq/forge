@@ -2,7 +2,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::{AuthService, ChatService, ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, KeyService, McpConfigManager, Services, ToolService, WorkflowService};
+use forge_app::{
+    AuthService, ChatService, ConversationService, EnvironmentService, FileDiscoveryService,
+    ForgeApp, KeyService, McpConfigManager, Services, ToolService, WorkflowService,
+};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::{CommandExecutorService, ForgeServices, Infrastructure, ProviderService};

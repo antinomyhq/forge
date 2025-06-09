@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use forge_app::{ConfigService, EnvironmentService};
 use forge_domain::ForgeConfig;
 
-use crate::{ConfigService, EnvironmentService, FsReadService, FsWriteService, Infrastructure};
+use crate::{FsReadService, FsWriteService, Infrastructure};
 
 pub struct ForgeConfigService<I> {
     infra: Arc<I>,

@@ -1,7 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use forge_domain::{Agent, Attachment, ChatCompletionMessage, Context, Conversation, ConversationId, Environment, File, ForgeConfig, ForgeKey, Image, InitAuth, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow};
+use forge_domain::{
+    Agent, Attachment, ChatCompletionMessage, Context, Conversation, ConversationId, Environment,
+    File, ForgeConfig, ForgeKey, Image, InitAuth, McpConfig, Model, ModelId, PatchOperation,
+    ResultStream, Scope, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult,
+    Workflow,
+};
 
 pub struct ShellOutput {
     pub stdout: String,

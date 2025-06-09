@@ -8,12 +8,12 @@ use crate::chat::ForgeProviderService;
 use crate::config::ForgeConfigService;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
+use crate::key::ForgeKeyService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::workflow::ForgeWorkflowService;
 use crate::Infrastructure;
-use crate::key::ForgeKeyService;
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F>;
 type AuthService<F> = ForgeAuthService<F, KeyService<F>>;

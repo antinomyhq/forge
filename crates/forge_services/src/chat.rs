@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use forge_app::{ChatService, EnvironmentService, KeyService};
 use forge_domain::{
     ChatCompletionMessage, Context as ChatContext, ForgeKey, Model, ModelId, Provider,
     ResultStream, RetryConfig,
@@ -8,7 +9,7 @@ use forge_domain::{
 use forge_provider::Client;
 use tokio::sync::RwLock;
 
-use crate::{ChatService, EnvironmentService, Infrastructure, KeyService, ProviderService};
+use crate::{Infrastructure, ProviderService};
 
 #[derive(Clone)]
 pub struct ForgeProviderService<I, K> {

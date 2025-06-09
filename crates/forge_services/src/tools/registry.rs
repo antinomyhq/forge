@@ -43,7 +43,7 @@ pub mod tests {
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
-    use forge_app::EnvironmentService;
+    use forge_app::{AuthService, EnvironmentService};
     use forge_domain::{
         CommandOutput, Environment, InitAuth, ToolDefinition, ToolName, ToolOutput,
     };
@@ -52,7 +52,7 @@ pub mod tests {
 
     use super::*;
     use crate::{
-        AuthService, CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
+        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
         FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
     };
 
