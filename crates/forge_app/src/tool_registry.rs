@@ -1,3 +1,7 @@
+use std::cmp::min;
+use std::path::Path;
+use std::sync::Arc;
+
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
     Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolInput, ToolName, ToolOutput,
@@ -5,9 +9,6 @@ use forge_domain::{
 };
 use regex::Regex;
 use serde_json::Value;
-use std::cmp::min;
-use std::path::Path;
-use std::sync::Arc;
 
 use crate::front_matter::FrontMatter;
 use crate::utils::display_path;

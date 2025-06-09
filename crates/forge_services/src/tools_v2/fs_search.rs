@@ -180,9 +180,7 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
             return Ok(None);
         }
 
-        Ok(Some(SearchResult {
-            matches,
-        }))
+        Ok(Some(SearchResult { matches }))
     }
 }
 
