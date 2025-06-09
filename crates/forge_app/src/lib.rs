@@ -5,7 +5,7 @@ mod error;
 mod metadata;
 mod orch;
 mod services;
-mod shell_truncation;
+mod truncation;
 mod template;
 mod tool_registry;
 
@@ -15,4 +15,4 @@ pub use compact::*;
 pub use error::*;
 pub use orch::*;
 pub use services::*;
-pub use shell_truncation::*;
+pub use truncation::*;

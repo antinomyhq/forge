@@ -61,13 +61,7 @@ pub struct FetchOutput {
     pub content: String,
     pub code: u16,
     pub url: String,
-    pub original_length: usize,
-    pub start_char: usize,
-    pub end_char: usize,
     pub context: String,
-    pub max_length: usize,
-    pub path: Option<PathBuf>,
-    pub is_truncated: bool,
 }
 
 pub struct FsCreateOutput {
@@ -203,8 +197,9 @@ pub trait FsCreateService: Send + Sync {
         content: String,
         overwrite: bool,
     ) -> anyhow::Result<FsCreateOutput>;
-    
-    /// Creates a temporary file with the specified prefix, extension, and content.
+
+    /// Creates a temporary file with the specified prefix, extension, and
+    /// content.
     async fn create_temp(&self, prefix: &str, ext: &str, content: &str) -> anyhow::Result<PathBuf>;
 }
 

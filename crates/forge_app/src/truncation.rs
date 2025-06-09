@@ -8,6 +8,9 @@ const PREFIX_LINES: usize = 200;
 /// Number of lines to keep at the end of truncated output
 const SUFFIX_LINES: usize = 200;
 
+/// Maximum characters for fetch content
+const FETCH_MAX_LENGTH: usize = 40_000;
+
 /// Clips text content based on line count
 fn clip_by_lines(
     content: &str,
@@ -165,5 +168,70 @@ impl TruncatedShellOutput {
         } else {
             Ok(None)
         }
+    }
+}
+
+/// Represents the result of fetch content truncation
+#[derive(Debug)]
+pub struct TruncatedFetchOutput {
+    pub content: String,
+    pub url: String,
+    pub code: u16,
+    pub context: String,
+    pub original_length: usize,
+    pub start_char: usize,
+    pub end_char: usize,
+    pub max_length: usize,
+    pub is_truncated: bool,
+    pub original_content: String,
+}
+
+impl TruncatedFetchOutput {
+    /// Creates a temp file if content was truncated
+    pub async fn create_temp_file_if_needed<S: Services>(
+        &self,
+        services: &S,
+    ) -> anyhow::Result<Option<PathBuf>> {
+        if self.is_truncated {
+            let path = services
+                .fs_create_service()
+                .create_temp("forge_fetch_", ".txt", &self.original_content)
+                .await?;
+
+            Ok(Some(path))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// Truncates fetch content based on character limit
+pub fn truncate_fetch_content(
+    content: &str,
+    url: &str,
+    code: u16,
+    context: &str,
+) -> TruncatedFetchOutput {
+    let original_length = content.len();
+    let end = FETCH_MAX_LENGTH.min(original_length);
+    let is_truncated = original_length > FETCH_MAX_LENGTH;
+
+    let truncated_content = if is_truncated {
+        content.chars().take(FETCH_MAX_LENGTH).collect()
+    } else {
+        content.to_string()
+    };
+
+    TruncatedFetchOutput {
+        content: truncated_content,
+        url: url.to_string(),
+        code,
+        context: context.to_string(),
+        original_length,
+        start_char: 0,
+        end_char: end,
+        max_length: FETCH_MAX_LENGTH,
+        is_truncated,
+        original_content: content.to_string(),
     }
 }

@@ -43,7 +43,7 @@ pub struct ForgeServices<F> {
     file_patch_service: Arc<ForgeFsPatch<F>>,
     file_undo_service: Arc<ForgeFsUndo<F>>,
     shell_service: Arc<ForgeShell<F>>,
-    fetch_service: Arc<ForgeFetch<F>>,
+    fetch_service: Arc<ForgeFetch>,
     followup_service: Arc<ForgeFollowup<F>>,
 }
 
@@ -67,7 +67,7 @@ impl<F: Infrastructure> ForgeServices<F> {
         let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
         let file_undo_service = Arc::new(ForgeFsUndo::new(infra.clone()));
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
-        let fetch_service = Arc::new(ForgeFetch::new(infra.clone()));
+        let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         Self {
             infra,
@@ -111,7 +111,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type FsSearchService = ForgeFsSearch<F>;
     type FollowUpService = ForgeFollowup<F>;
     type FsUndoService = ForgeFsUndo<F>;
-    type NetFetchService = ForgeFetch<F>;
+    type NetFetchService = ForgeFetch;
     type ShellService = ForgeShell<F>;
 
     fn tool_service(&self) -> &Self::ToolService {

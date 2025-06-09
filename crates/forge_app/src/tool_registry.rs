@@ -10,9 +10,10 @@ use serde_json::Value;
 
 use crate::metadata::Metadata;
 use crate::{
-    AttemptCompletionService, FetchOutput, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput,
-    ReadOutput, SearchResult, Services, ShellService, TruncatedShellOutput, truncate_shell_output,
+    AttemptCompletionService, FollowUpService, FsCreateService, FsPatchService, FsReadService,
+    FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput, ReadOutput,
+    SearchResult, Services, ShellService, TruncatedFetchOutput, TruncatedShellOutput,
+    truncate_fetch_content, truncate_shell_output,
 };
 
 pub struct ToolRegistry<S> {
@@ -159,17 +160,28 @@ impl<S: Services> ToolRegistry<S> {
                 ))
             }
             ToolInput::NetFetch(input) => {
-                let out = self
+                let fetch_output = self
                     .services
                     .net_fetch_service()
                     .fetch(input.url, input.raw)
                     .await?;
+
+                let truncated_output = truncate_fetch_content(
+                    &fetch_output.content,
+                    &fetch_output.url,
+                    fetch_output.code,
+                    &fetch_output.context,
+                );
+
                 context
                     .send_text(
-                        TitleFormat::debug(format!("GET {}", out.code)).sub_title(out.url.as_str()),
+                        TitleFormat::debug(format!("GET {}", truncated_output.code))
+                            .sub_title(&truncated_output.url),
                     )
                     .await?;
-                Ok(ToolOutput::text(format_net_fetch(out)?))
+                Ok(ToolOutput::text(
+                    format_net_fetch_truncated(truncated_output, self.services.as_ref()).await?,
+                ))
             }
             ToolInput::Followup(input) => {
                 let output = self
@@ -229,20 +241,28 @@ async fn format_followup(output: Option<String>, context: &mut ToolCallContext) 
     }
 }
 
-fn format_net_fetch(out: FetchOutput) -> anyhow::Result<String> {
+async fn format_net_fetch_truncated<S: Services>(
+    truncated_output: TruncatedFetchOutput,
+    services: &S,
+) -> anyhow::Result<String> {
     let mut metadata = Metadata::default()
-        .add("URL", &out.url)
-        .add("total_chars", out.original_length)
-        .add("start_char", out.start_char)
-        .add("end_char", out.end_char)
-        .add("context", &out.context);
+        .add("URL", &truncated_output.url)
+        .add("total_chars", truncated_output.original_length)
+        .add("start_char", truncated_output.start_char)
+        .add("end_char", truncated_output.end_char)
+        .add("context", &truncated_output.context);
 
-    if let Some(path) = out.path.as_ref() {
+    // Create temp file if truncation occurred
+    let path = truncated_output
+        .create_temp_file_if_needed(services)
+        .await?;
+
+    if let Some(path) = path.as_ref() {
         metadata = metadata.add(
             "truncation",
             format!(
                 "Content is truncated to {} chars; Remaining content can be read from path: {}",
-                out.max_length,
+                truncated_output.max_length,
                 path.display()
             ),
         );
@@ -250,11 +270,11 @@ fn format_net_fetch(out: FetchOutput) -> anyhow::Result<String> {
 
     // Create truncation tag only if content was actually truncated and stored in a
     // temp file
-    let truncation_tag = match out.path.as_ref() {
-        Some(path) if out.is_truncated => {
+    let truncation_tag = match path.as_ref() {
+        Some(path) if truncated_output.is_truncated => {
             format!(
                 "\n<truncation>content is truncated to {} chars, remaining content can be read from path: {}</truncation>",
-                out.max_length,
+                truncated_output.max_length,
                 path.to_string_lossy()
             )
         }

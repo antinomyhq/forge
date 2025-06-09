@@ -1,15 +1,8 @@
-use std::sync::Arc;
-
 use anyhow::{anyhow, Context};
 use forge_app::{FetchOutput, NetFetchService};
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
-
-use crate::{Clipper, FsWriteService, Infrastructure};
-
-/// Fetch tool returns the content of MAX_LENGTH.
-const MAX_LENGTH: usize = 40_000;
 
 /// Retrieves content from URLs as markdown or raw text. Enables access to
 /// current online information including websites, APIs and documentation. Use
@@ -20,18 +13,23 @@ const MAX_LENGTH: usize = 40_000;
 /// anti-scraping measures. For large pages, returns the first 40,000 characters
 /// and stores the complete content in a temporary file for subsequent access.
 #[derive(Debug, ToolDescription)]
-pub struct ForgeFetch<F> {
+pub struct ForgeFetch {
     client: Client,
-    infra: Arc<F>,
 }
 
-impl<F: Infrastructure> ForgeFetch<F> {
-    pub fn new(infra: Arc<F>) -> Self {
-        Self { client: Client::new(), infra }
+impl Default for ForgeFetch {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl<F: Infrastructure> ForgeFetch<F> {
+impl ForgeFetch {
+    pub fn new() -> Self {
+        Self { client: Client::new() }
+    }
+}
+
+impl ForgeFetch {
     async fn check_robots_txt(&self, url: &Url) -> anyhow::Result<()> {
         let robots_url = format!("{}://{}/robots.txt", url.scheme(), url.authority());
         let robots_response = self.client.get(&robots_url).send().await;
@@ -116,43 +114,12 @@ impl<F: Infrastructure> ForgeFetch<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> NetFetchService for ForgeFetch<F> {
+impl NetFetchService for ForgeFetch {
     async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<FetchOutput> {
         let url = Url::parse(&url).with_context(|| format!("Failed to parse URL: {url}"))?;
 
         let (content, context, code) = self.fetch_url(&url, raw.unwrap_or(false)).await?;
 
-        let original_length = content.len();
-        let end = MAX_LENGTH.min(original_length);
-
-        // Apply truncation directly
-        let truncated = Clipper::from_start(MAX_LENGTH).clip(&content);
-        // Create temp file only if content was truncated
-        let temp_file_path = if truncated.is_truncated() {
-            Some(
-                self.infra
-                    .file_write_service()
-                    .write_temp("forge_fetch_", ".txt", &content)
-                    .await?,
-            )
-        } else {
-            None
-        };
-
-        // Determine output. If truncated then use truncated content else the actual.
-        let output = truncated.prefix_content().unwrap_or_else(|| &content);
-
-        Ok(FetchOutput {
-            content: output.to_string(),
-            code,
-            url: url.to_string(),
-            original_length,
-            start_char: 0,
-            end_char: end,
-            context,
-            max_length: MAX_LENGTH,
-            path: temp_file_path,
-            is_truncated: truncated.is_truncated(),
-        })
+        Ok(FetchOutput { content, code, url: url.to_string(), context })
     }
 }
