@@ -1,12 +1,15 @@
 mod agent;
 mod attachment;
+mod buffer;
 mod chat_request;
 mod chat_response;
 mod compact;
 mod compaction_result;
+mod conversation_html;
+mod update;
+
 mod context;
 mod conversation;
-mod conversation_html;
 mod env;
 mod error;
 mod event;
@@ -38,12 +41,12 @@ mod tool_usage;
 mod top_k;
 mod top_p;
 mod transformer;
-mod update;
 mod workflow;
 mod xml;
 
 pub use agent::*;
 pub use attachment::*;
+pub use buffer::*;
 pub use chat_request::*;
 pub use chat_response::*;
 pub use compact::*;

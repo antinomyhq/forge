@@ -58,4 +58,7 @@ impl Environment {
     pub fn version(&self) -> String {
         VERSION.to_string()
     }
+    pub fn conversations_dir(&self) -> PathBuf {
+        self.base_path.join("conversations")
+    }
 }

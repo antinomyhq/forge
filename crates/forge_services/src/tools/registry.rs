@@ -46,15 +46,16 @@ pub mod tests {
     use bytes::Bytes;
     use forge_app::EnvironmentService;
     use forge_domain::{
-        CommandOutput, Environment, Provider, ToolDefinition, ToolName, ToolOutput,
+        Buffer, CommandOutput, Environment, Provider, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
 
     use super::*;
     use crate::{
-        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
+        BufferService, CommandExecutorService, FileRemoveService, FsCreateDirsService,
+        FsMetaService, FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient,
+        McpServer,
     };
 
     /// Create a default test environment
@@ -219,6 +220,29 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
+    impl BufferService for Stub {
+        async fn read_last(
+            &self,
+            _: &Path,
+            _: usize,
+        ) -> anyhow::Result<Vec<anyhow::Result<Buffer>>> {
+            unimplemented!()
+        }
+
+        async fn write(&self, _: &Path, _: Buffer) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::infra::ConsolePrintService for Stub {
+        async fn print(&self, _output: &str) -> anyhow::Result<()> {
+            // Stub implementation - just ignore the output
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
     impl McpServer for Stub {
         type Client = Stub;
 
@@ -238,8 +262,9 @@ pub mod tests {
         type FsCreateDirsService = Stub;
         type CommandExecutorService = Stub;
         type InquireService = Stub;
-
         type McpServer = Stub;
+        type BufferService = Stub;
+        type ConsolePrintService = Stub;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             self
@@ -278,6 +303,14 @@ pub mod tests {
         }
 
         fn mcp_server(&self) -> &Self::McpServer {
+            self
+        }
+
+        fn buffer_service(&self) -> &Self::BufferService {
+            self
+        }
+
+        fn console_print_service(&self) -> &Self::ConsolePrintService {
             self
         }
     }

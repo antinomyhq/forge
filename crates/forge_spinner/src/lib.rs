@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::Result;
@@ -7,22 +8,28 @@ use rand::seq::SliceRandom;
 use tokio::task::JoinHandle;
 
 /// Manages spinner functionality for the UI
-#[derive(Default)]
-pub struct SpinnerManager {
+pub struct SpinnerManager<C> {
     spinner: Option<ProgressBar>,
     start_time: Option<Instant>,
     message: Option<String>,
     tracker: Option<JoinHandle<()>>,
+    console_service: Arc<C>,
 }
 
-impl SpinnerManager {
-    pub fn new() -> Self {
-        Self::default()
+impl<C: ConsoleService> SpinnerManager<C> {
+    pub fn new(console_service: Arc<C>) -> Self {
+        Self {
+            spinner: None,
+            start_time: None,
+            message: None,
+            tracker: None,
+            console_service,
+        }
     }
 
     /// Start the spinner with a message
-    pub fn start(&mut self, message: Option<&str>) -> Result<()> {
-        self.stop(None)?;
+    pub async fn start(&mut self, message: Option<&str>) -> Result<()> {
+        self.stop(None).await?;
 
         let words = [
             "Thinking",
@@ -108,18 +115,18 @@ impl SpinnerManager {
     }
 
     /// Stop the active spinner if any
-    pub fn stop(&mut self, message: Option<String>) -> Result<()> {
+    pub async fn stop(&mut self, message: Option<String>) -> Result<()> {
         if let Some(spinner) = self.spinner.take() {
             // Always finish the spinner first
             spinner.finish_and_clear();
 
             // Then print the message if provided
             if let Some(msg) = message {
-                println!("{msg}");
+                self.console_service.print(&format!("{msg}\n")).await?;
             }
         } else if let Some(message) = message {
             // If there's no spinner but we have a message, just print it
-            println!("{message}");
+            self.console_service.print(&format!("{message}\n")).await?;
         }
 
         // Tracker task will be dropped here.
@@ -132,14 +139,19 @@ impl SpinnerManager {
         Ok(())
     }
 
-    pub fn write_ln(&mut self, message: impl ToString) -> Result<()> {
+    pub async fn write_ln(&mut self, message: impl ToString) -> Result<()> {
         let is_running = self.spinner.is_some();
         let prev_message = self.message.clone();
-        self.stop(Some(message.to_string()))?;
+        self.stop(Some(message.to_string())).await?;
         if is_running {
-            self.start(prev_message.as_deref())?
+            self.start(prev_message.as_deref()).await?
         }
 
         Ok(())
     }
+}
+
+#[async_trait::async_trait]
+pub trait ConsoleService: Send + Sync {
+    async fn print(&self, text: &str) -> Result<()>;
 }

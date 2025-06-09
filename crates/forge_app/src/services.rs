@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_domain::{
-    Agent, Attachment, ChatCompletionMessage, Context, Conversation, ConversationId, Environment,
-    File, Image, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
+    Agent, Attachment, Buffer, ChatCompletionMessage, Context, Conversation, ConversationId,
+    Environment, File, Image, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
     ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
@@ -229,6 +229,20 @@ pub trait ShellService: Send + Sync {
     ) -> anyhow::Result<ShellOutput>;
 }
 
+#[async_trait::async_trait]
+pub trait ConversationSessionManager: Send + Sync {
+    async fn load(&self) -> anyhow::Result<Conversation>;
+    async fn state(&self, buffer_size: usize) -> anyhow::Result<Vec<Buffer>>;
+    async fn buffer_update(&self, state: Buffer) -> anyhow::Result<()>;
+    async fn conversation_update(&self, conversation: &Conversation) -> anyhow::Result<()>;
+    async fn clear(&self) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait ConsoleService: Send + Sync {
+    async fn print(&self, output: &str) -> anyhow::Result<()>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -242,6 +256,8 @@ pub trait Services: Send + Sync + 'static + Clone {
     type WorkflowService: WorkflowService;
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
+    type ConversationSessionManager: ConversationSessionManager;
+    type ConsoleService: ConsoleService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -252,4 +268,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
+    fn conversation_session_manager(&self) -> &Self::ConversationSessionManager;
+    fn console_service(&self) -> &Self::ConsoleService;
 }
