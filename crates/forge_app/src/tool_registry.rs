@@ -12,10 +12,10 @@ use serde_json::Value;
 use crate::front_matter::FrontMatter;
 use crate::utils::display_path;
 use crate::{
-    AttemptCompletionService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
-    ReadOutput, Services, ShellService, TruncatedFetchOutput, TruncatedSearchOutput,
-    TruncatedShellOutput, truncate_fetch_content, truncate_search_output, truncate_shell_output,
+    AttemptCompletionService, FollowUpService, FsCreateService, FsPatchService, FsReadService,
+    FsRemoveService, FsSearchService, FsUndoService, NetFetchService, ReadOutput, Services,
+    ShellService, TruncatedFetchOutput, TruncatedSearchOutput, TruncatedShellOutput,
+    truncate_fetch_content, truncate_search_output, truncate_shell_output,
 };
 
 pub struct ToolRegistry<S> {
