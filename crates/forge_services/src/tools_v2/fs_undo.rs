@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use forge_app::{EnvironmentService, FsUndoService};
+use forge_app::{EnvironmentService, FsUndoOutput, FsUndoService};
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
 
@@ -35,12 +35,12 @@ impl<F: Infrastructure> ForgeFsUndo<F> {
 
 #[async_trait::async_trait]
 impl<F: Infrastructure> FsUndoService for ForgeFsUndo<F> {
-    async fn undo(&self, path: String) -> anyhow::Result<String> {
+    async fn undo(&self, path: String) -> anyhow::Result<FsUndoOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
         self.0.file_snapshot_service().undo_snapshot(path).await?;
         // Format the path for display
         let display_path = self.format_display_path(path)?;
-        Ok(display_path)
+        Ok(FsUndoOutput::from(display_path))
     }
 }

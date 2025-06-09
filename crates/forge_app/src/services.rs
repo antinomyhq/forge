@@ -50,6 +50,15 @@ pub struct FsRemoveOutput {
     pub completed: bool,
 }
 
+#[derive(derive_more::From)]
+pub struct FsUndoOutput(String);
+
+impl FsUndoOutput {
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {
     async fn chat(
@@ -222,7 +231,7 @@ pub trait FollowUpService: Send + Sync {
 pub trait FsUndoService: Send + Sync {
     /// Undoes the last file operation at the specified path.
     /// And returns the content of the undone file.
-    async fn undo(&self, path: String) -> anyhow::Result<String>;
+    async fn undo(&self, path: String) -> anyhow::Result<FsUndoOutput>;
 }
 
 #[async_trait::async_trait]

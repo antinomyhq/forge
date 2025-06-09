@@ -207,6 +207,7 @@ impl<S: Services> ToolRegistry<S> {
             }
             ToolInput::FSUndo(input) => {
                 let output = self.services.fs_undo_service().undo(input.path).await?;
+                let output = output.into_inner();
 
                 // Display a message about the file being undone
                 let message = TitleFormat::debug("Undo").sub_title(&output);

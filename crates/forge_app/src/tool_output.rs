@@ -1,7 +1,8 @@
 use forge_domain::ToolResult;
 
 use crate::{
-    FetchOutput, FsCreateOutput, FsRemoveOutput, PatchOutput, ReadOutput, SearchResult, ShellOutput,
+    FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
+    SearchResult, ShellOutput,
 };
 
 #[derive(derive_more::From)]
@@ -11,9 +12,7 @@ pub enum ToolOutput {
     FsRemove(FsRemoveOutput),
     FsSearch(Option<SearchResult>),
     FsPatch(PatchOutput),
-    // FIXME: conflicting impl with AttemptCompletion
-    // need better output type
-    // FsUndo(String),
+    FsUndo(FsUndoOutput),
     NetFetch(FetchOutput),
     Shell(ShellOutput),
     FollowUp(Option<String>),
@@ -27,7 +26,7 @@ impl From<ToolOutput> for ToolResult {
             ToolOutput::FsRemove(_) => unimplemented!(),
             ToolOutput::FsSearch(_) => unimplemented!(),
             ToolOutput::FsPatch(_) => unimplemented!(),
-            // ToolOutput::FsUndo(_) => unimplemented!(),
+            ToolOutput::FsUndo(_) => unimplemented!(),
             ToolOutput::NetFetch(_) => unimplemented!(),
             ToolOutput::Shell(_) => unimplemented!(),
             ToolOutput::FollowUp(_) => unimplemented!(),
