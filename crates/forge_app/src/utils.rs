@@ -23,7 +23,7 @@ pub fn display_path<S: Services>(services: &S, path: &Path) -> anyhow::Result<St
 ///
 /// # Returns
 /// * `Ok(String)` with a formatted path string
-pub fn format_display_path(path: &Path, cwd: &Path) -> anyhow::Result<String> {
+fn format_display_path(path: &Path, cwd: &Path) -> anyhow::Result<String> {
     // Try to create a relative path for display if possible
     let display_path = if path.starts_with(cwd) {
         match path.strip_prefix(cwd) {
