@@ -49,12 +49,9 @@ impl Display for Content {
 
 pub struct SearchResult {
     pub matches: Vec<String>,
-    pub truncation_path: Option<PathBuf>,
     pub output: String,
-    pub max_lines: u64,
     pub title: String,
     pub regex: Option<Regex>,
-    pub total_lines: u64,
 }
 
 pub struct FetchOutput {

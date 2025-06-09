@@ -10,9 +10,7 @@ use forge_walker::Walker;
 use regex::Regex;
 
 use crate::utils::{assert_absolute_path, format_display_path};
-use crate::{FsWriteService, Infrastructure};
-
-const MAX_SEARCH_LINE_LIMIT: u64 = 200;
+use crate::Infrastructure;
 
 // Using FSSearchInput from forge_domain
 
@@ -195,35 +193,12 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
         }
 
         let matches_string = matches.join("\n");
-        let total_lines = matches_string.lines().count() as u64;
-
-        let (output, truncation_path) = if total_lines > MAX_SEARCH_LINE_LIMIT {
-            // Take only the first max_line_limit lines
-            let limited_matches = matches_string
-                .lines()
-                .take(MAX_SEARCH_LINE_LIMIT as usize)
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            let path = self
-                .0
-                .file_write_service()
-                .write_temp("forge_find_", ".md", &matches_string)
-                .await?;
-
-            (limited_matches, Some(path))
-        } else {
-            (matches_string, None)
-        };
 
         Ok(Some(SearchResult {
             matches,
-            truncation_path,
-            max_lines: MAX_SEARCH_LINE_LIMIT,
-            output,
+            output: matches_string,
             title,
             regex,
-            total_lines,
         }))
     }
 }

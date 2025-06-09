@@ -12,8 +12,8 @@ use crate::metadata::Metadata;
 use crate::{
     AttemptCompletionService, FollowUpService, FsCreateService, FsPatchService, FsReadService,
     FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput, ReadOutput,
-    SearchResult, Services, ShellService, TruncatedFetchOutput, TruncatedShellOutput,
-    truncate_fetch_content, truncate_shell_output,
+    Services, ShellService, TruncatedFetchOutput, TruncatedSearchOutput, TruncatedShellOutput,
+    truncate_fetch_content, truncate_search_output, truncate_shell_output,
 };
 
 pub struct ToolRegistry<S> {
@@ -89,11 +89,20 @@ impl<S: Services> ToolRegistry<S> {
                     context.send_text(formatted_output.format()).await?;
                 }
 
-                let output =
-                    format_fs_search(output, &input.path, &input.regex, &input.file_pattern)
-                        .await?;
+                let formatted_output = match output {
+                    None => "No matches found.".to_string(),
+                    Some(search_result) => {
+                        let truncated_output = truncate_search_output(
+                            &search_result.output,
+                            &input.path,
+                            input.regex.as_ref(),
+                            input.file_pattern.as_ref(),
+                        );
+                        format_fs_search_truncated(truncated_output, self.services.as_ref()).await?
+                    }
+                };
 
-                Ok(ToolOutput::text(output))
+                Ok(ToolOutput::text(formatted_output))
             }
             ToolInput::FSRemove(input) => {
                 let output = self.services.fs_remove_service().remove(input.path).await?;
@@ -364,41 +373,37 @@ fn format_fs_patch(output: PatchOutput) -> anyhow::Result<String> {
     Ok(format!("{metadata}{}", output.diff))
 }
 
-async fn format_fs_search(
-    search_output: Option<SearchResult>,
-    path: &str,
-    regex: &Option<String>,
-    file_pattern: &Option<String>,
+async fn format_fs_search_truncated<S: Services>(
+    truncated_output: TruncatedSearchOutput,
+    services: &S,
 ) -> anyhow::Result<String> {
-    match search_output {
-        None => Ok("No matches found.".to_string()),
-        Some(output) => {
-            let mut metadata = Metadata::default()
-                .add("path", path)
-                .add_optional("regex", regex.as_ref())
-                .add_optional("file_pattern", file_pattern.as_ref())
-                .add("total_lines", output.total_lines)
-                .add("start_line", 1)
-                .add("end_line", output.total_lines.min(output.max_lines));
+    let metadata = Metadata::default()
+        .add("path", &truncated_output.path)
+        .add_optional("regex", truncated_output.regex.as_ref())
+        .add_optional("file_pattern", truncated_output.file_pattern.as_ref())
+        .add("total_lines", truncated_output.total_lines)
+        .add("start_line", 1)
+        .add(
+            "end_line",
+            truncated_output.total_lines.min(truncated_output.max_lines),
+        );
 
-            if let Some(path) = &output.truncation_path {
-                metadata = metadata.add("temp_file", path.display().to_string());
-            }
+    let mut result = metadata.to_string();
+    result.push_str(&truncated_output.output);
 
-            let mut result = metadata.to_string();
-
-            if let Some(path) = output.truncation_path {
-                let truncation_tag = format!(
-                    "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
-                    output.max_lines,
-                    path.display()
-                );
-                result.push_str(&truncation_tag);
-            }
-
-            Ok(result)
-        }
+    // Create temp file if needed
+    if let Some(path) = truncated_output
+        .create_temp_file_if_needed(services)
+        .await?
+    {
+        result.push_str(&format!(
+            "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
+            truncated_output.max_lines,
+            path.display()
+        ));
     }
+
+    Ok(result)
 }
 
 async fn send_read_context(ctx: &mut ToolCallContext, out: &ReadOutput) -> anyhow::Result<()> {

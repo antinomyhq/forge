@@ -5,9 +5,9 @@ mod error;
 mod metadata;
 mod orch;
 mod services;
-mod truncation;
 mod template;
 mod tool_registry;
+mod truncation;
 
 pub use agent::*;
 pub use app::*;

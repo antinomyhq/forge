@@ -235,3 +235,70 @@ pub fn truncate_fetch_content(
         original_content: content.to_string(),
     }
 }
+
+/// Maximum search lines before truncation
+const SEARCH_MAX_LINES: u64 = 200;
+
+/// Represents the result of fs_search truncation
+#[derive(Debug)]
+pub struct TruncatedSearchOutput {
+    pub output: String,
+    pub path: String,
+    pub regex: Option<String>,
+    pub file_pattern: Option<String>,
+    pub total_lines: u64,
+    pub max_lines: u64,
+    pub is_truncated: bool,
+    pub original_output: String,
+}
+
+impl TruncatedSearchOutput {
+    /// Creates a temp file if content was truncated
+    pub async fn create_temp_file_if_needed<S: Services>(
+        &self,
+        services: &S,
+    ) -> anyhow::Result<Option<PathBuf>> {
+        if self.is_truncated {
+            let path = services
+                .fs_create_service()
+                .create_temp("forge_find_", ".md", &self.original_output)
+                .await?;
+
+            Ok(Some(path))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// Truncates search output based on line limit
+pub fn truncate_search_output(
+    output: &str,
+    path: &str,
+    regex: Option<&String>,
+    file_pattern: Option<&String>,
+) -> TruncatedSearchOutput {
+    let total_lines = output.lines().count() as u64;
+    let is_truncated = total_lines > SEARCH_MAX_LINES;
+
+    let truncated_output = if is_truncated {
+        output
+            .lines()
+            .take(SEARCH_MAX_LINES as usize)
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        output.to_string()
+    };
+
+    TruncatedSearchOutput {
+        output: truncated_output,
+        path: path.to_string(),
+        regex: regex.map(|s| s.to_string()),
+        file_pattern: file_pattern.map(|s| s.to_string()),
+        total_lines,
+        max_lines: SEARCH_MAX_LINES,
+        is_truncated,
+        original_output: output.to_string(),
+    }
+}
