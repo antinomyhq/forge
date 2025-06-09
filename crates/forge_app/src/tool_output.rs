@@ -16,7 +16,6 @@ pub enum ToolOutput {
     // FsUndo(String),
     NetFetch(FetchOutput),
     Shell(ShellOutput),
-    AttemptCompletion(String),
     FollowUp(Option<String>),
 }
 
@@ -31,7 +30,6 @@ impl From<ToolOutput> for ToolResult {
             // ToolOutput::FsUndo(_) => unimplemented!(),
             ToolOutput::NetFetch(_) => unimplemented!(),
             ToolOutput::Shell(_) => unimplemented!(),
-            ToolOutput::AttemptCompletion(_) => unimplemented!(),
             ToolOutput::FollowUp(_) => unimplemented!(),
         }
     }

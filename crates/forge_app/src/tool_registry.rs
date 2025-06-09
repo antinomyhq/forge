@@ -13,10 +13,10 @@ use serde_json::Value;
 use crate::front_matter::FrontMatter;
 use crate::utils::display_path;
 use crate::{
-    AttemptCompletionService, Content, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, ReadOutput,
-    Services, ShellService, TruncatedFetchOutput, TruncatedSearchOutput, TruncatedShellOutput,
-    truncate_fetch_content, truncate_search_output, truncate_shell_output,
+    Content, FollowUpService, FsCreateService, FsPatchService, FsReadService, FsRemoveService,
+    FsSearchService, FsUndoService, NetFetchService, ReadOutput, Services, ShellService,
+    TruncatedFetchOutput, TruncatedSearchOutput, TruncatedShellOutput, truncate_fetch_content,
+    truncate_search_output, truncate_shell_output,
 };
 
 pub struct ToolRegistry<S> {
@@ -282,12 +282,7 @@ impl<S: Services> ToolRegistry<S> {
                 Ok(ToolOutput::text(format_followup(output, context).await))
             }
             ToolInput::AttemptCompletion(input) => {
-                let out = self
-                    .services
-                    .attempt_completion_service()
-                    .attempt_completion(input.result)
-                    .await?;
-                context.send_summary(out).await?;
+                context.send_summary(input.result).await?;
                 context.set_complete().await;
                 Ok(ToolOutput::text(
                     "[Task was completed successfully. Now wait for user feedback]".to_string(),

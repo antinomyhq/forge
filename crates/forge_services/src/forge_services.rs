@@ -10,8 +10,8 @@ use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::tools_v2::{
-    ForgeCompletionService, ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead,
-    ForgeFsRemove, ForgeFsSearch, ForgeFsUndo, ForgeShell,
+    ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
+    ForgeFsSearch, ForgeFsUndo, ForgeShell,
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::Infrastructure;
@@ -35,7 +35,6 @@ pub struct ForgeServices<F> {
     workflow_service: Arc<ForgeWorkflowService<F>>,
     discovery_service: Arc<ForgeDiscoveryService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
-    completion_service: Arc<ForgeCompletionService>,
     file_create_service: Arc<ForgeFsCreate<F>>,
     file_read_service: Arc<ForgeFsRead<F>>,
     file_search_service: Arc<ForgeFsSearch<F>>,
@@ -79,7 +78,6 @@ impl<F: Infrastructure> ForgeServices<F> {
             workflow_service,
             discovery_service: suggestion_service,
             mcp_manager,
-            completion_service: Arc::new(ForgeCompletionService),
             file_create_service,
             file_read_service,
             file_search_service,
@@ -103,7 +101,6 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type WorkflowService = ForgeWorkflowService<F>;
     type FileDiscoveryService = ForgeDiscoveryService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
-    type AttemptCompletionService = ForgeCompletionService;
     type FsCreateService = ForgeFsCreate<F>;
     type FsPatchService = ForgeFsPatch<F>;
     type FsReadService = ForgeFsRead<F>;
@@ -148,9 +145,6 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn mcp_config_manager(&self) -> &Self::McpConfigManager {
         self.mcp_manager.as_ref()
-    }
-    fn attempt_completion_service(&self) -> &Self::AttemptCompletionService {
-        self.completion_service.as_ref()
     }
 
     fn fs_create_service(&self) -> &Self::FsCreateService {

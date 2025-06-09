@@ -156,12 +156,6 @@ pub trait FileDiscoveryService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait AttemptCompletionService: Send + Sync {
-    /// Attempts to complete a tool call with the given context.
-    async fn attempt_completion(&self, result: String) -> anyhow::Result<String>;
-}
-
-#[async_trait::async_trait]
 pub trait FsCreateService: Send + Sync {
     /// Create a file at the specified path with the given content.
     async fn create(
@@ -261,7 +255,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     type WorkflowService: WorkflowService;
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
-    type AttemptCompletionService: AttemptCompletionService;
     type FsCreateService: FsCreateService;
     type FsPatchService: FsPatchService;
     type FsReadService: FsReadService;
@@ -281,7 +274,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
-    fn attempt_completion_service(&self) -> &Self::AttemptCompletionService;
     fn fs_create_service(&self) -> &Self::FsCreateService;
     fn fs_patch_service(&self) -> &Self::FsPatchService;
     fn fs_read_service(&self) -> &Self::FsReadService;
