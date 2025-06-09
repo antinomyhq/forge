@@ -11,6 +11,30 @@ const SUFFIX_LINES: usize = 200;
 /// Maximum characters for fetch content
 const FETCH_MAX_LENGTH: usize = 40_000;
 
+async fn create_temp_file<S: Services>(
+    services: &S,
+    prefix: &str,
+    ext: &str,
+    content: &str,
+) -> anyhow::Result<PathBuf> {
+    let path = tempfile::Builder::new()
+        .keep(true)
+        .prefix(prefix)
+        .suffix(ext)
+        .tempfile()?
+        .into_temp_path()
+        .to_path_buf();
+    services
+        .fs_create_service()
+        .create(
+            path.to_string_lossy().to_string(),
+            content.to_string(),
+            true,
+        )
+        .await?;
+    Ok(path)
+}
+
 /// Clips text content based on line count
 fn clip_by_lines(
     content: &str,
@@ -152,17 +176,16 @@ impl TruncatedShellOutput {
         services: &S,
     ) -> anyhow::Result<Option<PathBuf>> {
         if self.stdout_truncated || self.stderr_truncated {
-            let path = services
-                .fs_create_service()
-                .create_temp(
-                    "forge_shell_",
-                    ".md",
-                    &format!(
-                        "command:{}\n<stdout>{}</stdout>\n<stderr>{}</stderr>",
-                        self.command, self.original_stdout, self.original_stderr
-                    ),
-                )
-                .await?;
+            let path = create_temp_file(
+                services,
+                "forge_shell_",
+                ".md",
+                &format!(
+                    "command:{}\n<stdout>{}</stdout>\n<stderr>{}</stderr>",
+                    self.command, self.original_stdout, self.original_stderr
+                ),
+            )
+            .await?;
 
             Ok(Some(path))
         } else {
@@ -193,10 +216,8 @@ impl TruncatedFetchOutput {
         services: &S,
     ) -> anyhow::Result<Option<PathBuf>> {
         if self.is_truncated {
-            let path = services
-                .fs_create_service()
-                .create_temp("forge_fetch_", ".txt", &self.original_content)
-                .await?;
+            let path =
+                create_temp_file(services, "forge_fetch_", ".txt", &self.original_content).await?;
 
             Ok(Some(path))
         } else {
@@ -259,10 +280,8 @@ impl TruncatedSearchOutput {
         services: &S,
     ) -> anyhow::Result<Option<PathBuf>> {
         if self.is_truncated {
-            let path = services
-                .fs_create_service()
-                .create_temp("forge_find_", ".md", &self.original_output)
-                .await?;
+            let path =
+                create_temp_file(services, "forge_find_", ".md", &self.original_output).await?;
 
             Ok(Some(path))
         } else {

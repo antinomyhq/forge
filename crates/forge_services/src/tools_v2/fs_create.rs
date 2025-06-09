@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -78,12 +78,5 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
             previous: old_content.is_empty().then_some(old_content),
             warning: syntax_warning.map(|v| v.to_string()),
         })
-    }
-
-    async fn create_temp(&self, prefix: &str, ext: &str, content: &str) -> anyhow::Result<PathBuf> {
-        self.0
-            .file_write_service()
-            .write_temp(prefix, ext, content)
-            .await
     }
 }

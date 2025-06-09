@@ -24,6 +24,7 @@ thiserror.workspace = true
 forge_display.workspace = true
 console.workspace = true
 derive_more.workspace = true
+tempfile.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

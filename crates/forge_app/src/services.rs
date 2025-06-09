@@ -170,10 +170,6 @@ pub trait FsCreateService: Send + Sync {
         content: String,
         overwrite: bool,
     ) -> anyhow::Result<FsCreateOutput>;
-
-    /// Creates a temporary file with the specified prefix, extension, and
-    /// content.
-    async fn create_temp(&self, prefix: &str, ext: &str, content: &str) -> anyhow::Result<PathBuf>;
 }
 
 #[async_trait::async_trait]
