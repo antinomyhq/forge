@@ -9,6 +9,7 @@ use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
+use crate::tools_v2::{ForgeCompletionService, ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch, ForgeFsUndo, ForgeShell};
 use crate::workflow::ForgeWorkflowService;
 use crate::Infrastructure;
 
@@ -31,6 +32,16 @@ pub struct ForgeServices<F> {
     workflow_service: Arc<ForgeWorkflowService<F>>,
     discovery_service: Arc<ForgeDiscoveryService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
+    completion_service: Arc<ForgeCompletionService>,
+    file_create_service: Arc<ForgeFsCreate<F>>,
+    file_read_service: Arc<ForgeFsRead<F>>,
+    file_search_service: Arc<ForgeFsSearch<F>>,
+    file_remove_service: Arc<ForgeFsRemove<F>>,
+    file_patch_service: Arc<ForgeFsPatch<F>>,
+    file_undo_service: Arc<ForgeFsUndo<F>>,
+    shell_service: Arc<ForgeShell<F>>,
+    fetch_service: Arc<ForgeFetch<F>>,
+    followup_service: Arc<ForgeFollowup<F>>,
 }
 
 impl<F: Infrastructure> ForgeServices<F> {
@@ -46,6 +57,15 @@ impl<F: Infrastructure> ForgeServices<F> {
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
+        let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
+        let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
+        let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
+        let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
+        let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
+        let file_undo_service = Arc::new(ForgeFsUndo::new(infra.clone()));
+        let shell_service = Arc::new(ForgeShell::new(infra.clone()));
+        let fetch_service = Arc::new(ForgeFetch::new(infra.clone()));
+        let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         Self {
             infra,
             conversation_service,
@@ -56,6 +76,16 @@ impl<F: Infrastructure> ForgeServices<F> {
             workflow_service,
             discovery_service: suggestion_service,
             mcp_manager,
+            completion_service: Arc::new(ForgeCompletionService),
+            file_create_service,
+            file_read_service,
+            file_search_service,
+            file_remove_service,
+            file_patch_service,
+            file_undo_service,
+            shell_service,
+            fetch_service,
+            followup_service,
         }
     }
 }
@@ -70,6 +100,16 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type WorkflowService = ForgeWorkflowService<F>;
     type FileDiscoveryService = ForgeDiscoveryService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
+    type AttemptCompletionService = ForgeCompletionService;
+    type FsCreateService = ForgeFsCreate<F>;
+    type FsPatchService = ForgeFsPatch<F>;
+    type FsReadService = ForgeFsRead<F>;
+    type FsRemoveService = ForgeFsRemove<F>;
+    type FsSearchService = ForgeFsSearch<F>;
+    type FollowUpService = ForgeFollowup<F>;
+    type FsUndoService = ForgeFsUndo<F>;
+    type NetFetchService = ForgeFetch<F>;
+    type ShellService = ForgeShell<F>;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -105,6 +145,45 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn mcp_config_manager(&self) -> &Self::McpConfigManager {
         self.mcp_manager.as_ref()
+    }
+    fn attempt_completion_service(&self) -> &Self::AttemptCompletionService {
+        self.completion_service.as_ref()
+    }
+
+    fn fs_create_service(&self) -> &Self::FsCreateService {
+        &self.file_create_service
+    }
+
+    fn fs_patch_service(&self) -> &Self::FsPatchService {
+        &self.file_patch_service
+    }
+
+    fn fs_read_service(&self) -> &Self::FsReadService {
+        &self.file_read_service
+    }
+
+    fn fs_remove_service(&self) -> &Self::FsRemoveService {
+        &self.file_remove_service
+    }
+
+    fn fs_search_service(&self) -> &Self::FsSearchService {
+        &self.file_search_service
+    }
+
+    fn follow_up_service(&self) -> &Self::FollowUpService {
+        &self.followup_service
+    }
+
+    fn fs_undo_service(&self) -> &Self::FsUndoService {
+        &self.file_undo_service
+    }
+
+    fn net_fetch_service(&self) -> &Self::NetFetchService {
+        &self.fetch_service
+    }
+
+    fn shell_service(&self) -> &Self::ShellService {
+        &self.shell_service
     }
 }
 

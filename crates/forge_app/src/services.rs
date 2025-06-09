@@ -1,20 +1,25 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use forge_domain::{
-    Agent, Attachment, ChatCompletionMessage, Context, Conversation, ConversationId, Environment,
-    File, Image, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
-    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
-};
+use forge_domain::{Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File, Image, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow};
 
 pub struct ShellOutput {
     pub stdout: String,
     pub stderr: String,
+    pub output: CommandOutput,
+    pub keep_ansi: bool,
+    pub path: Option<PathBuf>,
+    pub stdout_truncated: bool,
+    pub stderr_truncated: bool,
+    pub shell: String,
 }
 
 pub struct PatchOutput {
-    pub before: String,
-    pub after: String,
+    pub path: String,
+    pub chars: usize,
+    pub warning: Option<String>,
+    pub diff: String,
+    pub display_path: String,
 }
 
 pub struct ReadOutput {
@@ -35,6 +40,27 @@ pub struct SearchResult {
 pub struct FetchOutput {
     pub content: String,
     pub code: u16,
+    pub url: String,
+    pub original_length: usize,
+    pub start_char: usize,
+    pub end_char: usize,
+    pub context: String,
+    pub max_length: usize,
+    pub path: Option<PathBuf>,
+    pub is_truncated: bool,
+}
+
+pub struct FsCreateOutput {
+    pub path: String,
+    pub exists: bool,
+    pub chars: usize,
+    pub warning: Option<String>,
+    pub diff: String,
+    pub formatted_path: String,
+}
+
+pub struct FsRemoveOutput {
+    pub display_path: String,
 }
 
 #[async_trait::async_trait]
@@ -156,7 +182,7 @@ pub trait FsCreateService: Send + Sync {
         path: String,
         content: String,
         overwrite: bool,
-    ) -> anyhow::Result<String>;
+    ) -> anyhow::Result<FsCreateOutput>;
 }
 
 #[async_trait::async_trait]
@@ -180,7 +206,7 @@ pub trait FsReadService: Send + Sync {
 #[async_trait::async_trait]
 pub trait FsRemoveService: Send + Sync {
     /// Removes a file at the specified path.
-    async fn remove(&self, path: String, explanation: Option<String>) -> anyhow::Result<()>;
+    async fn remove(&self, path: String) -> anyhow::Result<FsRemoveOutput>;
 }
 
 #[async_trait::async_trait]
@@ -200,16 +226,16 @@ pub trait FollowUpService: Send + Sync {
     async fn follow_up(
         &self,
         question: String,
-        multiple: Option<bool>,
         options: Vec<String>,
-    ) -> anyhow::Result<String>;
+        multiple: Option<bool>,
+    ) -> anyhow::Result<Option<String>>;
 }
 
 #[async_trait::async_trait]
 pub trait FsUndoService: Send + Sync {
     /// Undoes the last file operation at the specified path.
     /// And returns the content of the undone file.
-    async fn undo(&self, path: String, explanation: Option<String>) -> anyhow::Result<String>;
+    async fn undo(&self, path: String) -> anyhow::Result<String>;
 }
 
 #[async_trait::async_trait]
@@ -221,7 +247,7 @@ pub trait NetFetchService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ShellService: Send + Sync {
     /// Executes a shell command and returns the output.
-    async fn shell(
+    async fn execute(
         &self,
         command: String,
         cwd: PathBuf,
@@ -242,6 +268,16 @@ pub trait Services: Send + Sync + 'static + Clone {
     type WorkflowService: WorkflowService;
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
+    type AttemptCompletionService: AttemptCompletionService;
+    type FsCreateService: FsCreateService;
+    type FsPatchService: FsPatchService;
+    type FsReadService: FsReadService;
+    type FsRemoveService: FsRemoveService;
+    type FsSearchService: FsSearchService;
+    type FollowUpService: FollowUpService;
+    type FsUndoService: FsUndoService;
+    type NetFetchService: NetFetchService;
+    type ShellService: ShellService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -252,4 +288,14 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
+    fn attempt_completion_service(&self) -> &Self::AttemptCompletionService;
+    fn fs_create_service(&self) -> &Self::FsCreateService;
+    fn fs_patch_service(&self) -> &Self::FsPatchService;
+    fn fs_read_service(&self) -> &Self::FsReadService;
+    fn fs_remove_service(&self) -> &Self::FsRemoveService;
+    fn fs_search_service(&self) -> &Self::FsSearchService;
+    fn follow_up_service(&self) -> &Self::FollowUpService;
+    fn fs_undo_service(&self) -> &Self::FsUndoService;
+    fn net_fetch_service(&self) -> &Self::NetFetchService;
+    fn shell_service(&self) -> &Self::ShellService;
 }

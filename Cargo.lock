@@ -977,6 +977,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "derive_setters",
+ "forge_display",
  "forge_domain",
  "forge_stream",
  "forge_walker",
