@@ -1,11 +1,14 @@
-use super::Transformer;
+use forge_domain::Transformer;
+
 use crate::forge_provider::request::Request;
 
 /// makes the Request compatible with the OpenAI API.
 pub struct MakeOpenAiCompat;
 
 impl Transformer for MakeOpenAiCompat {
-    fn transform(&self, mut request: Request) -> Request {
+    type Value = Request;
+
+    fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         // remove fields that are not supported by open-ai.
         request.provider = None;
         request.transforms = None;
@@ -17,13 +20,14 @@ impl Transformer for MakeOpenAiCompat {
         request.repetition_penalty = None;
         request.min_p = None;
         request.top_a = None;
+        request.session_id = None;
 
-        let tools_present =
-            request
-                .tools
-                .as_ref()
-                .and_then(|tools| if !tools.is_empty() { Some(true) } else { None });
-        if tools_present.is_none() {
+        let tools_present = request
+            .tools
+            .as_ref()
+            .is_some_and(|tools| !tools.is_empty());
+
+        if tools_present {
             // drop `parallel_tool_calls` field if tools are not passed to the request.
             request.parallel_tool_calls = None;
         }

@@ -1,0 +1,34 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: "TempDir::normalize(&actual)"
+snapshot_kind: text
+---
+---
+command: mixed content test
+exit_code: 1
+total_stdout_lines: 8
+total_stderr_lines: 7
+temp_file: [TEMP_DIR]
+truncated: true
+---
+<stdout lines="1-2">
+normal line 1
+
+</stdout>
+<truncated>...stdout truncated (4 lines not shown)...</truncated>
+<stdout lines="7-8">
+line with tabs:indented
+final line
+</stdout>
+
+<stderr lines="1-2">
+error: something went wrong
+
+</stderr>
+<truncated>...stderr truncated (3 lines not shown)...</truncated>
+<stderr lines="6-7">
+
+final error message
+</stderr>
+
+<truncated>content is truncated, remaining content can be read from path:[TEMP_DIR]</truncated>

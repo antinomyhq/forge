@@ -61,20 +61,20 @@ impl From<ToolCallFull> for ToolResult {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct ToolOutput {
-    pub values: Vec<ToolOutputValue>,
     pub is_error: bool,
+    pub values: Vec<ToolValue>,
 }
 
 impl ToolOutput {
     pub fn text(tool: String) -> Self {
         ToolOutput {
             is_error: Default::default(),
-            values: vec![ToolOutputValue::Text(tool)],
+            values: vec![ToolValue::Text(tool)],
         }
     }
 
     pub fn image(img: Image) -> Self {
-        ToolOutput { is_error: false, values: vec![ToolOutputValue::Image(img)] }
+        ToolOutput { is_error: false, values: vec![ToolValue::Image(img)] }
     }
 
     pub fn combine(self, other: ToolOutput) -> Self {
@@ -98,28 +98,31 @@ where
     }
 }
 
+/// Like serde_json::Value, ToolValue represents all the primitive values that
+/// tools can produce.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub enum ToolOutputValue {
+#[serde(rename_all = "camelCase")]
+pub enum ToolValue {
     Text(String),
     Image(Image),
     #[default]
     Empty,
 }
 
-impl ToolOutputValue {
+impl ToolValue {
     pub fn text(text: String) -> Self {
-        ToolOutputValue::Text(text)
+        ToolValue::Text(text)
     }
 
     pub fn image(img: Image) -> Self {
-        ToolOutputValue::Image(img)
+        ToolValue::Image(img)
     }
 
     pub fn as_str(&self) -> Option<&str> {
         match self {
-            ToolOutputValue::Text(text) => Some(text),
-            ToolOutputValue::Image(_) => None,
-            ToolOutputValue::Empty => None,
+            ToolValue::Text(text) => Some(text),
+            ToolValue::Image(_) => None,
+            ToolValue::Empty => None,
         }
     }
 }

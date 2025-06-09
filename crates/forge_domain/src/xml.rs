@@ -9,19 +9,11 @@
 ///
 /// * `Some(&str)` containing the extracted content if tags are found
 /// * `None` if the tags are not found
-///
-/// # Example
-///
-/// ```
-/// use forge_domain::extract_tag_content;
-/// let text = "Some text <summary>This is the important part</summary> and more text";
-/// let extracted = extract_tag_content(text, "summary");
-/// assert_eq!(extracted, Some("This is the important part"));
-/// ```
 pub fn extract_tag_content<'a>(text: &'a str, tag_name: &str) -> Option<&'a str> {
     let opening_tag = format!("<{tag_name}>",);
     let closing_tag = format!("</{tag_name}>");
 
+    #[allow(clippy::collapsible_if)]
     if let Some(start_idx) = text.find(&opening_tag) {
         if let Some(end_idx) = text.rfind(&closing_tag) {
             let content_start = start_idx + opening_tag.len();
@@ -58,22 +50,6 @@ pub fn remove_tag_with_prefix(text: &str, prefix: &str) -> String {
         // Create pattern to match complete tag including content
         let pattern = format!(r"<{tag_name}(?:\s[^>]*?)?>[\s\S]*?</{tag_name}>");
 
-        if let Ok(regex) = regex::Regex::new(&pattern) {
-            result = regex.replace_all(&result, "").to_string();
-        }
-    }
-
-    result
-}
-
-/// Removes content within specific XML-style tags from text
-pub fn remove_tag_content(text: &str, tag_names: &[&str]) -> String {
-    let mut result = text.to_string();
-
-    for tag_name in tag_names {
-        let pattern = format!("<{tag_name}>[\\s\\S]*?</{tag_name}>");
-
-        // Create regex to match tag content including nested tags
         if let Ok(regex) = regex::Regex::new(&pattern) {
             result = regex.replace_all(&result, "").to_string();
         }
@@ -121,40 +97,6 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_tag_content() {
-        let fixture = "Regular text <thinking>Internal thoughts</thinking> more text";
-        let actual = remove_tag_content(fixture, &["thinking"]);
-        let expected = "Regular text  more text";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_remove_multiple_tag_content() {
-        let fixture =
-            "Text <thinking>thoughts</thinking> and <analysis>deep analysis</analysis> end";
-        let actual = remove_tag_content(fixture, &["thinking", "analysis"]);
-        let expected = "Text  and  end";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_remove_nested_tag_content() {
-        let fixture =
-            "Text <thinking>thoughts <analysis>deep analysis</analysis> more</thinking> end";
-        let actual = remove_tag_content(fixture, &["thinking"]);
-        let expected = "Text  end";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_remove_non_existent_tag_content() {
-        let fixture = "Just regular text with no tags";
-        let actual = remove_tag_content(fixture, &["thinking"]);
-        let expected = "Just regular text with no tags";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_extract_tag_names_with_prefix() {
         let fixture = "<forge_tool>Something</forge_tool> <forge_tool_call>Content</forge_tool_call> <other>More</other>";
         let actual = remove_tag_with_prefix(fixture, "forge");
@@ -191,8 +133,7 @@ mod tests {
 
     #[test]
     fn test_extract_tag_names_with_prefix_attributes() {
-        let fixture =
-            "<forge_tool id=\"1\">Content</forge_tool> <forge_tool_call class=\"important\">More</forge_tool_call>";
+        let fixture = "<forge_tool id=\"1\">Content</forge_tool> <forge_tool_call class=\"important\">More</forge_tool_call>";
         let actual = remove_tag_with_prefix(fixture, "forge");
         // Check that both tool tags have been removed
         assert!(!actual.contains("<forge_tool"));

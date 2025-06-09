@@ -17,7 +17,7 @@ agents:
   - id: software-engineer
     compact:
       max_tokens: 2000
-      token_threshold: 80000
+      token_threshold: 160000
       model: *advanced_model
       retention_window: 6
       message_threshold: 200

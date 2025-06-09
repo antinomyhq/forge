@@ -63,7 +63,6 @@ impl Event {
             name: Self::tool_name(),
             description: "Dispatches an event with the provided name and value".to_string(),
             input_schema: schema_for!(EventMessage),
-            output_schema: None,
         }
     }
 

@@ -1,4 +1,4 @@
-use forge_domain::{AttachmentContent, Image, ToolOutput, ToolOutputValue};
+use forge_domain::{AttachmentContent, Image, ToolOutput, ToolValue};
 
 pub trait ToolContentExtension {
     fn into_string(self) -> String;
@@ -12,18 +12,18 @@ impl ToolContentExtension for ToolOutput {
         items
             .into_iter()
             .filter_map(|item| match item {
-                ToolOutputValue::Text(text) => Some(text),
-                ToolOutputValue::Image(_) => None,
-                ToolOutputValue::Empty => None,
+                ToolValue::Text(text) => Some(text),
+                ToolValue::Image(_) => None,
+                ToolValue::Empty => None,
             })
             .collect()
     }
 
     fn contains(&self, needle: &str) -> bool {
         self.values.iter().any(|item| match item {
-            ToolOutputValue::Text(text) => text.contains(needle),
-            ToolOutputValue::Image(_) => false,
-            ToolOutputValue::Empty => false,
+            ToolValue::Text(text) => text.contains(needle),
+            ToolValue::Image(_) => false,
+            ToolValue::Empty => false,
         })
     }
 }

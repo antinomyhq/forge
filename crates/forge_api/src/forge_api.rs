@@ -2,22 +2,20 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use forge_app::{AuthService, ChatService, ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, KeyService, McpConfigManager, Services, ToolService, WorkflowService};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{
-    AttachmentService, AuthService, ChatService, CommandExecutorService, ConversationService,
-    EnvironmentService, ForgeServices, Infrastructure, KeyService, McpConfigManager,
-    ProviderService, Services, SuggestionService, ToolService, WorkflowService,
-};
+use forge_services::{CommandExecutorService, ForgeServices, Infrastructure, ProviderService};
 use forge_stream::MpscStream;
-use tracing::error;
+
+use crate::API;
 
 pub struct ForgeAPI<A, F> {
     app: Arc<A>,
     infra: Arc<F>,
 }
 
-impl<A: Services + AgentService, F: Infrastructure> ForgeAPI<A, F> {
+impl<A: Services, F: Infrastructure> ForgeAPI<A, F> {
     pub fn new(app: Arc<A>, infra: Arc<F>) -> Self {
         Self { app, infra }
     }
@@ -32,9 +30,9 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
-    async fn suggestions(&self) -> Result<Vec<File>> {
-        self.app.suggestion_service().suggestions().await
+impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
+    async fn discover(&self) -> Result<Vec<File>> {
+        self.app.file_discovery_service().collect(None).await
     }
 
     async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
@@ -47,55 +45,11 @@ impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
 
     async fn chat(
         &self,
-        mut chat: ChatRequest,
+        chat: ChatRequest,
     ) -> anyhow::Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
-        let app = self.app.clone();
-        let conversation = app
-            .conversation_service()
-            .find(&chat.conversation_id)
-            .await
-            .unwrap_or_default()
-            .expect("conversation for the request should've been created at this point.");
-
-        let tool_definitions = app.tool_service().list().await?;
-        let models = app.chat_service().models().await?;
-
-        // Always try to get attachments and overwrite them
-        let attachments = app
-            .attachment_service()
-            .attachments(&chat.event.value.to_string())
-            .await?;
-        chat.event = chat.event.attachments(attachments);
-        let orch = Orchestrator::new(
-            app.clone(),
-            app.environment_service().get_environment().clone(),
-            conversation,
-        )
-        .tool_definitions(tool_definitions)
-        .models(models);
-
-        let stream = MpscStream::spawn(|tx| {
-            async move {
-                let tx = Arc::new(tx);
-
-                // Execute dispatch and always save conversation afterwards
-                let mut orch = orch.sender(tx.clone());
-                let dispatch_result = orch.dispatch(chat.event).await;
-
-                // Always save conversation using get_conversation()
-                let conversation = orch.get_conversation().clone();
-                let save_result = app.conversation_service().upsert(conversation).await;
-
-                // Send any error to the stream (prioritize dispatch error over save error)
-                if let Some(err) = dispatch_result.err().or(save_result.err()) {
-                    if let Err(e) = tx.send(Err(err)).await {
-                        error!("Failed to send error to stream: {:#?}", e);
-                    }
-                }
-            }
-        });
-
-        Ok(stream)
+        // Create a ForgeApp instance and delegate the chat logic to it
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.chat(chat).await
     }
 
     async fn init_conversation<W: Into<Workflow> + Send + Sync>(
@@ -116,10 +70,8 @@ impl<A: Services + AgentService, F: Infrastructure> API for ForgeAPI<A, F> {
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<CompactionResult> {
-        self.app
-            .conversation_service()
-            .compact_conversation(conversation_id)
-            .await
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.compact_conversation(conversation_id).await
     }
 
     fn environment(&self) -> Environment {

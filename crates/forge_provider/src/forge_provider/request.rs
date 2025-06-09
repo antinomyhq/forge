@@ -1,8 +1,10 @@
+use std::vec;
+
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use forge_domain::{
     Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
-    ToolOutputValue, ToolResult,
+    ToolResult, ToolValue,
 };
 use serde::{Deserialize, Serialize};
 
@@ -185,6 +187,8 @@ pub struct Request {
     pub provider: Option<ProviderPreferences>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parallel_tool_calls: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
 }
 
 impl Request {
@@ -208,7 +212,7 @@ impl Request {
 }
 
 /// ref: https://openrouter.ai/docs/transforms
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Transform {
     #[default]
     #[serde(rename = "middle-out")]
@@ -271,11 +275,12 @@ impl From<Context> for Request {
             min_p: Default::default(),
             top_a: Default::default(),
             prediction: Default::default(),
-            transforms: Default::default(),
+            transforms: Some(vec![Transform::MiddleOut]),
             models: Default::default(),
             route: Default::default(),
             provider: Default::default(),
             parallel_tool_calls: Some(false),
+            session_id: request.conversation_id.map(|id| id.to_string()),
         }
     }
 }
@@ -338,16 +343,16 @@ impl From<ToolResult> for MessageContent {
         let mut parts = Vec::new();
         for value in result.output.values.into_iter() {
             match value {
-                ToolOutputValue::Text(text) => {
+                ToolValue::Text(text) => {
                     parts.push(ContentPart::Text { text, cache_control: None });
                 }
-                ToolOutputValue::Image(img) => {
+                ToolValue::Image(img) => {
                     let content = ContentPart::ImageUrl {
                         image_url: ImageUrl { url: img.url().clone(), detail: None },
                     };
                     parts.push(content);
                 }
-                ToolOutputValue::Empty => {
+                ToolValue::Empty => {
                     // Handle empty case if needed
                 }
             }

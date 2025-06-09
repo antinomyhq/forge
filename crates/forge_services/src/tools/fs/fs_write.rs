@@ -5,6 +5,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use bytes::Bytes;
 use console::strip_ansi_codes;
+use forge_app::EnvironmentService;
 use forge_display::{DiffFormat, TitleFormat};
 // Using FSWriteInput from forge_domain
 use forge_domain::ToolOutput;
@@ -13,7 +14,6 @@ use forge_domain::{
 };
 use forge_tool_macros::ToolDescription;
 
-use crate::services::EnvironmentService;
 use crate::tools::syn;
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};

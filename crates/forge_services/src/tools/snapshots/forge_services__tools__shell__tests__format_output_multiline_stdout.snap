@@ -1,0 +1,15 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: actual
+---
+---
+command: echo multiline
+exit_code: 0
+---
+<stdout>
+line1
+line2
+line3
+line4
+line5
+</stdout>

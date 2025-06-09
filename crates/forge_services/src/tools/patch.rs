@@ -3,6 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use forge_app::EnvironmentService;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
     ExecutableTool, FSPatchInput, NamedTool, PatchOperation, ToolCallContext, ToolDescription,
@@ -12,7 +13,6 @@ use forge_tool_macros::ToolDescription;
 use thiserror::Error;
 use tokio::fs;
 
-use crate::services::EnvironmentService;
 // No longer using dissimilar for fuzzy matching
 use crate::tools::syn;
 use crate::utils::{assert_absolute_path, format_display_path};

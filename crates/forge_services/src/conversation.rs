@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as AnyhowContext, Result};
-use forge_domain::{CompactionResult, Conversation, ConversationId, Workflow};
+use forge_app::{ConversationService, McpService};
+use forge_domain::{Conversation, ConversationId, Workflow};
 use tokio::sync::Mutex;
-
-use crate::services::{ConversationService, McpService};
 
 /// Service for managing conversations, including creation, retrieval, and
 /// updates
@@ -62,14 +61,5 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
             .await
             .insert(id.clone(), conversation.clone());
         Ok(conversation)
-    }
-
-    async fn compact_conversation(&self, _id: &ConversationId) -> Result<CompactionResult> {
-        // Since compaction is now handled directly in the Orchestrator,
-        // this method now just returns a dummy result indicating no compaction was
-        // performed In a real implementation, this functionality could be moved
-        // to the Orchestrator or removed entirely if not needed at the service
-        // level
-        Ok(CompactionResult::new(0, 0, 0, 0))
     }
 }

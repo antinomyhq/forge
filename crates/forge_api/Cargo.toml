@@ -19,6 +19,7 @@ bytes.workspace = true
 tracing.workspace = true
 tokio.workspace = true
 futures.workspace = true
+forge_app.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

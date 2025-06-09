@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
+use forge_app::TemplateService;
 use handlebars::Handlebars;
 use rust_embed::Embed;
-
-use crate::services::TemplateService;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -83,6 +82,7 @@ mod tests {
                 "shell": "/bin/test",
                 "home": "/home/test"
             },
+            "current_time": "2024-01-01 12:00:00 UTC",
             "files": [
                 "/file1.txt",
                 "/file2.txt"

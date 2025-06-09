@@ -1,0 +1,29 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: "TempDir::normalize(&actual)"
+snapshot_kind: text
+---
+---
+command: stderr truncation test
+exit_code: 1
+total_stderr_lines: 15
+temp_file: [TEMP_DIR]
+truncated: true
+---
+<stdout>
+output line 1
+output line 2
+</stdout>
+<stderr lines="1-3">
+stderr line 1
+stderr line 2
+stderr line 3
+</stderr>
+<truncated>...stderr truncated (9 lines not shown)...</truncated>
+<stderr lines="13-15">
+stderr line 13
+stderr line 14
+stderr line 15
+</stderr>
+
+<truncated>content is truncated, remaining content can be read from path:[TEMP_DIR]</truncated>

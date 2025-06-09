@@ -1,0 +1,21 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: "TempDir::normalize(&actual)"
+snapshot_kind: text
+---
+---
+command: boundary truncation test
+exit_code: 0
+---
+<stdout>
+boundary line 1
+boundary line 2
+boundary line 3
+boundary line 4
+boundary line 5
+boundary line 6
+boundary line 7
+boundary line 8
+boundary line 9
+boundary line 10
+</stdout>

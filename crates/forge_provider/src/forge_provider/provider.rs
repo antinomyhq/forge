@@ -80,7 +80,8 @@ impl ForgeProvider {
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let mut request = Request::from(context).model(model.clone()).stream(true);
-        request = ProviderPipeline::new(&self.provider).transform(request);
+        let mut pipeline = ProviderPipeline::new(&self.provider);
+        request = pipeline.transform(request);
 
         let url = self.url("chat/completions")?;
 

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use forge_services::{EnvironmentService, Infrastructure};
+use forge_app::EnvironmentService;
+use forge_services::Infrastructure;
 
 use crate::env::ForgeEnvironmentService;
 use crate::executor::ForgeCommandExecutorService;

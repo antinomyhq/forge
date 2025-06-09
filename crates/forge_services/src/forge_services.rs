@@ -1,20 +1,19 @@
 use std::sync::Arc;
 
-use forge_domain::{Agent, AgentService};
+use forge_app::Services;
 
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
 use crate::chat::ForgeProviderService;
 use crate::config::ForgeConfigService;
 use crate::conversation::ForgeConversationService;
-use crate::key::ForgeKeyService;
+use crate::discovery::ForgeDiscoveryService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
-use crate::services::{Services, ToolService};
-use crate::suggestion::ForgeSuggestionService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::workflow::ForgeWorkflowService;
-use crate::{ChatService, Infrastructure};
+use crate::Infrastructure;
+use crate::key::ForgeKeyService;
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F>;
 type AuthService<F> = ForgeAuthService<F, KeyService<F>>;
@@ -35,7 +34,7 @@ pub struct ForgeServices<F> {
     template_service: Arc<ForgeTemplateService>,
     attachment_service: Arc<ForgeChatRequest<F>>,
     workflow_service: Arc<ForgeWorkflowService<F>>,
-    suggestion_service: Arc<ForgeSuggestionService<F>>,
+    discovery_service: Arc<ForgeDiscoveryService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
     config_service: Arc<ForgeConfigService<F>>,
     auth_service: Arc<AuthService<F>>,
@@ -51,7 +50,7 @@ impl<F: Infrastructure> ForgeServices<F> {
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
-        let suggestion_service = Arc::new(ForgeSuggestionService::new(infra.clone()));
+        let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
 
         let conversation_service = Arc::new(ForgeConversationService::new(mcp_service));
 
@@ -70,7 +69,7 @@ impl<F: Infrastructure> ForgeServices<F> {
             attachment_service,
             template_service,
             workflow_service,
-            suggestion_service,
+            discovery_service: suggestion_service,
             mcp_manager,
             config_service,
             auth_service,
@@ -88,7 +87,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = F::EnvironmentService;
     type WorkflowService = ForgeWorkflowService<F>;
-    type SuggestionService = ForgeSuggestionService<F>;
+    type FileDiscoveryService = ForgeDiscoveryService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
     type ConfigService = ForgeConfigService<F>;
     type AuthService = AuthService<F>;
@@ -122,8 +121,8 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
         self.workflow_service.as_ref()
     }
 
-    fn suggestion_service(&self) -> &Self::SuggestionService {
-        self.suggestion_service.as_ref()
+    fn file_discovery_service(&self) -> &Self::FileDiscoveryService {
+        self.discovery_service.as_ref()
     }
 
     fn mcp_config_manager(&self) -> &Self::McpConfigManager {
@@ -202,25 +201,5 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     }
     fn provider_service(&self) -> &Self::ProviderService {
         self.infra.provider_service()
-    }
-}
-
-#[async_trait::async_trait]
-impl<F: Infrastructure> AgentService for ForgeServices<F> {
-    async fn chat(
-        &self,
-        model_id: &forge_domain::ModelId,
-        context: forge_domain::Context,
-    ) -> forge_domain::ResultStream<forge_domain::ChatCompletionMessage, anyhow::Error> {
-        self.chat_service().chat(model_id, context).await
-    }
-
-    async fn call(
-        &self,
-        agent: &Agent,
-        context: &mut forge_domain::ToolCallContext,
-        call: forge_domain::ToolCallFull,
-    ) -> forge_domain::ToolResult {
-        self.tool_service().call(agent, context, call).await
     }
 }

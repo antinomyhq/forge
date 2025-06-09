@@ -75,6 +75,7 @@ pub struct ToolCall {
 pub struct FunctionCall {
     // Only the first event typically has the name of the function call
     pub name: Option<ToolName>,
+    #[serde(default)]
     pub arguments: String,
 }
 
@@ -197,6 +198,12 @@ mod tests {
     #[test]
     fn test_antinomy_response_event() {
         let event = "{\"id\":\"gen-1739949430-JZMcABaj4fg8oFDtRNDZ\",\"provider\":\"OpenAI\",\"model\":\"openai/gpt-4o-mini\",\"object\":\"chat.completion.chunk\",\"created\":1739949430,\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"index\":0,\"id\":\"call_bhjvz9w48ov4DSRhM15qLMmh\",\"type\":\"function\",\"function\":{\"name\":\"forge_tool_process_shell\",\"arguments\":\"\"}}],\"refusal\":null},\"logprobs\":null,\"finish_reason\":null,\"native_finish_reason\":null}],\"system_fingerprint\":\"fp_00428b782a\"}";
+        assert!(Fixture::test_response_compatibility(event));
+    }
+
+    #[test]
+    fn test_fireworks_response_event_missing_arguments() {
+        let event = "{\"id\":\"gen-1749331907-SttL6PXleVHnrdLMABfU\",\"provider\":\"Fireworks\",\"model\":\"qwen/qwen3-235b-a22b\",\"object\":\"chat.completion.chunk\",\"created\":1749331907,\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"index\":0,\"id\":\"call_Wl2L8rrzHwrXSeiciIvU65IS\",\"type\":\"function\",\"function\":{\"name\":\"forge_tool_attempt_completion\"}}]},\"finish_reason\":null,\"native_finish_reason\":null,\"logprobs\":null}]}";
         assert!(Fixture::test_response_compatibility(event));
     }
 

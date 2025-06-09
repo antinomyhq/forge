@@ -8,9 +8,7 @@ exit_code: 0
 ---
 <stdout>
 to stdout
-
 </stdout>
 <stderr>
 to stderr
-
 </stderr>

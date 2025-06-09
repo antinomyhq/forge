@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
+use forge_app::{EnvironmentService, McpConfigManager};
 use forge_domain::{McpConfig, Scope};
 use merge::Merge;
 
-use crate::services::{EnvironmentService, McpConfigManager};
 use crate::{FsMetaService, FsReadService, FsWriteService, Infrastructure};
 
 pub struct ForgeMcpManager<I> {

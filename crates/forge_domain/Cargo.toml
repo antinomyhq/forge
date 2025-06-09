@@ -4,14 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-regex.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
 derive_setters.workspace = true
-forge_stream.workspace = true
-futures.workspace = true
 nom.workspace = true
 schemars.workspace = true
 serde.workspace = true
@@ -22,19 +19,15 @@ thiserror.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
 uuid.workspace = true
-async-recursion.workspace = true
 tracing.workspace = true
 url.workspace = true
 merge.workspace = true
 serde_yml.workspace = true
 forge_template.workspace = true
-forge_walker.workspace = true
-reqwest-eventsource.workspace = true
 backon.workspace = true
 base64.workspace = true
 derive-getters = "0.5.0"
-handlebars.workspace = true
-rust-embed.workspace = true
+regex.workspace = true
 reqwest.workspace = true
 bytes.workspace = true
 

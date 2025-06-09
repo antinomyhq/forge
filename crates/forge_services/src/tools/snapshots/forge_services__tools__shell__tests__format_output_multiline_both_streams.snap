@@ -1,0 +1,17 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: actual
+---
+---
+command: complex command
+exit_code: 0
+---
+<stdout>
+stdout line 1
+stdout line 2
+stdout line 3
+</stdout>
+<stderr>
+stderr line 1
+stderr line 2
+</stderr>

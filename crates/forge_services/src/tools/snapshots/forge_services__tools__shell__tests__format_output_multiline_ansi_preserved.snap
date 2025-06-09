@@ -1,0 +1,17 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: actual_preserved
+---
+---
+command: colorized output
+exit_code: 0
+---
+<stdout>
+[32mGreen line 1[0m
+[31mRed line 2[0m
+[1mBold line 3[0m
+</stdout>
+<stderr>
+[33mYellow error 1[0m
+[35mMagenta error 2[0m
+</stderr>

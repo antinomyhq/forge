@@ -1,0 +1,17 @@
+---
+source: crates/forge_services/src/tools/shell.rs
+expression: actual_stripped
+---
+---
+command: colorized output
+exit_code: 0
+---
+<stdout>
+Green line 1
+Red line 2
+Bold line 3
+</stdout>
+<stderr>
+Yellow error 1
+Magenta error 2
+</stderr>

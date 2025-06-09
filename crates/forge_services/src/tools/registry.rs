@@ -43,6 +43,7 @@ pub mod tests {
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
+    use forge_app::EnvironmentService;
     use forge_domain::{
         CommandOutput, Environment, InitAuth, ToolDefinition, ToolName, ToolOutput,
     };
@@ -50,7 +51,6 @@ pub mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::services::EnvironmentService;
     use crate::{
         AuthService, CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
         FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
@@ -106,8 +106,8 @@ pub mod tests {
         async fn range_read_utf8(
             &self,
             _path: &Path,
-            _start_char: u64,
-            _end_char: u64,
+            _start_line: u64,
+            _end_line: u64,
         ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
             unimplemented!()
         }

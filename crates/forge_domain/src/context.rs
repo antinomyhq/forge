@@ -7,7 +7,7 @@ use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
-use crate::{Image, ModelId, ToolChoice, ToolDefinition};
+use crate::{ConversationId, Image, ModelId, ToolChoice, ToolDefinition};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -109,6 +109,8 @@ pub enum Role {
 #[derive(Clone, Debug, Deserialize, Serialize, Setters, Default, PartialEq)]
 #[setters(into, strip_option)]
 pub struct Context {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<ConversationId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub messages: Vec<ContextMessage>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -213,105 +215,33 @@ impl Context {
         format!("<chat_history>{lines}</chat_history>")
     }
 
-    /// Will append a message to the context. If the model supports tools, it
-    /// will append the tool calls and results to the message. If the model
-    /// does not support tools, it will append the tool calls and results as
-    /// separate messages.
+    /// Will append a message to the context. This method always assumes tools
+    /// are supported and uses the appropriate format. For models that don't
+    /// support tools, use the TransformToolCalls transformer to convert the
+    /// context afterward.
     pub fn append_message(
-        mut self,
+        self,
         content: impl ToString,
-        model: ModelId,
         tool_records: Vec<(ToolCallFull, ToolResult)>,
-        tool_supported: bool,
     ) -> Self {
-        if tool_supported {
-            // Adding tool calls
-            let context = self
-                .add_message(ContextMessage::assistant(
-                    content,
-                    Some(
-                        tool_records
-                            .iter()
-                            .map(|record| record.0.clone())
-                            .collect::<Vec<_>>(),
-                    ),
-                ))
-                // Adding tool results
-                .add_tool_results(
-                    tool_records
-                        .iter()
-                        .map(|record| record.1.clone())
-                        .collect::<Vec<_>>(),
-                );
-
-            update_image_tool_calls(context)
-        } else {
-            // Adding tool calls
-            self = self.add_message(ContextMessage::assistant(content.to_string(), None));
-            if tool_records.is_empty() {
-                return self;
-            }
-
-            // Adding tool results as user message
-            let outputs = tool_records
+        // Adding tool calls
+        self.add_message(ContextMessage::assistant(
+            content,
+            Some(
+                tool_records
+                    .iter()
+                    .map(|record| record.0.clone())
+                    .collect::<Vec<_>>(),
+            ),
+        ))
+        // Adding tool results
+        .add_tool_results(
+            tool_records
                 .iter()
-                .flat_map(|record| record.1.output.values.iter());
-            for out in outputs {
-                match out {
-                    crate::ToolOutputValue::Text(text) => {
-                        self = self.add_message(ContextMessage::user(text, Some(model.clone())));
-                    }
-                    crate::ToolOutputValue::Image(base64_url) => {
-                        self = self.add_base64_url(base64_url.clone());
-                    }
-                    crate::ToolOutputValue::Empty => {}
-                }
-            }
-            self
-        }
+                .map(|record| record.1.clone())
+                .collect::<Vec<_>>(),
+        )
     }
-}
-
-// Assuming tool calls are supported by the model we will convert all tool
-// results that contain images into user messages
-fn update_image_tool_calls(mut context: Context) -> Context {
-    let mut images = Vec::new();
-
-    // Step 1: Replace the image value with a text message
-    context
-        .messages
-        .iter_mut()
-        .filter_map(|message| {
-            if let ContextMessage::Tool(tool_result) = message {
-                Some(tool_result)
-            } else {
-                None
-            }
-        })
-        .flat_map(|tool_result| tool_result.output.values.iter_mut())
-        .for_each(|value| match value {
-            crate::ToolOutputValue::Image(image) => {
-                let image = std::mem::take(image);
-                let id = images.len();
-                *value = crate::ToolOutputValue::Text(format!(
-                    "[The image with ID {id} will be sent as an attachment in the next message]"
-                ));
-                images.push((id, image));
-            }
-            crate::ToolOutputValue::Text(_) => {}
-            crate::ToolOutputValue::Empty => {}
-        });
-
-    // Step 2: Insert all images in the end
-    images.into_iter().for_each(|(id, image)| {
-        context.messages.push(ContextMessage::user(
-            format!("[Here is the image attachment for ID {id}]"),
-            None,
-        ));
-        context.messages.push(ContextMessage::Image(image));
-    });
-
-    context
 }
 
 #[cfg(test)]
@@ -321,6 +251,7 @@ mod tests {
 
     use super::*;
     use crate::estimate_token_count;
+    use crate::transformer::Transformer;
 
     #[test]
     fn test_override_system_message() {
@@ -373,343 +304,12 @@ mod tests {
         // The exact value will depend on the implementation of estimate_token_count
         assert!(token_count > 0, "Token count should be greater than 0");
     }
-    #[test]
-    fn test_append_message_with_tool_support_empty_tool_records() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default();
 
-        let actual = fixture.append_message("Hello world", model.clone(), vec![], true);
-
-        let expected =
-            Context::default().add_message(ContextMessage::assistant("Hello world", None));
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_append_message_with_tool_support_single_tool_record() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default();
-
-        let tool_call = ToolCallFull {
-            name: crate::ToolName::new("test_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            arguments: serde_json::json!({"param": "value"}),
-        };
-
-        let tool_result = ToolResult {
-            name: crate::ToolName::new("test_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            output: crate::ToolOutput::text("Tool output".to_string()),
-        };
-
-        let actual = fixture.append_message(
-            "Hello world",
-            model.clone(),
-            vec![(tool_call.clone(), tool_result.clone())],
-            true,
-        );
-
-        let expected = Context::default()
-            .add_message(ContextMessage::assistant(
-                "Hello world",
-                Some(vec![tool_call]),
-            ))
-            .add_tool_results(vec![tool_result]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_append_message_with_tool_support_multiple_tool_records() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default();
-
-        let tool_call1 = ToolCallFull {
-            name: crate::ToolName::new("tool1"),
-            call_id: Some(crate::ToolCallId::new("call1")),
-            arguments: serde_json::json!({"param1": "value1"}),
-        };
-
-        let tool_call2 = ToolCallFull {
-            name: crate::ToolName::new("tool2"),
-            call_id: Some(crate::ToolCallId::new("call2")),
-            arguments: serde_json::json!({"param2": "value2"}),
-        };
-
-        let tool_result1 = ToolResult {
-            name: crate::ToolName::new("tool1"),
-            call_id: Some(crate::ToolCallId::new("call1")),
-            output: crate::ToolOutput::text("Tool 1 output".to_string()),
-        };
-
-        let tool_result2 = ToolResult {
-            name: crate::ToolName::new("tool2"),
-            call_id: Some(crate::ToolCallId::new("call2")),
-            output: crate::ToolOutput::text("Tool 2 output".to_string()),
-        };
-
-        let actual = fixture.append_message(
-            "Processing complete",
-            model.clone(),
-            vec![
-                (tool_call1.clone(), tool_result1.clone()),
-                (tool_call2.clone(), tool_result2.clone()),
-            ],
-            true,
-        );
-
-        let expected = Context::default()
-            .add_message(ContextMessage::assistant(
-                "Processing complete",
-                Some(vec![tool_call1, tool_call2]),
-            ))
-            .add_tool_results(vec![tool_result1, tool_result2]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_append_message_without_tool_support_empty_tool_records() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default();
-
-        let actual = fixture.append_message("Hello world", model.clone(), vec![], false);
-
-        let expected =
-            Context::default().add_message(ContextMessage::assistant("Hello world", None));
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_append_message_without_tool_support_single_text_output() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default();
-
-        let tool_call = ToolCallFull {
-            name: crate::ToolName::new("test_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            arguments: serde_json::json!({"param": "value"}),
-        };
-
-        let tool_result = ToolResult {
-            name: crate::ToolName::new("test_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            output: crate::ToolOutput::text("Tool output".to_string()),
-        };
-
-        let actual = fixture.append_message(
-            "Processing",
-            model.clone(),
-            vec![(tool_call, tool_result)],
-            false,
-        );
-
-        let expected = Context::default()
-            .add_message(ContextMessage::assistant("Processing", None))
-            .add_message(ContextMessage::user("Tool output", Some(model)));
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_append_message_without_tool_support_single_image_output() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default();
-
-        let image = Image::new_base64("test123".to_string(), "image/png");
-
-        let tool_call = ToolCallFull {
-            name: crate::ToolName::new("image_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            arguments: serde_json::json!({"generate": "image"}),
-        };
-
-        let tool_result = ToolResult {
-            name: crate::ToolName::new("image_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            output: crate::ToolOutput::image(image.clone()),
-        };
-
-        let actual = fixture.append_message(
-            "Image generated",
-            model.clone(),
-            vec![(tool_call, tool_result)],
-            false,
-        );
-
-        let expected = Context::default()
-            .add_message(ContextMessage::assistant("Image generated", None))
-            .add_base64_url(image);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_append_message_without_tool_support_empty_output() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default();
-
-        let tool_call = ToolCallFull {
-            name: crate::ToolName::new("void_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            arguments: serde_json::json!({}),
-        };
-
-        let tool_result = ToolResult {
-            name: crate::ToolName::new("void_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            output: crate::ToolOutput {
-                values: vec![crate::ToolOutputValue::Empty],
-                is_error: false,
-            },
-        };
-
-        let actual = fixture.append_message(
-            "Task completed",
-            model.clone(),
-            vec![(tool_call, tool_result)],
-            false,
-        );
-
-        let expected =
-            Context::default().add_message(ContextMessage::assistant("Task completed", None));
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_append_message_without_tool_support_mixed_outputs() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default();
-
-        let image = Image::new_base64("test123".to_string(), "image/png");
-
-        let tool_call1 = ToolCallFull {
-            name: crate::ToolName::new("text_tool"),
-            call_id: Some(crate::ToolCallId::new("call1")),
-            arguments: serde_json::json!({"generate": "text"}),
-        };
-
-        let tool_result1 = ToolResult {
-            name: crate::ToolName::new("text_tool"),
-            call_id: Some(crate::ToolCallId::new("call1")),
-            output: crate::ToolOutput::text("Text result".to_string()),
-        };
-
-        let tool_call2 = ToolCallFull {
-            name: crate::ToolName::new("image_tool"),
-            call_id: Some(crate::ToolCallId::new("call2")),
-            arguments: serde_json::json!({"generate": "image"}),
-        };
-
-        let tool_result2 = ToolResult {
-            name: crate::ToolName::new("image_tool"),
-            call_id: Some(crate::ToolCallId::new("call2")),
-            output: crate::ToolOutput::image(image.clone()),
-        };
-
-        let actual = fixture.append_message(
-            "Mixed outputs generated",
-            model.clone(),
-            vec![(tool_call1, tool_result1), (tool_call2, tool_result2)],
-            false,
-        );
-
-        let expected = Context::default()
-            .add_message(ContextMessage::assistant("Mixed outputs generated", None))
-            .add_message(ContextMessage::user("Text result", Some(model)))
-            .add_base64_url(image);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_append_message_without_tool_support_multiple_values_in_single_output() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default();
-
-        let image = Image::new_base64("test123".to_string(), "image/png");
-
-        let tool_call = ToolCallFull {
-            name: crate::ToolName::new("multi_tool"),
-            call_id: Some(crate::ToolCallId::new("call1")),
-            arguments: serde_json::json!({"multi": true}),
-        };
-
-        let tool_result = ToolResult {
-            name: crate::ToolName::new("multi_tool"),
-            call_id: Some(crate::ToolCallId::new("call1")),
-            output: crate::ToolOutput {
-                values: vec![
-                    crate::ToolOutputValue::Text("First text".to_string()),
-                    crate::ToolOutputValue::Image(image.clone()),
-                    crate::ToolOutputValue::Text("Second text".to_string()),
-                    crate::ToolOutputValue::Empty,
-                ],
-                is_error: false,
-            },
-        };
-
-        let actual = fixture.append_message(
-            "Multiple values generated",
-            model.clone(),
-            vec![(tool_call, tool_result)],
-            false,
-        );
-
-        let expected = Context::default()
-            .add_message(ContextMessage::assistant("Multiple values generated", None))
-            .add_message(ContextMessage::user("First text", Some(model.clone())))
-            .add_base64_url(image)
-            .add_message(ContextMessage::user("Second text", Some(model)));
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_append_message_preserves_existing_context() {
-        let model = ModelId::new("test-model");
-        let fixture = Context::default()
-            .add_message(ContextMessage::system("System prompt"))
-            .add_message(ContextMessage::user("User question", Some(model.clone())));
-
-        let tool_call = ToolCallFull {
-            name: crate::ToolName::new("test_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            arguments: serde_json::json!({"param": "value"}),
-        };
-
-        let tool_result = ToolResult {
-            name: crate::ToolName::new("test_tool"),
-            call_id: Some(crate::ToolCallId::new("call123")),
-            output: crate::ToolOutput::text("Tool output".to_string()),
-        };
-
-        let actual = fixture.append_message(
-            "Response with tool",
-            model.clone(),
-            vec![(tool_call.clone(), tool_result.clone())],
-            true,
-        );
-
-        let expected = Context::default()
-            .add_message(ContextMessage::system("System prompt"))
-            .add_message(ContextMessage::user("User question", Some(model)))
-            .add_message(ContextMessage::assistant(
-                "Response with tool",
-                Some(vec![tool_call]),
-            ))
-            .add_tool_results(vec![tool_result]);
-
-        assert_eq!(actual, expected);
-    }
     #[test]
     fn test_update_image_tool_calls_empty_context() {
         let fixture = Context::default();
-
-        let actual = update_image_tool_calls(fixture);
+        let mut transformer = crate::transformer::ImageHandling::new();
+        let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
     }
@@ -720,8 +320,8 @@ mod tests {
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", None))
             .add_message(ContextMessage::assistant("Assistant message", None));
-
-        let actual = update_image_tool_calls(fixture);
+        let mut transformer = crate::transformer::ImageHandling::new();
+        let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
     }
@@ -740,13 +340,14 @@ mod tests {
                     name: crate::ToolName::new("empty_tool"),
                     call_id: Some(crate::ToolCallId::new("call2")),
                     output: crate::ToolOutput {
-                        values: vec![crate::ToolOutputValue::Empty],
+                        values: vec![crate::ToolValue::Empty],
                         is_error: false,
                     },
                 },
             ]);
 
-        let actual = update_image_tool_calls(fixture);
+        let mut transformer = crate::transformer::ImageHandling::new();
+        let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
     }
@@ -762,7 +363,8 @@ mod tests {
                 output: crate::ToolOutput::image(image),
             }]);
 
-        let actual = update_image_tool_calls(fixture);
+        let mut transformer = crate::transformer::ImageHandling::new();
+        let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
     }
@@ -776,16 +378,17 @@ mod tests {
             call_id: Some(crate::ToolCallId::new("call1")),
             output: crate::ToolOutput {
                 values: vec![
-                    crate::ToolOutputValue::Text("First text".to_string()),
-                    crate::ToolOutputValue::Image(image1),
-                    crate::ToolOutputValue::Text("Second text".to_string()),
-                    crate::ToolOutputValue::Image(image2),
+                    crate::ToolValue::Text("First text".to_string()),
+                    crate::ToolValue::Image(image1),
+                    crate::ToolValue::Text("Second text".to_string()),
+                    crate::ToolValue::Image(image2),
                 ],
                 is_error: false,
             },
         }]);
 
-        let actual = update_image_tool_calls(fixture);
+        let mut transformer = crate::transformer::ImageHandling::new();
+        let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
     }
@@ -814,7 +417,8 @@ mod tests {
                 },
             ]);
 
-        let actual = update_image_tool_calls(fixture);
+        let mut transformer = crate::transformer::ImageHandling::new();
+        let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
     }
@@ -831,16 +435,17 @@ mod tests {
                 call_id: Some(crate::ToolCallId::new("call1")),
                 output: crate::ToolOutput {
                     values: vec![
-                        crate::ToolOutputValue::Text("Before image".to_string()),
-                        crate::ToolOutputValue::Image(image),
-                        crate::ToolOutputValue::Text("After image".to_string()),
-                        crate::ToolOutputValue::Empty,
+                        crate::ToolValue::Text("Before image".to_string()),
+                        crate::ToolValue::Image(image),
+                        crate::ToolValue::Text("After image".to_string()),
+                        crate::ToolValue::Empty,
                     ],
                     is_error: false,
                 },
             }]);
 
-        let actual = update_image_tool_calls(fixture);
+        let mut transformer = crate::transformer::ImageHandling::new();
+        let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
     }
@@ -852,12 +457,13 @@ mod tests {
             name: crate::ToolName::new("error_tool"),
             call_id: Some(crate::ToolCallId::new("call1")),
             output: crate::ToolOutput {
-                values: vec![crate::ToolOutputValue::Image(image)],
+                values: vec![crate::ToolValue::Image(image)],
                 is_error: true,
             },
         }]);
 
-        let actual = update_image_tool_calls(fixture);
+        let mut transformer = crate::transformer::ImageHandling::new();
+        let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
     }

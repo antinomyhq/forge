@@ -3,13 +3,14 @@ use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use forge_app::{AttachmentService, EnvironmentService};
 use forge_domain::{Attachment, AttachmentContent, Image};
 
-use crate::services::{AttachmentService, EnvironmentService};
 use crate::{FsReadService, Infrastructure};
 
-#[derive(Clone)]
+const MAX_LINES: u64 = 500;
 
+#[derive(Clone)]
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
@@ -29,15 +30,14 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         path: &Path,
         infra: &impl FsReadService,
     ) -> anyhow::Result<String> {
-        const MAX_CHARS: u64 = 40_000;
-        let (content, file_info) = infra.range_read_utf8(path, 0, MAX_CHARS).await?;
+        let (content, file_info) = infra.range_read_utf8(path, 1, MAX_LINES).await?;
         let mut response = String::new();
         writeln!(response, "---")?;
         writeln!(response, "path: {}", path.display())?;
 
-        writeln!(response, "start_char: {}", file_info.start_char)?;
-        writeln!(response, "end_char: {}", file_info.end_char)?;
-        writeln!(response, "total_chars: {}", file_info.total_chars)?;
+        writeln!(response, "start_line: {}", file_info.start_line)?;
+        writeln!(response, "end_line: {}", file_info.end_line)?;
+        writeln!(response, "total_lines: {}", file_info.total_lines)?;
 
         writeln!(response, "---")?;
 
@@ -115,6 +115,7 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
+    use forge_app::{AttachmentService, EnvironmentService};
     use forge_domain::{
         AttachmentContent, CommandOutput, Environment, ForgeKey, Provider, ProviderUrl, Response,
         RetryConfig, ToolDefinition, ToolName, ToolOutput,
@@ -123,7 +124,6 @@ pub mod tests {
     use serde_json::Value;
 
     use crate::attachment::ForgeChatRequest;
-    use crate::services::{AttachmentService, EnvironmentService};
     use crate::utils::AttachmentExtension;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
@@ -207,17 +207,18 @@ pub mod tests {
         async fn range_read_utf8(
             &self,
             path: &Path,
-            _start_char: u64,
-            _end_char: u64,
+            _start_line: u64,
+            _end_line: u64,
         ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
             // For tests, we'll just read the entire file and return it
             let content = self.read_utf8(path).await?;
-            let total_chars = content.len() as u64;
+            let lines: Vec<&str> = content.lines().collect();
+            let total_lines = lines.len() as u64;
 
             // Return the entire content for simplicity in tests
             Ok((
                 content,
-                forge_fs::FileInfo::new(0, total_chars, total_chars),
+                forge_fs::FileInfo::new(0, total_lines, total_lines),
             ))
         }
     }
@@ -614,9 +615,9 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("This is a text file content"));
-        assert!(attachment.content.contains("start_char:"));
-        assert!(attachment.content.contains("end_char:"));
-        assert!(attachment.content.contains("total_chars:"));
+        assert!(attachment.content.contains("start_line:"));
+        assert!(attachment.content.contains("end_line:"));
+        assert!(attachment.content.contains("total_lines:"));
     }
 
     #[tokio::test]
@@ -770,8 +771,8 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("Some content"));
-        assert!(attachment.content.contains("start_char:"));
-        assert!(attachment.content.contains("end_char:"));
-        assert!(attachment.content.contains("total_chars:"));
+        assert!(attachment.content.contains("start_line:"));
+        assert!(attachment.content.contains("end_line:"));
+        assert!(attachment.content.contains("total_lines:"));
     }
 }

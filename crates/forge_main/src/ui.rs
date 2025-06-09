@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
+use std::fmt::Display;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use colored::Colorize;
 use forge_api::{
     ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId, Workflow, API,
 };
@@ -90,6 +92,9 @@ impl<F: API> UI<F> {
 
         // Override the mode that was reset by the conversation
         self.state.mode = mode.clone();
+
+        // Reset is_first to true when switching modes
+        self.state.is_first = true;
 
         // Retrieve the conversation, update it, and save it back
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
@@ -393,10 +398,12 @@ impl<F: API> UI<F> {
     /// canceled
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
         // Fetch available models
-        let models = self.get_models().await?;
-
-        // Create list of model IDs for selection
-        let model_ids: Vec<ModelId> = models.into_iter().map(|m| m.id).collect();
+        let models = self
+            .get_models()
+            .await?
+            .into_iter()
+            .map(CliModel)
+            .collect::<Vec<_>>();
 
         // Create a custom render config with the specified icons
         let render_config = RenderConfig::default()
@@ -409,11 +416,11 @@ impl<F: API> UI<F> {
             .state
             .model
             .as_ref()
-            .and_then(|current| model_ids.iter().position(|id| id == current))
+            .and_then(|current| models.iter().position(|m| &m.0.id == current))
             .unwrap_or(0);
 
         // Use inquire to select a model, with the current model pre-selected
-        match Select::new("Select a model:", model_ids)
+        match Select::new("Select a model:", models)
             .with_help_message(
                 "Type a model name or use arrow keys to navigate and Enter to select",
             )
@@ -421,7 +428,7 @@ impl<F: API> UI<F> {
             .with_starting_cursor(starting_cursor)
             .prompt()
         {
-            Ok(model) => Ok(Some(model)),
+            Ok(model) => Ok(Some(model.0.id)),
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
                 // Return None if selection was canceled
                 Ok(None)
@@ -716,4 +723,16 @@ fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
             }
         })
         .collect()
+}
+
+struct CliModel(Model);
+
+impl Display for CliModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.id)?;
+        if self.0.tools_supported.unwrap_or_default() {
+            write!(f, " {}", "(tool_use)".dimmed())?;
+        }
+        Ok(())
+    }
 }
