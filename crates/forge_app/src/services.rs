@@ -41,11 +41,9 @@ pub struct FetchOutput {
 
 pub struct FsCreateOutput {
     pub path: String,
-    pub exists: bool,
-    pub chars: usize,
+    // Set when the file already exists
+    pub previous: Option<String>,
     pub warning: Option<String>,
-    pub diff: String,
-    pub formatted_path: String,
 }
 
 pub struct FsRemoveOutput {

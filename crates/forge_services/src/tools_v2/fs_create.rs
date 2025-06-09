@@ -3,13 +3,11 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
-use console::strip_ansi_codes;
-use forge_app::{EnvironmentService, FsCreateOutput, FsCreateService};
-use forge_display::DiffFormat;
+use forge_app::{FsCreateOutput, FsCreateService};
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
 
-use crate::utils::{assert_absolute_path, format_display_path};
+use crate::utils::assert_absolute_path;
 use crate::{FsCreateDirsService, FsMetaService, FsReadService, FsWriteService, Infrastructure};
 
 /// Use it to create a new file at a specified path with the provided content.
@@ -24,19 +22,6 @@ pub struct ForgeFsCreate<F>(Arc<F>);
 impl<F: Infrastructure> ForgeFsCreate<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self(infra)
-    }
-    /// Formats a path for display, converting absolute paths to relative when
-    /// possible
-    ///
-    /// If the path starts with the current working directory, returns a
-    /// relative path. Otherwise, returns the original absolute path.
-    fn format_display_path(&self, path: &Path) -> anyhow::Result<String> {
-        // Get the current working directory
-        let env = self.0.environment_service().get_environment();
-        let cwd = env.cwd.as_path();
-
-        // Use the shared utility function
-        format_display_path(path, cwd)
     }
 }
 
@@ -82,25 +67,16 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
             "".to_string()
         };
 
-        let chars = content.len();
-
         // Write file only after validation passes and directories are created
         self.0
             .file_write_service()
             .write(path, Bytes::from(content))
             .await?;
 
-        let new_content = self.0.file_read_service().read_utf8(path).await?;
-        let diff = DiffFormat::format(&old_content, &new_content);
-        let formatted_path = self.format_display_path(path)?;
-
         Ok(FsCreateOutput {
             path: path.display().to_string(),
-            exists: file_exists,
-            chars,
+            previous: old_content.is_empty().then_some(old_content),
             warning: syntax_warning.map(|v| v.to_string()),
-            diff: strip_ansi_codes(&diff).to_string(),
-            formatted_path,
         })
     }
 

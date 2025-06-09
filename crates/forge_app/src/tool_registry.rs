@@ -64,29 +64,46 @@ impl<S: Services> ToolRegistry<S> {
                 )?))
             }
             ToolInput::FSWrite(input) => {
+                let chars = input.content.len();
                 let out = self
                     .services
                     .fs_create_service()
-                    .create(input.path, input.content, input.overwrite)
+                    .create(input.path.clone(), input.content, input.overwrite)
                     .await?;
 
-                let operation = if out.exists { "OVERWRITE" } else { "CREATE" };
+                let formatted_path = display_path(self.services.as_ref(), Path::new(&out.path))?;
+
+                let new_content = self
+                    .services
+                    .fs_read_service()
+                    .read(input.path, None, None)
+                    .await?;
+                let exists = out.previous.is_some();
+
+                let operation = if exists { "OVERWRITE" } else { "CREATE" };
                 let metadata = FrontMatter::default()
                     .add("path", &out.path)
                     .add("operation", operation)
-                    .add("total_chars", out.chars)
+                    .add("total_chars", chars)
                     .add_optional("Warning", out.warning.as_ref());
 
-                let title = if out.exists { "Overwrite" } else { "Create" };
+                let title = if exists { "Overwrite" } else { "Create" };
 
                 context
                     .send_text(format!(
                         "{}",
-                        TitleFormat::debug(title).sub_title(out.formatted_path)
+                        TitleFormat::debug(title).sub_title(formatted_path)
                     ))
                     .await?;
-                context.send_text(out.diff).await?;
 
+                if let Some(old_content) = out.previous.as_ref() {
+                    match new_content.content {
+                        Content::File(new_content) => {
+                            let diff = DiffFormat::format(&old_content, &new_content);
+                            context.send_text(diff).await?;
+                        }
+                    }
+                }
                 Ok(ToolOutput::text(metadata.to_string()))
             }
             ToolInput::FSSearch(input) => {
