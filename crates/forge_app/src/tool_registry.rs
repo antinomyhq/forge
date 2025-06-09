@@ -158,7 +158,7 @@ impl<S: Services> ToolRegistry<S> {
                     .fs_remove_service()
                     .remove(input.path.clone())
                     .await?;
-                
+
                 let display_path = display_path(self.services.as_ref(), Path::new(&input.path))?;
 
                 let message = TitleFormat::debug("Remove").sub_title(&display_path);
@@ -167,8 +167,7 @@ impl<S: Services> ToolRegistry<S> {
                 context.send_text(message).await?;
 
                 Ok(ToolOutput::text(format!(
-                    "Successfully removed file: {}",
-                    display_path
+                    "Successfully removed file: {display_path}"
                 )))
             }
             ToolInput::FSPatch(input) => {

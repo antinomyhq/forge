@@ -52,6 +52,6 @@ impl<F: Infrastructure> FsRemoveService for ForgeFsRemove<F> {
 
         self.0.file_remove_service().remove(path).await?;
 
-        Ok(FsRemoveOutput { completed: true, })
+        Ok(FsRemoveOutput { completed: true })
     }
 }
