@@ -219,12 +219,12 @@ impl<S: Services> ToolRegistry<S> {
                 let fetch_output = self
                     .services
                     .net_fetch_service()
-                    .fetch(input.url, input.raw)
+                    .fetch(input.url.clone(), input.raw)
                     .await?;
 
                 let truncated_output = truncate_fetch_content(
                     &fetch_output.content,
-                    &fetch_output.url,
+                    &input.url,
                     fetch_output.code,
                     &fetch_output.context,
                 );

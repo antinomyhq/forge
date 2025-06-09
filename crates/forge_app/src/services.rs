@@ -36,7 +36,6 @@ pub struct SearchResult {
 pub struct FetchOutput {
     pub content: String,
     pub code: u16,
-    pub url: String,
     pub context: String,
 }
 

@@ -120,6 +120,6 @@ impl NetFetchService for ForgeFetch {
 
         let (content, context, code) = self.fetch_url(&url, raw.unwrap_or(false)).await?;
 
-        Ok(FetchOutput { content, code, url: url.to_string(), context })
+        Ok(FetchOutput { content, code, context })
     }
 }
