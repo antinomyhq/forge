@@ -273,7 +273,7 @@ pub mod tests {
             &self,
             path: &Path,
             contents: Bytes,
-            capture_snapshot: bool,
+            _capture_snapshot: bool,
         ) -> anyhow::Result<()> {
             let index = self.files.lock().unwrap().iter().position(|v| v.0 == path);
             if let Some(index) = index {

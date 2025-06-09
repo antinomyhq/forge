@@ -119,9 +119,9 @@ pub mod tests {
     impl FsWriteService for Stub {
         async fn write(
             &self,
-            path: &Path,
-            contents: Bytes,
-            capture_snapshot: bool,
+            _path: &Path,
+            _contents: Bytes,
+            _capture_snapshot: bool,
         ) -> anyhow::Result<()> {
             unimplemented!()
         }
