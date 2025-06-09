@@ -12,7 +12,7 @@ use crate::metadata::Metadata;
 use crate::{
     AttemptCompletionService, FetchOutput, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput,
-    ReadOutput, SearchResult, Services, ShellOutput, ShellService,
+    ReadOutput, SearchResult, Services, ShellService, TruncatedShellOutput, truncate_shell_output,
 };
 
 pub struct ToolRegistry<S> {
@@ -136,18 +136,27 @@ impl<S: Services> ToolRegistry<S> {
                 Ok(ToolOutput::text(format_fs_undo(output)))
             }
             ToolInput::Shell(input) => {
-                let output = self
+                let shell_output = self
                     .services
                     .shell_service()
                     .execute(input.command, input.cwd, input.keep_ansi)
                     .await?;
 
+                let truncated_output = truncate_shell_output(
+                    &shell_output.output.stdout,
+                    &shell_output.output.stderr,
+                    &shell_output.output.command,
+                );
+
                 let title_format =
-                    TitleFormat::debug(format!("Execute [{}]", output.shell.as_str()))
-                        .sub_title(&output.output.command);
+                    TitleFormat::debug(format!("Execute [{}]", shell_output.shell.as_str()))
+                        .sub_title(&shell_output.output.command);
                 context.send_text(title_format).await?;
 
-                Ok(ToolOutput::text(format_shell(output)?))
+                Ok(ToolOutput::text(
+                    format_shell_truncated(shell_output, truncated_output, self.services.as_ref())
+                        .await?,
+                ))
             }
             ToolInput::NetFetch(input) => {
                 let out = self
@@ -255,34 +264,44 @@ fn format_net_fetch(out: FetchOutput) -> anyhow::Result<String> {
     Ok(format!("{metadata}{truncation_tag}"))
 }
 
-fn format_shell(output: ShellOutput) -> anyhow::Result<String> {
-    let mut metadata = Metadata::default().add("command", &output.output.command);
+async fn format_shell_truncated<S: Services>(
+    shell_output: crate::ShellOutput,
+    truncated_output: TruncatedShellOutput,
+    services: &S,
+) -> anyhow::Result<String> {
+    let mut metadata = Metadata::default().add("command", &shell_output.output.command);
 
-    if let Some(exit_code) = output.output.exit_code {
+    if let Some(exit_code) = shell_output.output.exit_code {
         metadata = metadata.add("exit_code", exit_code);
     }
 
-    if output.stdout_truncated {
-        metadata = metadata.add("total_stdout_lines", output.stdout.lines().count());
+    if truncated_output.stdout_truncated {
+        metadata = metadata.add(
+            "total_stdout_lines",
+            shell_output.output.stdout.lines().count(),
+        );
     }
 
-    if output.stderr_truncated {
-        metadata = metadata.add("total_stderr_lines", output.stderr.lines().count());
+    if truncated_output.stderr_truncated {
+        metadata = metadata.add(
+            "total_stderr_lines",
+            shell_output.output.stderr.lines().count(),
+        );
     }
 
     // Combine outputs
     let mut outputs = vec![];
-    if !output.stdout.is_empty() {
-        outputs.push(output.stdout);
+    if !truncated_output.stdout.is_empty() {
+        outputs.push(truncated_output.stdout.clone());
     }
-    if !output.stderr.is_empty() {
-        outputs.push(output.stderr);
+    if !truncated_output.stderr.is_empty() {
+        outputs.push(truncated_output.stderr.clone());
     }
 
     let mut result = if outputs.is_empty() {
         format!(
             "Command {} with no output.",
-            if output.output.success() {
+            if shell_output.output.success() {
                 "executed successfully"
             } else {
                 "failed"
@@ -294,13 +313,18 @@ fn format_shell(output: ShellOutput) -> anyhow::Result<String> {
 
     result = format!("{metadata}{result}");
 
-    if let Some(path) = output.path {
+    // Create temp file if needed
+    if let Some(path) = truncated_output
+        .create_temp_file_if_needed(services)
+        .await?
+    {
         result.push_str(&format!(
             "\n<truncated>content is truncated, remaining content can be read from path:{}</truncated>",
             path.display()
         ));
     }
-    if output.output.success() {
+
+    if shell_output.output.success() {
         Ok(result)
     } else {
         anyhow::bail!(result)
