@@ -2,14 +2,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::{EnvironmentService, FsPatchService, PatchOutput};
+use forge_app::{FsPatchService, PatchOutput};
 use forge_domain::{PatchOperation, ToolDescription};
 use forge_tool_macros::ToolDescription;
 use thiserror::Error;
 use tokio::fs;
 
 // No longer using dissimilar for fuzzy matching
-use crate::utils::{assert_absolute_path, format_display_path};
+use crate::utils::assert_absolute_path;
 use crate::{FsWriteService, Infrastructure};
 
 // Removed fuzzy matching threshold as we only use exact matching now
@@ -176,20 +176,6 @@ pub struct ForgeFsPatch<F>(Arc<F>);
 impl<F: Infrastructure> ForgeFsPatch<F> {
     pub fn new(input: Arc<F>) -> Self {
         Self(input)
-    }
-
-    /// Formats a path for display, converting absolute paths to relative when
-    /// possible
-    ///
-    /// If the path starts with the current working directory, returns a
-    /// relative path. Otherwise, returns the original absolute path.
-    fn format_display_path(&self, path: &Path) -> anyhow::Result<String> {
-        // Get the current working directory
-        let env = self.0.environment_service().get_environment();
-        let cwd = env.cwd.as_path();
-
-        // Use the shared utility function
-        format_display_path(path, cwd)
     }
 }
 

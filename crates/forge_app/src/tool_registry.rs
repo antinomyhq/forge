@@ -12,10 +12,10 @@ use serde_json::Value;
 use crate::front_matter::FrontMatter;
 use crate::utils::display_path;
 use crate::{
-    AttemptCompletionService, FollowUpService, FsCreateService, FsPatchService, FsReadService,
-    FsRemoveService, FsSearchService, FsUndoService, NetFetchService, ReadOutput, Services,
+    truncate_fetch_content, truncate_search_output, truncate_shell_output, AttemptCompletionService,
+    FollowUpService, FsCreateService, FsPatchService, FsReadService, FsRemoveService,
+    FsSearchService, FsUndoService, NetFetchService, ReadOutput, Services,
     ShellService, TruncatedFetchOutput, TruncatedSearchOutput, TruncatedShellOutput,
-    truncate_fetch_content, truncate_search_output, truncate_shell_output,
 };
 
 pub struct ToolRegistry<S> {
@@ -36,15 +36,24 @@ impl<S: Services> ToolRegistry<S> {
         let input = serde_json::from_value::<ToolInput>(arguments)?;
         match input {
             ToolInput::FSRead(input) => {
+                let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
+
                 let output = self
                     .services
                     .fs_read_service()
-                    .read(input.path, input.start_line, input.end_line)
+                    .read(input.path.clone(), input.start_line, input.end_line)
                     .await?;
+                let display_path = display_path(self.services.as_ref(), Path::new(&input.path))?;
+                let is_truncated = output.total_lines > output.end_line;
 
-                send_read_context(context, &output).await?;
+                send_read_context(context, &output, &display_path, is_explicit_range, is_truncated).await?;
 
-                Ok(ToolOutput::text(format_fs_read(output)?))
+                Ok(ToolOutput::text(format_fs_read(
+                    &input.path,
+                    is_explicit_range,
+                    is_truncated,
+                    output,
+                )?))
             }
             ToolInput::FSWrite(input) => {
                 let out = self
@@ -429,13 +438,19 @@ async fn format_fs_search_truncated<S: Services>(
     Ok(result)
 }
 
-async fn send_read_context(ctx: &mut ToolCallContext, out: &ReadOutput) -> anyhow::Result<()> {
-    let is_range_relevant = out.is_explicit_range || out.is_truncated;
+async fn send_read_context(
+    ctx: &mut ToolCallContext,
+    out: &ReadOutput,
+    display_path: &str,
+    is_explicit_range: bool,
+    is_truncated: bool,
+) -> anyhow::Result<()> {
+    let is_range_relevant = is_explicit_range || is_truncated;
     // Set the title based on whether this was an explicit user range request
     // or an automatic limit for large files that actually needed truncation
-    let title = if out.is_explicit_range {
+    let title = if is_explicit_range {
         "Read (Range)"
-    } else if out.is_truncated {
+    } else if is_truncated {
         // Only show "Auto-Limited" if the file was actually truncated
         "Read (Auto-Limited)"
     } else {
@@ -451,7 +466,7 @@ async fn send_read_context(ctx: &mut ToolCallContext, out: &ReadOutput) -> anyho
     let mut subtitle = String::new();
 
     // Always include the file path
-    subtitle.push_str(&out.display_path);
+    subtitle.push_str(display_path);
 
     // Add range info if relevant
     if is_range_relevant {
@@ -463,10 +478,15 @@ async fn send_read_context(ctx: &mut ToolCallContext, out: &ReadOutput) -> anyho
     Ok(())
 }
 
-fn format_fs_read(out: ReadOutput) -> anyhow::Result<String> {
-    let is_range_relevant = out.is_explicit_range || out.is_truncated;
+fn format_fs_read(
+    path: &str,
+    is_explicit_range: bool,
+    is_truncated: bool,
+    out: ReadOutput,
+) -> anyhow::Result<String> {
+    let is_range_relevant = is_explicit_range || is_truncated;
 
-    let mut metadata = FrontMatter::default().add("path", &out.path);
+    let mut metadata = FrontMatter::default().add("path", &path);
 
     if is_range_relevant {
         metadata = metadata

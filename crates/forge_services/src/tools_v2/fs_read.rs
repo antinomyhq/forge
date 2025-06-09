@@ -2,11 +2,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{bail, Context};
-use forge_app::{Content, EnvironmentService, FsReadService, ReadOutput};
+use forge_app::{Content, FsReadService, ReadOutput};
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
 
-use crate::utils::{assert_absolute_path, format_display_path};
+use crate::utils::assert_absolute_path;
 use crate::{FsReadService as _, Infrastructure};
 
 const MAX_RANGE_SIZE: u64 = 500;
@@ -55,19 +55,6 @@ impl<F: Infrastructure> ForgeFsRead<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self(infra)
     }
-    /// Formats a path for display, converting absolute paths to relative when
-    /// possible
-    ///
-    /// If the path starts with the current working directory, returns a
-    /// relative path. Otherwise, returns the original absolute path.
-    fn format_display_path(&self, path: &Path) -> anyhow::Result<String> {
-        // Get the current working directory
-        let env = self.0.environment_service().get_environment();
-        let cwd = env.cwd.as_path();
-
-        // Use the shared utility function
-        format_display_path(path, cwd)
-    }
 }
 
 #[async_trait::async_trait]
@@ -94,22 +81,11 @@ impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
             .await
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
 
-        // Determine if the user requested an explicit range
-        let is_explicit_range = istart_line.is_some() | iend_line.is_some();
-
-        // Determine if the file is larger than the limit and needs truncation
-        let is_truncated = file_info.total_lines > end_line;
-        let display_path = self.format_display_path(path)?;
-
         Ok(ReadOutput {
             content: Content::File(content),
-            path: path.display().to_string(),
             start_line: file_info.start_line,
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
-            is_explicit_range,
-            is_truncated,
-            display_path,
         })
     }
 }

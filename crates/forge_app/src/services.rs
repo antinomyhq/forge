@@ -22,13 +22,9 @@ pub struct PatchOutput {
 
 pub struct ReadOutput {
     pub content: Content,
-    pub path: String,
     pub start_line: u64,
     pub end_line: u64,
     pub total_lines: u64,
-    pub is_explicit_range: bool,
-    pub is_truncated: bool,
-    pub display_path: String,
 }
 
 pub enum Content {
