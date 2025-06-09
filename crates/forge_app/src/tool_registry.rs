@@ -1,7 +1,8 @@
 use std::cmp::min;
+use std::path::Path;
 use std::sync::Arc;
 
-use forge_display::{GrepFormat, TitleFormat};
+use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
     Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolInput, ToolName, ToolOutput,
     ToolResult,
@@ -9,11 +10,12 @@ use forge_domain::{
 use serde_json::Value;
 
 use crate::front_matter::FrontMatter;
+use crate::utils::{display_path, format_display_path};
 use crate::{
-    AttemptCompletionService, FollowUpService, FsCreateService, FsPatchService, FsReadService,
-    FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput, ReadOutput,
-    Services, ShellService, TruncatedFetchOutput, TruncatedSearchOutput, TruncatedShellOutput,
-    truncate_fetch_content, truncate_search_output, truncate_shell_output,
+    AttemptCompletionService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput,
+    ReadOutput, Services, ShellService, TruncatedFetchOutput, TruncatedSearchOutput,
+    TruncatedShellOutput, truncate_fetch_content, truncate_search_output, truncate_shell_output,
 };
 
 pub struct ToolRegistry<S> {
@@ -121,20 +123,36 @@ impl<S: Services> ToolRegistry<S> {
                 let output = self
                     .services
                     .fs_patch_service()
-                    .patch(input.path, input.search, input.operation, input.content)
+                    .patch(
+                        input.path.clone(),
+                        input.search,
+                        input.operation,
+                        input.content,
+                    )
                     .await?;
+
+                let display_path = display_path(self.services.as_ref(), Path::new(&input.path))?;
+                // Generate diff between old and new content
+                let diff =
+                    console::strip_ansi_codes(&DiffFormat::format(&output.before, &output.after))
+                        .to_string();
 
                 context
                     .send_text(format!(
                         "{}",
-                        TitleFormat::debug("Patch").sub_title(&output.display_path)
+                        TitleFormat::debug("Patch").sub_title(&display_path)
                     ))
                     .await?;
 
                 // Output diff either to sender or println
-                context.send_text(&output.diff).await?;
+                context.send_text(&diff).await?;
 
-                Ok(ToolOutput::text(format_fs_patch(output)?))
+                Ok(ToolOutput::text(format_fs_patch(
+                    &input.path,
+                    output.warning,
+                    diff,
+                    output.after.len(),
+                )?))
             }
             ToolInput::FSUndo(input) => {
                 let output = self.services.fs_undo_service().undo(input.path).await?;
@@ -364,13 +382,18 @@ fn format_fs_undo(output: String) -> String {
     format!("Successfully undid last operation on path: {output}")
 }
 
-fn format_fs_patch(output: PatchOutput) -> anyhow::Result<String> {
+fn format_fs_patch(
+    path: &str,
+    warning: Option<String>,
+    diff: String,
+    total_chars: usize,
+) -> anyhow::Result<String> {
     let metadata = FrontMatter::default()
-        .add("path", &output.path)
-        .add("total_chars", output.chars)
-        .add_optional("warning", output.warning.as_ref());
+        .add("path", path)
+        .add("total_chars", total_chars)
+        .add_optional("warning", warning.as_ref());
 
-    Ok(format!("{metadata}{}", output.diff))
+    Ok(format!("{metadata}{diff}"))
 }
 
 async fn format_fs_search_truncated<S: Services>(

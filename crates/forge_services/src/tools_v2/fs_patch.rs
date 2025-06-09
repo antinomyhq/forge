@@ -215,11 +215,6 @@ impl<F: Infrastructure> FsPatchService for ForgeFsPatch<F> {
         // Apply the replacement
         current_content = apply_replacement(current_content, &search, &operation, &content)?;
 
-        // Format the display path for output
-        let display_path = self.format_display_path(path)?;
-        // Generate diff between old and new content
-        let diff = DiffFormat::format(&old_content, &current_content);
-
         // Write final content to file after all patches are applied
         self.0
             .file_write_service()
@@ -227,11 +222,9 @@ impl<F: Infrastructure> FsPatchService for ForgeFsPatch<F> {
             .await?;
 
         Ok(PatchOutput {
-            path: path.display().to_string(),
-            chars: current_content.len(),
             warning: super::syn::validate(path, &current_content).map(|e| e.to_string()),
-            diff: console::strip_ansi_codes(&diff).to_string(),
-            display_path,
+            before: old_content,
+            after: current_content,
         })
     }
 }

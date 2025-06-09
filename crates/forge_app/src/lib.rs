@@ -8,6 +8,7 @@ mod services;
 mod template;
 mod tool_registry;
 mod truncation;
+mod utils;
 
 pub use agent::*;
 pub use app::*;

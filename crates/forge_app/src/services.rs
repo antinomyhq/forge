@@ -15,11 +15,9 @@ pub struct ShellOutput {
 }
 
 pub struct PatchOutput {
-    pub path: String,
-    pub chars: usize,
     pub warning: Option<String>,
-    pub diff: String,
-    pub display_path: String,
+    pub before: String,
+    pub after: String,
 }
 
 pub struct ReadOutput {
