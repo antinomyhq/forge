@@ -1,12 +1,14 @@
+use std::path::Path;
+use std::sync::Arc;
+
 use bytes::Bytes;
 use forge_app::{EnvironmentService, FsPatchService, PatchOutput};
 use forge_display::DiffFormat;
 use forge_domain::{PatchOperation, ToolDescription};
 use forge_tool_macros::ToolDescription;
-use std::path::Path;
-use std::sync::Arc;
 use thiserror::Error;
 use tokio::fs;
+
 // No longer using dissimilar for fuzzy matching
 use crate::utils::{assert_absolute_path, format_display_path};
 use crate::{FsWriteService, Infrastructure};

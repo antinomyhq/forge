@@ -9,7 +9,10 @@ use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
-use crate::tools_v2::{ForgeCompletionService, ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch, ForgeFsUndo, ForgeShell};
+use crate::tools_v2::{
+    ForgeCompletionService, ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead,
+    ForgeFsRemove, ForgeFsSearch, ForgeFsUndo, ForgeShell,
+};
 use crate::workflow::ForgeWorkflowService;
 use crate::Infrastructure;
 

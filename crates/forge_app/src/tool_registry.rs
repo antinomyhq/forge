@@ -1,16 +1,18 @@
-use crate::{
-    AttemptCompletionService, FetchOutput, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput,
-    ReadOutput, SearchResult, Services, ShellOutput, ShellService,
-};
+use std::fmt::Write;
+use std::sync::Arc;
+
 use forge_display::TitleFormat;
 use forge_domain::{
     Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolInput, ToolName, ToolOutput,
     ToolResult,
 };
 use serde_json::Value;
-use std::fmt::Write;
-use std::sync::Arc;
+
+use crate::{
+    AttemptCompletionService, FetchOutput, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput,
+    ReadOutput, SearchResult, Services, ShellOutput, ShellService,
+};
 
 pub struct ToolRegistry<S> {
     #[allow(dead_code)]
@@ -54,7 +56,7 @@ impl<S: Services> ToolRegistry<S> {
                 }
                 writeln!(result, "total_chars: {}", out.chars)?;
                 if let Some(warning) = out.warning {
-                    writeln!(result, "Warning: {}", warning)?;
+                    writeln!(result, "Warning: {warning}")?;
                 }
                 writeln!(result, "---")?;
 
@@ -253,7 +255,7 @@ fn format_shell(output: ShellOutput) -> anyhow::Result<String> {
     writeln!(result, "---")?;
     writeln!(result, "command: {}", output.output.command)?;
     if let Some(exit_code) = output.output.exit_code {
-        writeln!(result, "exit_code: {}", exit_code)?;
+        writeln!(result, "exit_code: {exit_code}")?;
     }
 
     if output.stdout_truncated {

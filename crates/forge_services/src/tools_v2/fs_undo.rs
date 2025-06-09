@@ -1,10 +1,12 @@
-use crate::utils::{assert_absolute_path, format_display_path};
-use crate::{FsSnapshotService, Infrastructure};
+use std::path::Path;
+use std::sync::Arc;
+
 use forge_app::{EnvironmentService, FsUndoService};
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
-use std::path::Path;
-use std::sync::Arc;
+
+use crate::utils::{assert_absolute_path, format_display_path};
+use crate::{FsSnapshotService, Infrastructure};
 
 /// Reverts the most recent file operation (create/modify/delete) on a specific
 /// file. Use this tool when you need to recover from incorrect file changes or

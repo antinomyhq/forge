@@ -1,12 +1,13 @@
-use crate::{CommandExecutorService, FsWriteService, Infrastructure};
-use anyhow::bail;
-use forge_app::{EnvironmentService, ShellOutput, ShellService};
-use forge_domain::ToolDescription;
-use forge_domain::Environment;
-use forge_tool_macros::ToolDescription;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+use anyhow::bail;
+use forge_app::{EnvironmentService, ShellOutput, ShellService};
+use forge_domain::{Environment, ToolDescription};
+use forge_tool_macros::ToolDescription;
 use strip_ansi_escapes::strip;
+
+use crate::{CommandExecutorService, FsWriteService, Infrastructure};
 
 // Strips out the ansi codes from content.
 fn strip_ansi(content: String) -> String {

@@ -1,5 +1,6 @@
-use crate::utils::{assert_absolute_path, format_display_path};
-use crate::{FsCreateDirsService, FsMetaService, FsReadService, FsWriteService, Infrastructure};
+use std::path::Path;
+use std::sync::Arc;
+
 use anyhow::Context;
 use bytes::Bytes;
 use console::strip_ansi_codes;
@@ -7,8 +8,9 @@ use forge_app::{EnvironmentService, FsCreateOutput, FsCreateService};
 use forge_display::DiffFormat;
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
-use std::path::Path;
-use std::sync::Arc;
+
+use crate::utils::{assert_absolute_path, format_display_path};
+use crate::{FsCreateDirsService, FsMetaService, FsReadService, FsWriteService, Infrastructure};
 
 /// Use it to create a new file at a specified path with the provided content.
 /// Always provide absolute paths for file locations. The tool
@@ -49,7 +51,7 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
         // Validate file content if it's a supported language file
-        let syntax_warning = super::syn::validate(&path, &content);
+        let syntax_warning = super::syn::validate(path, &content);
         if let Some(parent) = Path::new(&path).parent() {
             self.0
                 .create_dirs_service()

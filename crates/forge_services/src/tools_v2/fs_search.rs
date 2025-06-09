@@ -1,5 +1,7 @@
-use crate::utils::{assert_absolute_path, format_display_path};
-use crate::Infrastructure;
+use std::collections::HashSet;
+use std::path::Path;
+use std::sync::Arc;
+
 use anyhow::Context;
 use forge_app::{EnvironmentService, FsSearchService, SearchResult};
 use forge_display::{GrepFormat, TitleFormat};
@@ -7,9 +9,9 @@ use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
-use std::collections::HashSet;
-use std::path::Path;
-use std::sync::Arc;
+
+use crate::utils::{assert_absolute_path, format_display_path};
+use crate::Infrastructure;
 
 const MAX_SEARCH_LINE_LIMIT: u64 = 200;
 
@@ -24,7 +26,7 @@ struct FSSearchHelper<'a> {
 
 impl FSSearchHelper<'_> {
     fn path(&self) -> &str {
-        &self.path
+        self.path
     }
 
     fn regex(&self) -> Option<&String> {
@@ -135,8 +137,9 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
         let file_path = Path::new(helper.path());
         assert_absolute_path(file_path)?;
 
-        let _title_format = self.create_title(&input_path, input_regex.as_ref(), file_pattern.as_ref())?;
-        
+        let _title_format =
+            self.create_title(&input_path, input_regex.as_ref(), file_pattern.as_ref())?;
+
         // Create content regex pattern if provided
         let regex = match helper.regex() {
             Some(regex) => {

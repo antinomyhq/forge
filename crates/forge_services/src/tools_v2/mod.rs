@@ -1,5 +1,6 @@
 mod completion;
 mod fetch;
+mod followup;
 mod fs_create;
 mod fs_patch;
 mod fs_read;
@@ -8,11 +9,10 @@ mod fs_search;
 mod fs_undo;
 mod shell;
 mod syn;
-mod followup;
 
 pub use completion::*;
-pub use followup::*;
 pub use fetch::*;
+pub use followup::*;
 pub use fs_create::*;
 pub use fs_patch::*;
 pub use fs_read::*;

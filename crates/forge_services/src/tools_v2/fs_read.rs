@@ -1,9 +1,11 @@
-use crate::utils::assert_absolute_path;
-use forge_app::{Content, FsReadService, ReadOutput};
-use forge_tool_macros::ToolDescription;
 use std::sync::Arc;
-use crate::{FsReadService as _, Infrastructure};
+
+use forge_app::{Content, FsReadService, ReadOutput};
 use forge_domain::ToolDescription;
+use forge_tool_macros::ToolDescription;
+
+use crate::utils::assert_absolute_path;
+use crate::{FsReadService as _, Infrastructure};
 
 /// Reads file contents from the specified absolute path. Ideal for analyzing
 /// code, configuration files, documentation, or textual data. Automatically

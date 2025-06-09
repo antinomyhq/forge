@@ -1,10 +1,12 @@
-use crate::{Clipper, FsWriteService, Infrastructure};
+use std::sync::Arc;
+
 use anyhow::{anyhow, Context};
 use forge_app::{FetchOutput, NetFetchService};
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
 use reqwest::{Client, Url};
-use std::sync::Arc;
+
+use crate::{Clipper, FsWriteService, Infrastructure};
 
 /// Fetch tool returns the content of MAX_LENGTH.
 const MAX_LENGTH: usize = 40_000;
@@ -64,11 +66,7 @@ impl<F: Infrastructure> ForgeFetch<F> {
         Ok(())
     }
 
-    async fn fetch_url(
-        &self,
-        url: &Url,
-        force_raw: bool,
-    ) -> anyhow::Result<(String, String, u16)> {
+    async fn fetch_url(&self, url: &Url, force_raw: bool) -> anyhow::Result<(String, String, u16)> {
         self.check_robots_txt(url).await?;
 
         let response = self
@@ -120,12 +118,9 @@ impl<F: Infrastructure> ForgeFetch<F> {
 #[async_trait::async_trait]
 impl<F: Infrastructure> NetFetchService for ForgeFetch<F> {
     async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<FetchOutput> {
-        let url = Url::parse(&url)
-            .with_context(|| format!("Failed to parse URL: {}", url))?;
+        let url = Url::parse(&url).with_context(|| format!("Failed to parse URL: {url}"))?;
 
-        let (content, context, code) = self
-            .fetch_url(&url, raw.unwrap_or(false))
-            .await?;
+        let (content, context, code) = self.fetch_url(&url, raw.unwrap_or(false)).await?;
 
         let original_length = content.len();
         let end = MAX_LENGTH.min(original_length);

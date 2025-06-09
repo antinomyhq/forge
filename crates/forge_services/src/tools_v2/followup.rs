@@ -1,8 +1,10 @@
-use crate::{Infrastructure, InquireService};
+use std::sync::Arc;
+
 use forge_app::FollowUpService;
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
-use std::sync::Arc;
+
+use crate::{Infrastructure, InquireService};
 
 /// Use this tool when you encounter ambiguities, need clarification, or require
 /// more details to proceed effectively. Use this tool judiciously to maintain a
@@ -45,7 +47,7 @@ impl<F: Infrastructure> FollowUpService for ForgeFollowup<F> {
                 .await?
                 .map(|selected| format!("User selected: {selected}")),
         };
-        
+
         Ok(result)
     }
 }
