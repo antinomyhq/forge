@@ -1,7 +1,8 @@
+use forge_domain::ToolResult;
+
 use crate::{
     FetchOutput, FsCreateOutput, FsRemoveOutput, PatchOutput, ReadOutput, SearchResult, ShellOutput,
 };
-use forge_domain::ToolResult;
 
 #[derive(derive_more::From)]
 pub enum ToolOutput {
