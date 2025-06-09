@@ -2,6 +2,7 @@ mod agent;
 mod app;
 mod compact;
 mod error;
+mod metadata;
 mod orch;
 mod services;
 mod template;

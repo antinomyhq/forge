@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::fmt::Write;
 use std::sync::Arc;
 
 use forge_display::{GrepFormat, TitleFormat};
@@ -9,6 +8,7 @@ use forge_domain::{
 };
 use serde_json::Value;
 
+use crate::metadata::Metadata;
 use crate::{
     AttemptCompletionService, FetchOutput, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput,
@@ -50,20 +50,12 @@ impl<S: Services> ToolRegistry<S> {
                     .create(input.path, input.content, input.overwrite)
                     .await?;
 
-                let mut result = String::new();
-
-                writeln!(result, "---")?;
-                writeln!(result, "path: {}", out.path)?;
-                if out.exists {
-                    writeln!(result, "operation: OVERWRITE")?;
-                } else {
-                    writeln!(result, "operation: CREATE")?;
-                }
-                writeln!(result, "total_chars: {}", out.chars)?;
-                if let Some(warning) = out.warning {
-                    writeln!(result, "Warning: {warning}")?;
-                }
-                writeln!(result, "---")?;
+                let operation = if out.exists { "OVERWRITE" } else { "CREATE" };
+                let metadata = Metadata::default()
+                    .add("path", &out.path)
+                    .add("operation", operation)
+                    .add("total_chars", out.chars)
+                    .add_optional("Warning", out.warning.as_ref());
 
                 let title = if out.exists { "Overwrite" } else { "Create" };
 
@@ -75,7 +67,7 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
                 context.send_text(out.diff).await?;
 
-                Ok(ToolOutput::text(result))
+                Ok(ToolOutput::text(metadata.to_string()))
             }
             ToolInput::FSSearch(input) => {
                 let output = self
@@ -229,24 +221,24 @@ async fn format_followup(output: Option<String>, context: &mut ToolCallContext) 
 }
 
 fn format_net_fetch(out: FetchOutput) -> anyhow::Result<String> {
-    let mut result = String::new();
+    let mut metadata = Metadata::default()
+        .add("URL", &out.url)
+        .add("total_chars", out.original_length)
+        .add("start_char", out.start_char)
+        .add("end_char", out.end_char)
+        .add("context", &out.context);
 
-    writeln!(result, "---")?;
-    writeln!(result, "URL: {}", out.url)?;
-    writeln!(result, "total_chars: {}", out.original_length)?;
-    writeln!(result, "start_char: {}", out.start_char)?;
-    writeln!(result, "end_char: {}", out.end_char)?;
-    writeln!(result, "context: {}", out.context)?;
     if let Some(path) = out.path.as_ref() {
-        writeln!(
-            result,
-            "truncation: Content is truncated to {} chars; Remaining content can be read from path: {}",
-            out.max_length,
-            path.display()
-        )?;
+        metadata = metadata.add(
+            "truncation",
+            format!(
+                "Content is truncated to {} chars; Remaining content can be read from path: {}",
+                out.max_length,
+                path.display()
+            ),
+        );
     }
 
-    writeln!(result, "---")?;
     // Create truncation tag only if content was actually truncated and stored in a
     // temp file
     let truncation_tag = match out.path.as_ref() {
@@ -260,32 +252,22 @@ fn format_net_fetch(out: FetchOutput) -> anyhow::Result<String> {
         _ => String::new(),
     };
 
-    Ok(format!("{result}{truncation_tag}"))
+    Ok(format!("{metadata}{truncation_tag}"))
 }
 
 fn format_shell(output: ShellOutput) -> anyhow::Result<String> {
-    let mut result = String::new();
+    let mut metadata = Metadata::default().add("command", &output.output.command);
 
-    writeln!(result, "---")?;
-    writeln!(result, "command: {}", output.output.command)?;
     if let Some(exit_code) = output.output.exit_code {
-        writeln!(result, "exit_code: {exit_code}")?;
+        metadata = metadata.add("exit_code", exit_code);
     }
 
     if output.stdout_truncated {
-        writeln!(
-            result,
-            "total_stdout_lines: {}",
-            output.stdout.lines().count()
-        )?;
+        metadata = metadata.add("total_stdout_lines", output.stdout.lines().count());
     }
 
     if output.stderr_truncated {
-        writeln!(
-            result,
-            "total_stderr_lines: {}",
-            output.stderr.lines().count()
-        )?;
+        metadata = metadata.add("total_stderr_lines", output.stderr.lines().count());
     }
 
     // Combine outputs
@@ -310,7 +292,8 @@ fn format_shell(output: ShellOutput) -> anyhow::Result<String> {
         outputs.join("\n")
     };
 
-    writeln!(result, "---")?;
+    result = format!("{metadata}{result}");
+
     if let Some(path) = output.path {
         result.push_str(&format!(
             "\n<truncated>content is truncated, remaining content can be read from path:{}</truncated>",
@@ -329,21 +312,12 @@ fn format_fs_undo(output: String) -> String {
 }
 
 fn format_fs_patch(output: PatchOutput) -> anyhow::Result<String> {
-    let mut result = String::new();
+    let metadata = Metadata::default()
+        .add("path", &output.path)
+        .add("total_chars", output.chars)
+        .add_optional("warning", output.warning.as_ref());
 
-    writeln!(result, "---")?;
-    writeln!(result, "path: {}", output.path)?;
-    writeln!(result, "total_chars: {}", output.chars)?;
-
-    // Check for syntax errors
-    if let Some(warning) = output.warning {
-        writeln!(result, "warning:{warning}")?;
-    }
-
-    writeln!(result, "---")?;
-
-    writeln!(result, "{}", output.diff)?;
-    Ok(result)
+    Ok(format!("{metadata}{}", output.diff))
 }
 
 async fn format_fs_search(
@@ -355,25 +329,21 @@ async fn format_fs_search(
     match search_output {
         None => Ok("No matches found.".to_string()),
         Some(output) => {
-            let mut result = String::new();
-            writeln!(result, "---")?;
-            writeln!(result, "path: {path}")?;
-            if let Some(regex) = regex {
-                writeln!(result, "regex: {regex}")?;
+            let mut metadata = Metadata::default()
+                .add("path", path)
+                .add_optional("regex", regex.as_ref())
+                .add_optional("file_pattern", file_pattern.as_ref())
+                .add("total_lines", output.total_lines)
+                .add("start_line", 1)
+                .add("end_line", output.total_lines.min(output.max_lines));
+
+            if let Some(path) = &output.truncation_path {
+                metadata = metadata.add("temp_file", path.display().to_string());
             }
-            if let Some(file_pattern) = file_pattern {
-                writeln!(result, "file_pattern: {file_pattern}")?;
-            }
-            writeln!(result, "total_lines: {}", output.total_lines)?;
-            writeln!(result, "start_line: 1")?;
-            writeln!(
-                result,
-                "end_line: {}",
-                output.total_lines.min(output.max_lines)
-            )?;
+
+            let mut result = metadata.to_string();
 
             if let Some(path) = output.truncation_path {
-                writeln!(result, "temp_file: {}", path.display())?;
                 let truncation_tag = format!(
                     "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
                     output.max_lines,
@@ -422,21 +392,16 @@ async fn send_read_context(ctx: &mut ToolCallContext, out: &ReadOutput) -> anyho
 }
 
 fn format_fs_read(out: ReadOutput) -> anyhow::Result<String> {
-    let mut result = String::new();
-
-    writeln!(result, "---")?;
-    writeln!(result, "path: {}", out.path)?;
-    // Determine if range information is relevant to display
     let is_range_relevant = out.is_explicit_range || out.is_truncated;
 
+    let mut metadata = Metadata::default().add("path", &out.path);
+
     if is_range_relevant {
-        writeln!(result, "start_line: {}", out.start_line)?;
-        writeln!(result, "end_line: {}", out.end_line)?;
-        writeln!(result, "total_lines: {}", out.total_lines)?;
+        metadata = metadata
+            .add("start_line", out.start_line)
+            .add("end_line", out.end_line)
+            .add("total_lines", out.total_lines);
     }
 
-    writeln!(result, "---")?;
-    writeln!(result, "{}", out.content)?;
-
-    Ok(result)
+    Ok(format!("{metadata}{}", out.content))
 }
