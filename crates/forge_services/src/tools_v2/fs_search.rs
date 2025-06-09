@@ -4,14 +4,13 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{EnvironmentService, FsSearchService, SearchResult};
-use forge_display::{GrepFormat, TitleFormat};
 use forge_domain::ToolDescription;
 use forge_tool_macros::ToolDescription;
 use forge_walker::Walker;
 use regex::Regex;
 
 use crate::utils::{assert_absolute_path, format_display_path};
-use crate::Infrastructure;
+use crate::{FsWriteService, Infrastructure};
 
 const MAX_SEARCH_LINE_LIMIT: u64 = 200;
 
@@ -96,28 +95,6 @@ impl<F: Infrastructure> ForgeFsSearch<F> {
         // Use the shared utility function
         format_display_path(path, cwd)
     }
-
-    fn create_title(
-        &self,
-        path: &str,
-        regex: Option<&String>,
-        file_pattern: Option<&String>,
-    ) -> anyhow::Result<TitleFormat> {
-        // Format the title with relative path if possible
-        let formatted_dir = self.format_display_path(path.as_ref())?;
-        let helper = FSSearchHelper { path, regex, file_pattern };
-
-        let title = match (&helper.regex(), &helper.file_pattern()) {
-            (Some(regex), Some(pattern)) => {
-                format!("Search for '{regex}' in '{pattern}' files at {formatted_dir}")
-            }
-            (Some(regex), None) => format!("Search for '{regex}' at {formatted_dir}"),
-            (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
-            (None, None) => format!("Search at {formatted_dir}"),
-        };
-
-        Ok(TitleFormat::debug(title))
-    }
 }
 
 #[async_trait::async_trait]
@@ -127,20 +104,24 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
         input_path: String,
         input_regex: Option<String>,
         file_pattern: Option<String>,
-    ) -> anyhow::Result<Vec<SearchResult>> {
+    ) -> anyhow::Result<Option<SearchResult>> {
         let helper = FSSearchHelper {
             path: &input_path,
             regex: input_regex.as_ref(),
             file_pattern: file_pattern.as_ref(),
         };
 
-        let file_path = Path::new(helper.path());
-        assert_absolute_path(file_path)?;
-
-        let _title_format =
-            self.create_title(&input_path, input_regex.as_ref(), file_pattern.as_ref())?;
-
-        // Create content regex pattern if provided
+        let path = Path::new(helper.path());
+        assert_absolute_path(path)?;
+        let formatted_dir = self.format_display_path(input_path.as_ref())?;
+        let title = match (&helper.regex(), &helper.file_pattern()) {
+            (Some(regex), Some(pattern)) => {
+                format!("Search for '{regex}' in '{pattern}' files at {formatted_dir}")
+            }
+            (Some(regex), None) => format!("Search for '{regex}' at {formatted_dir}"),
+            (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
+            (None, None) => format!("Search at {formatted_dir}"),
+        };
         let regex = match helper.regex() {
             Some(regex) => {
                 let pattern = format!("(?i){regex}"); // Case-insensitive by default
@@ -151,10 +132,10 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
             }
             None => None,
         };
-
-        let paths = retrieve_file_paths(file_path).await?;
+        let paths = retrieve_file_paths(path).await?;
 
         let mut matches = Vec::new();
+
         for path in paths {
             if !helper.match_file_path(path.as_path())? {
                 continue;
@@ -209,35 +190,41 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
                 }
             }
         }
-
-        // Format and return results
         if matches.is_empty() {
-            // return Ok("No matches found.".to_string());
-            todo!()
+            return Ok(None);
         }
 
-        let mut _formatted_output = GrepFormat::new(matches.clone());
+        let matches_string = matches.join("\n");
+        let total_lines = matches_string.lines().count() as u64;
 
-        // Use GrepFormat for content search, simple list for filename search
-        if let Some(regex) = regex {
-            _formatted_output = _formatted_output.regex(regex);
-        }
-        let total_lines = matches.join("\n").lines().count() as u64;
-        if total_lines > MAX_SEARCH_LINE_LIMIT {
-            let _limited_matches = matches
-                .iter()
+        let (output, truncation_path) = if total_lines > MAX_SEARCH_LINE_LIMIT {
+            // Take only the first max_line_limit lines
+            let limited_matches = matches_string
+                .lines()
                 .take(MAX_SEARCH_LINE_LIMIT as usize)
-                .cloned()
                 .collect::<Vec<_>>()
                 .join("\n");
-            // let path = self
-            //     .0
-            //     .file_write_service()
-            //     .write_temp("forge_find_", ".md", &matches)
-            //     .await?;
-        }
 
-        todo!()
+            let path = self
+                .0
+                .file_write_service()
+                .write_temp("forge_find_", ".md", &matches_string)
+                .await?;
+
+            (limited_matches, Some(path))
+        } else {
+            (matches_string, None)
+        };
+
+        Ok(Some(SearchResult {
+            matches,
+            truncation_path,
+            max_lines: MAX_SEARCH_LINE_LIMIT,
+            output,
+            title,
+            regex,
+            total_lines,
+        }))
     }
 }
 

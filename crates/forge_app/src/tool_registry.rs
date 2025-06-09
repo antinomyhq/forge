@@ -1,7 +1,7 @@
 use std::fmt::Write;
 use std::sync::Arc;
 
-use forge_display::TitleFormat;
+use forge_display::{GrepFormat, TitleFormat};
 use forge_domain::{
     Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolInput, ToolName, ToolOutput,
     ToolResult,
@@ -22,6 +22,8 @@ impl<S: Services> ToolRegistry<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
+
+    #[allow(dead_code)]
     async fn call_internal(
         &self,
         arguments: Value,
@@ -73,13 +75,27 @@ impl<S: Services> ToolRegistry<S> {
                 Ok(ToolOutput::text(result))
             }
             ToolInput::FSSearch(input) => {
-                let output = format_fs_search(
-                    self.services
-                        .fs_search_service()
-                        .search(input.path, input.regex, input.file_pattern)
-                        .await?,
-                )
-                .await;
+                let output = self
+                    .services
+                    .fs_search_service()
+                    .search(
+                        input.path.clone(),
+                        input.regex.clone(),
+                        input.file_pattern.clone(),
+                    )
+                    .await?;
+                if let Some(output) = output.as_ref() {
+                    context.send_text(&output.title).await?;
+                    let mut formatted_output = GrepFormat::new(output.matches.clone());
+                    if let Some(regex) = &output.regex {
+                        formatted_output = formatted_output.regex(regex.clone());
+                    }
+                    context.send_text(formatted_output.format()).await?;
+                }
+
+                let output =
+                    format_fs_search(output, &input.path, &input.regex, &input.file_pattern)
+                        .await?;
 
                 Ok(ToolOutput::text(output))
             }
@@ -186,10 +202,8 @@ impl<S: Services> ToolRegistry<S> {
         }
     }
     #[allow(dead_code)]
-    pub async fn call(&self, input: ToolCallFull, context: &mut ToolCallContext) -> ToolResult {
-        ToolResult::new(input.name)
-            .call_id(input.call_id)
-            .output(self.call_internal(input.arguments, context).await)
+    pub async fn call(&self, _input: ToolCallFull, _context: &mut ToolCallContext) -> ToolResult {
+        unimplemented!()
     }
     #[allow(dead_code)]
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
@@ -329,8 +343,45 @@ fn format_fs_patch(output: PatchOutput) -> anyhow::Result<String> {
     Ok(result)
 }
 
-async fn format_fs_search(_search_output: Vec<SearchResult>) -> String {
-    todo!()
+async fn format_fs_search(
+    search_output: Option<SearchResult>,
+    path: &str,
+    regex: &Option<String>,
+    file_pattern: &Option<String>,
+) -> anyhow::Result<String> {
+    match search_output {
+        None => Ok("No matches found.".to_string()),
+        Some(output) => {
+            let mut result = String::new();
+            writeln!(result, "---")?;
+            writeln!(result, "path: {}", path)?;
+            if let Some(regex) = regex {
+                writeln!(result, "regex: {}", regex)?;
+            }
+            if let Some(file_pattern) = file_pattern {
+                writeln!(result, "file_pattern: {}", file_pattern)?;
+            }
+            writeln!(result, "total_lines: {}", output.total_lines)?;
+            writeln!(result, "start_line: 1")?;
+            writeln!(
+                result,
+                "end_line: {}",
+                output.total_lines.min(output.max_lines)
+            )?;
+
+            if let Some(path) = output.truncation_path {
+                writeln!(result, "temp_file: {}", path.display())?;
+                let truncation_tag = format!(
+                    "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
+                    output.max_lines,
+                    path.display()
+                );
+                result.push_str(&truncation_tag);
+            }
+
+            Ok(result)
+        }
+    }
 }
 
 async fn format_fs_read(

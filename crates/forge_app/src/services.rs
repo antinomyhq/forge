@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-
+use regex::Regex;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, Image, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
@@ -36,9 +36,13 @@ pub enum Content {
 }
 
 pub struct SearchResult {
-    pub line: String,
     pub matches: Vec<String>,
-    pub path: Option<PathBuf>,
+    pub truncation_path: Option<PathBuf>,
+    pub output: String,
+    pub max_lines: u64,
+    pub title: String,
+    pub regex: Option<Regex>,
+    pub total_lines: u64,
 }
 
 pub struct FetchOutput {
@@ -221,7 +225,7 @@ pub trait FsSearchService: Send + Sync {
         path: String,
         regex: Option<String>,
         file_pattern: Option<String>,
-    ) -> anyhow::Result<Vec<SearchResult>>;
+    ) -> anyhow::Result<Option<SearchResult>>;
 }
 
 #[async_trait::async_trait]
