@@ -99,7 +99,7 @@ impl<S: Services> ToolRegistry<S> {
                 if let Some(old_content) = out.previous.as_ref() {
                     match new_content.content {
                         Content::File(new_content) => {
-                            let diff = DiffFormat::format(&old_content, &new_content);
+                            let diff = DiffFormat::format(old_content, &new_content);
                             context.send_text(diff).await?;
                         }
                     }
