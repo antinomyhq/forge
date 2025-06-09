@@ -10,10 +10,10 @@ use forge_domain::{
 use serde_json::Value;
 
 use crate::front_matter::FrontMatter;
-use crate::utils::{display_path, format_display_path};
+use crate::utils::display_path;
 use crate::{
-    AttemptCompletionService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PatchOutput,
+    AttemptCompletionService, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
     ReadOutput, Services, ShellService, TruncatedFetchOutput, TruncatedSearchOutput,
     TruncatedShellOutput, truncate_fetch_content, truncate_search_output, truncate_shell_output,
 };

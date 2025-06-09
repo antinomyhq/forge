@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{EnvironmentService, FsPatchService, PatchOutput};
-use forge_display::DiffFormat;
 use forge_domain::{PatchOperation, ToolDescription};
 use forge_tool_macros::ToolDescription;
 use thiserror::Error;

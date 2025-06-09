@@ -1,5 +1,6 @@
-use crate::{EnvironmentService, Services};
 use std::path::Path;
+
+use crate::{EnvironmentService, Services};
 
 pub fn display_path<S: Services>(services: &S, path: &Path) -> anyhow::Result<String> {
     // Get the current working directory
@@ -7,7 +8,7 @@ pub fn display_path<S: Services>(services: &S, path: &Path) -> anyhow::Result<St
     let cwd = env.cwd.as_path();
 
     // Use the shared utility function
-    Ok(format_display_path(Path::new(path), cwd)?)
+    format_display_path(Path::new(path), cwd)
 }
 
 /// Formats a path for display, converting absolute paths to relative when
