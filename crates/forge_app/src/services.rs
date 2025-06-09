@@ -6,7 +6,6 @@ use forge_domain::{
     Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
     ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
-use regex::Regex;
 
 pub struct ShellOutput {
     pub output: CommandOutput,
@@ -32,9 +31,6 @@ pub enum Content {
 
 pub struct SearchResult {
     pub matches: Vec<String>,
-    pub output: String,
-    pub title: String,
-    pub regex: Option<Regex>,
 }
 
 pub struct FetchOutput {

@@ -1,13 +1,13 @@
-use std::cmp::min;
-use std::path::Path;
-use std::sync::Arc;
-
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
     Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolInput, ToolName, ToolOutput,
     ToolResult,
 };
+use regex::Regex;
 use serde_json::Value;
+use std::cmp::min;
+use std::path::Path;
+use std::sync::Arc;
 
 use crate::front_matter::FrontMatter;
 use crate::utils::display_path;
@@ -98,11 +98,23 @@ impl<S: Services> ToolRegistry<S> {
                         input.file_pattern.clone(),
                     )
                     .await?;
+
+                let formatted_dir = display_path(self.services.as_ref(), Path::new(&input.path))?;
+
+                let title = match (&input.regex, &input.file_pattern) {
+                    (Some(regex), Some(pattern)) => {
+                        format!("Search for '{regex}' in '{pattern}' files at {formatted_dir}")
+                    }
+                    (Some(regex), None) => format!("Search for '{regex}' at {formatted_dir}"),
+                    (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
+                    (None, None) => format!("Search at {formatted_dir}"),
+                };
+
                 if let Some(output) = output.as_ref() {
-                    context.send_text(&output.title).await?;
+                    context.send_text(&title).await?;
                     let mut formatted_output = GrepFormat::new(output.matches.clone());
-                    if let Some(regex) = &output.regex {
-                        formatted_output = formatted_output.regex(regex.clone());
+                    if let Some(regex) = input.regex.as_ref().and_then(|v| Regex::new(v).ok()) {
+                        formatted_output = formatted_output.regex(regex);
                     }
                     context.send_text(formatted_output.format()).await?;
                 }
@@ -111,7 +123,7 @@ impl<S: Services> ToolRegistry<S> {
                     None => "No matches found.".to_string(),
                     Some(search_result) => {
                         let truncated_output = truncate_search_output(
-                            &search_result.output,
+                            &search_result.matches,
                             &input.path,
                             input.regex.as_ref(),
                             input.file_pattern.as_ref(),

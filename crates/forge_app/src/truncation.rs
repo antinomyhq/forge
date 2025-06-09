@@ -273,11 +273,12 @@ impl TruncatedSearchOutput {
 
 /// Truncates search output based on line limit
 pub fn truncate_search_output(
-    output: &str,
+    output: &[String],
     path: &str,
     regex: Option<&String>,
     file_pattern: Option<&String>,
 ) -> TruncatedSearchOutput {
+    let output = output.join("\n");
     let total_lines = output.lines().count() as u64;
     let is_truncated = total_lines > SEARCH_MAX_LINES;
 

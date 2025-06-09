@@ -30,10 +30,6 @@ impl FSSearchHelper<'_> {
         self.regex
     }
 
-    fn file_pattern(&self) -> Option<&String> {
-        self.file_pattern
-    }
-
     fn get_file_pattern(&self) -> anyhow::Result<Option<glob::Pattern>> {
         Ok(match &self.file_pattern {
             Some(pattern) => Some(
@@ -111,15 +107,7 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
 
         let path = Path::new(helper.path());
         assert_absolute_path(path)?;
-        let formatted_dir = self.format_display_path(input_path.as_ref())?;
-        let title = match (&helper.regex(), &helper.file_pattern()) {
-            (Some(regex), Some(pattern)) => {
-                format!("Search for '{regex}' in '{pattern}' files at {formatted_dir}")
-            }
-            (Some(regex), None) => format!("Search for '{regex}' at {formatted_dir}"),
-            (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
-            (None, None) => format!("Search at {formatted_dir}"),
-        };
+
         let regex = match helper.regex() {
             Some(regex) => {
                 let pattern = format!("(?i){regex}"); // Case-insensitive by default
@@ -192,13 +180,8 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
             return Ok(None);
         }
 
-        let matches_string = matches.join("\n");
-
         Ok(Some(SearchResult {
             matches,
-            output: matches_string,
-            title,
-            regex,
         }))
     }
 }
