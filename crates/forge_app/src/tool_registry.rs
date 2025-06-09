@@ -12,10 +12,10 @@ use serde_json::Value;
 use crate::front_matter::FrontMatter;
 use crate::utils::display_path;
 use crate::{
-    truncate_fetch_content, truncate_search_output, truncate_shell_output, AttemptCompletionService,
-    FollowUpService, FsCreateService, FsPatchService, FsReadService, FsRemoveService,
-    FsSearchService, FsUndoService, NetFetchService, ReadOutput, Services,
-    ShellService, TruncatedFetchOutput, TruncatedSearchOutput, TruncatedShellOutput,
+    AttemptCompletionService, Content, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, ReadOutput,
+    Services, ShellService, TruncatedFetchOutput, TruncatedSearchOutput, TruncatedShellOutput,
+    truncate_fetch_content, truncate_search_output, truncate_shell_output,
 };
 
 pub struct ToolRegistry<S> {
@@ -46,7 +46,14 @@ impl<S: Services> ToolRegistry<S> {
                 let display_path = display_path(self.services.as_ref(), Path::new(&input.path))?;
                 let is_truncated = output.total_lines > output.end_line;
 
-                send_read_context(context, &output, &display_path, is_explicit_range, is_truncated).await?;
+                send_read_context(
+                    context,
+                    &output,
+                    &display_path,
+                    is_explicit_range,
+                    is_truncated,
+                )
+                .await?;
 
                 Ok(ToolOutput::text(format_fs_read(
                     &input.path,
@@ -495,5 +502,7 @@ fn format_fs_read(
             .add("total_lines", out.total_lines);
     }
 
-    Ok(format!("{metadata}{}", out.content))
+    match out.content {
+        Content::File(content) => Ok(format!("{metadata}{content}")),
+    }
 }

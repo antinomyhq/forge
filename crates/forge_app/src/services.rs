@@ -1,10 +1,9 @@
-use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, Image, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
     ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 use regex::Regex;
@@ -29,16 +28,6 @@ pub struct ReadOutput {
 
 pub enum Content {
     File(String),
-    Image(Image),
-}
-
-impl Display for Content {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Content::File(content) => write!(f, "{content}"),
-            Content::Image(_) => todo!(),
-        }
-    }
 }
 
 pub struct SearchResult {
