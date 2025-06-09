@@ -3,15 +3,15 @@ use std::path::PathBuf;
 use crate::{FsCreateService, Services};
 
 /// Number of lines to keep at the start of truncated output
-const PREFIX_LINES: usize = 200;
+pub(crate) const PREFIX_LINES: usize = 200;
 
 /// Number of lines to keep at the end of truncated output
-const SUFFIX_LINES: usize = 200;
+pub(crate) const SUFFIX_LINES: usize = 200;
 
 /// Maximum characters for fetch content
-const FETCH_MAX_LENGTH: usize = 40_000;
+pub(crate) const FETCH_MAX_LENGTH: usize = 40_000;
 
-async fn create_temp_file<S: Services>(
+pub async fn create_temp_file<S: Services>(
     services: &S,
     prefix: &str,
     ext: &str,
@@ -259,7 +259,7 @@ pub fn truncate_fetch_content(
 }
 
 /// Maximum search lines before truncation
-const SEARCH_MAX_LINES: u64 = 200;
+pub const SEARCH_MAX_LINES: u64 = 200;
 
 /// Represents the result of fs_search truncation
 #[derive(Debug)]

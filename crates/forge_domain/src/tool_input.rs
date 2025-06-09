@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 /// This enum contains variants for each type of input that can be passed to
 /// tools in the application. Each variant corresponds to the input type for a
 /// specific tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, derive_more::From)]
 #[serde(tag = "tool", content = "args")]
 pub enum ToolInput {
     /// Input for the file read tool
