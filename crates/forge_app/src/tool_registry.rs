@@ -493,7 +493,7 @@ fn format_fs_read(
 ) -> anyhow::Result<String> {
     let is_range_relevant = is_explicit_range || is_truncated;
 
-    let mut metadata = FrontMatter::default().add("path", &path);
+    let mut metadata = FrontMatter::default().add("path", path);
 
     if is_range_relevant {
         metadata = metadata
