@@ -5,7 +5,7 @@ use schemars::schema::RootSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::ToolDescription;
+use crate::{ToolDefinition, ToolDescription};
 
 /// Enum representing all possible tool input types.
 ///
@@ -479,5 +479,11 @@ impl Tools {
             Tools::FSUndo(_) => schemars::schema_for!(FSUndo),
             Tools::FSWrite(_) => schemars::schema_for!(FSWrite),
         }
+    }
+
+    pub fn definition(&self) -> ToolDefinition {
+        ToolDefinition::new(self)
+            .description(self.description())
+            .input_schema(self.schema())
     }
 }

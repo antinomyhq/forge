@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
-    AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
-    ToolDescription, ToolName, ToolResult, Tools,
+    AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition
+    , ToolName, ToolResult, Tools,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;
@@ -186,13 +186,7 @@ impl<S: Services> ToolRegistry<S> {
     }
     #[allow(dead_code)]
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        Ok(Tools::iter()
-            .map(|v| {
-                ToolDefinition::new(&v)
-                    .description(v.description())
-                    .input_schema(v.schema())
-            })
-            .collect())
+        Ok(Tools::iter().map(|tool| tool.definition()).collect())
     }
     #[allow(dead_code)]
     pub async fn find(&self, _: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
