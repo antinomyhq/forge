@@ -6,10 +6,7 @@ pub enum Error {
     ToolCallArgument(serde_json::Error),
     #[error("Tool {0} not found")]
     ToolNotFound(ToolName),
-    
+
     #[error("Tool '{tool_name}' timed out after {timeout} minutes")]
-    ToolCallTimeout {
-        tool_name: ToolName,
-        timeout: u64,
-    },
+    ToolCallTimeout { tool_name: ToolName, timeout: u64 },
 }
