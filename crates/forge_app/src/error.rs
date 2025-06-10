@@ -12,11 +12,10 @@ pub enum Error {
     ToolCallTimeout { tool_name: ToolName, timeout: u64 },
 
     #[error(
-        "No tool with name '{name}' is supported by agent '{agent}'. Please try again with one of these tools {supported_tools}"
+        "Tool with name '{name}' is not available. Please try again with one of these available tools: [{supported_tools}]"
     )]
     ToolNotAllowed {
         name: ToolName,
-        agent: AgentId,
         supported_tools: String,
     },
 }

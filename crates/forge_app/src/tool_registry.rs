@@ -278,7 +278,6 @@ impl<S> ToolRegistry<S> {
 
             return Err(Error::ToolNotAllowed {
                 name: tool_name.clone(),
-                agent: agent.id.clone(),
                 supported_tools: agent_tools.join(", "),
             });
         }
