@@ -454,7 +454,7 @@ impl ToolDescription for Tools {
 lazy_static::lazy_static! {
     // Cache of all tool names
     static ref FORGE_TOOLS: HashSet<ToolName> = Tools::iter()
-        .map(|tool| ToolName::new(tool))
+        .map(ToolName::new)
         .collect();
 }
 
