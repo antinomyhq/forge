@@ -43,7 +43,7 @@ impl ToolOutput {
     ) -> anyhow::Result<forge_domain::ToolOutput> {
         match self {
             ToolOutput::FsRead(out) => {
-                if let Some(Tools::FSRead(input)) = input {
+                if let Some(Tools::ForgeToolFsRead(input)) = input {
                     let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
                     let is_range_relevant = is_explicit_range || truncation_path.is_some();
 
@@ -66,7 +66,7 @@ impl ToolOutput {
                 }
             }
             ToolOutput::FsCreate(out) => {
-                if let Some(Tools::FSWrite(input)) = input {
+                if let Some(Tools::ForgeToolFsCreate(input)) = input {
                     let chars = input.content.len();
                     let operation = if out.previous.is_some() {
                         "OVERWRITE"
@@ -86,7 +86,7 @@ impl ToolOutput {
                 }
             }
             ToolOutput::FsRemove(out) => {
-                if let Some(Tools::FSRemove(input)) = input {
+                if let Some(Tools::ForgeToolFsRemove(input)) = input {
                     let display_path = display_path(env, Path::new(&input.path))?;
                     if out.completed {
                         Ok(forge_domain::ToolOutput::text(format!(
@@ -102,7 +102,7 @@ impl ToolOutput {
                 }
             }
             ToolOutput::FsSearch(output) => {
-                if let Some(Tools::FSSearch(input)) = input {
+                if let Some(Tools::ForgeToolFsSearch(input)) = input {
                     match output {
                         Some(out) => {
                             let truncated_output = truncate_search_output(
@@ -148,7 +148,7 @@ impl ToolOutput {
                 }
             }
             ToolOutput::FsPatch(output) => {
-                if let Some(Tools::FSPatch(input)) = input {
+                if let Some(Tools::ForgeToolFsPatch(input)) = input {
                     let diff = console::strip_ansi_codes(&DiffFormat::format(
                         &output.before,
                         &output.after,
@@ -170,7 +170,7 @@ impl ToolOutput {
                 output.as_str()
             ))),
             ToolOutput::NetFetch(output) => {
-                if let Some(Tools::NetFetch(input)) = input {
+                if let Some(Tools::ForgeToolNetFetch(input)) = input {
                     let mut metadata = FrontMatter::default()
                         .add("URL", &input.url)
                         .add("total_chars", output.content.len())

@@ -39,7 +39,7 @@ impl<S: Services> ToolRegistry<S> {
         context: &mut ToolCallContext,
     ) -> anyhow::Result<crate::ToolOutput> {
         match input {
-            Tools::FSRead(input) => {
+            Tools::ForgeToolFsRead(input) => {
                 let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
 
                 let output = self
@@ -62,7 +62,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::FsRead(output))
             }
-            Tools::FSWrite(input) => {
+            Tools::ForgeToolFsCreate(input) => {
                 let out = self
                     .services
                     .fs_create_service()
@@ -72,7 +72,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(out))
             }
-            Tools::FSSearch(input) => {
+            Tools::ForgeToolFsSearch(input) => {
                 let output = self
                     .services
                     .fs_search_service()
@@ -87,7 +87,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            Tools::FSRemove(input) => {
+            Tools::ForgeToolFsRemove(input) => {
                 let output = self
                     .services
                     .fs_remove_service()
@@ -98,7 +98,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            Tools::FSPatch(input) => {
+            Tools::ForgeToolFsPatch(input) => {
                 let output = self
                     .services
                     .fs_patch_service()
@@ -114,13 +114,13 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            Tools::FSUndo(input) => {
+            Tools::ForgeToolFsUndo(input) => {
                 let output = self.services.fs_undo_service().undo(input.path).await?;
                 send_fs_undo_context(context, &output).await?;
 
                 Ok(crate::ToolOutput::from(output))
             }
-            Tools::Shell(input) => {
+            Tools::ForgeToolProcessShell(input) => {
                 let output = self
                     .services
                     .shell_service()
@@ -130,7 +130,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            Tools::NetFetch(input) => {
+            Tools::ForgeToolNetFetch(input) => {
                 let output = self
                     .services
                     .net_fetch_service()
@@ -141,7 +141,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            Tools::Followup(input) => {
+            Tools::ForgeToolFollowup(input) => {
                 let output = self
                     .services
                     .follow_up_service()
@@ -162,7 +162,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            Tools::AttemptCompletion(input) => {
+            Tools::ForgeToolAttemptCompletion(input) => {
                 send_completion_context(context, input).await?;
                 Ok(crate::ToolOutput::AttemptCompletion)
             }

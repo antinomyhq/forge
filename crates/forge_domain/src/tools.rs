@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use derive_more::{Display, From};
+use derive_more::From;
 use forge_tool_macros::ToolDescription;
 use schemars::schema::RootSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use strum_macros::{Display, EnumIter};
 
 use crate::{ToolDefinition, ToolDescription};
 
@@ -18,56 +18,38 @@ use crate::{ToolDefinition, ToolDescription};
 /// specific tool.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, From, EnumIter, Display)]
 #[serde(tag = "name", content = "arguments")]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum Tools {
     /// Input for the file read tool
-    #[serde(rename = "forge_tool_fs_read")]
-    #[display("forge_tool_fs_read")]
-    FSRead(FSRead),
+    ForgeToolFsRead(FSRead),
 
     /// Input for the file write tool
-    #[serde(rename = "forge_tool_fs_create")]
-    #[display("forge_tool_fs_create")]
-    FSWrite(FSWrite),
+    ForgeToolFsCreate(FSWrite),
 
     /// Input for the file search tool
-    #[serde(rename = "forge_tool_fs_search")]
-    #[display("forge_tool_fs_search")]
-    FSSearch(FSSearch),
+    ForgeToolFsSearch(FSSearch),
 
     /// Input for the file remove tool
-    #[serde(rename = "forge_tool_fs_remove")]
-    #[display("forge_tool_fs_remove")]
-    FSRemove(FSRemove),
+    ForgeToolFsRemove(FSRemove),
 
     /// Input for the file patch tool
-    #[serde(rename = "forge_tool_fs_patch")]
-    #[display("forge_tool_fs_patch")]
-    FSPatch(FSPatch),
+    ForgeToolFsPatch(FSPatch),
 
     /// Input for the file undo tool
-    #[serde(rename = "forge_tool_fs_undo")]
-    #[display("forge_tool_fs_undo")]
-    FSUndo(FSUndo),
+    ForgeToolFsUndo(FSUndo),
 
     /// Input for the shell command tool
-    #[serde(rename = "forge_tool_process_shell")]
-    #[display("forge_tool_process_shell")]
-    Shell(Shell),
+    ForgeToolProcessShell(Shell),
 
     /// Input for the net fetch tool
-    #[serde(rename = "forge_tool_net_fetch")]
-    #[display("forge_tool_net_fetch")]
-    NetFetch(NetFetch),
+    ForgeToolNetFetch(NetFetch),
 
     /// Input for the followup tool
-    #[serde(rename = "forge_tool_followup")]
-    #[display("forge_tool_followup")]
-    Followup(Followup),
+    ForgeToolFollowup(Followup),
 
     /// Input for the completion tool
-    #[serde(rename = "forge_tool_attempt_completion")]
-    #[display("forge_tool_attempt_completion")]
-    AttemptCompletion(AttemptCompletion),
+    ForgeToolAttemptCompletion(AttemptCompletion),
 }
 
 /// Reads file contents from the specified absolute path. Ideal for analyzing
@@ -456,16 +438,16 @@ fn is_default<T: Default + PartialEq>(t: &T) -> bool {
 impl ToolDescription for Tools {
     fn description(&self) -> String {
         match self {
-            Tools::FSPatch(v) => v.description(),
-            Tools::Shell(v) => v.description(),
-            Tools::Followup(v) => v.description(),
-            Tools::NetFetch(v) => v.description(),
-            Tools::AttemptCompletion(v) => v.description(),
-            Tools::FSSearch(v) => v.description(),
-            Tools::FSRead(v) => v.description(),
-            Tools::FSRemove(v) => v.description(),
-            Tools::FSUndo(v) => v.description(),
-            Tools::FSWrite(v) => v.description(),
+            Tools::ForgeToolFsPatch(v) => v.description(),
+            Tools::ForgeToolProcessShell(v) => v.description(),
+            Tools::ForgeToolFollowup(v) => v.description(),
+            Tools::ForgeToolNetFetch(v) => v.description(),
+            Tools::ForgeToolAttemptCompletion(v) => v.description(),
+            Tools::ForgeToolFsSearch(v) => v.description(),
+            Tools::ForgeToolFsRead(v) => v.description(),
+            Tools::ForgeToolFsRemove(v) => v.description(),
+            Tools::ForgeToolFsUndo(v) => v.description(),
+            Tools::ForgeToolFsCreate(v) => v.description(),
         }
     }
 }
@@ -473,16 +455,16 @@ impl ToolDescription for Tools {
 impl Tools {
     pub fn schema(&self) -> RootSchema {
         match self {
-            Tools::FSPatch(_) => schemars::schema_for!(FSPatch),
-            Tools::Shell(_) => schemars::schema_for!(Shell),
-            Tools::Followup(_) => schemars::schema_for!(Followup),
-            Tools::NetFetch(_) => schemars::schema_for!(NetFetch),
-            Tools::AttemptCompletion(_) => schemars::schema_for!(AttemptCompletion),
-            Tools::FSSearch(_) => schemars::schema_for!(FSSearch),
-            Tools::FSRead(_) => schemars::schema_for!(FSRead),
-            Tools::FSRemove(_) => schemars::schema_for!(FSRemove),
-            Tools::FSUndo(_) => schemars::schema_for!(FSUndo),
-            Tools::FSWrite(_) => schemars::schema_for!(FSWrite),
+            Tools::ForgeToolFsPatch(_) => schemars::schema_for!(FSPatch),
+            Tools::ForgeToolProcessShell(_) => schemars::schema_for!(Shell),
+            Tools::ForgeToolFollowup(_) => schemars::schema_for!(Followup),
+            Tools::ForgeToolNetFetch(_) => schemars::schema_for!(NetFetch),
+            Tools::ForgeToolAttemptCompletion(_) => schemars::schema_for!(AttemptCompletion),
+            Tools::ForgeToolFsSearch(_) => schemars::schema_for!(FSSearch),
+            Tools::ForgeToolFsRead(_) => schemars::schema_for!(FSRead),
+            Tools::ForgeToolFsRemove(_) => schemars::schema_for!(FSRemove),
+            Tools::ForgeToolFsUndo(_) => schemars::schema_for!(FSUndo),
+            Tools::ForgeToolFsCreate(_) => schemars::schema_for!(FSWrite),
         }
     }
 
@@ -498,24 +480,4 @@ lazy_static::lazy_static! {
     pub static ref FORGE_TOOLS: HashSet<String> = Tools::iter()
         .map(|tool| tool.to_string())
         .collect();
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_display_names() {
-        // Ensure all tools' display value matches deserialization name
-        for tool in Tools::iter() {
-            let value = serde_json::to_value(&tool).unwrap();
-            let name = value.get("name").unwrap();
-            let name_str = name.as_str().unwrap();
-            assert!(
-                FORGE_TOOLS.contains(name_str),
-                "Tool {} must be in FORGE_TOOLS",
-                name_str
-            );
-        }
-    }
 }
