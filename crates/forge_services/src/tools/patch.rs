@@ -6,8 +6,8 @@ use bytes::Bytes;
 use forge_app::EnvironmentService;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
-    ExecutableTool, FSPatch, NamedTool, PatchOperation, ToolCallContext, ToolDescription,
-    ToolName, ToolOutput,
+    ExecutableTool, FSPatch, NamedTool, PatchOperation, ToolCallContext, ToolDescription, ToolName,
+    ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 use thiserror::Error;

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
     AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
-    ToolDescription, Tools, ToolName, ToolResult,
+    ToolDescription, ToolName, ToolResult, Tools,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;

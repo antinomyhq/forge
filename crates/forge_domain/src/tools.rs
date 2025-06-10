@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
-use crate::ToolDescription;
 use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::ToolDescription;
 
 /// Enum representing all possible tool input types.
 ///
@@ -462,4 +463,3 @@ impl ToolDescription for Tools {
         }
     }
 }
-
