@@ -42,7 +42,7 @@ impl<S: Services> ForgeApp<S> {
             .expect("conversation for the request should've been created at this point.");
 
         // Get tool definitions and models
-        let tool_definitions = self.list_tools().await?;
+        let tool_definitions =  self.tool_registry.list().await?;
         let models = services.provider_service().models().await?;
 
         // Discover files using the discovery service
@@ -185,12 +185,5 @@ impl<S: Services> ForgeApp<S> {
             original_messages,
             compacted_messages,
         ))
-    }
-    pub async fn call_tool(&self, context: &mut ToolCallContext, call: ToolCallFull) -> ToolResult {
-        self.tool_registry.call(context, call).await
-    }
-
-    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
-        self.tool_registry.list().await
     }
 }
