@@ -30,22 +30,22 @@ impl ToolOutput {
         &self,
         tool_name: ToolName,
         input: Option<Tools>,
-        tancuation_path: Option<PathBuf>,
+        truncation_path: Option<PathBuf>,
         env: &Environment,
     ) -> ToolResult {
-        ToolResult::new(tool_name).output(self.to_tool_result_inner(input, tancuation_path, env))
+        ToolResult::new(tool_name).output(self.to_tool_result_inner(input, truncation_path, env))
     }
     fn to_tool_result_inner(
         &self,
         input: Option<Tools>,
-        tancuation_path: Option<PathBuf>,
+        truncation_path: Option<PathBuf>,
         env: &Environment,
     ) -> anyhow::Result<forge_domain::ToolOutput> {
         match self {
             ToolOutput::FsRead(out) => {
                 if let Some(Tools::FSRead(input)) = input {
                     let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
-                    let is_range_relevant = is_explicit_range || tancuation_path.is_some();
+                    let is_range_relevant = is_explicit_range || truncation_path.is_some();
 
                     let mut metadata = FrontMatter::default().add("path", input.path);
 
@@ -129,7 +129,7 @@ impl ToolOutput {
                             result.push_str(&truncated_output.output);
 
                             // Create temp file if needed
-                            if let Some(path) = tancuation_path {
+                            if let Some(path) = truncation_path {
                                 result.push_str(&format!(
                                     "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
                                     truncated_output.max_lines,
@@ -177,7 +177,7 @@ impl ToolOutput {
                         .add("start_char", 0)
                         .add("end_char", FETCH_MAX_LENGTH.min(output.content.len()))
                         .add("context", &output.context);
-                    if let Some(path) = tancuation_path.as_ref() {
+                    if let Some(path) = truncation_path.as_ref() {
                         metadata = metadata.add(
                             "truncation",
                             format!(
@@ -187,7 +187,7 @@ impl ToolOutput {
                             ),
                         );
                     }
-                    let truncation_tag = match tancuation_path.as_ref() {
+                    let truncation_tag = match truncation_path.as_ref() {
                         Some(path) => {
                             format!(
                                 "\n<truncation>content is truncated to {} chars, remaining content can be read from path: {}</truncation>",
@@ -250,7 +250,7 @@ impl ToolOutput {
                 result = format!("{metadata}{result}");
 
                 // Create temp file if needed
-                if let Some(path) = tancuation_path.as_ref() {
+                if let Some(path) = truncation_path.as_ref() {
                     result.push_str(&format!(
                         "\n<truncated>content is truncated, remaining content can be read from path:{}</truncated>",
                         path.display()
