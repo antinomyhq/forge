@@ -4,6 +4,7 @@ use forge_domain::ToolName;
 pub enum Error {
     #[error("Invalid tool call arguments: {0}")]
     ToolCallArgument(serde_json::Error),
+
     #[error("Tool {0} not found")]
     ToolNotFound(ToolName),
 

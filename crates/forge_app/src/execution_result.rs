@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[derive(derive_more::From)]
-pub enum ServiceResult {
+pub enum ExecutionResult {
     FsRead(ReadOutput),
     FsCreate(FsCreateOutput),
     FsRemove(FsRemoveOutput),
@@ -25,7 +25,7 @@ pub enum ServiceResult {
     AttemptCompletion,
 }
 
-impl ServiceResult {
+impl ExecutionResult {
     pub fn into_tool_output(
         self,
         input: Option<Tools>,
@@ -33,7 +33,7 @@ impl ServiceResult {
         env: &Environment,
     ) -> anyhow::Result<forge_domain::ToolOutput> {
         match self {
-            ServiceResult::FsRead(out) => {
+            ExecutionResult::FsRead(out) => {
                 if let Some(Tools::ForgeToolFsRead(input)) = input {
                     let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
                     let is_range_relevant = is_explicit_range || truncation_path.is_some();
@@ -56,7 +56,7 @@ impl ServiceResult {
                     unreachable!()
                 }
             }
-            ServiceResult::FsCreate(out) => {
+            ExecutionResult::FsCreate(out) => {
                 if let Some(Tools::ForgeToolFsCreate(input)) = input {
                     let chars = input.content.len();
                     let operation = if out.previous.is_some() {
@@ -76,7 +76,7 @@ impl ServiceResult {
                     unreachable!()
                 }
             }
-            ServiceResult::FsRemove(out) => {
+            ExecutionResult::FsRemove(out) => {
                 if let Some(Tools::ForgeToolFsRemove(input)) = input {
                     let display_path = display_path(env, Path::new(&input.path))?;
                     if out.completed {
@@ -92,7 +92,7 @@ impl ServiceResult {
                     unreachable!()
                 }
             }
-            ServiceResult::FsSearch(output) => {
+            ExecutionResult::FsSearch(output) => {
                 if let Some(Tools::ForgeToolFsSearch(input)) = input {
                     match output {
                         Some(out) => {
@@ -138,7 +138,7 @@ impl ServiceResult {
                     unreachable!()
                 }
             }
-            ServiceResult::FsPatch(output) => {
+            ExecutionResult::FsPatch(output) => {
                 if let Some(Tools::ForgeToolFsPatch(input)) = input {
                     let diff = console::strip_ansi_codes(&DiffFormat::format(
                         &output.before,
@@ -156,11 +156,11 @@ impl ServiceResult {
                     unreachable!()
                 }
             }
-            ServiceResult::FsUndo(output) => Ok(forge_domain::ToolOutput::text(format!(
+            ExecutionResult::FsUndo(output) => Ok(forge_domain::ToolOutput::text(format!(
                 "Successfully undid last operation on path: {}",
                 output.as_str()
             ))),
-            ServiceResult::NetFetch(output) => {
+            ExecutionResult::NetFetch(output) => {
                 if let Some(Tools::ForgeToolNetFetch(input)) = input {
                     let mut metadata = FrontMatter::default()
                         .add("URL", &input.url)
@@ -196,7 +196,7 @@ impl ServiceResult {
                     unreachable!()
                 }
             }
-            ServiceResult::Shell(output) => {
+            ExecutionResult::Shell(output) => {
                 let mut metadata = FrontMatter::default().add("command", &output.output.command);
                 if let Some(exit_code) = output.output.exit_code {
                     metadata = metadata.add("exit_code", exit_code);
@@ -257,13 +257,13 @@ impl ServiceResult {
                     anyhow::bail!(result)
                 }
             }
-            ServiceResult::FollowUp(output) => match output {
+            ExecutionResult::FollowUp(output) => match output {
                 None => Ok(forge_domain::ToolOutput::text(
                     "User interrupted the selection".to_string(),
                 )),
                 Some(o) => Ok(forge_domain::ToolOutput::text(o.to_string())),
             },
-            ServiceResult::AttemptCompletion => Ok(forge_domain::ToolOutput::text(
+            ExecutionResult::AttemptCompletion => Ok(forge_domain::ToolOutput::text(
                 "[Task was completed successfully. Now wait for user feedback]".to_string(),
             )),
         }
@@ -274,10 +274,10 @@ impl ServiceResult {
         services: &S,
     ) -> anyhow::Result<Option<PathBuf>> {
         match self {
-            ServiceResult::FsRead(_) => Ok(None),
-            ServiceResult::FsCreate(_) => Ok(None),
-            ServiceResult::FsRemove(_) => Ok(None),
-            ServiceResult::FsSearch(search_result) => {
+            ExecutionResult::FsRead(_) => Ok(None),
+            ExecutionResult::FsCreate(_) => Ok(None),
+            ExecutionResult::FsRemove(_) => Ok(None),
+            ExecutionResult::FsSearch(search_result) => {
                 if let Some(search_result) = search_result {
                     let output = search_result.matches.join("\n");
                     let is_truncated =
@@ -300,9 +300,9 @@ impl ServiceResult {
                     Ok(None)
                 }
             }
-            ServiceResult::FsPatch(_) => Ok(None),
-            ServiceResult::FsUndo(_) => Ok(None),
-            ServiceResult::NetFetch(out) => {
+            ExecutionResult::FsPatch(_) => Ok(None),
+            ExecutionResult::FsUndo(_) => Ok(None),
+            ExecutionResult::NetFetch(out) => {
                 let original_length = out.content.len();
                 let is_truncated = original_length > crate::truncation::FETCH_MAX_LENGTH;
 
@@ -315,7 +315,7 @@ impl ServiceResult {
                     Ok(None)
                 }
             }
-            ServiceResult::Shell(out) => {
+            ExecutionResult::Shell(out) => {
                 let stdout_lines = out.output.stdout.lines().count();
                 let stderr_lines = out.output.stderr.lines().count();
                 let stdout_truncated = stdout_lines
@@ -340,8 +340,8 @@ impl ServiceResult {
                     Ok(None)
                 }
             }
-            ServiceResult::FollowUp(_) => Ok(None),
-            ServiceResult::AttemptCompletion => Ok(None),
+            ExecutionResult::FollowUp(_) => Ok(None),
+            ExecutionResult::AttemptCompletion => Ok(None),
         }
     }
 }
