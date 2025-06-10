@@ -245,7 +245,6 @@ impl<S: Services> ToolRegistry<S> {
         ToolResult::new(call_clone.name)
             .call_id(call_clone.call_id)
             .output(output)
-            .into()
     }
 
     #[allow(dead_code)]
