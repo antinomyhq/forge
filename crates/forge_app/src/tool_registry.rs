@@ -251,12 +251,10 @@ impl<S: Services> ToolRegistry<S> {
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         let mcp_tools = self.services.mcp_service().list().await?;
 
-        let mut tools = Tools::iter()
+        let tools = Tools::iter()
             .map(|tool| tool.definition())
             .chain(mcp_tools.into_iter())
             .collect::<Vec<_>>();
-        // Sorting is required to ensure system prompts are exactly the same
-        tools.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
 
         Ok(tools)
     }
