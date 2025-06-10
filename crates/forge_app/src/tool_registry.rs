@@ -24,7 +24,6 @@ use crate::{
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct ToolRegistry<S> {
-    #[allow(dead_code)]
     services: Arc<S>,
 }
 impl<S: Services> ToolRegistry<S> {
@@ -467,9 +466,10 @@ async fn send_read_context(
 
 #[cfg(test)]
 mod tests {
-    use crate::tool_registry::ToolRegistry;
     use forge_domain::{Agent, ToolName, Tools};
     use pretty_assertions::assert_eq;
+
+    use crate::tool_registry::ToolRegistry;
 
     fn agent() -> Agent {
         // only allow FsRead tool for this agent
