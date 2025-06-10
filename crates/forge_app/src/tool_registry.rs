@@ -2,16 +2,20 @@ use std::cmp::min;
 use std::path::Path;
 use std::sync::Arc;
 
+use forge_display::{DiffFormat, GrepFormat, TitleFormat};
+use forge_domain::{
+    AttemptCompletionInput, FSSearchInput, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
+    ToolDescription, ToolInput, ToolName, ToolResult, Tools,
+};
+use regex::Regex;
+use strum::IntoEnumIterator;
+
 use crate::utils::display_path;
 use crate::{
     Content, EnvironmentService, FetchOutput, FollowUpService, FsCreateOutput, FsCreateService,
     FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoOutput, FsUndoService,
     NetFetchService, PatchOutput, ReadOutput, SearchResult, Services, ShellOutput, ShellService,
 };
-use forge_display::{DiffFormat, GrepFormat, TitleFormat};
-use forge_domain::{AttemptCompletionInput, FSSearchInput, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolDescription, ToolInput, ToolName, ToolResult, Tools};
-use regex::Regex;
-use strum::IntoEnumIterator;
 
 pub struct ToolRegistry<S> {
     #[allow(dead_code)]

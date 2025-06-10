@@ -1,5 +1,6 @@
-use crate::ToolDescription;
 use forge_tool_macros::ToolDescription;
+
+use crate::ToolDescription;
 
 /// Modifies files with targeted text operations on matched patterns. Supports
 /// prepend, append, replace, swap, delete operations on first pattern
