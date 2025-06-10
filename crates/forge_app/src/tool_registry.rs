@@ -469,8 +469,9 @@ async fn send_read_context(
 
 #[cfg(test)]
 mod tests {
-    use crate::tool_registry::ToolRegistry;
     use forge_domain::{Agent, ToolName, Tools};
+
+    use crate::tool_registry::ToolRegistry;
 
     fn agent() -> Agent {
         // only allow FsRead tool for this agent
@@ -487,7 +488,7 @@ mod tests {
         .await;
         assert!(result.is_ok(), "Tool call should be valid");
     }
-    
+
     #[tokio::test]
     async fn test_restricted_tool_call_err() {
         let result = ToolRegistry::<()>::validate_tool_call(
