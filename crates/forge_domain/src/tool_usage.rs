@@ -96,15 +96,16 @@ impl Display for Schema {
 #[cfg(test)]
 mod tests {
 
+    use insta::assert_snapshot;
+    use schemars::JsonSchema;
+    use serde::Deserialize;
+    use strum::IntoEnumIterator;
+
     use super::*;
     use crate::{
         ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription, ToolName,
         ToolOutput, Tools,
     };
-    use insta::assert_snapshot;
-    use schemars::JsonSchema;
-    use serde::Deserialize;
-    use strum::IntoEnumIterator;
 
     #[derive(Default)]
     pub struct MangoTool;
