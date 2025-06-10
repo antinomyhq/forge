@@ -28,6 +28,7 @@ backon.workspace = true
 base64.workspace = true
 derive-getters = "0.5.0"
 regex.workspace = true
+forge_tool_macros.workspace = true
 
 [dev-dependencies]
 insta = { workspace = true, features = ["yaml"] }
