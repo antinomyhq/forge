@@ -15,10 +15,10 @@ use tokio::time::timeout;
 
 use crate::utils::display_path;
 use crate::{
-    Content, EnvironmentService, FetchOutput, FollowUpService, FsCreateOutput, FsCreateService,
-    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoOutput, FsUndoService,
-    McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services, ShellOutput,
-    ShellService,
+    Content, EnvironmentService, Error, FetchOutput, FollowUpService, FsCreateOutput,
+    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoOutput,
+    FsUndoService, McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services,
+    ShellOutput, ShellService,
 };
 
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -173,7 +173,8 @@ impl<S: Services> ToolRegistry<S> {
         input: ToolCallFull,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        let tool_input = serde_json::from_value::<Tools>(input.arguments)?;
+        let tool_input =
+            serde_json::from_value::<Tools>(input.arguments).map_err(Error::ToolCallArgument)?;
 
         let out = self.call_internal(tool_input.clone(), context).await?;
         let truncation_path = out.to_create_temp(self.services.as_ref()).await?;
@@ -233,7 +234,7 @@ impl<S: Services> ToolRegistry<S> {
             })
             .await
         } else {
-            anyhow::bail!("Tool {} not found", input.name)
+            Err(Error::ToolNotFound(input.name).into())
         }
     }
 
