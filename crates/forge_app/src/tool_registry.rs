@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
-    AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition
-    , ToolName, ToolResult, Tools,
+    AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
+    ToolResult, Tools,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;
