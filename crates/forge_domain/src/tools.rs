@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
-use crate::{ToolDefinition, ToolDescription};
+use crate::{ToolDefinition, ToolDescription, ToolName};
 
 /// Enum representing all possible tool input types.
 ///
@@ -479,7 +479,7 @@ impl Tools {
             .description(self.description())
             .input_schema(self.schema())
     }
-    pub fn contains(tool_name: &str) -> bool {
-        FORGE_TOOLS.contains(tool_name)
+    pub fn contains(tool_name: &ToolName) -> bool {
+        FORGE_TOOLS.contains(tool_name.as_str())
     }
 }

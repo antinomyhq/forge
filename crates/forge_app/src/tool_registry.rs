@@ -222,7 +222,7 @@ impl<S: Services> ToolRegistry<S> {
         let tool_name = input.name.clone();
 
         // First, try to call a Forge tool
-        if Tools::contains(input.name.as_str()) {
+        if Tools::contains(&input.name) {
             self.call_with_timeout(&tool_name, || self.call_forge_tool(input.clone(), context))
                 .await
         } else if let Some(tool) = self.services.mcp_service().find(&input.name).await? {
