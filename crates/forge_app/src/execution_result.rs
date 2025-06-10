@@ -186,7 +186,7 @@ impl ExecutionResult {
                                 path.to_string_lossy()
                             )
                         }
-                        _ => String::new(),
+                        _ => output.content,
                     };
 
                     Ok(forge_domain::ToolOutput::text(format!(
