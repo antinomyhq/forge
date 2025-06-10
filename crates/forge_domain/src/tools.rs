@@ -434,8 +434,8 @@ impl ToolDescription for Tools {
 }
 lazy_static::lazy_static! {
     // Cache of all tool names
-    static ref FORGE_TOOLS: HashSet<String> = Tools::iter()
-        .map(|tool| tool.to_string())
+    static ref FORGE_TOOLS: HashSet<ToolName> = Tools::iter()
+        .map(ToolName::new)
         .collect();
 }
 
@@ -461,6 +461,6 @@ impl Tools {
             .input_schema(self.schema())
     }
     pub fn contains(tool_name: &ToolName) -> bool {
-        FORGE_TOOLS.contains(tool_name.as_str())
+        FORGE_TOOLS.contains(tool_name)
     }
 }
