@@ -171,9 +171,7 @@ pub struct TruncatedFetchOutput {
 }
 
 /// Truncates fetch content based on character limit
-pub fn truncate_fetch_content(
-    content: &str,
-) -> TruncatedFetchOutput {
+pub fn truncate_fetch_content(content: &str) -> TruncatedFetchOutput {
     let original_length = content.len();
     let is_truncated = original_length > FETCH_MAX_LENGTH;
 
@@ -183,9 +181,7 @@ pub fn truncate_fetch_content(
         content.to_string()
     };
 
-    TruncatedFetchOutput {
-        content: truncated_content,
-    }
+    TruncatedFetchOutput { content: truncated_content }
 }
 
 /// Maximum search lines before truncation
