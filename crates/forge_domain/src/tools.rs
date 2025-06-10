@@ -6,17 +6,18 @@ use forge_tool_macros::ToolDescription;
 use schemars::schema::RootSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
-use crate::{ToolDefinition, ToolDescription, ToolName};
+use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 
 /// Enum representing all possible tool input types.
 ///
 /// This enum contains variants for each type of input that can be passed to
 /// tools in the application. Each variant corresponds to the input type for a
 /// specific tool.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, From, EnumIter, Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, From, EnumIter, Display, PartialEq)]
 #[serde(tag = "name", content = "arguments")]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
@@ -43,7 +44,7 @@ pub enum Tools {
 /// and end_line parameters, ensuring the total range does not exceed 2,000
 /// lines. Specifying a range exceeding this limit will result in an error.
 /// Binary files are automatically detected and rejected.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSRead {
     /// The path of the file to read, always provide absolute paths.
     pub path: String,
@@ -69,7 +70,7 @@ pub struct FSRead {
 /// in the specified path.
 /// IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the
 /// shell tool instead.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSWrite {
     /// The path of the file to write to (absolute path required)
     pub path: String,
@@ -100,7 +101,7 @@ pub struct FSWrite {
 /// patterns across projects. For large pages, returns the first 200
 /// lines and stores the complete content in a temporary file for
 /// subsequent access.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSSearch {
     /// The absolute path of the directory or file to search in. If it's a
     /// directory, it will be searched recursively. If it's a file path,
@@ -126,7 +127,7 @@ pub struct FSSearch {
 /// Request to remove a file at the specified path. Use this when you need to
 /// delete an existing file. The path must be absolute. This operation cannot
 /// be undone, so use it carefully.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSRemove {
     /// The path of the file to remove (absolute path required)
     pub path: String,
@@ -162,7 +163,7 @@ pub enum PatchOperation {
 /// pattern occurrences - use forge_tool_fs_create instead for complete
 /// rewrites and forge_tool_fs_undo for undoing the last operation. Fails if
 /// search pattern isn't found.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {
     /// The path to the file to modify
     pub path: String,
@@ -188,7 +189,7 @@ pub struct FSPatch {
 /// Reverts the most recent file operation (create/modify/delete) on a specific
 /// file. Use this tool when you need to recover from incorrect file changes or
 /// if a revert is requested by the user.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSUndo {
     /// The absolute path of the file to revert to its previous state.
     pub path: String,
@@ -205,7 +206,7 @@ pub struct FSUndo {
 /// unrestricted access, advise users to run forge CLI with '-u' flag. Returns
 /// complete output including stdout, stderr, and exit code for diagnostic
 /// purposes.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct Shell {
     /// The shell command to execute.
     pub command: String,
@@ -227,7 +228,7 @@ pub struct Shell {
 }
 
 /// Input type for the net fetch tool
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct NetFetch {
     /// URL to fetch
     pub url: String,
@@ -247,7 +248,7 @@ pub struct NetFetch {
 /// more details to proceed effectively. Use this tool judiciously to maintain a
 /// balance between gathering necessary information and avoiding excessive
 /// back-and-forth.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct Followup {
     /// Question to ask the user
     pub question: String,
@@ -295,7 +296,7 @@ pub struct Followup {
 /// must ask yourself in <forge_thinking></forge_thinking> tags if you've
 /// confirmed from the user that any previous tool uses were successful. If not,
 /// then DO NOT use this tool.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct AttemptCompletion {
     /// The result of the task. Formulate this result in a way that is final and
     /// does not require further input from the user. Don't end your result with
@@ -320,7 +321,7 @@ fn default_raw() -> Option<bool> {
 /// requiring authentication. Respects robots.txt and may be blocked by
 /// anti-scraping measures. For large pages, returns the first 40,000 characters
 /// and stores the complete content in a temporary file for subsequent access.
-#[derive(Default, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FetchInput {
     /// URL to fetch
     pub url: String,
@@ -338,7 +339,7 @@ pub struct FetchInput {
 /// contents. The path must be absolute. Do not use this tool to confirm the
 /// existence of files you may have created, as the user will let you know if
 /// the files were created successfully or not.
-#[derive(Default, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSListInput {
     /// The path of the directory to list contents for (absolute path required)
     pub path: String,
@@ -356,7 +357,7 @@ pub struct FSListInput {
 /// time, last modified time, permissions, and type. Path must be absolute. Use
 /// this when you need to understand file characteristics without reading the
 /// actual content.
-#[derive(Default, Deserialize, JsonSchema, ToolDescription)]
+#[derive(Default, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSFileInfoInput {
     /// The path of the file or directory to inspect (absolute path required)
     pub path: String,
@@ -462,5 +463,41 @@ impl Tools {
     }
     pub fn contains(tool_name: &ToolName) -> bool {
         FORGE_TOOLS.contains(tool_name)
+    }
+}
+
+impl TryFrom<ToolCallFull> for Tools {
+    type Error = serde_json::Error;
+
+    fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
+        let object = json!({
+            "name": value.name.to_string(),
+            "arguments": value.arguments
+        });
+
+        serde_json::from_value(object)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{FSRead, ToolCallFull, ToolName, Tools};
+    use serde_json::json;
+
+    #[test]
+    fn foo() {
+        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read")).arguments(json!({
+            "path": "/some/path/foo.txt",
+        }));
+        
+        let actual = Tools::try_from(toolcall).unwrap();
+        let expected = Tools::ForgeToolFsRead(FSRead {
+            path: "/some/path/foo.txt".to_string(),
+            start_line: None,
+            end_line: None,
+            explanation: None,
+        });
+        
+        pretty_assertions::assert_eq!(actual, expected);
     }
 }

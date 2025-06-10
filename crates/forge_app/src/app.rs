@@ -6,17 +6,20 @@ use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::tool_registry::ToolRegistry;
-use crate::{
-    AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, Orchestrator,
-    ProviderService, Services, ToolService, WorkflowService,
-};
+use crate::Services;
+use crate::ProviderService;
+use crate::Orchestrator;
+use crate::FileDiscoveryService;
+use crate::EnvironmentService;
+use crate::ConversationService;
+use crate::AttachmentService;
+use crate::WorkflowService;
 
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the
 /// ForgeAPI chat method.
 pub struct ForgeApp<S: Services> {
     services: Arc<S>,
-    #[allow(dead_code)]
     tool_registry: ToolRegistry<S>,
 }
 
@@ -43,7 +46,7 @@ impl<S: Services> ForgeApp<S> {
             .expect("conversation for the request should've been created at this point.");
 
         // Get tool definitions and models
-        let tool_definitions = services.tool_service().list().await?;
+        let tool_definitions = self.list_tools().await?;
         let models = services.provider_service().models().await?;
 
         // Discover files using the discovery service
@@ -186,5 +189,12 @@ impl<S: Services> ForgeApp<S> {
             original_messages,
             compacted_messages,
         ))
+    }
+    pub async fn call_tool(&self, context: &mut ToolCallContext, call: ToolCallFull) -> ToolResult {
+        self.tool_registry.call(context, call).await
+    }
+
+    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
+        self.tool_registry.list().await
     }
 }

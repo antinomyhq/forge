@@ -173,8 +173,7 @@ impl<S: Services> ToolRegistry<S> {
         input: ToolCallFull,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        let tool_input =
-            serde_json::from_value::<Tools>(input.arguments).map_err(Error::ToolCallArgument)?;
+        let tool_input = Tools::try_from(input).map_err(Error::ToolCallArgument)?;
 
         let out = self.call_internal(tool_input.clone(), context).await?;
         let truncation_path = out.to_create_temp(self.services.as_ref()).await?;
@@ -233,8 +232,7 @@ impl<S: Services> ToolRegistry<S> {
         }
     }
 
-    #[allow(dead_code)]
-    async fn call(&self, context: &mut ToolCallContext, call: ToolCallFull) -> ToolResult {
+    pub async fn call(&self, context: &mut ToolCallContext, call: ToolCallFull) -> ToolResult {
         let call_clone = call.clone();
         let output = self.call_inner(call, context).await;
 
@@ -243,7 +241,6 @@ impl<S: Services> ToolRegistry<S> {
             .output(output)
     }
 
-    #[allow(dead_code)]
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         let mcp_tools = self.services.mcp_service().list().await?;
 
