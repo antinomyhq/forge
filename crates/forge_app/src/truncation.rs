@@ -8,9 +8,6 @@ pub(crate) const PREFIX_LINES: usize = 200;
 /// Number of lines to keep at the end of truncated output
 pub(crate) const SUFFIX_LINES: usize = 200;
 
-/// Maximum characters for fetch content
-pub(crate) const FETCH_MAX_LENGTH: usize = 40_000;
-
 pub async fn create_temp_file<S: Services>(
     services: &S,
     prefix: &str,
@@ -171,12 +168,12 @@ pub struct TruncatedFetchOutput {
 }
 
 /// Truncates fetch content based on character limit
-pub fn truncate_fetch_content(content: &str) -> TruncatedFetchOutput {
+pub fn truncate_fetch_content(content: &str, truncation_limit: usize) -> TruncatedFetchOutput {
     let original_length = content.len();
-    let is_truncated = original_length > FETCH_MAX_LENGTH;
+    let is_truncated = original_length > truncation_limit;
 
     let truncated_content = if is_truncated {
-        content.chars().take(FETCH_MAX_LENGTH).collect()
+        content.chars().take(truncation_limit).collect()
     } else {
         content.to_string()
     };

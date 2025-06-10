@@ -5,14 +5,19 @@ use forge_domain::{Environment, Tools};
 
 use crate::front_matter::FrontMatter;
 use crate::truncation::{
-    FETCH_MAX_LENGTH, create_temp_file, truncate_fetch_content, truncate_search_output,
-    truncate_shell_output,
+    create_temp_file, truncate_fetch_content, truncate_search_output, truncate_shell_output,
 };
 use crate::utils::display_path;
 use crate::{
     Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
     ResponseContext, SearchResult, Services, ShellOutput,
 };
+
+/// Maximum characters for fetch content
+#[cfg(not(test))]
+const FETCH_MAX_LENGTH: usize = 40_000;
+#[cfg(test)]
+const FETCH_MAX_LENGTH: usize = 50;
 
 #[derive(derive_more::From)]
 pub enum ExecutionResult {
@@ -172,7 +177,8 @@ impl ExecutionResult {
                             output.content_type
                         ),
                     };
-                    let truncated_content = truncate_fetch_content(&output.content);
+                    let truncated_content =
+                        truncate_fetch_content(&output.content, FETCH_MAX_LENGTH);
                     let mut metadata = FrontMatter::default()
                         .add("URL", &input.url)
                         .add("total_chars", output.content.len())
@@ -319,7 +325,7 @@ impl ExecutionResult {
             ExecutionResult::FsUndo(_) => Ok(None),
             ExecutionResult::NetFetch(out) => {
                 let original_length = out.content.len();
-                let is_truncated = original_length > crate::truncation::FETCH_MAX_LENGTH;
+                let is_truncated = original_length > FETCH_MAX_LENGTH;
 
                 if is_truncated {
                     let path =
@@ -709,7 +715,11 @@ mod tests {
     #[test]
     fn test_net_fetch_truncated() {
         let truncated_content = "Truncated Content".to_string();
-        let long_content = format!("{}{}", "A".repeat(40_000), &truncated_content);
+        let long_content = format!(
+            "{}{}",
+            "A".repeat(FETCH_MAX_LENGTH),
+            &truncated_content
+        );
         let fixture = ExecutionResult::NetFetch(FetchOutput {
             content: long_content,
             code: 200,
