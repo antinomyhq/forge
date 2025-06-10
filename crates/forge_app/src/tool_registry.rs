@@ -6,8 +6,8 @@ use std::time::Duration;
 use anyhow::Context;
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
-    AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
-    ToolOutput, ToolResult, Tools,
+    Agent, AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
+    ToolName, ToolOutput, ToolResult, Tools,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;
@@ -32,7 +32,6 @@ impl<S: Services> ToolRegistry<S> {
         Self { services }
     }
 
-    #[allow(dead_code)]
     async fn call_internal(
         &self,
         input: Tools,
@@ -214,9 +213,12 @@ impl<S: Services> ToolRegistry<S> {
 
     async fn call_inner(
         &self,
+        agent: &Agent,
         input: ToolCallFull,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
+        self.validate_tool_call(agent, &input.name).await?;
+
         tracing::info!(tool_name = %input.name, arguments = %input.arguments, "Executing tool call");
         let tool_name = input.name.clone();
 
@@ -232,9 +234,39 @@ impl<S: Services> ToolRegistry<S> {
         }
     }
 
-    pub async fn call(&self, context: &mut ToolCallContext, call: ToolCallFull) -> ToolResult {
+    /// Validates if a tool is supported by both the agent and the system.
+    ///
+    /// # Validation Process
+    /// Verifies the tool is supported by the agent specified in the context
+    async fn validate_tool_call(&self, agent: &Agent, tool_name: &ToolName) -> anyhow::Result<()> {
+        let agent_tools: Vec<_> = agent
+            .tools
+            .iter()
+            .flat_map(|tools| tools.iter())
+            .map(|tool| tool.as_str())
+            .collect();
+
+        if !agent_tools.contains(&tool_name.as_str()) {
+            tracing::error!(tool_name = %tool_name, "Invalid tool call");
+
+            return Err(anyhow::anyhow!(
+                "No tool with name '{}' is supported by agent '{}'. Please try again with one of these tools {}",
+                tool_name,
+                agent.id,
+                agent_tools.join(", ")
+            ));
+        }
+        Ok(())
+    }
+
+    pub async fn call(
+        &self,
+        agent: &Agent,
+        context: &mut ToolCallContext,
+        call: ToolCallFull,
+    ) -> ToolResult {
         let call_clone = call.clone();
-        let output = self.call_inner(call, context).await;
+        let output = self.call_inner(agent, call, context).await;
 
         ToolResult::new(call_clone.name)
             .call_id(call_clone.call_id)

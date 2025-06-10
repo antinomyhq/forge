@@ -44,11 +44,11 @@ where
 
     async fn call(
         &self,
-        _agent: &Agent,
+        agent: &Agent,
         context: &mut ToolCallContext,
         call: ToolCallFull,
     ) -> ToolResult {
         let registry = ToolRegistry::new(Arc::new(self.clone()));
-        registry.call(context, call).await
+        registry.call(agent, context, call).await
     }
 }
