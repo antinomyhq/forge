@@ -42,7 +42,7 @@ impl<S: Services> ForgeApp<S> {
             .expect("conversation for the request should've been created at this point.");
 
         // Get tool definitions and models
-        let tool_definitions =  self.tool_registry.list().await?;
+        let tool_definitions = self.tool_registry.list().await?;
         let models = services.provider_service().models().await?;
 
         // Discover files using the discovery service
