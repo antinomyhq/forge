@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use forge_tool_macros::ToolDescription;
+use schemars::schema::RootSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -460,6 +461,23 @@ impl ToolDescription for Tools {
             Tools::FSRemove(v) => v.description(),
             Tools::FSUndo(v) => v.description(),
             Tools::FSWrite(v) => v.description(),
+        }
+    }
+}
+
+impl Tools {
+    pub fn schema(&self) -> RootSchema {
+        match self {
+            Tools::FSPatch(_) => schemars::schema_for!(FSPatch),
+            Tools::Shell(_) => schemars::schema_for!(Shell),
+            Tools::Followup(_) => schemars::schema_for!(Followup),
+            Tools::NetFetch(_) => schemars::schema_for!(NetFetch),
+            Tools::AttemptCompletion(_) => schemars::schema_for!(AttemptCompletion),
+            Tools::FSSearch(_) => schemars::schema_for!(FSSearch),
+            Tools::FSRead(_) => schemars::schema_for!(FSRead),
+            Tools::FSRemove(_) => schemars::schema_for!(FSRemove),
+            Tools::FSUndo(_) => schemars::schema_for!(FSUndo),
+            Tools::FSWrite(_) => schemars::schema_for!(FSWrite),
         }
     }
 }

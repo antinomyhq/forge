@@ -187,7 +187,11 @@ impl<S: Services> ToolRegistry<S> {
     #[allow(dead_code)]
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         Ok(Tools::iter()
-            .map(|v| ToolDefinition::new(&v).description(v.description()))
+            .map(|v| {
+                ToolDefinition::new(&v)
+                    .description(v.description())
+                    .input_schema(v.schema())
+            })
             .collect())
     }
     #[allow(dead_code)]
