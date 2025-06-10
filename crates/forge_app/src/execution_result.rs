@@ -4,11 +4,14 @@ use forge_display::DiffFormat;
 use forge_domain::{Environment, Tools};
 
 use crate::front_matter::FrontMatter;
-use crate::truncation::FETCH_MAX_LENGTH;
+use crate::truncation::{
+    FETCH_MAX_LENGTH, create_temp_file, truncate_fetch_content, truncate_search_output,
+    truncate_shell_output,
+};
 use crate::utils::display_path;
 use crate::{
     Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
-    ResponseContext, SearchResult, Services, ShellOutput, create_temp_file, truncate_search_output,
+    ResponseContext, SearchResult, Services, ShellOutput,
 };
 
 #[derive(derive_more::From)]
@@ -169,6 +172,7 @@ impl ExecutionResult {
                             output.content_type
                         ),
                     };
+                    let truncated_content = truncate_fetch_content(&output.content);
                     let mut metadata = FrontMatter::default()
                         .add("URL", &input.url)
                         .add("total_chars", output.content.len())
@@ -185,6 +189,7 @@ impl ExecutionResult {
                             ),
                         );
                     }
+                    let output = truncated_content.content;
                     let truncation_tag = match truncation_path.as_ref() {
                         Some(path) => {
                             format!(
@@ -193,11 +198,11 @@ impl ExecutionResult {
                                 path.to_string_lossy()
                             )
                         }
-                        _ => output.content,
+                        _ => String::new(),
                     };
 
                     Ok(forge_domain::ToolOutput::text(format!(
-                        "{metadata}{truncation_tag}"
+                        "{metadata}{output}{truncation_tag}"
                     )))
                 } else {
                     unreachable!()
@@ -208,19 +213,17 @@ impl ExecutionResult {
                 if let Some(exit_code) = output.output.exit_code {
                     metadata = metadata.add("exit_code", exit_code);
                 }
+                let truncated_output =
+                    truncate_shell_output(&output.output.stdout, &output.output.stderr);
 
                 let stdout_lines = output.output.stdout.lines().count();
                 let stderr_lines = output.output.stderr.lines().count();
-                let stdout_truncated = stdout_lines
-                    > crate::truncation::PREFIX_LINES + crate::truncation::SUFFIX_LINES;
-                let stderr_truncated = stderr_lines
-                    > crate::truncation::PREFIX_LINES + crate::truncation::SUFFIX_LINES;
 
-                if stdout_truncated {
+                if truncated_output.stdout_truncated {
                     metadata = metadata.add("total_stdout_lines", stdout_lines);
                 }
 
-                if stderr_truncated {
+                if truncated_output.stderr_truncated {
                     metadata = metadata.add("total_stderr_lines", stderr_lines);
                 }
 
@@ -229,10 +232,10 @@ impl ExecutionResult {
                 // Combine outputs
                 let mut outputs = vec![];
                 if !output.output.stdout.is_empty() {
-                    outputs.push(output.output.stdout);
+                    outputs.push(truncated_output.stdout);
                 }
                 if !output.output.stderr.is_empty() {
-                    outputs.push(output.output.stderr);
+                    outputs.push(truncated_output.stderr);
                 }
 
                 let mut result = if outputs.is_empty() {
@@ -248,15 +251,20 @@ impl ExecutionResult {
                     outputs.join("\n")
                 };
 
-                result = format!("{metadata}{result}");
+                if truncated_output.stderr_truncated || truncated_output.stdout_truncated {
+                    // Create temp file if needed
+                    if let Some(path) = truncation_path.as_ref() {
+                        metadata = metadata
+                            .add("temp_file", path.display())
+                            .add("truncated", "true");
 
-                // Create temp file if needed
-                if let Some(path) = truncation_path.as_ref() {
-                    result.push_str(&format!(
-                        "\n<truncated>content is truncated, remaining content can be read from path:{}</truncated>",
-                        path.display()
-                    ));
+                        result.push_str(&format!(
+                            "\n<truncated>content is truncated, remaining content can be read from path:{}</truncated>",
+                            path.display()
+                        ));
+                    }
                 }
+                result = format!("{metadata}{result}");
 
                 if is_success {
                     Ok(forge_domain::ToolOutput::text(result))
@@ -695,6 +703,42 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_net_fetch_truncated() {
+        let truncated_content = "Truncated Content".to_string();
+        let long_content = format!("{}{}", "A".repeat(40_000), &truncated_content);
+        let fixture = ExecutionResult::NetFetch(FetchOutput {
+            content: long_content,
+            code: 200,
+            context: ResponseContext::Parsed,
+            content_type: "text/html".to_string(),
+        });
+        let input = Some(Tools::ForgeToolNetFetch(forge_domain::NetFetch {
+            url: "https://example.com/large-page".to_string(),
+            raw: Some(false),
+            explanation: Some("Fetching large content that will be truncated".to_string()),
+        }));
+
+        let env = fixture_environment();
+        let truncation_path = Some(std::path::PathBuf::from("/tmp/forge_fetch_abc123.txt"));
+
+        let actual = fixture
+            .into_tool_output(input, truncation_path, &env)
+            .unwrap();
+
+        // make sure that the content is truncated
+        assert!(
+            !actual
+                .values
+                .get(0)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .ends_with(&truncated_content)
+        );
         insta::assert_snapshot!(to_value(actual));
     }
 
