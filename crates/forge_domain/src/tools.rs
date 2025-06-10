@@ -1,67 +1,70 @@
-use std::path::PathBuf;
-
+use crate::{ToolDefinition, ToolDescription};
+use derive_more::{Display, From};
 use forge_tool_macros::ToolDescription;
 use schemars::schema::RootSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::{ToolDefinition, ToolDescription};
+use std::collections::HashSet;
+use std::path::PathBuf;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 /// Enum representing all possible tool input types.
 ///
 /// This enum contains variants for each type of input that can be passed to
 /// tools in the application. Each variant corresponds to the input type for a
 /// specific tool.
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    derive_more::From,
-    strum_macros::EnumIter,
-    strum_macros::Display,
-)]
-#[serde(tag = "tool", content = "args")]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, From, EnumIter, Display)]
+#[serde(tag = "name", content = "arguments")]
 pub enum Tools {
     /// Input for the file read tool
     #[serde(rename = "forge_tool_fs_read")]
+    #[display("forge_tool_fs_read")]
     FSRead(FSRead),
 
     /// Input for the file write tool
     #[serde(rename = "forge_tool_fs_create")]
+    #[display("forge_tool_fs_create")]
     FSWrite(FSWrite),
 
     /// Input for the file search tool
     #[serde(rename = "forge_tool_fs_search")]
+    #[display("forge_tool_fs_search")]
     FSSearch(FSSearch),
 
     /// Input for the file remove tool
     #[serde(rename = "forge_tool_fs_remove")]
+    #[display("forge_tool_fs_remove")]
     FSRemove(FSRemove),
 
     /// Input for the file patch tool
     #[serde(rename = "forge_tool_fs_patch")]
+    #[display("forge_tool_fs_patch")]
     FSPatch(FSPatch),
 
     /// Input for the file undo tool
     #[serde(rename = "forge_tool_fs_undo")]
+    #[display("forge_tool_fs_undo")]
     FSUndo(FSUndo),
 
     /// Input for the shell command tool
     #[serde(rename = "forge_tool_process_shell")]
+    #[display("forge_tool_process_shell")]
     Shell(Shell),
 
     /// Input for the net fetch tool
     #[serde(rename = "forge_tool_net_fetch")]
+    #[display("forge_tool_net_fetch")]
     NetFetch(NetFetch),
 
     /// Input for the followup tool
     #[serde(rename = "forge_tool_followup")]
+    #[display("forge_tool_followup")]
     Followup(Followup),
 
     /// Input for the completion tool
     #[serde(rename = "forge_tool_attempt_completion")]
+    #[display("forge_tool_attempt_completion")]
     AttemptCompletion(AttemptCompletion),
 }
 
@@ -485,5 +488,32 @@ impl Tools {
         ToolDefinition::new(self)
             .description(self.description())
             .input_schema(self.schema())
+    }
+}
+
+lazy_static::lazy_static! {
+    // Cache of all tools, mapping tool names to their definitions
+    pub static ref FORGE_TOOLS: HashSet<String> = Tools::iter()
+        .map(|tool| tool.to_string())
+        .collect();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_names() {
+        // Ensure all tools' display value matches deserialization name
+        for tool in Tools::iter() {
+            let value = serde_json::to_value(&tool).unwrap();
+            let name = value.get("name").unwrap();
+            let name_str = name.as_str().unwrap();
+            assert!(
+                FORGE_TOOLS.contains(name_str),
+                "Tool {} must be in FORGE_TOOLS",
+                name_str
+            );
+        }
     }
 }

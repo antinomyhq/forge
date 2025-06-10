@@ -1,15 +1,3 @@
-use std::cmp::min;
-use std::path::Path;
-use std::sync::Arc;
-
-use forge_display::{DiffFormat, GrepFormat, TitleFormat};
-use forge_domain::{
-    AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
-    ToolResult, Tools,
-};
-use regex::Regex;
-use strum::IntoEnumIterator;
-
 use crate::utils::display_path;
 use crate::{
     Content, EnvironmentService, FetchOutput, FollowUpService, FsCreateOutput, FsCreateService,
@@ -17,6 +5,21 @@ use crate::{
     McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services, ShellOutput,
     ShellService,
 };
+use anyhow::Context;
+use forge_display::{DiffFormat, GrepFormat, TitleFormat};
+use forge_domain::{
+    AttemptCompletion, FORGE_TOOLS, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
+    ToolName, ToolOutput, ToolResult, Tools,
+};
+use regex::Regex;
+use std::cmp::min;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+use strum::IntoEnumIterator;
+use tokio::time::timeout;
+
+const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct ToolRegistry<S> {
     #[allow(dead_code)]
@@ -163,28 +166,79 @@ impl<S: Services> ToolRegistry<S> {
             }
         }
     }
-    #[allow(dead_code)]
-    pub async fn call(&self, input: ToolCallFull, context: &mut ToolCallContext) -> ToolResult {
-        let Ok(tool_input) = serde_json::from_value::<Tools>(input.arguments) else {
-            return ToolResult::new(input.name)
-                .failure(anyhow::anyhow!("Failed to parse tool input arguments"));
-        };
+    async fn call_forge_tool(
+        &self,
+        input: ToolCallFull,
+        context: &mut ToolCallContext,
+    ) -> anyhow::Result<ToolOutput> {
+        let tool_input = serde_json::from_value::<Tools>(input.arguments)?;
 
-        let result = self.call_internal(tool_input.clone(), context).await;
-        match result {
-            Ok(out) => {
-                let Ok(truncation_path) = out.to_create_temp(self.services.as_ref()).await else {
-                    return ToolResult::new(input.name)
-                        .failure(anyhow::anyhow!("Failed to truncate output"));
-                };
+        let out = self.call_internal(tool_input.clone(), context).await?;
+        let truncation_path = out.to_create_temp(self.services.as_ref()).await?;
+        let env = self.services.environment_service().get_environment();
 
-                let env = self.services.environment_service().get_environment();
+        Ok(out.to_tool_result_inner(Some(tool_input), truncation_path, &env)?)
+    }
 
-                out.to_tool_result(input.name, Some(tool_input), truncation_path, &env)
-            }
-            Err(err) => ToolResult::new(input.name).failure(err),
+    async fn call_mcp_tool(
+        &self,
+        input: ToolCallFull,
+        context: &mut ToolCallContext,
+        tool: Arc<Tool>,
+    ) -> anyhow::Result<ToolOutput> {
+        let output = tool.executable.call(context, input.arguments).await;
+        if let Err(error) = &output {
+            tracing::warn!(cause = ?error, tool = %input.name, "Tool Call Failure");
+        }
+        output
+    }
+
+    async fn call_inner(
+        &self,
+        input: ToolCallFull,
+        context: &mut ToolCallContext,
+    ) -> anyhow::Result<ToolOutput> {
+        tracing::info!(tool_name = %input.name, arguments = %input.arguments, "Executing tool call");
+        let tool_name = input.name.clone();
+
+        // First, try to call a Forge tool
+        if FORGE_TOOLS.contains(input.name.as_str()) {
+            let output = timeout(
+                TOOL_CALL_TIMEOUT,
+                self.call_forge_tool(input.clone(), context),
+            )
+            .await
+            .context({
+                format!(
+                    "Tool '{}' timed out after {} minutes",
+                    tool_name,
+                    TOOL_CALL_TIMEOUT.as_secs() / 60
+                )
+            })?;
+
+            output
+        } else if let Some(tool) = self.services.mcp_service().find(&input.name).await? {
+            let output = timeout(TOOL_CALL_TIMEOUT, self.call_mcp_tool(input, context, tool))
+                .await
+                .context({
+                    format!(
+                        "Tool '{}' timed out after {} minutes",
+                        tool_name,
+                        TOOL_CALL_TIMEOUT.as_secs() / 60
+                    )
+                })?;
+
+            output
+        } else {
+            anyhow::bail!("Tool {} not found", input.name)
         }
     }
+
+    #[allow(dead_code)]
+    async fn call(&self, _context: &mut ToolCallContext, _call: ToolCallFull) -> ToolResult {
+        todo!()
+    }
+
     #[allow(dead_code)]
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         let mcp_tools = self.services.mcp_service().list().await?;
@@ -197,10 +251,6 @@ impl<S: Services> ToolRegistry<S> {
         tools.sort_by(|a, b| a.name.to_string().cmp(&b.name.to_string()));
 
         Ok(tools)
-    }
-    #[allow(dead_code)]
-    pub async fn find(&self, _: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
-        unimplemented!()
     }
 }
 

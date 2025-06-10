@@ -35,7 +35,7 @@ impl ToolOutput {
     ) -> ToolResult {
         ToolResult::new(tool_name).output(self.to_tool_result_inner(input, truncation_path, env))
     }
-    fn to_tool_result_inner(
+    pub fn to_tool_result_inner(
         &self,
         input: Option<Tools>,
         truncation_path: Option<PathBuf>,
