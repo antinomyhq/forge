@@ -265,7 +265,7 @@ impl<S> ToolRegistry<S> {
     ///
     /// # Validation Process
     /// Verifies the tool is supported by the agent specified in the context
-    async fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> anyhow::Result<()> {
+    async fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> Result<(), Error> {
         let agent_tools: Vec<_> = agent
             .tools
             .iter()
@@ -276,12 +276,11 @@ impl<S> ToolRegistry<S> {
         if !agent_tools.contains(&tool_name.as_str()) {
             tracing::error!(tool_name = %tool_name, "No tool with name");
 
-            return Err(anyhow::anyhow!(
-                "No tool with name '{}' is supported by agent '{}'. Please try again with one of these tools {}",
-                tool_name,
-                agent.id,
-                agent_tools.join(", ")
-            ));
+            return Err(Error::ToolNotAllowed {
+                name: tool_name.clone(),
+                agent: agent.id.clone(),
+                supported_tools: agent_tools.join(", "),
+            });
         }
         Ok(())
     }
