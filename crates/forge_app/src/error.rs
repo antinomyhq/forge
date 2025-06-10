@@ -1,4 +1,4 @@
-use forge_domain::{AgentId, ToolName};
+use forge_domain::ToolName;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
