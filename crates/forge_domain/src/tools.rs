@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use derive_more::From;
@@ -5,6 +6,7 @@ use forge_tool_macros::ToolDescription;
 use schemars::schema::RootSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
 use crate::{ToolDefinition, ToolDescription};
@@ -449,6 +451,12 @@ impl ToolDescription for Tools {
         }
     }
 }
+lazy_static::lazy_static! {
+    // Cache of all tool names
+    static ref FORGE_TOOLS: HashSet<String> = Tools::iter()
+        .map(|tool| tool.to_string())
+        .collect();
+}
 
 impl Tools {
     pub fn schema(&self) -> RootSchema {
@@ -470,5 +478,8 @@ impl Tools {
         ToolDefinition::new(self)
             .description(self.description())
             .input_schema(self.schema())
+    }
+    pub fn contains(tool_name: &str) -> bool {
+        FORGE_TOOLS.contains(tool_name)
     }
 }

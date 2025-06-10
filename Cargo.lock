@@ -1039,6 +1039,7 @@ dependencies = [
  "forge_template",
  "forge_tool_macros",
  "insta",
+ "lazy_static",
  "merge",
  "nom 8.0.0",
  "pretty_assertions",
