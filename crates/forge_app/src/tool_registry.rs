@@ -6,8 +6,8 @@ use std::time::Duration;
 use anyhow::Context;
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
-    AttemptCompletion, FORGE_TOOLS, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
-    ToolOutput, ToolResult, Tools,
+    AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolOutput,
+    ToolResult, Tools,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;
@@ -222,7 +222,7 @@ impl<S: Services> ToolRegistry<S> {
         let tool_name = input.name.clone();
 
         // First, try to call a Forge tool
-        if FORGE_TOOLS.contains(input.name.as_str()) {
+        if Tools::iter().any(|v| v.to_string().eq(input.name.as_str())) {
             self.call_with_timeout(&tool_name.to_string(), || {
                 self.call_forge_tool(input.clone(), context)
             })
