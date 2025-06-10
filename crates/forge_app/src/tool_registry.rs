@@ -238,8 +238,14 @@ impl<S: Services> ToolRegistry<S> {
     }
 
     #[allow(dead_code)]
-    async fn call(&self, _context: &mut ToolCallContext, _call: ToolCallFull) -> ToolResult {
-        todo!()
+    async fn call(&self, context: &mut ToolCallContext, call: ToolCallFull) -> ToolResult {
+        let call_clone = call.clone();
+        let output = self.call_inner(call, context).await;
+
+        ToolResult::new(call_clone.name)
+            .call_id(call_clone.call_id)
+            .output(output)
+            .into()
     }
 
     #[allow(dead_code)]
