@@ -278,6 +278,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type FsUndoService: FsUndoService;
     type NetFetchService: NetFetchService;
     type ShellService: ShellService;
+    type McpService: McpService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -297,4 +298,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn fs_undo_service(&self) -> &Self::FsUndoService;
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
+    fn mcp_service(&self) -> &Self::McpService;
 }

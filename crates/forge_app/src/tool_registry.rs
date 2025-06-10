@@ -14,7 +14,8 @@ use crate::utils::display_path;
 use crate::{
     Content, EnvironmentService, FetchOutput, FollowUpService, FsCreateOutput, FsCreateService,
     FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoOutput, FsUndoService,
-    NetFetchService, PatchOutput, ReadOutput, SearchResult, Services, ShellOutput, ShellService,
+    McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services, ShellOutput,
+    ShellService,
 };
 
 pub struct ToolRegistry<S> {
@@ -186,7 +187,14 @@ impl<S: Services> ToolRegistry<S> {
     }
     #[allow(dead_code)]
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        Ok(Tools::iter().map(|tool| tool.definition()).collect())
+        let mcp_tools = self.services.mcp_service().list().await?;
+
+        let tools = Tools::iter()
+            .map(|tool| tool.definition())
+            .chain(mcp_tools.into_iter())
+            .collect::<Vec<_>>();
+
+        Ok(tools)
     }
     #[allow(dead_code)]
     pub async fn find(&self, _: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
