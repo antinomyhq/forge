@@ -78,7 +78,7 @@ fn should_retry(error: &anyhow::Error) -> bool {
         .downcast_ref::<Error>()
         .is_some_and(|error| matches!(error, Error::Retryable(_, _)));
 
-    warn!(error = %error, retry = retry, "Retrying on error");
+    warn!(error = ?error, retry = retry, "Retrying on error");
     retry
 }
 

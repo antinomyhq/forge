@@ -6,8 +6,8 @@ use std::time::Duration;
 use anyhow::Context;
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
-    AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
-    ToolOutput, ToolResult, Tools,
+    Agent, AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
+    ToolName, ToolOutput, ToolResult, Tools,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;
@@ -24,7 +24,6 @@ use crate::{
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub struct ToolRegistry<S> {
-    #[allow(dead_code)]
     services: Arc<S>,
 }
 impl<S: Services> ToolRegistry<S> {
@@ -32,7 +31,6 @@ impl<S: Services> ToolRegistry<S> {
         Self { services }
     }
 
-    #[allow(dead_code)]
     async fn call_internal(
         &self,
         input: Tools,
@@ -214,9 +212,12 @@ impl<S: Services> ToolRegistry<S> {
 
     async fn call_inner(
         &self,
+        agent: &Agent,
         input: ToolCallFull,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
+        Self::validate_tool_call(agent, &input.name).await?;
+
         tracing::info!(tool_name = %input.name, arguments = %input.arguments, "Executing tool call");
         let tool_name = input.name.clone();
 
@@ -232,9 +233,14 @@ impl<S: Services> ToolRegistry<S> {
         }
     }
 
-    pub async fn call(&self, context: &mut ToolCallContext, call: ToolCallFull) -> ToolResult {
+    pub async fn call(
+        &self,
+        agent: &Agent,
+        context: &mut ToolCallContext,
+        call: ToolCallFull,
+    ) -> ToolResult {
         let call_clone = call.clone();
-        let output = self.call_inner(call, context).await;
+        let output = self.call_inner(agent, call, context).await;
 
         ToolResult::new(call_clone.name)
             .call_id(call_clone.call_id)
@@ -250,6 +256,31 @@ impl<S: Services> ToolRegistry<S> {
             .collect::<Vec<_>>();
 
         Ok(tools)
+    }
+}
+
+impl<S> ToolRegistry<S> {
+    /// Validates if a tool is supported by both the agent and the system.
+    ///
+    /// # Validation Process
+    /// Verifies the tool is supported by the agent specified in the context
+    async fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> Result<(), Error> {
+        let agent_tools: Vec<_> = agent
+            .tools
+            .iter()
+            .flat_map(|tools| tools.iter())
+            .map(|tool| tool.as_str())
+            .collect();
+
+        if !agent_tools.contains(&tool_name.as_str()) {
+            tracing::error!(tool_name = %tool_name, "No tool with name");
+
+            return Err(Error::ToolNotAllowed {
+                name: tool_name.clone(),
+                supported_tools: agent_tools.join(", "),
+            });
+        }
+        Ok(())
     }
 }
 
@@ -431,4 +462,45 @@ async fn send_read_context(
     let message = TitleFormat::debug(title).sub_title(subtitle);
     ctx.send_text(message).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_domain::{Agent, ToolName, Tools};
+    use pretty_assertions::assert_eq;
+
+    use crate::tool_registry::ToolRegistry;
+
+    fn agent() -> Agent {
+        // only allow FsRead tool for this agent
+        Agent::new("test_agent").tools(vec![
+            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("forge_tool_fs_find"),
+        ])
+    }
+
+    #[tokio::test]
+    async fn test_restricted_tool_call() {
+        let result = ToolRegistry::<()>::validate_tool_call(
+            &agent(),
+            &ToolName::new(Tools::ForgeToolFsRead(Default::default())),
+        )
+        .await;
+        assert!(result.is_ok(), "Tool call should be valid");
+    }
+
+    #[tokio::test]
+    async fn test_restricted_tool_call_err() {
+        let error = ToolRegistry::<()>::validate_tool_call(
+            &agent(),
+            &ToolName::new("forge_tool_fs_create"),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+        assert_eq!(
+            error,
+            "Tool 'forge_tool_fs_create' is not available. Please try again with one of these tools: [forge_tool_fs_read, forge_tool_fs_find]"
+        );
+    }
 }
