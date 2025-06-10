@@ -481,15 +481,16 @@ impl TryFrom<ToolCallFull> for Tools {
 
 #[cfg(test)]
 mod tests {
-    use crate::{FSRead, ToolCallFull, ToolName, Tools};
     use serde_json::json;
+
+    use crate::{FSRead, ToolCallFull, ToolName, Tools};
 
     #[test]
     fn foo() {
         let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read")).arguments(json!({
             "path": "/some/path/foo.txt",
         }));
-        
+
         let actual = Tools::try_from(toolcall).unwrap();
         let expected = Tools::ForgeToolFsRead(FSRead {
             path: "/some/path/foo.txt".to_string(),
@@ -497,7 +498,7 @@ mod tests {
             end_line: None,
             explanation: None,
         });
-        
+
         pretty_assertions::assert_eq!(actual, expected);
     }
 }

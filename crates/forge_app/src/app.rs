@@ -6,14 +6,10 @@ use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::tool_registry::ToolRegistry;
-use crate::Services;
-use crate::ProviderService;
-use crate::Orchestrator;
-use crate::FileDiscoveryService;
-use crate::EnvironmentService;
-use crate::ConversationService;
-use crate::AttachmentService;
-use crate::WorkflowService;
+use crate::{
+    AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, Orchestrator,
+    ProviderService, Services, WorkflowService,
+};
 
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the
