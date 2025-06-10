@@ -223,11 +223,15 @@ impl<S: Services> ToolRegistry<S> {
 
         // First, try to call a Forge tool
         if FORGE_TOOLS.contains(input.name.as_str()) {
-            self.call_with_timeout(&tool_name.to_string(), || self.call_forge_tool(input.clone(), context))
-                .await
+            self.call_with_timeout(&tool_name.to_string(), || {
+                self.call_forge_tool(input.clone(), context)
+            })
+            .await
         } else if let Some(tool) = self.services.mcp_service().find(&input.name).await? {
-            self.call_with_timeout(&tool_name.to_string(), || self.call_mcp_tool(input, context, tool))
-                .await
+            self.call_with_timeout(&tool_name.to_string(), || {
+                self.call_mcp_tool(input, context, tool)
+            })
+            .await
         } else {
             anyhow::bail!("Tool {} not found", input.name)
         }
