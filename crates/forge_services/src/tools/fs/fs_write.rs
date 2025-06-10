@@ -10,7 +10,7 @@ use forge_display::{DiffFormat, TitleFormat};
 // Using FSWriteInput from forge_domain
 use forge_domain::ToolOutput;
 use forge_domain::{
-    ExecutableTool, FSWriteInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    ExecutableTool, FSWrite as FSWriteInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
 };
 use forge_tool_macros::ToolDescription;
 

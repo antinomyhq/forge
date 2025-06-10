@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use forge_display::DiffFormat;
-use forge_domain::{Environment, ToolInput, ToolName, ToolResult};
+use forge_domain::{Environment, Tools, ToolName, ToolResult};
 
 use crate::front_matter::FrontMatter;
 use crate::truncation::FETCH_MAX_LENGTH;
@@ -29,7 +29,7 @@ impl ToolOutput {
     pub fn to_tool_result(
         &self,
         tool_name: ToolName,
-        input: Option<ToolInput>,
+        input: Option<Tools>,
         tancuation_path: Option<PathBuf>,
         env: &Environment,
     ) -> ToolResult {
@@ -37,13 +37,13 @@ impl ToolOutput {
     }
     fn to_tool_result_inner(
         &self,
-        input: Option<ToolInput>,
+        input: Option<Tools>,
         tancuation_path: Option<PathBuf>,
         env: &Environment,
     ) -> anyhow::Result<forge_domain::ToolOutput> {
         match self {
             ToolOutput::FsRead(out) => {
-                if let Some(ToolInput::FSRead(input)) = input {
+                if let Some(Tools::FSRead(input)) = input {
                     let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
                     let is_range_relevant = is_explicit_range || tancuation_path.is_some();
 
@@ -66,7 +66,7 @@ impl ToolOutput {
                 }
             }
             ToolOutput::FsCreate(out) => {
-                if let Some(ToolInput::FSWrite(input)) = input {
+                if let Some(Tools::FSWrite(input)) = input {
                     let chars = input.content.len();
                     let operation = if out.previous.is_some() {
                         "OVERWRITE"
@@ -86,7 +86,7 @@ impl ToolOutput {
                 }
             }
             ToolOutput::FsRemove(out) => {
-                if let Some(ToolInput::FSRemove(input)) = input {
+                if let Some(Tools::FSRemove(input)) = input {
                     let display_path = display_path(env, Path::new(&input.path))?;
                     if out.completed {
                         Ok(forge_domain::ToolOutput::text(format!(
@@ -102,7 +102,7 @@ impl ToolOutput {
                 }
             }
             ToolOutput::FsSearch(output) => {
-                if let Some(ToolInput::FSSearch(input)) = input {
+                if let Some(Tools::FSSearch(input)) = input {
                     match output {
                         Some(out) => {
                             let truncated_output = truncate_search_output(
@@ -148,7 +148,7 @@ impl ToolOutput {
                 }
             }
             ToolOutput::FsPatch(output) => {
-                if let Some(ToolInput::FSPatch(input)) = input {
+                if let Some(Tools::FSPatch(input)) = input {
                     let diff = console::strip_ansi_codes(&DiffFormat::format(
                         &output.before,
                         &output.after,
@@ -170,7 +170,7 @@ impl ToolOutput {
                 output.as_str()
             ))),
             ToolOutput::NetFetch(output) => {
-                if let Some(ToolInput::NetFetch(input)) = input {
+                if let Some(Tools::NetFetch(input)) = input {
                     let mut metadata = FrontMatter::default()
                         .add("URL", &input.url)
                         .add("total_chars", output.content.len())

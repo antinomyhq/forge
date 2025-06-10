@@ -7,7 +7,7 @@ use anyhow::{bail, Context};
 use forge_app::EnvironmentService;
 use forge_display::TitleFormat;
 use forge_domain::{
-    ExecutableTool, FSReadInput, NamedTool, ToolCallContext, ToolDescription, ToolName, ToolOutput,
+    ExecutableTool, FSRead as FSReadInput, NamedTool, ToolCallContext, ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 

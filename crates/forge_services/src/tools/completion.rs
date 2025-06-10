@@ -1,6 +1,6 @@
 use anyhow::Result;
 use forge_domain::{
-    AttemptCompletionInput, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput,
+    AttemptCompletion, ExecutableTool, NamedTool, ToolCallContext, ToolDescription, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
 
@@ -27,7 +27,7 @@ impl NamedTool for Completion {
 
 #[async_trait::async_trait]
 impl ExecutableTool for Completion {
-    type Input = AttemptCompletionInput;
+    type Input = AttemptCompletion;
 
     async fn call(&self, context: &mut ToolCallContext, input: Self::Input) -> Result<ToolOutput> {
         // Log the completion event
@@ -54,7 +54,7 @@ mod tests {
     async fn test_attempt_completion() {
         // Create fixture
         let tool = Completion;
-        let input = AttemptCompletionInput {
+        let input = AttemptCompletion {
             result: "All required features implemented".to_string(),
             explanation: None,
         };

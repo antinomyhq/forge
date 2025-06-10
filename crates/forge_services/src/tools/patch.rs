@@ -6,7 +6,7 @@ use bytes::Bytes;
 use forge_app::EnvironmentService;
 use forge_display::{DiffFormat, TitleFormat};
 use forge_domain::{
-    ExecutableTool, FSPatchInput, NamedTool, PatchOperation, ToolCallContext, ToolDescription,
+    ExecutableTool, FSPatch, NamedTool, PatchOperation, ToolCallContext, ToolDescription,
     ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
@@ -207,7 +207,7 @@ impl<F: Infrastructure> ApplyPatchJson<F> {
 
 #[async_trait::async_trait]
 impl<F: Infrastructure> ExecutableTool for ApplyPatchJson<F> {
-    type Input = FSPatchInput;
+    type Input = FSPatch;
 
     async fn call(
         &self,

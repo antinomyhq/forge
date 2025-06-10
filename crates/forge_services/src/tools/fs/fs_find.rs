@@ -6,7 +6,7 @@ use anyhow::Context;
 use forge_app::EnvironmentService;
 use forge_display::{GrepFormat, TitleFormat};
 use forge_domain::{
-    ExecutableTool, FSSearchInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
+    ExecutableTool, FSSearch as FSSearchInput, NamedTool, ToolCallContext, ToolDescription, ToolName,
     ToolOutput,
 };
 use forge_tool_macros::ToolDescription;

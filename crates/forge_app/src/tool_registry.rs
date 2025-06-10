@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
-    AttemptCompletionInput, FSSearchInput, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
-    ToolDescription, ToolInput, ToolName, ToolResult, Tools,
+    AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
+    ToolDescription, Tools, ToolName, ToolResult,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;
@@ -29,11 +29,11 @@ impl<S: Services> ToolRegistry<S> {
     #[allow(dead_code)]
     async fn call_internal(
         &self,
-        input: ToolInput,
+        input: Tools,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<crate::ToolOutput> {
         match input {
-            ToolInput::FSRead(input) => {
+            Tools::FSRead(input) => {
                 let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
 
                 let output = self
@@ -56,7 +56,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::FsRead(output))
             }
-            ToolInput::FSWrite(input) => {
+            Tools::FSWrite(input) => {
                 let out = self
                     .services
                     .fs_create_service()
@@ -66,7 +66,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(out))
             }
-            ToolInput::FSSearch(input) => {
+            Tools::FSSearch(input) => {
                 let output = self
                     .services
                     .fs_search_service()
@@ -81,7 +81,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            ToolInput::FSRemove(input) => {
+            Tools::FSRemove(input) => {
                 let output = self
                     .services
                     .fs_remove_service()
@@ -92,7 +92,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            ToolInput::FSPatch(input) => {
+            Tools::FSPatch(input) => {
                 let output = self
                     .services
                     .fs_patch_service()
@@ -108,13 +108,13 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            ToolInput::FSUndo(input) => {
+            Tools::FSUndo(input) => {
                 let output = self.services.fs_undo_service().undo(input.path).await?;
                 send_fs_undo_context(context, &output).await?;
 
                 Ok(crate::ToolOutput::from(output))
             }
-            ToolInput::Shell(input) => {
+            Tools::Shell(input) => {
                 let output = self
                     .services
                     .shell_service()
@@ -124,7 +124,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            ToolInput::NetFetch(input) => {
+            Tools::NetFetch(input) => {
                 let output = self
                     .services
                     .net_fetch_service()
@@ -135,7 +135,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            ToolInput::Followup(input) => {
+            Tools::Followup(input) => {
                 let output = self
                     .services
                     .follow_up_service()
@@ -156,7 +156,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ToolOutput::from(output))
             }
-            ToolInput::AttemptCompletion(input) => {
+            Tools::AttemptCompletion(input) => {
                 send_completion_context(context, input).await?;
                 Ok(crate::ToolOutput::AttemptCompletion)
             }
@@ -164,7 +164,7 @@ impl<S: Services> ToolRegistry<S> {
     }
     #[allow(dead_code)]
     pub async fn call(&self, input: ToolCallFull, context: &mut ToolCallContext) -> ToolResult {
-        let Ok(tool_input) = serde_json::from_value::<ToolInput>(input.arguments) else {
+        let Ok(tool_input) = serde_json::from_value::<Tools>(input.arguments) else {
             return ToolResult::new(input.name)
                 .failure(anyhow::anyhow!("Failed to parse tool input arguments"));
         };
@@ -198,7 +198,7 @@ impl<S: Services> ToolRegistry<S> {
 
 async fn send_completion_context(
     ctx: &mut ToolCallContext,
-    input: AttemptCompletionInput,
+    input: AttemptCompletion,
 ) -> anyhow::Result<()> {
     ctx.send_summary(input.result).await?;
     ctx.set_complete().await;
@@ -276,7 +276,7 @@ async fn send_fs_remove_context<S: Services>(
 async fn send_fs_search_context<S: Services>(
     services: &S,
     context: &mut ToolCallContext,
-    input: &FSSearchInput,
+    input: &FSSearch,
     output: &Option<SearchResult>,
 ) -> anyhow::Result<()> {
     let env = services.environment_service().get_environment();

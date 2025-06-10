@@ -5,7 +5,7 @@ use anyhow::bail;
 use forge_app::EnvironmentService;
 use forge_display::TitleFormat;
 use forge_domain::{
-    CommandOutput, Environment, ExecutableTool, NamedTool, ShellInput, ToolCallContext,
+    CommandOutput, Environment, ExecutableTool, NamedTool, Shell as ShellInput, ToolCallContext,
     ToolDescription, ToolName, ToolOutput,
 };
 use forge_tool_macros::ToolDescription;
