@@ -21,34 +21,15 @@ use crate::{ToolDefinition, ToolDescription, ToolName};
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum Tools {
-    /// Input for the file read tool
     ForgeToolFsRead(FSRead),
-
-    /// Input for the file write tool
     ForgeToolFsCreate(FSWrite),
-
-    /// Input for the file search tool
     ForgeToolFsSearch(FSSearch),
-
-    /// Input for the file remove tool
     ForgeToolFsRemove(FSRemove),
-
-    /// Input for the file patch tool
     ForgeToolFsPatch(FSPatch),
-
-    /// Input for the file undo tool
     ForgeToolFsUndo(FSUndo),
-
-    /// Input for the shell command tool
     ForgeToolProcessShell(Shell),
-
-    /// Input for the net fetch tool
     ForgeToolNetFetch(NetFetch),
-
-    /// Input for the followup tool
     ForgeToolFollowup(Followup),
-
-    /// Input for the completion tool
     ForgeToolAttemptCompletion(AttemptCompletion),
 }
 
