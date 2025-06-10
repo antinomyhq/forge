@@ -467,16 +467,18 @@ async fn send_read_context(
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, ToolName, Tools};
-
     use crate::tool_registry::ToolRegistry;
+    use forge_domain::{Agent, ToolName, Tools};
+    use pretty_assertions::assert_eq;
 
     fn agent() -> Agent {
         // only allow FsRead tool for this agent
-        Agent::new("test_agent").tools(vec![ToolName::new(Tools::ForgeToolFsRead(
-            Default::default(),
-        ))])
+        Agent::new("test_agent").tools(vec![
+            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("forge_tool_fs_find"),
+        ])
     }
+
     #[tokio::test]
     async fn test_restricted_tool_call() {
         let result = ToolRegistry::<()>::validate_tool_call(
@@ -489,11 +491,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_restricted_tool_call_err() {
-        let result = ToolRegistry::<()>::validate_tool_call(
+        let error = ToolRegistry::<()>::validate_tool_call(
             &agent(),
-            &ToolName::new(Tools::ForgeToolFsCreate(Default::default())),
+            &ToolName::new("forge_tool_fs_create"),
         )
-        .await;
-        assert!(result.is_err(), "Tool call should not be valid");
+        .await
+        .unwrap_err()
+        .to_string();
+        assert_eq!(
+            error,
+            "Tool 'forge_tool_fs_create' is not available. Please try again with one of these tools: [forge_tool_fs_read]"
+        );
     }
 }

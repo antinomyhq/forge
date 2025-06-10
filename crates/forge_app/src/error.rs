@@ -12,7 +12,7 @@ pub enum Error {
     ToolCallTimeout { tool_name: ToolName, timeout: u64 },
 
     #[error(
-        "Tool with name '{name}' is not available. Please try again with one of these available tools: [{supported_tools}]"
+        "Tool '{name}' is not available. Please try again with one of these tools: [{supported_tools}]"
     )]
     ToolNotAllowed {
         name: ToolName,
