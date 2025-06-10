@@ -500,7 +500,7 @@ mod tests {
         .to_string();
         assert_eq!(
             error,
-            "Tool 'forge_tool_fs_create' is not available. Please try again with one of these tools: [forge_tool_fs_read]"
+            "Tool 'forge_tool_fs_create' is not available. Please try again with one of these tools: [forge_tool_fs_read, forge_tool_fs_find]"
         );
     }
 }
