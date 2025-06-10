@@ -8,7 +8,7 @@ use crate::truncation::FETCH_MAX_LENGTH;
 use crate::utils::display_path;
 use crate::{
     Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
-    SearchResult, Services, ShellOutput, create_temp_file, truncate_search_output,
+    ResponseContext, SearchResult, Services, ShellOutput, create_temp_file, truncate_search_output,
 };
 
 #[derive(derive_more::From)]
@@ -162,12 +162,19 @@ impl ExecutionResult {
             ))),
             ExecutionResult::NetFetch(output) => {
                 if let Some(Tools::ForgeToolNetFetch(input)) = input {
+                    let context = match output.context {
+                        ResponseContext::Parsed => String::new(),
+                        ResponseContext::Raw => format!(
+                            "Content type {} cannot be simplified to markdown; Raw content provided instead",
+                            output.content_type
+                        ),
+                    };
                     let mut metadata = FrontMatter::default()
                         .add("URL", &input.url)
                         .add("total_chars", output.content.len())
                         .add("start_char", 0)
                         .add("end_char", FETCH_MAX_LENGTH.min(output.content.len()))
-                        .add("context", &output.context);
+                        .add("context", context);
                     if let Some(path) = truncation_path.as_ref() {
                         metadata = metadata.add(
                             "truncation",
@@ -674,7 +681,8 @@ mod tests {
         let fixture = ExecutionResult::NetFetch(FetchOutput {
             content: "# Example Website\n\nThis is some content from a website.".to_string(),
             code: 200,
-            context: "https://example.com".to_string(),
+            context: ResponseContext::Raw,
+            content_type: "text/plain".to_string(),
         });
 
         let input = Some(Tools::ForgeToolNetFetch(forge_domain::NetFetch {

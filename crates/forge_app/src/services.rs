@@ -36,7 +36,13 @@ pub struct SearchResult {
 pub struct FetchOutput {
     pub content: String,
     pub code: u16,
-    pub context: String,
+    pub context: ResponseContext,
+    pub content_type: String,
+}
+
+pub enum ResponseContext {
+    Parsed,
+    Raw,
 }
 
 pub struct FsCreateOutput {
