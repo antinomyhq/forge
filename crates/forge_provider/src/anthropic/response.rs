@@ -44,6 +44,9 @@ pub struct MessageStart {
 pub struct Usage {
     pub input_tokens: Option<u64>,
     pub output_tokens: Option<u64>,
+
+    pub cache_read_input_tokens: Option<u64>,
+    pub cache_creation_input_tokens: Option<u64>,
 }
 
 impl From<Usage> for forge_domain::Usage {
@@ -52,6 +55,7 @@ impl From<Usage> for forge_domain::Usage {
             prompt_tokens: usage.input_tokens.unwrap_or(0),
             completion_tokens: usage.output_tokens.unwrap_or(0),
             total_tokens: usage.input_tokens.unwrap_or(0) + usage.output_tokens.unwrap_or(0),
+            cached_tokens: usage.cache_read_input_tokens.unwrap_or_default(),
             ..Default::default()
         }
     }
@@ -244,7 +248,12 @@ mod tests {
                         model: "claude-3-opus-20240229".to_string(),
                         stop_reason: None,
                         stop_sequence: None,
-                        usage: Usage { input_tokens: Some(10), output_tokens: Some(1) },
+                        usage: Usage {
+                            input_tokens: Some(10),
+                            output_tokens: Some(1),
+                            cache_creation_input_tokens: None,
+                            cache_read_input_tokens: None,
+                        },
                     },
                 },
             ),
@@ -283,7 +292,12 @@ mod tests {
                 r#"{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":12}}"#,
                 Event::MessageDelta {
                     delta: MessageDelta { stop_reason: StopReason::EndTurn, stop_sequence: None },
-                    usage: Usage { input_tokens: None, output_tokens: Some(12) },
+                    usage: Usage {
+                        input_tokens: None,
+                        output_tokens: Some(12),
+                        cache_creation_input_tokens: None,
+                        cache_read_input_tokens: None,
+                    },
                 },
             ),
             (

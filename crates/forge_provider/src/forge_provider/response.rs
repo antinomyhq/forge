@@ -32,6 +32,13 @@ pub struct ResponseUsage {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub total_tokens: u64,
+    pub cost: Option<f64>,
+    pub prompt_tokens_details: Option<PromptTokenDetails>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PromptTokenDetails {
+    pub cached_tokens: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -85,6 +92,11 @@ impl From<ResponseUsage> for Usage {
             prompt_tokens: usage.prompt_tokens,
             completion_tokens: usage.completion_tokens,
             total_tokens: usage.total_tokens,
+            cached_tokens: usage
+                .prompt_tokens_details
+                .map(|token_details| token_details.cached_tokens)
+                .unwrap_or_default(),
+            cost: usage.cost,
             ..Default::default()
         }
     }
