@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::fmt::Display;
 use std::path::PathBuf;
 
 use derive_more::From;
@@ -32,6 +33,7 @@ pub enum Tools {
     ForgeToolNetFetch(NetFetch),
     ForgeToolFollowup(Followup),
     ForgeToolAttemptCompletion(AttemptCompletion),
+    ForgeToolTaskList(TaskList),
 }
 
 /// Reads file contents from the specified absolute path. Ideal for analyzing
@@ -309,6 +311,324 @@ pub struct AttemptCompletion {
     pub explanation: Option<String>,
 }
 
+/// A powerful task management system designed for handling complex, multi-step
+/// workflows. Use this tool when planning or executing tasks that require
+/// structured organization, especially for complex projects with multiple
+/// steps. Ideal for:
+/// 1) Breaking down large problems into manageable subtasks
+/// 2) Creating and managing step-by-step action plans
+/// 3) Tracking progress across interconnected work items
+/// 4) Ensuring sequential completion of dependent tasks
+///
+/// The tool maintains an ordered task list with status tracking (pending,
+/// in-progress, complete), provides statistics on overall progress, and
+/// automatically identifies the next task to tackle. Choose this tool whenever
+/// you need to organize work that's too complex for a simple checklist
+/// or when systematic tracking of completion status is required.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct TaskList {
+    /// The operation to perform on the task list
+    pub operation: Operation,
+    /// One sentence explanation as to why this tool is being used, and how it
+    /// contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+/// Represents the operation to be performed on the task list
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct Operation {
+    /// The type of operation to perform
+    #[serde(rename = "type")]
+    pub operation_type: OperationType,
+    /// Description for append/prepend operations
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub descriptions: Vec<String>,
+    /// Task ID for done operations
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<TaskId>,
+}
+/// Types of operations that can be performed on the task list
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum OperationType {
+    /// Append a task to the end of the list
+    Append,
+    /// Prepend a task to the beginning of the list
+    Prepend,
+    /// Pop the first task from the task list
+    Next,
+    /// Mark a task as done
+    Done,
+    /// List all tasks in markdown format
+    #[default]
+    List,
+}
+impl Operation {
+    /// Create an append operation
+    pub fn append(descriptions: Vec<String>) -> Self {
+        Self {
+            operation_type: OperationType::Append,
+            descriptions,
+            task_id: None,
+        }
+    }
+    /// Create a prepend operation
+    pub fn prepend(descriptions: Vec<String>) -> Self {
+        Self {
+            operation_type: OperationType::Prepend,
+            descriptions,
+            task_id: None,
+        }
+    }
+    /// Create a next operation
+    pub fn next() -> Self {
+        Self {
+            operation_type: OperationType::Next,
+            descriptions: Vec::new(),
+            task_id: None,
+        }
+    }
+    /// Create a done operation
+    pub fn done(task_id: TaskId) -> Self {
+        Self {
+            operation_type: OperationType::Done,
+            descriptions: Vec::new(),
+            task_id: Some(task_id),
+        }
+    }
+    /// Create a list operation to display all tasks
+    pub fn list() -> Self {
+        Self {
+            operation_type: OperationType::List,
+            descriptions: Vec::new(),
+            task_id: None,
+        }
+    }
+}
+
+#[derive(
+    Debug, Clone, JsonSchema, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord,
+)]
+#[serde(transparent)]
+pub struct TaskId(u64);
+
+impl Default for TaskId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TaskId {
+    pub fn new() -> Self {
+        Self(0)
+    }
+
+    /// Generate the next sequential TaskId by taking max of existing IDs plus
+    /// one.
+    pub fn next(existing: &[TaskId]) -> Self {
+        let max_id = existing.iter().map(|id| id.0).max().unwrap_or(0);
+        Self(max_id + 1)
+    }
+
+    /// Create a new TaskId from an existing u64 value.
+    pub fn from_u64(id: u64) -> Self {
+        Self(id)
+    }
+}
+
+impl std::fmt::Display for TaskId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+pub struct Task {
+    /// Unique identifier for the task.
+    pub id: TaskId,
+    /// Description of the task.
+    pub description: String,
+    /// Current status of the task.
+    pub status: TaskStatus,
+}
+
+impl Display for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "<task id=\"{}\">\n<content>{}</content>\n<status>{}</status>\n</task>",
+            self.id, self.description, self.status
+        )
+    }
+}
+
+/// Represents the status of a task in the TaskList.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
+pub enum TaskStatus {
+    /// Task is waiting to be started.
+    #[default]
+    Pending,
+    /// Task is currently being worked on.
+    InProgress,
+    /// Task has been completed.
+    Done,
+}
+
+impl Display for TaskStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TaskStatus::Pending => write!(f, "Pending"),
+            TaskStatus::InProgress => write!(f, "In Progress"),
+            TaskStatus::Done => write!(f, "Done"),
+        }
+    }
+}
+/// Statistics about the TaskList.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct Stats {
+    /// Total number of tasks in the list.
+    pub total_tasks: u32,
+    /// Number of completed tasks.
+    pub done_tasks: u32,
+    /// Number of pending tasks.
+    pub pending_tasks: u32,
+    /// Number of in-progress tasks.
+    pub in_progress_tasks: u32,
+}
+
+impl std::fmt::Display for Stats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<stats>\n<total_tasks>{}</total_tasks>\n<done_tasks>{}</done_tasks>\n<pending_tasks>{}</pending_tasks>\n<in_progress_tasks>{}</in_progress_tasks>\n</stats>",
+            self.total_tasks, self.done_tasks, self.pending_tasks, self.in_progress_tasks)
+    }
+}
+
+/// TaskList operation result.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct TaskListResult {
+    /// Message describing the result of the operation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// The task that was affected by the operation, if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_task: Option<Task>,
+    /// Statistics about the task list.
+    pub stats: Stats,
+    /// List of tasks
+    pub tasks: Option<Vec<Task>>,
+}
+
+impl std::fmt::Display for TaskListResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut result = String::from("<task_list_result>\n");
+
+        if let Some(message) = &self.message {
+            result.push_str(&format!("<message>{message}</message>\n"));
+        }
+
+        if let Some(task) = &self.next_task {
+            result.push_str("<next_task>\n");
+            result.push_str(&format!("{task}\n"));
+            result.push_str("\n</next_task>\n");
+        }
+
+        result.push_str(&format!("{}\n", self.stats));
+
+        if let Some(tasks) = &self.tasks {
+            if !tasks.is_empty() {
+                result.push_str("<tasks_list>\n");
+                for task in tasks {
+                    result.push_str(&format!("{task}\n"));
+                }
+                result.push_str("</tasks_list>\n");
+            }
+        }
+
+        result.push_str("</task_list_result>");
+
+        write!(f, "{result}")
+    }
+}
+
+impl Task {
+    pub fn new(description: String) -> Self {
+        Self {
+            id: TaskId::new(),
+            description,
+            status: TaskStatus::default(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use serde_json::json;
+
+    use super::*;
+    use crate::{FSRead, ToolCallFull, ToolName, Tools};
+
+    #[test]
+    fn test_stats_display() {
+        // Fixture: Create a Stats struct with test data
+        let stats = Stats {
+            total_tasks: 10,
+            done_tasks: 3,
+            pending_tasks: 5,
+            in_progress_tasks: 2,
+        };
+
+        // Actual: Format as string
+        let actual = stats.to_string();
+
+        // Expected: XML formatted string
+        let expected = "<stats>\n<total_tasks>10</total_tasks>\n<done_tasks>3</done_tasks>\n<pending_tasks>5</pending_tasks>\n<in_progress_tasks>2</in_progress_tasks>\n</stats>";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_stats_equality() {
+        // Fixture: Create identical Stats structs
+        let stats1 = Stats {
+            total_tasks: 5,
+            done_tasks: 2,
+            pending_tasks: 2,
+            in_progress_tasks: 1,
+        };
+
+        let stats2 = Stats {
+            total_tasks: 5,
+            done_tasks: 2,
+            pending_tasks: 2,
+            in_progress_tasks: 1,
+        };
+
+        // Actual: Compare the structs
+        let actual = stats1 == stats2;
+
+        // Expected: They should be equal
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn foo() {
+        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read")).arguments(json!({
+            "path": "/some/path/foo.txt",
+        }));
+
+        let actual = Tools::try_from(toolcall).unwrap();
+        let expected = Tools::ForgeToolFsRead(FSRead {
+            path: "/some/path/foo.txt".to_string(),
+            start_line: None,
+            end_line: None,
+            explanation: None,
+        });
+
+        pretty_assertions::assert_eq!(actual, expected);
+    }
+}
+
 fn default_raw() -> Option<bool> {
     Some(false)
 }
@@ -430,6 +750,7 @@ impl ToolDescription for Tools {
             Tools::ForgeToolFsRemove(v) => v.description(),
             Tools::ForgeToolFsUndo(v) => v.description(),
             Tools::ForgeToolFsCreate(v) => v.description(),
+            Tools::ForgeToolTaskList(v) => v.description(),
         }
     }
 }
@@ -453,6 +774,7 @@ impl Tools {
             Tools::ForgeToolFsRemove(_) => schemars::schema_for!(FSRemove),
             Tools::ForgeToolFsUndo(_) => schemars::schema_for!(FSUndo),
             Tools::ForgeToolFsCreate(_) => schemars::schema_for!(FSWrite),
+            Tools::ForgeToolTaskList(_) => schemars::schema_for!(TaskList),
         }
     }
 
@@ -476,29 +798,5 @@ impl TryFrom<ToolCallFull> for Tools {
         });
 
         serde_json::from_value(object)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-
-    use crate::{FSRead, ToolCallFull, ToolName, Tools};
-
-    #[test]
-    fn foo() {
-        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read")).arguments(json!({
-            "path": "/some/path/foo.txt",
-        }));
-
-        let actual = Tools::try_from(toolcall).unwrap();
-        let expected = Tools::ForgeToolFsRead(FSRead {
-            path: "/some/path/foo.txt".to_string(),
-            start_line: None,
-            end_line: None,
-            explanation: None,
-        });
-
-        pretty_assertions::assert_eq!(actual, expected);
     }
 }

@@ -679,7 +679,7 @@ mod test {
         let temp_dir = TempDir::new().unwrap();
 
         let content = (0..20)
-            .map(|i| format!("line {} content", i))
+            .map(|i| format!("line {i} content"))
             .collect::<Vec<_>>()
             .join("\n");
         fs::write(temp_dir.path().join("file1.txt"), &content)

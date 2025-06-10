@@ -6,5 +6,6 @@ mod patch;
 mod registry;
 mod shell;
 mod syn;
+mod task_list;
 
 pub use registry::ToolRegistry;

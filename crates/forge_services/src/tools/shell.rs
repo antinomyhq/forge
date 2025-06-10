@@ -1053,7 +1053,7 @@ mod tests {
         let infra = Arc::new(MockInfrastructure::new());
         // Create content with many lines to test line-based truncation
         let many_lines = (1..=20)
-            .map(|i| format!("This is line number {}", i))
+            .map(|i| format!("This is line number {i}"))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -1077,7 +1077,7 @@ mod tests {
         let infra = Arc::new(MockInfrastructure::new());
         // Create content where only stdout gets truncated
         let many_stdout_lines = (1..=15)
-            .map(|i| format!("stdout line {}", i))
+            .map(|i| format!("stdout line {i}"))
             .collect::<Vec<_>>()
             .join("\n");
         let few_stderr_lines = "error line 1\nerror line 2".to_string();
@@ -1103,7 +1103,7 @@ mod tests {
         // Create content where only stderr gets truncated
         let few_stdout_lines = "output line 1\noutput line 2".to_string();
         let many_stderr_lines = (1..=15)
-            .map(|i| format!("stderr line {}", i))
+            .map(|i| format!("stderr line {i}"))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -1127,7 +1127,7 @@ mod tests {
         let infra = Arc::new(MockInfrastructure::new());
         // Test truncation with very minimal limits
         let single_long_output = (1..=10)
-            .map(|i| format!("line {}", i))
+            .map(|i| format!("line {i}"))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -1151,7 +1151,7 @@ mod tests {
         let infra = Arc::new(MockInfrastructure::new());
         // Test with different prefix/suffix ratios
         let many_lines = (1..=20)
-            .map(|i| format!("asymmetric line {}", i))
+            .map(|i| format!("asymmetric line {i}"))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -1175,7 +1175,7 @@ mod tests {
         let infra = Arc::new(MockInfrastructure::new());
         // Test exactly at the boundary where truncation would occur
         let exact_boundary_lines = (1..=10)
-            .map(|i| format!("boundary line {}", i))
+            .map(|i| format!("boundary line {i}"))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -1198,7 +1198,7 @@ mod tests {
     async fn test_format_output_mixed_content_truncation() {
         let infra = Arc::new(MockInfrastructure::new());
         // Test with mixed content including empty lines and special characters
-        let mixed_stdout = vec![
+        let mixed_stdout = [
             "normal line 1",
             "",
             "line with special chars: !@#$%^&*()",
@@ -1210,7 +1210,7 @@ mod tests {
         ]
         .join("\n");
 
-        let mixed_stderr = vec![
+        let mixed_stderr = [
             "error: something went wrong",
             "",
             "stack trace line 1",
@@ -1241,15 +1241,14 @@ mod tests {
         let infra = Arc::new(MockInfrastructure::new());
         // Create very large content that will trigger temp file creation
         let large_stdout = (1..=500)
-            .map(|i| format!("This is a very long stdout line number {} with lots of content to make it exceed normal limits", i))
+            .map(|i| format!("This is a very long stdout line number {i} with lots of content to make it exceed normal limits"))
             .collect::<Vec<_>>()
             .join("\n");
 
         let large_stderr = (1..=300)
             .map(|i| {
                 format!(
-                    "This is a very long stderr line number {} with error details and stack traces",
-                    i
+                    "This is a very long stderr line number {i} with error details and stack traces"
                 )
             })
             .collect::<Vec<_>>()
@@ -1294,7 +1293,7 @@ mod tests {
         let long_line3 = "C".repeat(100);
 
         let fixture = CommandOutput {
-            stdout: format!("{}\n{}\n{}", long_line1, long_line2, long_line3),
+            stdout: format!("{long_line1}\n{long_line2}\n{long_line3}"),
             stderr: "".to_string(),
             command: "long lines".into(),
             exit_code: Some(0),

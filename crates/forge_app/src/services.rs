@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
-    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Task,
+    TaskId, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
 };
 
 pub struct ShellOutput {
@@ -163,6 +163,38 @@ pub trait WorkflowService {
 }
 
 #[async_trait::async_trait]
+pub trait TaskService: Send + Sync {
+    /// Appends multiple tasks to the end of the task list atomically
+    async fn append(&self, descriptions: Vec<String>) -> anyhow::Result<()>;
+
+    /// Prepends multiple tasks to the beginning of the task list atomically
+    async fn prepend(&self, descriptions: Vec<String>) -> anyhow::Result<()>;
+
+    /// Marks the first pending task as in progress and returns it
+    async fn pop_front(&self) -> anyhow::Result<Option<Task>>;
+
+    /// Marks the last pending task as in progress and returns it
+    async fn pop_back(&self) -> anyhow::Result<Option<Task>>;
+
+    /// Marks a task as done by its ID
+    async fn mark_done(&self, id: TaskId) -> anyhow::Result<Option<Task>>;
+
+    /// Lists all tasks in the current task list
+    async fn list(&self) -> anyhow::Result<Vec<Task>>;
+
+    /// Gets statistics about the current task list
+    async fn stats(&self) -> anyhow::Result<(u32, u32, u32, u32)>; // (total, done, pending, in_progress)
+
+    /// Finds the next pending task
+    async fn find_next_pending(&self) -> anyhow::Result<Option<Task>>;
+
+    /// Formats tasks as markdown
+    async fn format_markdown(&self) -> anyhow::Result<String>;
+    /// Clears all tasks from the task list
+    async fn clear(&self) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
 pub trait FileDiscoveryService: Send + Sync {
     async fn collect(&self, max_depth: Option<usize>) -> anyhow::Result<Vec<File>>;
 }
@@ -279,6 +311,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type NetFetchService: NetFetchService;
     type ShellService: ShellService;
     type McpService: McpService;
+    type TaskService: TaskService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -299,4 +332,5 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
+    fn task_service(&self) -> &Self::TaskService;
 }

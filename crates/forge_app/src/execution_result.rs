@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use forge_display::DiffFormat;
-use forge_domain::{Environment, Tools};
+use forge_domain::{Environment, TaskListResult, Tools};
 
 use crate::front_matter::FrontMatter;
 use crate::truncation::FETCH_MAX_LENGTH;
@@ -23,6 +23,7 @@ pub enum ExecutionResult {
     Shell(ShellOutput),
     FollowUp(Option<String>),
     AttemptCompletion,
+    TaskManage(TaskListResult),
 }
 
 impl ExecutionResult {
@@ -122,10 +123,10 @@ impl ExecutionResult {
                             // Create temp file if needed
                             if let Some(path) = truncation_path {
                                 result.push_str(&format!(
-                                    "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
-                                    truncated_output.max_lines,
-                                    path.display()
-                                ));
+                                            "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
+                                            truncated_output.max_lines,
+                                            path.display()
+                                        ));
                             }
 
                             Ok(forge_domain::ToolOutput::text(result))
@@ -170,13 +171,13 @@ impl ExecutionResult {
                         .add("context", &output.context);
                     if let Some(path) = truncation_path.as_ref() {
                         metadata = metadata.add(
-                            "truncation",
-                            format!(
-                                "Content is truncated to {} chars; Remaining content can be read from path: {}",
-                                FETCH_MAX_LENGTH,
-                                path.display()
-                            ),
-                        );
+                                    "truncation",
+                                    format!(
+                                        "Content is truncated to {} chars; Remaining content can be read from path: {}",
+                                        FETCH_MAX_LENGTH,
+                                        path.display()
+                                    ),
+                                );
                     }
                     let truncation_tag = match truncation_path.as_ref() {
                         Some(path) => {
@@ -246,9 +247,9 @@ impl ExecutionResult {
                 // Create temp file if needed
                 if let Some(path) = truncation_path.as_ref() {
                     result.push_str(&format!(
-                        "\n<truncated>content is truncated, remaining content can be read from path:{}</truncated>",
-                        path.display()
-                    ));
+                                "\n<truncated>content is truncated, remaining content can be read from path:{}</truncated>",
+                                path.display()
+                            ));
                 }
 
                 if is_success {
@@ -266,6 +267,9 @@ impl ExecutionResult {
             ExecutionResult::AttemptCompletion => Ok(forge_domain::ToolOutput::text(
                 "[Task was completed successfully. Now wait for user feedback]".to_string(),
             )),
+            ExecutionResult::TaskManage(task_list_result) => {
+                Ok(forge_domain::ToolOutput::text(task_list_result.to_string()))
+            }
         }
     }
 
@@ -341,6 +345,7 @@ impl ExecutionResult {
                 }
             }
             ExecutionResult::FollowUp(_) => Ok(None),
+            ExecutionResult::TaskManage(_) => Ok(None),
             ExecutionResult::AttemptCompletion => Ok(None),
         }
     }

@@ -69,6 +69,7 @@ impl<F: Infrastructure> ForgeServices<F> {
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
+
         Self {
             infra,
             conversation_service,
@@ -113,6 +114,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type NetFetchService = ForgeFetch;
     type ShellService = ForgeShell<F>;
     type McpService = McpService<F>;
+    type TaskService = F::TaskService;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -189,6 +191,10 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     fn mcp_service(&self) -> &Self::McpService {
         &self.mcp_service
     }
+
+    fn task_service(&self) -> &Self::TaskService {
+        self.infra.task_service()
+    }
 }
 
 impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
@@ -202,6 +208,7 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     type CommandExecutorService = F::CommandExecutorService;
     type InquireService = F::InquireService;
     type McpServer = F::McpServer;
+    type TaskService = F::TaskService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         self.infra.environment_service()
@@ -241,5 +248,9 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
 
     fn mcp_server(&self) -> &Self::McpServer {
         self.infra.mcp_server()
+    }
+
+    fn task_service(&self) -> &Self::TaskService {
+        self.infra.task_service()
     }
 }

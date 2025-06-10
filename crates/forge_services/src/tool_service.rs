@@ -23,7 +23,7 @@ pub struct ForgeToolService<M> {
 
 impl<M: McpService> ForgeToolService<M> {
     pub fn new<F: Infrastructure>(infra: Arc<F>, mcp: Arc<M>) -> Self {
-        let registry = ToolRegistry::new(infra.clone());
+        let registry = ToolRegistry::new(infra);
         let tools = registry.tools();
         let tools: HashMap<ToolName, Arc<Tool>> = tools
             .into_iter()

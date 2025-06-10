@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_app::{
     ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
-    ProviderService, Services, ToolService, WorkflowService,
+    ProviderService, Services, TaskService, ToolService, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -139,5 +139,17 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
             .command_executor_service()
             .execute_command_raw(command)
             .await
+    }
+
+    async fn format_task_list(&self) -> Result<String> {
+        let task_service = self.app.task_service();
+        let tasks = task_service.format_markdown().await?;
+        Ok(tasks)
+    }
+
+    async fn clear_task_list(&self) -> Result<()> {
+        let task_service = self.app.task_service();
+        task_service.clear().await?;
+        Ok(())
     }
 }

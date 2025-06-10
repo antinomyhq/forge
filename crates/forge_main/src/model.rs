@@ -182,6 +182,7 @@ impl ForgeCommandManager {
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
+            "/tasks" => Ok(Command::Tasks),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -257,6 +258,10 @@ pub enum Command {
     /// This can be triggered with the '/tools' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
     Tools,
+    /// Display the current task list with status information
+    /// This can be triggered with the '/tasks' command.
+    #[strum(props(usage = "Display the current task list with status information"))]
+    Tasks,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
     /// Executes a native shell command.
@@ -280,6 +285,7 @@ impl Command {
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
             Command::Tools => "/tools",
+            Command::Tasks => "/tasks",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
         }
@@ -489,5 +495,20 @@ mod tests {
             !contains_shell,
             "Shell command should not be in default commands"
         );
+    }
+
+    #[test]
+    fn test_parse_tasks_command() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/tasks").unwrap();
+
+        // Verify
+        match result {
+            Command::Tasks => {} // Expected
+            _ => panic!("Expected Tasks command, got {result:?}"),
+        }
     }
 }

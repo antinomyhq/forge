@@ -83,4 +83,9 @@ pub trait API: Sync + Send {
     /// user's home directory Local configuration is stored in the current
     /// project directory
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
+
+    /// Formats the current task list for display in user commands
+    async fn format_task_list(&self) -> Result<String>;
+    /// Clears all tasks from the task list
+    async fn clear_task_list(&self) -> Result<()>;
 }

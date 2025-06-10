@@ -6,19 +6,20 @@ use std::time::Duration;
 use anyhow::Context;
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
-    Agent, AttemptCompletion, FSSearch, Tool, ToolCallContext, ToolCallFull, ToolDefinition,
-    ToolName, ToolOutput, ToolResult, Tools,
+    Agent, AttemptCompletion, FSSearch, TaskListResult, Tool, ToolCallContext, ToolCallFull,
+    ToolDefinition, ToolName, ToolOutput, ToolResult, Tools,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
+use crate::execution_result::ExecutionResult;
 use crate::utils::display_path;
 use crate::{
     Content, EnvironmentService, Error, FetchOutput, FollowUpService, FsCreateOutput,
     FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoOutput,
     FsUndoService, McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services,
-    ShellOutput, ShellService,
+    ShellOutput, ShellService, TaskService,
 };
 
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -163,6 +164,116 @@ impl<S: Services> ToolRegistry<S> {
             Tools::ForgeToolAttemptCompletion(input) => {
                 send_completion_context(context, input).await?;
                 Ok(crate::ExecutionResult::AttemptCompletion)
+            }
+            Tools::ForgeToolTaskList(input) => {
+                let operation = input.operation.clone();
+                let result = match operation.operation_type {
+                    forge_domain::OperationType::Append => {
+                        let descriptions_count = operation.descriptions.len();
+                        self.services
+                            .task_service()
+                            .append(operation.descriptions)
+                            .await?;
+                        let stats = self.services.task_service().stats().await?;
+                        let tasks = self.services.task_service().list().await?;
+                        TaskListResult {
+                            message: Some(format!("Added {descriptions_count} task(s)")),
+                            next_task: None,
+                            stats: forge_domain::Stats {
+                                total_tasks: stats.0,
+                                done_tasks: stats.1,
+                                pending_tasks: stats.2,
+                                in_progress_tasks: stats.3,
+                            },
+                            tasks: Some(tasks),
+                        }
+                    }
+                    forge_domain::OperationType::Prepend => {
+                        let descriptions_count = operation.descriptions.len();
+                        self.services
+                            .task_service()
+                            .prepend(operation.descriptions)
+                            .await?;
+                        let stats = self.services.task_service().stats().await?;
+                        let tasks = self.services.task_service().list().await?;
+                        TaskListResult {
+                            message: Some(format!(
+                                "Added {descriptions_count} task(s) to the beginning"
+                            )),
+                            next_task: None,
+                            stats: forge_domain::Stats {
+                                total_tasks: stats.0,
+                                done_tasks: stats.1,
+                                pending_tasks: stats.2,
+                                in_progress_tasks: stats.3,
+                            },
+                            tasks: Some(tasks),
+                        }
+                    }
+                    forge_domain::OperationType::Next => {
+                        let next_task = self.services.task_service().pop_front().await?;
+                        let stats = self.services.task_service().stats().await?;
+                        let tasks = self.services.task_service().list().await?;
+                        TaskListResult {
+                            message: if next_task.is_some() {
+                                Some("Marked next task as in progress".to_string())
+                            } else {
+                                Some("No pending tasks available".to_string())
+                            },
+                            next_task,
+                            stats: forge_domain::Stats {
+                                total_tasks: stats.0,
+                                done_tasks: stats.1,
+                                pending_tasks: stats.2,
+                                in_progress_tasks: stats.3,
+                            },
+                            tasks: Some(tasks),
+                        }
+                    }
+                    forge_domain::OperationType::Done => {
+                        let task_id = operation.task_id.ok_or_else(|| {
+                            anyhow::anyhow!("Task ID required for done operation")
+                        })?;
+                        let done_task = self.services.task_service().mark_done(task_id).await?;
+                        let stats = self.services.task_service().stats().await?;
+                        let tasks = self.services.task_service().list().await?;
+                        TaskListResult {
+                            message: if done_task.is_some() {
+                                Some("Task marked as done".to_string())
+                            } else {
+                                Some("Task not found".to_string())
+                            },
+                            next_task: self.services.task_service().find_next_pending().await?,
+                            stats: forge_domain::Stats {
+                                total_tasks: stats.0,
+                                done_tasks: stats.1,
+                                pending_tasks: stats.2,
+                                in_progress_tasks: stats.3,
+                            },
+                            tasks: Some(tasks),
+                        }
+                    }
+                    forge_domain::OperationType::List => {
+                        let stats = self.services.task_service().stats().await?;
+                        let tasks = self.services.task_service().list().await?;
+                        TaskListResult {
+                            message: None,
+                            next_task: None,
+                            stats: forge_domain::Stats {
+                                total_tasks: stats.0,
+                                done_tasks: stats.1,
+                                pending_tasks: stats.2,
+                                in_progress_tasks: stats.3,
+                            },
+                            tasks: Some(tasks),
+                        }
+                    }
+                };
+
+                // Send context information
+                send_task_manage_context(context, &input.operation, &result).await?;
+
+                Ok(ExecutionResult::TaskManage(result))
             }
         }
     }
@@ -461,6 +572,34 @@ async fn send_read_context(
     }
     let message = TitleFormat::debug(title).sub_title(subtitle);
     ctx.send_text(message).await?;
+    Ok(())
+}
+
+async fn send_task_manage_context(
+    ctx: &mut ToolCallContext,
+    operation: &forge_domain::Operation,
+    result: &TaskListResult,
+) -> anyhow::Result<()> {
+    let operation_name = match operation.operation_type {
+        forge_domain::OperationType::Append => "Task Append",
+        forge_domain::OperationType::Prepend => "Task Prepend",
+        forge_domain::OperationType::Next => "Task Next",
+        forge_domain::OperationType::Done => "Task Done",
+        forge_domain::OperationType::List => "Task List",
+    };
+
+    let subtitle = result.message.clone().unwrap_or_else(|| {
+        format!(
+            "Total: {}, Done: {}, Pending: {}, In Progress: {}",
+            result.stats.total_tasks,
+            result.stats.done_tasks,
+            result.stats.pending_tasks,
+            result.stats.in_progress_tasks
+        )
+    });
+
+    ctx.send_text(TitleFormat::debug(operation_name).sub_title(subtitle))
+        .await?;
     Ok(())
 }
 

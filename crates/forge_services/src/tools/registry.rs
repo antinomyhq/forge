@@ -4,10 +4,11 @@ use forge_domain::Tool;
 
 use super::completion::Completion;
 use super::fetch::Fetch;
+use super::followup::Followup;
 use super::fs::*;
 use super::patch::*;
 use super::shell::Shell;
-use crate::tools::followup::Followup;
+use super::task_list::TaskList;
 use crate::Infrastructure;
 
 pub struct ToolRegistry<F> {
@@ -34,6 +35,7 @@ impl<F: Infrastructure> ToolRegistry<F> {
             Completion.into(),
             Followup::new(self.infra.clone()).into(),
             Fetch::new(self.infra.clone()).into(),
+            TaskList::new(self.infra.clone()).into(),
         ]
     }
 }
@@ -44,9 +46,9 @@ pub mod tests {
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
-    use forge_app::EnvironmentService;
+    use forge_app::{EnvironmentService, TaskService};
     use forge_domain::{
-        CommandOutput, Environment, Provider, ToolDefinition, ToolName, ToolOutput,
+        CommandOutput, Environment, Provider, Task, TaskId, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -86,6 +88,49 @@ pub mod tests {
     #[derive(Clone)]
     pub struct Stub {
         env: Environment,
+    }
+
+    #[async_trait::async_trait]
+    impl TaskService for Stub {
+        async fn append(&self, _descriptions: Vec<String>) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn prepend(&self, _descriptions: Vec<String>) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn pop_front(&self) -> anyhow::Result<Option<Task>> {
+            Ok(None)
+        }
+
+        async fn pop_back(&self) -> anyhow::Result<Option<Task>> {
+            Ok(None)
+        }
+
+        async fn mark_done(&self, _id: TaskId) -> anyhow::Result<Option<Task>> {
+            Ok(None)
+        }
+
+        async fn list(&self) -> anyhow::Result<Vec<Task>> {
+            Ok(vec![])
+        }
+
+        async fn stats(&self) -> anyhow::Result<(u32, u32, u32, u32)> {
+            Ok((0, 0, 0, 0))
+        }
+
+        async fn find_next_pending(&self) -> anyhow::Result<Option<Task>> {
+            Ok(None)
+        }
+
+        async fn format_markdown(&self) -> anyhow::Result<String> {
+            Ok("No tasks available.".to_string())
+        }
+
+        async fn clear(&self) -> anyhow::Result<()> {
+            Ok(())
+        }
     }
 
     #[async_trait::async_trait]
@@ -243,8 +288,8 @@ pub mod tests {
         type FsCreateDirsService = Stub;
         type CommandExecutorService = Stub;
         type InquireService = Stub;
-
         type McpServer = Stub;
+        type TaskService = Stub;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             self
@@ -283,6 +328,10 @@ pub mod tests {
         }
 
         fn mcp_server(&self) -> &Self::McpServer {
+            self
+        }
+
+        fn task_service(&self) -> &Self::TaskService {
             self
         }
     }

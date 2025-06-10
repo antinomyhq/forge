@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::EnvironmentService;
-use forge_services::Infrastructure;
+use forge_services::{ForgeTaskService, Infrastructure};
 
 use crate::env::ForgeEnvironmentService;
 use crate::executor::ForgeCommandExecutorService;
@@ -26,6 +26,7 @@ pub struct ForgeInfra {
     command_executor_service: Arc<ForgeCommandExecutorService>,
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
+    task_service: Arc<ForgeTaskService>,
 }
 
 impl ForgeInfra {
@@ -49,6 +50,7 @@ impl ForgeInfra {
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
+            task_service: Arc::new(ForgeTaskService::new()),
         }
     }
 }
@@ -64,6 +66,7 @@ impl Infrastructure for ForgeInfra {
     type CommandExecutorService = ForgeCommandExecutorService;
     type InquireService = ForgeInquire;
     type McpServer = ForgeMcpServer;
+    type TaskService = ForgeTaskService;
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         &self.environment_service
@@ -103,5 +106,9 @@ impl Infrastructure for ForgeInfra {
 
     fn mcp_server(&self) -> &Self::McpServer {
         &self.mcp_server
+    }
+
+    fn task_service(&self) -> &Self::TaskService {
+        &self.task_service
     }
 }

@@ -114,15 +114,16 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_app::{AttachmentService, EnvironmentService};
+    use forge_app::{AttachmentService, EnvironmentService, TaskService};
     use forge_domain::{
-        AttachmentContent, CommandOutput, Environment, Provider, ToolDefinition, ToolName,
-        ToolOutput,
+        AttachmentContent, CommandOutput, Environment, Provider, Task, TaskId, ToolDefinition,
+        ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
 
     use crate::attachment::ForgeChatRequest;
+    use crate::task::tests::MockTaskService;
     use crate::utils::AttachmentExtension;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
@@ -228,6 +229,7 @@ pub mod tests {
         env_service: Arc<MockEnvironmentService>,
         file_service: Arc<MockFileService>,
         file_snapshot_service: Arc<MockSnapService>,
+        task_service: Arc<MockTaskService>,
     }
 
     impl MockInfrastructure {
@@ -236,6 +238,7 @@ pub mod tests {
                 env_service: Arc::new(MockEnvironmentService {}),
                 file_service: Arc::new(MockFileService::new()),
                 file_snapshot_service: Arc::new(MockSnapService),
+                task_service: Arc::new(MockTaskService::new()),
             }
         }
     }
@@ -324,6 +327,49 @@ pub mod tests {
 
         async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
             Ok(self.files.lock().unwrap().iter().any(|(p, _)| p == path))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl TaskService for MockFileService {
+        async fn append(&self, _descriptions: Vec<String>) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn prepend(&self, _descriptions: Vec<String>) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn pop_front(&self) -> anyhow::Result<Option<Task>> {
+            Ok(None)
+        }
+
+        async fn pop_back(&self) -> anyhow::Result<Option<Task>> {
+            Ok(None)
+        }
+
+        async fn mark_done(&self, _id: TaskId) -> anyhow::Result<Option<Task>> {
+            Ok(None)
+        }
+
+        async fn list(&self) -> anyhow::Result<Vec<Task>> {
+            Ok(vec![])
+        }
+
+        async fn stats(&self) -> anyhow::Result<(u32, u32, u32, u32)> {
+            Ok((0, 0, 0, 0))
+        }
+
+        async fn find_next_pending(&self) -> anyhow::Result<Option<Task>> {
+            Ok(None)
+        }
+
+        async fn format_markdown(&self) -> anyhow::Result<String> {
+            Ok("No tasks available.".to_string())
+        }
+
+        async fn clear(&self) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 
@@ -517,6 +563,7 @@ pub mod tests {
         type CommandExecutorService = ();
         type InquireService = ();
         type McpServer = ();
+        type TaskService = MockTaskService;
 
         fn environment_service(&self) -> &Self::EnvironmentService {
             &self.env_service
@@ -556,6 +603,10 @@ pub mod tests {
 
         fn mcp_server(&self) -> &Self::McpServer {
             &()
+        }
+
+        fn task_service(&self) -> &Self::TaskService {
+            &self.task_service
         }
     }
 

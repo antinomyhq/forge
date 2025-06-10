@@ -79,6 +79,9 @@ impl<F: API> UI<F> {
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
+        // Clear all existing tasks when starting a new conversation
+        self.api.clear_task_list().await?;
+
         self.init_state().await?;
         banner::display()?;
 
@@ -347,6 +350,9 @@ impl<F: API> UI<F> {
                 let output = format_tools(&tools);
                 self.writeln(output)?;
             }
+            Command::Tasks => {
+                self.on_tasks().await?;
+            }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
             }
@@ -599,6 +605,17 @@ impl<F: API> UI<F> {
                     .context(format!("Conversation: {conversation_id} was not found"));
             }
         }
+        Ok(())
+    }
+
+    /// Display the current task list with beautiful formatting
+    async fn on_tasks(&mut self) -> Result<()> {
+        let formatted_tasks = self.api.format_task_list().await?;
+
+        // Render the markdown for beautiful display
+        let rendered = self.markdown.render(&formatted_tasks);
+        self.writeln(rendered)?;
+
         Ok(())
     }
 

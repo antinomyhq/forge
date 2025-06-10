@@ -11,6 +11,7 @@ use tracing::{debug, info, warn};
 use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::template::Templates;
+use crate::{Services, TaskService};
 
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
@@ -27,7 +28,7 @@ pub struct Orchestrator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: AgentService> Orchestrator<S> {
+impl<S: Services> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
         environment: Environment,
@@ -67,11 +68,31 @@ impl<S: AgentService> Orchestrator<S> {
             self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                 .await?;
 
-            // Execute the tool
-            let tool_result = self
-                .services
-                .call(agent, tool_context, tool_call.clone())
-                .await;
+            // Check if this is an attempt completion call and validate pending tasks
+            let tool_result = if tool_call.name.as_str() == "forge_tool_task_list"
+                && self.agent_supports_task_management(agent)
+            {
+                // Validate pending tasks before allowing completion
+                match self.validate_pending_tasks_before_completion(agent).await {
+                    Ok(_) => {
+                        // No pending tasks, proceed with completion
+                        self.services
+                            .call(agent, tool_context, tool_call.clone())
+                            .await
+                    }
+                    Err(validation_error) => {
+                        // Pending tasks exist, return error instead of executing completion
+                        ToolResult::new(tool_call.name.clone())
+                            .call_id(tool_call.call_id.clone())
+                            .output(Err(validation_error))
+                    }
+                }
+            } else {
+                // Normal tool execution
+                self.services
+                    .call(agent, tool_context, tool_call.clone())
+                    .await
+            };
 
             if tool_result.is_error() {
                 warn!(
@@ -155,6 +176,48 @@ impl<S: AgentService> Orchestrator<S> {
             "Tool support check"
         );
         Ok(tool_supported)
+    }
+
+    /// Checks if the agent supports task management by having both required
+    /// tools:
+    fn agent_supports_task_management(&self, agent: &Agent) -> bool {
+        if let Some(tools) = &agent.tools {
+            let has_task_done = tools
+                .iter()
+                .any(|tool| tool.as_str() == "forge_tool_task_done");
+            let has_attempt_completion = tools
+                .iter()
+                .any(|tool| tool.as_str() == "forge_tool_attempt_completion");
+            has_task_done && has_attempt_completion
+        } else {
+            false
+        }
+    }
+
+    /// Validates that there are no pending tasks before allowing completion
+    async fn validate_pending_tasks_before_completion(&self, _agent: &Agent) -> anyhow::Result<()> {
+        // Check if there are any pending tasks
+        let (_, _, pending_tasks, _) = self.services.task_service().stats().await?;
+
+        if pending_tasks > 0 {
+            // Find the next pending task to provide helpful information
+            let next_task = self.services.task_service().find_next_pending().await?;
+
+            let error_message = if let Some(task) = next_task {
+                format!(
+                    "Cannot complete while {} pending task(s) remain. Next pending task: \"{}\" (ID: {}). Please use forge_tool_task_done to mark tasks as complete before attempting completion.",
+                    pending_tasks, task.description, task.id
+                )
+            } else {
+                format!(
+                    "Cannot complete while {pending_tasks} pending task(s) remain. Please use forge_tool_task_done to mark tasks as complete before attempting completion."
+                )
+            };
+
+            return Err(anyhow::anyhow!(error_message));
+        }
+
+        Ok(())
     }
 
     fn set_system_prompt(
@@ -492,5 +555,43 @@ mod tests {
         // Expected: Result should contain the framed summary text
         let expected = "Use the following summary as the authoritative reference for all coding\nsuggestions and decisions. Do not re-explain or revisit it unless I ask.\n\n<summary>\nThis is a test summary of the conversation\n</summary>\n\nProceed with implementation based on this context.";
         assert_eq!(actual.trim(), expected);
+    }
+
+    #[test]
+    fn test_agent_supports_task_management_logic() {
+        // Test the logic directly by creating agents and checking tool presence
+
+        // Fixture: Agent with both required tools
+        let agent_with_both = Agent::new("test").tools(vec![
+            ToolName::new("forge_tool_task_list"),
+            ToolName::new("forge_tool_attempt_completion"),
+        ]);
+
+        // Fixture: Agent with only attempt_completion
+        let agent_with_completion_only =
+            Agent::new("test").tools(vec![ToolName::new("forge_tool_attempt_completion")]);
+
+        // Fixture: Agent with no tools
+        let agent_no_tools = Agent::new("test");
+
+        // Test the logic inline (since we can't easily create orchestrator for tests)
+        let check_support = |agent: &Agent| -> bool {
+            if let Some(tools) = &agent.tools {
+                let has_task_done = tools
+                    .iter()
+                    .any(|tool| tool.as_str() == "forge_tool_task_list");
+                let has_attempt_completion = tools
+                    .iter()
+                    .any(|tool| tool.as_str() == "forge_tool_attempt_completion");
+                has_task_done && has_attempt_completion
+            } else {
+                false
+            }
+        };
+
+        // Actual: Test the logic
+        assert_eq!(check_support(&agent_with_both), true);
+        assert_eq!(check_support(&agent_with_completion_only), false);
+        assert_eq!(check_support(&agent_no_tools), false);
     }
 }

@@ -8,6 +8,7 @@ mod metadata;
 mod provider;
 
 mod discovery;
+mod task;
 mod template;
 mod tool_service;
 mod tools;
@@ -19,3 +20,4 @@ pub use clipper::*;
 pub use discovery::*;
 pub use forge_services::*;
 pub use infra::*;
+pub use task::*;
