@@ -96,15 +96,15 @@ impl Display for Schema {
 #[cfg(test)]
 mod tests {
 
-    use insta::assert_snapshot;
-    use schemars::JsonSchema;
-    use serde::Deserialize;
-
     use super::*;
     use crate::{
         ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription, ToolName,
-        ToolOutput,
+        ToolOutput, Tools,
     };
+    use insta::assert_snapshot;
+    use schemars::JsonSchema;
+    use serde::Deserialize;
+    use strum::IntoEnumIterator;
 
     #[derive(Default)]
     pub struct MangoTool;
@@ -148,6 +148,13 @@ mod tests {
     #[test]
     fn test_tool_usage_prompt_to_string() {
         let tools = vec![ToolDefinition::from(&MangoTool)];
+        let prompt = ToolUsagePrompt::from(&tools);
+        assert_snapshot!(prompt);
+    }
+
+    #[test]
+    fn test_tool_usage() {
+        let tools = Tools::iter().map(|v| v.definition()).collect::<Vec<_>>();
         let prompt = ToolUsagePrompt::from(&tools);
         assert_snapshot!(prompt);
     }
