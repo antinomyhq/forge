@@ -1,0 +1,12 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: actual
+---
+ToolOutput {
+    is_error: false,
+    values: [
+        Text(
+            "---\npath: /home/user/existing_file.txt\noperation: OVERWRITE\ntotal_chars: 24\n---\n",
+        ),
+    ],
+}

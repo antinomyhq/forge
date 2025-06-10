@@ -1,0 +1,12 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: actual
+---
+ToolOutput {
+    is_error: false,
+    values: [
+        Text(
+            "---\nURL: https://example.com\ntotal_chars: 55\nstart_char: 0\nend_char: 55\ncontext: https://example.com\n---\n",
+        ),
+    ],
+}

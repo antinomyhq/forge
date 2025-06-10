@@ -345,3 +345,400 @@ impl ExecutionResult {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use forge_domain::{FSRead, Tools};
+
+    use super::*;
+
+    fn fixture_environment() -> Environment {
+        Environment {
+            os: "linux".to_string(),
+            pid: 12345,
+            cwd: PathBuf::from("/home/user/project"),
+            home: Some(PathBuf::from("/home/user")),
+            shell: "/bin/bash".to_string(),
+            base_path: PathBuf::from("/home/user/project"),
+            provider: forge_domain::Provider::OpenAI {
+                url: "https://api.openai.com/v1/".parse().unwrap(),
+                key: Some("test-key".to_string()),
+            },
+            retry_config: forge_domain::RetryConfig {
+                initial_backoff_ms: 1000,
+                min_delay_ms: 500,
+                backoff_factor: 2,
+                max_retry_attempts: 3,
+                retry_status_codes: vec![429, 500, 502, 503, 504],
+            },
+        }
+    }
+
+    #[test]
+    fn test_fs_read_basic() {
+        let fixture = ExecutionResult::FsRead(ReadOutput {
+            content: Content::File("Hello, world!\nThis is a test file.".to_string()),
+            start_line: 1,
+            end_line: 2,
+            total_lines: 2,
+        });
+
+        let input = Some(Tools::ForgeToolFsRead(FSRead {
+            path: "/home/user/test.txt".to_string(),
+            start_line: None,
+            end_line: None,
+            explanation: Some("Test explanation".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_read_with_explicit_range() {
+        let fixture = ExecutionResult::FsRead(ReadOutput {
+            content: Content::File("Line 1\nLine 2\nLine 3".to_string()),
+            start_line: 2,
+            end_line: 3,
+            total_lines: 5,
+        });
+
+        let input = Some(Tools::ForgeToolFsRead(FSRead {
+            path: "/home/user/test.txt".to_string(),
+            start_line: Some(2),
+            end_line: Some(3),
+            explanation: Some("Test explanation".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_read_with_truncation_path() {
+        let fixture = ExecutionResult::FsRead(ReadOutput {
+            content: Content::File("Truncated content".to_string()),
+            start_line: 1,
+            end_line: 100,
+            total_lines: 200,
+        });
+
+        let input = Some(Tools::ForgeToolFsRead(FSRead {
+            path: "/home/user/large_file.txt".to_string(),
+            start_line: None,
+            end_line: None,
+            explanation: Some("Test explanation".to_string()),
+        }));
+
+        let env = fixture_environment();
+        let truncation_path = Some(PathBuf::from("/tmp/truncated_content.txt"));
+
+        let actual = fixture
+            .into_tool_output(input, truncation_path, &env)
+            .unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_create_basic() {
+        let fixture = ExecutionResult::FsCreate(FsCreateOutput {
+            path: "/home/user/new_file.txt".to_string(),
+            previous: None,
+            warning: None,
+        });
+
+        let input = Some(Tools::ForgeToolFsCreate(forge_domain::FSWrite {
+            path: "/home/user/new_file.txt".to_string(),
+            content: "Hello, world!".to_string(),
+            overwrite: false,
+            explanation: Some("Creating a new file".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_create_overwrite() {
+        let fixture = ExecutionResult::FsCreate(FsCreateOutput {
+            path: "/home/user/existing_file.txt".to_string(),
+            previous: Some("Old content".to_string()),
+            warning: None,
+        });
+
+        let input = Some(Tools::ForgeToolFsCreate(forge_domain::FSWrite {
+            path: "/home/user/existing_file.txt".to_string(),
+            content: "New content for the file".to_string(),
+            overwrite: true,
+            explanation: Some("Overwriting existing file".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_create_with_warning() {
+        let fixture = ExecutionResult::FsCreate(FsCreateOutput {
+            path: "/home/user/file_with_warning.txt".to_string(),
+            previous: None,
+            warning: Some("File created in non-standard location".to_string()),
+        });
+
+        let input = Some(Tools::ForgeToolFsCreate(forge_domain::FSWrite {
+            path: "/home/user/file_with_warning.txt".to_string(),
+            content: "Content with warning".to_string(),
+            overwrite: false,
+            explanation: Some("Creating file with warning".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_remove_success() {
+        let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: true });
+
+        let input = Some(Tools::ForgeToolFsRemove(forge_domain::FSRemove {
+            path: "/home/user/file_to_delete.txt".to_string(),
+            explanation: Some("Removing unnecessary file".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_remove_not_found() {
+        let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: false });
+
+        let input = Some(Tools::ForgeToolFsRemove(forge_domain::FSRemove {
+            path: "/home/user/nonexistent_file.txt".to_string(),
+            explanation: Some("Trying to remove file that doesn't exist".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_search_with_results() {
+        let fixture = ExecutionResult::FsSearch(Some(SearchResult {
+            matches: vec![
+                "file1.txt:1:Hello world".to_string(),
+                "file2.txt:3:Hello universe".to_string(),
+            ],
+        }));
+
+        let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: Some("Hello".to_string()),
+            file_pattern: Some("*.txt".to_string()),
+            explanation: Some("Searching for Hello pattern".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_search_no_results() {
+        let fixture = ExecutionResult::FsSearch(None);
+
+        let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: Some("NonExistentPattern".to_string()),
+            file_pattern: None,
+            explanation: Some("Searching for non-existent pattern".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_patch_basic() {
+        let fixture = ExecutionResult::FsPatch(PatchOutput {
+            warning: None,
+            before: "Hello world\nThis is a test".to_string(),
+            after: "Hello universe\nThis is a test".to_string(),
+        });
+
+        let input = Some(Tools::ForgeToolFsPatch(forge_domain::FSPatch {
+            path: "/home/user/test.txt".to_string(),
+            search: "world".to_string(),
+            operation: forge_domain::PatchOperation::Replace,
+            content: "universe".to_string(),
+            explanation: Some("Replacing world with universe".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_patch_with_warning() {
+        let fixture = ExecutionResult::FsPatch(PatchOutput {
+            warning: Some("Large file modification".to_string()),
+            before: "line1\nline2".to_string(),
+            after: "line1\nnew line\nline2".to_string(),
+        });
+
+        let input = Some(Tools::ForgeToolFsPatch(forge_domain::FSPatch {
+            path: "/home/user/large_file.txt".to_string(),
+            search: "line1".to_string(),
+            operation: forge_domain::PatchOperation::Append,
+            content: "\nnew line".to_string(),
+            explanation: Some("Adding new line after line1".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_fs_undo_success() {
+        let fixture =
+            ExecutionResult::FsUndo(FsUndoOutput::from("File reverted successfully".to_string()));
+
+        let input = Some(Tools::ForgeToolFsUndo(forge_domain::FSUndo {
+            path: "/home/user/test.txt".to_string(),
+            explanation: Some("Reverting changes to test file".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_net_fetch_success() {
+        let fixture = ExecutionResult::NetFetch(FetchOutput {
+            content: "# Example Website\n\nThis is some content from a website.".to_string(),
+            code: 200,
+            context: "https://example.com".to_string(),
+        });
+
+        let input = Some(Tools::ForgeToolNetFetch(forge_domain::NetFetch {
+            url: "https://example.com".to_string(),
+            raw: Some(false),
+            explanation: Some("Fetching content from example website".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_shell_success() {
+        let fixture = ExecutionResult::Shell(ShellOutput {
+            output: forge_domain::CommandOutput {
+                command: "ls -la".to_string(),
+                stdout: "total 8\ndrwxr-xr-x  2 user user 4096 Jan  1 12:00 .\ndrwxr-xr-x 10 user user 4096 Jan  1 12:00 ..".to_string(),
+                stderr: "".to_string(),
+                exit_code: Some(0),
+            },
+            shell: "/bin/bash".to_string(),
+        });
+
+        let input = Some(Tools::ForgeToolProcessShell(forge_domain::Shell {
+            command: "ls -la".to_string(),
+            cwd: std::path::PathBuf::from("/home/user"),
+            keep_ansi: false,
+            explanation: Some("Listing directory contents".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_follow_up_with_question() {
+        let fixture =
+            ExecutionResult::FollowUp(Some("Which file would you like to edit?".to_string()));
+
+        let input = Some(Tools::ForgeToolFollowup(forge_domain::Followup {
+            question: "Which file would you like to edit?".to_string(),
+            multiple: Some(false),
+            option1: Some("file1.txt".to_string()),
+            option2: Some("file2.txt".to_string()),
+            option3: None,
+            option4: None,
+            option5: None,
+            explanation: Some("Asking user for file selection".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_follow_up_no_question() {
+        let fixture = ExecutionResult::FollowUp(None);
+
+        let input = Some(Tools::ForgeToolFollowup(forge_domain::Followup {
+            question: "Do you want to continue?".to_string(),
+            multiple: Some(false),
+            option1: Some("Yes".to_string()),
+            option2: Some("No".to_string()),
+            option3: None,
+            option4: None,
+            option5: None,
+            explanation: Some("Asking for user confirmation".to_string()),
+        }));
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_debug_snapshot!(actual);
+    }
+}

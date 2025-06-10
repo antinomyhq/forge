@@ -1,0 +1,12 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: actual
+---
+ToolOutput {
+    is_error: false,
+    values: [
+        Text(
+            "---\npath: /home/user/test.txt\ntotal_chars: 29\n---\n1        |-Hello world\n    1    |+Hello universe\n2   2    | This is a test\n",
+        ),
+    ],
+}

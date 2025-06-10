@@ -1,0 +1,12 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: actual
+---
+ToolOutput {
+    is_error: false,
+    values: [
+        Text(
+            "---\npath: /home/user/new_file.txt\noperation: CREATE\ntotal_chars: 13\n---\n",
+        ),
+    ],
+}

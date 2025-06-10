@@ -985,6 +985,7 @@ dependencies = [
  "forge_walker",
  "futures",
  "handlebars",
+ "insta",
  "pretty_assertions",
  "regex",
  "rust-embed",

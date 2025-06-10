@@ -1,0 +1,12 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: actual
+---
+ToolOutput {
+    is_error: false,
+    values: [
+        Text(
+            "File not found or already removed: /home/user/nonexistent_file.txt",
+        ),
+    ],
+}
