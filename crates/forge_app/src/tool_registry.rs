@@ -217,7 +217,7 @@ impl<S: Services> ToolRegistry<S> {
         input: ToolCallFull,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        self.validate_tool_call(agent, &input.name).await?;
+        Self::validate_tool_call(agent, &input.name).await?;
 
         tracing::info!(tool_name = %input.name, arguments = %input.arguments, "Executing tool call");
         let tool_name = input.name.clone();
@@ -232,31 +232,6 @@ impl<S: Services> ToolRegistry<S> {
         } else {
             Err(Error::ToolNotFound(input.name).into())
         }
-    }
-
-    /// Validates if a tool is supported by both the agent and the system.
-    ///
-    /// # Validation Process
-    /// Verifies the tool is supported by the agent specified in the context
-    async fn validate_tool_call(&self, agent: &Agent, tool_name: &ToolName) -> anyhow::Result<()> {
-        let agent_tools: Vec<_> = agent
-            .tools
-            .iter()
-            .flat_map(|tools| tools.iter())
-            .map(|tool| tool.as_str())
-            .collect();
-
-        if !agent_tools.contains(&tool_name.as_str()) {
-            tracing::error!(tool_name = %tool_name, "Invalid tool call");
-
-            return Err(anyhow::anyhow!(
-                "No tool with name '{}' is supported by agent '{}'. Please try again with one of these tools {}",
-                tool_name,
-                agent.id,
-                agent_tools.join(", ")
-            ));
-        }
-        Ok(())
     }
 
     pub async fn call(
@@ -282,6 +257,33 @@ impl<S: Services> ToolRegistry<S> {
             .collect::<Vec<_>>();
 
         Ok(tools)
+    }
+}
+
+impl<S> ToolRegistry<S> {
+    /// Validates if a tool is supported by both the agent and the system.
+    ///
+    /// # Validation Process
+    /// Verifies the tool is supported by the agent specified in the context
+    async fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> anyhow::Result<()> {
+        let agent_tools: Vec<_> = agent
+            .tools
+            .iter()
+            .flat_map(|tools| tools.iter())
+            .map(|tool| tool.as_str())
+            .collect();
+
+        if !agent_tools.contains(&tool_name.as_str()) {
+            tracing::error!(tool_name = %tool_name, "No tool with name");
+
+            return Err(anyhow::anyhow!(
+                "No tool with name '{}' is supported by agent '{}'. Please try again with one of these tools {}",
+                tool_name,
+                agent.id,
+                agent_tools.join(", ")
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -463,4 +465,36 @@ async fn send_read_context(
     let message = TitleFormat::debug(title).sub_title(subtitle);
     ctx.send_text(message).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tool_registry::ToolRegistry;
+    use forge_domain::{Agent, ToolName, Tools};
+
+    fn agent() -> Agent {
+        // only allow FsRead tool for this agent
+        Agent::new("test_agent").tools(vec![ToolName::new(Tools::ForgeToolFsRead(
+            Default::default(),
+        ))])
+    }
+    #[tokio::test]
+    async fn test_restricted_tool_call() {
+        let result = ToolRegistry::<()>::validate_tool_call(
+            &agent(),
+            &ToolName::new(Tools::ForgeToolFsRead(Default::default())),
+        )
+        .await;
+        assert!(result.is_ok(), "Tool call should be valid");
+    }
+    
+    #[tokio::test]
+    async fn test_restricted_tool_call_err() {
+        let result = ToolRegistry::<()>::validate_tool_call(
+            &agent(),
+            &ToolName::new(Tools::ForgeToolFsCreate(Default::default())),
+        )
+        .await;
+        assert!(result.is_err(), "Tool call should not be valid");
+    }
 }
