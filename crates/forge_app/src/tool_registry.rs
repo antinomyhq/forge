@@ -37,7 +37,7 @@ impl<S: Services> ToolRegistry<S> {
         &self,
         input: Tools,
         context: &mut ToolCallContext,
-    ) -> anyhow::Result<crate::ToolOutput> {
+    ) -> anyhow::Result<crate::ServiceResult> {
         match input {
             Tools::ForgeToolFsRead(input) => {
                 let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
@@ -60,7 +60,7 @@ impl<S: Services> ToolRegistry<S> {
                 )
                 .await?;
 
-                Ok(crate::ToolOutput::FsRead(output))
+                Ok(crate::ServiceResult::FsRead(output))
             }
             Tools::ForgeToolFsCreate(input) => {
                 let out = self
@@ -70,7 +70,7 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
                 send_write_context(context, &out, &input.path, self.services.as_ref()).await?;
 
-                Ok(crate::ToolOutput::from(out))
+                Ok(crate::ServiceResult::from(out))
             }
             Tools::ForgeToolFsSearch(input) => {
                 let output = self
@@ -85,7 +85,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 send_fs_search_context(self.services.as_ref(), context, &input, &output).await?;
 
-                Ok(crate::ToolOutput::from(output))
+                Ok(crate::ServiceResult::from(output))
             }
             Tools::ForgeToolFsRemove(input) => {
                 let output = self
@@ -96,7 +96,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 send_fs_remove_context(context, &input.path, self.services.as_ref()).await?;
 
-                Ok(crate::ToolOutput::from(output))
+                Ok(crate::ServiceResult::from(output))
             }
             Tools::ForgeToolFsPatch(input) => {
                 let output = self
@@ -112,13 +112,13 @@ impl<S: Services> ToolRegistry<S> {
                 send_fs_patch_context(context, &input.path, &output, self.services.as_ref())
                     .await?;
 
-                Ok(crate::ToolOutput::from(output))
+                Ok(crate::ServiceResult::from(output))
             }
             Tools::ForgeToolFsUndo(input) => {
                 let output = self.services.fs_undo_service().undo(input.path).await?;
                 send_fs_undo_context(context, &output).await?;
 
-                Ok(crate::ToolOutput::from(output))
+                Ok(crate::ServiceResult::from(output))
             }
             Tools::ForgeToolProcessShell(input) => {
                 let output = self
@@ -128,7 +128,7 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
                 send_shell_output_context(context, &output).await?;
 
-                Ok(crate::ToolOutput::from(output))
+                Ok(crate::ServiceResult::from(output))
             }
             Tools::ForgeToolNetFetch(input) => {
                 let output = self
@@ -139,7 +139,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 send_net_fetch_context(context, &output, &input.url).await?;
 
-                Ok(crate::ToolOutput::from(output))
+                Ok(crate::ServiceResult::from(output))
             }
             Tools::ForgeToolFollowup(input) => {
                 let output = self
@@ -160,11 +160,11 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
                 context.set_complete().await;
 
-                Ok(crate::ToolOutput::from(output))
+                Ok(crate::ServiceResult::from(output))
             }
             Tools::ForgeToolAttemptCompletion(input) => {
                 send_completion_context(context, input).await?;
-                Ok(crate::ToolOutput::AttemptCompletion)
+                Ok(crate::ServiceResult::AttemptCompletion)
             }
         }
     }
@@ -180,7 +180,7 @@ impl<S: Services> ToolRegistry<S> {
         let truncation_path = out.to_create_temp(self.services.as_ref()).await?;
         let env = self.services.environment_service().get_environment();
 
-        out.to_tool_result_inner(Some(tool_input), truncation_path, &env)
+        out.into_tool_output(Some(tool_input), truncation_path, &env)
     }
 
     async fn call_mcp_tool(

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use forge_display::DiffFormat;
-use forge_domain::{Environment, ToolName, ToolResult, Tools};
+use forge_domain::{Environment, Tools};
 
 use crate::front_matter::FrontMatter;
 use crate::truncation::FETCH_MAX_LENGTH;
@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[derive(derive_more::From)]
-pub enum ToolOutput {
+pub enum ServiceResult {
     FsRead(ReadOutput),
     FsCreate(FsCreateOutput),
     FsRemove(FsRemoveOutput),
@@ -25,24 +25,15 @@ pub enum ToolOutput {
     AttemptCompletion,
 }
 
-impl ToolOutput {
-    pub fn to_tool_result(
-        &self,
-        tool_name: ToolName,
-        input: Option<Tools>,
-        truncation_path: Option<PathBuf>,
-        env: &Environment,
-    ) -> ToolResult {
-        ToolResult::new(tool_name).output(self.to_tool_result_inner(input, truncation_path, env))
-    }
-    pub fn to_tool_result_inner(
-        &self,
+impl ServiceResult {
+    pub fn into_tool_output(
+        self,
         input: Option<Tools>,
         truncation_path: Option<PathBuf>,
         env: &Environment,
     ) -> anyhow::Result<forge_domain::ToolOutput> {
         match self {
-            ToolOutput::FsRead(out) => {
+            ServiceResult::FsRead(out) => {
                 if let Some(Tools::ForgeToolFsRead(input)) = input {
                     let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
                     let is_range_relevant = is_explicit_range || truncation_path.is_some();
@@ -65,7 +56,7 @@ impl ToolOutput {
                     unreachable!()
                 }
             }
-            ToolOutput::FsCreate(out) => {
+            ServiceResult::FsCreate(out) => {
                 if let Some(Tools::ForgeToolFsCreate(input)) = input {
                     let chars = input.content.len();
                     let operation = if out.previous.is_some() {
@@ -85,7 +76,7 @@ impl ToolOutput {
                     unreachable!()
                 }
             }
-            ToolOutput::FsRemove(out) => {
+            ServiceResult::FsRemove(out) => {
                 if let Some(Tools::ForgeToolFsRemove(input)) = input {
                     let display_path = display_path(env, Path::new(&input.path))?;
                     if out.completed {
@@ -101,7 +92,7 @@ impl ToolOutput {
                     unreachable!()
                 }
             }
-            ToolOutput::FsSearch(output) => {
+            ServiceResult::FsSearch(output) => {
                 if let Some(Tools::ForgeToolFsSearch(input)) = input {
                     match output {
                         Some(out) => {
@@ -147,7 +138,7 @@ impl ToolOutput {
                     unreachable!()
                 }
             }
-            ToolOutput::FsPatch(output) => {
+            ServiceResult::FsPatch(output) => {
                 if let Some(Tools::ForgeToolFsPatch(input)) = input {
                     let diff = console::strip_ansi_codes(&DiffFormat::format(
                         &output.before,
@@ -165,11 +156,11 @@ impl ToolOutput {
                     unreachable!()
                 }
             }
-            ToolOutput::FsUndo(output) => Ok(forge_domain::ToolOutput::text(format!(
+            ServiceResult::FsUndo(output) => Ok(forge_domain::ToolOutput::text(format!(
                 "Successfully undid last operation on path: {}",
                 output.as_str()
             ))),
-            ToolOutput::NetFetch(output) => {
+            ServiceResult::NetFetch(output) => {
                 if let Some(Tools::ForgeToolNetFetch(input)) = input {
                     let mut metadata = FrontMatter::default()
                         .add("URL", &input.url)
@@ -205,7 +196,7 @@ impl ToolOutput {
                     unreachable!()
                 }
             }
-            ToolOutput::Shell(output) => {
+            ServiceResult::Shell(output) => {
                 let mut metadata = FrontMatter::default().add("command", &output.output.command);
                 if let Some(exit_code) = output.output.exit_code {
                     metadata = metadata.add("exit_code", exit_code);
@@ -225,19 +216,22 @@ impl ToolOutput {
                 if stderr_truncated {
                     metadata = metadata.add("total_stderr_lines", stderr_lines);
                 }
+
+                let is_success = output.output.success();
+
                 // Combine outputs
                 let mut outputs = vec![];
                 if !output.output.stdout.is_empty() {
-                    outputs.push(output.output.stdout.clone());
+                    outputs.push(output.output.stdout);
                 }
                 if !output.output.stderr.is_empty() {
-                    outputs.push(output.output.stderr.clone());
+                    outputs.push(output.output.stderr);
                 }
 
                 let mut result = if outputs.is_empty() {
                     format!(
                         "Command {} with no output.",
-                        if output.output.success() {
+                        if is_success {
                             "executed successfully"
                         } else {
                             "failed"
@@ -257,19 +251,19 @@ impl ToolOutput {
                     ));
                 }
 
-                if output.output.success() {
+                if is_success {
                     Ok(forge_domain::ToolOutput::text(result))
                 } else {
                     anyhow::bail!(result)
                 }
             }
-            ToolOutput::FollowUp(output) => match output {
+            ServiceResult::FollowUp(output) => match output {
                 None => Ok(forge_domain::ToolOutput::text(
                     "User interrupted the selection".to_string(),
                 )),
                 Some(o) => Ok(forge_domain::ToolOutput::text(o.to_string())),
             },
-            ToolOutput::AttemptCompletion => Ok(forge_domain::ToolOutput::text(
+            ServiceResult::AttemptCompletion => Ok(forge_domain::ToolOutput::text(
                 "[Task was completed successfully. Now wait for user feedback]".to_string(),
             )),
         }
@@ -280,10 +274,10 @@ impl ToolOutput {
         services: &S,
     ) -> anyhow::Result<Option<PathBuf>> {
         match self {
-            ToolOutput::FsRead(_) => Ok(None),
-            ToolOutput::FsCreate(_) => Ok(None),
-            ToolOutput::FsRemove(_) => Ok(None),
-            ToolOutput::FsSearch(search_result) => {
+            ServiceResult::FsRead(_) => Ok(None),
+            ServiceResult::FsCreate(_) => Ok(None),
+            ServiceResult::FsRemove(_) => Ok(None),
+            ServiceResult::FsSearch(search_result) => {
                 if let Some(search_result) = search_result {
                     let output = search_result.matches.join("\n");
                     let is_truncated =
@@ -306,9 +300,9 @@ impl ToolOutput {
                     Ok(None)
                 }
             }
-            ToolOutput::FsPatch(_) => Ok(None),
-            ToolOutput::FsUndo(_) => Ok(None),
-            ToolOutput::NetFetch(out) => {
+            ServiceResult::FsPatch(_) => Ok(None),
+            ServiceResult::FsUndo(_) => Ok(None),
+            ServiceResult::NetFetch(out) => {
                 let original_length = out.content.len();
                 let is_truncated = original_length > crate::truncation::FETCH_MAX_LENGTH;
 
@@ -321,7 +315,7 @@ impl ToolOutput {
                     Ok(None)
                 }
             }
-            ToolOutput::Shell(out) => {
+            ServiceResult::Shell(out) => {
                 let stdout_lines = out.output.stdout.lines().count();
                 let stderr_lines = out.output.stderr.lines().count();
                 let stdout_truncated = stdout_lines
@@ -346,8 +340,8 @@ impl ToolOutput {
                     Ok(None)
                 }
             }
-            ToolOutput::FollowUp(_) => Ok(None),
-            ToolOutput::AttemptCompletion => Ok(None),
+            ServiceResult::FollowUp(_) => Ok(None),
+            ServiceResult::AttemptCompletion => Ok(None),
         }
     }
 }
