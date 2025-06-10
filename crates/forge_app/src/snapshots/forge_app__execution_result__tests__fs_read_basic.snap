@@ -1,12 +1,9 @@
 ---
 source: crates/forge_app/src/execution_result.rs
-expression: actual
+expression: to_value(actual)
 ---
-ToolOutput {
-    is_error: false,
-    values: [
-        Text(
-            "---\npath: /home/user/test.txt\n---\nHello, world!\nThis is a test file.",
-        ),
-    ],
-}
+---
+path: /home/user/test.txt
+---
+Hello, world!
+This is a test file.

@@ -1,12 +1,11 @@
 ---
 source: crates/forge_app/src/execution_result.rs
-expression: actual
+expression: to_value(actual)
 ---
-ToolOutput {
-    is_error: false,
-    values: [
-        Text(
-            "---\npath: /home/user/large_file.txt\nstart_line: 1\nend_line: 100\ntotal_lines: 200\n---\nTruncated content",
-        ),
-    ],
-}
+---
+path: /home/user/large_file.txt
+start_line: 1
+end_line: 100
+total_lines: 200
+---
+Truncated content

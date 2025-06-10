@@ -348,9 +348,10 @@ impl ExecutionResult {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write;
     use std::path::PathBuf;
 
-    use forge_domain::{FSRead, Tools};
+    use forge_domain::{FSRead, ToolValue, Tools};
 
     use super::*;
 
@@ -376,6 +377,24 @@ mod tests {
         }
     }
 
+    fn to_value(output: forge_domain::ToolOutput) -> String {
+        let values = output.values;
+        let mut result = String::new();
+        values.into_iter().for_each(|value| match value {
+            ToolValue::Text(txt) => {
+                writeln!(result, "{}", txt).unwrap();
+            }
+            ToolValue::Image(image) => {
+                writeln!(result, "Image with mime type: {}", image.mime_type()).unwrap();
+            }
+            ToolValue::Empty => {
+                writeln!(result, "Empty value").unwrap();
+            }
+        });
+
+        result
+    }
+
     #[test]
     fn test_fs_read_basic() {
         let fixture = ExecutionResult::FsRead(ReadOutput {
@@ -396,7 +415,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -419,7 +438,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -445,7 +464,7 @@ mod tests {
             .into_tool_output(input, truncation_path, &env)
             .unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -467,7 +486,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -489,7 +508,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -511,7 +530,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -527,7 +546,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -543,7 +562,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -566,7 +585,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -584,7 +603,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -607,7 +626,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -630,7 +649,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -647,7 +666,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -668,7 +687,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -694,7 +713,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -717,7 +736,7 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -739,6 +758,6 @@ mod tests {
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
-        insta::assert_debug_snapshot!(actual);
+        insta::assert_snapshot!(to_value(actual));
     }
 }

@@ -1,12 +1,10 @@
 ---
 source: crates/forge_app/src/execution_result.rs
-expression: actual
+expression: to_value(actual)
 ---
-ToolOutput {
-    is_error: false,
-    values: [
-        Text(
-            "---\npath: /home/user/file_with_warning.txt\noperation: CREATE\ntotal_chars: 20\nWarning: File created in non-standard location\n---\n",
-        ),
-    ],
-}
+---
+path: /home/user/file_with_warning.txt
+operation: CREATE
+total_chars: 20
+Warning: File created in non-standard location
+---

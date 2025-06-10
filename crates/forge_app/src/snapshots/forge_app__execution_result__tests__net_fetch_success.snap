@@ -1,12 +1,11 @@
 ---
 source: crates/forge_app/src/execution_result.rs
-expression: actual
+expression: to_value(actual)
 ---
-ToolOutput {
-    is_error: false,
-    values: [
-        Text(
-            "---\nURL: https://example.com\ntotal_chars: 55\nstart_char: 0\nend_char: 55\ncontext: https://example.com\n---\n",
-        ),
-    ],
-}
+---
+URL: https://example.com
+total_chars: 55
+start_char: 0
+end_char: 55
+context: https://example.com
+---

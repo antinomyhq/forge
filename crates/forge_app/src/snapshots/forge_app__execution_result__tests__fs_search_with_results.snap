@@ -1,12 +1,14 @@
 ---
 source: crates/forge_app/src/execution_result.rs
-expression: actual
+expression: to_value(actual)
 ---
-ToolOutput {
-    is_error: false,
-    values: [
-        Text(
-            "---\npath: /home/user/project\nregex: Hello\nfile_pattern: *.txt\ntotal_lines: 2\nstart_line: 1\nend_line: 2\n---\nfile1.txt:1:Hello world\nfile2.txt:3:Hello universe",
-        ),
-    ],
-}
+---
+path: /home/user/project
+regex: Hello
+file_pattern: *.txt
+total_lines: 2
+start_line: 1
+end_line: 2
+---
+file1.txt:1:Hello world
+file2.txt:3:Hello universe

@@ -1,12 +1,5 @@
 ---
 source: crates/forge_app/src/execution_result.rs
-expression: actual
+expression: to_value(actual)
 ---
-ToolOutput {
-    is_error: false,
-    values: [
-        Text(
-            "Successfully removed file: /home/user/file_to_delete.txt",
-        ),
-    ],
-}
+Successfully removed file: /home/user/file_to_delete.txt

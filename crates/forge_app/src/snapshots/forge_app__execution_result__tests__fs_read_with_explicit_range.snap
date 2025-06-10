@@ -1,12 +1,13 @@
 ---
 source: crates/forge_app/src/execution_result.rs
-expression: actual
+expression: to_value(actual)
 ---
-ToolOutput {
-    is_error: false,
-    values: [
-        Text(
-            "---\npath: /home/user/test.txt\nstart_line: 2\nend_line: 3\ntotal_lines: 5\n---\nLine 1\nLine 2\nLine 3",
-        ),
-    ],
-}
+---
+path: /home/user/test.txt
+start_line: 2
+end_line: 3
+total_lines: 5
+---
+Line 1
+Line 2
+Line 3

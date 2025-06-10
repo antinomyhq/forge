@@ -1,12 +1,12 @@
 ---
 source: crates/forge_app/src/execution_result.rs
-expression: actual
+expression: to_value(actual)
 ---
-ToolOutput {
-    is_error: false,
-    values: [
-        Text(
-            "---\npath: /home/user/large_file.txt\ntotal_chars: 20\nwarning: Large file modification\n---\n1   1    | line1\n    2    |+new line\n2   3    | line2\n",
-        ),
-    ],
-}
+---
+path: /home/user/large_file.txt
+total_chars: 20
+warning: Large file modification
+---
+1   1    | line1
+    2    |+new line
+2   3    | line2
