@@ -715,11 +715,7 @@ mod tests {
     #[test]
     fn test_net_fetch_truncated() {
         let truncated_content = "Truncated Content".to_string();
-        let long_content = format!(
-            "{}{}",
-            "A".repeat(FETCH_MAX_LENGTH),
-            &truncated_content
-        );
+        let long_content = format!("{}{}", "A".repeat(FETCH_MAX_LENGTH), &truncated_content);
         let fixture = ExecutionResult::NetFetch(FetchOutput {
             content: long_content,
             code: 200,
