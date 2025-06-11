@@ -169,6 +169,14 @@ mod test {
         async fn find(&self, _: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
             Ok(None)
         }
+
+        async fn call(
+            &self,
+            _context: &mut ToolCallContext,
+            _call: ToolCallFull,
+        ) -> anyhow::Result<ToolOutput> {
+            unimplemented!()
+        }
     }
 
     impl FromIterator<Tool> for ForgeToolService<Stub> {

@@ -5,6 +5,7 @@ use forge_domain::{ExecutableTool, ToolCallContext, ToolName, ToolOutput};
 
 use crate::McpClient;
 
+#[derive(Clone)]
 pub struct McpExecutor<T> {
     pub client: Arc<T>,
     pub tool_name: ToolName,

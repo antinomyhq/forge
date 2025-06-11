@@ -14,9 +14,10 @@ use crate::tools_v2::{
     ForgeFsSearch, ForgeFsUndo, ForgeShell,
 };
 use crate::workflow::ForgeWorkflowService;
-use crate::Infrastructure;
+use crate::{Infrastructure, McpServer};
 
-type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F>;
+type McpService<F> =
+    ForgeMcpService<ForgeMcpManager<F>, F, <<F as Infrastructure>::McpServer as McpServer>::Client>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -25,7 +26,7 @@ type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F>;
 /// - F: The infrastructure implementation that provides core services like
 ///   environment, file reading, vector indexing, and embedding.
 #[derive(Clone)]
-pub struct ForgeServices<F> {
+pub struct ForgeServices<F: Infrastructure> {
     infra: Arc<F>,
     tool_service: Arc<ForgeToolService<McpService<F>>>,
     provider_service: Arc<ForgeProviderService>,
