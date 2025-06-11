@@ -499,7 +499,7 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+        let actual = fixture.into_tool_output(input, None, &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -529,7 +529,7 @@ mod tests {
 
         let env = fixture_environment(); // max_search_lines is 25
 
-        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+        let actual = fixture.into_tool_output(input, None, &env);
 
         // Check if the output is truncated
         assert!(
@@ -571,8 +571,7 @@ mod tests {
         let truncation_path = Some(PathBuf::from("/tmp/forge_search_truncated.txt"));
 
         let actual = fixture
-            .into_tool_output(input, truncation_path, &env)
-            .unwrap();
+            .into_tool_output(input, truncation_path, &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -599,7 +598,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+        let actual = fixture.into_tool_output(input, None, &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
