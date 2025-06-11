@@ -5,14 +5,18 @@ use forge_domain::{ExecutableTool, ToolCallContext, ToolName, ToolOutput};
 
 use crate::McpClient;
 
+#[derive(Clone)]
 pub struct McpExecutor<T> {
     pub client: Arc<T>,
     pub tool_name: ToolName,
 }
 
-impl<T> McpExecutor<T> {
+impl<T: McpClient> McpExecutor<T> {
     pub fn new(tool_name: ToolName, client: Arc<T>) -> anyhow::Result<Self> {
         Ok(Self { client, tool_name })
+    }
+    pub async fn call_tool(&self, input: serde_json::Value) -> anyhow::Result<ToolOutput> {
+        self.client.call(&self.tool_name, input).await
     }
 }
 
@@ -29,6 +33,6 @@ impl<T: McpClient> ExecutableTool for McpExecutor<T> {
             .send_text(TitleFormat::info("MCP").sub_title(self.tool_name.as_str()))
             .await?;
 
-        self.client.call(&self.tool_name, input).await
+        self.call_tool(input).await
     }
 }

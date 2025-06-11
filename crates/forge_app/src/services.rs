@@ -4,7 +4,7 @@ use std::sync::Arc;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
-    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
+    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput, ToolResult, Workflow,
 };
 
 #[derive(Debug)]
@@ -100,6 +100,7 @@ pub trait McpConfigManager: Send + Sync {
 pub trait McpService: Send + Sync {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
     async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>>;
+    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
 }
 
 #[async_trait::async_trait]
