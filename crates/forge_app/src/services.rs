@@ -46,6 +46,7 @@ pub struct FetchOutput {
     pub content_type: String,
 }
 
+#[derive(Debug)]
 pub enum ResponseContext {
     Parsed,
     Raw,

@@ -153,15 +153,14 @@ impl ExecutionResult {
             }
             (Tools::ForgeToolNetFetch(input), ExecutionResult::NetFetch(output)) => {
                 let context = match output.context {
-                        ResponseContext::Parsed => String::new(),
-                        ResponseContext::Raw => format!(
-                            "Content type {} cannot be simplified to markdown; Raw content provided instead",
-                            output.content_type
-                        ),
-                    };
-                    let truncated_content =
-                        truncate_fetch_content(&output.content, FETCH_MAX_LENGTH);
-                    let mut metadata = FrontMatter::default()
+                    ResponseContext::Parsed => String::new(),
+                    ResponseContext::Raw => format!(
+                        "Content type {} cannot be simplified to markdown; Raw content provided instead",
+                        output.content_type
+                    ),
+                };
+                let truncated_content = truncate_fetch_content(&output.content, FETCH_MAX_LENGTH);
+                let mut metadata = FrontMatter::default()
                     .add("URL", &input.url)
                     .add("total_chars", output.content.len())
                     .add("start_char", 0)
@@ -177,7 +176,7 @@ impl ExecutionResult {
                         ),
                     );
                 }
-                    let output = truncated_content.content;
+                let output = truncated_content.content;
                 let truncation_tag = match truncation_path.as_ref() {
                     Some(path) => {
                         format!(
@@ -732,18 +731,16 @@ mod tests {
             context: ResponseContext::Parsed,
             content_type: "text/html".to_string(),
         });
-        let input = Some(Tools::ForgeToolNetFetch(forge_domain::NetFetch {
+        let input = Tools::ForgeToolNetFetch(forge_domain::NetFetch {
             url: "https://example.com/large-page".to_string(),
             raw: Some(false),
             explanation: Some("Fetching large content that will be truncated".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
         let truncation_path = Some(std::path::PathBuf::from("/tmp/forge_fetch_abc123.txt"));
 
-        let actual = fixture
-            .into_tool_output(input, truncation_path, &env)
-            .unwrap();
+        let actual = fixture.into_tool_output(input, truncation_path, &env);
 
         // make sure that the content is truncated
         assert!(
