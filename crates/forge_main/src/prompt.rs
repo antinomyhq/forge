@@ -50,7 +50,7 @@ impl Prompt for ForgePrompt {
         write!(
             result,
             "{} {}",
-            mode_style.paint(self.agent_id.to_string().to_case(Case::UpperSnake)),
+            mode_style.paint(self.agent_id.as_str().to_case(Case::UpperSnake)),
             folder_style.paint(&current_dir)
         )
         .unwrap();
@@ -183,7 +183,7 @@ mod tests {
 
     impl Default for ForgePrompt {
         fn default() -> Self {
-            ForgePrompt { usage: None, agent_id: AgentId::new("act"), model: None }
+            ForgePrompt { usage: None, agent_id: AgentId::default(), model: None }
         }
     }
 
@@ -194,7 +194,7 @@ mod tests {
         let actual = prompt.render_prompt_left();
 
         // Check that it has the expected format with mode and directory displayed
-        assert!(actual.contains("ACT"));
+        assert!(actual.contains("FORGE"));
         assert!(actual.contains(RIGHT_CHEVRON));
     }
 
@@ -210,7 +210,7 @@ mod tests {
         env::remove_var("PROMPT");
 
         // Verify the prompt contains expected elements regardless of $PROMPT var
-        assert!(actual.contains("ACT"));
+        assert!(actual.contains("FORGE"));
         assert!(actual.contains(RIGHT_CHEVRON));
     }
 

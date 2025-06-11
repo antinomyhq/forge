@@ -10,7 +10,7 @@ use crate::prompt::ForgePrompt;
 pub struct UIState {
     pub conversation_id: Option<ConversationId>,
     pub usage: Usage,
-    pub operating_agent: Option<AgentId>,
+    pub operating_agent: AgentId,
     pub is_first: bool,
     pub model: Option<ModelId>,
     pub provider: Option<Provider>,
@@ -22,8 +22,17 @@ impl UIState {
             .variables
             .get("operating_agent")
             .and_then(|value| value.as_str())
-            .map(AgentId::new)
-            .or_else(|| workflow.agents.first().map(|agent| agent.id.clone()));
+            .and_then(|agent_id_str| {
+                // Validate that the agent exists in the workflow before creating AgentId
+                let agent_id = AgentId::new(agent_id_str);
+                if workflow.agents.iter().any(|agent| agent.id == agent_id) {
+                    Some(agent_id)
+                } else {
+                    None
+                }
+            })
+            .or_else(|| workflow.agents.first().map(|agent| agent.id.clone()))
+            .unwrap_or_default();
 
         Self {
             conversation_id: Default::default(),
@@ -41,7 +50,7 @@ impl From<UIState> for ForgePrompt {
         ForgePrompt {
             usage: Some(state.usage),
             model: state.model,
-            agent_id: state.operating_agent.unwrap_or(AgentId::new("act")),
+            agent_id: state.operating_agent,
         }
     }
 }
