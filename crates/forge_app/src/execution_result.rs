@@ -4,11 +4,11 @@ use forge_display::DiffFormat;
 use forge_domain::{Environment, Tools};
 
 use crate::front_matter::FrontMatter;
-use crate::truncation::FETCH_MAX_LENGTH;
+use crate::truncation::{FETCH_MAX_LENGTH, create_temp_file};
 use crate::utils::display_path;
 use crate::{
     Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
-    SearchResult, Services, ShellOutput, create_temp_file, truncate_search_output,
+    SearchResult, Services, ShellOutput,
 };
 
 #[derive(derive_more::From)]
@@ -96,30 +96,25 @@ impl ExecutionResult {
                 if let Some(Tools::ForgeToolFsSearch(input)) = input {
                     match output {
                         Some(out) => {
-                            let truncated_output = truncate_search_output(
-                                &out.matches,
-                                &input.path,
-                                input.regex.as_ref(),
-                                input.file_pattern.as_ref(),
-                                input.start_line.unwrap_or_default(),
-                                env.max_search_lines,
-                            );
                             let metadata = FrontMatter::default()
-                                .add("path", &truncated_output.path)
-                                .add_optional("regex", truncated_output.regex.as_ref())
-                                .add_optional(
-                                    "file_pattern",
-                                    truncated_output.file_pattern.as_ref(),
-                                )
-                                .add("total_lines", truncated_output.total_lines)
+                                .add("path", &input.path)
+                                .add_optional("regex", input.regex.as_ref())
+                                .add_optional("file_pattern", input.file_pattern.as_ref())
+                                .add("total_lines", out.matches.len())
                                 .add("start_line", input.start_line.unwrap_or_default())
                                 .add(
                                     "end_line",
-                                    truncated_output.total_lines.min(env.max_search_lines),
+                                    out.matches.len().min(env.max_search_lines as usize),
                                 );
 
                             let mut result = metadata.to_string();
-                            result.push_str(&truncated_output.output);
+                            result.push_str(
+                                &out.matches
+                                    .iter()
+                                    .map(String::from)
+                                    .collect::<Vec<_>>()
+                                    .join("\n"),
+                            );
 
                             // Create temp file if needed
                             if let Some(path) = truncation_path {
