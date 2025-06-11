@@ -20,15 +20,4 @@ impl FrontMatter {
         self.0.push((key, value.to_string()));
         self
     }
-
-    /// Add a key-value pair to the metadata only if the value is Some
-    ///
-    /// This is a convenience method for conditionally adding metadata
-    /// without needing to use if-else blocks
-    pub fn add_optional<S: ToString>(self, key: &'static str, value: Option<S>) -> Self {
-        match value {
-            Some(v) => self.add(key, v),
-            None => self,
-        }
-    }
 }
