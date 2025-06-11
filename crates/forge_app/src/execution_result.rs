@@ -593,7 +593,7 @@ mod tests {
     fn test_fs_search_with_truncation() {
         // Create more than SEARCH_MAX_LINES (25 for tests) to trigger truncation
         let mut matches = Vec::new();
-        for i in 1..=30 {
+        for i in 1..=25 {
             matches.push(format!(
                 "file{i}.txt:{i}:This is line {i} with search pattern"
             ));

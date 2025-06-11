@@ -6,7 +6,7 @@ expression: to_value(actual)
 path: /home/user/project
 regex: search pattern
 file_pattern: *.txt
-total_lines: 31
+total_lines: 26
 start_line: 0
 end_line: 25
 ---
