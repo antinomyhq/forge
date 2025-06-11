@@ -1,4 +1,5 @@
 /// Output from a command execution
+#[derive(Debug)]
 pub struct CommandOutput {
     pub command: String,
     pub stdout: String,

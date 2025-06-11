@@ -4,21 +4,33 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{McpConfigManager, McpService};
-use forge_domain::{McpConfig, McpServerConfig, Tool, ToolDefinition, ToolName};
+use forge_domain::{
+    McpConfig, McpServerConfig, Tool, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
+};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
 use crate::{Infrastructure, McpClient, McpServer};
 
 #[derive(Clone)]
-pub struct ForgeMcpService<M, I> {
-    tools: Arc<RwLock<HashMap<ToolName, Arc<Tool>>>>,
+pub struct ForgeMcpService<M, I, C> {
+    tools: Arc<RwLock<HashMap<ToolName, ToolHolder<McpExecutor<C>>>>>,
     previous_config_hash: Arc<Mutex<u64>>,
     manager: Arc<M>,
     infra: Arc<I>,
 }
 
-impl<M: McpConfigManager, I: Infrastructure> ForgeMcpService<M, I> {
+#[derive(Clone)]
+struct ToolHolder<T> {
+    definition: ToolDefinition,
+    executable: T,
+}
+
+impl<M: McpConfigManager, I: Infrastructure, C> ForgeMcpService<M, I, C>
+where
+    C: McpClient + Clone,
+    C: From<<I::McpServer as McpServer>::Client>,
+{
     pub fn new(manager: Arc<M>, infra: Arc<I>) -> Self {
         Self {
             tools: Default::default(),
@@ -37,11 +49,7 @@ impl<M: McpConfigManager, I: Infrastructure> ForgeMcpService<M, I> {
         *self.previous_config_hash.lock().await != Self::hash(config)
     }
 
-    async fn insert_clients<T: McpClient>(
-        &self,
-        server_name: &str,
-        client: Arc<T>,
-    ) -> anyhow::Result<()> {
+    async fn insert_clients(&self, server_name: &str, client: Arc<C>) -> anyhow::Result<()> {
         let tools = client.list().await?;
 
         let mut tool_map = self.tools.write().await;
@@ -53,7 +61,7 @@ impl<M: McpConfigManager, I: Infrastructure> ForgeMcpService<M, I> {
             tool.name = tool_name.clone();
             tool_map.insert(
                 tool_name,
-                Arc::new(Tool { definition: tool, executable: Box::new(server) }),
+                ToolHolder { definition: tool, executable: server },
             );
         }
 
@@ -61,7 +69,8 @@ impl<M: McpConfigManager, I: Infrastructure> ForgeMcpService<M, I> {
     }
 
     async fn connect(&self, server_name: &str, config: McpServerConfig) -> anyhow::Result<()> {
-        let client = Arc::new(self.infra.mcp_server().connect(config).await?);
+        let client = self.infra.mcp_server().connect(config).await?;
+        let client = Arc::new(C::from(client));
         self.insert_clients(server_name, client).await?;
 
         Ok(())
@@ -97,8 +106,13 @@ impl<M: McpConfigManager, I: Infrastructure> ForgeMcpService<M, I> {
 
     async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
         self.init_mcp().await?;
-
-        Ok(self.tools.read().await.get(name).cloned())
+        match self.tools.read().await.get(name).cloned() {
+            Some(val) => Ok(Some(Arc::new(Tool {
+                executable: Box::new(val.executable),
+                definition: val.definition,
+            }))),
+            None => Ok(None),
+        }
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
@@ -114,15 +128,31 @@ impl<M: McpConfigManager, I: Infrastructure> ForgeMcpService<M, I> {
     async fn clear_tools(&self) {
         self.tools.write().await.clear()
     }
+
+    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
+        let lock = self.tools.read().await;
+
+        let tool = lock.get(&call.name).context("Tool not found")?;
+
+        tool.executable.call_tool(call.arguments).await
+    }
 }
 
 #[async_trait::async_trait]
-impl<R: McpConfigManager, I: Infrastructure> McpService for ForgeMcpService<R, I> {
+impl<R: McpConfigManager, I: Infrastructure, C> McpService for ForgeMcpService<R, I, C>
+where
+    C: McpClient + Clone,
+    C: From<<I::McpServer as McpServer>::Client>,
+{
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         self.list().await
     }
 
     async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
         self.find(name).await
+    }
+
+    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
+        self.call(call).await
     }
 }

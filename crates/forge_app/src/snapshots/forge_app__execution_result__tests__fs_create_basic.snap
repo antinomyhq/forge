@@ -2,8 +2,4 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
----
-path: /home/user/new_file.txt
-operation: CREATE
-total_chars: 13
----
+<file_content path="/home/user/new_file.txt" total_lines="1"><![CDATA[Hello, world!]]></file_content>

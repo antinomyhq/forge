@@ -982,6 +982,7 @@ dependencies = [
  "forge_display",
  "forge_domain",
  "forge_stream",
+ "forge_template",
  "forge_walker",
  "futures",
  "handlebars",

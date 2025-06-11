@@ -4,20 +4,23 @@ use std::sync::Arc;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
-    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolResult, Workflow,
+    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput, ToolResult, Workflow,
 };
 
+#[derive(Debug)]
 pub struct ShellOutput {
     pub output: CommandOutput,
     pub shell: String,
 }
 
+#[derive(Debug)]
 pub struct PatchOutput {
     pub warning: Option<String>,
     pub before: String,
     pub after: String,
 }
 
+#[derive(Debug)]
 pub struct ReadOutput {
     pub content: Content,
     pub start_line: u64,
@@ -25,14 +28,17 @@ pub struct ReadOutput {
     pub total_lines: u64,
 }
 
+#[derive(Debug)]
 pub enum Content {
     File(String),
 }
 
+#[derive(Debug)]
 pub struct SearchResult {
     pub matches: Vec<String>,
 }
 
+#[derive(Debug)]
 pub struct FetchOutput {
     pub content: String,
     pub code: u16,
@@ -45,6 +51,7 @@ pub enum ResponseContext {
     Raw,
 }
 
+#[derive(Debug)]
 pub struct FsCreateOutput {
     pub path: String,
     // Set when the file already exists
@@ -52,20 +59,15 @@ pub struct FsCreateOutput {
     pub warning: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct FsRemoveOutput {
     pub completed: bool,
 }
 
-#[derive(derive_more::From)]
-pub struct FsUndoOutput(String);
-
-impl FsUndoOutput {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-    pub fn into_inner(self) -> String {
-        self.0
-    }
+#[derive(Debug, derive_more::From)]
+pub struct FsUndoOutput {
+    pub before_undo: String,
+    pub after_undo: String,
 }
 
 #[async_trait::async_trait]
@@ -104,6 +106,7 @@ pub trait McpConfigManager: Send + Sync {
 pub trait McpService: Send + Sync {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
     async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>>;
+    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
 }
 
 #[async_trait::async_trait]

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use forge_domain::Environment;
 
-pub fn display_path(env: &Environment, path: &Path) -> anyhow::Result<String> {
+pub fn display_path(env: &Environment, path: &Path) -> String {
     // Get the current working directory
     let cwd = env.cwd.as_path();
 
@@ -21,8 +21,8 @@ pub fn display_path(env: &Environment, path: &Path) -> anyhow::Result<String> {
 /// * `cwd` - The current working directory path
 ///
 /// # Returns
-/// * `Ok(String)` with a formatted path string
-fn format_display_path(path: &Path, cwd: &Path) -> anyhow::Result<String> {
+/// * A formatted path string
+fn format_display_path(path: &Path, cwd: &Path) -> String {
     // Try to create a relative path for display if possible
     let display_path = if path.starts_with(cwd) {
         match path.strip_prefix(cwd) {
@@ -34,8 +34,8 @@ fn format_display_path(path: &Path, cwd: &Path) -> anyhow::Result<String> {
     };
 
     if display_path.is_empty() {
-        Ok(".".to_string())
+        ".".to_string()
     } else {
-        Ok(display_path)
+        display_path
     }
 }

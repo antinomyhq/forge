@@ -2,4 +2,4 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-File not found or already removed: /home/user/nonexistent_file.txt
+<file_removed path="/home/user/nonexistent_file.txt" status="not_found"></file_removed>

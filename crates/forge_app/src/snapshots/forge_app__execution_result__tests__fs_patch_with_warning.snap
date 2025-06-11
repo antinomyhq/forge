@@ -2,11 +2,7 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
----
-path: /home/user/large_file.txt
-total_chars: 20
-warning: Large file modification
----
-1   1    | line1
+<file_diff path="/home/user/large_file.txt" total_lines="3"><![CDATA[1   1    | line1
     2    |+new line
 2   3    | line2
+]]><warning>Large file modification</warning></file_diff>

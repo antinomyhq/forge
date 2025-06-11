@@ -2,4 +2,4 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-Successfully removed file: /home/user/file_to_delete.txt
+<file_removed path="/home/user/file_to_delete.txt" status="success"></file_removed>

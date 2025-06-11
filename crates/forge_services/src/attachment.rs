@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -8,44 +7,12 @@ use forge_domain::{Attachment, AttachmentContent, Image};
 
 use crate::{FsReadService, Infrastructure};
 
-const MAX_LINES: u64 = 500;
-
 #[derive(Clone)]
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
 impl<F: Infrastructure> ForgeChatRequest<F> {
-    async fn generate_image_content(
-        path: &Path,
-        img_format: String,
-        infra: &impl FsReadService,
-    ) -> anyhow::Result<Image> {
-        let bytes = infra.read(path).await?;
-
-        Ok(Image::new_bytes(bytes, img_format))
-    }
-
-    async fn generate_text_content(
-        path: &Path,
-        infra: &impl FsReadService,
-    ) -> anyhow::Result<String> {
-        let (content, file_info) = infra.range_read_utf8(path, 1, MAX_LINES).await?;
-        let mut response = String::new();
-        writeln!(response, "---")?;
-        writeln!(response, "path: {}", path.display())?;
-
-        writeln!(response, "start_line: {}", file_info.start_line)?;
-        writeln!(response, "end_line: {}", file_info.end_line)?;
-        writeln!(response, "total_lines: {}", file_info.total_lines)?;
-
-        writeln!(response, "---")?;
-
-        writeln!(response, "{}", &content)?;
-
-        Ok(response)
-    }
-
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -85,13 +52,14 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
             _ => None,
         });
 
+        //NOTE: Attachments should not be truncated since they are provided by the user
         let content = match mime_type {
-            Some(mime_type) => AttachmentContent::Image(
-                Self::generate_image_content(&path, mime_type, self.infra.file_read_service())
-                    .await?,
-            ),
+            Some(mime_type) => AttachmentContent::Image(Image::new_bytes(
+                self.infra.file_read_service().read(&path).await?,
+                mime_type,
+            )),
             None => AttachmentContent::FileContent(
-                Self::generate_text_content(&path, self.infra.file_read_service()).await?,
+                self.infra.file_read_service().read_utf8(&path).await?,
             ),
         };
 
@@ -579,9 +547,6 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("This is a text file content"));
-        assert!(attachment.content.contains("start_line:"));
-        assert!(attachment.content.contains("end_line:"));
-        assert!(attachment.content.contains("total_lines:"));
     }
 
     #[tokio::test]
@@ -735,8 +700,5 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("Some content"));
-        assert!(attachment.content.contains("start_line:"));
-        assert!(attachment.content.contains("end_line:"));
-        assert!(attachment.content.contains("total_lines:"));
     }
 }

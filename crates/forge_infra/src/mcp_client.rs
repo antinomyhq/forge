@@ -22,8 +22,9 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 
 type RmcpClient = RunningService<RoleClient, InitializeRequestParam>;
 
+#[derive(Clone)]
 pub struct ForgeMcpClient {
-    client: RwLock<Option<Arc<RmcpClient>>>,
+    client: Arc<RwLock<Option<Arc<RmcpClient>>>>,
     config: McpServerConfig,
 }
 

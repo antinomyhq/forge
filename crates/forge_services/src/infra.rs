@@ -130,7 +130,7 @@ pub trait InquireService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait McpClient: Send + Sync + 'static {
+pub trait McpClient: Clone + Send + Sync + 'static {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
     async fn call(
         &self,

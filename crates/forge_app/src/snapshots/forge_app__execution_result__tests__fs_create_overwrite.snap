@@ -2,8 +2,6 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
----
-path: /home/user/existing_file.txt
-operation: OVERWRITE
-total_chars: 24
----
+<file_diff path="/home/user/existing_file.txt" total_lines="1"><![CDATA[1        |-Old content
+    1    |+New content for the file
+]]></file_diff>

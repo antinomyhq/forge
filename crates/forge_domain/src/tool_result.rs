@@ -66,10 +66,10 @@ pub struct ToolOutput {
 }
 
 impl ToolOutput {
-    pub fn text(tool: String) -> Self {
+    pub fn text(tool: impl ToString) -> Self {
         ToolOutput {
             is_error: Default::default(),
-            values: vec![ToolValue::Text(tool)],
+            values: vec![ToolValue::Text(tool.to_string())],
         }
     }
 

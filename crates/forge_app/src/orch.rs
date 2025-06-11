@@ -5,6 +5,7 @@ use std::sync::Arc;
 use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::*;
+use forge_template::Element;
 use serde_json::Value;
 use tracing::{debug, info, warn};
 
@@ -286,7 +287,14 @@ impl<S: AgentService> Orchestrator<S> {
                 ctx.add_message(match attachment.content {
                     AttachmentContent::Image(image) => ContextMessage::Image(image),
                     AttachmentContent::FileContent(content) => {
-                        ContextMessage::user(content, model_id.clone().into())
+                        let elm = Element::new("file_content")
+                            .attr("path", attachment.path)
+                            .attr("start_line", 1)
+                            .attr("end_line", content.lines().count())
+                            .attr("total_lines", content.lines().count())
+                            .cdata(content);
+
+                        ContextMessage::user(elm, model_id.clone().into())
                     }
                 })
             });

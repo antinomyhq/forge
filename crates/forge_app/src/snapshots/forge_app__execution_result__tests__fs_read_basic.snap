@@ -2,8 +2,5 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
----
-path: /home/user/test.txt
----
-Hello, world!
-This is a test file.
+<file_content path="/home/user/test.txt" start_line="1" end_line="2" total_lines="2"><![CDATA[Hello, world!
+This is a test file.]]></file_content>
