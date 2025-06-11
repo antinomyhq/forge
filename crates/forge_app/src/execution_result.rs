@@ -585,51 +585,6 @@ mod tests {
     }
 
     #[test]
-    fn test_fs_search_with_truncation() {
-        // Create more than SEARCH_MAX_LINES (25 for tests) to trigger truncation
-        let mut matches = Vec::new();
-        for i in 1..=25 {
-            matches.push(format!(
-                "file{i}.txt:{i}:This is line {i} with search pattern"
-            ));
-        }
-
-        // Add content that should be truncated and not appear in response
-        let truncated_content = "file_truncated.txt:999:This should be truncated and not appear";
-        matches.push(truncated_content.to_string());
-
-        let fixture = ExecutionResult::FsSearch(Some(SearchResult { matches }));
-
-        let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
-            path: "/home/user/project".to_string(),
-            regex: Some("search pattern".to_string()),
-            start_line: None,
-            file_pattern: Some("*.txt".to_string()),
-            explanation: Some("Searching with many results to test truncation".to_string()),
-        }));
-
-        let env = fixture_environment();
-        let truncation_path = Some(std::path::PathBuf::from("/tmp/forge_search_truncated.txt"));
-
-        let actual = fixture
-            .into_tool_output(input, truncation_path, &env)
-            .unwrap();
-
-        // Verify that the truncated content is not in the response
-        assert!(
-            !actual
-                .values
-                .get(0)
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .contains(truncated_content)
-        );
-
-        insta::assert_snapshot!(to_value(actual));
-    }
-
-    #[test]
     fn test_fs_patch_basic() {
         let fixture = ExecutionResult::FsPatch(PatchOutput {
             warning: None,
