@@ -11,15 +11,9 @@ use crate::truncation::{
 };
 use crate::utils::display_path;
 use crate::{
-    Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
-    ResponseContext, SearchResult, Services, ShellOutput,
+    Content, EnvironmentService, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput,
+    PatchOutput, ReadOutput, ResponseContext, SearchResult, Services, ShellOutput,
 };
-
-/// Maximum characters for fetch content
-#[cfg(not(test))]
-const FETCH_MAX_LENGTH: usize = 40_000;
-#[cfg(test)]
-const FETCH_MAX_LENGTH: usize = 55;
 
 #[derive(Debug, derive_more::From)]
 pub enum ExecutionResult {
@@ -159,19 +153,23 @@ impl ExecutionResult {
                         output.content_type
                     ),
                 };
-                let truncated_content = truncate_fetch_content(&output.content, FETCH_MAX_LENGTH);
+                let truncated_content =
+                    truncate_fetch_content(&output.content, env.fetch_truncation_limit);
                 let mut metadata = FrontMatter::default()
                     .add("URL", &input.url)
                     .add("total_chars", output.content.len())
                     .add("start_char", 0)
-                    .add("end_char", FETCH_MAX_LENGTH.min(output.content.len()))
+                    .add(
+                        "end_char",
+                        env.fetch_truncation_limit.min(output.content.len()),
+                    )
                     .add("context", context);
                 if let Some(path) = truncation_path.as_ref() {
                     metadata = metadata.add(
                         "truncation",
                         format!(
                             "Content is truncated to {} chars; Remaining content can be read from path: {}",
-                            FETCH_MAX_LENGTH,
+                            env.fetch_truncation_limit,
                             path.display()
                         ),
                     );
@@ -181,7 +179,7 @@ impl ExecutionResult {
                     Some(path) => {
                         format!(
                             "\n<truncation>content is truncated to {} chars, remaining content can be read from path: {}</truncation>",
-                            FETCH_MAX_LENGTH,
+                            env.fetch_truncation_limit,
                             path.to_string_lossy()
                         )
                     }
@@ -312,7 +310,11 @@ impl ExecutionResult {
             ExecutionResult::FsUndo(_) => Ok(None),
             ExecutionResult::NetFetch(output) => {
                 let original_length = output.content.len();
-                let is_truncated = original_length > FETCH_MAX_LENGTH;
+                let is_truncated = original_length
+                    > services
+                        .environment_service()
+                        .get_environment()
+                        .fetch_truncation_limit;
 
                 if is_truncated {
                     let path =
@@ -382,6 +384,7 @@ mod tests {
                 max_retry_attempts: 3,
                 retry_status_codes: vec![429, 500, 502, 503, 504],
             },
+            fetch_truncation_limit: 55,
         }
     }
 
@@ -724,8 +727,13 @@ mod tests {
 
     #[test]
     fn test_net_fetch_truncated() {
+        let env = fixture_environment();
         let truncated_content = "Truncated Content".to_string();
-        let long_content = format!("{}{}", "A".repeat(FETCH_MAX_LENGTH), &truncated_content);
+        let long_content = format!(
+            "{}{}",
+            "A".repeat(env.fetch_truncation_limit),
+            &truncated_content
+        );
         let fixture = ExecutionResult::NetFetch(FetchOutput {
             content: long_content,
             code: 200,
@@ -738,7 +746,6 @@ mod tests {
             explanation: Some("Fetching large content that will be truncated".to_string()),
         });
 
-        let env = fixture_environment();
         let truncation_path = Some(std::path::PathBuf::from("/tmp/forge_fetch_abc123.txt"));
 
         let actual = fixture.into_tool_output(input, truncation_path, &env);
