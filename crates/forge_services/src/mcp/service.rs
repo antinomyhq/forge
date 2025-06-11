@@ -157,7 +157,11 @@ where
         self.find(name).await
     }
 
-    async fn call(&self, context: &mut ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
+    async fn call(
+        &self,
+        context: &mut ToolCallContext,
+        call: ToolCallFull,
+    ) -> anyhow::Result<ToolOutput> {
         self.call(context, call).await
     }
 }

@@ -6,8 +6,8 @@ use std::time::Duration;
 use anyhow::Context;
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
-    Agent, AttemptCompletion, FSSearch, ToolCallContext, ToolCallFull, ToolDefinition,
-    ToolName, ToolOutput, ToolResult, Tools,
+    Agent, AttemptCompletion, FSSearch, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
+    ToolOutput, ToolResult, Tools,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;

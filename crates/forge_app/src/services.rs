@@ -1,7 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use forge_domain::{Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput, ToolResult, Workflow};
+use forge_domain::{
+    Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
+    ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput, ToolResult, Workflow,
+};
 
 #[derive(Debug)]
 pub struct ShellOutput {
@@ -96,7 +100,11 @@ pub trait McpConfigManager: Send + Sync {
 pub trait McpService: Send + Sync {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
     async fn find(&self, name: &ToolName) -> anyhow::Result<Option<Arc<Tool>>>;
-    async fn call(&self, context: &mut ToolCallContext, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
+    async fn call(
+        &self,
+        context: &mut ToolCallContext,
+        call: ToolCallFull,
+    ) -> anyhow::Result<ToolOutput>;
 }
 
 #[async_trait::async_trait]
