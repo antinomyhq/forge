@@ -17,7 +17,7 @@ use crate::{
 #[cfg(not(test))]
 const FETCH_MAX_LENGTH: usize = 40_000;
 #[cfg(test)]
-const FETCH_MAX_LENGTH: usize = 50;
+const FETCH_MAX_LENGTH: usize = 55;
 
 #[derive(derive_more::From)]
 pub enum ExecutionResult {
