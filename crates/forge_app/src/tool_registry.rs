@@ -16,8 +16,8 @@ use tokio::time::timeout;
 use crate::error::Error;
 use crate::utils::display_path;
 use crate::{
-    Content, EnvironmentService, FetchOutput, FollowUpService, FsCreateOutput, FsCreateService,
-    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService, McpService,
+    Content, EnvironmentService, FollowUpService, FsCreateOutput, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, HttpResponse, McpService,
     NetFetchService, PatchOutput, ReadOutput, SearchResult, Services, ShellOutput, ShellService,
 };
 
@@ -306,7 +306,7 @@ async fn send_fs_undo_context(
 
 async fn send_net_fetch_context(
     ctx: &mut ToolCallContext,
-    output: &FetchOutput,
+    output: &HttpResponse,
     url: &str,
 ) -> anyhow::Result<()> {
     ctx.send_text(TitleFormat::debug(format!("GET {}", output.code)).sub_title(url))

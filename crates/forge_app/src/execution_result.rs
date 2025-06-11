@@ -10,7 +10,7 @@ use crate::truncation::{
 };
 use crate::utils::display_path;
 use crate::{
-    Content, EnvironmentService, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput,
+    Content, EnvironmentService, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse,
     PatchOutput, ReadOutput, ResponseContext, SearchResult, Services, ShellOutput,
 };
 
@@ -22,7 +22,7 @@ pub enum ExecutionResult {
     FsSearch(Option<SearchResult>),
     FsPatch(PatchOutput),
     FsUndo(FsUndoOutput),
-    NetFetch(FetchOutput),
+    NetFetch(HttpResponse),
     Shell(ShellOutput),
     FollowUp(Option<String>),
     AttemptCompletion,
@@ -695,7 +695,7 @@ mod tests {
 
     #[test]
     fn test_net_fetch_success() {
-        let fixture = ExecutionResult::NetFetch(FetchOutput {
+        let fixture = ExecutionResult::NetFetch(HttpResponse {
             content: "# Example Website\n\nThis is some content from a website.".to_string(),
             code: 200,
             context: ResponseContext::Raw,
@@ -724,7 +724,7 @@ mod tests {
             "A".repeat(env.fetch_truncation_limit),
             &truncated_content
         );
-        let fixture = ExecutionResult::NetFetch(FetchOutput {
+        let fixture = ExecutionResult::NetFetch(HttpResponse {
             content: long_content,
             code: 200,
             context: ResponseContext::Parsed,
