@@ -114,7 +114,7 @@ pub struct FSSearch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub regex: Option<String>,
 
-    /// Starting index for the search results (0-based).
+    /// Starting index for the search results (1-based).
     pub start_index: Option<u64>,
 
     /// Maximum number of lines to return in the search results.

@@ -88,11 +88,11 @@ impl ExecutionResult {
                         env.max_search_lines,
                         input.max_search_lines.unwrap_or(u64::MAX),
                     );
-                    let truncated_output = truncate_search_output(
-                        &out.matches,
-                        input.start_index.unwrap_or_default(),
-                        max_lines,
-                    );
+                    let start_index = input.start_index.unwrap_or(1);
+                        let start_index = if start_index > 0 { start_index - 1 } else { 0 };
+                        let truncated_output =
+                        truncate_search_output(&out.matches, start_index, max_lines);
+                        
 
                     let mut elm = Element::new("search_results")
                         .attr("path", &input.path)
@@ -526,7 +526,7 @@ mod tests {
         let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("search".to_string()),
-            start_index: Some(5),
+            start_index: Some(6),
             max_search_lines: Some(30), // This will be limited by env.max_search_lines (25)
             file_pattern: Some("*.txt".to_string()),
             explanation: Some("Testing truncated search output".to_string()),
@@ -566,7 +566,7 @@ mod tests {
         let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/large_project".to_string(),
             regex: Some("pattern".to_string()),
-            start_index: Some(10),
+            start_index: Some(11),
             max_search_lines: Some(50), // Will be limited by env.max_search_lines (25)
             file_pattern: None,
             explanation: Some("Testing truncated search with temp file".to_string()),
