@@ -2,13 +2,5 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
----
-URL: https://example.com/large-page
-total_chars: 72
-start_char: 0
-end_char: 55
-context: 
-truncation: Content is truncated to 55 chars; Remaining content can be read from path: /tmp/forge_fetch_abc123.txt
----
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+<fetch_metadata URL="https://example.com/large-page" total_chars="72" start_char="0" end_char="55" context="" truncation="Content is truncated to 55 chars; Remaining content can be read from path: /tmp/forge_fetch_abc123.txt"></fetch_metadata>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 <truncation>content is truncated to 55 chars, remaining content can be read from path: /tmp/forge_fetch_abc123.txt</truncation>

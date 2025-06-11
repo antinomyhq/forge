@@ -91,7 +91,7 @@ impl ExecutionResult {
                             input.regex.as_ref(),
                             input.file_pattern.as_ref(),
                         );
-                        let metadata = Element::new("fs_search")
+                        let mut metadata = Element::new("fs_search")
                             .attr("path", &truncated_output.path)
                             .attr_if_some("regex", truncated_output.regex.as_ref())
                             .attr_if_some("file_pattern", truncated_output.file_pattern.as_ref())
@@ -100,21 +100,19 @@ impl ExecutionResult {
                             .attr(
                                 "end_line",
                                 truncated_output.total_lines.min(truncated_output.max_lines),
-                            );
-
-                        let mut result = metadata.to_string();
-                        result.push_str(&truncated_output.output);
+                            )
+                            .cdata(truncated_output.output);
 
                         // Create temp file if needed
                         if let Some(path) = truncation_path {
-                            result.push_str(&format!(
+                            metadata = metadata.attr("truncation_info", format!(
                                 "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
                                 truncated_output.max_lines,
                                 path.display()
                             ));
                         }
 
-                        forge_domain::ToolOutput::text(result)
+                        forge_domain::ToolOutput::text(metadata)
                     }
                     None => forge_domain::ToolOutput::text("No matches found".to_string()),
                 }

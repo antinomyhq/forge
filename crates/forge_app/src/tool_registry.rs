@@ -13,14 +13,13 @@ use regex::Regex;
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
+use crate::error::Error;
 use crate::utils::display_path;
 use crate::{
-    Content, EnvironmentService, FetchOutput, FollowUpService, FsCreateOutput,
-    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
-    FsUndoService, McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services,
-    ShellOutput, ShellService,
+    Content, EnvironmentService, FetchOutput, FollowUpService, FsCreateOutput, FsCreateService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService, McpService,
+    NetFetchService, PatchOutput, ReadOutput, SearchResult, Services, ShellOutput, ShellService,
 };
-use crate::error::Error;
 
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -176,7 +175,7 @@ impl<S: Services> ToolRegistry<S> {
         input: ToolCallFull,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        let tool_input = Tools::try_from(input).map_err(Error::ToolCallArgument)?;
+        let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
 
         let out = self.call_internal(tool_input.clone(), context).await?;
         let truncation_path = out.to_create_temp(self.services.as_ref()).await?;
@@ -196,7 +195,7 @@ impl<S: Services> ToolRegistry<S> {
     {
         timeout(TOOL_CALL_TIMEOUT, future())
             .await
-            .context(Error::ToolCallTimeout {
+            .context(Error::CallTimeout {
                 timeout: TOOL_CALL_TIMEOUT.as_secs() / 60,
                 tool_name: tool_name.clone(),
             })?
@@ -231,7 +230,7 @@ impl<S: Services> ToolRegistry<S> {
             self.call_with_timeout(&tool_name, || self.services.mcp_service().call(input))
                 .await
         } else {
-            Err(Error::ToolNotFound(input.name).into())
+            Err(Error::NotFound(input.name).into())
         }
     }
 
@@ -277,7 +276,7 @@ impl<S> ToolRegistry<S> {
         if !agent_tools.contains(&tool_name.as_str()) {
             tracing::error!(tool_name = %tool_name, "No tool with name");
 
-            return Err(Error::ToolNotAllowed {
+            return Err(Error::NotAllowed {
                 name: tool_name.clone(),
                 supported_tools: agent_tools.join(", "),
             });
