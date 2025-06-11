@@ -516,8 +516,7 @@ mod tests {
         let truncated = "Truncated";
         matches.push(truncated.to_string());
 
-        let fixture =
-            ExecutionResult::FsSearch(Some(SearchResult { matches, total_lines: total_lines + 1 }));
+        let fixture = ExecutionResult::FsSearch(Some(SearchResult { matches }));
 
         let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
@@ -557,7 +556,7 @@ mod tests {
             ));
         }
 
-        let fixture = ExecutionResult::FsSearch(Some(SearchResult { matches, total_lines: 100 }));
+        let fixture = ExecutionResult::FsSearch(Some(SearchResult { matches }));
 
         let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/large_project".to_string(),
@@ -587,7 +586,7 @@ mod tests {
             "Match 3: Final result".to_string(),
         ];
 
-        let fixture = ExecutionResult::FsSearch(Some(SearchResult { matches, total_lines: 3 }));
+        let fixture = ExecutionResult::FsSearch(Some(SearchResult { matches }));
 
         let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/small_project".to_string(),
@@ -686,7 +685,6 @@ mod tests {
                 "file1.txt:1:Hello world".to_string(),
                 "file2.txt:3:Hello universe".to_string(),
             ],
-            total_lines: 2,
         }));
 
         let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {

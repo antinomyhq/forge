@@ -36,7 +36,6 @@ pub enum Content {
 #[derive(Debug)]
 pub struct SearchResult {
     pub matches: Vec<String>,
-    pub total_lines: u64,
 }
 
 #[derive(Debug)]
