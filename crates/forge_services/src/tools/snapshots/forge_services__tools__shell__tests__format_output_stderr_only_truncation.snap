@@ -1,7 +1,6 @@
 ---
 source: crates/forge_services/src/tools/shell.rs
 expression: "TempDir::normalize(&actual)"
-snapshot_kind: text
 ---
 ---
 command: stderr truncation test

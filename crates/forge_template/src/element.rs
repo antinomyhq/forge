@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 pub struct Element {
     pub name: String,
     pub attr: Vec<(String, String)>,
@@ -32,6 +34,11 @@ impl Element {
 
     pub fn text(mut self, text: impl ToString) -> Self {
         self.text = Some(html_escape::encode_text(&text.to_string()).to_string());
+        self
+    }
+
+    pub fn cdata(mut self, text: impl ToString) -> Self {
+        self.text = Some(format!("<![CDATA[{}]]>", text.to_string()));
         self
     }
 
@@ -99,6 +106,12 @@ where
             element.children.push(item);
         }
         element
+    }
+}
+
+impl Display for Element {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.render())
     }
 }
 

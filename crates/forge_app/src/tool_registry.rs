@@ -16,7 +16,7 @@ use tokio::time::timeout;
 use crate::utils::display_path;
 use crate::{
     Content, EnvironmentService, Error, FetchOutput, FollowUpService, FsCreateOutput,
-    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoOutput,
+    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
     FsUndoService, McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services,
     ShellOutput, ShellService,
 };
@@ -114,8 +114,12 @@ impl<S: Services> ToolRegistry<S> {
                 Ok(crate::ExecutionResult::from(output))
             }
             Tools::ForgeToolFsUndo(input) => {
-                let output = self.services.fs_undo_service().undo(input.path).await?;
-                send_fs_undo_context(context, &output).await?;
+                let output = self
+                    .services
+                    .fs_undo_service()
+                    .undo(input.path.clone())
+                    .await?;
+                send_fs_undo_context(context, input).await?;
 
                 Ok(crate::ExecutionResult::from(output))
             }
@@ -178,7 +182,7 @@ impl<S: Services> ToolRegistry<S> {
         let truncation_path = out.to_create_temp(self.services.as_ref()).await?;
         let env = self.services.environment_service().get_environment();
 
-        out.into_tool_output(Some(tool_input), truncation_path, &env)
+        out.into_tool_output(tool_input, truncation_path, &env)
     }
 
     async fn call_mcp_tool(
@@ -295,9 +299,12 @@ async fn send_completion_context(
     Ok(())
 }
 
-async fn send_fs_undo_context(ctx: &mut ToolCallContext, out: &FsUndoOutput) -> anyhow::Result<()> {
+async fn send_fs_undo_context(
+    ctx: &mut ToolCallContext,
+    input: forge_domain::FSUndo,
+) -> anyhow::Result<()> {
     // Display a message about the file being undone
-    let message = TitleFormat::debug("Undo").sub_title(out.as_str());
+    let message = TitleFormat::debug("Undo").sub_title(input.path);
     ctx.send_text(message).await
 }
 
@@ -458,7 +465,7 @@ async fn send_read_context(
     // Add range info if relevant
     if is_range_relevant {
         // Add range info for explicit ranges or truncated files
-        subtitle.push_str(&format!(" ({range_info})"));
+        subtitle.push_str(&format!(" [{range_info}]"));
     }
     let message = TitleFormat::debug(title).sub_title(subtitle);
     ctx.send_text(message).await?;

@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
 
+use console::strip_ansi_codes;
 use forge_display::DiffFormat;
 use forge_domain::{Environment, Tools};
+use forge_template::Element;
 
 use crate::front_matter::FrontMatter;
 use crate::truncation::{FETCH_MAX_LENGTH, create_temp_file};
@@ -11,7 +13,7 @@ use crate::{
     SearchResult, Services, ShellOutput,
 };
 
-#[derive(derive_more::From)]
+#[derive(Debug, derive_more::From)]
 pub enum ExecutionResult {
     FsRead(ReadOutput),
     FsCreate(FsCreateOutput),
@@ -28,172 +30,154 @@ pub enum ExecutionResult {
 impl ExecutionResult {
     pub fn into_tool_output(
         self,
-        input: Option<Tools>,
+        input: Tools,
         truncation_path: Option<PathBuf>,
         env: &Environment,
     ) -> anyhow::Result<forge_domain::ToolOutput> {
-        match self {
-            ExecutionResult::FsRead(out) => {
-                if let Some(Tools::ForgeToolFsRead(input)) = input {
-                    let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
-                    let is_range_relevant = is_explicit_range || truncation_path.is_some();
+        match (input, self) {
+            (Tools::ForgeToolFsRead(input), ExecutionResult::FsRead(out)) => match &out.content {
+                Content::File(content) => {
+                    let elm = Element::new("file_content")
+                        .attr("path", input.path)
+                        .attr("start_line", out.start_line)
+                        .attr("end_line", out.end_line)
+                        .attr("total_lines", content.lines().count())
+                        .cdata(content);
 
-                    let mut metadata = FrontMatter::default().add("path", input.path);
-
-                    if is_range_relevant {
-                        metadata = metadata
-                            .add("start_line", out.start_line)
-                            .add("end_line", out.end_line)
-                            .add("total_lines", out.total_lines);
-                    }
-
-                    match &out.content {
-                        Content::File(content) => Ok(forge_domain::ToolOutput::text(format!(
-                            "{metadata}{content}"
-                        ))),
-                    }
-                } else {
-                    unreachable!()
+                    Ok(forge_domain::ToolOutput::text(elm))
                 }
-            }
-            ExecutionResult::FsCreate(out) => {
-                if let Some(Tools::ForgeToolFsCreate(input)) = input {
-                    let chars = input.content.len();
-                    let operation = if out.previous.is_some() {
-                        "OVERWRITE"
-                    } else {
-                        "CREATE"
-                    };
-
-                    let metadata = FrontMatter::default()
-                        .add("path", &out.path)
-                        .add("operation", operation)
-                        .add("total_chars", chars)
-                        .add_optional("Warning", out.warning.as_ref());
-
-                    Ok(forge_domain::ToolOutput::text(metadata.to_string()))
+            },
+            (Tools::ForgeToolFsCreate(input), ExecutionResult::FsCreate(output)) => {
+                let mut elm = if let Some(before) = output.previous {
+                    let diff =
+                        console::strip_ansi_codes(&DiffFormat::format(&before, &input.content))
+                            .to_string();
+                    Element::new("file_diff").cdata(diff)
                 } else {
-                    unreachable!()
-                }
-            }
-            ExecutionResult::FsRemove(out) => {
-                if let Some(Tools::ForgeToolFsRemove(input)) = input {
-                    let display_path = display_path(env, Path::new(&input.path))?;
-                    if out.completed {
-                        Ok(forge_domain::ToolOutput::text(format!(
-                            "Successfully removed file: {display_path}"
-                        )))
-                    } else {
-                        Ok(forge_domain::ToolOutput::text(format!(
-                            "File not found or already removed: {display_path}"
-                        )))
-                    }
-                } else {
-                    unreachable!()
-                }
-            }
-            ExecutionResult::FsSearch(output) => {
-                if let Some(Tools::ForgeToolFsSearch(input)) = input {
-                    match output {
-                        Some(out) => {
-                            let metadata = FrontMatter::default()
-                                .add("path", &input.path)
-                                .add_optional("regex", input.regex.as_ref())
-                                .add_optional("file_pattern", input.file_pattern.as_ref())
-                                .add("total_lines", out.matches.len())
-                                .add("start_line", input.start_line.unwrap_or_default())
-                                .add(
-                                    "end_line",
-                                    out.matches.len().min(env.max_search_lines as usize),
-                                );
+                    Element::new("file_content").cdata(&input.content)
+                };
 
-                            let mut result = metadata.to_string();
-                            result.push_str(
-                                &out.matches
-                                    .iter()
-                                    .map(String::from)
-                                    .collect::<Vec<_>>()
-                                    .join("\n"),
+                elm = elm
+                    .attr("path", input.path)
+                    .attr("total_lines", input.content.lines().count());
+
+                if let Some(warning) = output.warning {
+                    elm = elm.append(Element::new("warning").text(warning));
+                }
+
+                Ok(forge_domain::ToolOutput::text(elm))
+            }
+            (Tools::ForgeToolFsRemove(input), ExecutionResult::FsRemove(output)) => {
+                let display_path = display_path(env, Path::new(&input.path))?;
+                let elm = if output.completed {
+                    Element::new("file_removed")
+                        .attr("path", display_path)
+                        .attr("status", "success")
+                } else {
+                    Element::new("file_removed")
+                        .attr("path", display_path)
+                        .attr("status", "not_found")
+                };
+
+                Ok(forge_domain::ToolOutput::text(elm))
+            }
+            (Tools::ForgeToolFsSearch(input), ExecutionResult::FsSearch(output)) => {
+                match output {
+                    Some(out) => {
+                        let metadata = FrontMatter::default()
+                            .add("path", &input.path)
+                            .add_optional("regex", input.regex.as_ref())
+                            .add_optional("file_pattern", input.file_pattern.as_ref())
+                            .add("total_lines", out.matches.len())
+                            .add("start_line", input.start_line.unwrap_or_default())
+                            .add(
+                                "end_line",
+                                out.matches.len().min(env.max_search_lines as usize),
                             );
 
-                            // Create temp file if needed
-                            if let Some(path) = truncation_path {
-                                result.push_str(&format!(
-                                    "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
-                                    env.max_search_lines,
-                                    path.display()
-                                ));
-                            }
-
-                            Ok(forge_domain::ToolOutput::text(result))
-                        }
-                        None => Ok(forge_domain::ToolOutput::text(
-                            "No matches found".to_string(),
-                        )),
-                    }
-                } else {
-                    unreachable!()
-                }
-            }
-            ExecutionResult::FsPatch(output) => {
-                if let Some(Tools::ForgeToolFsPatch(input)) = input {
-                    let diff = console::strip_ansi_codes(&DiffFormat::format(
-                        &output.before,
-                        &output.after,
-                    ))
-                    .to_string();
-
-                    let metadata = FrontMatter::default()
-                        .add("path", &input.path)
-                        .add("total_chars", output.after.len())
-                        .add_optional("warning", output.warning.as_ref());
-
-                    Ok(forge_domain::ToolOutput::text(format!("{metadata}{diff}")))
-                } else {
-                    unreachable!()
-                }
-            }
-            ExecutionResult::FsUndo(output) => Ok(forge_domain::ToolOutput::text(format!(
-                "Successfully undid last operation on path: {}",
-                output.as_str()
-            ))),
-            ExecutionResult::NetFetch(output) => {
-                if let Some(Tools::ForgeToolNetFetch(input)) = input {
-                    let mut metadata = FrontMatter::default()
-                        .add("URL", &input.url)
-                        .add("total_chars", output.content.len())
-                        .add("start_char", 0)
-                        .add("end_char", FETCH_MAX_LENGTH.min(output.content.len()))
-                        .add("context", &output.context);
-                    if let Some(path) = truncation_path.as_ref() {
-                        metadata = metadata.add(
-                            "truncation",
-                            format!(
-                                "Content is truncated to {} chars; Remaining content can be read from path: {}",
-                                FETCH_MAX_LENGTH,
-                                path.display()
-                            ),
+                        let mut result = metadata.to_string();
+                        result.push_str(
+                            &out.matches
+                                .iter()
+                                .map(String::from)
+                                .collect::<Vec<_>>()
+                                .join("\n"),
                         );
-                    }
-                    let truncation_tag = match truncation_path.as_ref() {
-                        Some(path) => {
-                            format!(
-                                "\n<truncation>content is truncated to {} chars, remaining content can be read from path: {}</truncation>",
-                                FETCH_MAX_LENGTH,
-                                path.to_string_lossy()
-                            )
-                        }
-                        _ => String::new(),
-                    };
 
-                    Ok(forge_domain::ToolOutput::text(format!(
-                        "{metadata}{truncation_tag}"
-                    )))
-                } else {
-                    unreachable!()
+                        // Create temp file if needed
+                        if let Some(path) = truncation_path {
+                            result.push_str(&format!(
+                                "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
+                                env.max_search_lines,
+                                path.display()
+                            ));
+                        }
+
+                        Ok(forge_domain::ToolOutput::text(result))
+                    }
+                    None => Ok(forge_domain::ToolOutput::text(
+                        "No matches found".to_string(),
+                    )),
                 }
             }
-            ExecutionResult::Shell(output) => {
+            (Tools::ForgeToolFsPatch(input), ExecutionResult::FsPatch(output)) => {
+                let diff =
+                    console::strip_ansi_codes(&DiffFormat::format(&output.before, &output.after))
+                        .to_string();
+
+                let mut elm = Element::new("file_diff")
+                    .attr("path", &input.path)
+                    .attr("total_lines", output.after.lines().count())
+                    .cdata(diff);
+
+                if let Some(warning) = &output.warning {
+                    elm = elm.append(Element::new("warning").text(warning));
+                }
+
+                Ok(forge_domain::ToolOutput::text(elm))
+            }
+            (Tools::ForgeToolFsUndo(input), ExecutionResult::FsUndo(output)) => {
+                let diff = DiffFormat::format(&output.before_undo, &output.after_undo);
+                let elm = Element::new("file_diff")
+                    .attr("path", input.path)
+                    .attr("status", "restored")
+                    .cdata(strip_ansi_codes(&diff));
+
+                Ok(forge_domain::ToolOutput::text(elm))
+            }
+            (Tools::ForgeToolNetFetch(input), ExecutionResult::NetFetch(output)) => {
+                let mut metadata = FrontMatter::default()
+                    .add("URL", &input.url)
+                    .add("total_chars", output.content.len())
+                    .add("start_char", 0)
+                    .add("end_char", FETCH_MAX_LENGTH.min(output.content.len()))
+                    .add("context", &output.context);
+                if let Some(path) = truncation_path.as_ref() {
+                    metadata = metadata.add(
+                        "truncation",
+                        format!(
+                            "Content is truncated to {} chars; Remaining content can be read from path: {}",
+                            FETCH_MAX_LENGTH,
+                            path.display()
+                        ),
+                    );
+                }
+                let truncation_tag = match truncation_path.as_ref() {
+                    Some(path) => {
+                        format!(
+                            "\n<truncation>content is truncated to {} chars, remaining content can be read from path: {}</truncation>",
+                            FETCH_MAX_LENGTH,
+                            path.to_string_lossy()
+                        )
+                    }
+                    _ => String::new(),
+                };
+
+                Ok(forge_domain::ToolOutput::text(format!(
+                    "{metadata}{truncation_tag}"
+                )))
+            }
+            (_, ExecutionResult::Shell(output)) => {
                 let mut metadata = FrontMatter::default().add("command", &output.output.command);
                 if let Some(exit_code) = output.output.exit_code {
                     metadata = metadata.add("exit_code", exit_code);
@@ -254,15 +238,25 @@ impl ExecutionResult {
                     anyhow::bail!(result)
                 }
             }
-            ExecutionResult::FollowUp(output) => match output {
-                None => Ok(forge_domain::ToolOutput::text(
-                    "User interrupted the selection".to_string(),
-                )),
-                Some(o) => Ok(forge_domain::ToolOutput::text(o.to_string())),
+            (_, ExecutionResult::FollowUp(output)) => match output {
+                None => {
+                    let elm = Element::new("interrupted").text("No feedback provided");
+                    Ok(forge_domain::ToolOutput::text(elm))
+                }
+                Some(content) => {
+                    let elm = Element::new("feedback").text(content);
+                    Ok(forge_domain::ToolOutput::text(elm))
+                }
             },
-            ExecutionResult::AttemptCompletion => Ok(forge_domain::ToolOutput::text(
+            (_, ExecutionResult::AttemptCompletion) => Ok(forge_domain::ToolOutput::text(
                 "[Task was completed successfully. Now wait for user feedback]".to_string(),
             )),
+            // Panic case for mismatched execution result and input tool types
+            (input_tool, execution_result) => {
+                panic!(
+                    "Unhandled tool execution result: input_tool={input_tool:?}, execution_result={execution_result:?}"
+                );
+            }
         }
     }
 
@@ -277,22 +271,22 @@ impl ExecutionResult {
             ExecutionResult::FsSearch(_) => Ok(None),
             ExecutionResult::FsPatch(_) => Ok(None),
             ExecutionResult::FsUndo(_) => Ok(None),
-            ExecutionResult::NetFetch(out) => {
-                let original_length = out.content.len();
+            ExecutionResult::NetFetch(output) => {
+                let original_length = output.content.len();
                 let is_truncated = original_length > crate::truncation::FETCH_MAX_LENGTH;
 
                 if is_truncated {
                     let path =
-                        create_temp_file(services, "forge_fetch_", ".txt", &out.content).await?;
+                        create_temp_file(services, "forge_fetch_", ".txt", &output.content).await?;
 
                     Ok(Some(path))
                 } else {
                     Ok(None)
                 }
             }
-            ExecutionResult::Shell(out) => {
-                let stdout_lines = out.output.stdout.lines().count();
-                let stderr_lines = out.output.stderr.lines().count();
+            ExecutionResult::Shell(output) => {
+                let stdout_lines = output.output.stdout.lines().count();
+                let stderr_lines = output.output.stderr.lines().count();
                 let stdout_truncated = stdout_lines
                     > crate::truncation::PREFIX_LINES + crate::truncation::SUFFIX_LINES;
                 let stderr_truncated = stderr_lines
@@ -305,7 +299,7 @@ impl ExecutionResult {
                         ".md",
                         &format!(
                             "command:{}\n<stdout>{}</stdout>\n<stderr>{}</stderr>",
-                            out.output.command, out.output.stdout, out.output.stderr
+                            output.output.command, output.output.stdout, output.output.stderr
                         ),
                     )
                     .await?;
@@ -380,12 +374,35 @@ mod tests {
             total_lines: 2,
         });
 
-        let input = Some(Tools::ForgeToolFsRead(FSRead {
+        let input = Tools::ForgeToolFsRead(FSRead {
             path: "/home/user/test.txt".to_string(),
             start_line: None,
             end_line: None,
             explanation: Some("Test explanation".to_string()),
-        }));
+        });
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_read_basic_special_chars() {
+        let fixture = ExecutionResult::FsRead(ReadOutput {
+            content: Content::File("struct Foo<T>{ name: T }".to_string()),
+            start_line: 1,
+            end_line: 1,
+            total_lines: 1,
+        });
+
+        let input = Tools::ForgeToolFsRead(FSRead {
+            path: "/home/user/test.txt".to_string(),
+            start_line: None,
+            end_line: None,
+            explanation: Some("Test explanation".to_string()),
+        });
 
         let env = fixture_environment();
 
@@ -403,12 +420,12 @@ mod tests {
             total_lines: 5,
         });
 
-        let input = Some(Tools::ForgeToolFsRead(FSRead {
+        let input = Tools::ForgeToolFsRead(FSRead {
             path: "/home/user/test.txt".to_string(),
             start_line: Some(2),
             end_line: Some(3),
             explanation: Some("Test explanation".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -426,12 +443,12 @@ mod tests {
             total_lines: 200,
         });
 
-        let input = Some(Tools::ForgeToolFsRead(FSRead {
+        let input = Tools::ForgeToolFsRead(FSRead {
             path: "/home/user/large_file.txt".to_string(),
             start_line: None,
             end_line: None,
             explanation: Some("Test explanation".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
         let truncation_path = Some(PathBuf::from("/tmp/truncated_content.txt"));
@@ -451,12 +468,12 @@ mod tests {
             warning: None,
         });
 
-        let input = Some(Tools::ForgeToolFsCreate(forge_domain::FSWrite {
+        let input = Tools::ForgeToolFsCreate(forge_domain::FSWrite {
             path: "/home/user/new_file.txt".to_string(),
             content: "Hello, world!".to_string(),
             overwrite: false,
             explanation: Some("Creating a new file".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -473,12 +490,12 @@ mod tests {
             warning: None,
         });
 
-        let input = Some(Tools::ForgeToolFsCreate(forge_domain::FSWrite {
+        let input = Tools::ForgeToolFsCreate(forge_domain::FSWrite {
             path: "/home/user/existing_file.txt".to_string(),
             content: "New content for the file".to_string(),
             overwrite: true,
             explanation: Some("Overwriting existing file".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -495,12 +512,12 @@ mod tests {
             warning: Some("File created in non-standard location".to_string()),
         });
 
-        let input = Some(Tools::ForgeToolFsCreate(forge_domain::FSWrite {
+        let input = Tools::ForgeToolFsCreate(forge_domain::FSWrite {
             path: "/home/user/file_with_warning.txt".to_string(),
             content: "Content with warning".to_string(),
             overwrite: false,
             explanation: Some("Creating file with warning".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -513,10 +530,10 @@ mod tests {
     fn test_fs_remove_success() {
         let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: true });
 
-        let input = Some(Tools::ForgeToolFsRemove(forge_domain::FSRemove {
+        let input = Tools::ForgeToolFsRemove(forge_domain::FSRemove {
             path: "/home/user/file_to_delete.txt".to_string(),
             explanation: Some("Removing unnecessary file".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -529,10 +546,10 @@ mod tests {
     fn test_fs_remove_not_found() {
         let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: false });
 
-        let input = Some(Tools::ForgeToolFsRemove(forge_domain::FSRemove {
+        let input = Tools::ForgeToolFsRemove(forge_domain::FSRemove {
             path: "/home/user/nonexistent_file.txt".to_string(),
             explanation: Some("Trying to remove file that doesn't exist".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -550,13 +567,13 @@ mod tests {
             ],
         }));
 
-        let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
+        let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("Hello".to_string()),
             start_line: None,
             file_pattern: Some("*.txt".to_string()),
             explanation: Some("Searching for Hello pattern".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -569,13 +586,13 @@ mod tests {
     fn test_fs_search_no_results() {
         let fixture = ExecutionResult::FsSearch(None);
 
-        let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
+        let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("NonExistentPattern".to_string()),
             start_line: None,
             file_pattern: None,
             explanation: Some("Searching for non-existent pattern".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -592,13 +609,13 @@ mod tests {
             after: "Hello universe\nThis is a test".to_string(),
         });
 
-        let input = Some(Tools::ForgeToolFsPatch(forge_domain::FSPatch {
+        let input = Tools::ForgeToolFsPatch(forge_domain::FSPatch {
             path: "/home/user/test.txt".to_string(),
             search: "world".to_string(),
             operation: forge_domain::PatchOperation::Replace,
             content: "universe".to_string(),
             explanation: Some("Replacing world with universe".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -615,13 +632,13 @@ mod tests {
             after: "line1\nnew line\nline2".to_string(),
         });
 
-        let input = Some(Tools::ForgeToolFsPatch(forge_domain::FSPatch {
+        let input = Tools::ForgeToolFsPatch(forge_domain::FSPatch {
             path: "/home/user/large_file.txt".to_string(),
             search: "line1".to_string(),
             operation: forge_domain::PatchOperation::Append,
             content: "\nnew line".to_string(),
             explanation: Some("Adding new line after line1".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -632,13 +649,15 @@ mod tests {
 
     #[test]
     fn test_fs_undo_success() {
-        let fixture =
-            ExecutionResult::FsUndo(FsUndoOutput::from("File reverted successfully".to_string()));
+        let fixture = ExecutionResult::FsUndo(FsUndoOutput {
+            before_undo: "ABC".to_string(),
+            after_undo: "PQR".to_string(),
+        });
 
-        let input = Some(Tools::ForgeToolFsUndo(forge_domain::FSUndo {
+        let input = Tools::ForgeToolFsUndo(forge_domain::FSUndo {
             path: "/home/user/test.txt".to_string(),
             explanation: Some("Reverting changes to test file".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -655,11 +674,11 @@ mod tests {
             context: "https://example.com".to_string(),
         });
 
-        let input = Some(Tools::ForgeToolNetFetch(forge_domain::NetFetch {
+        let input = Tools::ForgeToolNetFetch(forge_domain::NetFetch {
             url: "https://example.com".to_string(),
             raw: Some(false),
             explanation: Some("Fetching content from example website".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -680,12 +699,12 @@ mod tests {
             shell: "/bin/bash".to_string(),
         });
 
-        let input = Some(Tools::ForgeToolProcessShell(forge_domain::Shell {
+        let input = Tools::ForgeToolProcessShell(forge_domain::Shell {
             command: "ls -la".to_string(),
             cwd: std::path::PathBuf::from("/home/user"),
             keep_ansi: false,
             explanation: Some("Listing directory contents".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -699,7 +718,7 @@ mod tests {
         let fixture =
             ExecutionResult::FollowUp(Some("Which file would you like to edit?".to_string()));
 
-        let input = Some(Tools::ForgeToolFollowup(forge_domain::Followup {
+        let input = Tools::ForgeToolFollowup(forge_domain::Followup {
             question: "Which file would you like to edit?".to_string(),
             multiple: Some(false),
             option1: Some("file1.txt".to_string()),
@@ -708,7 +727,7 @@ mod tests {
             option4: None,
             option5: None,
             explanation: Some("Asking user for file selection".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
@@ -721,7 +740,7 @@ mod tests {
     fn test_follow_up_no_question() {
         let fixture = ExecutionResult::FollowUp(None);
 
-        let input = Some(Tools::ForgeToolFollowup(forge_domain::Followup {
+        let input = Tools::ForgeToolFollowup(forge_domain::Followup {
             question: "Do you want to continue?".to_string(),
             multiple: Some(false),
             option1: Some("Yes".to_string()),
@@ -730,12 +749,38 @@ mod tests {
             option4: None,
             option5: None,
             explanation: Some("Asking for user confirmation".to_string()),
-        }));
+        });
 
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
         insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = r#"Unhandled tool execution result: input_tool=ForgeToolFsCreate(FSWrite { path: "/home/user/test.txt", content: "test", overwrite: false, explanation: Some("Test explanation") }), execution_result=FsRead(ReadOutput { content: File("test content"), start_line: 1, end_line: 1, total_lines: 1 })"#
+    )]
+    fn test_mismatch_error() {
+        let fixture = ExecutionResult::FsRead(ReadOutput {
+            content: Content::File("test content".to_string()),
+            start_line: 1,
+            end_line: 1,
+            total_lines: 1,
+        });
+
+        // Intentionally provide wrong input type to test panic handling
+        let input = Tools::ForgeToolFsCreate(forge_domain::FSWrite {
+            path: "/home/user/test.txt".to_string(),
+            content: "test".to_string(),
+            overwrite: false,
+            explanation: Some("Test explanation".to_string()),
+        });
+
+        let env = fixture_environment();
+
+        // This should panic
+        let _ = fixture.into_tool_output(input, None, &env);
     }
 }

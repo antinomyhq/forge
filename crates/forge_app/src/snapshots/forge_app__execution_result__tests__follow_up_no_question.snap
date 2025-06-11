@@ -2,4 +2,4 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-User interrupted the selection
+<interrupted>No feedback provided</interrupted>

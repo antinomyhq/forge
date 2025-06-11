@@ -2,4 +2,6 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-Successfully undid last operation on path: File reverted successfully
+<file_diff path="/home/user/test.txt" status="restored"><![CDATA[1        |-ABC
+    1    |+PQR
+]]></file_diff>
