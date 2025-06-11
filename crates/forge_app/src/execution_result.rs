@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::path::{Path, PathBuf};
 
 use console::strip_ansi_codes;
@@ -10,7 +11,7 @@ use crate::truncation::{FETCH_MAX_LENGTH, create_temp_file};
 use crate::utils::display_path;
 use crate::{
     Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
-    SearchResult, Services, ShellOutput,
+    SearchResult, Services, ShellOutput, truncate_search_output,
 };
 
 #[derive(Debug, derive_more::From)]
@@ -84,25 +85,25 @@ impl ExecutionResult {
             (Tools::ForgeToolFsSearch(input), ExecutionResult::FsSearch(output)) => {
                 match output {
                     Some(out) => {
+                        let max_lines = min(
+                            env.max_search_lines,
+                            input.max_search_lines.unwrap_or(u64::MAX),
+                        );
+                        let truncated_output = truncate_search_output(
+                            &out.matches,
+                            input.start_index.unwrap_or_default(),
+                            max_lines,
+                        );
                         let metadata = FrontMatter::default()
                             .add("path", &input.path)
                             .add_optional("regex", input.regex.as_ref())
                             .add_optional("file_pattern", input.file_pattern.as_ref())
-                            .add("total_lines", out.matches.len())
-                            .add("start_line", input.start_line.unwrap_or_default())
-                            .add(
-                                "end_line",
-                                out.matches.len().min(env.max_search_lines as usize),
-                            );
+                            .add("total_lines", truncated_output.total_lines)
+                            .add("start_line", truncated_output.start_line)
+                            .add("end_line", truncated_output.end_line);
 
                         let mut result = metadata.to_string();
-                        result.push_str(
-                            &out.matches
-                                .iter()
-                                .map(String::from)
-                                .collect::<Vec<_>>()
-                                .join("\n"),
-                        );
+                        result.push_str(truncated_output.output.trim());
 
                         // Create temp file if needed
                         if let Some(path) = truncation_path {
@@ -498,6 +499,126 @@ mod tests {
         });
 
         let env = fixture_environment();
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_truncated_output() {
+        // Create a large number of search matches to trigger truncation
+        let mut matches = Vec::new();
+        let total_lines = 30;
+        for i in 1..=total_lines {
+            matches.push(format!("Match line {}: This is a search result line", i));
+        }
+
+        let truncated = "Truncated";
+        matches.push(truncated.to_string());
+
+        let fixture =
+            ExecutionResult::FsSearch(Some(SearchResult { matches, total_lines: total_lines + 1 }));
+
+        let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: Some("search".to_string()),
+            start_index: Some(5),
+            max_search_lines: Some(30), // This will be limited by env.max_search_lines (25)
+            file_pattern: Some("*.txt".to_string()),
+            explanation: Some("Testing truncated search output".to_string()),
+        });
+
+        let env = fixture_environment(); // max_search_lines is 25
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        // Check if the output is truncated
+        assert!(
+            !actual
+                .values
+                .get(0)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .contains(truncated)
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_truncated_output_with_temp_file() {
+        // Create a large number of search matches to trigger truncation
+        let mut matches = Vec::new();
+        for i in 1..=100 {
+            matches.push(format!(
+                "Result {}: Some long search result that contains the pattern we're looking for",
+                i
+            ));
+        }
+
+        let fixture = ExecutionResult::FsSearch(Some(SearchResult { matches, total_lines: 100 }));
+
+        let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
+            path: "/home/user/large_project".to_string(),
+            regex: Some("pattern".to_string()),
+            start_index: Some(10),
+            max_search_lines: Some(50), // Will be limited by env.max_search_lines (25)
+            file_pattern: None,
+            explanation: Some("Testing truncated search with temp file".to_string()),
+        });
+
+        let env = fixture_environment(); // max_search_lines is 25
+        let truncation_path = Some(PathBuf::from("/tmp/forge_search_truncated.txt"));
+
+        let actual = fixture
+            .into_tool_output(input, truncation_path, &env)
+            .unwrap();
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_no_truncation() {
+        // Create a small number of matches that won't trigger truncation
+        let matches = vec![
+            "Match 1: Found pattern here".to_string(),
+            "Match 2: Another occurrence".to_string(),
+            "Match 3: Final result".to_string(),
+        ];
+
+        let fixture = ExecutionResult::FsSearch(Some(SearchResult { matches, total_lines: 3 }));
+
+        let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
+            path: "/home/user/small_project".to_string(),
+            regex: Some("pattern".to_string()),
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: Some("*.rs".to_string()),
+            explanation: Some("Testing non-truncated search output".to_string()),
+        });
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_no_matches() {
+        let fixture = ExecutionResult::FsSearch(None);
+
+        let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
+            path: "/home/user/empty_project".to_string(),
+            regex: Some("nonexistent".to_string()),
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: None,
+            explanation: Some("Testing search with no matches".to_string()),
+        });
+
+        let env = fixture_environment();
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
 
@@ -565,12 +686,14 @@ mod tests {
                 "file1.txt:1:Hello world".to_string(),
                 "file2.txt:3:Hello universe".to_string(),
             ],
+            total_lines: 2,
         }));
 
         let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("Hello".to_string()),
-            start_line: None,
+            start_index: None,
+            max_search_lines: None,
             file_pattern: Some("*.txt".to_string()),
             explanation: Some("Searching for Hello pattern".to_string()),
         });
@@ -589,7 +712,8 @@ mod tests {
         let input = Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("NonExistentPattern".to_string()),
-            start_line: None,
+            start_index: None,
+            max_search_lines: None,
             file_pattern: None,
             explanation: Some("Searching for non-existent pattern".to_string()),
         });

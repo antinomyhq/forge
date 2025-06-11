@@ -1,0 +1,37 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: to_value(actual)
+---
+---
+path: /home/user/large_project
+regex: pattern
+total_lines: 100
+start_line: 10
+end_line: 35
+---
+Result 11: Some long search result that contains the pattern we're looking for
+Result 12: Some long search result that contains the pattern we're looking for
+Result 13: Some long search result that contains the pattern we're looking for
+Result 14: Some long search result that contains the pattern we're looking for
+Result 15: Some long search result that contains the pattern we're looking for
+Result 16: Some long search result that contains the pattern we're looking for
+Result 17: Some long search result that contains the pattern we're looking for
+Result 18: Some long search result that contains the pattern we're looking for
+Result 19: Some long search result that contains the pattern we're looking for
+Result 20: Some long search result that contains the pattern we're looking for
+Result 21: Some long search result that contains the pattern we're looking for
+Result 22: Some long search result that contains the pattern we're looking for
+Result 23: Some long search result that contains the pattern we're looking for
+Result 24: Some long search result that contains the pattern we're looking for
+Result 25: Some long search result that contains the pattern we're looking for
+Result 26: Some long search result that contains the pattern we're looking for
+Result 27: Some long search result that contains the pattern we're looking for
+Result 28: Some long search result that contains the pattern we're looking for
+Result 29: Some long search result that contains the pattern we're looking for
+Result 30: Some long search result that contains the pattern we're looking for
+Result 31: Some long search result that contains the pattern we're looking for
+Result 32: Some long search result that contains the pattern we're looking for
+Result 33: Some long search result that contains the pattern we're looking for
+Result 34: Some long search result that contains the pattern we're looking for
+Result 35: Some long search result that contains the pattern we're looking for
+<truncation>content is truncated to 25 lines, remaining content can be read from path:/tmp/forge_search_truncated.txt</truncation>

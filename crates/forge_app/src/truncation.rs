@@ -257,3 +257,49 @@ pub fn truncate_fetch_content(
         original_content: content.to_string(),
     }
 }
+
+/// Represents the result of fs_search truncation
+#[derive(Debug)]
+pub struct TruncatedSearchOutput {
+    pub output: String,
+    pub total_lines: u64,
+    pub start_line: u64,
+    pub end_line: u64,
+}
+
+/// Truncates search output based on line limit
+pub fn truncate_search_output(
+    output: &[String],
+    start_line: u64,
+    count: u64,
+) -> TruncatedSearchOutput {
+    let total_outputs = output.len() as u64;
+    let is_truncated = total_outputs > count;
+
+    let truncated_output = if is_truncated {
+        output
+            .iter()
+            .skip(start_line as usize)
+            .take(count as usize)
+            .map(String::from)
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        output
+            .iter()
+            .map(String::from)
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    TruncatedSearchOutput {
+        output: truncated_output,
+        total_lines: total_outputs,
+        start_line,
+        end_line: if is_truncated {
+            start_line + count
+        } else {
+            total_outputs
+        },
+    }
+}

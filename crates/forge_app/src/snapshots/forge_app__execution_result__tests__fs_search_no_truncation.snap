@@ -1,0 +1,15 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: to_value(actual)
+---
+---
+path: /home/user/small_project
+regex: pattern
+file_pattern: *.rs
+total_lines: 3
+start_line: 0
+end_line: 3
+---
+Match 1: Found pattern here
+Match 2: Another occurrence
+Match 3: Final result

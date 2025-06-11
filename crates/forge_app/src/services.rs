@@ -36,6 +36,7 @@ pub enum Content {
 #[derive(Debug)]
 pub struct SearchResult {
     pub matches: Vec<String>,
+    pub total_lines: u64,
 }
 
 #[derive(Debug)]
@@ -218,7 +219,6 @@ pub trait FsSearchService: Send + Sync {
         path: String,
         regex: Option<String>,
         file_pattern: Option<String>,
-        start_line: Option<u64>,
     ) -> anyhow::Result<Option<SearchResult>>;
 }
 

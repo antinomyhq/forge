@@ -78,7 +78,6 @@ impl<S: Services> ToolRegistry<S> {
                         input.path.clone(),
                         input.regex.clone(),
                         input.file_pattern.clone(),
-                        input.start_line,
                     )
                     .await?;
 

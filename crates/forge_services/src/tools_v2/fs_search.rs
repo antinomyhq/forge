@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{EnvironmentService, FsSearchService, SearchResult};
-use forge_domain::Environment;
 use forge_walker::Walker;
 use regex::Regex;
 
@@ -87,6 +86,10 @@ impl<F: Infrastructure> ForgeFsSearch<F> {
         // Use the shared utility function
         format_display_path(path, cwd)
     }
+}
+
+#[async_trait::async_trait]
+impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
     async fn search(
         &self,
         input_path: String,
@@ -174,51 +177,10 @@ impl<F: Infrastructure> ForgeFsSearch<F> {
             return Ok(None);
         }
 
-        Ok(Some(SearchResult { matches }))
-    }
-}
-
-impl<F> ForgeFsSearch<F> {
-    fn truncate(
-        result: anyhow::Result<Option<SearchResult>>,
-        start_result: Option<u64>,
-        env: Environment,
-    ) -> anyhow::Result<Option<SearchResult>> {
-        let start_line = start_result.unwrap_or(0);
-        let max_lines = env.max_search_lines;
-
-        let result = result?;
-        if let Some(result) = result {
-            let truncated_matches: Vec<String> = result
-                .matches
-                .into_iter()
-                .skip(start_line as usize)
-                .take(max_lines as usize)
-                .collect();
-
-            Ok(Some(SearchResult { matches: truncated_matches }))
-        } else {
-            Ok(None)
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
-    async fn search(
-        &self,
-        input_path: String,
-        input_regex: Option<String>,
-        file_pattern: Option<String>,
-        start_result: Option<u64>,
-    ) -> anyhow::Result<Option<SearchResult>> {
-        let env = self.0.environment_service().get_environment();
-
-        Self::truncate(
-            self.search(input_path, input_regex, file_pattern).await,
-            start_result,
-            env,
-        )
+        Ok(Some(SearchResult {
+            total_lines: matches.len() as u64,
+            matches,
+        }))
     }
 }
 
@@ -243,41 +205,5 @@ async fn retrieve_file_paths(dir: &Path) -> anyhow::Result<Vec<std::path::PathBu
         Ok(paths)
     } else {
         Ok(Vec::from_iter([dir.to_path_buf()]))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::attachment::tests::MockInfrastructure;
-
-    #[tokio::test]
-    async fn test_fs_search_with_truncation() {
-        // Create more than SEARCH_MAX_LINES (25 for tests) to trigger truncation
-        let mut matches = Vec::new();
-        for i in 1..=26 {
-            matches.push(format!(
-                "file{i}.txt:{i}:This is line {i} with search pattern"
-            ));
-        }
-
-        // Add content that should be truncated and not appear in response
-        let truncated_content = "file_truncated.txt:999:This should be truncated and not appear";
-        matches.push(truncated_content.to_string());
-        let infra = MockInfrastructure::new();
-
-        let actual = ForgeFsSearch::<()>::truncate(
-            Ok(Some(SearchResult { matches })),
-            Some(1),
-            infra.environment_service().get_environment(),
-        )
-        .ok()
-        .flatten()
-        .unwrap();
-
-        // verify that there is no truncated content in the results
-        assert!(!actual.matches.iter().any(|m| m == truncated_content));
-
-        insta::assert_debug_snapshot!(actual);
     }
 }
