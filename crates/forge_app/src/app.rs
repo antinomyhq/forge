@@ -186,4 +186,7 @@ impl<S: Services> ForgeApp<S> {
             compacted_messages,
         ))
     }
+    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
+        self.tool_registry.list().await
+    }
 }
