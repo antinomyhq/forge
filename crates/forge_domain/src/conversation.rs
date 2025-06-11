@@ -40,15 +40,13 @@ pub struct Conversation {
 }
 
 impl Conversation {
-    pub const MAIN_AGENT_NAME: &str = "act";
-
     /// Returns the model of the main agent
     ///
     /// # Errors
     /// - `AgentUndefined` if the main agent doesn't exist
     /// - `NoModelDefined` if the main agent doesn't have a model defined
     pub fn main_model(&self) -> Result<ModelId> {
-        let agent = self.get_agent(&AgentId::new(Self::MAIN_AGENT_NAME))?;
+        let agent = self.get_agent(&AgentId::default())?;
         agent
             .model
             .clone()
@@ -63,8 +61,8 @@ impl Conversation {
         let agent_pos = self
             .agents
             .iter()
-            .position(|a| a.id.as_str() == Self::MAIN_AGENT_NAME)
-            .ok_or_else(|| Error::AgentUndefined(AgentId::new(Self::MAIN_AGENT_NAME)))?;
+            .position(|a| a.id == AgentId::default())
+            .ok_or_else(|| Error::AgentUndefined(AgentId::default()))?;
 
         // Update the model
         self.agents[agent_pos].model = Some(model);
@@ -123,7 +121,7 @@ impl Conversation {
             }
 
             // Subscribe the main agent to all commands
-            if agent.id.as_str() == Conversation::MAIN_AGENT_NAME {
+            if agent.id == AgentId::default() {
                 let commands = workflow
                     .commands
                     .iter()
@@ -388,7 +386,7 @@ mod tests {
         let id = super::ConversationId::generate();
 
         // Create the main software-engineer agent
-        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let main_agent = AgentId::default();
         // Create a regular agent
         let other_agent = Agent::new("other-agent");
 
@@ -407,7 +405,7 @@ mod tests {
         ];
 
         let workflow = Workflow::new()
-            .agents(vec![main_agent, other_agent])
+            .agents(vec![Agent::new(main_agent), other_agent])
             .commands(commands.clone());
 
         // Act
@@ -420,7 +418,7 @@ mod tests {
         let main_agent = conversation
             .agents
             .iter()
-            .find(|a| a.id.as_str() == super::Conversation::MAIN_AGENT_NAME)
+            .find(|a| a.id == AgentId::default())
             .unwrap();
 
         assert!(main_agent.subscribe.is_some());
@@ -455,7 +453,7 @@ mod tests {
         let id = super::ConversationId::generate();
 
         // Create the main software-engineer agent with existing subscriptions
-        let mut main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let mut main_agent = Agent::new(AgentId::default());
         main_agent.subscribe = Some(vec!["existing-event".to_string()]);
 
         // Create some commands
@@ -483,7 +481,7 @@ mod tests {
         let main_agent = conversation
             .agents
             .iter()
-            .find(|a| a.id.as_str() == super::Conversation::MAIN_AGENT_NAME)
+            .find(|a| a.id == AgentId::default())
             .unwrap();
 
         assert!(main_agent.subscribe.is_some());
@@ -500,8 +498,7 @@ mod tests {
     fn test_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
-        let main_agent =
-            Agent::new(super::Conversation::MAIN_AGENT_NAME).model(ModelId::new("test-model"));
+        let main_agent = Agent::new(AgentId::default()).model(ModelId::new("test-model"));
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
@@ -535,7 +532,7 @@ mod tests {
     fn test_main_model_no_model_defined() {
         // Arrange
         let id = super::ConversationId::generate();
-        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let main_agent = Agent::new(AgentId::default());
         // No model defined for the agent
 
         let workflow = Workflow::new().agents(vec![main_agent]);
@@ -552,7 +549,7 @@ mod tests {
     fn test_set_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
-        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let main_agent = Agent::new(AgentId::default());
         // Initially no model defined
 
         let workflow = Workflow::new().agents(vec![main_agent]);

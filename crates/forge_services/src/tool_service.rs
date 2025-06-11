@@ -153,7 +153,7 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
 
 #[cfg(test)]
 mod test {
-    use forge_domain::{Tool, ToolCallContext, ToolCallId, ToolDefinition};
+    use forge_domain::{AgentId, Tool, ToolCallContext, ToolCallId, ToolDefinition};
     use serde_json::json;
 
     use super::*;
@@ -231,7 +231,7 @@ mod test {
         };
 
         // Create an agent that supports the pending_tool
-        let mut agent = Agent::new("software_agent");
+        let mut agent = Agent::new(AgentId::new("software_agent"));
         agent = agent.tools(vec![ToolName::new("pending_tool")]);
 
         // Use a very short timeout to test the timeout mechanism
