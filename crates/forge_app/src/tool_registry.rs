@@ -13,12 +13,12 @@ use regex::Regex;
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
+use crate::error::Error;
 use crate::utils::display_path;
 use crate::{
-    Content, EnvironmentService, Error, FetchOutput, FollowUpService, FsCreateOutput,
-    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
-    FsUndoService, McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services,
-    ShellOutput, ShellService,
+    Content, EnvironmentService, FollowUpService, FsCreateOutput, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, HttpResponse, McpService,
+    NetFetchService, PatchOutput, ReadOutput, SearchResult, Services, ShellOutput, ShellService,
 };
 
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -35,7 +35,7 @@ impl<S: Services> ToolRegistry<S> {
         &self,
         input: Tools,
         context: &mut ToolCallContext,
-    ) -> anyhow::Result<crate::ExecutionResult> {
+    ) -> anyhow::Result<crate::execution_result::ExecutionResult> {
         match input {
             Tools::ForgeToolFsRead(input) => {
                 let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
@@ -58,7 +58,7 @@ impl<S: Services> ToolRegistry<S> {
                 )
                 .await?;
 
-                Ok(crate::ExecutionResult::FsRead(output))
+                Ok(crate::execution_result::ExecutionResult::FsRead(output))
             }
             Tools::ForgeToolFsCreate(input) => {
                 let out = self
@@ -68,7 +68,7 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
                 send_write_context(context, &out, &input.path, self.services.as_ref()).await?;
 
-                Ok(crate::ExecutionResult::from(out))
+                Ok(crate::execution_result::ExecutionResult::from(out))
             }
             Tools::ForgeToolFsSearch(input) => {
                 let output = self
@@ -83,7 +83,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 send_fs_search_context(self.services.as_ref(), context, &input, &output).await?;
 
-                Ok(crate::ExecutionResult::from(output))
+                Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolFsRemove(input) => {
                 let output = self
@@ -94,7 +94,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 send_fs_remove_context(context, &input.path, self.services.as_ref()).await?;
 
-                Ok(crate::ExecutionResult::from(output))
+                Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolFsPatch(input) => {
                 let output = self
@@ -110,7 +110,7 @@ impl<S: Services> ToolRegistry<S> {
                 send_fs_patch_context(context, &input.path, &output, self.services.as_ref())
                     .await?;
 
-                Ok(crate::ExecutionResult::from(output))
+                Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolFsUndo(input) => {
                 let output = self
@@ -120,7 +120,7 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
                 send_fs_undo_context(context, input).await?;
 
-                Ok(crate::ExecutionResult::from(output))
+                Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolProcessShell(input) => {
                 let output = self
@@ -130,7 +130,7 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
                 send_shell_output_context(context, &output).await?;
 
-                Ok(crate::ExecutionResult::from(output))
+                Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolNetFetch(input) => {
                 let output = self
@@ -141,7 +141,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 send_net_fetch_context(context, &output, &input.url).await?;
 
-                Ok(crate::ExecutionResult::from(output))
+                Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolFollowup(input) => {
                 let output = self
@@ -162,11 +162,11 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
                 context.set_complete().await;
 
-                Ok(crate::ExecutionResult::from(output))
+                Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolAttemptCompletion(input) => {
                 send_completion_context(context, input).await?;
-                Ok(crate::ExecutionResult::AttemptCompletion)
+                Ok(crate::execution_result::ExecutionResult::AttemptCompletion)
             }
         }
     }
@@ -175,7 +175,7 @@ impl<S: Services> ToolRegistry<S> {
         input: ToolCallFull,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        let tool_input = Tools::try_from(input).map_err(Error::ToolCallArgument)?;
+        let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
 
         let out = self.call_internal(tool_input.clone(), context).await?;
         let truncation_path = out.to_create_temp(self.services.as_ref()).await?;
@@ -195,7 +195,7 @@ impl<S: Services> ToolRegistry<S> {
     {
         timeout(TOOL_CALL_TIMEOUT, future())
             .await
-            .context(Error::ToolCallTimeout {
+            .context(Error::CallTimeout {
                 timeout: TOOL_CALL_TIMEOUT.as_secs() / 60,
                 tool_name: tool_name.clone(),
             })?
@@ -230,7 +230,7 @@ impl<S: Services> ToolRegistry<S> {
             self.call_with_timeout(&tool_name, || self.services.mcp_service().call(input))
                 .await
         } else {
-            Err(Error::ToolNotFound(input.name).into())
+            Err(Error::NotFound(input.name).into())
         }
     }
 
@@ -276,7 +276,7 @@ impl<S> ToolRegistry<S> {
         if !agent_tools.contains(&tool_name.as_str()) {
             tracing::error!(tool_name = %tool_name, "No tool with name");
 
-            return Err(Error::ToolNotAllowed {
+            return Err(Error::NotAllowed {
                 name: tool_name.clone(),
                 supported_tools: agent_tools.join(", "),
             });
@@ -306,7 +306,7 @@ async fn send_fs_undo_context(
 
 async fn send_net_fetch_context(
     ctx: &mut ToolCallContext,
-    output: &FetchOutput,
+    output: &HttpResponse,
     url: &str,
 ) -> anyhow::Result<()> {
     ctx.send_text(TitleFormat::debug(format!("GET {}", output.code)).sub_title(url))

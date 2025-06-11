@@ -5,9 +5,10 @@ use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
 
+use crate::orch::Orchestrator;
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, Orchestrator,
+    AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService,
     ProviderService, Services, WorkflowService,
 };
 
@@ -185,5 +186,8 @@ impl<S: Services> ForgeApp<S> {
             original_messages,
             compacted_messages,
         ))
+    }
+    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
+        self.tool_registry.list().await
     }
 }
