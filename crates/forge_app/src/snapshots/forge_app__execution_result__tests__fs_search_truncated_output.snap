@@ -2,15 +2,7 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
----
-path: /home/user/project
-regex: search
-file_pattern: *.txt
-total_lines: 31
-start_line: 5
-end_line: 30
----
-Match line 6: This is a search result line
+<search_results path="/home/user/project" total_lines="31" start_line="5" end_line="30" regex="search" file_pattern="*.txt"><![CDATA[Match line 6: This is a search result line
 Match line 7: This is a search result line
 Match line 8: This is a search result line
 Match line 9: This is a search result line
@@ -34,4 +26,4 @@ Match line 26: This is a search result line
 Match line 27: This is a search result line
 Match line 28: This is a search result line
 Match line 29: This is a search result line
-Match line 30: This is a search result line
+Match line 30: This is a search result line]]></search_results>

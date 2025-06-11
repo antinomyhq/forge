@@ -82,45 +82,50 @@ impl ExecutionResult {
 
                 Ok(forge_domain::ToolOutput::text(elm))
             }
-            (Tools::ForgeToolFsSearch(input), ExecutionResult::FsSearch(output)) => {
-                match output {
-                    Some(out) => {
-                        let max_lines = min(
-                            env.max_search_lines,
-                            input.max_search_lines.unwrap_or(u64::MAX),
-                        );
-                        let truncated_output = truncate_search_output(
-                            &out.matches,
-                            input.start_index.unwrap_or_default(),
-                            max_lines,
-                        );
-                        let metadata = FrontMatter::default()
-                            .add("path", &input.path)
-                            .add_optional("regex", input.regex.as_ref())
-                            .add_optional("file_pattern", input.file_pattern.as_ref())
-                            .add("total_lines", truncated_output.total_lines)
-                            .add("start_line", truncated_output.start_line)
-                            .add("end_line", truncated_output.end_line);
+            (Tools::ForgeToolFsSearch(input), ExecutionResult::FsSearch(output)) => match output {
+                Some(out) => {
+                    let max_lines = min(
+                        env.max_search_lines,
+                        input.max_search_lines.unwrap_or(u64::MAX),
+                    );
+                    let truncated_output = truncate_search_output(
+                        &out.matches,
+                        input.start_index.unwrap_or_default(),
+                        max_lines,
+                    );
 
-                        let mut result = metadata.to_string();
-                        result.push_str(truncated_output.output.trim());
+                    let mut elm = Element::new("search_results")
+                        .attr("path", &input.path)
+                        .attr("total_lines", truncated_output.total_lines)
+                        .attr("start_line", truncated_output.start_line)
+                        .attr("end_line", truncated_output.end_line);
 
-                        // Create temp file if needed
-                        if let Some(path) = truncation_path {
-                            result.push_str(&format!(
-                                "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
-                                env.max_search_lines,
-                                path.display()
-                            ));
-                        }
-
-                        Ok(forge_domain::ToolOutput::text(result))
+                    if let Some(regex) = &input.regex {
+                        elm = elm.attr("regex", regex);
                     }
-                    None => Ok(forge_domain::ToolOutput::text(
-                        "No matches found".to_string(),
-                    )),
+
+                    if let Some(file_pattern) = &input.file_pattern {
+                        elm = elm.attr("file_pattern", file_pattern);
+                    }
+
+                    elm = elm.cdata(truncated_output.output.trim());
+
+                    Ok(forge_domain::ToolOutput::text(elm))
                 }
-            }
+                None => {
+                    let mut elm = Element::new("search_results").attr("path", &input.path);
+
+                    if let Some(regex) = &input.regex {
+                        elm = elm.attr("regex", regex);
+                    }
+
+                    if let Some(file_pattern) = &input.file_pattern {
+                        elm = elm.attr("file_pattern", file_pattern);
+                    }
+
+                    Ok(forge_domain::ToolOutput::text(elm))
+                }
+            },
             (Tools::ForgeToolFsPatch(input), ExecutionResult::FsPatch(output)) => {
                 let diff =
                     console::strip_ansi_codes(&DiffFormat::format(&output.before, &output.after))

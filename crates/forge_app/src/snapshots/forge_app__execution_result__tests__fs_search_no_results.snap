@@ -2,4 +2,4 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-No matches found
+<search_results path="/home/user/project" regex="NonExistentPattern"></search_results>
