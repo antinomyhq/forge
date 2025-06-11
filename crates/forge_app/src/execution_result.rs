@@ -570,8 +570,7 @@ mod tests {
         let env = fixture_environment(); // max_search_lines is 25
         let truncation_path = Some(PathBuf::from("/tmp/forge_search_truncated.txt"));
 
-        let actual = fixture
-            .into_tool_output(input, truncation_path, &env);
+        let actual = fixture.into_tool_output(input, truncation_path, &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
