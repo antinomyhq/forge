@@ -152,14 +152,15 @@ impl ExecutionResult {
                 };
                 let truncated_content =
                     truncate_fetch_content(&output.content, env.fetch_truncation_limit);
-                let mut metadata = Element::new("fetch_metadata")
+                let mut metadata = Element::new("http_response")
                     .attr("URL", &input.url)
-                    .attr("total_chars", output.content.len())
+                    .attr("status_code", output.code)
                     .attr("start_char", 0)
                     .attr(
                         "end_char",
                         env.fetch_truncation_limit.min(output.content.len()),
                     )
+                    .attr("total_chars", output.content.len())
                     .attr("context", context);
                 if let Some(path) = truncation_path.as_ref() {
                     metadata = metadata.attr(
@@ -171,19 +172,13 @@ impl ExecutionResult {
                         ),
                     );
                 }
-                let output = truncated_content.content;
-                let truncation_tag = match truncation_path.as_ref() {
-                    Some(path) => {
-                        format!(
-                            "\n<truncation>content is truncated to {} chars, remaining content can be read from path: {}</truncation>",
-                            env.fetch_truncation_limit,
-                            path.to_string_lossy()
-                        )
-                    }
-                    _ => String::new(),
-                };
 
-                forge_domain::ToolOutput::text(format!("{metadata}{output}{truncation_tag}"))
+                metadata = metadata.cdata(truncated_content.content);
+                if let Some(path) = truncation_path.as_ref() {
+                    metadata = metadata.attr("truncation_tag", format!("content is truncated to {} chars, remaining content can be read from path: {}", env.fetch_truncation_limit, path.display()));
+                }
+
+                forge_domain::ToolOutput::text(metadata)
             }
             (_, ExecutionResult::Shell(output)) => {
                 let mut elem = Element::new("shell_output").attr("command", &output.output.command);
