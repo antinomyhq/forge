@@ -114,7 +114,7 @@ pub struct FSSearch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub regex: Option<String>,
 
-    /// Total number of lines to skip from the top.
+    /// Number of search results to from the start.
     pub skip_n: Option<u64>,
 
     /// Glob pattern to filter files (e.g., '*.ts' for TypeScript files).
