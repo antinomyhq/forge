@@ -5,8 +5,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_app::{McpConfigManager, McpService};
 use forge_domain::{
-    ExecutableTool, McpConfig, McpServerConfig, Tool, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolName, ToolOutput,
+    McpConfig, McpServerConfig, Tool, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
 };
 use tokio::sync::{Mutex, RwLock};
 
@@ -130,16 +129,12 @@ where
         self.tools.write().await.clear()
     }
 
-    async fn call(
-        &self,
-        context: &mut ToolCallContext,
-        call: ToolCallFull,
-    ) -> anyhow::Result<ToolOutput> {
+    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
         let lock = self.tools.read().await;
 
         let tool = lock.get(&call.name).context("Tool not found")?;
 
-        tool.executable.call(context, call.arguments).await
+        tool.executable.call_tool(call.arguments).await
     }
 }
 
@@ -157,11 +152,7 @@ where
         self.find(name).await
     }
 
-    async fn call(
-        &self,
-        context: &mut ToolCallContext,
-        call: ToolCallFull,
-    ) -> anyhow::Result<ToolOutput> {
-        self.call(context, call).await
+    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
+        self.call(call).await
     }
 }

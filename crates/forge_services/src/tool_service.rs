@@ -170,11 +170,7 @@ mod test {
             Ok(None)
         }
 
-        async fn call(
-            &self,
-            _context: &mut ToolCallContext,
-            _call: ToolCallFull,
-        ) -> anyhow::Result<ToolOutput> {
+        async fn call(&self, _call: ToolCallFull) -> anyhow::Result<ToolOutput> {
             unimplemented!()
         }
     }

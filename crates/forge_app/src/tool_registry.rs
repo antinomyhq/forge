@@ -223,10 +223,12 @@ impl<S: Services> ToolRegistry<S> {
             .await?
             .is_some()
         {
-            self.call_with_timeout(&tool_name, || {
-                self.services.mcp_service().call(context, input)
-            })
-            .await
+            context
+                .send_text(TitleFormat::info("MCP").sub_title(input.name.as_str()))
+                .await?;
+
+            self.call_with_timeout(&tool_name, || self.services.mcp_service().call(input))
+                .await
         } else {
             Err(Error::ToolNotFound(input.name).into())
         }
