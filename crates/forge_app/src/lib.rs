@@ -3,7 +3,6 @@ mod app;
 mod compact;
 mod error;
 mod execution_result;
-mod front_matter;
 mod orch;
 mod services;
 mod template;

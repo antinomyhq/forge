@@ -5,7 +5,6 @@ use forge_display::DiffFormat;
 use forge_domain::{Environment, Tools};
 use forge_template::Element;
 
-use crate::front_matter::FrontMatter;
 use crate::truncation::{
     create_temp_file, truncate_fetch_content, truncate_search_output, truncate_shell_output,
 };
@@ -92,13 +91,13 @@ impl ExecutionResult {
                             input.regex.as_ref(),
                             input.file_pattern.as_ref(),
                         );
-                        let metadata = FrontMatter::default()
-                            .add("path", &truncated_output.path)
-                            .add_optional("regex", truncated_output.regex.as_ref())
-                            .add_optional("file_pattern", truncated_output.file_pattern.as_ref())
-                            .add("total_lines", truncated_output.total_lines)
-                            .add("start_line", 1)
-                            .add(
+                        let metadata = Element::new("fs_search")
+                            .attr("path", &truncated_output.path)
+                            .attr_if_some("regex", truncated_output.regex.as_ref())
+                            .attr_if_some("file_pattern", truncated_output.file_pattern.as_ref())
+                            .attr("total_lines", truncated_output.total_lines)
+                            .attr("start_line", 1)
+                            .attr(
                                 "end_line",
                                 truncated_output.total_lines.min(truncated_output.max_lines),
                             );
@@ -155,17 +154,17 @@ impl ExecutionResult {
                 };
                 let truncated_content =
                     truncate_fetch_content(&output.content, env.fetch_truncation_limit);
-                let mut metadata = FrontMatter::default()
-                    .add("URL", &input.url)
-                    .add("total_chars", output.content.len())
-                    .add("start_char", 0)
-                    .add(
+                let mut metadata = Element::new("fetch_metadata")
+                    .attr("URL", &input.url)
+                    .attr("total_chars", output.content.len())
+                    .attr("start_char", 0)
+                    .attr(
                         "end_char",
                         env.fetch_truncation_limit.min(output.content.len()),
                     )
-                    .add("context", context);
+                    .attr("context", context);
                 if let Some(path) = truncation_path.as_ref() {
-                    metadata = metadata.add(
+                    metadata = metadata.attr(
                         "truncation",
                         format!(
                             "Content is truncated to {} chars; Remaining content can be read from path: {}",
@@ -189,9 +188,9 @@ impl ExecutionResult {
                 forge_domain::ToolOutput::text(format!("{metadata}{output}{truncation_tag}"))
             }
             (_, ExecutionResult::Shell(output)) => {
-                let mut metadata = FrontMatter::default().add("command", &output.output.command);
+                let mut elem = Element::new("shell_output").attr("command", &output.output.command);
                 if let Some(exit_code) = output.output.exit_code {
-                    metadata = metadata.add("exit_code", exit_code);
+                    elem = elem.attr("exit_code", exit_code);
                 }
                 let truncated_output =
                     truncate_shell_output(&output.output.stdout, &output.output.stderr);
@@ -200,11 +199,11 @@ impl ExecutionResult {
                 let stderr_lines = output.output.stderr.lines().count();
 
                 if truncated_output.stdout_truncated {
-                    metadata = metadata.add("total_stdout_lines", stdout_lines);
+                    elem = elem.attr("total_stdout_lines", stdout_lines);
                 }
 
                 if truncated_output.stderr_truncated {
-                    metadata = metadata.add("total_stderr_lines", stderr_lines);
+                    elem = elem.attr("total_stderr_lines", stderr_lines);
                 }
 
                 let is_success = output.output.success();
@@ -218,38 +217,31 @@ impl ExecutionResult {
                     outputs.push(truncated_output.stderr);
                 }
 
-                let mut result = if outputs.is_empty() {
-                    format!(
+                if truncated_output.stderr_truncated || truncated_output.stdout_truncated {
+                    // Create temp file if needed
+                    if let Some(path) = truncation_path.as_ref() {
+                        elem = elem
+                            .attr("temp_file", path.display())
+                            .attr("truncated", "true");
+                    }
+                }
+                if outputs.is_empty() {
+                    elem = elem.text(format!(
                         "Command {} with no output.",
                         if is_success {
                             "executed successfully"
                         } else {
                             "failed"
                         }
-                    )
+                    ));
                 } else {
-                    outputs.join("\n")
+                    elem = elem.cdata(outputs.join("\n"));
                 };
 
-                if truncated_output.stderr_truncated || truncated_output.stdout_truncated {
-                    // Create temp file if needed
-                    if let Some(path) = truncation_path.as_ref() {
-                        metadata = metadata
-                            .add("temp_file", path.display())
-                            .add("truncated", "true");
-
-                        result.push_str(&format!(
-                            "\n<truncated>content is truncated, remaining content can be read from path:{}</truncated>",
-                            path.display()
-                        ));
-                    }
-                }
-                result = format!("{metadata}{result}");
-
                 if is_success {
-                    forge_domain::ToolOutput::text(result)
+                    forge_domain::ToolOutput::text(elem)
                 } else {
-                    panic!("{}", result)
+                    panic!("{}", elem)
                 }
             }
             (_, ExecutionResult::FollowUp(output)) => match output {
