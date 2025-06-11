@@ -331,7 +331,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -362,7 +362,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: Some("*.rs".to_string()),
                 },
             )
@@ -395,7 +395,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: None,
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: Some("test*.txt".to_string()),
                 },
             )
@@ -425,7 +425,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -461,7 +461,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -493,7 +493,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("test".to_string()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -521,7 +521,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("nonexistent".to_string()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -551,7 +551,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: None,
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -575,7 +575,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("[invalid".to_string()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -599,7 +599,7 @@ mod test {
                     explanation: None,
                     path: "relative/path".to_string(),
                     regex: Some("test".to_string()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -657,7 +657,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().join("best.txt").display().to_string(),
                     regex: Some("nice".to_string()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -677,7 +677,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().join("best.txt").display().to_string(),
                     regex: None,
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
             )
@@ -707,7 +707,7 @@ mod test {
                     explanation: None,
                     path: temp_dir.path().to_string_lossy().to_string(),
                     regex: Some("content*".into()),
-                    skip_n: None,
+                    start_line: None,
                     file_pattern: None,
                 },
                 10,

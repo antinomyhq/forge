@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use forge_display::DiffFormat;
 use forge_domain::{Environment, Tools};
 
-use crate::execution_result::consts::SEARCH_MAX_LINES;
 use crate::front_matter::FrontMatter;
 use crate::truncation::FETCH_MAX_LENGTH;
 use crate::utils::display_path;
@@ -11,18 +10,6 @@ use crate::{
     Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
     SearchResult, Services, ShellOutput, create_temp_file, truncate_search_output,
 };
-
-#[cfg(not(test))]
-mod consts {
-    /// Maximum search lines before truncation
-    pub const SEARCH_MAX_LINES: u64 = 200;
-}
-
-#[cfg(test)]
-// Reduced const number for tests
-mod consts {
-    pub const SEARCH_MAX_LINES: u64 = 25;
-}
 
 #[derive(derive_more::From)]
 pub enum ExecutionResult {
@@ -114,8 +101,8 @@ impl ExecutionResult {
                                 &input.path,
                                 input.regex.as_ref(),
                                 input.file_pattern.as_ref(),
-                                input.skip_n.unwrap_or_default(),
-                                SEARCH_MAX_LINES,
+                                input.start_line.unwrap_or_default(),
+                                env.max_search_lines,
                             );
                             let metadata = FrontMatter::default()
                                 .add("path", &truncated_output.path)
@@ -125,10 +112,10 @@ impl ExecutionResult {
                                     truncated_output.file_pattern.as_ref(),
                                 )
                                 .add("total_lines", truncated_output.total_lines)
-                                .add("start_line", input.skip_n.unwrap_or_default())
+                                .add("start_line", input.start_line.unwrap_or_default())
                                 .add(
                                     "end_line",
-                                    truncated_output.total_lines.min(SEARCH_MAX_LINES),
+                                    truncated_output.total_lines.min(env.max_search_lines),
                                 );
 
                             let mut result = metadata.to_string();
@@ -138,7 +125,7 @@ impl ExecutionResult {
                             if let Some(path) = truncation_path {
                                 result.push_str(&format!(
                                     "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
-                                    SEARCH_MAX_LINES,
+                                    env.max_search_lines,
                                     path.display()
                                 ));
                             }
@@ -367,6 +354,7 @@ mod tests {
                 max_retry_attempts: 3,
                 retry_status_codes: vec![429, 500, 502, 503, 504],
             },
+            max_search_lines: 25,
         }
     }
 
@@ -570,7 +558,7 @@ mod tests {
         let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("Hello".to_string()),
-            skip_n: None,
+            start_line: None,
             file_pattern: Some("*.txt".to_string()),
             explanation: Some("Searching for Hello pattern".to_string()),
         }));
@@ -589,7 +577,7 @@ mod tests {
         let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("NonExistentPattern".to_string()),
-            skip_n: None,
+            start_line: None,
             file_pattern: None,
             explanation: Some("Searching for non-existent pattern".to_string()),
         }));
@@ -620,7 +608,7 @@ mod tests {
         let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("search pattern".to_string()),
-            skip_n: None,
+            start_line: None,
             file_pattern: Some("*.txt".to_string()),
             explanation: Some("Searching with many results to test truncation".to_string()),
         }));

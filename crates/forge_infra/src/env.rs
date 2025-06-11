@@ -130,6 +130,7 @@ impl ForgeEnvironmentService {
             home: dirs::home_dir(),
             provider,
             retry_config,
+            max_search_lines: 200,
         }
     }
 

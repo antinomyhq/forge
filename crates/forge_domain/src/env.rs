@@ -31,6 +31,8 @@ pub struct Environment {
     pub provider: Provider,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
+    /// The maximum number of lines retuned for FSSearch.
+    pub max_search_lines: u64,
 }
 
 impl Environment {
