@@ -7,6 +7,8 @@ use forge_domain::{
     ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput, ToolResult, Workflow,
 };
 
+use crate::utils::display_path;
+
 #[derive(Debug)]
 pub struct ShellOutput {
     pub output: CommandOutput,
@@ -35,7 +37,36 @@ pub enum Content {
 
 #[derive(Debug)]
 pub struct SearchResult {
-    pub matches: Vec<String>,
+    pub matches: Vec<Match>,
+}
+
+#[derive(Debug)]
+pub struct Match {
+    pub path: String,
+    pub result: Option<MatchResult>,
+}
+
+#[derive(Debug)]
+pub enum MatchResult {
+    Error(String),
+    Found { line_number: usize, line: String },
+}
+
+impl Match {
+    pub fn to_string(&self, env: &Environment) -> String {
+        match &self.result {
+            Some(MatchResult::Error(err)) => format!("Error reading {}: {}", self.path, err),
+            Some(MatchResult::Found { line_number, line }) => {
+                format!(
+                    "{}:{}:{}",
+                    display_path(env, Path::new(&self.path)),
+                    line_number,
+                    line
+                )
+            }
+            None => display_path(env, Path::new(&self.path)),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -54,8 +85,10 @@ pub struct FsCreateOutput {
 }
 
 #[derive(Debug)]
-pub struct FsRemoveOutput {
-    pub completed: bool,
+pub enum FsRemoveOutput {
+    Success,
+    FileNotFound,
+    NotAFile,
 }
 
 #[derive(Debug, derive_more::From)]

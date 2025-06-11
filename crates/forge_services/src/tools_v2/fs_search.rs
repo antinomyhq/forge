@@ -1,14 +1,12 @@
 use std::collections::HashSet;
 use std::path::Path;
-use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{EnvironmentService, FsSearchService, SearchResult};
+use forge_app::{FsSearchService, Match, MatchResult, SearchResult};
 use forge_walker::Walker;
 use regex::Regex;
 
-use crate::utils::{assert_absolute_path, format_display_path};
-use crate::Infrastructure;
+use crate::utils::assert_absolute_path;
 
 // Using FSSearchInput from forge_domain
 
@@ -67,29 +65,17 @@ impl FSSearchHelper<'_> {
 /// patterns across projects. For large pages, returns the first 200
 /// lines and stores the complete content in a temporary file for
 /// subsequent access.
-pub struct ForgeFsSearch<F>(Arc<F>);
+#[derive(Default)]
+pub struct ForgeFsSearch;
 
-impl<F: Infrastructure> ForgeFsSearch<F> {
-    pub fn new(infra: Arc<F>) -> Self {
-        Self(infra)
-    }
-    /// Formats a path for display, converting absolute paths to relative when
-    /// possible
-    ///
-    /// If the path starts with the current working directory, returns a
-    /// relative path. Otherwise, returns the original absolute path.
-    fn format_display_path(&self, path: &Path) -> anyhow::Result<String> {
-        // Get the current working directory
-        let env = self.0.environment_service().get_environment();
-        let cwd = env.cwd.as_path();
-
-        // Use the shared utility function
-        format_display_path(path, cwd)
+impl ForgeFsSearch {
+    pub fn new() -> Self {
+        Self
     }
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
+impl FsSearchService for ForgeFsSearch {
     async fn search(
         &self,
         input_path: String,
@@ -126,7 +112,7 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
 
             // File name only search mode
             if regex.is_none() {
-                matches.push((self.format_display_path(&path)?).to_string());
+                matches.push(Match { path: path.to_string_lossy().to_string(), result: None });
                 continue;
             }
 
@@ -139,11 +125,10 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
                         .downcast_ref::<std::io::ErrorKind>()
                         .map(|e| std::io::ErrorKind::InvalidData.eq(e))
                     {
-                        matches.push(format!(
-                            "Error reading {}: {}",
-                            self.format_display_path(&path)?,
-                            e
-                        ));
+                        matches.push(Match {
+                            path: path.to_string_lossy().to_string(),
+                            result: Some(MatchResult::Error(e.to_string())),
+                        });
                     }
                     continue;
                 }
@@ -157,12 +142,13 @@ impl<F: Infrastructure> FsSearchService for ForgeFsSearch<F> {
                     if regex.is_match(line) {
                         found_match = true;
                         // Format match in ripgrep style: filepath:line_num:content
-                        matches.push(format!(
-                            "{}:{}:{}",
-                            self.format_display_path(&path)?,
-                            line_num + 1,
-                            line
-                        ));
+                        matches.push(Match {
+                            path: path.to_string_lossy().to_string(),
+                            result: Some(MatchResult::Found {
+                                line_number: line_num + 1,
+                                line: line.to_string(),
+                            }),
+                        });
                     }
                 }
 

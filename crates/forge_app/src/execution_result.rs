@@ -9,8 +9,9 @@ use crate::front_matter::FrontMatter;
 use crate::truncation::FETCH_MAX_LENGTH;
 use crate::utils::display_path;
 use crate::{
-    Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
-    SearchResult, Services, ShellOutput, create_temp_file, truncate_search_output,
+    Content, EnvironmentService, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput,
+    PatchOutput, ReadOutput, SearchResult, Services, ShellOutput, create_temp_file,
+    truncate_search_output,
 };
 
 #[derive(Debug, derive_more::From)]
@@ -69,14 +70,16 @@ impl ExecutionResult {
             }
             (Tools::ForgeToolFsRemove(input), ExecutionResult::FsRemove(output)) => {
                 let display_path = display_path(env, Path::new(&input.path));
-                let elm = if output.completed {
-                    Element::new("file_removed")
+                let elm = match output {
+                    FsRemoveOutput::Success => Element::new("file_removed")
                         .attr("path", display_path)
-                        .attr("status", "success")
-                } else {
-                    Element::new("file_removed")
+                        .attr("status", "success"),
+                    FsRemoveOutput::FileNotFound => Element::new("file_removed")
                         .attr("path", display_path)
-                        .attr("status", "not_found")
+                        .attr("status", "not_found"),
+                    FsRemoveOutput::NotAFile => Element::new("file_removed")
+                        .attr("path", display_path)
+                        .attr("status", "not_a_file"),
                 };
 
                 forge_domain::ToolOutput::text(elm)
@@ -89,6 +92,7 @@ impl ExecutionResult {
                             &input.path,
                             input.regex.as_ref(),
                             input.file_pattern.as_ref(),
+                            env,
                         );
                         let metadata = FrontMatter::default()
                             .add("path", &truncated_output.path)
@@ -267,7 +271,13 @@ impl ExecutionResult {
             ExecutionResult::FsRemove(_) => Ok(None),
             ExecutionResult::FsSearch(search_result) => {
                 if let Some(search_result) = search_result {
-                    let output = search_result.matches.join("\n");
+                    let env = services.environment_service().get_environment();
+                    let output = search_result
+                        .matches
+                        .iter()
+                        .map(|v| v.to_string(&env))
+                        .collect::<Vec<_>>()
+                        .join("\n");
                     let is_truncated =
                         output.lines().count() as u64 > crate::truncation::SEARCH_MAX_LINES;
 
@@ -342,6 +352,7 @@ mod tests {
     use forge_domain::{FSRead, ToolValue, Tools};
 
     use super::*;
+    use crate::{Match, MatchResult};
 
     fn fixture_environment() -> Environment {
         Environment {
@@ -544,7 +555,7 @@ mod tests {
 
     #[test]
     fn test_fs_remove_success() {
-        let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: true });
+        let fixture = ExecutionResult::FsRemove(FsRemoveOutput::Success);
 
         let input = Tools::ForgeToolFsRemove(forge_domain::FSRemove {
             path: "/home/user/file_to_delete.txt".to_string(),
@@ -560,7 +571,7 @@ mod tests {
 
     #[test]
     fn test_fs_remove_not_found() {
-        let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: false });
+        let fixture = ExecutionResult::FsRemove(FsRemoveOutput::FileNotFound);
 
         let input = Tools::ForgeToolFsRemove(forge_domain::FSRemove {
             path: "/home/user/nonexistent_file.txt".to_string(),
@@ -578,8 +589,20 @@ mod tests {
     fn test_fs_search_with_results() {
         let fixture = ExecutionResult::FsSearch(Some(SearchResult {
             matches: vec![
-                "file1.txt:1:Hello world".to_string(),
-                "file2.txt:3:Hello universe".to_string(),
+                Match {
+                    path: "file1.txt".to_string(),
+                    result: Some(MatchResult::Found {
+                        line_number: 1,
+                        line: "Hello world".to_string(),
+                    }),
+                },
+                Match {
+                    path: "file2.txt".to_string(),
+                    result: Some(MatchResult::Found {
+                        line_number: 3,
+                        line: "Hello universe".to_string(),
+                    }),
+                },
             ],
         }));
 
