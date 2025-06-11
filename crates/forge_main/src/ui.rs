@@ -4,8 +4,10 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
+use convert_case::{Case, Casing};
 use forge_api::{
-    ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId, Workflow, API,
+    AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
+    Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Scope};
@@ -24,7 +26,7 @@ use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
-use crate::state::{Mode, UIState};
+use crate::state::UIState;
 use crate::update::on_update;
 use crate::{banner, TRACKER};
 
@@ -85,60 +87,59 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
+    async fn active_workflow(&self) -> Result<Workflow> {
+        // Read the current workflow to validate the agent
+        let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+        let mut base_workflow = Workflow::default();
+        base_workflow.merge(workflow.clone());
+        Ok(base_workflow)
+    }
+
     // Set the current mode and update conversation variable
-    async fn on_mode_change(&mut self, mode: Mode) -> Result<()> {
-        // Set the mode variable in the conversation if a conversation exists
+    async fn on_agent_change(&mut self, agent_id: AgentId) -> Result<()> {
+        let workflow = self.active_workflow().await?;
+
+        // Convert string to AgentId for validation
+        let agent = workflow.get_agent(&AgentId::new(agent_id))?;
+
         let conversation_id = self.init_conversation().await?;
-
-        // Override the mode that was reset by the conversation
-        self.state.mode = mode.clone();
-
-        // Reset is_first to true when switching modes
-        self.state.is_first = true;
-
-        // Retrieve the conversation, update it, and save it back
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
-            conversation.set_variable("mode".to_string(), Value::from(mode.to_string()));
+            conversation.set_variable("operating_agent".into(), Value::from(agent.id.as_str()));
             self.api.upsert_conversation(conversation).await?;
         }
 
-        // Update the workflow with the new mode
+        // Reset is_first to true when switching agents
+        self.state.is_first = true;
+        self.state.operating_agent = agent.id.clone();
+
+        // Update the workflow with the new operating agent.
         self.api
             .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow
-                    .variables
-                    .insert("mode".to_string(), Value::from(mode.to_string()));
+                workflow.variables.insert(
+                    "operating_agent".to_string(),
+                    Value::from(agent.id.as_str()),
+                );
             })
             .await?;
 
         self.writeln(TitleFormat::action(format!(
-            "Switched to '{}' mode",
-            self.state.mode
+            "Switched to agent {}",
+            agent.id.as_str().to_case(Case::UpperSnake).bold()
         )))?;
 
         Ok(())
     }
-    // Helper functions for creating events with the specific event names
-    fn create_task_init_event<V: Into<Value>>(&self, content: V) -> Event {
-        Event::new(
-            format!(
-                "{}/{}",
-                self.state.mode.to_string().to_lowercase(),
-                EVENT_USER_TASK_INIT
-            ),
-            content,
-        )
-    }
 
-    fn create_task_update_event<V: Into<Value>>(&self, content: V) -> Event {
-        Event::new(
-            format!(
-                "{}/{}",
-                self.state.mode.to_string().to_lowercase(),
-                EVENT_USER_TASK_UPDATE
-            ),
+    fn create_task_event<V: Into<Value>>(
+        &self,
+        content: V,
+        event_name: &str,
+    ) -> anyhow::Result<Event> {
+        let operating_agent = &self.state.operating_agent;
+        Ok(Event::new(
+            format!("{operating_agent}/{event_name}"),
             content,
-        )
+        ))
     }
 
     pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
@@ -159,7 +160,7 @@ impl<F: API> UI<F> {
 
     async fn prompt(&self) -> Result<Command> {
         // Prompt the user for input
-        self.console.prompt(Some(self.state.clone().into())).await
+        self.console.prompt(self.state.clone().into()).await
     }
 
     pub async fn run(&mut self) {
@@ -329,11 +330,11 @@ impl<F: API> UI<F> {
                 self.spinner.start(None)?;
                 self.on_message(content.clone()).await?;
             }
-            Command::Act => {
-                self.on_mode_change(Mode::Act).await?;
+            Command::Forge => {
+                self.on_agent_change(AgentId::FORGE).await?;
             }
-            Command::Plan => {
-                self.on_mode_change(Mode::Plan).await?;
+            Command::Muse => {
+                self.on_agent_change(AgentId::MUSE).await?;
             }
             Command::Help => {
                 let info = Info::from(self.command.as_ref());
@@ -364,11 +365,56 @@ impl<F: API> UI<F> {
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
+            Command::Agent => {
+                // Read the current workflow to validate the agent
+                let workflow = self.active_workflow().await?;
+
+                #[derive(Clone)]
+                struct Agent {
+                    id: AgentId,
+                    label: String,
+                }
+
+                impl Display for Agent {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(f, "{}", self.label)
+                    }
+                }
+                let n = workflow
+                    .agents
+                    .iter()
+                    .map(|a| a.id.as_str().len())
+                    .max()
+                    .unwrap_or_default();
+                let display_agents = workflow
+                    .agents
+                    .into_iter()
+                    .map(|agent| {
+                        if let Some(title) = &agent.title {
+                            let label = format!(
+                                "{:<n$} {}",
+                                agent.id.as_str().to_case(Case::UpperSnake).bold(),
+                                title.lines().collect::<Vec<_>>().join(" ").dimmed()
+                            );
+                            Agent { label, id: agent.id }
+                        } else {
+                            Agent { id: agent.id, label: "<Missing agent title>".to_string() }
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let select_prompt = inquire::Select::new(
+                    "select the agent from following list",
+                    display_agents.clone(),
+                );
+                if let Ok(selected_agent) = select_prompt.prompt() {
+                    self.on_agent_change(selected_agent.id).await?;
+                }
+            }
         }
 
         Ok(false)
     }
-
     async fn on_compaction(&mut self) -> Result<(), anyhow::Error> {
         let conversation_id = self.init_conversation().await?;
         let compaction_result = self.api.compact_conversation(&conversation_id).await?;
@@ -481,7 +527,6 @@ impl<F: API> UI<F> {
 
                 // Select a model if workflow doesn't have one
                 let workflow = self.init_state().await?;
-
                 // We need to try and get the conversation ID first before fetching the model
                 let id = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation = serde_json::from_str(
@@ -535,9 +580,9 @@ impl<F: API> UI<F> {
         // Create a ChatRequest with the appropriate event type
         let event = if self.state.is_first {
             self.state.is_first = false;
-            self.create_task_init_event(content.clone())
+            self.create_task_event(content, EVENT_USER_TASK_INIT)?
         } else {
-            self.create_task_update_event(content.clone())
+            self.create_task_event(content, EVENT_USER_TASK_UPDATE)?
         };
 
         // Create the chat request with the event

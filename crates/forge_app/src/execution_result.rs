@@ -265,7 +265,8 @@ impl ExecutionResult {
                 }
             },
             (_, ExecutionResult::AttemptCompletion) => forge_domain::ToolOutput::text(
-                Element::new("success").text("The task is complete. Please continue."),
+                Element::new("success")
+                    .text("[Task was completed successfully. Now wait for user feedback]"),
             ),
             // Panic case for mismatched execution result and input tool types
             (input_tool, execution_result) => {

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use merge::Merge;
@@ -15,16 +17,25 @@ use crate::{
 // Unique identifier for an agent
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct AgentId(String);
+pub struct AgentId(Cow<'static, str>);
 impl AgentId {
     // Creates a new agent ID from a string-like value
     pub fn new(id: impl ToString) -> Self {
-        Self(id.to_string())
+        Self(Cow::Owned(id.to_string()))
     }
 
     // Returns the agent ID as a string reference
     pub fn as_str(&self) -> &str {
-        self.0.as_str()
+        self.0.as_ref()
+    }
+
+    pub const FORGE: AgentId = AgentId(Cow::Borrowed("forge"));
+    pub const MUSE: AgentId = AgentId(Cow::Borrowed("muse"));
+}
+
+impl Default for AgentId {
+    fn default() -> Self {
+        AgentId::FORGE
     }
 }
 
@@ -40,6 +51,11 @@ pub struct Agent {
     // Unique identifier for the agent
     #[merge(strategy = crate::merge::std::overwrite)]
     pub id: AgentId,
+
+    /// Human-readable title for the agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub title: Option<String>,
 
     // The language model ID to be used by this agent
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -145,9 +161,10 @@ fn merge_subscription(base: &mut Option<Vec<String>>, other: Option<Vec<String>>
 }
 
 impl Agent {
-    pub fn new(id: impl ToString) -> Self {
+    pub fn new(id: impl Into<AgentId>) -> Self {
         Self {
-            id: AgentId::new(id),
+            id: id.into(),
+            title: None,
             tool_supported: None,
             model: None,
             description: None,
@@ -213,6 +230,12 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    impl Into<AgentId> for &str {
+        fn into(self) -> AgentId {
+            AgentId::new(self)
+        }
+    }
 
     #[test]
     fn test_merge_model() {
