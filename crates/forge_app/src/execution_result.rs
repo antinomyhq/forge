@@ -143,17 +143,14 @@ impl ExecutionResult {
                 forge_domain::ToolOutput::text(elm)
             }
             (Tools::ForgeToolNetFetch(input), ExecutionResult::NetFetch(output)) => {
-                let context = match output.context {
-                    ResponseContext::Parsed => String::new(),
-                    ResponseContext::Raw => format!(
-                        "Content type {} cannot be simplified to markdown; Raw content provided instead",
-                        output.content_type
-                    ),
+                let content_type = match output.context {
+                    ResponseContext::Parsed => "text/markdown".to_string(),
+                    ResponseContext::Raw => output.content_type,
                 };
                 let truncated_content =
                     truncate_fetch_content(&output.content, env.fetch_truncation_limit);
-                let mut metadata = Element::new("http_response")
-                    .attr("URL", &input.url)
+                let mut elm = Element::new("http_response")
+                    .attr("url", &input.url)
                     .attr("status_code", output.code)
                     .attr("start_char", 0)
                     .attr(
@@ -161,24 +158,19 @@ impl ExecutionResult {
                         env.fetch_truncation_limit.min(output.content.len()),
                     )
                     .attr("total_chars", output.content.len())
-                    .attr("context", context);
+                    .attr("content_type", content_type);
+
+                elm = elm.append(Element::new("body").cdata(truncated_content.content));
                 if let Some(path) = truncation_path.as_ref() {
-                    metadata = metadata.attr(
-                        "truncation",
+                    elm = elm.append(Element::new("truncated").text(
+
                         format!(
-                            "Content is truncated to {} chars; Remaining content can be read from path: {}",
-                            env.fetch_truncation_limit,
-                            path.display()
-                        ),
-                    );
+                            "Content is truncated to {} chars, remaining content can be read from path: {}", 
+                        env.fetch_truncation_limit, path.display())
+                    ));
                 }
 
-                metadata = metadata.cdata(truncated_content.content);
-                if let Some(path) = truncation_path.as_ref() {
-                    metadata = metadata.attr("truncation_tag", format!("content is truncated to {} chars, remaining content can be read from path: {}", env.fetch_truncation_limit, path.display()));
-                }
-
-                forge_domain::ToolOutput::text(metadata)
+                forge_domain::ToolOutput::text(elm)
             }
             (_, ExecutionResult::Shell(output)) => {
                 let mut elem = Element::new("shell_output").attr("command", &output.output.command);
