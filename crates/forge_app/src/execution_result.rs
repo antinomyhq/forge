@@ -89,10 +89,9 @@ impl ExecutionResult {
                         input.max_search_lines.unwrap_or(u64::MAX),
                     );
                     let start_index = input.start_index.unwrap_or(1);
-                        let start_index = if start_index > 0 { start_index - 1 } else { 0 };
-                        let truncated_output =
+                    let start_index = if start_index > 0 { start_index - 1 } else { 0 };
+                    let truncated_output =
                         truncate_search_output(&out.matches, start_index, max_lines);
-                        
 
                     let mut elm = Element::new("search_results")
                         .attr("path", &input.path)
