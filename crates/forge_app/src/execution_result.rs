@@ -70,19 +70,15 @@ impl ExecutionResult {
             }
             (Tools::ForgeToolFsRemove(input), ExecutionResult::FsRemove(output)) => {
                 let display_path = display_path(env, Path::new(&input.path));
-                let elm = match output {
-                    FsRemoveOutput::Success => Element::new("file_removed")
-                        .attr("path", display_path)
-                        .attr("status", "success"),
-                    FsRemoveOutput::FileNotFound => Element::new("file_removed")
-                        .attr("path", display_path)
-                        .attr("status", "not_found"),
-                    FsRemoveOutput::NotAFile => Element::new("file_removed")
-                        .attr("path", display_path)
-                        .attr("status", "not_a_file"),
+                let mut elem = Element::new("file_removed").attr("path", display_path);
+
+                elem = match output {
+                    FsRemoveOutput::Success => elem.attr("status", "success"),
+                    FsRemoveOutput::FileNotFound => elem.attr("status", "File not found"),
+                    FsRemoveOutput::NotAFile => elem.attr("status", "The path is not a file"),
                 };
 
-                forge_domain::ToolOutput::text(elm)
+                forge_domain::ToolOutput::text(elem)
             }
             (Tools::ForgeToolFsSearch(input), ExecutionResult::FsSearch(output)) => {
                 match output {
