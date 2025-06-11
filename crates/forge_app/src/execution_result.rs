@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use forge_display::DiffFormat;
 use forge_domain::{Environment, Tools};
 
+use crate::execution_result::consts::SEARCH_MAX_LINES;
 use crate::front_matter::FrontMatter;
 use crate::truncation::FETCH_MAX_LENGTH;
 use crate::utils::display_path;
@@ -10,6 +11,18 @@ use crate::{
     Content, FetchOutput, FsCreateOutput, FsRemoveOutput, FsUndoOutput, PatchOutput, ReadOutput,
     SearchResult, Services, ShellOutput, create_temp_file, truncate_search_output,
 };
+
+#[cfg(not(test))]
+mod consts {
+    /// Maximum search lines before truncation
+    pub const SEARCH_MAX_LINES: u64 = 200;
+}
+
+#[cfg(test)]
+// Reduced const number for tests
+mod consts {
+    pub const SEARCH_MAX_LINES: u64 = 25;
+}
 
 #[derive(derive_more::From)]
 pub enum ExecutionResult {
@@ -101,6 +114,8 @@ impl ExecutionResult {
                                 &input.path,
                                 input.regex.as_ref(),
                                 input.file_pattern.as_ref(),
+                                input.skip_n.unwrap_or_default(),
+                                SEARCH_MAX_LINES,
                             );
                             let metadata = FrontMatter::default()
                                 .add("path", &truncated_output.path)
@@ -110,10 +125,10 @@ impl ExecutionResult {
                                     truncated_output.file_pattern.as_ref(),
                                 )
                                 .add("total_lines", truncated_output.total_lines)
-                                .add("start_line", 1)
+                                .add("start_line", input.skip_n.unwrap_or_default())
                                 .add(
                                     "end_line",
-                                    truncated_output.total_lines.min(truncated_output.max_lines),
+                                    truncated_output.total_lines.min(SEARCH_MAX_LINES),
                                 );
 
                             let mut result = metadata.to_string();
@@ -123,7 +138,7 @@ impl ExecutionResult {
                             if let Some(path) = truncation_path {
                                 result.push_str(&format!(
                                     "\n<truncation>content is truncated to {} lines, remaining content can be read from path:{}</truncation>",
-                                    truncated_output.max_lines,
+                                    SEARCH_MAX_LINES,
                                     path.display()
                                 ));
                             }
@@ -277,29 +292,7 @@ impl ExecutionResult {
             ExecutionResult::FsRead(_) => Ok(None),
             ExecutionResult::FsCreate(_) => Ok(None),
             ExecutionResult::FsRemove(_) => Ok(None),
-            ExecutionResult::FsSearch(search_result) => {
-                if let Some(search_result) = search_result {
-                    let output = search_result.matches.join("\n");
-                    let is_truncated =
-                        output.lines().count() as u64 > crate::truncation::SEARCH_MAX_LINES;
-
-                    if is_truncated {
-                        let path = crate::truncation::create_temp_file(
-                            services,
-                            "forge_find_",
-                            ".md",
-                            &output,
-                        )
-                        .await?;
-
-                        Ok(Some(path))
-                    } else {
-                        Ok(None)
-                    }
-                } else {
-                    Ok(None)
-                }
-            }
+            ExecutionResult::FsSearch(_) => Ok(None),
             ExecutionResult::FsPatch(_) => Ok(None),
             ExecutionResult::FsUndo(_) => Ok(None),
             ExecutionResult::NetFetch(out) => {
@@ -577,6 +570,7 @@ mod tests {
         let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("Hello".to_string()),
+            skip_n: None,
             file_pattern: Some("*.txt".to_string()),
             explanation: Some("Searching for Hello pattern".to_string()),
         }));
@@ -595,6 +589,7 @@ mod tests {
         let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("NonExistentPattern".to_string()),
+            skip_n: None,
             file_pattern: None,
             explanation: Some("Searching for non-existent pattern".to_string()),
         }));
@@ -602,6 +597,51 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(input, None, &env).unwrap();
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_with_truncation() {
+        // Create more than SEARCH_MAX_LINES (25 for tests) to trigger truncation
+        let mut matches = Vec::new();
+        for i in 1..=30 {
+            matches.push(format!(
+                "file{i}.txt:{i}:This is line {i} with search pattern"
+            ));
+        }
+
+        // Add content that should be truncated and not appear in response
+        let truncated_content = "file_truncated.txt:999:This should be truncated and not appear";
+        matches.push(truncated_content.to_string());
+
+        let fixture = ExecutionResult::FsSearch(Some(SearchResult { matches }));
+
+        let input = Some(Tools::ForgeToolFsSearch(forge_domain::FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: Some("search pattern".to_string()),
+            skip_n: None,
+            file_pattern: Some("*.txt".to_string()),
+            explanation: Some("Searching with many results to test truncation".to_string()),
+        }));
+
+        let env = fixture_environment();
+        let truncation_path = Some(std::path::PathBuf::from("/tmp/forge_search_truncated.txt"));
+
+        let actual = fixture
+            .into_tool_output(input, truncation_path, &env)
+            .unwrap();
+
+        // Verify that the truncated content is not in the response
+        assert!(
+            !actual
+                .values
+                .get(0)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .contains(truncated_content)
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }

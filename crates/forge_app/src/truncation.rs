@@ -258,9 +258,6 @@ pub fn truncate_fetch_content(
     }
 }
 
-/// Maximum search lines before truncation
-pub const SEARCH_MAX_LINES: u64 = 200;
-
 /// Represents the result of fs_search truncation
 #[derive(Debug)]
 pub struct TruncatedSearchOutput {
@@ -269,7 +266,6 @@ pub struct TruncatedSearchOutput {
     pub regex: Option<String>,
     pub file_pattern: Option<String>,
     pub total_lines: u64,
-    pub max_lines: u64,
     pub is_truncated: bool,
     pub original_output: String,
 }
@@ -297,15 +293,18 @@ pub fn truncate_search_output(
     path: &str,
     regex: Option<&String>,
     file_pattern: Option<&String>,
+    skip_n: u64,
+    max_lines: u64,
 ) -> TruncatedSearchOutput {
     let output = output.join("\n");
     let total_lines = output.lines().count() as u64;
-    let is_truncated = total_lines > SEARCH_MAX_LINES;
+    let is_truncated = total_lines > max_lines;
 
     let truncated_output = if is_truncated {
         output
             .lines()
-            .take(SEARCH_MAX_LINES as usize)
+            .skip(skip_n as usize)
+            .take(max_lines as usize)
             .collect::<Vec<_>>()
             .join("\n")
     } else {
@@ -318,7 +317,6 @@ pub fn truncate_search_output(
         regex: regex.map(|s| s.to_string()),
         file_pattern: file_pattern.map(|s| s.to_string()),
         total_lines,
-        max_lines: SEARCH_MAX_LINES,
         is_truncated,
         original_output: output.to_string(),
     }

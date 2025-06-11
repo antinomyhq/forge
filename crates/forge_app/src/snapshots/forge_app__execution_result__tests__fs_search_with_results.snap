@@ -7,7 +7,7 @@ path: /home/user/project
 regex: Hello
 file_pattern: *.txt
 total_lines: 2
-start_line: 1
+start_line: 0
 end_line: 2
 ---
 file1.txt:1:Hello world
