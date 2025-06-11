@@ -95,12 +95,12 @@ impl ExecutionResult {
                             .attr("path", &truncated_output.path)
                             .attr_if_some("regex", truncated_output.regex.as_ref())
                             .attr_if_some("file_pattern", truncated_output.file_pattern.as_ref())
-                            .attr("total_lines", truncated_output.total_lines)
                             .attr("start_line", 1)
                             .attr(
                                 "end_line",
                                 truncated_output.total_lines.min(truncated_output.max_lines),
                             )
+                            .attr("total_lines", truncated_output.total_lines)
                             .cdata(truncated_output.output);
 
                         // Create temp file if needed
