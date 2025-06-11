@@ -10,8 +10,8 @@ use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_service::ForgeToolService;
 use crate::tools_v2::{
-    ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
-    ForgeFsSearch, ForgeFsUndo, ForgeShell,
+    ForgeFetch, ForgeFileSnapshotService, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead,
+    ForgeFsRemove, ForgeFsSearch, ForgeShell,
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{Infrastructure, McpServer};
@@ -41,7 +41,6 @@ pub struct ForgeServices<F: Infrastructure> {
     file_search_service: Arc<ForgeFsSearch<F>>,
     file_remove_service: Arc<ForgeFsRemove<F>>,
     file_patch_service: Arc<ForgeFsPatch<F>>,
-    file_undo_service: Arc<ForgeFsUndo<F>>,
     shell_service: Arc<ForgeShell<F>>,
     fetch_service: Arc<ForgeFetch>,
     followup_service: Arc<ForgeFollowup<F>>,
@@ -66,7 +65,6 @@ impl<F: Infrastructure> ForgeServices<F> {
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
         let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
         let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
-        let file_undo_service = Arc::new(ForgeFsUndo::new(infra.clone()));
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
@@ -85,7 +83,6 @@ impl<F: Infrastructure> ForgeServices<F> {
             file_search_service,
             file_remove_service,
             file_patch_service,
-            file_undo_service,
             shell_service,
             fetch_service,
             followup_service,
@@ -110,10 +107,10 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type FsRemoveService = ForgeFsRemove<F>;
     type FsSearchService = ForgeFsSearch<F>;
     type FollowUpService = ForgeFollowup<F>;
-    type FsUndoService = ForgeFsUndo<F>;
     type NetFetchService = ForgeFetch;
     type ShellService = ForgeShell<F>;
     type McpService = McpService<F>;
+    type FsSnapshotService = ForgeFileSnapshotService;
 
     fn tool_service(&self) -> &Self::ToolService {
         &self.tool_service
@@ -175,10 +172,6 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
         &self.followup_service
     }
 
-    fn fs_undo_service(&self) -> &Self::FsUndoService {
-        &self.file_undo_service
-    }
-
     fn net_fetch_service(&self) -> &Self::NetFetchService {
         &self.fetch_service
     }
@@ -190,6 +183,10 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     fn mcp_service(&self) -> &Self::McpService {
         &self.mcp_service
     }
+
+    fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
+        todo!()
+    }
 }
 
 impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
@@ -197,7 +194,6 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
     type FsReadService = F::FsReadService;
     type FsWriteService = F::FsWriteService;
     type FsMetaService = F::FsMetaService;
-    type FsSnapshotService = F::FsSnapshotService;
     type FsRemoveService = F::FsRemoveService;
     type FsCreateDirsService = F::FsCreateDirsService;
     type CommandExecutorService = F::CommandExecutorService;
@@ -218,10 +214,6 @@ impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
 
     fn file_meta_service(&self) -> &Self::FsMetaService {
         self.infra.file_meta_service()
-    }
-
-    fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
-        self.infra.file_snapshot_service()
     }
 
     fn file_remove_service(&self) -> &Self::FsRemoveService {

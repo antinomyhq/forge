@@ -443,7 +443,6 @@ mod test {
             type FsMetaService = crate::attachment::tests::MockFileService;
             type FsCreateDirsService = crate::attachment::tests::MockFileService;
             type FsRemoveService = crate::attachment::tests::MockFileService;
-            type FsSnapshotService = crate::attachment::tests::MockSnapService;
             type CommandExecutorService = ();
             type InquireService = ();
 
@@ -471,10 +470,6 @@ mod test {
 
             fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
                 self.inner.create_dirs_service()
-            }
-
-            fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
-                self.inner.file_snapshot_service()
             }
 
             fn command_executor_service(&self) -> &Self::CommandExecutorService {

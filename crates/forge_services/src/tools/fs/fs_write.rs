@@ -102,11 +102,7 @@ impl<F: Infrastructure> ExecutableTool for FSWrite<F> {
         // Write file only after validation passes and directories are created
         self.0
             .file_write_service()
-            .write(
-                Path::new(&input.path),
-                Bytes::from(input.content.clone()),
-                true,
-            )
+            .write(Path::new(&input.path), Bytes::from(input.content.clone()))
             .await?;
 
         let mut result = String::new();
@@ -433,7 +429,7 @@ mod test {
         // First, create the file
         infra
             .file_write_service()
-            .write(&file_path, Bytes::from(original_content), true)
+            .write(&file_path, Bytes::from(original_content))
             .await
             .unwrap();
 
@@ -499,7 +495,7 @@ mod test {
         // First, create the file
         infra
             .file_write_service()
-            .write(&file_path, Bytes::from(original_content), true)
+            .write(&file_path, Bytes::from(original_content))
             .await
             .unwrap();
 

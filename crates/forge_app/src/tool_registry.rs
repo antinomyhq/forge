@@ -3,11 +3,11 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::{
-    Agent, AttemptCompletion, FSSearch, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
-    ToolOutput, ToolResult, Tools,
+    Agent, AttemptCompletion, FSSearch, FSUndo, ToolCallContext, ToolCallFull, ToolDefinition,
+    ToolName, ToolOutput, ToolResult, Tools,
 };
 use regex::Regex;
 use strum::IntoEnumIterator;
@@ -17,8 +17,8 @@ use crate::utils::display_path;
 use crate::{
     Content, EnvironmentService, Error, FetchOutput, FollowUpService, FsCreateOutput,
     FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
-    FsUndoService, McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services,
-    ShellOutput, ShellService,
+    FsSnapshotService, FsUndoOutput, McpService, NetFetchService, PatchOutput, ReadOutput,
+    SearchResult, Services, ShellOutput, ShellService,
 };
 
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -61,10 +61,16 @@ impl<S: Services> ToolRegistry<S> {
                 Ok(crate::ExecutionResult::FsRead(output))
             }
             Tools::ForgeToolFsCreate(input) => {
+                let _ = self
+                    .services
+                    .file_snapshot_service()
+                    .create_snapshot(Path::new(&input.path))
+                    .await?;
+
                 let out = self
                     .services
                     .fs_create_service()
-                    .create(input.path.clone(), input.content, input.overwrite, true)
+                    .create(input.path.clone(), input.content, input.overwrite)
                     .await?;
                 send_write_context(context, &out, &input.path, self.services.as_ref()).await?;
 
@@ -86,6 +92,12 @@ impl<S: Services> ToolRegistry<S> {
                 Ok(crate::ExecutionResult::from(output))
             }
             Tools::ForgeToolFsRemove(input) => {
+                let _ = self
+                    .services
+                    .file_snapshot_service()
+                    .create_snapshot(Path::new(&input.path))
+                    .await?;
+
                 let output = self
                     .services
                     .fs_remove_service()
@@ -97,6 +109,12 @@ impl<S: Services> ToolRegistry<S> {
                 Ok(crate::ExecutionResult::from(output))
             }
             Tools::ForgeToolFsPatch(input) => {
+                let _ = self
+                    .services
+                    .file_snapshot_service()
+                    .create_snapshot(Path::new(&input.path))
+                    .await?;
+
                 let output = self
                     .services
                     .fs_patch_service()
@@ -112,16 +130,9 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::ExecutionResult::from(output))
             }
-            Tools::ForgeToolFsUndo(input) => {
-                let output = self
-                    .services
-                    .fs_undo_service()
-                    .undo(input.path.clone())
-                    .await?;
-                send_fs_undo_context(context, input).await?;
-
-                Ok(crate::ExecutionResult::from(output))
-            }
+            Tools::ForgeToolFsUndo(input) => Ok(crate::ExecutionResult::from(
+                handle_fs_undo(context, self.services.as_ref(), input).await?,
+            )),
             Tools::ForgeToolProcessShell(input) => {
                 let output = self
                     .services
@@ -257,6 +268,40 @@ impl<S: Services> ToolRegistry<S> {
             .collect::<Vec<_>>();
 
         Ok(tools)
+    }
+}
+
+async fn handle_fs_undo<S: Services>(
+    context: &mut ToolCallContext,
+    services: &S,
+    input: FSUndo,
+) -> anyhow::Result<FsUndoOutput> {
+    let path = Path::new(&input.path);
+    assert_absolute_path(path)?;
+    let path_string = path.display().to_string();
+    let before_undo = services
+        .fs_read_service()
+        .read(path_string.clone(), None, None)
+        .await?;
+    services.file_snapshot_service().undo_snapshot(path).await?;
+    let after_undo = services
+        .fs_read_service()
+        .read(path_string, None, None)
+        .await?;
+
+    send_fs_undo_context(context, input).await?;
+    let Content::File(after_undo) = after_undo.content;
+
+    let Content::File(before_undo) = before_undo.content;
+
+    Ok(FsUndoOutput { before_undo, after_undo })
+}
+
+fn assert_absolute_path(path: &Path) -> anyhow::Result<()> {
+    if !path.is_absolute() {
+        bail!("Path must be absolute. Please provide an absolute path starting with '/' (Unix) or 'C:\\' (Windows)".to_string())
+    } else {
+        Ok(())
     }
 }
 

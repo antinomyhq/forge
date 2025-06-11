@@ -1,10 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
 use bytes::Bytes;
 use forge_app::EnvironmentService;
 use forge_domain::{CommandOutput, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
-use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
 /// This uses the EnvironmentService trait from forge_domain
@@ -47,12 +45,7 @@ pub trait FsReadService: Send + Sync {
 #[async_trait::async_trait]
 pub trait FsWriteService: Send + Sync {
     /// Writes the content of a file at the specified path.
-    async fn write(
-        &self,
-        path: &Path,
-        contents: Bytes,
-        capture_snapshot: bool,
-    ) -> anyhow::Result<()>;
+    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()>;
 
     /// Writes content to a temporary file with the given prefix and extension,
     /// and returns its path. The file will be kept (not deleted) after
@@ -80,16 +73,6 @@ pub trait FsMetaService: Send + Sync {
 #[async_trait::async_trait]
 pub trait FsCreateDirsService {
     async fn create_dirs(&self, path: &Path) -> anyhow::Result<()>;
-}
-
-/// Service for managing file snapshots
-#[async_trait::async_trait]
-pub trait FsSnapshotService: Send + Sync {
-    // Creation
-    async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot>;
-
-    /// Restores the most recent snapshot for the given file path
-    async fn undo_snapshot(&self, file_path: &Path) -> Result<()>;
 }
 
 /// Service for executing shell commands
@@ -150,7 +133,6 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     type FsMetaService: FsMetaService;
     type FsReadService: FsReadService;
     type FsRemoveService: FileRemoveService;
-    type FsSnapshotService: FsSnapshotService;
     type FsWriteService: FsWriteService;
     type FsCreateDirsService: FsCreateDirsService;
     type CommandExecutorService: CommandExecutorService;
@@ -161,7 +143,6 @@ pub trait Infrastructure: Send + Sync + Clone + 'static {
     fn file_meta_service(&self) -> &Self::FsMetaService;
     fn file_read_service(&self) -> &Self::FsReadService;
     fn file_remove_service(&self) -> &Self::FsRemoveService;
-    fn file_snapshot_service(&self) -> &Self::FsSnapshotService;
     fn file_write_service(&self) -> &Self::FsWriteService;
     fn create_dirs_service(&self) -> &Self::FsCreateDirsService;
     fn command_executor_service(&self) -> &Self::CommandExecutorService;

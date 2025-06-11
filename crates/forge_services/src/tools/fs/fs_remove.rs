@@ -126,7 +126,6 @@ mod test {
             .write(
                 file_path.as_path(),
                 Bytes::from("test content".as_bytes().to_vec()),
-                true,
             )
             .await
             .unwrap();

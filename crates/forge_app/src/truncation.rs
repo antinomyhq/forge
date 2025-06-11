@@ -30,7 +30,6 @@ pub async fn create_temp_file<S: Services>(
             path.to_string_lossy().to_string(),
             content.to_string(),
             true,
-            false,
         )
         .await?;
     Ok(path)

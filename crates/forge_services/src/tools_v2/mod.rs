@@ -5,7 +5,7 @@ mod fs_patch;
 mod fs_read;
 mod fs_remove;
 mod fs_search;
-mod fs_undo;
+mod fs_snap;
 mod shell;
 mod syn;
 
@@ -16,5 +16,5 @@ pub use fs_patch::*;
 pub use fs_read::*;
 pub use fs_remove::*;
 pub use fs_search::*;
-pub use fs_undo::*;
+pub use fs_snap::*;
 pub use shell::*;

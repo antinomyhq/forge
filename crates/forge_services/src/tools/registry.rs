@@ -48,13 +48,12 @@ pub mod tests {
     use forge_domain::{
         CommandOutput, Environment, Provider, ToolDefinition, ToolName, ToolOutput,
     };
-    use forge_snaps::Snapshot;
     use serde_json::Value;
 
     use super::*;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
+        FsReadService, FsWriteService, InquireService, McpClient, McpServer,
     };
 
     /// Create a default test environment
@@ -117,28 +116,12 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsWriteService for Stub {
-        async fn write(
-            &self,
-            _path: &Path,
-            _contents: Bytes,
-            _capture_snapshot: bool,
-        ) -> anyhow::Result<()> {
+        async fn write(&self, _path: &Path, _contents: Bytes) -> anyhow::Result<()> {
             unimplemented!()
         }
 
         async fn write_temp(&self, _: &str, _: &str, _: &str) -> anyhow::Result<PathBuf> {
             unimplemented!()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl FsSnapshotService for Stub {
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
-            unimplemented!()
-        }
-
-        async fn undo_snapshot(&self, _: &Path) -> anyhow::Result<()> {
-            Ok(())
         }
     }
 
@@ -239,7 +222,6 @@ pub mod tests {
         type FsWriteService = Stub;
         type FsRemoveService = Stub;
         type FsMetaService = Stub;
-        type FsSnapshotService = Stub;
         type FsCreateDirsService = Stub;
         type CommandExecutorService = Stub;
         type InquireService = Stub;
@@ -259,10 +241,6 @@ pub mod tests {
         }
 
         fn file_meta_service(&self) -> &Self::FsMetaService {
-            self
-        }
-
-        fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
             self
         }
 

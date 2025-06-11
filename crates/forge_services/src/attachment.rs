@@ -87,15 +87,13 @@ pub mod tests {
         AttachmentContent, CommandOutput, Environment, Provider, ToolDefinition, ToolName,
         ToolOutput,
     };
-    use forge_snaps::Snapshot;
     use serde_json::Value;
 
     use crate::attachment::ForgeChatRequest;
     use crate::utils::AttachmentExtension;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
-        McpClient, McpServer,
+        FsReadService, FsWriteService, Infrastructure, InquireService, McpClient, McpServer,
     };
 
     #[derive(Debug)]
@@ -195,7 +193,6 @@ pub mod tests {
     pub struct MockInfrastructure {
         env_service: Arc<MockEnvironmentService>,
         file_service: Arc<MockFileService>,
-        file_snapshot_service: Arc<MockSnapService>,
     }
 
     impl MockInfrastructure {
@@ -203,7 +200,6 @@ pub mod tests {
             Self {
                 env_service: Arc::new(MockEnvironmentService {}),
                 file_service: Arc::new(MockFileService::new()),
-                file_snapshot_service: Arc::new(MockSnapService),
             }
         }
     }
@@ -237,12 +233,7 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsWriteService for MockFileService {
-        async fn write(
-            &self,
-            path: &Path,
-            contents: Bytes,
-            _capture_snapshot: bool,
-        ) -> anyhow::Result<()> {
+        async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
             let index = self.files.lock().unwrap().iter().position(|v| v.0 == path);
             if let Some(index) = index {
                 self.files.lock().unwrap().remove(index);
@@ -258,23 +249,9 @@ pub mod tests {
             let temp_dir = crate::utils::TempDir::new().unwrap();
             let path = temp_dir.path();
 
-            self.write(&path, content.to_string().into(), false).await?;
+            self.write(&path, content.to_string().into()).await?;
 
             Ok(path)
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct MockSnapService;
-
-    #[async_trait::async_trait]
-    impl FsSnapshotService for MockSnapService {
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
-            unimplemented!()
-        }
-
-        async fn undo_snapshot(&self, _: &Path) -> anyhow::Result<()> {
-            unimplemented!()
         }
     }
 
@@ -481,7 +458,6 @@ pub mod tests {
         type FsRemoveService = MockFileService;
         type FsMetaService = MockFileService;
         type FsCreateDirsService = MockFileService;
-        type FsSnapshotService = MockSnapService;
         type CommandExecutorService = ();
         type InquireService = ();
         type McpServer = ();
@@ -500,10 +476,6 @@ pub mod tests {
 
         fn file_meta_service(&self) -> &Self::FsMetaService {
             &self.file_service
-        }
-
-        fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
-            &self.file_snapshot_service
         }
 
         fn file_remove_service(&self) -> &Self::FsRemoveService {

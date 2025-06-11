@@ -1,31 +1,20 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_services::{FsSnapshotService, FsWriteService};
+use forge_services::FsWriteService;
 
-pub struct ForgeFileWriteService<S> {
-    snaps: Arc<S>,
-}
+#[derive(Default)]
+pub struct ForgeFileWriteService {}
 
-impl<S> ForgeFileWriteService<S> {
-    pub fn new(snaps: Arc<S>) -> Self {
-        Self { snaps }
+impl ForgeFileWriteService {
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
 #[async_trait::async_trait]
-impl<S: FsSnapshotService> FsWriteService for ForgeFileWriteService<S> {
-    async fn write(
-        &self,
-        path: &Path,
-        contents: Bytes,
-        capture_snapshot: bool,
-    ) -> anyhow::Result<()> {
-        if forge_fs::ForgeFS::exists(path) && capture_snapshot {
-            let _ = self.snaps.create_snapshot(path).await?;
-        }
-
+impl FsWriteService for ForgeFileWriteService {
+    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
         Ok(forge_fs::ForgeFS::write(path, contents.to_vec()).await?)
     }
 
@@ -38,7 +27,7 @@ impl<S: FsSnapshotService> FsWriteService for ForgeFileWriteService<S> {
             .into_temp_path()
             .to_path_buf();
 
-        self.write(&path, content.to_string().into(), false).await?;
+        self.write(&path, content.to_string().into()).await?;
 
         Ok(path)
     }

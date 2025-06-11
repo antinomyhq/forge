@@ -981,6 +981,7 @@ dependencies = [
  "derive_setters",
  "forge_display",
  "forge_domain",
+ "forge_snaps",
  "forge_stream",
  "forge_template",
  "forge_walker",

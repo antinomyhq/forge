@@ -6,6 +6,7 @@ use forge_domain::{
     Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope, Tool,
     ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput, ToolResult, Workflow,
 };
+use forge_snaps::Snapshot;
 
 #[derive(Debug)]
 pub struct ShellOutput {
@@ -178,7 +179,6 @@ pub trait FsCreateService: Send + Sync {
         path: String,
         content: String,
         overwrite: bool,
-        capture_snapshot: bool,
     ) -> anyhow::Result<FsCreateOutput>;
 }
 
@@ -234,15 +234,6 @@ pub trait FollowUpService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait FsUndoService: Send + Sync {
-    /// Undoes the last file operation at the specified path.
-    /// And returns the content of the undone file.
-    // TODO: We should move Snapshot service to Services from infra
-    // and drop FsUndoService.
-    async fn undo(&self, path: String) -> anyhow::Result<FsUndoOutput>;
-}
-
-#[async_trait::async_trait]
 pub trait NetFetchService: Send + Sync {
     /// Fetches content from a URL and returns it as a string.
     async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<FetchOutput>;
@@ -257,6 +248,16 @@ pub trait ShellService: Send + Sync {
         cwd: PathBuf,
         keep_ansi: bool,
     ) -> anyhow::Result<ShellOutput>;
+}
+
+/// Service for managing file snapshots
+#[async_trait::async_trait]
+pub trait FsSnapshotService: Send + Sync {
+    // Creation
+    async fn create_snapshot(&self, file_path: &Path) -> anyhow::Result<Snapshot>;
+
+    /// Restores the most recent snapshot for the given file path
+    async fn undo_snapshot(&self, file_path: &Path) -> anyhow::Result<()>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -278,10 +279,10 @@ pub trait Services: Send + Sync + 'static + Clone {
     type FsRemoveService: FsRemoveService;
     type FsSearchService: FsSearchService;
     type FollowUpService: FollowUpService;
-    type FsUndoService: FsUndoService;
     type NetFetchService: NetFetchService;
     type ShellService: ShellService;
     type McpService: McpService;
+    type FsSnapshotService: FsSnapshotService;
 
     fn tool_service(&self) -> &Self::ToolService;
     fn provider_service(&self) -> &Self::ProviderService;
@@ -298,8 +299,8 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn fs_remove_service(&self) -> &Self::FsRemoveService;
     fn fs_search_service(&self) -> &Self::FsSearchService;
     fn follow_up_service(&self) -> &Self::FollowUpService;
-    fn fs_undo_service(&self) -> &Self::FsUndoService;
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
+    fn file_snapshot_service(&self) -> &Self::FsSnapshotService;
 }
