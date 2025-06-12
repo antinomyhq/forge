@@ -103,8 +103,8 @@ impl ExecutionResult {
                 }
                 None => {
                     let mut elm = Element::new("search_results").attr("path", &input.path);
-                    elm = elm.attr("regex", input.regex);
-                    elm = elm.attr("file_pattern", input.file_pattern);
+                    elm = elm.attr_if_some("regex", input.regex);
+                    elm = elm.attr_if_some("file_pattern", input.file_pattern);
 
                     forge_domain::ToolOutput::text(elm)
                 }
