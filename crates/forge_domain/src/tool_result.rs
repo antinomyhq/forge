@@ -1,7 +1,8 @@
-use crate::{Image, ToolCallFull, ToolCallId, ToolName};
 use derive_setters::Setters;
 use forge_template::Element;
 use serde::{Deserialize, Serialize};
+
+use crate::{Image, ToolCallFull, ToolCallId, ToolName};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
 #[setters(into)]
