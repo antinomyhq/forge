@@ -94,9 +94,7 @@ impl ExecutionResult {
                         .attr("start_line", truncated_output.start_line)
                         .attr("end_line", truncated_output.end_line);
 
-                    if let Some(regex) = &input.regex {
-                        elm = elm.attr("regex", regex);
-                    }
+                    elm = elm.attr_if_some("regex", input.regex);
                     elm = elm.attr_if_some("file_pattern", input.file_pattern);
 
                     elm = elm.cdata(truncated_output.output.trim());
@@ -105,14 +103,8 @@ impl ExecutionResult {
                 }
                 None => {
                     let mut elm = Element::new("search_results").attr("path", &input.path);
-
-                    if let Some(regex) = &input.regex {
-                        elm = elm.attr("regex", regex);
-                    }
-
-                    if let Some(file_pattern) = &input.file_pattern {
-                        elm = elm.attr("file_pattern", file_pattern);
-                    }
+                    elm = elm.attr("regex", input.regex);
+                    elm = elm.attr("file_pattern", input.file_pattern);
 
                     forge_domain::ToolOutput::text(elm)
                 }
