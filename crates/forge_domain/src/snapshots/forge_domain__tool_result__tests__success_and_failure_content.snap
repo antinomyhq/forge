@@ -1,0 +1,5 @@
+---
+source: crates/forge_domain/src/tool_result.rs
+expression: failure.output.as_str().unwrap()
+---
+<error><![CDATA[error message]]></error>
