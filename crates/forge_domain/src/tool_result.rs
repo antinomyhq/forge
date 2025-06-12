@@ -42,7 +42,18 @@ impl ToolResult {
                 self.output = output;
             }
             Err(err) => {
-                self.output = ToolOutput::text(Element::new("error").cdata(format!("{err:?}")))
+                let mut message = vec![err.to_string()];
+                let mut source = err.source();
+                if source.is_some() {
+                    message.push("\nCaused by:".to_string());
+                }
+                let mut i = 0;
+                while let Some(err) = source {
+                    message.push(format!("    {}: {}", i, err));
+                    source = err.source();
+                    i += 1;
+                }
+                self.output = ToolOutput::text(Element::new("error").cdata(message.join("\n")))
                     .is_error(true);
             }
         }
