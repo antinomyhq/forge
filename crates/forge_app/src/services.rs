@@ -92,10 +92,8 @@ pub struct FsCreateOutput {
 }
 
 #[derive(Debug)]
-pub enum FsRemoveOutput {
-    Success,
-    FileNotFound,
-    NotAFile,
+pub struct FsRemoveOutput {
+    pub completed: bool,
 }
 
 #[derive(Debug, derive_more::From)]

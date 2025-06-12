@@ -70,13 +70,16 @@ impl ExecutionResult {
             }
             (Tools::ForgeToolFsRemove(input), ExecutionResult::FsRemove(output)) => {
                 let display_path = display_path(env, Path::new(&input.path));
-                let mut elem = Element::new("file_removed").attr("path", display_path);
-
-                elem = match output {
-                    FsRemoveOutput::Success => elem.attr("status", "success"),
-                    FsRemoveOutput::FileNotFound => elem.attr("status", "File not found"),
-                    FsRemoveOutput::NotAFile => elem.attr("status", "The path is not a file"),
-                };
+                let elem = Element::new("file_removed")
+                    .attr("path", display_path)
+                    .attr(
+                        "status",
+                        if output.completed {
+                            "File removed successfully"
+                        } else {
+                            "File not found"
+                        },
+                    );
 
                 forge_domain::ToolOutput::text(elem)
             }
@@ -550,7 +553,7 @@ mod tests {
 
     #[test]
     fn test_fs_remove_success() {
-        let fixture = ExecutionResult::FsRemove(FsRemoveOutput::Success);
+        let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: true });
 
         let input = Tools::ForgeToolFsRemove(forge_domain::FSRemove {
             path: "/home/user/file_to_delete.txt".to_string(),
@@ -566,7 +569,7 @@ mod tests {
 
     #[test]
     fn test_fs_remove_not_found() {
-        let fixture = ExecutionResult::FsRemove(FsRemoveOutput::FileNotFound);
+        let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: false });
 
         let input = Tools::ForgeToolFsRemove(forge_domain::FSRemove {
             path: "/home/user/nonexistent_file.txt".to_string(),
