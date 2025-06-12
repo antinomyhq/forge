@@ -42,7 +42,8 @@ impl ToolResult {
                 self.output = output;
             }
             Err(err) => {
-                self.output = ToolOutput::text(Element::new("error").cdata(err)).is_error(true);
+                self.output = ToolOutput::text(Element::new("error").cdata(format!("{err:?}")))
+                    .is_error(true);
             }
         }
         self
@@ -140,8 +141,11 @@ mod tests {
         assert!(!success.is_error());
         assert_eq!(success.output.as_str().unwrap(), "success message");
 
-        let failure =
-            ToolResult::new(ToolName::new("test_tool")).failure(anyhow::anyhow!("error message"));
+        let failure = ToolResult::new(ToolName::new("test_tool")).failure(
+            anyhow::anyhow!("error 1")
+                .context("error 2")
+                .context("error 3"),
+        );
         assert!(failure.is_error());
         insta::assert_snapshot!(failure.output.as_str().unwrap());
     }
