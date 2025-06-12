@@ -14,13 +14,14 @@ use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
 use crate::error::Error;
+use crate::execution_result::ExecutionResult;
 use crate::utils::{display_path, format_match};
 use crate::{
     Content, EnvironmentService, FollowUpService, FsCreateOutput, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsSnapshotService, FsUndoOutput, HttpResponse,McpService, NetFetchService, PatchOutput, ReadOutput,
-    SearchResult, Services, ShellOutput, ShellService,
+    FsReadService, FsRemoveService, FsSearchService, FsSnapshotService, FsUndoOutput, HttpResponse,
+    McpService, NetFetchService, PatchOutput, ReadOutput, SearchResult, Services, ShellOutput,
+    ShellService,
 };
-use crate::execution_result::ExecutionResult;
 
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
 
