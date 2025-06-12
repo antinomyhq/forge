@@ -20,7 +20,6 @@ use crate::{
     FsReadService, FsRemoveService, FsSearchService, FsSnapshotService, FsUndoOutput, HttpResponse,McpService, NetFetchService, PatchOutput, ReadOutput,
     SearchResult, Services, ShellOutput, ShellService,
 };
-use ExecutionResult;
 use crate::execution_result::ExecutionResult;
 
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
