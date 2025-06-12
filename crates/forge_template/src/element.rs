@@ -46,6 +46,12 @@ impl Element {
         self.attr.push((key.to_string(), value.to_string()));
         self
     }
+    pub fn attr_if_some(mut self, key: impl ToString, value: Option<impl ToString>) -> Self {
+        if let Some(val) = value {
+            self.attr.push((key.to_string(), val.to_string()));
+        }
+        self
+    }
     pub fn class(mut self, class_name: impl ToString) -> Self {
         // Check if class attribute already exists
         if let Some(pos) = self.attr.iter().position(|(key, _)| key == "class") {

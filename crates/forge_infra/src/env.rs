@@ -130,6 +130,7 @@ impl ForgeEnvironmentService {
             home: dirs::home_dir(),
             provider,
             retry_config,
+            fetch_truncation_limit: 40_000,
         }
     }
 

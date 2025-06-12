@@ -1,5 +1,0 @@
----
-source: crates/forge_app/src/execution_result.rs
-expression: to_value(actual)
----
-<file_removed path="/home/user/nonexistent_file.txt" status="not_found"></file_removed>

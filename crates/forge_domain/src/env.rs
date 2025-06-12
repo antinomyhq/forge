@@ -31,6 +31,9 @@ pub struct Environment {
     pub provider: Provider,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
+
+    /// Maximum characters for fetch content
+    pub fetch_truncation_limit: usize,
 }
 
 impl Environment {
