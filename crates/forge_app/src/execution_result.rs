@@ -72,7 +72,7 @@ impl ExecutionResult {
                 let display_path = display_path(env, Path::new(&input.path));
                 let elem = Element::new("file_removed")
                     .attr("path", display_path)
-                    .attr("status", "File removed successfully");
+                    .attr("status", "completed");
 
                 forge_domain::ToolOutput::text(elem)
             }
