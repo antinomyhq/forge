@@ -1,7 +1,7 @@
-use derive_setters::Setters;
-use serde::{Deserialize, Serialize};
-
 use crate::{Image, ToolCallFull, ToolCallId, ToolName};
+use derive_setters::Setters;
+use forge_template::Element;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
 #[setters(into)]
@@ -41,7 +41,7 @@ impl ToolResult {
                 self.output = output;
             }
             Err(err) => {
-                self.output = ToolOutput::text(format!("{err:?}")).is_error(true);
+                self.output = ToolOutput::text(Element::new("error").cdata(err)).is_error(true);
             }
         }
         self
