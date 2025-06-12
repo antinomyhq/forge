@@ -49,7 +49,7 @@ impl ToolResult {
                 }
                 let mut i = 0;
                 while let Some(err) = source {
-                    message.push(format!("    {}: {}", i, err));
+                    message.push(format!("    {i}: {err}"));
                     source = err.source();
                     i += 1;
                 }
