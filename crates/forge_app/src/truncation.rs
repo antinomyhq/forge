@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use forge_domain::Environment;
 
+use crate::utils::format_match;
 use crate::{FsCreateService, Match, Services};
 
 /// Number of lines to keep at the start of truncated output
@@ -207,7 +208,7 @@ pub fn truncate_search_output(
 ) -> TruncatedSearchOutput {
     let output = output
         .iter()
-        .map(|v| v.to_string(env))
+        .map(|v| format_match(v, env))
         .collect::<Vec<_>>()
         .join("\n");
 

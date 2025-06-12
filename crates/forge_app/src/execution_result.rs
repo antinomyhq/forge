@@ -8,7 +8,7 @@ use forge_template::Element;
 use crate::truncation::{
     create_temp_file, truncate_fetch_content, truncate_search_output, truncate_shell_output,
 };
-use crate::utils::display_path;
+use crate::utils::{display_path, format_match};
 use crate::{
     Content, EnvironmentService, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse,
     PatchOutput, ReadOutput, ResponseContext, SearchResult, Services, ShellOutput,
@@ -68,18 +68,11 @@ impl ExecutionResult {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            (Tools::ForgeToolFsRemove(input), ExecutionResult::FsRemove(output)) => {
+            (Tools::ForgeToolFsRemove(input), ExecutionResult::FsRemove(_)) => {
                 let display_path = display_path(env, Path::new(&input.path));
                 let elem = Element::new("file_removed")
                     .attr("path", display_path)
-                    .attr(
-                        "status",
-                        if output.completed {
-                            "File removed successfully"
-                        } else {
-                            "File not found"
-                        },
-                    );
+                    .attr("status", "File removed successfully");
 
                 forge_domain::ToolOutput::text(elem)
             }
@@ -268,7 +261,7 @@ impl ExecutionResult {
                     let output = search_result
                         .matches
                         .iter()
-                        .map(|v| v.to_string(&env))
+                        .map(|v| format_match(v, &env))
                         .collect::<Vec<_>>()
                         .join("\n");
                     let is_truncated =
@@ -553,27 +546,11 @@ mod tests {
 
     #[test]
     fn test_fs_remove_success() {
-        let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: true });
+        let fixture = ExecutionResult::FsRemove(FsRemoveOutput {});
 
         let input = Tools::ForgeToolFsRemove(forge_domain::FSRemove {
             path: "/home/user/file_to_delete.txt".to_string(),
             explanation: Some("Removing unnecessary file".to_string()),
-        });
-
-        let env = fixture_environment();
-
-        let actual = fixture.into_tool_output(input, None, &env);
-
-        insta::assert_snapshot!(to_value(actual));
-    }
-
-    #[test]
-    fn test_fs_remove_not_found() {
-        let fixture = ExecutionResult::FsRemove(FsRemoveOutput { completed: false });
-
-        let input = Tools::ForgeToolFsRemove(forge_domain::FSRemove {
-            path: "/home/user/nonexistent_file.txt".to_string(),
-            explanation: Some("Trying to remove file that doesn't exist".to_string()),
         });
 
         let env = fixture_environment();

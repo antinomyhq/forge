@@ -2,6 +2,8 @@ use std::path::Path;
 
 use forge_domain::Environment;
 
+use crate::{Match, MatchResult};
+
 pub fn display_path(env: &Environment, path: &Path) -> String {
     // Get the current working directory
     let cwd = env.cwd.as_path();
@@ -37,5 +39,20 @@ fn format_display_path(path: &Path, cwd: &Path) -> String {
         ".".to_string()
     } else {
         display_path
+    }
+}
+
+pub fn format_match(match_: &Match, env: &Environment) -> String {
+    match &match_.result {
+        Some(MatchResult::Error(err)) => format!("Error reading {}: {}", match_.path, err),
+        Some(MatchResult::Found { line_number, line }) => {
+            format!(
+                "{}:{}:{}",
+                display_path(env, Path::new(&match_.path)),
+                line_number,
+                line
+            )
+        }
+        None => display_path(env, Path::new(&match_.path)),
     }
 }
