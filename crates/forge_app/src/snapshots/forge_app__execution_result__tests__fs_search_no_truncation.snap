@@ -1,7 +1,0 @@
----
-source: crates/forge_app/src/execution_result.rs
-expression: to_value(actual)
----
-<search_results path="/home/user/small_project" total_lines="3" start_line="0" end_line="3" regex="pattern" file_pattern="*.rs"><![CDATA[Match 1: Found pattern here
-Match 2: Another occurrence
-Match 3: Final result]]></search_results>
