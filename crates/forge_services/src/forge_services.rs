@@ -38,7 +38,7 @@ pub struct ForgeServices<F: Infrastructure> {
     mcp_manager: Arc<ForgeMcpManager<F>>,
     file_create_service: Arc<ForgeFsCreate<F>>,
     file_read_service: Arc<ForgeFsRead<F>>,
-    file_search_service: Arc<ForgeFsSearch<F>>,
+    file_search_service: Arc<ForgeFsSearch>,
     file_remove_service: Arc<ForgeFsRemove<F>>,
     file_patch_service: Arc<ForgeFsPatch<F>>,
     file_undo_service: Arc<ForgeFsUndo<F>>,
@@ -63,7 +63,7 @@ impl<F: Infrastructure> ForgeServices<F> {
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
-        let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
+        let file_search_service = Arc::new(ForgeFsSearch::new());
         let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
         let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
         let file_undo_service = Arc::new(ForgeFsUndo::new(infra.clone()));
@@ -108,7 +108,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     type FsPatchService = ForgeFsPatch<F>;
     type FsReadService = ForgeFsRead<F>;
     type FsRemoveService = ForgeFsRemove<F>;
-    type FsSearchService = ForgeFsSearch<F>;
+    type FsSearchService = ForgeFsSearch;
     type FollowUpService = ForgeFollowup<F>;
     type FsUndoService = ForgeFsUndo<F>;
     type NetFetchService = ForgeFetch;

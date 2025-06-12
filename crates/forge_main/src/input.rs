@@ -33,10 +33,8 @@ impl Console {
         Ok(Command::Message(content))
     }
 
-    pub async fn prompt(&self, prompt: Option<ForgePrompt>) -> anyhow::Result<Command> {
+    pub async fn prompt(&self, prompt: ForgePrompt) -> anyhow::Result<Command> {
         let mut engine = ForgeEditor::new(self.env.clone(), self.command.clone());
-        let prompt: ForgePrompt = prompt.unwrap_or_default();
-
         loop {
             let result = engine.prompt(&prompt)?;
             match result {

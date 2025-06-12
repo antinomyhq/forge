@@ -1,5 +1,5 @@
 variables:
-  mode: ACT
+  operating_agent: Forge
 
 top_p: 0.8
 top_k: 30
@@ -14,7 +14,14 @@ models:
   - &advanced_model anthropic/claude-sonnet-4
 
 agents:
-  - id: software-engineer
+  - id: forge
+    title: "Implementation focussed"
+    description: |-
+      Implementation-focused agent designed to execute tasks by making actual changes to your codebase,
+      running shell commands, creating/modifying files, and performing hands-on software development work.
+      Use this agent when you need to build features, fix bugs, refactor code, install dependencies, or
+      make any concrete changes to your project. It follows a structured approach with task analysis,
+      solution strategy, implementation, and quality assurance.
     compact:
       max_tokens: 2000
       token_threshold: 160000
@@ -26,7 +33,7 @@ agents:
     system_prompt: |-
       {{> system-prompt-engineer-act.hbs }}
     user_prompt: |-
-      {{#if (eq event.name 'act/user_task_update')}}
+      {{#if (eq event.name 'forge/user_task_update')}}
       <feedback>{{event.value}}</feedback>
       {{else}}
       <task>{{event.value}}</task>
@@ -42,11 +49,19 @@ agents:
       - forge_tool_fs_undo
       - forge_tool_attempt_completion
     subscribe:
-      - act/user_task_init
-      - act/user_task_update
+      - forge/user_task_init
+      - forge/user_task_update
     max_walker_depth: 1
 
-  - id: software-designer
+  - id: muse
+    title: "Analysis and planning focussed"
+    description: |-
+      Analysis and planning-focused agent designed to examine your codebase, create detailed
+      implementation plans, and provide strategic recommendations without making any actual changes.
+      Use this agent when you need project analysis, architectural guidance, documentation creation,
+      risk assessment, or comprehensive planning before implementation. It creates detailed Markdown
+      plans in the plans/ directory with objectives, implementation steps, verification criteria,
+      and alternative approaches for future execution.
     compact:
       max_tokens: 2000
       token_threshold: 120000
@@ -58,7 +73,7 @@ agents:
     system_prompt: |-
       {{> system-prompt-engineer-plan.hbs }}
     user_prompt: |-
-      {{#if (eq event.name 'plan/user_task_update')}}
+      {{#if (eq event.name 'muse/user_task_update')}}
       <feedback>{{event.value}}</feedback>
       {{else}}
       <task>{{event.value}}</task>
@@ -73,6 +88,6 @@ agents:
       - forge_tool_fs_patch
       - forge_tool_attempt_completion
     subscribe:
-      - plan/user_task_init
-      - plan/user_task_update
+      - muse/user_task_init
+      - muse/user_task_update
     max_walker_depth: 1

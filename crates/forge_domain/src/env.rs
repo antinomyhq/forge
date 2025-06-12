@@ -33,6 +33,9 @@ pub struct Environment {
     pub retry_config: RetryConfig,
     /// The maximum number of lines retuned for FSSearch.
     pub max_search_lines: u64,
+
+    /// Maximum characters for fetch content
+    pub fetch_truncation_limit: usize,
 }
 
 impl Environment {

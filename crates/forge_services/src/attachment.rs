@@ -114,6 +114,7 @@ pub mod tests {
                 provider: Provider::open_router("test-key"),
                 retry_config: Default::default(),
                 max_search_lines: 25,
+                fetch_truncation_limit: 0,
             }
         }
     }

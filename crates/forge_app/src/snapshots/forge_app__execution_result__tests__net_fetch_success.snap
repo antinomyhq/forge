@@ -2,10 +2,6 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
----
-URL: https://example.com
-total_chars: 55
-start_char: 0
-end_char: 55
-context: https://example.com
----
+<http_response url="https://example.com" status_code="200" start_char="0" end_char="55" total_chars="55" content_type="text/plain"><body><![CDATA[# Example Website
+
+This is some content from a website.]]></body></http_response>

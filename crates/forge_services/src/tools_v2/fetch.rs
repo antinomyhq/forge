@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context};
-use forge_app::{FetchOutput, NetFetchService};
+use forge_app::{HttpResponse, NetFetchService, ResponseContext};
 use reqwest::{Client, Url};
 
 /// Retrieves content from URLs as markdown or raw text. Enables access to
@@ -62,7 +62,7 @@ impl ForgeFetch {
         Ok(())
     }
 
-    async fn fetch_url(&self, url: &Url, force_raw: bool) -> anyhow::Result<(String, String, u16)> {
+    async fn fetch_url(&self, url: &Url, force_raw: bool) -> anyhow::Result<HttpResponse> {
         self.check_robots_txt(url).await?;
 
         let response = self
@@ -99,25 +99,23 @@ impl ForgeFetch {
 
         if is_page_html && !force_raw {
             let content = html2md::parse_html(&page_raw);
-            Ok((content, String::new(), code))
+            Ok(HttpResponse { content, context: ResponseContext::Raw, code, content_type })
         } else {
-            Ok((
-                page_raw,
-                format!(
-                    "Content type {content_type} cannot be simplified to markdown; Raw content provided instead"),
-                code
-            ))
+            Ok(HttpResponse {
+                content: page_raw,
+                context: ResponseContext::Parsed,
+                code,
+                content_type,
+            })
         }
     }
 }
 
 #[async_trait::async_trait]
 impl NetFetchService for ForgeFetch {
-    async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<FetchOutput> {
+    async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<HttpResponse> {
         let url = Url::parse(&url).with_context(|| format!("Failed to parse URL: {url}"))?;
 
-        let (content, context, code) = self.fetch_url(&url, raw.unwrap_or(false)).await?;
-
-        Ok(FetchOutput { content, code, context })
+        self.fetch_url(&url, raw.unwrap_or(false)).await
     }
 }
