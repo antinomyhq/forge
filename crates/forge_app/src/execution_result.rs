@@ -50,13 +50,14 @@ impl ExecutionResult {
                 }
             },
             (Tools::ForgeToolFsCreate(input), ExecutionResult::FsCreate(output)) => {
-                let mut elm = Element::new("file_creation_status");
-                if let Some(before) = output.previous {
+                let mut elm = if let Some(before) = output.previous {
                     let diff =
                         console::strip_ansi_codes(&DiffFormat::format(&before, &input.content))
                             .to_string();
-                    elm = elm.append(Element::new("file_diff").cdata(diff))
-                }
+                    Element::new("file_overwritten").append(Element::new("file_diff").cdata(diff))
+                } else {
+                    Element::new("file_created")
+                };
 
                 elm = elm
                     .attr("path", input.path)
@@ -66,7 +67,7 @@ impl ExecutionResult {
                     elm = elm.append(Element::new("warning").text(warning));
                 }
 
-                forge_domain::ToolOutput::text(elm.text("File created successfully"))
+                forge_domain::ToolOutput::text(elm)
             }
             (Tools::ForgeToolFsRemove(input), ExecutionResult::FsRemove(_)) => {
                 let display_path = display_path(env, Path::new(&input.path));
