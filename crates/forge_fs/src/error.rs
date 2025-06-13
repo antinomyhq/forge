@@ -11,7 +11,7 @@ pub enum Error {
     #[error("Start position {start} is beyond the file size of {total} characters")]
     StartBeyondFileSize { start: u64, total: u64 },
 
-    #[error("Start position {start} or end position {end} starts with zero, but they must be 1-based (inclusive)")]
+    #[error("Start position {start} and end position {end} must be 1-based (inclusive)")]
     IndexStartingWithZero { start: u64, end: u64 },
 
     #[error("Start position {start} is greater than end position {end}")]
