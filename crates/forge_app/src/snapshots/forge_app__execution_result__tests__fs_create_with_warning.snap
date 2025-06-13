@@ -2,9 +2,9 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-<file_content
+<file_creation_status
   path="/home/user/file_with_warning.txt"
   total_lines="1"
-><![CDATA[Content with warning]]>
+>File created successfully
 <warning>File created in non-standard location</warning>
-</file_content>
+</file_creation_status>

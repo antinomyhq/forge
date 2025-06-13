@@ -2,8 +2,8 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-<file_content
+<file_creation_status
   path="/home/user/new_file.txt"
   total_lines="1"
-><![CDATA[Hello, world!]]>
-</file_content>
+>File created successfully
+</file_creation_status>
