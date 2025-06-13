@@ -142,7 +142,7 @@ mod test {
         assert!(crate::ForgeFS::read_range_utf8(file.path(), 0, 5)
             .await
             .is_ok());
-        
+
         // Test invalid ranges
         assert!(crate::ForgeFS::read_range_utf8(file.path(), 8, 5)
             .await
