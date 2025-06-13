@@ -35,11 +35,8 @@ impl crate::ForgeFS {
             .await
             .with_context(|| format!("Failed to open file {}", path_ref.display()))?;
 
-        if let Ok(metadata) = file.metadata().await {
-            if start_line < 2 && metadata.len() == 0 {
-                // If the file is empty, return empty content
-                return Ok((String::new(), FileInfo::new(start_line, end_line, 0)));
-            }
+        if start_line == 0 || end_line == 0 {
+            return Err(Error::IndexStartingWithZero { start: start_line, end: end_line }.into());
         }
 
         let (is_text, file_type) = Self::is_binary(&mut file).await?;
@@ -51,7 +48,10 @@ impl crate::ForgeFS {
         let content = tokio::fs::read_to_string(path_ref)
             .await
             .with_context(|| format!("Failed to read file content from {}", path_ref.display()))?;
-
+        if start_line < 2 && content.is_empty() {
+            // If the file is empty, return empty content
+            return Ok((String::new(), FileInfo::new(start_line, end_line, 0)));
+        }
         // Split into lines
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len() as u64;
@@ -139,15 +139,15 @@ mod test {
         assert_eq!(info.start_line, 1);
         assert_eq!(info.end_line, 1);
         assert_eq!(info.total_lines, 10);
-        assert!(crate::ForgeFS::read_range_utf8(file.path(), 0, 5)
-            .await
-            .is_ok());
 
         // Test invalid ranges
         assert!(crate::ForgeFS::read_range_utf8(file.path(), 8, 5)
             .await
             .is_err());
         assert!(crate::ForgeFS::read_range_utf8(file.path(), 15, 10)
+            .await
+            .is_err());
+        assert!(crate::ForgeFS::read_range_utf8(file.path(), 0, 5)
             .await
             .is_err());
 
