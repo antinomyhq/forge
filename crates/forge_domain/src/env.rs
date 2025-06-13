@@ -36,6 +36,8 @@ pub struct Environment {
 
     /// Maximum characters for fetch content
     pub fetch_truncation_limit: usize,
+    /// Maximum number of lines to read from a file
+    pub max_read_size: u64,
 }
 
 impl Environment {

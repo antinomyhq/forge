@@ -2,12 +2,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{bail, Context};
-use forge_app::{Content, FsReadService, ReadOutput};
+use forge_app::{Content, EnvironmentService, FsReadService, ReadOutput};
 
 use crate::utils::assert_absolute_path;
 use crate::{FsReadService as _, Infrastructure};
-
-const MAX_RANGE_SIZE: u64 = 500;
 
 /// Ensures that the given line range is valid and doesn't exceed the
 /// maximum size
@@ -20,7 +18,7 @@ const MAX_RANGE_SIZE: u64 = 500;
 /// # Returns
 /// * `Ok(())` if the range is valid and within size limits
 /// * `Err(String)` with an error message if the range is invalid or too large
-pub fn assert_valid_range(start_line: u64, end_line: u64) -> anyhow::Result<()> {
+pub fn assert_valid_range(start_line: u64, end_line: u64, max_size: u64) -> anyhow::Result<()> {
     // Check that end_line is not less than start_line
     if end_line < start_line {
         bail!(
@@ -29,8 +27,8 @@ pub fn assert_valid_range(start_line: u64, end_line: u64) -> anyhow::Result<()> 
     }
 
     // Check that the range size doesn't exceed the maximum
-    if end_line.saturating_sub(start_line) > MAX_RANGE_SIZE {
-        bail!("The requested range exceeds the maximum size of {MAX_RANGE_SIZE} lines. Please specify a smaller range.")
+    if end_line.saturating_sub(start_line) > max_size {
+        bail!("The requested range exceeds the maximum size of {max_size} lines. Please specify a smaller range.")
     }
 
     Ok(())
@@ -64,12 +62,13 @@ impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
     ) -> anyhow::Result<ReadOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
+        let env = self.0.environment_service().get_environment();
 
         let start_line = istart_line.unwrap_or(1);
-        let end_line = iend_line.unwrap_or(MAX_RANGE_SIZE);
+        let end_line = iend_line.unwrap_or(start_line + env.max_read_size);
 
         // Validate the range size using the module-level assertion function
-        assert_valid_range(start_line, end_line)?;
+        assert_valid_range(start_line, end_line, env.max_read_size)?;
 
         let (content, file_info) = self
             .0

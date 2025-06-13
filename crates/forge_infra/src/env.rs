@@ -132,6 +132,7 @@ impl ForgeEnvironmentService {
             retry_config,
             max_search_lines: 200,
             fetch_truncation_limit: 40_000,
+            max_read_size: 500,
         }
     }
 

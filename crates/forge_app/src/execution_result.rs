@@ -333,6 +333,7 @@ mod tests {
             },
             max_search_lines: 25,
             fetch_truncation_limit: 55,
+            max_read_size: 10,
         }
     }
 

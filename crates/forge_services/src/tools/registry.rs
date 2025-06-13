@@ -75,6 +75,7 @@ pub mod tests {
                 retry_config: Default::default(),
                 fetch_truncation_limit: 0,
                 max_search_lines: 0,
+                max_read_size: 0,
             },
         }
     }
