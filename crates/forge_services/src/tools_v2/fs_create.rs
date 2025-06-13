@@ -48,9 +48,11 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
         // If file exists and overwrite flag is not set, return an error with the
         // existing content
         if file_exists && !overwrite {
+            let existing_content = self.0.file_read_service().read_utf8(path).await?;
             return Err(anyhow::anyhow!(
-                "File already exists at {}. If you need to overwrite it, set overwrite to true.",
+                "File already exists at {}. If you need to overwrite it, set overwrite to true.\n\nExisting content:\n{}",
                 path.display(),
+                existing_content
             ));
         }
 
