@@ -45,8 +45,7 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
         // Check if the file exists
         let file_exists = self.0.file_meta_service().is_file(path).await?;
 
-        // If file exists and overwrite flag is not set, return an error with the
-        // existing content
+        // If file exists and overwrite flag is not set, return an error
         if file_exists && !overwrite {
             return Err(anyhow::anyhow!(
                 "File already exists at {}. If you need to overwrite it, set overwrite to true.",
