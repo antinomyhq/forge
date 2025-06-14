@@ -8,16 +8,9 @@ expression: to_value(actual)
 <shell>/bin/bash</shell>
 <exit_code>1</exit_code>
 </metadata>
-<full_content_file>
-<total_lines>25</total_lines>
-<path>/tmp/shell_output.md</path>
-<stderr_line_range
-  start="2"
-  end="27"
+<stderr
+  full_output="/tmp/stderr_content.txt"
 >
-</stderr_line_range>
-</full_content_file>
-<stderr>
 <displayed_lines>10</displayed_lines>
 <total_lines>25</total_lines>
 <content><![CDATA[stderr line 1
@@ -42,10 +35,13 @@ stderr line 23
 stderr line 24
 stderr line 25
 ]]></content>
-<truncation_info>
-<head_lines>10</head_lines>
-<tail_lines>10</tail_lines>
-<omitted_lines>5</omitted_lines>
-</truncation_info>
+<head
+  display_lines="1-0"
+>
+</head>
+<tail
+  display_lines="1-25"
+>
+</tail>
 </stderr>
 </shell_output>

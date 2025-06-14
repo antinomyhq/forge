@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::path::{Path, PathBuf};
 
 use console::strip_ansi_codes;
+use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{Environment, Tools};
 use forge_template::Element;
@@ -14,6 +15,13 @@ use crate::{
     Content, EnvironmentService, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse,
     PatchOutput, ReadOutput, ResponseContext, SearchResult, Services, ShellOutput,
 };
+
+#[derive(Debug, Default, Setters)]
+#[setters(into, strip_option)]
+pub struct TempContentFiles {
+    stdout: Option<PathBuf>,
+    stderr: Option<PathBuf>,
+}
 
 #[derive(Debug, derive_more::From)]
 pub enum ExecutionResult {
@@ -33,7 +41,7 @@ impl ExecutionResult {
     pub fn into_tool_output(
         self,
         input: Tools,
-        truncation_path: Option<PathBuf>,
+        content_files: TempContentFiles,
         env: &Environment,
     ) -> forge_domain::ToolOutput {
         match (input, self) {
@@ -179,7 +187,7 @@ impl ExecutionResult {
                     .attr("content_type", content_type);
 
                 elm = elm.append(Element::new("body").cdata(truncated_content.content));
-                if let Some(path) = truncation_path.as_ref() {
+                if let Some(path) = content_files.stdout.as_ref() {
                     elm = elm.append(Element::new("truncated").text(
                         format!(
                             "Content is truncated to {} chars, remaining content can be read from path: {}",
@@ -231,48 +239,32 @@ impl ExecutionResult {
                 let stdout_lines = output.output.stdout.lines().count();
                 let stderr_lines = output.output.stderr.lines().count();
 
-                if let Some(path) = (truncated_output.stdout_truncated
-                    || truncated_output.stderr_truncated)
-                    .then(|| truncation_path.as_ref().map(|p| p.display().to_string()))
-                    .flatten()
-                {
-                    let mut full_content_file = Element::new("full_content_file")
-                        .append(Element::new("total_lines").text(stdout_lines + stderr_lines))
-                        .append(Element::new("path").text(path));
-
-                    if truncated_output.stdout_truncated {
-                        full_content_file = full_content_file.append(
-                            Element::new("stdout_line_range")
-                                .attr("start", 2)
-                                .attr("end", stdout_lines + 1),
-                        );
-                        stdout_elem = stdout_elem.map(|v| {
-                            v.append(create_truncation_info(
-                                truncated_output.stdout_prefix_count,
-                                suffix_stdout,
-                                truncated_output.stdout_hidden_count,
+                if let Some(path) = content_files.stdout {
+                    stdout_elem = stdout_elem.map(|v| {
+                        v.attr("full_output", path.display())
+                            .append(
+                                Element::new("head")
+                                    .attr("display_lines", format!("1-{}", stdout_lines)),
+                            )
+                            .append(Element::new("tail").attr(
+                                "display_lines",
+                                format!("{}-{}", stdout_lines + 1, stdout_lines + stderr_lines),
                             ))
-                        });
-                    }
+                    });
+                }
 
-                    if truncated_output.stderr_truncated {
-                        let start = stdout_lines + 2;
-                        let end = stdout_lines + stderr_lines + 2;
-                        full_content_file = full_content_file.append(
-                            Element::new("stderr_line_range")
-                                .attr("start", start)
-                                .attr("end", end),
-                        );
-                        stderr_elem = stderr_elem.map(|v| {
-                            v.append(create_truncation_info(
-                                truncated_output.stderr_prefix_count,
-                                suffix_stderr,
-                                truncated_output.stderr_hidden_count,
+                if let Some(path) = content_files.stderr {
+                    stderr_elem = stderr_elem.map(|v| {
+                        v.attr("full_output", path.display())
+                            .append(
+                                Element::new("head")
+                                    .attr("display_lines", format!("1-{}", stdout_lines)),
+                            )
+                            .append(Element::new("tail").attr(
+                                "display_lines",
+                                format!("{}-{}", stdout_lines + 1, stdout_lines + stderr_lines),
                             ))
-                        });
-                    }
-
-                    parent_elem = parent_elem.append(full_content_file);
+                    });
                 }
 
                 parent_elem = parent_elem.append(stdout_elem);
@@ -306,14 +298,8 @@ impl ExecutionResult {
     pub async fn to_create_temp<S: Services>(
         &self,
         services: &S,
-    ) -> anyhow::Result<Option<PathBuf>> {
+    ) -> anyhow::Result<TempContentFiles> {
         match self {
-            ExecutionResult::FsRead(_) => Ok(None),
-            ExecutionResult::FsCreate(_) => Ok(None),
-            ExecutionResult::FsRemove(_) => Ok(None),
-            ExecutionResult::FsSearch(_) => Ok(None),
-            ExecutionResult::FsPatch(_) => Ok(None),
-            ExecutionResult::FsUndo(_) => Ok(None),
             ExecutionResult::NetFetch(output) => {
                 let original_length = output.content.len();
                 let is_truncated = original_length
@@ -321,15 +307,15 @@ impl ExecutionResult {
                         .environment_service()
                         .get_environment()
                         .fetch_truncation_limit;
+                let mut files = TempContentFiles::default();
 
                 if is_truncated {
-                    let path =
-                        create_temp_file(services, "forge_fetch_", ".txt", &output.content).await?;
-
-                    Ok(Some(path))
-                } else {
-                    Ok(None)
+                    files = files.stdout(
+                        create_temp_file(services, "forge_fetch_", ".txt", &output.content).await?,
+                    );
                 }
+
+                Ok(files)
             }
             ExecutionResult::Shell(output) => {
                 let env = services.environment_service().get_environment();
@@ -340,25 +326,34 @@ impl ExecutionResult {
                 let stderr_truncated =
                     stderr_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
 
-                if stdout_truncated || stderr_truncated {
-                    let path = create_temp_file(
-                        services,
-                        "forge_shell_",
-                        ".md",
-                        &format!(
-                            "command:{}\n<stdout>{}</stdout>\n<stderr>{}</stderr>",
-                            output.output.command, output.output.stdout, output.output.stderr
-                        ),
-                    )
-                    .await?;
+                let mut files = TempContentFiles::default();
 
-                    Ok(Some(path))
-                } else {
-                    Ok(None)
+                if stdout_truncated {
+                    files = files.stdout(
+                        create_temp_file(
+                            services,
+                            "forge_shell_stdout_",
+                            ".txt",
+                            &output.output.stdout,
+                        )
+                        .await?,
+                    );
                 }
+                if stderr_truncated {
+                    files = files.stderr(
+                        create_temp_file(
+                            services,
+                            "forge_shell_stderr_",
+                            ".txt",
+                            &output.output.stderr,
+                        )
+                        .await?,
+                    );
+                }
+
+                Ok(files)
             }
-            ExecutionResult::FollowUp(_) => Ok(None),
-            ExecutionResult::AttemptCompletion => Ok(None),
+            _ => Ok(TempContentFiles::default()),
         }
     }
 }
@@ -448,7 +443,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -471,7 +466,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -494,7 +489,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -516,7 +511,8 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let truncation_path = Some(PathBuf::from("/tmp/truncated_content.txt"));
+        let truncation_path =
+            TempContentFiles::default().stdout(PathBuf::from("/tmp/truncated_content.txt"));
 
         let actual = fixture.into_tool_output(input, truncation_path, &env);
 
@@ -540,7 +536,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -561,7 +557,7 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -586,7 +582,7 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -618,7 +614,8 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let truncation_path = Some(PathBuf::from("/tmp/shell_output.md"));
+        let truncation_path =
+            TempContentFiles::default().stdout(PathBuf::from("/tmp/stdout_content.txt"));
         let actual = fixture.into_tool_output(input, truncation_path, &env);
 
         insta::assert_snapshot!(to_value(actual));
@@ -651,7 +648,8 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let truncation_path = Some(PathBuf::from("/tmp/shell_output.md"));
+        let truncation_path =
+            TempContentFiles::default().stderr(PathBuf::from("/tmp/stderr_content.txt"));
         let actual = fixture.into_tool_output(input, truncation_path, &env);
 
         insta::assert_snapshot!(to_value(actual));
@@ -692,7 +690,9 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let truncation_path = Some(PathBuf::from("/tmp/shell_output.md"));
+        let truncation_path = TempContentFiles::default()
+            .stdout(PathBuf::from("/tmp/stdout_content.txt"))
+            .stderr(PathBuf::from("/tmp/stderr_content.txt"));
         let actual = fixture.into_tool_output(input, truncation_path, &env);
 
         insta::assert_snapshot!(to_value(actual));
@@ -725,7 +725,7 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -750,7 +750,7 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -775,7 +775,7 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -813,7 +813,9 @@ mod tests {
         });
 
         let env = fixture_environment();
-        let truncation_path = Some(PathBuf::from("/tmp/shell_output.md"));
+        let truncation_path = TempContentFiles::default()
+            .stdout(PathBuf::from("/tmp/stdout_content.txt"))
+            .stderr(PathBuf::from("/tmp/stderr_content.txt"));
         let actual = fixture.into_tool_output(input, truncation_path, &env);
 
         insta::assert_snapshot!(to_value(actual));
@@ -847,7 +849,7 @@ mod tests {
 
         let env = fixture_environment(); // max_search_lines is 25
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -882,7 +884,7 @@ mod tests {
         // Total lines found are 50, but we limit to 10 for this test
         env.max_search_lines = 10;
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -902,7 +904,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -924,7 +926,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -940,7 +942,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -977,7 +979,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -997,7 +999,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1020,7 +1022,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1043,7 +1045,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1059,7 +1061,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1078,7 +1080,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1097,7 +1099,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1116,7 +1118,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1135,7 +1137,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1157,7 +1159,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1183,7 +1185,8 @@ mod tests {
             explanation: Some("Fetching large content that will be truncated".to_string()),
         });
 
-        let truncation_path = Some(std::path::PathBuf::from("/tmp/forge_fetch_abc123.txt"));
+        let truncation_path =
+            TempContentFiles::default().stdout(PathBuf::from("/tmp/forge_fetch_abc123.txt"));
 
         let actual = fixture.into_tool_output(input, truncation_path, &env);
 
@@ -1221,7 +1224,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1244,7 +1247,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1266,7 +1269,7 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(input, None, &env);
+        let actual = fixture.into_tool_output(input, TempContentFiles::default(), &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1294,6 +1297,6 @@ mod tests {
         let env = fixture_environment();
 
         // This should panic
-        let _ = fixture.into_tool_output(input, None, &env);
+        let _ = fixture.into_tool_output(input, TempContentFiles::default(), &env);
     }
 }
