@@ -734,3 +734,13 @@ impl Display for CliModel {
         Ok(())
     }
 }
+
+async fn get_merged_workflow<F>(cli: &Cli, api: Arc<F>) -> Result<Workflow>
+where
+    F: API,
+{
+    let workflow = api.read_workflow(cli.workflow.as_deref()).await?;
+    let mut base_workflow = Workflow::default();
+    base_workflow.merge(workflow.clone());
+    Ok(base_workflow)
+}
