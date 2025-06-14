@@ -50,7 +50,7 @@ fn create_stream_element(
         return None;
     }
 
-    let mut elem = Element::new(stream_name).append(Element::new("total_lines").text(total_lines));
+    let mut elem = Element::new(stream_name).attr("total_lines", total_lines);
 
     elem = if let Some(tail) = tail_content {
         elem.append(Element::new("head").cdata(head_content))

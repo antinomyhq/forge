@@ -8,10 +8,12 @@ expression: to_value(actual)
 <shell>/bin/bash</shell>
 <exit_code>0</exit_code>
 </metadata>
-<stdout><![CDATA[single stdout line]]>
-<total_lines>1</total_lines>
+<stdout
+  total_lines="1"
+><![CDATA[single stdout line]]>
 </stdout>
-<stderr><![CDATA[single stderr line]]>
-<total_lines>1</total_lines>
+<stderr
+  total_lines="1"
+><![CDATA[single stderr line]]>
 </stderr>
 </shell_output>

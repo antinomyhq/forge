@@ -9,9 +9,9 @@ expression: to_value(actual)
 <exit_code>0</exit_code>
 </metadata>
 <stdout
+  total_lines="25"
   full_output="/tmp/stdout_content.txt"
 >
-<total_lines>25</total_lines>
 <head><![CDATA[stdout line 1
 stdout line 2
 stdout line 3

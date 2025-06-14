@@ -9,9 +9,9 @@ expression: to_value(actual)
 <exit_code>1</exit_code>
 </metadata>
 <stderr
+  total_lines="25"
   full_output="/tmp/stderr_content.txt"
 >
-<total_lines>25</total_lines>
 <head><![CDATA[stderr line 1
 stderr line 2
 stderr line 3
