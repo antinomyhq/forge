@@ -116,7 +116,7 @@ impl<S: Services> ToolRegistry<S> {
                     .create(input.path.clone(), input.content, input.overwrite, true)
                     .await?;
 
-                Ok(crate::execution_result::ExecutionResult::from(out))
+                Ok((out).into())
             }
             Tools::ForgeToolFsSearch(input) => {
                 let output = self
@@ -129,7 +129,7 @@ impl<S: Services> ToolRegistry<S> {
                     )
                     .await?;
 
-                Ok(crate::execution_result::ExecutionResult::from(output))
+                Ok((output).into())
             }
             Tools::ForgeToolFsRemove(input) => {
                 let output = self
@@ -138,7 +138,7 @@ impl<S: Services> ToolRegistry<S> {
                     .remove(input.path.clone())
                     .await?;
 
-                Ok(crate::execution_result::ExecutionResult::from(output))
+                Ok((output).into())
             }
             Tools::ForgeToolFsPatch(input) => {
                 let output = self
@@ -152,12 +152,12 @@ impl<S: Services> ToolRegistry<S> {
                     )
                     .await?;
 
-                Ok(crate::execution_result::ExecutionResult::from(output))
+                Ok((output).into())
             }
             Tools::ForgeToolFsUndo(input) => {
                 let output = self.services.fs_undo_service().undo(input.path).await?;
 
-                Ok(crate::execution_result::ExecutionResult::from(output))
+                Ok((output).into())
             }
             Tools::ForgeToolProcessShell(input) => {
                 let output = self
@@ -166,7 +166,7 @@ impl<S: Services> ToolRegistry<S> {
                     .execute(input.command, input.cwd, input.keep_ansi)
                     .await?;
 
-                Ok(crate::execution_result::ExecutionResult::from(output))
+                Ok((output).into())
             }
             Tools::ForgeToolNetFetch(input) => {
                 let output = self
@@ -175,7 +175,7 @@ impl<S: Services> ToolRegistry<S> {
                     .fetch(input.url.clone(), input.raw)
                     .await?;
 
-                Ok(crate::execution_result::ExecutionResult::from(output))
+                Ok((output).into())
             }
             Tools::ForgeToolFollowup(input) => {
                 let output = self
@@ -195,7 +195,7 @@ impl<S: Services> ToolRegistry<S> {
                     )
                     .await?;
 
-                Ok(crate::execution_result::ExecutionResult::from(output))
+                Ok((output).into())
             }
             Tools::ForgeToolAttemptCompletion(_input) => {
                 Ok(crate::execution_result::ExecutionResult::AttemptCompletion)
