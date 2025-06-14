@@ -186,6 +186,7 @@ mod tests {
             max_search_lines: 0,
             max_read_size: 0,
             stdout_max_suffix_length: 0,
+            timeout_config: Default::default(),
         }
     }
 

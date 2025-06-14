@@ -109,6 +109,23 @@ impl ForgeEnvironmentService {
         config
     }
 
+    fn resolve_timeout_config(&self) -> forge_domain::TimeoutConfig {
+        forge_domain::TimeoutConfig {
+            read_timeout: std::env::var("FORGE_READ_TIMEOUT")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            pool_idle_timeout: std::env::var("FORGE_POOL_IDLE_TIMEOUT")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            pool_max_idle_per_host: std::env::var("FORGE_POOL_MAX_IDLE_PER_HOST")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            max_redirects: std::env::var("FORGE_MAX_REDIRECTS")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+        }
+    }
+
     fn get(&self) -> Environment {
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
         if !self.is_env_loaded.read().map(|v| *v).unwrap_or_default() {
@@ -135,6 +152,7 @@ impl ForgeEnvironmentService {
             max_read_size: 500,
             stdout_max_prefix_length: 200,
             stdout_max_suffix_length: 200,
+            timeout_config: self.resolve_timeout_config(),
         }
     }
 

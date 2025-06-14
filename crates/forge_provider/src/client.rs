@@ -6,6 +6,7 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use forge_domain::{
     ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, RetryConfig,
+    TimeoutConfig,
 };
 use reqwest::redirect::Policy;
 use tokio::sync::RwLock;
@@ -32,12 +33,17 @@ impl Client {
         provider: Provider,
         retry_config: RetryConfig,
         version: impl ToString,
+        timeout_config: TimeoutConfig,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
-            .read_timeout(std::time::Duration::from_secs(10))
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
-            .pool_max_idle_per_host(5)
-            .redirect(Policy::limited(10))
+            .read_timeout(std::time::Duration::from_secs(
+                timeout_config.read_timeout.unwrap_or(10),
+            ))
+            .pool_idle_timeout(std::time::Duration::from_secs(
+                timeout_config.pool_idle_timeout.unwrap_or(90),
+            ))
+            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host.unwrap_or(5))
+            .redirect(Policy::limited(timeout_config.max_redirects.unwrap_or(10)))
             .build()?;
 
         let inner = match &provider {
@@ -144,7 +150,18 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, RetryConfig::default(), "dev").unwrap();
+        let client = Client::new(
+            provider,
+            RetryConfig::default(),
+            "dev",
+            TimeoutConfig {
+                read_timeout: None,
+                pool_idle_timeout: None,
+                pool_max_idle_per_host: None,
+                max_redirects: None,
+            },
+        )
+        .unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -157,7 +174,18 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, RetryConfig::default(), "dev").unwrap();
+        let client = Client::new(
+            provider,
+            RetryConfig::default(),
+            "dev",
+            TimeoutConfig {
+                read_timeout: None,
+                pool_idle_timeout: None,
+                pool_max_idle_per_host: None,
+                max_redirects: None,
+            },
+        )
+        .unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)
