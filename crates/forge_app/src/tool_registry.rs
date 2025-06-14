@@ -14,6 +14,7 @@ use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 use crate::error::Error;
+use crate::execution_result::ExecutionResult;
 use crate::input_title::InputTitle;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
@@ -95,10 +96,7 @@ impl<S: Services> ToolRegistry<S> {
         Err(Error::EmptyToolResponse.into())
     }
 
-    async fn call_internal(
-        &self,
-        input: Tools,
-    ) -> anyhow::Result<crate::execution_result::ExecutionResult> {
+    async fn call_internal(&self, input: Tools) -> anyhow::Result<ExecutionResult> {
         match input {
             Tools::ForgeToolFsRead(input) => {
                 let output = self
@@ -107,7 +105,7 @@ impl<S: Services> ToolRegistry<S> {
                     .read(input.path.clone(), input.start_line, input.end_line)
                     .await?;
 
-                Ok(crate::execution_result::ExecutionResult::FsRead(output))
+                Ok(output.into())
             }
             Tools::ForgeToolFsCreate(input) => {
                 let out = self
