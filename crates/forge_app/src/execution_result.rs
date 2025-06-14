@@ -87,8 +87,10 @@ impl ExecutionResult {
                 Content::File(content) => {
                     let elm = Element::new("file_content")
                         .attr("path", input.path)
-                        .attr("start_line", out.start_line)
-                        .attr("end_line", out.end_line)
+                        .attr(
+                            "display_lines",
+                            format!("{}-{}", out.start_line, out.end_line),
+                        )
                         .attr("total_lines", content.lines().count())
                         .cdata(content);
 
@@ -137,8 +139,13 @@ impl ExecutionResult {
                     let mut elm = Element::new("search_results")
                         .attr("path", &input.path)
                         .attr("total_lines", truncated_output.total_lines)
-                        .attr("start_line", truncated_output.start_line)
-                        .attr("end_line", truncated_output.end_line);
+                        .attr(
+                            "display_lines",
+                            format!(
+                                "{}-{}",
+                                truncated_output.start_line, truncated_output.end_line
+                            ),
+                        );
 
                     elm = elm.attr_if_some("regex", input.regex);
                     elm = elm.attr_if_some("file_pattern", input.file_pattern);

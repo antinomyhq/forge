@@ -4,8 +4,7 @@ expression: to_value(actual)
 ---
 <file_content
   path="/home/user/large_file.txt"
-  start_line="1"
-  end_line="100"
+  display_lines="1-100"
   total_lines="1"
 ><![CDATA[Truncated content]]>
 </file_content>

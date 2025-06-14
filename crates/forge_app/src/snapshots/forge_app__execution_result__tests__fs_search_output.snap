@@ -5,8 +5,7 @@ expression: to_value(actual)
 <search_results
   path="/home/user/project"
   total_lines="50"
-  start_line="5"
-  end_line="30"
+  display_lines="5-30"
   regex="search"
   file_pattern="*.txt"
 ><![CDATA[foo.txt:6:Match line 6: Test
