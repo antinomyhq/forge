@@ -32,9 +32,4 @@ stdout line 18
 stdout line 19
 stdout line 20]]></content>
 </stdout>
-<stderr>
-<displayed_lines>0</displayed_lines>
-<total_lines>0</total_lines>
-<content><![CDATA[]]></content>
-</stderr>
 </shell_output>

@@ -8,14 +8,4 @@ expression: to_value(actual)
 <shell>/bin/bash</shell>
 <exit_code>0</exit_code>
 </metadata>
-<stdout>
-<displayed_lines>0</displayed_lines>
-<total_lines>0</total_lines>
-<content><![CDATA[]]></content>
-</stdout>
-<stderr>
-<displayed_lines>0</displayed_lines>
-<total_lines>0</total_lines>
-<content><![CDATA[]]></content>
-</stderr>
 </shell_output>

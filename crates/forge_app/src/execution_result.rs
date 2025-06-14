@@ -209,19 +209,24 @@ impl ExecutionResult {
                 let total_stdout = output.output.stdout.lines().count();
                 let suffix_stdout = truncated_output.stdout_suffix_size;
 
-                let mut stdout_elem = Element::new("stdout")
-                    .append(
-                        Element::new("displayed_lines").text(truncated_output.stdout_prefix_count),
-                    )
-                    .append(Element::new("total_lines").text(total_stdout))
-                    .append(Element::new("content").cdata(truncated_output.stdout));
+                let mut stdout_elem = (!truncated_output.stdout.is_empty()).then_some(
+                    Element::new("stdout")
+                        .append(
+                            Element::new("displayed_lines")
+                                .text(truncated_output.stdout_prefix_count),
+                        )
+                        .append(Element::new("total_lines").text(total_stdout))
+                        .append(Element::new("content").cdata(truncated_output.stdout)),
+                );
 
                 let total_stderr = output.output.stderr.lines().count();
                 let suffix_stderr = truncated_output.stderr_suffix_size;
-                let mut stderr_elem = Element::new("stderr")
-                    .append(Element::new("displayed_lines").text(suffix_stderr))
-                    .append(Element::new("total_lines").text(total_stderr))
-                    .append(Element::new("content").cdata(truncated_output.stderr));
+                let mut stderr_elem = (!truncated_output.stderr.is_empty()).then_some(
+                    Element::new("stderr")
+                        .append(Element::new("displayed_lines").text(suffix_stderr))
+                        .append(Element::new("total_lines").text(total_stderr))
+                        .append(Element::new("content").cdata(truncated_output.stderr)),
+                );
 
                 let stdout_lines = output.output.stdout.lines().count();
                 let stderr_lines = output.output.stderr.lines().count();
@@ -241,11 +246,13 @@ impl ExecutionResult {
                                 .attr("start", 2)
                                 .attr("end", stdout_lines + 1),
                         );
-                        stdout_elem = stdout_elem.append(create_truncation_info(
-                            truncated_output.stdout_prefix_count,
-                            suffix_stdout,
-                            truncated_output.stdout_hidden_count,
-                        ));
+                        stdout_elem = stdout_elem.map(|v| {
+                            v.append(create_truncation_info(
+                                truncated_output.stdout_prefix_count,
+                                suffix_stdout,
+                                truncated_output.stdout_hidden_count,
+                            ))
+                        });
                     }
 
                     if truncated_output.stderr_truncated {
@@ -256,11 +263,13 @@ impl ExecutionResult {
                                 .attr("start", start)
                                 .attr("end", end),
                         );
-                        stderr_elem = stderr_elem.append(create_truncation_info(
-                            truncated_output.stderr_prefix_count,
-                            suffix_stderr,
-                            truncated_output.stderr_hidden_count,
-                        ));
+                        stderr_elem = stderr_elem.map(|v| {
+                            v.append(create_truncation_info(
+                                truncated_output.stderr_prefix_count,
+                                suffix_stderr,
+                                truncated_output.stderr_hidden_count,
+                            ))
+                        });
                     }
 
                     parent_elem = parent_elem.append(full_content_file);

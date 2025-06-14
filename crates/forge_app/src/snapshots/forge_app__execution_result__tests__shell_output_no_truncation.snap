@@ -14,9 +14,4 @@ expression: to_value(actual)
 <content><![CDATA[hello
 world]]></content>
 </stdout>
-<stderr>
-<displayed_lines>0</displayed_lines>
-<total_lines>0</total_lines>
-<content><![CDATA[]]></content>
-</stderr>
 </shell_output>
