@@ -12,7 +12,7 @@ pub struct HttpConfig {
 impl Default for HttpConfig {
     fn default() -> Self {
         Self {
-            read_timeout: 10,
+            read_timeout: 60,
             pool_idle_timeout: 90,
             pool_max_idle_per_host: 5,
             max_redirects: 10,
