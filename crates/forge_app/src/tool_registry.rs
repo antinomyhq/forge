@@ -212,14 +212,16 @@ impl<S: Services> ToolRegistry<S> {
         let title = tool_input.to_title(&env);
         // Send tool call information
         context.send_text(title).await?;
-        let out = self.call_internal(tool_input.clone()).await;
-        if let Err(ref e) = out {
+        let execution_result = self.call_internal(tool_input.clone()).await;
+        if let Err(ref e) = execution_result {
             // Send failure message
             context.send_text(TitleFormat::error(e.to_string())).await?;
         }
-        let out = out?;
-        let truncation_path = out.to_create_temp(self.services.as_ref()).await?;
-        Ok(out.into_tool_output(tool_input, truncation_path, &env))
+        let execution_result = execution_result?;
+        let truncation_path = execution_result
+            .to_create_temp(self.services.as_ref())
+            .await?;
+        Ok(execution_result.into_tool_output(tool_input, truncation_path, &env))
     }
 
     async fn call_with_timeout<F, Fut>(
