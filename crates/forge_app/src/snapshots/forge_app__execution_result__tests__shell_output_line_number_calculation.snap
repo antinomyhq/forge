@@ -10,10 +10,7 @@ expression: to_value(actual)
 </metadata>
 <stdout
   full_output="/tmp/stdout_content.txt"
->
-<displayed_lines>15</displayed_lines>
-<total_lines>15</total_lines>
-<content><![CDATA[stdout 1
+><![CDATA[stdout 1
 stdout 2
 stdout 3
 stdout 4
@@ -27,22 +24,12 @@ stdout 11
 stdout 12
 stdout 13
 stdout 14
-stdout 15]]></content>
-<head
-  display_lines="1-15"
->
-</head>
-<tail
-  display_lines="16-27"
->
-</tail>
+stdout 15]]>
+<total_lines>15</total_lines>
 </stdout>
 <stderr
   full_output="/tmp/stderr_content.txt"
->
-<displayed_lines>12</displayed_lines>
-<total_lines>12</total_lines>
-<content><![CDATA[stderr 1
+><![CDATA[stderr 1
 stderr 2
 stderr 3
 stderr 4
@@ -53,14 +40,7 @@ stderr 8
 stderr 9
 stderr 10
 stderr 11
-stderr 12]]></content>
-<head
-  display_lines="1-15"
->
-</head>
-<tail
-  display_lines="16-27"
->
-</tail>
+stderr 12]]>
+<total_lines>12</total_lines>
 </stderr>
 </shell_output>

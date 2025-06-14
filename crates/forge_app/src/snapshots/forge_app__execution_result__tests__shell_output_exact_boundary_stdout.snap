@@ -8,10 +8,7 @@ expression: to_value(actual)
 <shell>/bin/bash</shell>
 <exit_code>0</exit_code>
 </metadata>
-<stdout>
-<displayed_lines>20</displayed_lines>
-<total_lines>20</total_lines>
-<content><![CDATA[stdout line 1
+<stdout><![CDATA[stdout line 1
 stdout line 2
 stdout line 3
 stdout line 4
@@ -30,6 +27,7 @@ stdout line 16
 stdout line 17
 stdout line 18
 stdout line 19
-stdout line 20]]></content>
+stdout line 20]]>
+<total_lines>20</total_lines>
 </stdout>
 </shell_output>

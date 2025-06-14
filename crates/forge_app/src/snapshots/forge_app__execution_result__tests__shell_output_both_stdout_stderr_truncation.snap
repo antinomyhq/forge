@@ -11,9 +11,8 @@ expression: to_value(actual)
 <stdout
   full_output="/tmp/stdout_content.txt"
 >
-<displayed_lines>10</displayed_lines>
 <total_lines>25</total_lines>
-<content><![CDATA[stdout line 1
+<head><![CDATA[stdout line 1
 stdout line 2
 stdout line 3
 stdout line 4
@@ -23,8 +22,8 @@ stdout line 7
 stdout line 8
 stdout line 9
 stdout line 10
-... [5 lines omitted] ...
-stdout line 16
+]]></head>
+<tail><![CDATA[stdout line 16
 stdout line 17
 stdout line 18
 stdout line 19
@@ -34,22 +33,13 @@ stdout line 22
 stdout line 23
 stdout line 24
 stdout line 25
-]]></content>
-<head
-  display_lines="1-25"
->
-</head>
-<tail
-  display_lines="26-55"
->
-</tail>
+]]></tail>
 </stdout>
 <stderr
   full_output="/tmp/stderr_content.txt"
 >
-<displayed_lines>10</displayed_lines>
 <total_lines>30</total_lines>
-<content><![CDATA[stderr line 1
+<head><![CDATA[stderr line 1
 stderr line 2
 stderr line 3
 stderr line 4
@@ -59,8 +49,8 @@ stderr line 7
 stderr line 8
 stderr line 9
 stderr line 10
-... [10 lines omitted] ...
-stderr line 21
+]]></head>
+<tail><![CDATA[stderr line 21
 stderr line 22
 stderr line 23
 stderr line 24
@@ -70,14 +60,6 @@ stderr line 27
 stderr line 28
 stderr line 29
 stderr line 30
-]]></content>
-<head
-  display_lines="1-25"
->
-</head>
-<tail
-  display_lines="26-55"
->
-</tail>
+]]></tail>
 </stderr>
 </shell_output>
