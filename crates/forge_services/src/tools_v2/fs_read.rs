@@ -1,37 +1,42 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use forge_app::{Content, EnvironmentService, FsReadService, ReadOutput};
 
 use crate::utils::assert_absolute_path;
 use crate::{FsReadService as _, Infrastructure};
 
-/// Ensures that the given line range is valid and doesn't exceed the
-/// maximum size
+/// Resolves and validates line ranges, ensuring they are always valid
+/// and within the specified maximum size.
 ///
 /// # Arguments
-/// * `start_line` - The starting line position
-/// * `end_line` - The ending line position
+/// * `start_line` - Optional starting line position (defaults to 1)
+/// * `end_line` - Optional ending line position
 /// * `max_size` - The maximum allowed range size
 ///
 /// # Returns
-/// * `Ok(())` if the range is valid and within size limits
-/// * `Err(String)` with an error message if the range is invalid or too large
-pub fn assert_valid_range(start_line: u64, end_line: u64, max_size: u64) -> anyhow::Result<()> {
-    // Check that end_line is not less than start_line
-    if end_line < start_line {
-        bail!(
-            "Invalid range: end line ({end_line}) must not be less than start line ({start_line})"
-        )
-    }
+/// A tuple of (start_line, end_line) that is guaranteed to be valid
+///
+/// # Behavior
+/// - If start_line is None, defaults to 1
+/// - If end_line is None, defaults to start_line + max_size
+/// - If end_line < start_line, swaps them to ensure valid range
+/// - If range exceeds max_size, adjusts end_line to stay within limits
+/// - Always ensures start_line >= 1
+pub fn resolve_range(start_line: Option<u64>, end_line: Option<u64>, max_size: u64) -> (u64, u64) {
+    // 1. Normalise incoming values
+    let s0 = start_line.unwrap_or(1).max(1);
+    let e0 = end_line.unwrap_or(s0.saturating_add(max_size.saturating_sub(1)));
 
-    // Check that the range size doesn't exceed the maximum
-    if end_line.saturating_sub(start_line) > max_size {
-        bail!("The requested range exceeds the maximum size of {max_size} lines. Please specify a smaller range.")
-    }
+    // 2. Sort them (min → start, max → end) and force start ≥ 1
+    let start = s0.min(e0).max(1);
+    let mut end = s0.max(e0);
 
-    Ok(())
+    // 3. Clamp the range length to `max_size`
+    end = end.min(start.saturating_add(max_size - 1));
+
+    (start, end)
 }
 
 /// Reads file contents from the specified absolute path. Ideal for analyzing
@@ -57,18 +62,14 @@ impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
     async fn read(
         &self,
         path: String,
-        istart_line: Option<u64>,
-        iend_line: Option<u64>,
+        start_line: Option<u64>,
+        end_line: Option<u64>,
     ) -> anyhow::Result<ReadOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
         let env = self.0.environment_service().get_environment();
 
-        let start_line = istart_line.unwrap_or(1);
-        let end_line = iend_line.unwrap_or(start_line + env.max_read_size);
-
-        // Validate the range size using the module-level assertion function
-        assert_valid_range(start_line, end_line, env.max_read_size)?;
+        let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
 
         let (content, file_info) = self
             .0
@@ -83,5 +84,108 @@ impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_resolve_range_with_defaults() {
+        let fixture = (None, None, 100);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (1, 100);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_with_start_only() {
+        let fixture = (Some(5), None, 50);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (5, 54);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_with_both_start_and_end() {
+        let fixture = (Some(10), Some(20), 100);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (10, 20);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_with_swapped_start_end() {
+        let fixture = (Some(20), Some(10), 100);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (10, 20);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_exceeding_max_size() {
+        let fixture = (Some(1), Some(200), 50);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (1, 50);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_with_zero_start() {
+        let fixture = (Some(0), Some(10), 20);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (1, 10);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_with_zero_end_swapped() {
+        let fixture = (Some(5), Some(0), 20);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (1, 5);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_exact_max_size() {
+        let fixture = (Some(1), Some(10), 10);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (1, 10);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_max_size_boundary() {
+        let fixture = (Some(5), Some(16), 10);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (5, 14);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_large_numbers() {
+        let fixture = (Some(1000), Some(2000), 500);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (1000, 1499);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_single_line() {
+        let fixture = (Some(42), Some(42), 100);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (42, 42);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_range_with_end_only() {
+        let fixture = (None, Some(50), 100);
+        let actual = resolve_range(fixture.0, fixture.1, fixture.2);
+        let expected = (1, 50);
+        assert_eq!(actual, expected);
     }
 }
