@@ -10,8 +10,6 @@ use reedline::{
 use super::completer::InputCompleter;
 use crate::model::ForgeCommandManager;
 
-// TODO: Store the last `HISTORY_CAPACITY` commands in the history file
-const HISTORY_CAPACITY: usize = 1024 * 1024;
 const COMPLETION_MENU: &str = "completion_menu";
 
 pub struct ForgeEditor {
@@ -67,8 +65,10 @@ impl ForgeEditor {
         // Store file history in system config directory
         let history_file = env.history_path();
 
+        let history_capacity = read_history_capacity_from_env();
+
         let history = Box::new(
-            FileBackedHistory::with_file(HISTORY_CAPACITY, history_file).unwrap_or_default(),
+            FileBackedHistory::with_file(history_capacity, history_file).unwrap_or_default(),
         );
         let completion_menu = Box::new(
             ColumnarMenu::default()
@@ -115,4 +115,11 @@ impl From<Signal> for ReadResult {
             Signal::CtrlD => ReadResult::Exit,
         }
     }
+}
+
+fn read_history_capacity_from_env() -> usize {
+    std::env::var("FORGE_HISTSIZE")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(10000)
 }
