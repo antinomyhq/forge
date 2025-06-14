@@ -10,7 +10,7 @@ use serde_json::Value;
 use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
-use crate::compact::Compactor;
+use crate::compact::{CompactStrategy, Compactor};
 
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
@@ -311,6 +311,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         let mut empty_tool_call_count = 0;
         let is_tool_supported = self.is_tool_supported(&agent)?;
+        let compactor = Compactor::new(self.services.clone());
         while !is_complete {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
@@ -323,7 +324,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?;
 
             // Set estimated tokens
-            usage.estimated_tokens = estimate_token_count(context.to_text().len()) as u64;
+            usage.estimated_tokens = context.messages.iter().map(|m| m.count_tokens()).sum();
 
             // Send the usage information if available
 
@@ -339,8 +340,15 @@ impl<S: AgentService> Orchestrator<S> {
             // Check if context requires compression and decide to compact
             if agent.should_compact(&context, max(usage.prompt_tokens, usage.estimated_tokens)) {
                 info!(agent_id = %agent.id, "Compaction needed, applying compaction");
-                let compactor = Compactor::new(self.services.clone());
-                context = compactor.compact_context(&agent, context).await?;
+                let percentage = agent
+                    .compact
+                    .as_ref()
+                    .map(|compact| compact.percentage)
+                    .unwrap_or(0.2);
+                let compaction_strategy = CompactStrategy::percentage(percentage);
+                context = compactor
+                    .compact_context(&agent, context, compaction_strategy)
+                    .await?;
             } else {
                 debug!(agent_id = %agent.id, "Compaction not needed");
             }
@@ -414,6 +422,13 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
         }
+
+        // agent has yielded and so now compact everything.
+        self.conversation.context = Some(
+            compactor
+                .compact_context(&agent, context, CompactStrategy::percentage(1.0))
+                .await?,
+        );
 
         Ok(())
     }
