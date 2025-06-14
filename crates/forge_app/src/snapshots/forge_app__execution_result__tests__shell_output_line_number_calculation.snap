@@ -9,7 +9,7 @@ expression: to_value(actual)
 <exit_code>0</exit_code>
 </metadata>
 <stdout>
-<displayed_lines>30</displayed_lines>
+<displayed_lines>15</displayed_lines>
 <total_lines>15</total_lines>
 <content><![CDATA[stdout 1
 stdout 2
@@ -28,7 +28,7 @@ stdout 14
 stdout 15]]></content>
 </stdout>
 <stderr>
-<displayed_lines>24</displayed_lines>
+<displayed_lines>12</displayed_lines>
 <total_lines>12</total_lines>
 <content><![CDATA[stderr 1
 stderr 2

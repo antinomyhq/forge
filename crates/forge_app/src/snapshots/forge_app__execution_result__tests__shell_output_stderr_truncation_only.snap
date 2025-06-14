@@ -23,7 +23,7 @@ expression: to_value(actual)
 <content><![CDATA[]]></content>
 </stdout>
 <stderr>
-<displayed_lines>20</displayed_lines>
+<displayed_lines>10</displayed_lines>
 <total_lines>25</total_lines>
 <content><![CDATA[stderr line 1
 stderr line 2

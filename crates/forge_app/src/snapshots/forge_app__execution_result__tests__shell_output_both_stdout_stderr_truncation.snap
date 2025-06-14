@@ -23,7 +23,7 @@ expression: to_value(actual)
 </stderr_line_range>
 </full_content_file>
 <stdout>
-<displayed_lines>20</displayed_lines>
+<displayed_lines>10</displayed_lines>
 <total_lines>25</total_lines>
 <content><![CDATA[stdout line 1
 stdout line 2
@@ -54,7 +54,7 @@ stdout line 25
 </truncation_info>
 </stdout>
 <stderr>
-<displayed_lines>20</displayed_lines>
+<displayed_lines>10</displayed_lines>
 <total_lines>30</total_lines>
 <content><![CDATA[stderr line 1
 stderr line 2
