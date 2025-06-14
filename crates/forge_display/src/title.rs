@@ -76,7 +76,11 @@ impl TitleFormat {
         }
     }
 
-    fn format(&self) -> String {
+    pub fn render(&self, with_timestamp: bool) -> String {
+        self.format(with_timestamp)
+    }
+
+    fn format(&self, with_timestamp: bool) -> String {
         let mut buf = String::new();
 
         let icon = match self.category {
@@ -89,9 +93,8 @@ impl TitleFormat {
 
         buf.push_str(format!("{icon} ").as_str());
 
-        // Add timestamp at the beginning if this is not a user action
-        #[cfg(not(test))]
-        {
+        // Add timestamp if requested
+        if with_timestamp {
             use chrono::Local;
 
             buf.push_str(
@@ -122,6 +125,6 @@ impl TitleFormat {
 
 impl Display for TitleFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.format())
+        write!(f, "{}", self.render(true))
     }
 }
