@@ -8,7 +8,8 @@ use forge_domain::{Environment, Tools};
 use forge_template::Element;
 
 use crate::truncation::{
-    create_temp_file, truncate_fetch_content, truncate_search_output, truncate_shell_output,
+    StreamElement, create_temp_file, truncate_fetch_content, truncate_search_output,
+    truncate_shell_output,
 };
 use crate::utils::display_path;
 use crate::{
@@ -39,29 +40,25 @@ pub enum ExecutionResult {
 
 /// Helper function to create stdout or stderr elements with consistent
 /// structure
-fn create_stream_element(
-    stream_name: &str,
-    head_content: &str,
-    tail_content: Option<&str>,
-    total_lines: usize,
-    head_end_line: usize,
-    tail_start_line: Option<usize>,
-    tail_end_line: Option<usize>,
+fn create_stream_element<T: StreamElement>(
+    stream: &T,
     full_output_path: Option<&Path>,
 ) -> Option<Element> {
-    if head_content.is_empty() {
+    if stream.head_content().is_empty() {
         return None;
     }
 
-    let mut elem = Element::new(stream_name).attr("total_lines", total_lines);
+    let mut elem = Element::new(stream.stream_name()).attr("total_lines", stream.total_lines());
 
-    elem = if let Some(((tail, tail_start), tail_end)) =
-        tail_content.zip(tail_start_line).zip(tail_end_line)
+    elem = if let Some(((tail, tail_start), tail_end)) = stream
+        .tail_content()
+        .zip(stream.tail_start_line())
+        .zip(stream.tail_end_line())
     {
         elem.append(
             Element::new("head")
-                .attr("display_lines", format!("1-{head_end_line}"))
-                .cdata(head_content),
+                .attr("display_lines", format!("1-{}", stream.head_end_line()))
+                .cdata(stream.head_content()),
         )
         .append(
             Element::new("tail")
@@ -69,7 +66,7 @@ fn create_stream_element(
                 .cdata(tail),
         )
     } else {
-        elem.cdata(head_content)
+        elem.cdata(stream.head_content())
     };
 
     if let Some(path) = full_output_path {
@@ -257,24 +254,12 @@ impl ExecutionResult {
                 );
 
                 let stdout_elem = create_stream_element(
-                    "stdout",
-                    &truncated_output.stdout.head,
-                    truncated_output.stdout.tail.as_deref(),
-                    truncated_output.stdout.total_lines,
-                    truncated_output.stdout.head_end_line,
-                    truncated_output.stdout.tail_start_line,
-                    truncated_output.stdout.tail_end_line,
+                    &truncated_output.stdout,
                     content_files.stdout.as_deref(),
                 );
 
                 let stderr_elem = create_stream_element(
-                    "stderr",
-                    &truncated_output.stderr.head,
-                    truncated_output.stderr.tail.as_deref(),
-                    truncated_output.stderr.total_lines,
-                    truncated_output.stderr.head_end_line,
-                    truncated_output.stderr.tail_start_line,
-                    truncated_output.stderr.tail_end_line,
+                    &truncated_output.stderr,
                     content_files.stderr.as_deref(),
                 );
 
