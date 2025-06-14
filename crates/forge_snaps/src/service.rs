@@ -21,7 +21,7 @@ impl SnapshotService {
 
 impl SnapshotService {
     pub async fn create_snapshot(&self, path: PathBuf) -> Result<Snapshot> {
-        let snapshot = Snapshot::create(path).await?;
+        let snapshot = Snapshot::create(path)?;
 
         // Create intermediary directories if they don't exist
         let snapshot_path = snapshot.snapshot_path(Some(self.snapshots_directory.clone()));
@@ -57,7 +57,7 @@ impl SnapshotService {
     }
 
     pub async fn undo_snapshot(&self, path: PathBuf) -> Result<()> {
-        let snapshot = Snapshot::create(path.clone()).await?;
+        let snapshot = Snapshot::create(path.clone())?;
 
         // All the snaps for `path` are stored in `snapshot.path_hash()` directory.
         let snapshot_dir = self.snapshots_directory.join(snapshot.path_hash());
@@ -101,7 +101,12 @@ mod tests {
         async fn new() -> Result<Self> {
             let temp_dir = TempDir::new()?;
             let snapshots_dir = temp_dir.path().join("snapshots");
-            let test_file = temp_dir.path().join("test.txt");
+            // Canonicalize the temp directory path to ensure consistency
+            let temp_path = temp_dir
+                .path()
+                .canonicalize()
+                .unwrap_or_else(|_| temp_dir.path().to_path_buf());
+            let test_file = temp_path.join("test.txt");
             let service = SnapshotService::new(snapshots_dir.clone());
 
             Ok(Self {
@@ -181,6 +186,24 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("No snapshots found"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_undo_snapshot_after_file_deletion() -> Result<()> {
+        // Arrange
+        let ctx = TestContext::new().await?;
+        let initial_content = "Initial content";
+
+        // Act
+        ctx.write_content(initial_content).await?;
+        ctx.create_snapshot().await?;
+        ForgeFS::remove_file(&ctx.test_file).await?;
+
+        // Assert - undo should succeed and recreate the file from snapshot
+        ctx.undo_snapshot().await?;
+        assert_eq!(ctx.read_content().await?, initial_content);
 
         Ok(())
     }

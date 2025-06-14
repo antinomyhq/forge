@@ -1,3 +1,4 @@
+use std::convert::AsRef;
 use std::path::Path;
 
 use forge_display::TitleFormat;
@@ -5,35 +6,45 @@ use forge_domain::{Environment, Tools};
 
 use crate::utils::display_path;
 
-pub enum Content {
+pub enum InputFormat {
     Title(TitleFormat),
     Summary(String),
 }
 
-impl From<TitleFormat> for Content {
+impl From<TitleFormat> for InputFormat {
     fn from(title: TitleFormat) -> Self {
-        Content::Title(title)
+        InputFormat::Title(title)
     }
 }
 
-pub trait InputTitle {
-    fn to_content(&self, env: &Environment) -> Content;
+pub trait FormatInput {
+    fn to_content(&self, env: &Environment) -> InputFormat;
 }
 
-impl InputTitle for Tools {
-    fn to_content(&self, env: &Environment) -> Content {
+impl FormatInput for Tools {
+    fn to_content(&self, env: &Environment) -> InputFormat {
         let display_path_for = |path: &str| display_path(env, Path::new(path));
 
         match self {
             Tools::ForgeToolFsRead(input) => {
                 let display_path = display_path_for(&input.path);
                 let is_explicit_range = input.start_line.is_some() || input.end_line.is_some();
-                let title = if is_explicit_range {
-                    "Read (Range)"
-                } else {
-                    "Read"
+                let mut subtitle = display_path;
+                if is_explicit_range {
+                    match (&input.start_line, &input.end_line) {
+                        (Some(start), Some(end)) => {
+                            subtitle.push_str(&format!(" [Range {start}-{end}]"));
+                        }
+                        (Some(start), None) => {
+                            subtitle.push_str(&format!(" [Range {start}-]"));
+                        }
+                        (None, Some(end)) => {
+                            subtitle.push_str(&format!(" [Range -{end}]"));
+                        }
+                        (None, None) => {}
+                    }
                 };
-                TitleFormat::debug(title).sub_title(display_path).into()
+                TitleFormat::debug("Read").sub_title(subtitle).into()
             }
             Tools::ForgeToolFsCreate(input) => {
                 let display_path = display_path_for(&input.path);
@@ -62,7 +73,9 @@ impl InputTitle for Tools {
             }
             Tools::ForgeToolFsPatch(input) => {
                 let display_path = display_path_for(&input.path);
-                TitleFormat::debug("Patch").sub_title(display_path).into()
+                TitleFormat::debug(input.operation.as_ref())
+                    .sub_title(display_path)
+                    .into()
             }
             Tools::ForgeToolFsUndo(input) => {
                 let display_path = display_path_for(&input.path);
@@ -79,7 +92,7 @@ impl InputTitle for Tools {
             Tools::ForgeToolFollowup(input) => TitleFormat::debug("Follow-up")
                 .sub_title(&input.question)
                 .into(),
-            Tools::ForgeToolAttemptCompletion(input) => Content::Summary(input.result.clone()),
+            Tools::ForgeToolAttemptCompletion(input) => InputFormat::Summary(input.result.clone()),
         }
     }
 }
@@ -92,13 +105,13 @@ mod tests {
     use forge_domain::{Environment, FSRead, FSWrite, Shell, Tools};
     use pretty_assertions::assert_eq;
 
-    use super::{Content, InputTitle};
+    use super::{FormatInput, InputFormat};
 
-    impl Content {
+    impl InputFormat {
         pub fn render(&self, with_timestamp: bool) -> String {
             match self {
-                Content::Title(title) => title.render(with_timestamp),
-                Content::Summary(summary) => summary.clone(),
+                InputFormat::Title(title) => title.render(with_timestamp),
+                InputFormat::Summary(summary) => summary.clone(),
             }
         }
     }
@@ -162,7 +175,7 @@ mod tests {
         let actual_content = fixture.to_content(&env);
         let rendered = actual_content.render(false);
         let actual = strip_ansi_codes(&rendered);
-        let expected = "⏺ Read (Range) src/main.rs";
+        let expected = "⏺ Read src/main.rs [Range 10-20]";
 
         assert_eq!(actual, expected);
     }

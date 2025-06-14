@@ -1,7 +1,6 @@
 use std::future::Future;
 use std::time::Duration;
 
-use anyhow::Context;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Error, RetryConfig};
 
@@ -20,11 +19,7 @@ where
         .with_max_times(config.max_retry_attempts)
         .with_jitter();
 
-    operation
-        .retry(strategy)
-        .when(should_retry)
-        .await
-        .with_context(|| "Failed to execute operation with retry")
+    operation.retry(strategy).when(should_retry).await
 }
 
 /// Determines if an error should trigger a retry attempt.

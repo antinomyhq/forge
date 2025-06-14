@@ -68,17 +68,17 @@ pub enum ResponseContext {
 pub struct FsCreateOutput {
     pub path: String,
     // Set when the file already exists
-    pub previous: Option<String>,
+    pub before: Option<String>,
     pub warning: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct FsRemoveOutput {}
 
-#[derive(Debug, derive_more::From)]
+#[derive(Default, Debug, derive_more::From)]
 pub struct FsUndoOutput {
-    pub before_undo: String,
-    pub after_undo: String,
+    pub before_undo: Option<String>,
+    pub after_undo: Option<String>,
 }
 
 #[async_trait::async_trait]
@@ -201,7 +201,7 @@ pub trait FsPatchService: Send + Sync {
     async fn patch(
         &self,
         path: String,
-        search: String,
+        search: Option<String>,
         operation: PatchOperation,
         content: String,
     ) -> anyhow::Result<PatchOutput>;

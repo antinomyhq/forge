@@ -5,7 +5,8 @@ use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::error::Error;
 use crate::execution_result::ExecutionResult;
-use crate::input_title::{Content, InputTitle};
+use crate::fmt_input::{FormatInput, InputFormat};
+use crate::fmt_output::FormatOutput;
 use crate::{
     EnvironmentService, FollowUpService, FsCreateService, FsPatchService, FsReadService,
     FsRemoveService, FsSearchService, FsUndoService, NetFetchService, Services, ShellService,
@@ -110,19 +111,28 @@ impl<S: Services> ToolExecutor<S> {
         let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
         let env = self.services.environment_service().get_environment();
         match tool_input.to_content(&env) {
-            Content::Title(title) => context.send_text(title).await?,
-            Content::Summary(summary) => context.send_summary(summary).await?,
+            InputFormat::Title(title) => context.send_text(title).await?,
+            InputFormat::Summary(summary) => context.send_summary(summary).await?,
         };
 
         // Send tool call information
 
         let execution_result = self.call_internal(tool_input.clone()).await;
-        if let Err(ref e) = execution_result {
+        if let Err(ref error) = execution_result {
+            tracing::error!(error = ?error, "Tool execution failed");
             // Send failure message
-            context.send_text(TitleFormat::error(e.to_string())).await?;
+            context
+                .send_text(TitleFormat::error(error.to_string()))
+                .await?;
         }
 
         let execution_result = execution_result?;
+
+        // Send formatted output message
+        if let Some(output) = execution_result.to_content(&env) {
+            context.send_text(output).await?;
+        }
+
         let truncation_path = execution_result
             .to_create_temp(self.services.as_ref())
             .await?;

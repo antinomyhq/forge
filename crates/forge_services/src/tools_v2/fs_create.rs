@@ -71,7 +71,7 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
 
         Ok(FsCreateOutput {
             path: path.display().to_string(),
-            previous: old_content,
+            before: old_content,
             warning: syntax_warning.map(|v| v.to_string()),
         })
     }

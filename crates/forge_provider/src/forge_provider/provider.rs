@@ -153,7 +153,7 @@ impl ForgeProvider {
                             Some(Err(error).with_context(|| format!("Http Status: {status_code}")))
                         }
                         error => {
-                            debug!(error = %error, "Failed to receive chat completion event");
+                            tracing::error!(error = ?error, "Failed to receive chat completion event");
                             Some(Err(error.into()))
                         }
                     },
@@ -171,9 +171,9 @@ impl ForgeProvider {
         let url = self.url("models")?;
         debug!(url = %url, "Fetching models");
         match self.fetch_models(url.clone()).await {
-            Err(err) => {
-                debug!(error = %err, "Failed to fetch models");
-                anyhow::bail!(err)
+            Err(error) => {
+                tracing::error!(error = ?error, "Failed to fetch models");
+                anyhow::bail!(error)
             }
             Ok(response) => {
                 let data: ListModelResponse = serde_json::from_str(&response)

@@ -124,7 +124,7 @@ impl Anthropic {
                             Some(Err(error).with_context(|| format!("Http Status: {status_code}")))
                         }
                         error => {
-                            debug!(error = %error, "Failed to receive chat completion event");
+                            tracing::error!(error = ?error, "Failed to receive chat completion event");
                             Some(Err(error.into()))
                         }
                     },
@@ -152,10 +152,10 @@ impl Anthropic {
             .await;
 
         match result {
-            Err(err) => {
-                debug!(error = %err, "Failed to fetch models");
-                let ctx_msg = format_http_context(err.status(), "GET", &url);
-                Err(err)
+            Err(error) => {
+                tracing::error!(error = ?error, "Failed to fetch models");
+                let ctx_msg = format_http_context(error.status(), "GET", &url);
+                Err(error)
                     .with_context(|| ctx_msg)
                     .with_context(|| "Failed to fetch models")
             }
