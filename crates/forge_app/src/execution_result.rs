@@ -37,6 +37,34 @@ pub enum ExecutionResult {
     AttemptCompletion,
 }
 
+/// Helper function to create stdout or stderr elements with consistent
+/// structure
+fn create_stream_element(
+    stream_name: &str,
+    head_content: &str,
+    tail_content: Option<&str>,
+    total_lines: usize,
+    full_output_path: Option<&std::path::Path>,
+) -> Option<Element> {
+    if head_content.is_empty() {
+        return None;
+    }
+
+    let mut elem = Element::new(stream_name).append(Element::new("total_lines").text(total_lines));
+
+    elem = if let Some(tail) = tail_content {
+        elem.append(Element::new("head").cdata(head_content))
+            .append(Element::new("tail").cdata(tail))
+    } else {
+        elem.cdata(head_content)
+    };
+
+    if let Some(path) = full_output_path {
+        elem = elem.attr("full_output", path.display());
+    }
+
+    Some(elem)
+}
 impl ExecutionResult {
     pub fn into_tool_output(
         self,
@@ -215,43 +243,23 @@ impl ExecutionResult {
                     env.stdout_max_suffix_length,
                 );
                 let total_stdout = output.output.stdout.lines().count();
-
-                let mut stdout_elem = (!truncated_output.stdout_head.is_empty())
-                    .then_some(
-                        Element::new("stdout")
-                            .append(Element::new("total_lines").text(total_stdout)),
-                    )
-                    .map(|v| {
-                        if let Some(tail) = truncated_output.stdout_tail {
-                            v.append(Element::new("head").cdata(truncated_output.stdout_head))
-                                .append(Element::new("tail").cdata(tail))
-                        } else {
-                            v.cdata(truncated_output.stdout_head)
-                        }
-                    });
-
                 let total_stderr = output.output.stderr.lines().count();
-                let mut stderr_elem = (!truncated_output.stderr_head.is_empty())
-                    .then_some(
-                        Element::new("stderr")
-                            .append(Element::new("total_lines").text(total_stderr)),
-                    )
-                    .map(|v| {
-                        if let Some(tail) = truncated_output.stderr_tail {
-                            v.append(Element::new("head").cdata(truncated_output.stderr_head))
-                                .append(Element::new("tail").cdata(tail))
-                        } else {
-                            v.cdata(truncated_output.stderr_head)
-                        }
-                    });
 
-                if let Some(path) = content_files.stdout {
-                    stdout_elem = stdout_elem.map(|v| v.attr("full_output", path.display()));
-                }
+                let stdout_elem = create_stream_element(
+                    "stdout",
+                    &truncated_output.stdout_head,
+                    truncated_output.stdout_tail.as_deref(),
+                    total_stdout,
+                    content_files.stdout.as_deref(),
+                );
 
-                if let Some(path) = content_files.stderr {
-                    stderr_elem = stderr_elem.map(|v| v.attr("full_output", path.display()));
-                }
+                let stderr_elem = create_stream_element(
+                    "stderr",
+                    &truncated_output.stderr_head,
+                    truncated_output.stderr_tail.as_deref(),
+                    total_stderr,
+                    content_files.stderr.as_deref(),
+                );
 
                 parent_elem = parent_elem.append(stdout_elem);
                 parent_elem = parent_elem.append(stderr_elem);

@@ -35,7 +35,7 @@ fn clip_by_lines(
     content: &str,
     prefix_lines: usize,
     suffix_lines: usize,
-) -> (Vec<String>, Option<(usize, usize)>) {
+) -> (Vec<String>, Option<usize>) {
     let lines: Vec<&str> = content.lines().collect();
     let total_lines = lines.len();
 
@@ -57,9 +57,7 @@ fn clip_by_lines(
         result_lines.push(line.to_string());
     }
 
-    // Return lines and truncation info (number of lines hidden)
-    let hidden_lines = total_lines - prefix_lines - suffix_lines;
-    (result_lines, Some((prefix_lines, hidden_lines)))
+    (result_lines, Some(prefix_lines))
 }
 
 /// Represents formatted output with truncation metadata
@@ -84,9 +82,9 @@ fn process_stream(content: &str, prefix_lines: usize, suffix_lines: usize) -> Pr
 }
 
 /// Helper function to format potentially truncated output for stdout or stderr
-fn tag_output(lines: Vec<String>, truncation_info: Option<(usize, usize)>) -> FormattedOutput {
+fn tag_output(lines: Vec<String>, truncation_info: Option<usize>) -> FormattedOutput {
     match truncation_info {
-        Some((prefix_count, _)) => {
+        Some(prefix_count) => {
             let mut head = String::new();
             let mut tail = String::new();
 
