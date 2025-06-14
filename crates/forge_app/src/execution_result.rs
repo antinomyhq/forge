@@ -44,7 +44,10 @@ fn create_stream_element(
     head_content: &str,
     tail_content: Option<&str>,
     total_lines: usize,
-    full_output_path: Option<&std::path::Path>,
+    head_end_line: usize,
+    tail_start_line: Option<usize>,
+    tail_end_line: Option<usize>,
+    full_output_path: Option<&Path>,
 ) -> Option<Element> {
     if head_content.is_empty() {
         return None;
@@ -52,9 +55,19 @@ fn create_stream_element(
 
     let mut elem = Element::new(stream_name).attr("total_lines", total_lines);
 
-    elem = if let Some(tail) = tail_content {
-        elem.append(Element::new("head").cdata(head_content))
-            .append(Element::new("tail").cdata(tail))
+    elem = if let Some(((tail, tail_start), tail_end)) =
+        tail_content.zip(tail_start_line).zip(tail_end_line)
+    {
+        elem.append(
+            Element::new("head")
+                .attr("display_lines", format!("1-{head_end_line}"))
+                .cdata(head_content),
+        )
+        .append(
+            Element::new("tail")
+                .attr("display_lines", format!("{tail_start}-{tail_end}"))
+                .cdata(tail),
+        )
     } else {
         elem.cdata(head_content)
     };
@@ -242,22 +255,26 @@ impl ExecutionResult {
                     env.stdout_max_prefix_length,
                     env.stdout_max_suffix_length,
                 );
-                let total_stdout = output.output.stdout.lines().count();
-                let total_stderr = output.output.stderr.lines().count();
 
                 let stdout_elem = create_stream_element(
                     "stdout",
-                    &truncated_output.stdout_head,
-                    truncated_output.stdout_tail.as_deref(),
-                    total_stdout,
+                    &truncated_output.stdout.head,
+                    truncated_output.stdout.tail.as_deref(),
+                    truncated_output.stdout.total_lines,
+                    truncated_output.stdout.head_end_line,
+                    truncated_output.stdout.tail_start_line,
+                    truncated_output.stdout.tail_end_line,
                     content_files.stdout.as_deref(),
                 );
 
                 let stderr_elem = create_stream_element(
                     "stderr",
-                    &truncated_output.stderr_head,
-                    truncated_output.stderr_tail.as_deref(),
-                    total_stderr,
+                    &truncated_output.stderr.head,
+                    truncated_output.stderr.tail.as_deref(),
+                    truncated_output.stderr.total_lines,
+                    truncated_output.stderr.head_end_line,
+                    truncated_output.stderr.tail_start_line,
+                    truncated_output.stderr.tail_end_line,
                     content_files.stderr.as_deref(),
                 );
 
