@@ -207,19 +207,19 @@ mod tests {
         });
         let env = fixture_environment();
         let title_format = fixture.to_title(&env);
-        
+
         // Test render(false) - should not include timestamp
         let rendered_without_timestamp = title_format.render(false);
         let actual_without = strip_ansi_codes(&rendered_without_timestamp);
         assert!(!actual_without.contains("["));
         assert!(!actual_without.contains(":"));
-        
+
         // Test render(true) - should include timestamp
         let rendered_with_timestamp = title_format.render(true);
         let actual_with = strip_ansi_codes(&rendered_with_timestamp);
         assert!(actual_with.contains("["));
         assert!(actual_with.contains(":"));
-        
+
         // Test Display trait - should include timestamp (same as render(true))
         let display_string = title_format.to_string();
         let actual_display = strip_ansi_codes(&display_string);

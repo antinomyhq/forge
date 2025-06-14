@@ -1,28 +1,24 @@
-use std::cmp::min;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
 use convert_case::{Case, Casing};
-use forge_display::{DiffFormat, GrepFormat, TitleFormat};
+use forge_display::TitleFormat;
 use forge_domain::{
-    Agent, AgentInput, AttemptCompletion, ChatRequest, ChatResponse, Environment, Event, FSSearch,
-    Shell, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput, ToolResult, Tools,
+    Agent, AgentInput, ChatRequest, ChatResponse, Event, ToolCallContext, ToolCallFull,
+    ToolDefinition, ToolName, ToolOutput, ToolResult, Tools,
 };
 use futures::StreamExt;
-use regex::Regex;
 use strum::IntoEnumIterator;
 use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 use crate::error::Error;
-use crate::utils::{display_path, format_match};
+use crate::input_title::InputTitle;
 use crate::{
-    Content, ConversationService, EnvironmentService, FollowUpService, FsCreateOutput,
-    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
-    FsUndoService, HttpResponse, McpService, NetFetchService, PatchOutput, ReadOutput,
-    SearchResult, Services, ShellService, WorkflowService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, McpService, NetFetchService,
+    Services, ShellService, WorkflowService,
 };
 
 const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -102,29 +98,14 @@ impl<S: Services> ToolRegistry<S> {
     async fn call_internal(
         &self,
         input: Tools,
-        context: &mut ToolCallContext,
     ) -> anyhow::Result<crate::execution_result::ExecutionResult> {
         match input {
             Tools::ForgeToolFsRead(input) => {
-                let is_explicit_range = input.start_line.is_some() | input.end_line.is_some();
-
                 let output = self
                     .services
                     .fs_read_service()
                     .read(input.path.clone(), input.start_line, input.end_line)
                     .await?;
-                let env = self.services.environment_service().get_environment();
-                let display_path = display_path(&env, Path::new(&input.path));
-                let is_truncated = output.total_lines > output.end_line;
-
-                send_read_context(
-                    context,
-                    &output,
-                    &display_path,
-                    is_explicit_range,
-                    is_truncated,
-                )
-                .await?;
 
                 Ok(crate::execution_result::ExecutionResult::FsRead(output))
             }
@@ -134,7 +115,6 @@ impl<S: Services> ToolRegistry<S> {
                     .fs_create_service()
                     .create(input.path.clone(), input.content, input.overwrite, true)
                     .await?;
-                send_write_context(context, &out, &input.path, self.services.as_ref()).await?;
 
                 Ok(crate::execution_result::ExecutionResult::from(out))
             }
@@ -149,12 +129,9 @@ impl<S: Services> ToolRegistry<S> {
                     )
                     .await?;
 
-                send_fs_search_context(self.services.as_ref(), context, &input, &output).await?;
-
                 Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolFsRemove(input) => {
-                send_fs_remove_context(context, &input.path, self.services.as_ref()).await?;
                 let output = self
                     .services
                     .fs_remove_service()
@@ -174,24 +151,15 @@ impl<S: Services> ToolRegistry<S> {
                         input.content,
                     )
                     .await?;
-                send_fs_patch_context(context, &input.path, &output, self.services.as_ref())
-                    .await?;
 
                 Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolFsUndo(input) => {
-                send_fs_undo_context(context, input.clone(), self.services.as_ref()).await?;
                 let output = self.services.fs_undo_service().undo(input.path).await?;
 
                 Ok(crate::execution_result::ExecutionResult::from(output))
             }
             Tools::ForgeToolProcessShell(input) => {
-                send_shell_output_context(
-                    context,
-                    &input,
-                    self.services.environment_service().get_environment(),
-                )
-                .await?;
                 let output = self
                     .services
                     .shell_service()
@@ -206,8 +174,6 @@ impl<S: Services> ToolRegistry<S> {
                     .net_fetch_service()
                     .fetch(input.url.clone(), input.raw)
                     .await?;
-
-                send_net_fetch_context(context, &output, &input.url).await?;
 
                 Ok(crate::execution_result::ExecutionResult::from(output))
             }
@@ -231,8 +197,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 Ok(crate::execution_result::ExecutionResult::from(output))
             }
-            Tools::ForgeToolAttemptCompletion(input) => {
-                send_completion_context(context, input).await?;
+            Tools::ForgeToolAttemptCompletion(_input) => {
                 Ok(crate::execution_result::ExecutionResult::AttemptCompletion)
             }
         }
@@ -243,14 +208,17 @@ impl<S: Services> ToolRegistry<S> {
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
-
-        let out = self.call_internal(tool_input.clone(), context).await;
+        let env = self.services.environment_service().get_environment();
+        let title = tool_input.to_title(&env);
+        // Send tool call information
+        context.send_text(title).await?;
+        let out = self.call_internal(tool_input.clone()).await;
         if let Err(ref e) = out {
+            // Send failure message
             context.send_text(TitleFormat::error(e.to_string())).await?;
         }
         let out = out?;
         let truncation_path = out.to_create_temp(self.services.as_ref()).await?;
-        let env = self.services.environment_service().get_environment();
         Ok(out.into_tool_output(tool_input, truncation_path, &env))
     }
 
@@ -364,197 +332,6 @@ impl<S> ToolRegistry<S> {
         }
         Ok(())
     }
-}
-
-async fn send_completion_context(
-    ctx: &mut ToolCallContext,
-    input: AttemptCompletion,
-) -> anyhow::Result<()> {
-    ctx.send_summary(input.result).await?;
-
-    Ok(())
-}
-
-async fn send_fs_undo_context(
-    ctx: &mut ToolCallContext,
-    input: forge_domain::FSUndo,
-    services: &impl Services,
-) -> anyhow::Result<()> {
-    let env = services.environment_service().get_environment();
-
-    // Display a message about the file being undone
-    let message = TitleFormat::debug("Undo").sub_title(display_path(&env, Path::new(&input.path)));
-    ctx.send_text(message).await
-}
-
-async fn send_net_fetch_context(
-    ctx: &mut ToolCallContext,
-    output: &HttpResponse,
-    url: &str,
-) -> anyhow::Result<()> {
-    ctx.send_text(TitleFormat::debug(format!("GET {}", output.code)).sub_title(url))
-        .await?;
-
-    Ok(())
-}
-
-async fn send_shell_output_context(
-    ctx: &mut ToolCallContext,
-    output: &Shell,
-    environment: Environment,
-) -> anyhow::Result<()> {
-    let title_format =
-        TitleFormat::debug(format!("Execute [{}]", environment.shell)).sub_title(&output.command);
-    ctx.send_text(title_format).await?;
-    Ok(())
-}
-
-async fn send_fs_patch_context<S: Services>(
-    ctx: &mut ToolCallContext,
-    path: &String,
-    output: &PatchOutput,
-    services: &S,
-) -> anyhow::Result<()> {
-    let env = services.environment_service().get_environment();
-
-    let display_path = display_path(&env, Path::new(&path));
-    // Generate diff between old and new content
-    let diff = DiffFormat::format(&output.before, &output.after);
-
-    ctx.send_text(format!(
-        "{}",
-        TitleFormat::debug("Patch").sub_title(&display_path)
-    ))
-    .await?;
-
-    // Output diff either to sender or println
-    ctx.send_text(&diff).await?;
-
-    Ok(())
-}
-
-async fn send_fs_remove_context<S: Services>(
-    ctx: &mut ToolCallContext,
-    path: &str,
-    service: &S,
-) -> anyhow::Result<()> {
-    let env = service.environment_service().get_environment();
-    let display_path = display_path(&env, Path::new(path));
-
-    let message = TitleFormat::debug("Remove").sub_title(&display_path);
-
-    // Send the formatted message
-    ctx.send_text(message).await?;
-    Ok(())
-}
-
-async fn send_fs_search_context<S: Services>(
-    services: &S,
-    context: &mut ToolCallContext,
-    input: &FSSearch,
-    output: &Option<SearchResult>,
-) -> anyhow::Result<()> {
-    let env = services.environment_service().get_environment();
-    let formatted_dir = display_path(&env, Path::new(&input.path));
-
-    let title = match (&input.regex, &input.file_pattern) {
-        (Some(regex), Some(pattern)) => {
-            format!("Search for '{regex}' in '{pattern}' files at {formatted_dir}")
-        }
-        (Some(regex), None) => format!("Search for '{regex}' at {formatted_dir}"),
-        (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
-        (None, None) => format!("Search at {formatted_dir}"),
-    };
-
-    if let Some(output) = output.as_ref() {
-        context.send_text(TitleFormat::debug(title)).await?;
-        let mut formatted_output = GrepFormat::new(
-            output
-                .matches
-                .iter()
-                .map(|v| format_match(v, &env))
-                .collect::<Vec<_>>(),
-        );
-        if let Some(regex) = input.regex.as_ref().and_then(|v| Regex::new(v).ok()) {
-            formatted_output = formatted_output.regex(regex);
-        }
-        context.send_text(formatted_output.format()).await?;
-    }
-
-    Ok(())
-}
-
-async fn send_write_context<S: Services>(
-    ctx: &mut ToolCallContext,
-    out: &FsCreateOutput,
-    path: &str,
-    services: &S,
-) -> anyhow::Result<()> {
-    let env = services.environment_service().get_environment();
-    let formatted_path = display_path(&env, Path::new(&out.path));
-    let new_content = services
-        .fs_read_service()
-        .read(path.to_string(), None, None)
-        .await?;
-    let exists = out.previous.is_some();
-
-    let title = if exists { "Overwrite" } else { "Create" };
-
-    ctx.send_text(format!(
-        "{}",
-        TitleFormat::debug(title).sub_title(formatted_path)
-    ))
-    .await?;
-
-    if let Some(old_content) = out.previous.as_ref() {
-        match new_content.content {
-            Content::File(new_content) => {
-                let diff = DiffFormat::format(old_content, &new_content);
-                ctx.send_text(diff).await?;
-            }
-        }
-    }
-    Ok(())
-}
-
-async fn send_read_context(
-    ctx: &mut ToolCallContext,
-    out: &ReadOutput,
-    display_path: &str,
-    is_explicit_range: bool,
-    is_truncated: bool,
-) -> anyhow::Result<()> {
-    let is_range_relevant = is_explicit_range || is_truncated;
-    // Set the title based on whether this was an explicit user range request
-    // or an automatic limit for large files that actually needed truncation
-    let title = if is_explicit_range {
-        "Read (Range)"
-    } else if is_truncated {
-        // Only show "Auto-Limited" if the file was actually truncated
-        "Read (Auto-Limited)"
-    } else {
-        // File was smaller than the limit, so no truncation occurred
-        "Read"
-    };
-    let end_info = min(out.end_line, out.total_lines);
-    let range_info = format!(
-        "line range: {}-{}, total lines: {}",
-        out.start_line, end_info, out.total_lines
-    );
-    // Build the subtitle conditionally using a string buffer
-    let mut subtitle = String::new();
-
-    // Always include the file path
-    subtitle.push_str(display_path);
-
-    // Add range info if relevant
-    if is_range_relevant {
-        // Add range info for explicit ranges or truncated files
-        subtitle.push_str(&format!(" [{range_info}]"));
-    }
-    let message = TitleFormat::debug(title).sub_title(subtitle);
-    ctx.send_text(message).await?;
-    Ok(())
 }
 
 #[cfg(test)]
