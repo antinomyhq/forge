@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{Provider, RetryConfig, TimeoutConfig};
+use crate::{Provider, RetryConfig, HttpConfig};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -42,7 +42,7 @@ pub struct Environment {
     pub stdout_max_suffix_length: usize,
     /// Maximum number of lines to read from a file
     pub max_read_size: u64,
-    pub timeout_config: TimeoutConfig,
+    pub http: HttpConfig,
 }
 
 impl Environment {

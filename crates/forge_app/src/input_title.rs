@@ -127,7 +127,7 @@ mod tests {
             max_read_size: 10,
             stdout_max_prefix_length: 10,
             stdout_max_suffix_length: 10,
-            timeout_config: Default::default(),
+            http: Default::default(),
         }
     }
 

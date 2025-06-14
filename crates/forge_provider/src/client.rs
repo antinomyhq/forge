@@ -5,8 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use forge_domain::{
-    ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, RetryConfig,
-    TimeoutConfig,
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
 use reqwest::redirect::Policy;
 use tokio::sync::RwLock;
@@ -33,17 +32,15 @@ impl Client {
         provider: Provider,
         retry_config: RetryConfig,
         version: impl ToString,
-        timeout_config: TimeoutConfig,
+        timeout_config: HttpConfig,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
-            .read_timeout(std::time::Duration::from_secs(
-                timeout_config.read_timeout.unwrap_or(10),
-            ))
+            .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
             .pool_idle_timeout(std::time::Duration::from_secs(
-                timeout_config.pool_idle_timeout.unwrap_or(90),
+                timeout_config.pool_idle_timeout,
             ))
-            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host.unwrap_or(5))
-            .redirect(Policy::limited(timeout_config.max_redirects.unwrap_or(10)))
+            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
+            .redirect(Policy::limited(timeout_config.max_redirects))
             .build()?;
 
         let inner = match &provider {
@@ -154,12 +151,7 @@ mod tests {
             provider,
             RetryConfig::default(),
             "dev",
-            TimeoutConfig {
-                read_timeout: None,
-                pool_idle_timeout: None,
-                pool_max_idle_per_host: None,
-                max_redirects: None,
-            },
+            HttpConfig::default(),
         )
         .unwrap();
 
@@ -178,12 +170,7 @@ mod tests {
             provider,
             RetryConfig::default(),
             "dev",
-            TimeoutConfig {
-                read_timeout: None,
-                pool_idle_timeout: None,
-                pool_max_idle_per_host: None,
-                max_redirects: None,
-            },
+            HttpConfig::default(),
         )
         .unwrap();
 
