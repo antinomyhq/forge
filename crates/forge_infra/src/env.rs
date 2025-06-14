@@ -131,7 +131,7 @@ impl ForgeEnvironmentService {
                 config.max_redirects = parsed;
             }
         }
-        
+
         config
     }
 

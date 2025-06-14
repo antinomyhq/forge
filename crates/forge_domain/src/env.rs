@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{Provider, RetryConfig, HttpConfig};
+use crate::{HttpConfig, Provider, RetryConfig};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
