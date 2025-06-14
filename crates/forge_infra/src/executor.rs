@@ -181,6 +181,12 @@ mod tests {
             base_path: PathBuf::from("/base"),
             provider: Provider::open_router("test-key"),
             retry_config: Default::default(),
+            fetch_truncation_limit: 0,
+            stdout_max_prefix_length: 0,
+            max_search_lines: 0,
+            max_read_size: 0,
+            stdout_max_suffix_length: 0,
+            http: Default::default(),
         }
     }
 

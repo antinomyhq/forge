@@ -1,9 +1,12 @@
 use std::collections::BTreeMap;
+use std::fmt::Display;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use colored::Colorize;
+use convert_case::{Case, Casing};
 use forge_api::{
-    AgentMessage, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
+    AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
     Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
@@ -23,7 +26,7 @@ use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
-use crate::state::{Mode, UIState};
+use crate::state::UIState;
 use crate::update::on_update;
 use crate::{banner, TRACKER};
 
@@ -70,7 +73,7 @@ impl<F: API> UI<F> {
 
     /// Retrieve available models
     async fn get_models(&mut self) -> Result<Vec<Model>> {
-        self.spinner.start(Some("Loading Models"))?;
+        self.spinner.start(Some("Loading"))?;
         let models = self.api.models().await?;
         self.spinner.stop(None)?;
         Ok(models)
@@ -80,62 +83,62 @@ impl<F: API> UI<F> {
     async fn on_new(&mut self) -> Result<()> {
         self.init_state().await?;
         banner::display()?;
-
         Ok(())
     }
 
+    async fn active_workflow(&self) -> Result<Workflow> {
+        // Read the current workflow to validate the agent
+        let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+        let mut base_workflow = Workflow::default();
+        base_workflow.merge(workflow.clone());
+        Ok(base_workflow)
+    }
+
     // Set the current mode and update conversation variable
-    async fn on_mode_change(&mut self, mode: Mode) -> Result<()> {
-        self.on_new().await?;
-        // Set the mode variable in the conversation if a conversation exists
+    async fn on_agent_change(&mut self, agent_id: AgentId) -> Result<()> {
+        let workflow = self.active_workflow().await?;
+
+        // Convert string to AgentId for validation
+        let agent = workflow.get_agent(&AgentId::new(agent_id))?;
+
         let conversation_id = self.init_conversation().await?;
-
-        // Override the mode that was reset by the conversation
-        self.state.mode = mode.clone();
-
-        // Retrieve the conversation, update it, and save it back
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
-            conversation.set_variable("mode".to_string(), Value::from(mode.to_string()));
+            conversation.set_variable("operating_agent".into(), Value::from(agent.id.as_str()));
             self.api.upsert_conversation(conversation).await?;
         }
 
-        // Update the workflow with the new mode
+        // Reset is_first to true when switching agents
+        self.state.is_first = true;
+        self.state.operating_agent = agent.id.clone();
+
+        // Update the workflow with the new operating agent.
         self.api
             .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow
-                    .variables
-                    .insert("mode".to_string(), Value::from(mode.to_string()));
+                workflow.variables.insert(
+                    "operating_agent".to_string(),
+                    Value::from(agent.id.as_str()),
+                );
             })
             .await?;
 
         self.writeln(TitleFormat::action(format!(
-            "Switched to '{}' mode (context cleared)",
-            self.state.mode
+            "Switched to agent {}",
+            agent.id.as_str().to_case(Case::UpperSnake).bold()
         )))?;
 
         Ok(())
     }
-    // Helper functions for creating events with the specific event names
-    fn create_task_init_event<V: Into<Value>>(&self, content: V) -> Event {
-        Event::new(
-            format!(
-                "{}/{}",
-                self.state.mode.to_string().to_lowercase(),
-                EVENT_USER_TASK_INIT
-            ),
-            content,
-        )
-    }
 
-    fn create_task_update_event<V: Into<Value>>(&self, content: V) -> Event {
-        Event::new(
-            format!(
-                "{}/{}",
-                self.state.mode.to_string().to_lowercase(),
-                EVENT_USER_TASK_UPDATE
-            ),
+    fn create_task_event<V: Into<Value>>(
+        &self,
+        content: V,
+        event_name: &str,
+    ) -> anyhow::Result<Event> {
+        let operating_agent = &self.state.operating_agent;
+        Ok(Event::new(
+            format!("{operating_agent}/{event_name}"),
             content,
-        )
+        ))
     }
 
     pub async fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
@@ -157,14 +160,15 @@ impl<F: API> UI<F> {
 
     async fn prompt(&self) -> Result<Command> {
         // Prompt the user for input
-        self.console.prompt(Some(self.state.clone().into())).await
+        self.console.prompt(self.state.clone().into()).await
     }
 
     pub async fn run(&mut self) {
         match self.run_inner().await {
             Ok(_) => {}
             Err(error) => {
-                eprintln!("{}", TitleFormat::error(format!("{error:?}")));
+                tracing::error!(error = ?error);
+                eprintln!("{}", TitleFormat::error(format!("{error}")));
             }
         }
     }
@@ -213,8 +217,9 @@ impl<F: API> UI<F> {
                             tokio::spawn(
                                 TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{error:?}"))),
                             );
+                            tracing::error!(error = ?error);
                             self.spinner.stop(None)?;
-                            eprintln!("{}", TitleFormat::error(format!("{error:?}")));
+                            eprintln!("{}", TitleFormat::error(format!("{error}")));
                         },
                     }
                 }
@@ -231,18 +236,16 @@ impl<F: API> UI<F> {
         match subcommand {
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Add(add) => {
-                    let name = add.name.context("Server name is required")?;
+                    let name = add.name;
                     let scope: Scope = add.scope.into();
                     // Create the appropriate server type based on transport
                     let server = match add.transport {
                         Transport::Stdio => McpServerConfig::new_stdio(
-                            add.command_or_url.clone().unwrap_or_default(),
+                            add.command_or_url.clone(),
                             add.args.clone(),
                             Some(parse_env(add.env.clone())),
                         ),
-                        Transport::Sse => {
-                            McpServerConfig::new_sse(add.command_or_url.clone().unwrap_or_default())
-                        }
+                        Transport::Sse => McpServerConfig::new_sse(add.command_or_url.clone()),
                     };
                     // Command/URL already set in the constructor
 
@@ -315,7 +318,7 @@ impl<F: API> UI<F> {
                 self.on_compaction().await?;
             }
             Command::Dump(format) => {
-                self.spinner.start(Some("Creating a conversation dump"))?;
+                self.spinner.start(Some("Dumping"))?;
                 self.on_dump(format).await?;
             }
             Command::New => {
@@ -329,18 +332,18 @@ impl<F: API> UI<F> {
                 self.spinner.start(None)?;
                 self.on_message(content.clone()).await?;
             }
-            Command::Act => {
-                self.on_mode_change(Mode::Act).await?;
+            Command::Forge => {
+                self.on_agent_change(AgentId::FORGE).await?;
             }
-            Command::Plan => {
-                self.on_mode_change(Mode::Plan).await?;
+            Command::Muse => {
+                self.on_agent_change(AgentId::MUSE).await?;
             }
             Command::Help => {
                 let info = Info::from(self.command.as_ref());
                 self.writeln(info)?;
             }
             Command::Tools => {
-                self.spinner.start(Some("Loading tools"))?;
+                self.spinner.start(Some("Loading"))?;
                 use crate::tools_display::format_tools;
                 let tools = self.api.tools().await?;
 
@@ -364,11 +367,55 @@ impl<F: API> UI<F> {
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
+            Command::Agent => {
+                // Read the current workflow to validate the agent
+                let workflow = self.active_workflow().await?;
+
+                #[derive(Clone)]
+                struct Agent {
+                    id: AgentId,
+                    label: String,
+                }
+
+                impl Display for Agent {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(f, "{}", self.label)
+                    }
+                }
+                let n = workflow
+                    .agents
+                    .iter()
+                    .map(|a| a.id.as_str().len())
+                    .max()
+                    .unwrap_or_default();
+                let display_agents = workflow
+                    .agents
+                    .into_iter()
+                    .map(|agent| {
+                        let title = &agent.title.unwrap_or("<Missing agent.title>".to_string());
+                        {
+                            let label = format!(
+                                "{:<n$} {}",
+                                agent.id.as_str().to_case(Case::UpperSnake).bold(),
+                                title.lines().collect::<Vec<_>>().join(" ").dimmed()
+                            );
+                            Agent { label, id: agent.id.clone() }
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let select_prompt = inquire::Select::new(
+                    "select the agent from following list",
+                    display_agents.clone(),
+                );
+                if let Ok(selected_agent) = select_prompt.prompt() {
+                    self.on_agent_change(selected_agent.id).await?;
+                }
+            }
         }
 
         Ok(false)
     }
-
     async fn on_compaction(&mut self) -> Result<(), anyhow::Error> {
         let conversation_id = self.init_conversation().await?;
         let compaction_result = self.api.compact_conversation(&conversation_id).await?;
@@ -384,10 +431,12 @@ impl<F: API> UI<F> {
     /// canceled
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
         // Fetch available models
-        let models = self.get_models().await?;
-
-        // Create list of model IDs for selection
-        let model_ids: Vec<ModelId> = models.into_iter().map(|m| m.id).collect();
+        let models = self
+            .get_models()
+            .await?
+            .into_iter()
+            .map(CliModel)
+            .collect::<Vec<_>>();
 
         // Create a custom render config with the specified icons
         let render_config = RenderConfig::default()
@@ -400,11 +449,11 @@ impl<F: API> UI<F> {
             .state
             .model
             .as_ref()
-            .and_then(|current| model_ids.iter().position(|id| id == current))
+            .and_then(|current| models.iter().position(|m| &m.0.id == current))
             .unwrap_or(0);
 
         // Use inquire to select a model, with the current model pre-selected
-        match Select::new("Select a model:", model_ids)
+        match Select::new("Select a model:", models)
             .with_help_message(
                 "Type a model name or use arrow keys to navigate and Enter to select",
             )
@@ -412,7 +461,7 @@ impl<F: API> UI<F> {
             .with_starting_cursor(starting_cursor)
             .prompt()
         {
-            Ok(model) => Ok(Some(model)),
+            Ok(model) => Ok(Some(model.0.id)),
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
                 // Return None if selection was canceled
                 Ok(None)
@@ -475,11 +524,10 @@ impl<F: API> UI<F> {
         match self.state.conversation_id {
             Some(ref id) => Ok(id.clone()),
             None => {
-                self.spinner.start(Some("Initializing conversation"))?;
+                self.spinner.start(Some("Initializing"))?;
 
                 // Select a model if workflow doesn't have one
                 let workflow = self.init_state().await?;
-
                 // We need to try and get the conversation ID first before fetching the model
                 let id = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation = serde_json::from_str(
@@ -498,8 +546,6 @@ impl<F: API> UI<F> {
                     self.update_model(conversation.main_model()?);
                     conversation.id
                 };
-
-                self.spinner.stop(None)?;
 
                 Ok(id)
             }
@@ -533,9 +579,9 @@ impl<F: API> UI<F> {
         // Create a ChatRequest with the appropriate event type
         let event = if self.state.is_first {
             self.state.is_first = false;
-            self.create_task_init_event(content.clone())
+            self.create_task_event(content, EVENT_USER_TASK_INIT)?
         } else {
-            self.create_task_update_event(content.clone())
+            self.create_task_event(content, EVENT_USER_TASK_UPDATE)?
         };
 
         // Create the chat request with the event
@@ -600,8 +646,8 @@ impl<F: API> UI<F> {
         Ok(())
     }
 
-    fn handle_chat_response(&mut self, message: AgentMessage<ChatResponse>) -> Result<()> {
-        match message.message {
+    fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
+        match message {
             ChatResponse::Text { mut text, is_complete, is_md, is_summary } => {
                 if is_complete && !text.trim().is_empty() {
                     if is_md || is_summary {
@@ -633,7 +679,11 @@ impl<F: API> UI<F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(usage) => {
+            ChatResponse::Usage(mut usage) => {
+                // accumulate the cost
+                usage.cost = usage
+                    .cost
+                    .map(|cost| cost + self.state.usage.cost.as_ref().map_or(0.0, |c| *c));
                 self.state.usage = usage;
             }
         }
@@ -673,12 +723,14 @@ fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
         .collect()
 }
 
-async fn get_merged_workflow<F>(cli: &Cli, api: Arc<F>) -> Result<Workflow>
-where
-    F: API,
-{
-    let workflow = api.read_workflow(cli.workflow.as_deref()).await?;
-    let mut base_workflow = Workflow::default();
-    base_workflow.merge(workflow.clone());
-    Ok(base_workflow)
+struct CliModel(Model);
+
+impl Display for CliModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.id)?;
+        if self.0.tools_supported.unwrap_or_default() {
+            write!(f, " {}", "(tool_use)".dimmed())?;
+        }
+        Ok(())
+    }
 }

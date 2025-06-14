@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
-use forge_domain::{
-    ChatCompletionMessage, Context as ChatContext, EnvironmentService, Model, ModelId,
-    ProviderService, ResultStream,
-};
+use anyhow::Result;
+use forge_app::{EnvironmentService, ProviderService};
+use forge_domain::{ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream};
 use forge_provider::Client;
 
 use crate::Infrastructure;
@@ -20,11 +18,10 @@ impl ForgeProviderService {
         let infra = infra.clone();
         let env = infra.environment_service().get_environment();
         let provider = env.provider.clone();
+        let retry_config = env.retry_config.clone();
         let version = env.version();
         Self {
-            client: Arc::new(
-                Client::new(provider, env.retry_config.retry_status_codes, version).unwrap(),
-            ),
+            client: Arc::new(Client::new(provider, retry_config, version, env.http).unwrap()),
         }
     }
 }
@@ -36,17 +33,10 @@ impl ProviderService for ForgeProviderService {
         model: &ModelId,
         request: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.client
-            .chat(model, request)
-            .await
-            .with_context(|| format!("Failed to chat with model: {model}"))
+        self.client.chat(model, request).await
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
         self.client.models().await
-    }
-
-    async fn model(&self, model: &ModelId) -> Result<Option<Model>> {
-        self.client.model(model).await
     }
 }

@@ -10,6 +10,8 @@ pub struct Model {
     pub context_length: Option<u64>,
     // TODO: add provider information to the model
     pub tools_supported: Option<bool>,
+    /// Whether the model supports parallel tool calls
+    pub supports_parallel_tool_calls: Option<bool>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]

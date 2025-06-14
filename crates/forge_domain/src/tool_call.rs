@@ -3,7 +3,8 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{extract_tag_content, Error, Result, ToolName};
+use crate::xml::extract_tag_content;
+use crate::{Error, Result, ToolName};
 
 /// Unique identifier for a using a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -124,7 +125,7 @@ impl ToolCallFull {
     }
 
     /// Parse multiple tool calls from XML format.
-    pub fn try_from_xml(input: &str) -> std::result::Result<Vec<Self>, Error> {
+    pub fn try_from_xml(input: &str) -> std::result::Result<Vec<ToolCallFull>, Error> {
         match extract_tag_content(input, "forge_tool_call") {
             None => Ok(Default::default()),
             Some(content) => Ok(vec![
@@ -146,19 +147,32 @@ mod tests {
             ToolCallPart {
                 call_id: Some(ToolCallId("call_1".to_string())),
                 name: Some(ToolName::new("forge_tool_fs_read")),
-                arguments_part: "{\"path\": \"crates/forge_services/src/fixtures/mascot.md\"}"
-                    .to_string(),
+                arguments_part: "{\"path\": \"crates/forge_services/src/fixtures/".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "mascot.md\"}".to_string(),
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_2".to_string())),
                 name: Some(ToolName::new("forge_tool_fs_read")),
-                arguments_part: "{\"path\": \"docs/onboarding.md\"}".to_string(),
+                arguments_part: "{\"path\": \"docs/".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "onboarding.md\"}".to_string(),
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_3".to_string())),
                 name: Some(ToolName::new("forge_tool_fs_read")),
-                arguments_part: "{\"path\": \"crates/forge_services/src/service/service.md\"}"
-                    .to_string(),
+                arguments_part: "{\"path\": \"crates/forge_services/src/service/".to_string(),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "service.md\"}".to_string(),
             },
         ];
 
@@ -212,15 +226,6 @@ mod tests {
     }
 
     #[test]
-    fn test_real_example() {
-        let message = include_str!("./fixtures/tool_call_01.md");
-        let tool_call = ToolCallFull::try_from_xml(message).unwrap();
-        let actual = tool_call.first().unwrap().name.to_string();
-        let expected = "forge_tool_attempt_completion";
-        assert_eq!(actual, expected)
-    }
-
-    #[test]
     fn test_empty_arguments() {
         let input = [ToolCallPart {
             call_id: Some(ToolCallId("call_1".to_string())),
@@ -236,5 +241,14 @@ mod tests {
         }];
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_real_example() {
+        let message = include_str!("./fixtures/tool_call_01.md");
+        let tool_call = ToolCallFull::try_from_xml(message).unwrap();
+        let actual = tool_call.first().unwrap().name.to_string();
+        let expected = "forge_tool_attempt_completion";
+        assert_eq!(actual, expected)
     }
 }

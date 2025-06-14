@@ -1,0 +1,56 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: to_value(actual)
+---
+<shell_output>
+<metadata>
+<command><![CDATA[error_command]]></command>
+<shell>/bin/bash</shell>
+<exit_code>1</exit_code>
+</metadata>
+<full_content_file>
+<total_lines>25</total_lines>
+<path>/tmp/shell_output.md</path>
+<stderr_line_range
+  start="2"
+  end="27"
+>
+</stderr_line_range>
+</full_content_file>
+<stdout>
+<displayed_lines>0</displayed_lines>
+<total_lines>0</total_lines>
+<content><![CDATA[]]></content>
+</stdout>
+<stderr>
+<displayed_lines>20</displayed_lines>
+<total_lines>25</total_lines>
+<content><![CDATA[stderr line 1
+stderr line 2
+stderr line 3
+stderr line 4
+stderr line 5
+stderr line 6
+stderr line 7
+stderr line 8
+stderr line 9
+stderr line 10
+... [5 lines omitted] ...
+stderr line 16
+stderr line 17
+stderr line 18
+stderr line 19
+stderr line 20
+stderr line 21
+stderr line 22
+stderr line 23
+stderr line 24
+stderr line 25
+]]></content>
+<truncation_info>
+<head_lines>10</head_lines>
+<tail_lines>10</tail_lines>
+<omitted_lines>5</omitted_lines>
+</truncation_info>
+</stderr>
+</shell_output>

@@ -2,38 +2,45 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Result;
+use forge_app::{
+    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
+    ProviderService, Services, WorkflowService,
+};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::{CommandExecutorService, ForgeServices, Infrastructure};
 use forge_stream::MpscStream;
-use tracing::error;
 
-pub struct ForgeAPI<F> {
-    app: Arc<F>,
+use crate::API;
+
+pub struct ForgeAPI<A, F> {
+    app: Arc<A>,
+    infra: Arc<F>,
 }
 
-impl<F: Services + Infrastructure> ForgeAPI<F> {
-    pub fn new(app: Arc<F>) -> Self {
-        Self { app: app.clone() }
+impl<A: Services, F: Infrastructure> ForgeAPI<A, F> {
+    pub fn new(app: Arc<A>, infra: Arc<F>) -> Self {
+        Self { app, infra }
     }
 }
 
-impl ForgeAPI<ForgeServices<ForgeInfra>> {
+impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
     pub fn init(restricted: bool) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted));
-        let app = Arc::new(ForgeServices::new(infra));
-        ForgeAPI::new(app)
+        let app = Arc::new(ForgeServices::new(infra.clone()));
+        ForgeAPI::new(app, infra)
     }
 }
 
 #[async_trait::async_trait]
-impl<F: Services + Infrastructure> API for ForgeAPI<F> {
-    async fn suggestions(&self) -> Result<Vec<File>> {
-        self.app.suggestion_service().suggestions().await
+impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
+    async fn discover(&self) -> Result<Vec<File>> {
+        self.app.file_discovery_service().collect(None).await
     }
 
     async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        self.app.tool_service().list().await
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.list_tools().await
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
@@ -43,26 +50,10 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
     async fn chat(
         &self,
         chat: ChatRequest,
-    ) -> anyhow::Result<MpscStream<Result<AgentMessage<ChatResponse>, anyhow::Error>>> {
-        let app = self.app.clone();
-        let conversation = app
-            .conversation_service()
-            .find(&chat.conversation_id)
-            .await
-            .unwrap_or_default()
-            .expect("conversation for the request should've been created at this point.");
-
-        Ok(MpscStream::spawn(move |tx| async move {
-            let tx = Arc::new(tx);
-
-            let orch = Orchestrator::new(app, conversation, Some(tx.clone()));
-
-            if let Err(err) = orch.dispatch(chat.event).await {
-                if let Err(e) = tx.send(Err(err)).await {
-                    error!("Failed to send error to stream: {:#?}", e);
-                }
-            }
-        }))
+    ) -> anyhow::Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
+        // Create a ForgeApp instance and delegate the chat logic to it
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.chat(chat).await
     }
 
     async fn init_conversation<W: Into<Workflow> + Send + Sync>(
@@ -83,10 +74,8 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<CompactionResult> {
-        self.app
-            .conversation_service()
-            .compact_conversation(conversation_id)
-            .await
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.compact_conversation(conversation_id).await
     }
 
     fn environment(&self) -> Environment {
@@ -122,7 +111,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         command: &str,
         working_dir: PathBuf,
     ) -> anyhow::Result<CommandOutput> {
-        self.app
+        self.infra
             .command_executor_service()
             .execute_command(command.to_string(), working_dir)
             .await
@@ -147,7 +136,7 @@ impl<F: Services + Infrastructure> API for ForgeAPI<F> {
         &self,
         command: &str,
     ) -> anyhow::Result<std::process::ExitStatus> {
-        self.app
+        self.infra
             .command_executor_service()
             .execute_command_raw(command)
             .await

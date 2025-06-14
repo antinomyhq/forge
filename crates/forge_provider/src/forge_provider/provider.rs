@@ -80,7 +80,8 @@ impl ForgeProvider {
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let mut request = Request::from(context).model(model.clone()).stream(true);
-        request = ProviderPipeline::new(&self.provider).transform(request);
+        let mut pipeline = ProviderPipeline::new(&self.provider);
+        request = pipeline.transform(request);
 
         let url = self.url("chat/completions")?;
 
@@ -235,12 +236,19 @@ impl From<Model> for forge_domain::Model {
             .iter()
             .flatten()
             .any(|param| param == "tools");
+        let supports_parallel_tool_calls = value
+            .supported_parameters
+            .iter()
+            .flatten()
+            .any(|param| param == "supports_parallel_tool_calls");
+
         forge_domain::Model {
             id: value.id,
             name: value.name,
             description: value.description,
             context_length: value.context_length,
             tools_supported: Some(tools_supported),
+            supports_parallel_tool_calls: Some(supports_parallel_tool_calls),
         }
     }
 }

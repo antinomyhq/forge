@@ -1,11 +1,14 @@
-use super::transformer::Transformer;
+use forge_domain::Transformer;
+
 use crate::forge_provider::request::{Request, Role};
 
 /// Drops all tool call messages and converts them to user/assistant messages
 pub struct DropToolCalls;
 
 impl Transformer for DropToolCalls {
-    fn transform(&self, mut request: Request) -> Request {
+    type Value = Request;
+
+    fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         if let Some(messages) = request.messages.as_mut() {
             for message in messages.iter_mut() {
                 // Convert tool messages to user messages
@@ -21,6 +24,9 @@ impl Transformer for DropToolCalls {
                 }
             }
         }
+
+        // Reset the tools field
+        request.tools = None;
 
         request
     }
@@ -48,6 +54,7 @@ mod tests {
             .success("test result");
 
         let context = Context {
+            conversation_id: None,
             messages: vec![
                 ContextMessage::Text(TextMessage {
                     role: Role::Assistant,
@@ -57,7 +64,7 @@ mod tests {
                 }),
                 ContextMessage::Tool(tool_result),
             ],
-            tools: vec![],
+            tools: vec![forge_domain::ToolDefinition::new("test_tool").description("A test tool")],
             tool_choice: None,
             max_tokens: None,
             temperature: None,
@@ -66,7 +73,7 @@ mod tests {
         };
 
         let request = Request::from(context);
-        let transformer = DropToolCalls;
+        let mut transformer = DropToolCalls;
         let transformed = transformer.transform(request);
 
         let messages = transformed.messages.unwrap();
@@ -74,5 +81,7 @@ mod tests {
         assert!(messages[0].tool_calls.is_none());
         // Converted tool message
         assert_eq!(messages[1].role, Role::User.into());
+        // Tools field should be reset
+        assert!(transformed.tools.is_none());
     }
 }

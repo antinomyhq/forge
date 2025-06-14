@@ -1,0 +1,39 @@
+---
+source: crates/forge_domain/src/transformer/set_model.rs
+expression: snapshot
+---
+transformation: SetModel(gpt-4)_preserve_existing
+before:
+  messages:
+    - text:
+        role: User
+        content: User message 1
+        tool_calls: ~
+        model: ~
+    - text:
+        role: User
+        content: User message 2
+        tool_calls: ~
+        model: claude-3
+    - text:
+        role: User
+        content: User message 3
+        tool_calls: ~
+        model: ~
+after:
+  messages:
+    - text:
+        role: User
+        content: User message 1
+        tool_calls: ~
+        model: gpt-4
+    - text:
+        role: User
+        content: User message 2
+        tool_calls: ~
+        model: claude-3
+    - text:
+        role: User
+        content: User message 3
+        tool_calls: ~
+        model: gpt-4

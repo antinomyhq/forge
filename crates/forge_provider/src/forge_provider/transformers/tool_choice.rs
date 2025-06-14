@@ -1,6 +1,7 @@
+use forge_domain::Transformer;
+
 use crate::forge_provider::request::Request;
 use crate::forge_provider::tool_choice::ToolChoice;
-use crate::forge_provider::transformers::Transformer;
 
 pub struct SetToolChoice {
     choice: ToolChoice,
@@ -13,7 +14,9 @@ impl SetToolChoice {
 }
 
 impl Transformer for SetToolChoice {
-    fn transform(&self, mut request: Request) -> Request {
+    type Value = Request;
+
+    fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         request.tool_choice = Some(self.choice.clone());
         request
     }
@@ -31,6 +34,7 @@ mod tests {
         let request = Request::from(context).model(ModelId::new("google/gemini-pro"));
 
         let transformer = SetToolChoice::new(ToolChoice::Auto);
+        let mut transformer = transformer;
         let transformed = transformer.transform(request);
 
         assert_eq!(transformed.tool_choice, Some(ToolChoice::Auto));

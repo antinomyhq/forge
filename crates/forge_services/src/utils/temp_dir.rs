@@ -29,19 +29,4 @@ impl TempDir {
     fn temp_dir() -> anyhow::Result<PathBuf> {
         Ok(std::env::temp_dir().canonicalize()?)
     }
-
-    /// Use this function to remove the temporary directory path from the
-    /// content
-    pub fn normalize(input: &str) -> String {
-        let pattern = format!(
-            "{}/{}.*{}",
-            Self::temp_dir().unwrap().display(),
-            Self::START_MARKER,
-            Self::END_MARKER
-        );
-        let pattern = regex::Regex::new(&pattern).unwrap();
-        let content = pattern.replace_all(input, "[TEMP_DIR]");
-
-        content.to_string()
-    }
 }

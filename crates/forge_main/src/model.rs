@@ -177,11 +177,12 @@ impl ForgeCommandManager {
                     Ok(Command::Dump(None))
                 }
             }
-            "/act" => Ok(Command::Act),
-            "/plan" => Ok(Command::Plan),
+            "/act" | "/forge" => Ok(Command::Forge),
+            "/plan" | "/muse" => Ok(Command::Muse),
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
+            "/agent" => Ok(Command::Agent),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -234,14 +235,14 @@ pub enum Command {
     /// Updates the forge version
     #[strum(props(usage = "Updates to the latest compatible version of forge"))]
     Update,
-    /// Switch to "act" mode.
-    /// This can be triggered with the '/act' command.
+    /// Switch to "forge" agent.
+    /// This can be triggered with the '/forge' command.
     #[strum(props(usage = "Enable implementation mode with code changes"))]
-    Act,
-    /// Switch to "plan" mode.
-    /// This can be triggered with the '/plan' command.
+    Forge,
+    /// Switch to "muse" agent.
+    /// This can be triggered with the '/must' command.
     #[strum(props(usage = "Enable planning mode without code changes"))]
-    Plan,
+    Muse,
     /// Switch to "help" mode.
     /// This can be triggered with the '/help' command.
     #[strum(props(usage = "Enable help mode for tool questions"))]
@@ -263,6 +264,12 @@ pub enum Command {
     /// This can be triggered with commands starting with '!' character.
     #[strum(props(usage = "Execute a native shell command"))]
     Shell(String),
+
+    /// Allows user to switch the operating agent.
+    #[strum(props(
+        usage = "Switch between different AI agents. Use this command to change which agent handles your requests and see available options."
+    ))]
+    Agent,
 }
 
 impl Command {
@@ -274,14 +281,15 @@ impl Command {
             Command::Update => "/update",
             Command::Info => "/info",
             Command::Exit => "/exit",
-            Command::Act => "/act",
-            Command::Plan => "/plan",
+            Command::Forge => "/forge",
+            Command::Muse => "/muse",
             Command::Help => "/help",
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
             Command::Tools => "/tools",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
+            Command::Agent => "/agent",
         }
     }
 

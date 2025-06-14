@@ -944,7 +944,183 @@ dependencies = [
 ]
 
 [[package]]
-name = "forge"
+name = "forge_api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "forge_app",
+ "forge_domain",
+ "forge_infra",
+ "forge_services",
+ "forge_snaps",
+ "forge_stream",
+ "forge_walker",
+ "futures",
+ "insta",
+ "merge",
+ "serde",
+ "serde_json",
+ "serde_yml",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "forge_app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-recursion",
+ "async-trait",
+ "backon",
+ "chrono",
+ "console",
+ "convert_case",
+ "derive_more",
+ "derive_setters",
+ "forge_display",
+ "forge_domain",
+ "forge_stream",
+ "forge_template",
+ "forge_walker",
+ "futures",
+ "handlebars",
+ "insta",
+ "merge",
+ "pretty_assertions",
+ "regex",
+ "rust-embed",
+ "serde",
+ "serde_json",
+ "strum 0.27.1",
+ "tempfile",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "forge_ci"
+version = "0.1.0"
+dependencies = [
+ "gh-workflow-tailcall",
+ "indexmap",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "forge_display"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "colored 3.0.0",
+ "console",
+ "derive_setters",
+ "insta",
+ "pretty_assertions",
+ "regex",
+ "similar",
+ "strip-ansi-escapes",
+ "termimad",
+]
+
+[[package]]
+name = "forge_domain"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "convert_case",
+ "derive-getters",
+ "derive_more",
+ "derive_setters",
+ "forge_template",
+ "forge_tool_macros",
+ "insta",
+ "lazy_static",
+ "merge",
+ "nom 8.0.0",
+ "pretty_assertions",
+ "regex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_yml",
+ "strum 0.27.1",
+ "strum_macros 0.27.1",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "forge_fs"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "infer",
+ "pretty_assertions",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "forge_infra"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "backon",
+ "bytes",
+ "dirs",
+ "dotenv",
+ "forge_app",
+ "forge_domain",
+ "forge_fs",
+ "forge_services",
+ "forge_snaps",
+ "inquire",
+ "pretty_assertions",
+ "reqwest 0.12.12",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "forge_inte"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dotenv",
+ "forge_api",
+ "forge_domain",
+ "forge_tracker",
+ "futures",
+ "lazy_static",
+ "serde_yml",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
+name = "forge_main"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -984,148 +1160,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "forge_api"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "bytes",
- "forge_domain",
- "forge_infra",
- "forge_services",
- "forge_snaps",
- "forge_stream",
- "forge_walker",
- "insta",
- "merge",
- "serde",
- "serde_json",
- "serde_yml",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "forge_ci"
-version = "0.1.0"
-dependencies = [
- "gh-workflow-tailcall",
- "indexmap",
- "pretty_assertions",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "forge_display"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "colored 3.0.0",
- "console",
- "derive_setters",
- "insta",
- "pretty_assertions",
- "regex",
- "similar",
- "strip-ansi-escapes",
- "termimad",
-]
-
-[[package]]
-name = "forge_domain"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-recursion",
- "async-trait",
- "backon",
- "base64 0.22.1",
- "chrono",
- "derive-getters",
- "derive_more",
- "derive_setters",
- "forge_stream",
- "forge_template",
- "forge_walker",
- "futures",
- "insta",
- "merge",
- "nom 8.0.0",
- "pretty_assertions",
- "regex",
- "reqwest-eventsource",
- "schemars",
- "serde",
- "serde_json",
- "serde_yml",
- "strum 0.27.1",
- "strum_macros 0.27.1",
- "thiserror 2.0.12",
- "tokio",
- "tokio-stream",
- "tracing",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "forge_fs"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "infer",
- "pretty_assertions",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "forge_infra"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "backon",
- "bytes",
- "dirs",
- "dotenv",
- "forge_domain",
- "forge_fs",
- "forge_services",
- "forge_snaps",
- "inquire",
- "pretty_assertions",
- "reqwest 0.12.12",
- "rmcp",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.12",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "forge_inte"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dotenv",
- "forge_api",
- "forge_domain",
- "forge_tracker",
- "futures",
- "lazy_static",
- "serde_yml",
- "tokio",
- "tokio-stream",
-]
-
-[[package]]
 name = "forge_provider"
 version = "0.1.0"
 dependencies = [
@@ -1155,6 +1189,7 @@ name = "forge_services"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-recursion",
  "async-trait",
  "base64 0.22.1",
  "bytes",
@@ -1163,6 +1198,7 @@ dependencies = [
  "derive_more",
  "derive_setters",
  "dissimilar",
+ "forge_app",
  "forge_display",
  "forge_domain",
  "forge_fs",

@@ -115,7 +115,7 @@ async fn init_agent(&self, agent_id: &AgentId, event: &Event) -> anyhow::Result<
 
 Ensure the templates can use variables from the context:
 
-In `templates/partial-system-info.hbs` and other system templates, add support for variables:
+In `templates/forge-partial-system-info.hbs` and other system templates, add support for variables:
 
 ```handlebars
 <system_info>

@@ -1,50 +1,18 @@
 use std::collections::HashSet;
-use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use forge_domain::{Attachment, AttachmentContent, AttachmentService, EnvironmentService, Image};
+use forge_app::{AttachmentService, EnvironmentService};
+use forge_domain::{Attachment, AttachmentContent, Image};
 
 use crate::{FsReadService, Infrastructure};
 
 #[derive(Clone)]
-
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
 impl<F: Infrastructure> ForgeChatRequest<F> {
-    async fn generate_image_content(
-        path: &Path,
-        img_format: String,
-        infra: &impl FsReadService,
-    ) -> anyhow::Result<Image> {
-        let bytes = infra.read(path).await?;
-
-        Ok(Image::new_bytes(bytes, img_format))
-    }
-
-    async fn generate_text_content(
-        path: &Path,
-        infra: &impl FsReadService,
-    ) -> anyhow::Result<String> {
-        const MAX_CHARS: u64 = 40_000;
-        let (content, file_info) = infra.range_read_utf8(path, 0, MAX_CHARS).await?;
-        let mut response = String::new();
-        writeln!(response, "---")?;
-        writeln!(response, "path: {}", path.display())?;
-
-        writeln!(response, "start_char: {}", file_info.start_char)?;
-        writeln!(response, "end_char: {}", file_info.end_char)?;
-        writeln!(response, "total_chars: {}", file_info.total_chars)?;
-
-        writeln!(response, "---")?;
-
-        writeln!(response, "{}", &content)?;
-
-        Ok(response)
-    }
-
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -84,13 +52,14 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
             _ => None,
         });
 
+        //NOTE: Attachments should not be truncated since they are provided by the user
         let content = match mime_type {
-            Some(mime_type) => AttachmentContent::Image(
-                Self::generate_image_content(&path, mime_type, self.infra.file_read_service())
-                    .await?,
-            ),
+            Some(mime_type) => AttachmentContent::Image(Image::new_bytes(
+                self.infra.file_read_service().read(&path).await?,
+                mime_type,
+            )),
             None => AttachmentContent::FileContent(
-                Self::generate_text_content(&path, self.infra.file_read_service()).await?,
+                self.infra.file_read_service().read_utf8(&path).await?,
             ),
         };
 
@@ -113,9 +82,10 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
+    use forge_app::{AttachmentService, EnvironmentService};
     use forge_domain::{
-        AttachmentContent, AttachmentService, CommandOutput, Environment, EnvironmentService,
-        Provider, ToolDefinition, ToolName, ToolOutput,
+        AttachmentContent, CommandOutput, Environment, Provider, ToolDefinition, ToolName,
+        ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -143,6 +113,12 @@ pub mod tests {
                 base_path: PathBuf::from("/base"),
                 provider: Provider::open_router("test-key"),
                 retry_config: Default::default(),
+                max_search_lines: 25,
+                fetch_truncation_limit: 0,
+                stdout_max_prefix_length: 0,
+                stdout_max_suffix_length: 0,
+                max_read_size: 0,
+                http: Default::default(),
             }
         }
     }
@@ -205,17 +181,18 @@ pub mod tests {
         async fn range_read_utf8(
             &self,
             path: &Path,
-            _start_char: u64,
-            _end_char: u64,
+            _start_line: u64,
+            _end_line: u64,
         ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
             // For tests, we'll just read the entire file and return it
             let content = self.read_utf8(path).await?;
-            let total_chars = content.len() as u64;
+            let lines: Vec<&str> = content.lines().collect();
+            let total_lines = lines.len() as u64;
 
             // Return the entire content for simplicity in tests
             Ok((
                 content,
-                forge_fs::FileInfo::new(0, total_chars, total_chars),
+                forge_fs::FileInfo::new(0, total_lines, total_lines),
             ))
         }
     }
@@ -266,7 +243,12 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsWriteService for MockFileService {
-        async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+        async fn write(
+            &self,
+            path: &Path,
+            contents: Bytes,
+            _capture_snapshot: bool,
+        ) -> anyhow::Result<()> {
             let index = self.files.lock().unwrap().iter().position(|v| v.0 == path);
             if let Some(index) = index {
                 self.files.lock().unwrap().remove(index);
@@ -282,7 +264,7 @@ pub mod tests {
             let temp_dir = crate::utils::TempDir::new().unwrap();
             let path = temp_dir.path();
 
-            self.write(&path, content.to_string().into()).await?;
+            self.write(&path, content.to_string().into(), false).await?;
 
             Ok(path)
         }
@@ -571,9 +553,6 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("This is a text file content"));
-        assert!(attachment.content.contains("start_char:"));
-        assert!(attachment.content.contains("end_char:"));
-        assert!(attachment.content.contains("total_chars:"));
     }
 
     #[tokio::test]
@@ -727,8 +706,5 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("Some content"));
-        assert!(attachment.content.contains("start_char:"));
-        assert!(attachment.content.contains("end_char:"));
-        assert!(attachment.content.contains("total_chars:"));
     }
 }

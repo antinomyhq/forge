@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use forge_app::{McpService, ToolService};
 use forge_domain::{
-    McpService, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
-    ToolResult, ToolService,
+    Agent, Tool, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput, ToolResult,
 };
 use tokio::time::{timeout, Duration};
 use tracing::info;
@@ -45,7 +45,7 @@ impl<M: McpService> ForgeToolService<M> {
 
             available_tools.sort();
 
-            // FIXME: Use typed errors instead of anyhow
+            // TODO: Use typed errors instead of anyhow
             anyhow::anyhow!(
                 "No tool with name '{}' was found. Please try again with one of these tools {}",
                 name.to_string(),
@@ -61,26 +61,25 @@ impl<M: McpService> ForgeToolService<M> {
     /// 2. If agent validation passes, checks if the system supports the tool
     async fn validate_tool_call(
         &self,
-        context: &ToolCallContext,
+        agent: &Agent,
         tool_name: &ToolName,
     ) -> anyhow::Result<Arc<Tool>> {
         // Step 1: check if tool is supported by operating agent.
-        if let Some(agent) = &context.agent {
-            let agent_tools: Vec<_> = agent
-                .tools
-                .iter()
-                .flat_map(|tools| tools.iter())
-                .map(|tool| tool.as_str())
-                .collect();
 
-            if !agent_tools.contains(&tool_name.as_str()) {
-                return Err(anyhow::anyhow!(
+        let agent_tools: Vec<_> = agent
+            .tools
+            .iter()
+            .flat_map(|tools| tools.iter())
+            .map(|tool| tool.as_str())
+            .collect();
+
+        if !agent_tools.contains(&tool_name.as_str()) {
+            return Err(anyhow::anyhow!(
                     "No tool with name '{}' is supported by agent '{}'. Please try again with one of these tools {}",
                     tool_name,
                     agent.id,
                     agent_tools.join(", ")
                 ));
-            }
         }
 
         // Step 2: check if tool is supported by system.
@@ -90,13 +89,14 @@ impl<M: McpService> ForgeToolService<M> {
 
     async fn call(
         &self,
-        context: ToolCallContext,
+        agent: &Agent,
+        context: &mut ToolCallContext,
         call: ToolCallFull,
     ) -> anyhow::Result<ToolOutput> {
         info!(tool_name = %call.name, arguments = %call.arguments, "Executing tool call");
 
         // Checks if tool is supported by agent and system.
-        let tool = self.validate_tool_call(&context, &call.name).await?;
+        let tool = self.validate_tool_call(agent, &call.name).await?;
 
         let output = timeout(
             TOOL_CALL_TIMEOUT,
@@ -121,10 +121,15 @@ impl<M: McpService> ForgeToolService<M> {
 
 #[async_trait::async_trait]
 impl<M: McpService> ToolService for ForgeToolService<M> {
-    async fn call(&self, context: ToolCallContext, call: ToolCallFull) -> ToolResult {
+    async fn call(
+        &self,
+        agent: &Agent,
+        context: &mut ToolCallContext,
+        call: ToolCallFull,
+    ) -> ToolResult {
         ToolResult::new(call.name.clone())
             .call_id(call.call_id.clone())
-            .output(self.call(context, call).await)
+            .output(self.call(agent, context, call).await)
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
@@ -148,8 +153,8 @@ impl<M: McpService> ToolService for ForgeToolService<M> {
 
 #[cfg(test)]
 mod test {
-    use forge_domain::{Tool, ToolCallContext, ToolCallId, ToolDefinition};
-    use serde_json::{json, Value};
+    use forge_domain::{AgentId, Tool, ToolCallContext, ToolCallId, ToolDefinition};
+    use serde_json::json;
 
     use super::*;
 
@@ -164,6 +169,10 @@ mod test {
         async fn find(&self, _: &ToolName) -> anyhow::Result<Option<Arc<Tool>>> {
             Ok(None)
         }
+
+        async fn call(&self, _call: ToolCallFull) -> anyhow::Result<ToolOutput> {
+            unimplemented!()
+        }
     }
 
     impl FromIterator<Tool> for ForgeToolService<Stub> {
@@ -177,60 +186,72 @@ mod test {
         }
     }
 
-    // Mock tool that simulates a long-running task
-    struct SlowTool;
-
-    #[async_trait::async_trait]
-    impl forge_domain::ExecutableTool for SlowTool {
-        type Input = Value;
-
-        async fn call(
-            &self,
-            _context: ToolCallContext,
-            _input: Self::Input,
-        ) -> anyhow::Result<forge_domain::ToolOutput> {
-            // Simulate a long-running task that exceeds the timeout
-            tokio::time::sleep(Duration::from_secs(400)).await;
-            Ok(forge_domain::ToolOutput::text(
-                "Slow tool completed".to_string(),
-            ))
-        }
-    }
-
-    #[tokio::test(flavor = "current_thread")]
+    #[tokio::test]
     async fn test_tool_timeout() {
-        // Create a mock tool that would normally time out
-        let slow_tool = Tool {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        // Create a tool that doesn't sleep but allows us to verify the timeout
+        // mechanism
+        struct AlwaysPendingTool(Arc<AtomicBool>);
+
+        #[async_trait::async_trait]
+        impl forge_domain::ExecutableTool for AlwaysPendingTool {
+            type Input = serde_json::Value;
+
+            async fn call(
+                &self,
+                _context: &mut ToolCallContext,
+                _input: Self::Input,
+            ) -> anyhow::Result<forge_domain::ToolOutput> {
+                self.0.store(true, Ordering::SeqCst);
+                // Instead of sleeping, create a future that never resolves
+                std::future::pending::<()>().await;
+                Ok(forge_domain::ToolOutput::text(
+                    "This should never be reached".to_string(),
+                ))
+            }
+        }
+
+        let was_called = Arc::new(AtomicBool::new(false));
+        let pending_tool = Tool {
             definition: ToolDefinition {
-                name: ToolName::new("slow_tool"),
-                description: "A test tool that takes too long".to_string(),
+                name: ToolName::new("pending_tool"),
+                description: "A test tool that never completes".to_string(),
                 input_schema: schemars::schema_for!(serde_json::Value),
-                output_schema: Some(schemars::schema_for!(String)),
             },
-            executable: Box::new(SlowTool),
+            executable: Box::new(AlwaysPendingTool(was_called.clone())),
         };
 
-        let service = ForgeToolService::from_iter(vec![slow_tool]);
+        let service = ForgeToolService::from_iter(vec![pending_tool]);
         let call = ToolCallFull {
-            name: ToolName::new("slow_tool"),
+            name: ToolName::new("pending_tool"),
             arguments: json!("test input"),
             call_id: Some(ToolCallId::new("test")),
         };
 
-        // Use tokio::time::timeout directly to simulate tool timeout behavior
-        // without relying on tokio test mock time that might be flakey
+        // Create an agent that supports the pending_tool
+        let mut agent = Agent::new(AgentId::new("software_agent"));
+        agent = agent.tools(vec![ToolName::new("pending_tool")]);
+
+        // Use a very short timeout to test the timeout mechanism
         let result = tokio::time::timeout(
-            Duration::from_millis(50), // Use a very short timeout for test speed
-            service.call(ToolCallContext::default(), call),
+            Duration::from_millis(100), // Short timeout for test speed
+            service.call(&agent, &mut ToolCallContext::default(), call),
         )
         .await;
 
-        // Verify we got an elapsed error
+        // Verify we got a timeout error
         assert!(result.is_err(), "Expected timeout error");
+        assert!(
+            was_called.load(Ordering::SeqCst),
+            "Tool should have been called"
+        );
+
         let timeout_err = result.unwrap_err();
         assert!(
             timeout_err.to_string().contains("elapsed"),
-            "Expected 'elapsed' in timeout message"
+            "Expected 'elapsed' in timeout message, got: {timeout_err}"
         );
     }
 }

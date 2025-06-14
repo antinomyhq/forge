@@ -1,9 +1,0 @@
----
-source: crates/forge_services/src/tools/fs/fs_write.rs
-expression: normalized_output
----
----
-path: [TEMP_DIR]/test.txt
-operation: CREATE
-total_chars: 13
----

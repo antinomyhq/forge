@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Parser;
-use forge::{Cli, UI};
 use forge_api::ForgeAPI;
+use forge_main::{Cli, UI};
 
 #[tokio::main]
 async fn main() -> Result<()> {

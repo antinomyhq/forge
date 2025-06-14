@@ -2,17 +2,16 @@ use derive_setters::Setters;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
 
-// Maximum number of retry attempts for retryable operations
-const MAX_RETRY_ATTEMPTS: usize = 3;
-
-const RETRY_STATUS_CODES: &[u16] = &[429, 500, 502, 503, 504];
-
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, PartialEq)]
 #[setters(into)]
 pub struct RetryConfig {
     /// Initial backoff delay in milliseconds for retry operations
     #[merge(strategy = crate::merge::std::overwrite)]
     pub initial_backoff_ms: u64,
+
+    /// Minimum delay in milliseconds between retry attempts
+    #[merge(strategy = crate::merge::std::overwrite)]
+    pub min_delay_ms: u64,
 
     /// Backoff multiplication factor for each retry attempt
     #[merge(strategy = crate::merge::std::overwrite)]
@@ -32,9 +31,52 @@ impl Default for RetryConfig {
     fn default() -> Self {
         Self {
             initial_backoff_ms: 200,
+            min_delay_ms: 1000,
             backoff_factor: 2,
-            max_retry_attempts: MAX_RETRY_ATTEMPTS,
-            retry_status_codes: RETRY_STATUS_CODES.to_vec(),
+            max_retry_attempts: 8,
+            retry_status_codes: vec![429, 500, 502, 503, 504],
         }
+    }
+}
+
+impl RetryConfig {
+    // Implementation moved to forge_app::retry module to avoid backon dependency
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_retry_config_default() {
+        // Fixture: Create default retry config
+        let config = RetryConfig::default();
+
+        // Expected: Should have expected default values
+        assert_eq!(config.initial_backoff_ms, 200);
+        assert_eq!(config.min_delay_ms, 1000);
+        assert_eq!(config.backoff_factor, 2);
+        assert_eq!(config.max_retry_attempts, 8);
+        assert_eq!(config.retry_status_codes, vec![429, 500, 502, 503, 504]);
+    }
+
+    #[test]
+    fn test_retry_config_setters() {
+        // Fixture: Create retry config with custom values
+        let config = RetryConfig::default()
+            .initial_backoff_ms(100u64)
+            .min_delay_ms(500u64)
+            .backoff_factor(3u64)
+            .max_retry_attempts(5usize)
+            .retry_status_codes(vec![429, 503]);
+
+        // Expected: Should have custom values
+        assert_eq!(config.initial_backoff_ms, 100);
+        assert_eq!(config.min_delay_ms, 500);
+        assert_eq!(config.backoff_factor, 3);
+        assert_eq!(config.max_retry_attempts, 5);
+        assert_eq!(config.retry_status_codes, vec![429, 503]);
     }
 }

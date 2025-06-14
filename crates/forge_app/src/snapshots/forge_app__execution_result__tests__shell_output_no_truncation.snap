@@ -1,0 +1,22 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: to_value(actual)
+---
+<shell_output>
+<metadata>
+<command><![CDATA[echo hello]]></command>
+<shell>/bin/bash</shell>
+<exit_code>0</exit_code>
+</metadata>
+<stdout>
+<displayed_lines>4</displayed_lines>
+<total_lines>2</total_lines>
+<content><![CDATA[hello
+world]]></content>
+</stdout>
+<stderr>
+<displayed_lines>0</displayed_lines>
+<total_lines>0</total_lines>
+<content><![CDATA[]]></content>
+</stderr>
+</shell_output>

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -33,31 +33,20 @@ impl ConversationId {
 pub struct Conversation {
     pub id: ConversationId,
     pub archived: bool,
-    pub state: HashMap<AgentId, AgentState>,
+    pub context: Option<Context>,
     pub variables: HashMap<String, Value>,
     pub agents: Vec<Agent>,
     pub events: Vec<Event>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct AgentState {
-    pub turn_count: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub context: Option<Context>,
-    /// holds the events that are waiting to be processed
-    pub queue: VecDeque<Event>,
-}
-
 impl Conversation {
-    pub const MAIN_AGENT_NAME: &str = "software-engineer";
-
     /// Returns the model of the main agent
     ///
     /// # Errors
     /// - `AgentUndefined` if the main agent doesn't exist
     /// - `NoModelDefined` if the main agent doesn't have a model defined
     pub fn main_model(&self) -> Result<ModelId> {
-        let agent = self.get_agent(&AgentId::new(Self::MAIN_AGENT_NAME))?;
+        let agent = self.get_agent(&AgentId::default())?;
         agent
             .model
             .clone()
@@ -72,8 +61,8 @@ impl Conversation {
         let agent_pos = self
             .agents
             .iter()
-            .position(|a| a.id.as_str() == Self::MAIN_AGENT_NAME)
-            .ok_or_else(|| Error::AgentUndefined(AgentId::new(Self::MAIN_AGENT_NAME)))?;
+            .position(|a| a.id == AgentId::default())
+            .ok_or_else(|| Error::AgentUndefined(AgentId::default()))?;
 
         // Update the model
         self.agents[agent_pos].model = Some(model);
@@ -132,7 +121,7 @@ impl Conversation {
             }
 
             // Subscribe the main agent to all commands
-            if agent.id.as_str() == Conversation::MAIN_AGENT_NAME {
+            if agent.id == AgentId::default() {
                 let commands = workflow
                     .commands
                     .iter()
@@ -162,28 +151,17 @@ impl Conversation {
         Self {
             id,
             archived: false,
-            state: Default::default(),
+            context: None,
             variables: workflow.variables.clone(),
             agents,
             events: Default::default(),
         }
     }
 
-    pub fn turn_count(&self, id: &AgentId) -> Option<u64> {
-        self.state.get(id).map(|s| s.turn_count)
-    }
-
     /// Returns all the agents that are subscribed to the given event.
     pub fn subscriptions(&self, event_name: &str) -> Vec<Agent> {
         self.agents
             .iter()
-            .filter(|a| {
-                // Filter out disabled agents
-                !a.disable.unwrap_or_default()
-            })
-            .filter(|a| {
-                self.turn_count(&a.id).unwrap_or_default() < a.max_turns.unwrap_or(u64::MAX)
-            })
             .filter(|a| {
                 a.subscribe
                     .as_ref()
@@ -201,14 +179,10 @@ impl Conversation {
             .ok_or(Error::AgentUndefined(id.clone()))
     }
 
-    pub fn context(&self, id: &AgentId) -> Option<&Context> {
-        self.state.get(id).and_then(|s| s.context.as_ref())
-    }
-
     pub fn rfind_event(&self, event_name: &str) -> Option<&Event> {
-        self.state
-            .values()
-            .flat_map(|state| state.queue.iter().rev())
+        self.events
+            .iter()
+            .rev()
             .find(|event| event.name == event_name)
     }
 
@@ -248,73 +222,29 @@ impl Conversation {
         crate::conversation_html::render_conversation_html(self)
     }
 
-    /// Add an event to the queue of subscribed agents
+    /// Add an event to the conversation
     pub fn insert_event(&mut self, event: Event) -> &mut Self {
-        let subscribed_agents = self.subscriptions(&event.name);
-        self.events.push(event.clone());
-
-        subscribed_agents.iter().for_each(|agent| {
-            self.state
-                .entry(agent.id.clone())
-                .or_default()
-                .queue
-                .push_back(event.clone());
-        });
-
+        self.events.push(event);
         self
     }
 
-    /// Gets the next event for a specific agent, if one is available
+    /// Dispatches an event to the conversation
     ///
-    /// If an event is available in the agent's queue, it is popped and
-    /// returned. Additionally, if the agent's queue becomes empty, it is
-    /// marked as inactive.
-    ///
-    /// Returns None if no events are available for this agent.
-    pub fn poll_event(&mut self, agent_id: &AgentId) -> Option<Event> {
-        // if event is present in queue, pop it and return.
-        if let Some(agent) = self.state.get_mut(agent_id) {
-            if let Some(event) = agent.queue.pop_front() {
-                return Some(event);
-            }
-        }
-        None
-    }
-
-    /// Dispatches an event to all subscribed agents and activates any inactive
-    /// agents
-    ///
-    /// This method performs two main operations:
-    /// 1. Adds the event to the queue of all agents that subscribe to this
-    ///    event type
-    /// 2. Activates any inactive agents (where is_active=false) that are
-    ///    subscribed to the event
-    ///
-    /// Returns a vector of AgentIds for all agents that were inactive and are
-    /// now activated
+    /// This method adds the event to the conversation and returns
+    /// a vector of AgentIds for all agents subscribed to this event.
     pub fn dispatch_event(&mut self, event: Event) -> Vec<AgentId> {
         let name = event.name.as_str();
-        let mut agents = self.subscriptions(name);
+        let agents = self.subscriptions(name);
 
-        let inactive_agents = agents
-            .iter_mut()
-            .filter_map(|agent| {
-                let is_inactive = self
-                    .state
-                    .get(&agent.id)
-                    .map(|state| state.queue.is_empty())
-                    .unwrap_or(true);
-                if is_inactive {
-                    Some(agent.id.clone())
-                } else {
-                    None
-                }
-            })
+        // Get all agent IDs that should be activated
+        let agent_ids = agents
+            .iter()
+            .map(|agent| agent.id.clone())
             .collect::<Vec<_>>();
 
         self.insert_event(event);
 
-        inactive_agents
+        agent_ids
     }
 }
 
@@ -338,7 +268,7 @@ mod tests {
         // Assert
         assert_eq!(conversation.id, id);
         assert!(!conversation.archived);
-        assert!(conversation.state.is_empty());
+        assert!(conversation.context.is_none());
         assert!(conversation.variables.is_empty());
         assert!(conversation.agents.is_empty());
         assert!(conversation.events.is_empty());
@@ -456,7 +386,7 @@ mod tests {
         let id = super::ConversationId::generate();
 
         // Create the main software-engineer agent
-        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let main_agent = AgentId::default();
         // Create a regular agent
         let other_agent = Agent::new("other-agent");
 
@@ -475,7 +405,7 @@ mod tests {
         ];
 
         let workflow = Workflow::new()
-            .agents(vec![main_agent, other_agent])
+            .agents(vec![Agent::new(main_agent), other_agent])
             .commands(commands.clone());
 
         // Act
@@ -488,7 +418,7 @@ mod tests {
         let main_agent = conversation
             .agents
             .iter()
-            .find(|a| a.id.as_str() == super::Conversation::MAIN_AGENT_NAME)
+            .find(|a| a.id == AgentId::default())
             .unwrap();
 
         assert!(main_agent.subscribe.is_some());
@@ -523,7 +453,7 @@ mod tests {
         let id = super::ConversationId::generate();
 
         // Create the main software-engineer agent with existing subscriptions
-        let mut main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let mut main_agent = Agent::new(AgentId::default());
         main_agent.subscribe = Some(vec!["existing-event".to_string()]);
 
         // Create some commands
@@ -551,7 +481,7 @@ mod tests {
         let main_agent = conversation
             .agents
             .iter()
-            .find(|a| a.id.as_str() == super::Conversation::MAIN_AGENT_NAME)
+            .find(|a| a.id == AgentId::default())
             .unwrap();
 
         assert!(main_agent.subscribe.is_some());
@@ -568,8 +498,7 @@ mod tests {
     fn test_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
-        let main_agent =
-            Agent::new(super::Conversation::MAIN_AGENT_NAME).model(ModelId::new("test-model"));
+        let main_agent = Agent::new(AgentId::default()).model(ModelId::new("test-model"));
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
@@ -603,7 +532,7 @@ mod tests {
     fn test_main_model_no_model_defined() {
         // Arrange
         let id = super::ConversationId::generate();
-        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let main_agent = Agent::new(AgentId::default());
         // No model defined for the agent
 
         let workflow = Workflow::new().agents(vec![main_agent]);
@@ -620,7 +549,7 @@ mod tests {
     fn test_set_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
-        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let main_agent = Agent::new(AgentId::default());
         // Initially no model defined
 
         let workflow = Workflow::new().agents(vec![main_agent]);

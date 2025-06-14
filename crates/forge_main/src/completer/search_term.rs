@@ -22,20 +22,28 @@ impl SearchTerm {
     /// Otherwise, returns the word at the cursor position.
     /// If no word is found, returns None.
     pub fn process(&self) -> Option<TermResult<'_>> {
-        // Get all the indexes of the '@' chars
-        // Get all chars between @ and the cursor
-        self.line
-            .chars()
-            .enumerate()
-            .filter(|(_, c)| *c == '@')
-            .map(|(i, _)| i)
-            .filter(|at| *at < self.position)
-            .max_by(|a, b| a.cmp(b))
-            .map(|at| TermResult {
-                span: Span::new(at + 1, self.position),
-                term: &self.line[at + 1..self.position],
-            })
-            .filter(|s| !s.term.contains(" "))
+        // Ensure position is on a UTF-8 character boundary to prevent panics
+        let safe_position = if self.line.is_char_boundary(self.position) {
+            self.position
+        } else {
+            // Find the nearest lower character boundary
+            (0..self.position)
+                .rev()
+                .find(|&i| self.line.is_char_boundary(i))
+                .unwrap_or(0)
+        };
+
+        let prefix = &self.line[..safe_position];
+        let at_pos = prefix.rfind('@')?;
+        let start_pos = at_pos + 1;
+        let term = &self.line[start_pos..safe_position];
+
+        // Reject terms containing spaces
+        if term.contains(' ') {
+            return None;
+        }
+
+        Some(TermResult { span: Span::new(start_pos, safe_position), term })
     }
 }
 
@@ -53,13 +61,16 @@ mod tests {
 
     impl SearchTerm {
         fn test(line: &str) -> Vec<TermSpec> {
-            (1..line.len() + 1)
-                .map(|i| {
-                    let input = SearchTerm::new(line, i);
+            // Test at each valid character boundary position, starting from 1
+            (1..=line.len())
+                .filter(|&pos| line.is_char_boundary(pos))
+                .map(|pos| {
+                    let input = SearchTerm::new(line, pos);
                     let output = input.process();
-                    let (a, b) = line.split_at(i);
+                    let (a, b) = line.split_at(pos);
+
                     TermSpec {
-                        pos: i,
+                        pos,
                         input: format!("{a}[{b}"),
                         output: output.as_ref().map(|term| term.term.to_string()),
                         span_start: output.as_ref().map(|term| term.span.start),
@@ -83,6 +94,30 @@ mod tests {
     #[test]
     fn test_marker_based_search() {
         let results = SearchTerm::test("@abc @def ghi@");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_marker_based_search_chinese() {
+        let results = SearchTerm::test("@你好 @世界 测试@");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_marker_based_search_mixed_chinese_english() {
+        let results = SearchTerm::test("@hello @世界 test@中文");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_marker_based_search_chinese_with_spaces() {
+        let results = SearchTerm::test("@中 文 @测试");
+        assert_debug_snapshot!(results);
+    }
+
+    #[test]
+    fn test_marker_based_search_emoji() {
+        let results = SearchTerm::test("@🚀 @🌟 emoji@");
         assert_debug_snapshot!(results);
     }
 }

@@ -2,9 +2,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_domain::{
-    CommandOutput, EnvironmentService, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
-};
+use forge_app::EnvironmentService;
+use forge_domain::{CommandOutput, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
 use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
@@ -23,33 +22,37 @@ pub trait FsReadService: Send + Sync {
     /// Returns the file content as raw bytes.
     async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>>;
 
-    /// Reads a specific character range from a file at the specified path.
+    /// Reads a specific line range from a file at the specified path.
     /// Returns the file content within the range as a UTF-8 string along with
     /// metadata.
     ///
-    /// - start_char specifies the starting character position (0-based,
-    ///   inclusive).
-    /// - end_char specifies the ending character position (inclusive).
-    /// - Both start_char and end_char are inclusive bounds.
+    /// - start_line specifies the starting line position (1-based, inclusive).
+    /// - end_line specifies the ending line position (1-based, inclusive).
+    /// - Both start_line and end_line are inclusive bounds.
     /// - Binary files are automatically detected and rejected.
     ///
     /// Returns a tuple containing the file content and FileInfo with metadata
     /// about the read operation:
-    /// - FileInfo.start_char: starting character position
-    /// - FileInfo.end_char: ending character position
-    /// - FileInfo.total_chars: total character count in file
+    /// - FileInfo.start_line: starting line position
+    /// - FileInfo.end_line: ending line position
+    /// - FileInfo.total_lines: total line count in file
     async fn range_read_utf8(
         &self,
         path: &Path,
-        start_char: u64,
-        end_char: u64,
+        start_line: u64,
+        end_line: u64,
     ) -> anyhow::Result<(String, forge_fs::FileInfo)>;
 }
 
 #[async_trait::async_trait]
 pub trait FsWriteService: Send + Sync {
     /// Writes the content of a file at the specified path.
-    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()>;
+    async fn write(
+        &self,
+        path: &Path,
+        contents: Bytes,
+        capture_snapshot: bool,
+    ) -> anyhow::Result<()>;
 
     /// Writes content to a temporary file with the given prefix and extension,
     /// and returns its path. The file will be kept (not deleted) after
@@ -127,7 +130,7 @@ pub trait InquireService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait McpClient: Send + Sync + 'static {
+pub trait McpClient: Clone + Send + Sync + 'static {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
     async fn call(
         &self,

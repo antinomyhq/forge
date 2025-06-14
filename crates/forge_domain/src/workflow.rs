@@ -14,6 +14,12 @@ use crate::{Agent, AgentId, ModelId, TopK, TopP};
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters)]
 #[setters(strip_option)]
 pub struct Workflow {
+    /// Path pattern for custom template files (supports glob patterns)
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub templates: Option<String>,
+
     /// Agents that are part of this workflow
     #[merge(strategy = crate::merge::vec::unify_by_key)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -138,6 +144,7 @@ impl Workflow {
             top_k: None,
             tool_supported: None,
             updates: None,
+            templates: None,
         }
     }
 

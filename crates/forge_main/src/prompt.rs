@@ -3,29 +3,28 @@ use std::env;
 use std::fmt::Write;
 use std::process::Command;
 
+use convert_case::{Case, Casing};
 use derive_setters::Setters;
-use forge_api::{ModelId, Usage};
+use forge_api::{AgentId, ModelId, Usage};
 use forge_tracker::VERSION;
 use nu_ansi_term::{Color, Style};
 use reedline::{Prompt, PromptHistorySearchStatus};
-
-use crate::state::Mode;
 
 // Constants
 const MULTILINE_INDICATOR: &str = "::: ";
 const RIGHT_CHEVRON: &str = "❯";
 
 /// Very Specialized Prompt for the Agent Chat
-#[derive(Clone, Default, Setters)]
+#[derive(Clone, Setters)]
 #[setters(strip_option, borrow_self)]
 pub struct ForgePrompt {
     pub usage: Option<Usage>,
-    pub mode: Mode,
+    pub agent_id: AgentId,
     pub model: Option<ModelId>,
 }
 
 impl Prompt for ForgePrompt {
-    fn render_prompt_left(&self) -> Cow<str> {
+    fn render_prompt_left(&self) -> Cow<'_, str> {
         // Pre-compute styles to avoid repeated style creation
         let mode_style = Style::new().fg(Color::White).bold();
         let folder_style = Style::new().fg(Color::Cyan);
@@ -51,7 +50,7 @@ impl Prompt for ForgePrompt {
         write!(
             result,
             "{} {}",
-            mode_style.paint(self.mode.to_string()),
+            mode_style.paint(self.agent_id.as_str().to_case(Case::UpperSnake)),
             folder_style.paint(&current_dir)
         )
         .unwrap();
@@ -68,7 +67,7 @@ impl Prompt for ForgePrompt {
         Cow::Owned(result)
     }
 
-    fn render_prompt_right(&self) -> Cow<str> {
+    fn render_prompt_right(&self) -> Cow<'_, str> {
         // Use a string buffer with pre-allocation to reduce allocations
         let mut result = String::with_capacity(32);
 
@@ -112,18 +111,18 @@ impl Prompt for ForgePrompt {
         )
     }
 
-    fn render_prompt_indicator(&self, _prompt_mode: reedline::PromptEditMode) -> Cow<str> {
+    fn render_prompt_indicator(&self, _prompt_mode: reedline::PromptEditMode) -> Cow<'_, str> {
         Cow::Borrowed("")
     }
 
-    fn render_prompt_multiline_indicator(&self) -> Cow<str> {
+    fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
         Cow::Borrowed(MULTILINE_INDICATOR)
     }
 
     fn render_prompt_history_search_indicator(
         &self,
         history_search: reedline::PromptHistorySearch,
-    ) -> Cow<str> {
+    ) -> Cow<'_, str> {
         let prefix = match history_search.status {
             PromptHistorySearchStatus::Passing => "",
             PromptHistorySearchStatus::Failing => "failing ",
@@ -182,6 +181,12 @@ mod tests {
 
     use super::*;
 
+    impl Default for ForgePrompt {
+        fn default() -> Self {
+            ForgePrompt { usage: None, agent_id: AgentId::default(), model: None }
+        }
+    }
+
     #[test]
     fn test_render_prompt_left() {
         let prompt = ForgePrompt::default();
@@ -189,7 +194,7 @@ mod tests {
         let actual = prompt.render_prompt_left();
 
         // Check that it has the expected format with mode and directory displayed
-        assert!(actual.contains("ACT"));
+        assert!(actual.contains("FORGE"));
         assert!(actual.contains(RIGHT_CHEVRON));
     }
 
@@ -205,7 +210,7 @@ mod tests {
         env::remove_var("PROMPT");
 
         // Verify the prompt contains expected elements regardless of $PROMPT var
-        assert!(actual.contains("ACT"));
+        assert!(actual.contains("FORGE"));
         assert!(actual.contains(RIGHT_CHEVRON));
     }
 

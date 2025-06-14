@@ -2,7 +2,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{Workflow, WorkflowService};
+use forge_app::WorkflowService;
+use forge_domain::Workflow;
 
 use crate::{FsReadService, FsWriteService, Infrastructure};
 
@@ -66,7 +67,7 @@ impl<F: Infrastructure> ForgeWorkflowService<F> {
             let workflow = Workflow::new();
             self.infra
                 .file_write_service()
-                .write(path, serde_yml::to_string(&workflow)?.into())
+                .write(path, serde_yml::to_string(&workflow)?.into(), true)
                 .await?;
 
             Ok(workflow)
@@ -101,7 +102,7 @@ impl<F: Infrastructure> WorkflowService for ForgeWorkflowService<F> {
         let content = serde_yml::to_string(workflow)?;
         self.infra
             .file_write_service()
-            .write(&resolved_path, content.into())
+            .write(&resolved_path, content.into(), true)
             .await
     }
 

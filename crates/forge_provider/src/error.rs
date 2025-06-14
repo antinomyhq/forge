@@ -50,6 +50,7 @@ impl ErrorCode {
 }
 
 #[derive(Default, Debug, Deserialize, Serialize, Clone, Setters)]
+#[setters(strip_option)]
 pub struct ErrorResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<Box<ErrorResponse>>,
@@ -152,8 +153,8 @@ mod tests {
 
         // Use derived setters for a cleaner initialization
         let fixture = ErrorResponse::default()
-            .message(Some("Error message".to_string()))
-            .code(Some(error_code));
+            .message("Error message".to_string())
+            .code(error_code);
 
         let actual = fixture.get_code_deep();
 
@@ -169,12 +170,12 @@ mod tests {
 
         // Use derived setters for cleaner initialization
         let inner_error = ErrorResponse::default()
-            .message(Some("Inner error".to_string()))
-            .code(Some(error_code));
+            .message("Inner error".to_string())
+            .code(error_code);
 
         let fixture = ErrorResponse::default()
-            .error(Some(Box::new(inner_error)))
-            .message(Some("Outer error".to_string()));
+            .error(Box::new(inner_error))
+            .message("Outer error".to_string());
 
         let actual = fixture.get_code_deep();
 
@@ -186,7 +187,7 @@ mod tests {
     #[test]
     fn test_get_code_deep_no_code() {
         // Test with an error that has no code and no inner error
-        let fixture = ErrorResponse::default().message(Some("Error message".to_string()));
+        let fixture = ErrorResponse::default().message("Error message".to_string());
 
         let actual = fixture.get_code_deep();
         let expected = None;
@@ -199,17 +200,17 @@ mod tests {
         let error_code = ErrorCode::Number(500);
 
         let deepest_error = ErrorResponse::default()
-            .message(Some("Deepest error".to_string()))
-            .code(Some(error_code));
+            .message("Deepest error".to_string())
+            .code(error_code);
 
         let middle_error = ErrorResponse::default()
-            .error(Some(Box::new(deepest_error)))
-            .message(Some("Middle error".to_string()));
+            .error(Box::new(deepest_error))
+            .message("Middle error".to_string());
         // No code here, should find deepest
 
         let fixture = ErrorResponse::default()
-            .error(Some(Box::new(middle_error)))
-            .message(Some("Outer error".to_string()));
+            .error(Box::new(middle_error))
+            .message("Outer error".to_string());
         // No code here, should find deepest
 
         let actual = fixture.get_code_deep();
