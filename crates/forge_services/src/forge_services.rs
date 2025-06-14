@@ -8,7 +8,7 @@ use crate::discovery::ForgeDiscoveryService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
-use crate::tools_v2::{
+use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
     ForgeFsSearch, ForgeFsUndo, ForgeShell,
 };

@@ -6,7 +6,10 @@ use bytes::Bytes;
 use forge_app::{FsCreateOutput, FsCreateService};
 
 use crate::utils::assert_absolute_path;
-use crate::{FsCreateDirsService, FsMetaService, FsReadService, FsWriteService, Infrastructure};
+use crate::{
+    tool_services, FsCreateDirsService, FsMetaService, FsReadService, FsWriteService,
+    Infrastructure,
+};
 
 /// Use it to create a new file at a specified path with the provided content.
 /// Always provide absolute paths for file locations. The tool
@@ -34,7 +37,7 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
         // Validate file content if it's a supported language file
-        let syntax_warning = super::syn::validate(path, &content);
+        let syntax_warning = tool_services::syn::validate(path, &content);
         if let Some(parent) = Path::new(&path).parent() {
             self.0
                 .create_dirs_service()

@@ -7,7 +7,7 @@ mod infra;
 mod mcp;
 mod provider;
 mod template;
-mod tools_v2;
+mod tool_services;
 mod utils;
 mod workflow;
 
