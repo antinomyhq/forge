@@ -21,15 +21,16 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         &self,
         paths: HashSet<T>,
     ) -> anyhow::Result<Vec<Attachment>> {
-        futures::future::join_all(
+        let results = futures::future::join_all(
             paths
                 .into_iter()
                 .map(|v| v.as_ref().to_path_buf())
-                .map(|v| self.populate_attachments(v)),
+                .map(|v| async move { (self.populate_attachments(v).await).ok() }),
         )
-        .await
-        .into_iter()
-        .collect::<anyhow::Result<Vec<_>>>()
+        .await;
+
+        // Filter out None values (failed attachments)
+        Ok(results.into_iter().flatten().collect())
     }
 
     async fn populate_attachments(&self, mut path: PathBuf) -> anyhow::Result<Attachment> {
@@ -540,7 +541,7 @@ pub mod tests {
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with a text file path in chat message
-        let url = "@[/test/file1.txt]".to_string();
+        let url = "@/test/file1.txt".to_string();
 
         // Execute
         let attachments = chat_request.attachments(&url).await.unwrap();
@@ -562,7 +563,7 @@ pub mod tests {
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an image file
-        let url = "@[/test/image.png]".to_string();
+        let url = "@/test/image.png".to_string();
 
         // Execute
         let attachments = chat_request.attachments(&url).await.unwrap();
@@ -588,8 +589,8 @@ pub mod tests {
         let infra = Arc::new(MockInfrastructure::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
-        // Test with an image file that has spaces in the path
-        let url = "@[/test/image with spaces.jpg]".to_string();
+        // Test with an image file that has spaces in the path - URL encoded
+        let url = "@/test/image%20with%20spaces.jpg".to_string();
 
         // Execute
         let attachments = chat_request.attachments(&url).await.unwrap();
@@ -622,7 +623,7 @@ pub mod tests {
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with multiple files mentioned
-        let url = "@[/test/file1.txt] @[/test/file2.txt] @[/test/image.png]".to_string();
+        let url = "@/test/file1.txt @/test/file2.txt @/test/image.png".to_string();
 
         // Execute
         let attachments = chat_request.attachments(&url).await.unwrap();
@@ -654,14 +655,19 @@ pub mod tests {
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with a file that doesn't exist
-        let url = "@[/test/nonexistent.txt]".to_string();
+        let url = "@/test/nonexistent.txt".to_string();
 
-        // Execute - Let's handle the error properly
+        // Execute - With our new implementation, this should succeed with an empty
+        // result
         let result = chat_request.attachments(&url).await;
 
-        // Assert - we expect an error for nonexistent files
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("File not found"));
+        // Assert - we now expect success but with an empty vec
+        assert!(result.is_ok());
+        let attachments = result.unwrap();
+        assert!(
+            attachments.is_empty(),
+            "Expected empty attachments list for non-existent file"
+        );
     }
 
     #[tokio::test]
@@ -694,7 +700,7 @@ pub mod tests {
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with the file
-        let url = "@[/test/unknown.xyz]".to_string();
+        let url = "@/test/unknown.xyz".to_string();
 
         // Execute
         let attachments = chat_request.attachments(&url).await.unwrap();
