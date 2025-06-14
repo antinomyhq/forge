@@ -2,12 +2,11 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-<shell_output>
-<metadata>
-<command><![CDATA[complex_command]]></command>
-<shell>/bin/bash</shell>
-<exit_code>0</exit_code>
-</metadata>
+<shell_output
+  command="complex_command"
+  shell="/bin/bash"
+  exit_code="0"
+>
 <stdout
   total_lines="25"
   full_output="/tmp/stdout_content.txt"

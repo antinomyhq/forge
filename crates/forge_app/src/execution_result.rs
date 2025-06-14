@@ -236,15 +236,13 @@ impl ExecutionResult {
                 forge_domain::ToolOutput::text(elm)
             }
             (_, ExecutionResult::Shell(output)) => {
-                let mut parent_elem = Element::new("shell_output");
-                let mut metadata_elem = Element::new("metadata")
-                    .append(Element::new("command").cdata(&output.output.command))
-                    .append(Element::new("shell").text(&output.shell));
-                if let Some(exit_code) = output.output.exit_code {
-                    metadata_elem = metadata_elem.append(Element::new("exit_code").text(exit_code))
-                }
+                let mut parent_elem = Element::new("shell_output")
+                    .attr("command", &output.output.command)
+                    .attr("shell", &output.shell);
 
-                parent_elem = parent_elem.append(metadata_elem);
+                if let Some(exit_code) = output.output.exit_code {
+                    parent_elem = parent_elem.attr("exit_code", exit_code);
+                }
 
                 let truncated_output = truncate_shell_output(
                     &output.output.stdout,

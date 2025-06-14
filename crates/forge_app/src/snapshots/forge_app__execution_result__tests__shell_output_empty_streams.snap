@@ -2,10 +2,9 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-<shell_output>
-<metadata>
-<command><![CDATA[silent_command]]></command>
-<shell>/bin/bash</shell>
-<exit_code>0</exit_code>
-</metadata>
+<shell_output
+  command="silent_command"
+  shell="/bin/bash"
+  exit_code="0"
+>
 </shell_output>

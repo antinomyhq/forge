@@ -2,12 +2,11 @@
 source: crates/forge_app/src/execution_result.rs
 expression: to_value(actual)
 ---
-<shell_output>
-<metadata>
-<command><![CDATA[error_command]]></command>
-<shell>/bin/bash</shell>
-<exit_code>1</exit_code>
-</metadata>
+<shell_output
+  command="error_command"
+  shell="/bin/bash"
+  exit_code="1"
+>
 <stderr
   total_lines="25"
   full_output="/tmp/stderr_content.txt"
