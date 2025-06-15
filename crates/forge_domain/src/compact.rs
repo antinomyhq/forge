@@ -13,6 +13,14 @@ pub struct Compact {
     /// These messages won't be considered for summarization
     #[merge(strategy = crate::merge::std::overwrite)]
     pub retention_window: usize,
+
+    /// Maximum percentage of the context that can be summarized during
+    /// compaction. Valid values are between 0.0 and 1.0, where 0.0 means no
+    /// compaction and 1.0 allows summarizing all messages.
+    #[merge(strategy = crate::merge::std::overwrite)]
+    #[serde(deserialize_with = "deserialize_percentage")]
+    pub percentage: f64,
+
     /// Maximum number of tokens to keep after compaction
     #[merge(strategy = crate::merge::option)]
     pub max_tokens: Option<usize>,
@@ -48,6 +56,21 @@ pub struct Compact {
     pub summary_tag: Option<SummaryTag>,
 }
 
+fn deserialize_percentage<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    let value = f64::deserialize(deserializer)?;
+    if !(0.0..=1.0).contains(&value) {
+        return Err(Error::custom(format!(
+            "percentage must be between 0.0 and 1.0, got {value}"
+        )));
+    }
+    Ok(value)
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(transparent)]
 pub struct SummaryTag(String);
@@ -76,6 +99,7 @@ impl Compact {
             prompt: None,
             summary_tag: None,
             model,
+            percentage: 0.2, // Default to 20% compaction
             retention_window: 0,
         }
     }
@@ -119,7 +143,10 @@ impl Compact {
 /// Finds a sequence in the context for compaction, starting from the first
 /// assistant message and including all messages up to the last possible message
 /// (respecting preservation window)
-pub fn find_compact_sequence(context: &Context, preserve_last_n: usize) -> Option<(usize, usize)> {
+pub fn find_sequence_preserving_last_n(
+    context: &Context,
+    preserve_last_n: usize,
+) -> Option<(usize, usize)> {
     let messages = &context.messages;
     if messages.is_empty() {
         return None;
@@ -227,7 +254,7 @@ mod tests {
             }
         }
 
-        let sequence = find_compact_sequence(&context, preserve_last_n);
+        let sequence = find_sequence_preserving_last_n(&context, preserve_last_n);
 
         let mut result = pattern.clone();
         if let Some((start, end)) = sequence {

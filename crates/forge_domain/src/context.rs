@@ -7,7 +7,7 @@ use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
-use crate::{ConversationId, Image, ModelId, ToolChoice, ToolDefinition};
+use crate::{ConversationId, Image, ModelId, ToolChoice, ToolDefinition, ToolValue};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -21,6 +21,78 @@ pub enum ContextMessage {
 }
 
 impl ContextMessage {
+    /// Estimates the number of tokens in a message using character-based
+    /// approximation.
+    /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
+    pub fn count_tokens(&self) -> u64 {
+        let char_count = match self {
+            ContextMessage::Text(text_message)
+                if matches!(text_message.role, Role::User | Role::Assistant) =>
+            {
+                text_message.content.chars().count()
+                    + text_message
+                        .tool_calls
+                        .as_ref()
+                        .map(|tool_calls| {
+                            tool_calls
+                                .iter()
+                                .map(|tc| {
+                                    tc.arguments.to_string().chars().count()
+                                        + tc.name.as_str().chars().count()
+                                })
+                                .sum()
+                        })
+                        .unwrap_or(0)
+            }
+            ContextMessage::Tool(tool_result) => tool_result
+                .output
+                .values
+                .iter()
+                .map(|result| match result {
+                    ToolValue::Text(text) => text.chars().count(),
+                    _ => 0,
+                })
+                .sum(),
+            _ => 0,
+        };
+        (char_count as f64 / 4.0).ceil() as u64
+    }
+
+    pub fn to_text(&self) -> String {
+        let mut lines = String::new();
+        match self {
+            ContextMessage::Text(message) => {
+                lines.push_str(&format!("<message role=\"{}\">", message.role));
+                lines.push_str(&format!("<content>{}</content>", message.content));
+                if let Some(tool_calls) = &message.tool_calls {
+                    for call in tool_calls {
+                        lines.push_str(&format!(
+                            "<forge_tool_call name=\"{}\"><![CDATA[{}]]></forge_tool_call>",
+                            call.name,
+                            serde_json::to_string(&call.arguments).unwrap()
+                        ));
+                    }
+                }
+
+                lines.push_str("</message>");
+            }
+            ContextMessage::Tool(result) => {
+                lines.push_str("<message role=\"tool\">");
+
+                lines.push_str(&format!(
+                    "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
+                    result.name,
+                    serde_json::to_string(&result.output).unwrap()
+                ));
+                lines.push_str("</message>");
+            }
+            ContextMessage::Image(_) => {
+                lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
+            }
+        }
+        lines
+    }
+
     pub fn user(content: impl ToString, model: Option<ModelId>) -> Self {
         TextMessage {
             role: Role::User,
@@ -128,6 +200,62 @@ pub struct Context {
 }
 
 impl Context {
+    pub fn message_groups(&self, skip: Option<usize>) -> Vec<Vec<&ContextMessage>> {
+        let mut groups = Vec::new();
+        let mut current_group: Option<Vec<&ContextMessage>> = None;
+        let skip = skip.unwrap_or(0);
+
+        let mut iter = self.messages.iter().skip(skip).peekable();
+
+        while let Some(message) = iter.next() {
+            match message {
+                // Assistant with tool calls starts a new group
+                ContextMessage::Text(text) if Self::is_assistant_with_tools(text) => {
+                    // Finish any existing group first
+                    if let Some(group) = current_group.take() {
+                        groups.push(group);
+                    }
+                    // Start new group with this message
+                    current_group = Some(vec![message]);
+                }
+                // Tool results are added to current group if one exists, else ignored as tool
+                // result will always comes with it's tool call.
+                ContextMessage::Tool(_) => {
+                    if let Some(ref mut group) = current_group {
+                        group.push(message);
+                    }
+
+                    // If it's the last message, finish any existing group
+                    if iter.peek().is_none() {
+                        if let Some(group) = current_group.take() {
+                            groups.push(group);
+                        }
+                    }
+                }
+                // Any other message: finish current group and add this as single message
+                _ => {
+                    // Finish any existing group first
+                    if let Some(group) = current_group.take() {
+                        groups.push(group);
+                    }
+                    // Add this message as a single-message group
+                    groups.push(vec![message]);
+                }
+            }
+        }
+
+        groups
+    }
+
+    /// Checks if a text message is an assistant message with tool calls
+    fn is_assistant_with_tools(text_message: &TextMessage) -> bool {
+        text_message.role == Role::Assistant
+            && text_message
+                .tool_calls
+                .as_ref()
+                .is_some_and(|calls| !calls.is_empty())
+    }
+
     pub fn add_base64_url(mut self, image: Image) -> Self {
         self.messages.push(ContextMessage::Image(image));
         self
@@ -180,36 +308,7 @@ impl Context {
         let mut lines = String::new();
 
         for message in self.messages.iter() {
-            match message {
-                ContextMessage::Text(message) => {
-                    lines.push_str(&format!("<message role=\"{}\">", message.role));
-                    lines.push_str(&format!("<content>{}</content>", message.content));
-                    if let Some(tool_calls) = &message.tool_calls {
-                        for call in tool_calls {
-                            lines.push_str(&format!(
-                                "<forge_tool_call name=\"{}\"><![CDATA[{}]]></forge_tool_call>",
-                                call.name,
-                                serde_json::to_string(&call.arguments).unwrap()
-                            ));
-                        }
-                    }
-
-                    lines.push_str("</message>");
-                }
-                ContextMessage::Tool(result) => {
-                    lines.push_str("<message role=\"tool\">");
-
-                    lines.push_str(&format!(
-                        "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
-                        result.name,
-                        serde_json::to_string(&result.output).unwrap()
-                    ));
-                    lines.push_str("</message>");
-                }
-                ContextMessage::Image(_) => {
-                    lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
-                }
-            }
+            lines.push_str(&message.to_text());
         }
 
         format!("<chat_history>{lines}</chat_history>")
@@ -466,5 +565,241 @@ mod tests {
         let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
+    }
+    #[test]
+    fn test_message_iter_groups_tool_calls_and_results() {
+        use crate::{ToolCallFull, ToolCallId, ToolName, ToolOutput, ToolResult};
+
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User message", None))
+            .add_message(ContextMessage::assistant(
+                "I'll use a tool",
+                Some(vec![ToolCallFull {
+                    call_id: Some(ToolCallId::new("call1")),
+                    name: ToolName::new("test_tool"),
+                    arguments: serde_json::json!({"param": "value"}),
+                }]),
+            ))
+            .add_tool_results(vec![ToolResult {
+                name: ToolName::new("test_tool"),
+                call_id: Some(ToolCallId::new("call1")),
+                output: ToolOutput::text("Tool result".to_string()),
+            }])
+            .add_message(ContextMessage::assistant("Final response", None));
+
+        let actual = fixture.message_groups(None);
+
+        // Should have 4 groups:
+        // 1. System message
+        // 2. User message
+        // 3. Assistant with tool call + tool result
+        // 4. Final assistant message
+        assert_eq!(actual.len(), 4);
+        assert_eq!(actual[0].len(), 1); // System message alone
+        assert_eq!(actual[1].len(), 1); // User message alone
+        assert_eq!(actual[2].len(), 2); // Assistant + tool result together
+        assert_eq!(actual[3].len(), 1); // Final assistant message alone
+    }
+
+    #[test]
+    fn test_message_iter_single_messages() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System"))
+            .add_message(ContextMessage::user("User", None))
+            .add_message(ContextMessage::assistant("Assistant", None));
+
+        let actual = fixture.message_groups(None);
+
+        // Each message should be in its own group
+        assert_eq!(actual.len(), 3);
+        assert_eq!(actual[0].len(), 1);
+        assert_eq!(actual[1].len(), 1);
+        assert_eq!(actual[2].len(), 1);
+    }
+
+    #[test]
+    fn test_message_iter_multiple_tool_calls() {
+        use crate::{ToolCallFull, ToolCallId, ToolName, ToolOutput, ToolResult};
+
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::assistant(
+                "First tool call",
+                Some(vec![ToolCallFull {
+                    call_id: Some(ToolCallId::new("call1")),
+                    name: ToolName::new("tool1"),
+                    arguments: serde_json::json!({}),
+                }]),
+            ))
+            .add_tool_results(vec![ToolResult {
+                name: ToolName::new("tool1"),
+                call_id: Some(ToolCallId::new("call1")),
+                output: ToolOutput::text("Result 1".to_string()),
+            }])
+            .add_message(ContextMessage::assistant(
+                "Second tool call",
+                Some(vec![ToolCallFull {
+                    call_id: Some(ToolCallId::new("call2")),
+                    name: ToolName::new("tool2"),
+                    arguments: serde_json::json!({}),
+                }]),
+            ))
+            .add_tool_results(vec![ToolResult {
+                name: ToolName::new("tool2"),
+                call_id: Some(ToolCallId::new("call2")),
+                output: ToolOutput::text("Result 2".to_string()),
+            }]);
+
+        let actual = fixture.message_groups(Some(1));
+
+        // Should have 2 groups, each with assistant + tool result
+        assert_eq!(actual.len(), 2);
+        assert_eq!(actual[0].len(), 2); // First assistant + result
+        assert_eq!(actual[1].len(), 2); // Second assistant + result
+    }
+
+    #[test]
+    fn test_message_iter_parallel_tool_calls() {
+        use crate::{ToolCallFull, ToolCallId, ToolName, ToolOutput, ToolResult};
+
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::assistant(
+                "First tool call",
+                Some(vec![
+                    ToolCallFull {
+                        call_id: Some(ToolCallId::new("call1")),
+                        name: ToolName::new("tool1"),
+                        arguments: serde_json::json!({}),
+                    },
+                    ToolCallFull {
+                        call_id: Some(ToolCallId::new("call2")),
+                        name: ToolName::new("tool2"),
+                        arguments: serde_json::json!({}),
+                    },
+                ]),
+            ))
+            .add_tool_results(vec![ToolResult {
+                name: ToolName::new("tool1"),
+                call_id: Some(ToolCallId::new("call1")),
+                output: ToolOutput::text("Result 1".to_string()),
+            }])
+            .add_tool_results(vec![ToolResult {
+                name: ToolName::new("tool2"),
+                call_id: Some(ToolCallId::new("call2")),
+                output: ToolOutput::text("Result 2".to_string()),
+            }]);
+
+        let actual = fixture.message_groups(Some(1));
+
+        // Should have 2 groups, each with assistant + tool result
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].len(), 3); // First assistant + result
+    }
+
+    #[test]
+    fn test_message_iter_assistance_tool_call_but_no_result() {
+        use crate::{ToolCallFull, ToolCallId, ToolName};
+
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System"))
+            .add_message(ContextMessage::user("User", None))
+            .add_message(ContextMessage::assistant(
+                "First tool call",
+                Some(vec![ToolCallFull {
+                    call_id: Some(ToolCallId::new("call1")),
+                    name: ToolName::new("tool1"),
+                    arguments: serde_json::json!({}),
+                }]),
+            ));
+
+        let actual = fixture.message_groups(Some(1));
+
+        // Should have 2 groups, System and User and Assistant with tool call won't be
+        // in group as it's not completed yet.
+        assert_eq!(actual.len(), 1);
+    }
+
+    #[test]
+    fn test_count_tokens_text_messages() {
+        // Test user message
+        let fixture = ContextMessage::user("Hello world", None);
+        let actual = fixture.count_tokens();
+        let expected = 3; // "Hello world" = 11 chars, 11/4 = 2.75, ceil = 3
+        assert_eq!(actual, expected);
+
+        // Test assistant message
+        let fixture = ContextMessage::assistant("How can I help you?", None);
+        let actual = fixture.count_tokens();
+        let expected = 5; // "How can I help you?" = 19 chars, 19/4 = 4.75, ceil = 5
+        assert_eq!(actual, expected);
+
+        // Test system message (not counted)
+        let fixture = ContextMessage::system("You are a helpful assistant");
+        let actual = fixture.count_tokens();
+        let expected = 0; // System messages are not counted
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_count_tokens_text_message_with_tool_calls() {
+        use crate::{ToolCallFull, ToolCallId, ToolName};
+
+        let tool_call1 = ToolCallFull {
+            call_id: Some(ToolCallId::new("call1")),
+            name: ToolName::new("tool1"),           // 5 chars
+            arguments: serde_json::json!({"a": 1}), // {"a":1} = 7 chars
+        };
+
+        let tool_call2 = ToolCallFull {
+            call_id: Some(ToolCallId::new("call2")),
+            name: ToolName::new("tool2"),           // 5 chars
+            arguments: serde_json::json!({"b": 2}), // {"b":2} = 7 chars
+        };
+
+        let fixture =
+            ContextMessage::assistant("Multiple tools", Some(vec![tool_call1, tool_call2]));
+        let actual = fixture.count_tokens();
+
+        // "Multiple tools" = 14 chars
+        // "tool1" = 5 chars, {"a":1} = 7 chars
+        // "tool2" = 5 chars, {"b":2} = 7 chars
+        // Total: 14 + 5 + 7 + 5 + 7 = 38 chars, 38/4 = 9.5, ceil = 10
+        let expected = 10;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_count_tokens_tool_result() {
+        use crate::{ToolCallId, ToolName, ToolOutput, ToolResult, ToolValue};
+
+        let fixture = ContextMessage::Tool(ToolResult {
+            name: ToolName::new("test_tool"),
+            call_id: Some(ToolCallId::new("call1")),
+            output: ToolOutput {
+                values: vec![
+                    ToolValue::Text("First text".to_string()),  // 10 chars
+                    ToolValue::Text("Second text".to_string()), // 11 chars
+                ],
+                is_error: false,
+            },
+        });
+
+        let actual = fixture.count_tokens();
+        let expected = 6; // 10 + 11 = 21 chars, 21/4 = 5.25, ceil = 6
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_count_tokens_image_message() {
+        use crate::Image;
+
+        let image = Image::new_base64("base64data".to_string(), "image/png");
+        let fixture = ContextMessage::Image(image);
+
+        let actual = fixture.count_tokens();
+        let expected = 0; // Images are not counted
+        assert_eq!(actual, expected);
     }
 }
