@@ -141,6 +141,7 @@ mod tests {
             stdout_max_prefix_length: 10,
             stdout_max_suffix_length: 10,
             http: Default::default(),
+            max_file_size: 0,
         }
     }
 

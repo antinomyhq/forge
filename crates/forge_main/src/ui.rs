@@ -529,10 +529,9 @@ impl<F: API> UI<F> {
                 let workflow = self.init_state().await?;
                 // We need to try and get the conversation ID first before fetching the model
                 let id = if let Some(ref path) = self.cli.conversation {
-                    let conversation: Conversation = serde_json::from_str(
-                        ForgeFS::read_to_string(path.as_os_str()).await?.as_str(),
-                    )
-                    .context("Failed to parse Conversation")?;
+                    let conversation: Conversation =
+                        serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
+                            .context("Failed to parse Conversation")?;
 
                     let conversation_id = conversation.id.clone();
                     self.state.conversation_id = Some(conversation_id.clone());

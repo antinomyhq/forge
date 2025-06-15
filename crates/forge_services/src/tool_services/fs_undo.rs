@@ -27,7 +27,6 @@ impl<F: Infrastructure> FsUndoService for ForgeFsUndo<F> {
         if self.0.file_meta_service().exists(path).await? {
             output.before_undo = Some(self.0.file_read_service().read_utf8(path).await?);
         }
-
         self.0.file_snapshot_service().undo_snapshot(path).await?;
         if self.0.file_meta_service().exists(path).await? {
             output.after_undo = Some(self.0.file_read_service().read_utf8(path).await?);

@@ -1,10 +1,11 @@
 use std::collections::HashSet;
+use std::fs::File;
 use std::path::Path;
 
 use anyhow::Context;
 use forge_app::{FsSearchService, Match, MatchResult, SearchResult};
 use forge_walker::Walker;
-use regex::Regex;
+use grep_searcher::sinks::UTF8;
 
 use crate::utils::assert_absolute_path;
 
@@ -95,7 +96,7 @@ impl FsSearchService for ForgeFsSearch {
             Some(regex) => {
                 let pattern = format!("(?i){regex}"); // Case-insensitive by default
                 Some(
-                    Regex::new(&pattern)
+                    grep_regex::RegexMatcher::new(&pattern)
                         .with_context(|| format!("Invalid regex pattern: {regex}"))?,
                 )
             }
@@ -116,41 +117,31 @@ impl FsSearchService for ForgeFsSearch {
                 continue;
             }
 
-            // Content matching mode - read and search file contents
-            let content = match forge_fs::ForgeFS::read_to_string(&path).await {
-                Ok(content) => content,
-                Err(e) => {
-                    // Skip binary or unreadable files silently
-                    if let Some(e) = e
-                        .downcast_ref::<std::io::ErrorKind>()
-                        .map(|e| std::io::ErrorKind::InvalidData.eq(e))
-                    {
-                        matches.push(Match {
-                            path: path.to_string_lossy().to_string(),
-                            result: Some(MatchResult::Error(e.to_string())),
-                        });
-                    }
-                    continue;
-                }
-            };
-
             // Process the file line by line to find content matches
             if let Some(regex) = &regex {
-                let mut found_match = false;
+                let mut searcher = grep_searcher::Searcher::new();
+                let path_string = path.to_string_lossy().to_string();
 
-                for (line_num, line) in content.lines().enumerate() {
-                    if regex.is_match(line) {
+                let file = File::open(path)?;
+                let mut found_match = false;
+                searcher.search_file(
+                    regex,
+                    &file,
+                    UTF8(|line_num, line| {
                         found_match = true;
-                        // Format match in ripgrep style: filepath:line_num:content
                         matches.push(Match {
-                            path: path.to_string_lossy().to_string(),
+                            path: path_string.clone(),
                             result: Some(MatchResult::Found {
-                                line_number: line_num + 1,
-                                line: line.to_string(),
+                                line_number: line_num as usize,    /* grep_searcher already
+                                                                    * returns
+                                                                    * 1-based line numbers */
+                                line: line.trim_end().to_string(), // Remove trailing newline
                             }),
                         });
-                    }
-                }
+
+                        Ok(true)
+                    }),
+                )?;
 
                 // If no matches found in content but we're looking for content,
                 // don't add this file to matches
@@ -188,5 +179,142 @@ async fn retrieve_file_paths(dir: &Path) -> anyhow::Result<Vec<std::path::PathBu
         Ok(paths)
     } else {
         Ok(Vec::from_iter([dir.to_path_buf()]))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use tokio::fs;
+
+    use super::*;
+    use crate::utils::TempDir;
+
+    async fn create_simple_test_directory() -> anyhow::Result<TempDir> {
+        let temp_dir = TempDir::new()?;
+
+        fs::write(temp_dir.path().join("test.txt"), "hello test world").await?;
+        fs::write(temp_dir.path().join("other.txt"), "no match here").await?;
+        fs::write(temp_dir.path().join("code.rs"), "fn test() {}").await?;
+
+        Ok(temp_dir)
+    }
+
+    #[tokio::test]
+    async fn test_search_content_with_regex() {
+        let fixture = create_simple_test_directory().await.unwrap();
+        let actual = ForgeFsSearch::new()
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                Some("test".to_string()),
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_search_file_pattern_only() {
+        let fixture = create_simple_test_directory().await.unwrap();
+        let actual = ForgeFsSearch::new()
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                None,
+                Some("*.rs".to_string()),
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert!(result.matches.iter().all(|m| m.path.ends_with(".rs")));
+        assert!(result.matches.iter().all(|m| m.result.is_none())); // File pattern only = no content result
+    }
+
+    #[tokio::test]
+    async fn test_search_combined_pattern_and_content() {
+        let fixture = create_simple_test_directory().await.unwrap();
+        let actual = ForgeFsSearch::new()
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                Some("test".to_string()),
+                Some("*.rs".to_string()),
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert!(result.matches.iter().all(|m| m.path.ends_with(".rs")));
+        assert!(result.matches.iter().all(|m| m.result.is_some())); // Content search = has content result
+    }
+
+    #[tokio::test]
+    async fn test_search_single_file() {
+        let fixture = create_simple_test_directory().await.unwrap();
+        let file_path = fixture.path().join("test.txt");
+        let actual = ForgeFsSearch::new()
+            .search(
+                file_path.to_string_lossy().to_string(),
+                Some("hello".to_string()),
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_search_no_matches() {
+        let fixture = create_simple_test_directory().await.unwrap();
+        let actual = ForgeFsSearch::new()
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                Some("nonexistent".to_string()),
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_search_pattern_no_matches() {
+        let fixture = create_simple_test_directory().await.unwrap();
+        let actual = ForgeFsSearch::new()
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                None,
+                Some("*.cpp".to_string()),
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_search_nonexistent_path() {
+        let result = ForgeFsSearch::new()
+            .search(
+                "/nonexistent/path".to_string(),
+                Some("test".to_string()),
+                None,
+            )
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_search_relative_path_error() {
+        let result = ForgeFsSearch::new()
+            .search("relative/path".to_string(), Some("test".to_string()), None)
+            .await;
+
+        assert!(result.is_err());
     }
 }
