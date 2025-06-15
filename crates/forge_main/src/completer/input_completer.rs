@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use forge_walker::Walker;
 use reedline::{Completer, Suggestion};
+use url::form_urlencoded;
 
 use crate::completer::search_term::SearchTerm;
 use crate::completer::CommandCompleter;
@@ -41,8 +42,15 @@ impl Completer for InputCompleter {
                     if let Some(file_name) = file.file_name.as_ref() {
                         let file_name_lower = file_name.to_lowercase();
                         let query_lower = query.term.to_lowercase();
-                        if file_name_lower.contains(&query_lower) {
-                            let path_md_fmt = format!("[{}]", file.path);
+                        if file_name_lower.contains(&query_lower) || query_lower.is_empty() {
+                            // URL encode the path if it contains spaces
+                            let path = file.path.to_string();
+                            let path_md_fmt = if path.contains(" ") {
+                                // URL encode the path
+                                form_urlencoded::byte_serialize(path.as_bytes()).collect::<String>()
+                            } else {
+                                path
+                            };
                             Some(Suggestion {
                                 description: None,
                                 value: path_md_fmt,
