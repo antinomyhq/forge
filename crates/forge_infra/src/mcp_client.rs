@@ -8,7 +8,7 @@ use forge_services::McpClient;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::schemars::schema::RootSchema;
 use rmcp::service::RunningService;
-use rmcp::transport::TokioChildProcess;
+use rmcp::transport::{SseClientTransport, StreamableHttpClientTransport, TokioChildProcess};
 use rmcp::{RoleClient, ServiceExt};
 use serde_json::Value;
 use tokio::process::Command;
@@ -67,6 +67,7 @@ impl ForgeMcpClient {
         let client = match &self.config {
             McpServerConfig::Stdio(stdio) => {
                 let mut cmd = Command::new(stdio.command.clone());
+                cmd.args(&stdio.args);
 
                 for (key, value) in &stdio.env {
                     cmd.env(key, value);
@@ -76,11 +77,15 @@ impl ForgeMcpClient {
                     .stdout(std::process::Stdio::piped())
                     .stderr(std::process::Stdio::piped());
                 self.client_info()
-                    .serve(TokioChildProcess::new(cmd.args(&stdio.args))?)
+                    .serve(TokioChildProcess::new(cmd)?)
                     .await?
             }
             McpServerConfig::Sse(sse) => {
-                let transport = rmcp::transport::SseTransport::start(sse.url.clone()).await?;
+                let transport = SseClientTransport::start(sse.url.clone()).await?;
+                self.client_info().serve(transport).await?
+            }
+            McpServerConfig::StreamableHttp(streamable) => {
+                let transport = StreamableHttpClientTransport::from_uri(streamable.url.clone());
                 self.client_info().serve(transport).await?
             }
         };
@@ -158,7 +163,12 @@ impl ForgeMcpClient {
         .when(|err| {
             let is_transport = err
                 .downcast_ref::<rmcp::ServiceError>()
-                .map(|e| matches!(e, rmcp::ServiceError::Transport(_)))
+                .map(|e| {
+                    matches!(
+                        e,
+                        rmcp::ServiceError::TransportSend(_) | rmcp::ServiceError::TransportClosed
+                    )
+                })
                 .unwrap_or(false);
 
             if is_transport {

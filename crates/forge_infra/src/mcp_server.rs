@@ -11,6 +11,7 @@ impl McpServer for ForgeMcpServer {
     type Client = ForgeMcpClient;
 
     async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client> {
+        println!("{:?}", config);
         Ok(ForgeMcpClient::new(config))
     }
 }

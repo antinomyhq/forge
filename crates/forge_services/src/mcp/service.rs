@@ -94,9 +94,11 @@ where
         self.clear_tools().await;
 
         futures::future::join_all(mcp.mcp_servers.iter().map(|(name, server)| async move {
-            self.connect(name, server.clone())
-                .await
-                .context(format!("Failed to initiate MCP server: {name}"))
+            let x = self.connect(name, server.clone()).await;
+            if let Err(e) = x.as_ref() {
+                println!("{e:?}");
+            }
+            x.context(format!("Failed to initiate MCP server: {name}"))
         }))
         .await
         .into_iter()
