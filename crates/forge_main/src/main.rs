@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     // Initialize the ForgeAPI with the restricted mode if specified
     let api = Arc::new(ForgeAPI::init(cli.restricted));
-    let mut ui = UI::init(cli, api)?;
+    let mut ui = UI::init(cli, api).await?;
     ui.run().await;
 
     Ok(())
