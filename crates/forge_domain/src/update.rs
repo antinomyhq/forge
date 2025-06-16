@@ -1,9 +1,10 @@
 use std::time::Duration;
 
 use merge::Merge;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum UpdateFrequency {
     Daily,
@@ -22,7 +23,7 @@ impl From<UpdateFrequency> for Duration {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Merge, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Default, JsonSchema)]
 pub struct Update {
     pub frequency: Option<UpdateFrequency>,
     pub auto_update: Option<bool>,

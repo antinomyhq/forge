@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::Context;
 use forge_domain::{
     Agent, AgentInput, ToolCallContext, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
-    ToolResult, Tools,
+    ToolResult, Tools, ToolsDiscriminants,
 };
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
@@ -55,7 +55,7 @@ impl<S: Services> ToolRegistry<S> {
         input: ToolCallFull,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        Self::validate_tool_call(agent, &input.name).await?;
+        Self::validate_tool_call(agent, &input.name)?;
 
         tracing::info!(tool_name = %input.name, arguments = %input.arguments, "Executing tool call");
         let tool_name = input.name.clone();
@@ -115,7 +115,7 @@ impl<S> ToolRegistry<S> {
     ///
     /// # Validation Process
     /// Verifies the tool is supported by the agent specified in the context
-    async fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> Result<(), Error> {
+    fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> Result<(), Error> {
         let agent_tools: Vec<_> = agent
             .tools
             .iter()
@@ -123,7 +123,9 @@ impl<S> ToolRegistry<S> {
             .map(|tool| tool.as_str())
             .collect();
 
-        if !agent_tools.contains(&tool_name.as_str()) {
+        if !agent_tools.contains(&tool_name.as_str())
+            && *tool_name != ToolsDiscriminants::ForgeToolAttemptCompletion.name()
+        {
             tracing::error!(tool_name = %tool_name, "No tool with name");
 
             return Err(Error::NotAllowed {
@@ -137,7 +139,7 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, ToolName, Tools};
+    use forge_domain::{Agent, AgentId, ToolName, Tools, ToolsDiscriminants};
     use pretty_assertions::assert_eq;
 
     use crate::tool_registry::ToolRegistry;
@@ -155,8 +157,7 @@ mod tests {
         let result = ToolRegistry::<()>::validate_tool_call(
             &agent(),
             &ToolName::new(Tools::ForgeToolFsRead(Default::default())),
-        )
-        .await;
+        );
         assert!(result.is_ok(), "Tool call should be valid");
     }
 
@@ -166,12 +167,21 @@ mod tests {
             &agent(),
             &ToolName::new("forge_tool_fs_create"),
         )
-        .await
         .unwrap_err()
         .to_string();
         assert_eq!(
             error,
             "Tool 'forge_tool_fs_create' is not available. Please try again with one of these tools: [forge_tool_fs_read, forge_tool_fs_find]"
         );
+    }
+
+    #[tokio::test]
+    async fn test_completion_tool_call() {
+        let result = ToolRegistry::<()>::validate_tool_call(
+            &agent(),
+            &ToolsDiscriminants::ForgeToolAttemptCompletion.name(),
+        );
+
+        assert!(result.is_ok(), "Completion tool call should be valid");
     }
 }

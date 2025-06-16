@@ -67,7 +67,7 @@ impl<F: Infrastructure> ForgeWorkflowService<F> {
             let workflow = Workflow::new();
             self.infra
                 .file_write_service()
-                .write(path, serde_yml::to_string(&workflow)?.into(), true)
+                .write(path, self.serialize_workflow(&workflow)?.into(), true)
                 .await?;
 
             Ok(workflow)
@@ -77,6 +77,17 @@ impl<F: Infrastructure> ForgeWorkflowService<F> {
                 .with_context(|| format!("Failed to parse workflow from {}", path.display()))?;
             Ok(workflow)
         }
+    }
+
+    // Serializes the workflow to a YAML string.
+    fn serialize_workflow(&self, workflow: &Workflow) -> anyhow::Result<String> {
+        let lsp = if cfg!(debug_assertions) {
+            "./forge.schema.json"
+        } else {
+            "https://raw.githubusercontent.com/antinomyhq/forge/forge.schema.json"
+        };
+        let contents = serde_yml::to_string(workflow)?;
+        Ok(format!("# yaml-language-server: $schema={lsp}\n{contents}"))
     }
 }
 
@@ -99,7 +110,7 @@ impl<F: Infrastructure> WorkflowService for ForgeWorkflowService<F> {
         };
         let resolved_path = self.resolve_path(Some(path_buf)).await;
 
-        let content = serde_yml::to_string(workflow)?;
+        let content = self.serialize_workflow(workflow)?;
         self.infra
             .file_write_service()
             .write(&resolved_path, content.into(), true)

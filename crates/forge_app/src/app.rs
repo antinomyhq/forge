@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -68,8 +69,10 @@ impl<S: Services> ForgeApp<S> {
         // Register templates using workflow path or environment fallback
         let template_path = workflow
             .templates
-            .clone()
-            .unwrap_or_else(|| environment.templates().to_string_lossy().to_string());
+            .map_or(environment.templates(), |templates| {
+                PathBuf::from(templates)
+            });
+
         services
             .template_service()
             .register_template(template_path)

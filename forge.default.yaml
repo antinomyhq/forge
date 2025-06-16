@@ -1,8 +1,10 @@
+# yaml-language-server: $schema=./forge.schema.json
 variables:
   operating_agent: Forge
 
 top_p: 0.8
 top_k: 30
+max_tokens: 20480
 
 updates:
   frequency: "daily"
@@ -20,7 +22,7 @@ agents:
       Hands-on implementation agent that executes software development tasks through a structured 4-phase approach: task analysis, solution strategy, implementation, and quality assurance. Makes actual changes to codebases, runs shell commands, creates/modifies files, installs dependencies, and performs concrete development work. Use for building features, fixing bugs, refactoring code, or any task requiring actual modifications. Do not use for analysis-only tasks or when you want to explore options without making changes. Always validates changes through compilation and testing.
     compact:
       max_tokens: 2000
-      token_threshold: 160000
+      token_threshold: 100000
       model: *advanced_model
       retention_window: 6
       message_threshold: 200
@@ -43,7 +45,6 @@ agents:
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_fs_undo
-      - forge_tool_attempt_completion
     subscribe:
       - forge/user_task_init
       - forge/user_task_update
@@ -77,7 +78,6 @@ agents:
       - forge_tool_fs_search
       - forge_tool_fs_create
       - forge_tool_fs_patch
-      - forge_tool_attempt_completion
     subscribe:
       - muse/user_task_init
       - muse/user_task_update

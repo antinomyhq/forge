@@ -31,9 +31,7 @@ use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
     EnumDiscriminants,
 )]
 #[strum_discriminants(derive(Display))]
-#[strum_discriminants(name(ToolCompletion))]
-#[serde(tag = "name", content = "arguments")]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum Tools {
     ForgeToolFsRead(FSRead),
@@ -505,11 +503,25 @@ impl Tools {
     pub fn is_complete(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
         [
-            ToolCompletion::ForgeToolFollowup,
-            ToolCompletion::ForgeToolAttemptCompletion,
+            ToolsDiscriminants::ForgeToolFollowup,
+            ToolsDiscriminants::ForgeToolAttemptCompletion,
         ]
         .iter()
         .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+    }
+}
+
+impl ToolsDiscriminants {
+    pub fn name(&self) -> ToolName {
+        ToolName::new(self.to_string().to_case(Case::Snake))
+    }
+
+    // TODO: This is an extremely slow operation
+    pub fn definition(&self) -> ToolDefinition {
+        Tools::iter()
+            .find(|tool| tool.definition().name == self.name())
+            .map(|tool| tool.definition())
+            .expect("Forge tool definition not found")
     }
 }
 
@@ -528,9 +540,10 @@ impl TryFrom<ToolCallFull> for Tools {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use serde_json::json;
 
-    use crate::{FSRead, ToolCallFull, ToolName, Tools};
+    use crate::{FSRead, ToolCallFull, ToolName, Tools, ToolsDiscriminants};
 
     #[test]
     fn foo() {
@@ -555,5 +568,12 @@ mod tests {
 
         assert!(Tools::is_complete(&complete_tool));
         assert!(!Tools::is_complete(&incomplete_tool));
+    }
+
+    #[test]
+    fn test_tool_definition() {
+        let actual = ToolsDiscriminants::ForgeToolFsRemove.name();
+        let expected = ToolName::new("forge_tool_fs_remove");
+        assert_eq!(actual, expected);
     }
 }

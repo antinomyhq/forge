@@ -1,6 +1,7 @@
 use std::fmt;
 use std::ops::Deref;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A newtype for top_p values with built-in validation
@@ -11,7 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// - Higher values (e.g., 0.9) make responses more diverse by considering a
 ///   broader range of tokens
 /// - Valid range is 0.0 to 1.0
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, JsonSchema)]
 pub struct TopP(f32);
 
 impl TopP {

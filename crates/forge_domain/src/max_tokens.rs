@@ -1,6 +1,7 @@
 use std::fmt;
 use std::ops::Deref;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A newtype for max_tokens values with built-in validation
@@ -10,7 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// - Higher values (e.g., 4000) allow for longer, more detailed responses
 /// - Valid range is 1 to 100,000 (reasonable upper bound for most models)
 /// - If not specified, the model provider's default will be used
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, JsonSchema)]
 pub struct MaxTokens(u32);
 
 impl MaxTokens {

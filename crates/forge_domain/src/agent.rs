@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use merge::Merge;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::compact::Compact;
@@ -15,7 +16,7 @@ use crate::{
 };
 
 // Unique identifier for an agent
-#[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct AgentId(Cow<'static, str>);
 impl AgentId {
@@ -39,7 +40,7 @@ impl Default for AgentId {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters)]
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
 #[setters(strip_option, into)]
 pub struct Agent {
     /// Flag to enable/disable tool support for this agent.

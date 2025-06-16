@@ -34,3 +34,4 @@ convert_case.workspace = true
 [dev-dependencies]
 insta = { workspace = true, features = ["yaml"] }
 pretty_assertions.workspace = true
+is_ci.workspace = true

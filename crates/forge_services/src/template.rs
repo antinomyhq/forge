@@ -1,9 +1,10 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::TemplateService;
+use forge_app::{EnvironmentService, TemplateService};
 use futures::future;
-use handlebars::Handlebars;
+use handlebars::{no_escape, Handlebars};
 use rust_embed::Embed;
 use tokio::sync::RwLock;
 
@@ -23,7 +24,7 @@ impl<F: Infrastructure> ForgeTemplateService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let mut hb = Handlebars::new();
         hb.set_strict_mode(true);
-        hb.register_escape_fn(|str| str.to_string());
+        hb.register_escape_fn(no_escape);
 
         // Register all partial templates
         hb.register_embed_templates::<Templates>().unwrap();
@@ -34,11 +35,17 @@ impl<F: Infrastructure> ForgeTemplateService<F> {
 
 #[async_trait::async_trait]
 impl<F: Infrastructure> TemplateService for ForgeTemplateService<F> {
-    async fn register_template(&self, path: String) -> anyhow::Result<()> {
+    async fn register_template(&self, path: PathBuf) -> anyhow::Result<()> {
+        let cwd = &self.infra.environment_service().get_environment().cwd;
+
         // Discover and filter unregistered templates in one pass
         let guard = self.hb.read().await;
-        let unregistered_files: Vec<_> = glob::glob(&path)
-            .with_context(|| format!("Invalid glob pattern: {path}"))?
+        let path = if path.is_absolute() {
+            path.to_string_lossy().to_string()
+        } else {
+            cwd.join(path).to_string_lossy().to_string()
+        };
+        let unregistered_files: Vec<_> = glob::glob(&format!("{path}/*"))?
             .filter_map(|entry| entry.ok())
             .filter(|p| p.is_file())
             .filter(|p| {
@@ -57,13 +64,13 @@ impl<F: Infrastructure> TemplateService for ForgeTemplateService<F> {
                 .file_name()
                 .and_then(|name| name.to_str())
                 .with_context(|| format!("Invalid filename: {}", template_path.display()))?;
-
+            let template_path = cwd.as_path().join(template_path.clone());
             let content = self
                 .infra
                 .file_read_service()
-                .read_utf8(template_path)
+                .read_utf8(&template_path)
                 .await?;
-            Ok::<_, anyhow::Error>((template_name.to_string(), content))
+            Ok::<_, anyhow::Error>((template_name, content))
         });
 
         let templates = future::join_all(futures)
@@ -75,9 +82,18 @@ impl<F: Infrastructure> TemplateService for ForgeTemplateService<F> {
         if !templates.is_empty() {
             let mut guard = self.hb.write().await;
             for (name, content) in templates {
-                guard
-                    .register_template_string(&name, content)
-                    .with_context(|| format!("Failed to register template: {name}"))?;
+                let template: handlebars::template::Template = if name.ends_with(".hbs") {
+                    handlebars::Template::compile(&content)?
+                } else {
+                    let mut template = handlebars::template::Template::new();
+                    template
+                        .elements
+                        .push(handlebars::template::TemplateElement::RawString(content));
+                    template.name = Some(name.to_owned());
+                    template
+                };
+
+                guard.register_template(name, template);
             }
         }
 

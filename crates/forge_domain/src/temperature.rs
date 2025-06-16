@@ -1,6 +1,7 @@
 use std::fmt;
 use std::ops::Deref;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A newtype for temperature values with built-in validation
@@ -11,7 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// - Higher values (e.g., 0.8) make responses more creative, diverse, and
 ///   exploratory
 /// - Valid range is 0.0 to 2.0
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, JsonSchema)]
 pub struct Temperature(f32);
 
 impl Temperature {

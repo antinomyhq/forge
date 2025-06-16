@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use derive_setters::Setters;
 use merge::Merge;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -11,7 +12,7 @@ use crate::{Agent, AgentId, MaxTokens, ModelId, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
-#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters)]
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
 #[setters(strip_option)]
 pub struct Workflow {
     /// Path pattern for custom template files (supports glob patterns)
@@ -127,7 +128,7 @@ impl Default for Workflow {
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
 #[setters(strip_option, into)]
 pub struct Command {
     #[merge(strategy = crate::merge::std::overwrite)]
