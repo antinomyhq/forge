@@ -151,7 +151,7 @@ mod tests {
             provider,
             Arc::new(RetryConfig::default()),
             "dev",
-            HttpConfig::default(),
+            &HttpConfig::default(),
         )
         .unwrap();
 
@@ -170,7 +170,7 @@ mod tests {
             provider,
             Arc::new(RetryConfig::default()),
             "dev",
-            HttpConfig::default(),
+            &HttpConfig::default(),
         )
         .unwrap();
 
