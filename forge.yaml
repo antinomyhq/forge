@@ -1,4 +1,16 @@
-# yaml-language-server: $schema=./forge.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json
+templates: prompts
+agents:
+- id: sage
+  title: Answers questions about the codebase
+  description: |-
+    Provides detailed understanding of the codebase.
+    Always use it to ask high-level questions about codebase when you don't know how to get started.
+  system_prompt: '{{> sage-agent.hbs}}'
+  user_prompt: <question>{{event.value}}</question>
+- id: forge
+  tools:
+  - sage
 variables:
   operating_agent: forge
 commands:
