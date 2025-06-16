@@ -1,5 +1,6 @@
 use derive_more::derive::Display;
 use derive_setters::Setters;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize, Setters)]
@@ -10,6 +11,8 @@ pub struct Model {
     pub context_length: Option<u64>,
     // TODO: add provider information to the model
     pub tools_supported: Option<bool>,
+    /// Whether the model supports parallel tool calls
+    pub supports_parallel_tool_calls: Option<bool>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -23,7 +26,7 @@ impl Parameters {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Hash, Eq, Display)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Hash, Eq, Display, JsonSchema)]
 #[serde(transparent)]
 pub struct ModelId(String);
 

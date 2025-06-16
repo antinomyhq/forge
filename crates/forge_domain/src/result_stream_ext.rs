@@ -106,9 +106,11 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             .collect();
 
         // Process partial tool calls
-        // TODO: Parse failure should be retried
+        // Convert parse failures to retryable errors so they can be retried by asking
+        // LLM to try again
         let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts)
-            .with_context(|| format!("Failed to parse tool call: {tool_call_parts:?}"))?;
+            .with_context(|| format!("Failed to parse tool call: {tool_call_parts:?}"))
+            .map_err(crate::Error::Retryable)?;
 
         // Combine all sources of tool calls
         let tool_calls: Vec<ToolCallFull> = initial_tool_calls
@@ -141,6 +143,8 @@ mod tests {
                     total_tokens: 15,
                     estimated_tokens: 15,
                     content_length: 6,
+                    cached_tokens: 0,
+                    cost: None,
                 })),
             Ok(ChatCompletionMessage::default()
                 .content(Content::part("world!"))
@@ -150,6 +154,8 @@ mod tests {
                     total_tokens: 20,
                     estimated_tokens: 20,
                     content_length: 12,
+                    cached_tokens: 0,
+                    cost: None,
                 })),
         ];
 
@@ -169,6 +175,8 @@ mod tests {
                 total_tokens: 20,
                 estimated_tokens: 20,
                 content_length: 12,
+                cached_tokens: 0,
+                cost: None,
             },
         };
 
@@ -202,5 +210,34 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_with_tool_call_parse_failure_creates_retryable_error() {
+        use crate::{Error, ToolCallId, ToolCallPart, ToolName};
+
+        // Fixture: Create a stream with invalid tool call JSON
+        let invalid_tool_call_part = ToolCallPart {
+            call_id: Some(ToolCallId::new("call_123")),
+            name: Some(ToolName::new("test_tool")),
+            arguments_part: "invalid json {".to_string(), // Invalid JSON
+        };
+
+        let messages = vec![Ok(ChatCompletionMessage::default()
+            .content(Content::part("Processing..."))
+            .add_tool_call(ToolCall::Part(invalid_tool_call_part)))];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await;
+
+        // Expected: Should return a retryable error
+        assert!(actual.is_err());
+        let error = actual.unwrap_err();
+        let domain_error = error.downcast_ref::<Error>();
+        assert!(domain_error.is_some());
+        assert!(matches!(domain_error.unwrap(), Error::Retryable(_)));
     }
 }

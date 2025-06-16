@@ -189,6 +189,13 @@ pub struct Request {
     pub parallel_tool_calls: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream_options: Option<StreamOptions>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct StreamOptions {
+    pub include_usage: Option<bool>,
 }
 
 impl Request {
@@ -233,10 +240,10 @@ impl From<ToolDefinition> for Tool {
 }
 
 impl From<Context> for Request {
-    fn from(request: Context) -> Self {
+    fn from(context: Context) -> Self {
         Request {
             messages: {
-                let messages = request
+                let messages = context
                     .messages
                     .into_iter()
                     .map(Message::from)
@@ -245,7 +252,7 @@ impl From<Context> for Request {
                 Some(messages)
             },
             tools: {
-                let tools = request
+                let tools = context
                     .tools
                     .into_iter()
                     .map(Tool::from)
@@ -261,12 +268,12 @@ impl From<Context> for Request {
             response_format: Default::default(),
             stop: Default::default(),
             stream: Default::default(),
-            max_tokens: request.max_tokens.map(|t| t as u32),
-            temperature: request.temperature.map(|t| t.value()),
-            tool_choice: request.tool_choice.map(|tc| tc.into()),
+            max_tokens: context.max_tokens.map(|t| t as u32),
+            temperature: context.temperature.map(|t| t.value()),
+            tool_choice: context.tool_choice.map(|tc| tc.into()),
             seed: Default::default(),
-            top_p: request.top_p.map(|t| t.value()),
-            top_k: request.top_k.map(|t| t.value()),
+            top_p: context.top_p.map(|t| t.value()),
+            top_k: context.top_k.map(|t| t.value()),
             frequency_penalty: Default::default(),
             presence_penalty: Default::default(),
             repetition_penalty: Default::default(),
@@ -280,7 +287,8 @@ impl From<Context> for Request {
             route: Default::default(),
             provider: Default::default(),
             parallel_tool_calls: Some(false),
-            session_id: request.conversation_id.map(|id| id.to_string()),
+            stream_options: Some(StreamOptions { include_usage: Some(true) }),
+            session_id: context.conversation_id.map(|id| id.to_string()),
         }
     }
 }

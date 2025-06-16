@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -8,44 +7,12 @@ use forge_domain::{Attachment, AttachmentContent, Image};
 
 use crate::{FsReadService, Infrastructure};
 
-const MAX_LINES: u64 = 500;
-
 #[derive(Clone)]
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
 impl<F: Infrastructure> ForgeChatRequest<F> {
-    async fn generate_image_content(
-        path: &Path,
-        img_format: String,
-        infra: &impl FsReadService,
-    ) -> anyhow::Result<Image> {
-        let bytes = infra.read(path).await?;
-
-        Ok(Image::new_bytes(bytes, img_format))
-    }
-
-    async fn generate_text_content(
-        path: &Path,
-        infra: &impl FsReadService,
-    ) -> anyhow::Result<String> {
-        let (content, file_info) = infra.range_read_utf8(path, 1, MAX_LINES).await?;
-        let mut response = String::new();
-        writeln!(response, "---")?;
-        writeln!(response, "path: {}", path.display())?;
-
-        writeln!(response, "start_line: {}", file_info.start_line)?;
-        writeln!(response, "end_line: {}", file_info.end_line)?;
-        writeln!(response, "total_lines: {}", file_info.total_lines)?;
-
-        writeln!(response, "---")?;
-
-        writeln!(response, "{}", &content)?;
-
-        Ok(response)
-    }
-
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -85,13 +52,14 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
             _ => None,
         });
 
+        //NOTE: Attachments should not be truncated since they are provided by the user
         let content = match mime_type {
-            Some(mime_type) => AttachmentContent::Image(
-                Self::generate_image_content(&path, mime_type, self.infra.file_read_service())
-                    .await?,
-            ),
+            Some(mime_type) => AttachmentContent::Image(Image::new_bytes(
+                self.infra.file_read_service().read(&path).await?,
+                mime_type,
+            )),
             None => AttachmentContent::FileContent(
-                Self::generate_text_content(&path, self.infra.file_read_service()).await?,
+                self.infra.file_read_service().read_utf8(&path).await?,
             ),
         };
 
@@ -145,6 +113,13 @@ pub mod tests {
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/base"),
                 retry_config: Default::default(),
+                max_search_lines: 25,
+                fetch_truncation_limit: 0,
+                stdout_max_prefix_length: 0,
+                stdout_max_suffix_length: 0,
+                max_read_size: 0,
+                http: Default::default(),
+                max_file_size: 10_000_000,
             }
         }
     }
@@ -176,7 +151,7 @@ pub mod tests {
             }
         }
 
-        fn add_file(&self, path: PathBuf, content: String) {
+        pub fn add_file(&self, path: PathBuf, content: String) {
             let mut files = self.files.lock().unwrap();
             files.push((path, Bytes::from_owner(content)));
         }
@@ -226,7 +201,7 @@ pub mod tests {
     #[derive(Debug, Clone)]
     pub struct MockInfrastructure {
         env_service: Arc<MockEnvironmentService>,
-        file_service: Arc<MockFileService>,
+        pub file_service: Arc<MockFileService>,
         file_snapshot_service: Arc<MockSnapService>,
     }
 
@@ -269,7 +244,12 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FsWriteService for MockFileService {
-        async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+        async fn write(
+            &self,
+            path: &Path,
+            contents: Bytes,
+            _capture_snapshot: bool,
+        ) -> anyhow::Result<()> {
             let index = self.files.lock().unwrap().iter().position(|v| v.0 == path);
             if let Some(index) = index {
                 self.files.lock().unwrap().remove(index);
@@ -285,7 +265,7 @@ pub mod tests {
             let temp_dir = crate::utils::TempDir::new().unwrap();
             let path = temp_dir.path();
 
-            self.write(&path, content.to_string().into()).await?;
+            self.write(&path, content.to_string().into(), false).await?;
 
             Ok(path)
         }
@@ -319,6 +299,15 @@ pub mod tests {
 
         async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
             Ok(self.files.lock().unwrap().iter().any(|(p, _)| p == path))
+        }
+
+        async fn file_size(&self, path: &Path) -> anyhow::Result<u64> {
+            let files = self.files.lock().unwrap();
+            if let Some((_, content)) = files.iter().find(|(p, _)| p == path) {
+                Ok(content.len() as u64)
+            } else {
+                Err(anyhow::anyhow!("File not found: {}", path.display()))
+            }
         }
     }
 
@@ -615,9 +604,6 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("This is a text file content"));
-        assert!(attachment.content.contains("start_line:"));
-        assert!(attachment.content.contains("end_line:"));
-        assert!(attachment.content.contains("total_lines:"));
     }
 
     #[tokio::test]
@@ -771,8 +757,5 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("Some content"));
-        assert!(attachment.content.contains("start_line:"));
-        assert!(attachment.content.contains("end_line:"));
-        assert!(attachment.content.contains("total_lines:"));
     }
 }

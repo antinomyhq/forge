@@ -5,12 +5,12 @@ use std::sync::Arc;
 use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::*;
+use forge_template::Element;
 use serde_json::Value;
 use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
-use crate::template::Templates;
 
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
@@ -104,18 +104,32 @@ impl<S: AgentService> Orchestrator<S> {
 
     /// Get the allowed tools for an agent
     fn get_allowed_tools(&mut self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
-        if self.tool_definitions.is_empty() {
-            // If no tools are defined, return an empty vector
-            Ok(vec![])
-        } else {
+        let completion = ToolsDiscriminants::ForgeToolAttemptCompletion;
+        let mut tools = vec![];
+        if !self.tool_definitions.is_empty() {
             let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
-            Ok(self
-                .tool_definitions
-                .iter()
-                .filter(|tool| allowed.contains(&tool.name))
-                .cloned()
-                .collect())
+            tools.extend(
+                self.tool_definitions
+                    .iter()
+                    .filter(|tool| tool.name != completion.name())
+                    .filter(|tool| allowed.contains(&tool.name))
+                    .cloned(),
+            );
         }
+
+        tools.push(completion.definition());
+
+        Ok(tools)
+    }
+
+    /// Checks if parallel tool calls is supported by agent
+    fn is_parallel_tool_call_supported(&self, agent: &Agent) -> bool {
+        agent
+            .model
+            .as_ref()
+            .and_then(|model_id| self.models.iter().find(|model| &model.id == model_id))
+            .and_then(|model| model.supports_parallel_tool_calls)
+            .unwrap_or_default()
     }
 
     // Returns if agent supports tool or not.
@@ -147,7 +161,7 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(tool_supported)
     }
 
-    fn set_system_prompt(
+    async fn set_system_prompt(
         &mut self,
         context: Context,
         agent: &Agent,
@@ -164,6 +178,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .to_string();
 
             let tool_supported = self.is_tool_supported(agent)?;
+            let supports_parallel_tool_calls = self.is_parallel_tool_call_supported(agent);
             let tool_information = match tool_supported {
                 true => None,
                 false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)?).to_string()),
@@ -177,9 +192,13 @@ impl<S: AgentService> Orchestrator<S> {
                 files,
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
                 variables: variables.clone(),
+                supports_parallel_tool_calls,
             };
 
-            let system_message = Templates::render(system_prompt.template.as_str(), &ctx)?;
+            let system_message = self
+                .services
+                .render(system_prompt.template.as_str(), &ctx)
+                .await?;
 
             context.set_first_system_message(system_message)
         } else {
@@ -219,7 +238,7 @@ impl<S: AgentService> Orchestrator<S> {
             .services
             .chat(model_id, transformers.transform(context))
             .await?;
-        response.into_full(true).await
+        response.into_full(!tool_supported).await
     }
 
     // Create a helper method with the core functionality
@@ -247,10 +266,12 @@ impl<S: AgentService> Orchestrator<S> {
         context = context.tools(self.get_allowed_tools(&agent)?);
 
         // Render the system prompts with the variables
-        context = self.set_system_prompt(context, &agent, &variables)?;
+        context = self.set_system_prompt(context, &agent, &variables).await?;
 
         // Render user prompts
-        context = self.set_user_prompt(context, &agent, &variables, event)?;
+        context = self
+            .set_user_prompt(context, &agent, &variables, event)
+            .await?;
 
         if let Some(temperature) = agent.temperature {
             context = context.temperature(temperature);
@@ -264,6 +285,10 @@ impl<S: AgentService> Orchestrator<S> {
             context = context.top_k(top_k);
         }
 
+        if let Some(max_tokens) = agent.max_tokens {
+            context = context.max_tokens(max_tokens.value() as usize);
+        }
+
         // Process attachments from the event if they exist
         let attachments = event.attachments.clone();
 
@@ -274,25 +299,35 @@ impl<S: AgentService> Orchestrator<S> {
                 ctx.add_message(match attachment.content {
                     AttachmentContent::Image(image) => ContextMessage::Image(image),
                     AttachmentContent::FileContent(content) => {
-                        ContextMessage::user(content, model_id.clone().into())
+                        let elm = Element::new("file_content")
+                            .attr("path", attachment.path)
+                            .attr("start_line", 1)
+                            .attr("end_line", content.lines().count())
+                            .attr("total_lines", content.lines().count())
+                            .cdata(content);
+
+                        ContextMessage::user(elm, model_id.clone().into())
                     }
                 })
             });
 
         self.conversation.context = Some(context.clone());
 
-        let mut tool_context = ToolCallContext::default().sender(self.sender.clone());
+        let mut tool_context = ToolCallContext::new(self.sender.clone());
+        // Indicates whether the tool execution has been completed
+        let mut is_complete = false;
 
         let mut empty_tool_call_count = 0;
         let is_tool_supported = self.is_tool_supported(&agent)?;
-        while !tool_context.get_complete().await {
+        while !is_complete {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
+            self.services.update(self.conversation.clone()).await?;
 
-            let ChatCompletionMessageFull { tool_calls, content, mut usage } = self
-                .environment
-                .retry_config
-                .retry(|| self.execute_chat_turn(&model_id, context.clone(), is_tool_supported))
+            let ChatCompletionMessageFull { tool_calls, content, mut usage } =
+                crate::retry::retry_with_config(&self.environment.retry_config, || {
+                    self.execute_chat_turn(&model_id, context.clone(), is_tool_supported)
+                })
                 .await?;
 
             // Set estimated tokens
@@ -318,9 +353,26 @@ impl<S: AgentService> Orchestrator<S> {
                 debug!(agent_id = %agent.id, "Compaction not needed");
             }
 
-            let empty_tool_calls = tool_calls.is_empty();
+            let has_no_tool_calls = tool_calls.is_empty();
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
+
+            is_complete = tool_calls.iter().any(|call| Tools::is_complete(&call.name));
+
+            if !is_complete && !has_no_tool_calls {
+                // If task is completed we would have already displayed a message so we can
+                // ignore the content that's collected from the stream
+                // NOTE: Important to send the content messages before the tool call happens
+                self.send(ChatResponse::Text {
+                    text: remove_tag_with_prefix(&content, "forge_")
+                        .as_str()
+                        .to_string(),
+                    is_complete: true,
+                    is_md: true,
+                    is_summary: false,
+                })
+                .await?;
+            }
 
             // Process tool calls and update context
             context = context.append_message(
@@ -331,15 +383,18 @@ impl<S: AgentService> Orchestrator<S> {
 
             context = SetModel::new(model_id.clone()).transform(context);
 
-            if empty_tool_calls {
+            if has_no_tool_calls {
                 // No tool calls present, which doesn't mean task is complete so reprompt the
                 // agent to ensure the task complete.
-                let content = Templates::render(
-                    "{{> partial-tool-required.hbs}}",
-                    &serde_json::json!({
-                        "tool_supported": tool_supported
-                    }),
-                )?;
+                let content = self
+                    .services
+                    .render(
+                        "{{> forge-partial-tool-required.hbs}}",
+                        &serde_json::json!({
+                            "tool_supported": tool_supported
+                        }),
+                    )
+                    .await?;
                 context =
                     context.add_message(ContextMessage::user(content, model_id.clone().into()));
 
@@ -358,34 +413,20 @@ impl<S: AgentService> Orchestrator<S> {
                         empty_tool_call_count,
                         "Forced completion due to repeated empty tool calls"
                     );
-                    tool_context.set_complete().await;
                 }
             } else {
                 empty_tool_call_count = 0;
-
-                if !tool_context.is_complete {
-                    // If task is completed we would have already displayed a message so we can
-                    // ignore the content that's collected from the stream
-                    self.send(ChatResponse::Text {
-                        text: remove_tag_with_prefix(&content, "forge_")
-                            .as_str()
-                            .to_string(),
-                        is_complete: true,
-                        is_md: true,
-                        is_summary: false,
-                    })
-                    .await?;
-                }
             }
 
             // Update context in the conversation
             self.conversation.context = Some(context.clone());
+            self.services.update(self.conversation.clone()).await?;
         }
 
         Ok(())
     }
 
-    fn set_user_prompt(
+    async fn set_user_prompt(
         &mut self,
         mut context: Context,
         agent: &Agent,
@@ -401,7 +442,9 @@ impl<S: AgentService> Orchestrator<S> {
                         .to_string(),
                 );
             debug!(event_context = ?event_context, "Event context");
-            Templates::render(user_prompt.template.as_str(), &event_context)?
+            self.services
+                .render(user_prompt.template.as_str(), &event_context)
+                .await?
         } else {
             // Use the raw event value as content if no user_prompt is provided
             event.value.to_string()
@@ -412,73 +455,5 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         Ok(context)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use pretty_assertions::assert_eq;
-    use serde_json::json;
-
-    use super::*;
-
-    #[test]
-    fn test_render_template_simple() {
-        // Fixture: Create test data
-        let data = json!({
-            "name": "Forge",
-            "version": "1.0",
-            "features": ["templates", "rendering", "handlebars"]
-        });
-
-        // Actual: Render a simple template
-        let template = "App: {{name}} v{{version}} - Features: {{#each features}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}";
-        let actual = Templates::render(template, &data).unwrap();
-
-        // Expected: Result should match the expected string
-        let expected = "App: Forge v1.0 - Features: templates, rendering, handlebars";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_render_template_with_partial() {
-        // Fixture: Create test data
-        let data = json!({
-            "env": {
-                "os": "test-os",
-                "cwd": "/test/path",
-                "shell": "/bin/test",
-                "home": "/home/test"
-            },
-            "files": [
-                "/file1.txt",
-                "/file2.txt"
-            ],
-            "current_time": "2024-01-01 12:00:00 +00:00"
-        });
-
-        // Actual: Render the partial-system-info template
-        let actual = Templates::render("{{> partial-system-info.hbs }}", &data).unwrap();
-
-        // Expected: Result should contain the rendered system info with substituted
-        // values
-        assert!(actual.contains("<operating_system>test-os</operating_system>"));
-    }
-
-    #[test]
-    fn test_render_template_summary_frame() {
-        use pretty_assertions::assert_eq;
-
-        // Fixture: Create test data for the summary frame template
-        let data = serde_json::json!({
-            "summary": "This is a test summary of the conversation"
-        });
-
-        // Actual: Render the partial-summary-frame template
-        let actual = Templates::render("{{> partial-summary-frame.hbs}}", &data).unwrap();
-
-        // Expected: Result should contain the framed summary text
-        let expected = "Use the following summary as the authoritative reference for all coding\nsuggestions and decisions. Do not re-explain or revisit it unless I ask.\n\n<summary>\nThis is a test summary of the conversation\n</summary>\n\nProceed with implementation based on this context.";
-        assert_eq!(actual.trim(), expected);
     }
 }

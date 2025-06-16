@@ -10,7 +10,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
         .or(get_api_status_code(&error))
     {
         if retry_config.retry_status_codes.contains(&code) {
-            return DomainError::Retryable(retry_config.max_retry_attempts, error).into();
+            return DomainError::Retryable(error).into();
         }
     }
 
@@ -18,7 +18,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
     {
-        return DomainError::Retryable(retry_config.max_retry_attempts, error).into();
+        return DomainError::Retryable(error).into();
     }
 
     error
@@ -107,7 +107,7 @@ mod tests {
     // Helper function to check if an error is retryable
     fn is_retryable(error: anyhow::Error) -> bool {
         if let Some(domain_error) = error.downcast_ref::<DomainError>() {
-            matches!(domain_error, DomainError::Retryable(_, _))
+            matches!(domain_error, DomainError::Retryable(_))
         } else {
             false
         }

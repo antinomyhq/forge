@@ -40,34 +40,27 @@ pub struct Conversation {
 }
 
 impl Conversation {
-    pub const MAIN_AGENT_NAME: &str = "software-engineer";
-
     /// Returns the model of the main agent
     ///
     /// # Errors
     /// - `AgentUndefined` if the main agent doesn't exist
     /// - `NoModelDefined` if the main agent doesn't have a model defined
     pub fn main_model(&self) -> Result<ModelId> {
-        let agent = self.get_agent(&AgentId::new(Self::MAIN_AGENT_NAME))?;
+        let agent = self.get_agent(&AgentId::default())?;
         agent
             .model
             .clone()
             .ok_or(Error::NoModelDefined(agent.id.clone()))
     }
-    /// Sets the model of the main agent
-    ///
-    /// # Errors
-    /// - `AgentUndefined` if the main agent doesn't exist
-    pub fn set_main_model(&mut self, model: ModelId) -> Result<()> {
-        // Find the main agent and update its model
-        let agent_pos = self
-            .agents
-            .iter()
-            .position(|a| a.id.as_str() == Self::MAIN_AGENT_NAME)
-            .ok_or_else(|| Error::AgentUndefined(AgentId::new(Self::MAIN_AGENT_NAME)))?;
 
-        // Update the model
-        self.agents[agent_pos].model = Some(model);
+    /// Sets the model for all agents in the conversation
+    pub fn set_model(&mut self, model: &ModelId) -> Result<()> {
+        for agent in self.agents.iter_mut() {
+            agent.model = Some(model.clone());
+            if let Some(ref mut compact) = agent.compact {
+                compact.model = model.clone();
+            }
+        }
 
         Ok(())
     }
@@ -104,6 +97,10 @@ impl Conversation {
                 agent.top_k = Some(top_k);
             }
 
+            if let Some(max_tokens) = workflow.max_tokens {
+                agent.max_tokens = Some(max_tokens);
+            }
+
             if let Some(model) = workflow.model.clone() {
                 agent.model = Some(model.clone());
 
@@ -123,7 +120,7 @@ impl Conversation {
             }
 
             // Subscribe the main agent to all commands
-            if agent.id.as_str() == Conversation::MAIN_AGENT_NAME {
+            if agent.id == AgentId::default() {
                 let commands = workflow
                     .commands
                     .iter()
@@ -147,6 +144,9 @@ impl Conversation {
                 );
             }
 
+            let id = agent.id.clone();
+            agent.add_subscription(format!("{id}"));
+
             agents.push(agent);
         }
 
@@ -165,9 +165,11 @@ impl Conversation {
         self.agents
             .iter()
             .filter(|a| {
-                a.subscribe
-                    .as_ref()
-                    .is_some_and(|subs| subs.contains(&event_name.to_string()))
+                a.subscribe.as_ref().is_some_and(|subscription| {
+                    subscription
+                        .iter()
+                        .any(|subscription| event_name.starts_with(subscription))
+                })
             })
             .cloned()
             .collect::<Vec<_>>()
@@ -254,9 +256,12 @@ impl Conversation {
 mod tests {
     use std::collections::HashMap;
 
+    use pretty_assertions::assert_eq;
     use serde_json::json;
 
-    use crate::{Agent, AgentId, Command, Compact, Error, ModelId, Temperature, Workflow};
+    use crate::{
+        Agent, AgentId, Command, Compact, Error, MaxTokens, ModelId, Temperature, Workflow,
+    };
 
     #[test]
     fn test_conversation_new_with_empty_workflow() {
@@ -308,6 +313,7 @@ mod tests {
             .max_walker_depth(5)
             .custom_rules("Be helpful".to_string())
             .temperature(Temperature::new(0.7).unwrap())
+            .max_tokens(MaxTokens::new(4000).unwrap())
             .tool_supported(true);
 
         // Act
@@ -322,6 +328,7 @@ mod tests {
             assert_eq!(agent.max_walker_depth, Some(5));
             assert_eq!(agent.custom_rules, Some("Be helpful".to_string()));
             assert_eq!(agent.temperature, Some(Temperature::new(0.7).unwrap()));
+            assert_eq!(agent.max_tokens, Some(MaxTokens::new(4000).unwrap()));
             assert_eq!(agent.tool_supported, Some(true));
         }
     }
@@ -337,6 +344,7 @@ mod tests {
             .max_walker_depth(10_usize)
             .custom_rules("Agent1 specific rules".to_string())
             .temperature(Temperature::new(0.3).unwrap())
+            .max_tokens(MaxTokens::new(1000).unwrap())
             .tool_supported(false);
 
         // Agent without specific settings
@@ -348,6 +356,7 @@ mod tests {
             .max_walker_depth(5)
             .custom_rules("Default rules".to_string())
             .temperature(Temperature::new(0.7).unwrap())
+            .max_tokens(MaxTokens::new(4000).unwrap())
             .tool_supported(true);
 
         // Act
@@ -366,6 +375,7 @@ mod tests {
         assert_eq!(agent1.max_walker_depth, Some(5));
         assert_eq!(agent1.custom_rules, Some("Default rules".to_string()));
         assert_eq!(agent1.temperature, Some(Temperature::new(0.7).unwrap()));
+        assert_eq!(agent1.max_tokens, Some(MaxTokens::new(4000).unwrap()));
         assert_eq!(agent1.tool_supported, Some(true)); // Workflow setting overrides agent setting
 
         // Check that agent2 got the workflow defaults
@@ -378,6 +388,7 @@ mod tests {
         assert_eq!(agent2.max_walker_depth, Some(5));
         assert_eq!(agent2.custom_rules, Some("Default rules".to_string()));
         assert_eq!(agent2.temperature, Some(Temperature::new(0.7).unwrap()));
+        assert_eq!(agent2.max_tokens, Some(MaxTokens::new(4000).unwrap()));
         assert_eq!(agent2.tool_supported, Some(true)); // Workflow setting is
                                                        // applied
     }
@@ -388,7 +399,7 @@ mod tests {
         let id = super::ConversationId::generate();
 
         // Create the main software-engineer agent
-        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let main_agent = AgentId::default();
         // Create a regular agent
         let other_agent = Agent::new("other-agent");
 
@@ -407,7 +418,7 @@ mod tests {
         ];
 
         let workflow = Workflow::new()
-            .agents(vec![main_agent, other_agent])
+            .agents(vec![Agent::new(main_agent), other_agent])
             .commands(commands.clone());
 
         // Act
@@ -420,7 +431,7 @@ mod tests {
         let main_agent = conversation
             .agents
             .iter()
-            .find(|a| a.id.as_str() == super::Conversation::MAIN_AGENT_NAME)
+            .find(|a| a.id == AgentId::default())
             .unwrap();
 
         assert!(main_agent.subscribe.is_some());
@@ -455,7 +466,7 @@ mod tests {
         let id = super::ConversationId::generate();
 
         // Create the main software-engineer agent with existing subscriptions
-        let mut main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let mut main_agent = Agent::new(AgentId::default());
         main_agent.subscribe = Some(vec!["existing-event".to_string()]);
 
         // Create some commands
@@ -483,7 +494,7 @@ mod tests {
         let main_agent = conversation
             .agents
             .iter()
-            .find(|a| a.id.as_str() == super::Conversation::MAIN_AGENT_NAME)
+            .find(|a| a.id == AgentId::default())
             .unwrap();
 
         assert!(main_agent.subscribe.is_some());
@@ -493,15 +504,16 @@ mod tests {
         assert!(subscriptions.contains(&"existing-event".to_string()));
         assert!(subscriptions.contains(&"cmd1".to_string()));
         assert!(subscriptions.contains(&"cmd2".to_string()));
-        assert_eq!(subscriptions.len(), 3);
+        // Also automatically added subscriptions for user tasks
+        assert!(subscriptions.contains(&format!("{}", AgentId::default().as_str())));
+        assert_eq!(subscriptions.len(), 4);
     }
 
     #[test]
     fn test_main_model_success() {
         // Arrange
         let id = super::ConversationId::generate();
-        let main_agent =
-            Agent::new(super::Conversation::MAIN_AGENT_NAME).model(ModelId::new("test-model"));
+        let main_agent = Agent::new(AgentId::default()).model(ModelId::new("test-model"));
 
         let workflow = Workflow::new().agents(vec![main_agent]);
 
@@ -535,7 +547,7 @@ mod tests {
     fn test_main_model_no_model_defined() {
         // Arrange
         let id = super::ConversationId::generate();
-        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
+        let main_agent = Agent::new(AgentId::default());
         // No model defined for the agent
 
         let workflow = Workflow::new().agents(vec![main_agent]);
@@ -547,42 +559,6 @@ mod tests {
 
         // Assert
         assert!(matches!(result, Err(Error::NoModelDefined(_))));
-    }
-    #[test]
-    fn test_set_main_model_success() {
-        // Arrange
-        let id = super::ConversationId::generate();
-        let main_agent = Agent::new(super::Conversation::MAIN_AGENT_NAME);
-        // Initially no model defined
-
-        let workflow = Workflow::new().agents(vec![main_agent]);
-
-        let mut conversation = super::Conversation::new_inner(id, workflow, vec![]);
-
-        // Act
-        let result = conversation.set_main_model(ModelId::new("new-model"));
-
-        // Assert
-        assert!(result.is_ok());
-        let model = conversation.main_model().unwrap();
-        assert_eq!(model, ModelId::new("new-model"));
-    }
-
-    #[test]
-    fn test_set_main_model_agent_not_found() {
-        // Arrange
-        let id = super::ConversationId::generate();
-        let agent = Agent::new("some-other-agent");
-
-        let workflow = Workflow::new().agents(vec![agent]);
-
-        let mut conversation = super::Conversation::new_inner(id, workflow, vec![]);
-
-        // Act
-        let result = conversation.set_main_model(ModelId::new("new-model"));
-
-        // Assert
-        assert!(matches!(result, Err(Error::AgentUndefined(_))));
     }
 
     #[test]
@@ -680,5 +656,319 @@ mod tests {
         let compact = agent2.compact.as_ref().unwrap();
         assert_eq!(compact.model, ModelId::new("workflow-model"));
         assert_eq!(agent2.model, Some(ModelId::new("workflow-model")));
+    }
+
+    #[test]
+    fn test_subscriptions_with_matching_agents() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 =
+            Agent::new("agent1").subscribe(vec!["event1".to_string(), "event2".to_string()]);
+        let agent2 =
+            Agent::new("agent2").subscribe(vec!["event2".to_string(), "event3".to_string()]);
+        let agent3 = Agent::new("agent3").subscribe(vec!["event3".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2, agent3]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("event2");
+
+        // Assert
+        assert_eq!(actual.len(), 2);
+        assert_eq!(actual[0].id, AgentId::new("agent1"));
+        assert_eq!(actual[1].id, AgentId::new("agent2"));
+    }
+
+    #[test]
+    fn test_subscriptions_with_no_matching_agents() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 =
+            Agent::new("agent1").subscribe(vec!["event1".to_string(), "event2".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["event3".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("nonexistent_event");
+
+        // Assert
+        assert_eq!(actual.len(), 0);
+    }
+
+    #[test]
+    fn test_subscriptions_with_agents_without_subscriptions() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 = Agent::new("agent1"); // No subscriptions
+        let agent2 = Agent::new("agent2").subscribe(vec!["event1".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("event1");
+
+        // Assert
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].id, AgentId::new("agent2"));
+    }
+
+    #[test]
+    fn test_subscriptions_with_empty_agents_list() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+        let workflow = Workflow::new(); // No agents
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("any_event");
+
+        // Assert
+        assert_eq!(actual.len(), 0);
+    }
+
+    #[test]
+    fn test_subscriptions_with_single_matching_agent() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 =
+            Agent::new("agent1").subscribe(vec!["event1".to_string(), "event2".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("event1");
+
+        // Assert
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].id, AgentId::new("agent1"));
+        assert!(actual[0]
+            .subscribe
+            .as_ref()
+            .unwrap()
+            .contains(&"event1".to_string()));
+    }
+
+    #[test]
+    fn test_subscriptions_with_starts_with_matching() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 = Agent::new("agent1").subscribe(vec!["event".to_string(), "task".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["prefix_event".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("event_with_suffix");
+
+        // Assert - Should match agent1 because "event_with_suffix" starts with "event"
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].id, AgentId::new("agent1"));
+    }
+
+    #[test]
+    fn test_subscriptions_starts_with_multiple_matches() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 = Agent::new("agent1").subscribe(vec!["user".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["user_task".to_string()]);
+        let agent3 = Agent::new("agent3").subscribe(vec!["other".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2, agent3]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("user_task_init");
+
+        // Assert - Should match both agent1 and agent2 because "user_task_init" starts
+        // with both "user" and "user_task"
+        assert_eq!(actual.len(), 2);
+        assert_eq!(actual[0].id, AgentId::new("agent1"));
+        assert_eq!(actual[1].id, AgentId::new("agent2"));
+    }
+
+    #[test]
+    fn test_subscriptions_starts_with_exact_match() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 = Agent::new("agent1").subscribe(vec!["event".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["event_long".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("event");
+
+        // Assert - Should match agent1 because "event" starts with "event" (exact
+        // match)
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].id, AgentId::new("agent1"));
+    }
+
+    #[test]
+    fn test_subscriptions_starts_with_no_prefix_match() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 = Agent::new("agent1").subscribe(vec!["long_event".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["other_event".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("event");
+
+        // Assert - Should match no agents because "event" doesn't start with
+        // "long_event" or "other_event"
+        assert_eq!(actual.len(), 0);
+    }
+
+    #[test]
+    fn test_subscriptions_starts_with_empty_subscription() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 = Agent::new("agent1").subscribe(vec!["".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["event".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("any_event");
+
+        // Assert - Should match both agents: agent1 because any string starts with
+        // empty string, and agent2 because "any_event" starts with "event" is
+        // false, so only agent1 should match
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].id, AgentId::new("agent1"));
+    }
+
+    #[test]
+    fn test_subscriptions_starts_with_hierarchical_events() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 = Agent::new("agent1").subscribe(vec!["system".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["system/user".to_string()]);
+        let agent3 = Agent::new("agent3").subscribe(vec!["system/user/task".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2, agent3]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("system/user/task/complete");
+
+        // Assert - Should match all three agents due to hierarchical prefix matching
+        assert_eq!(actual.len(), 3);
+        assert_eq!(actual[0].id, AgentId::new("agent1"));
+        assert_eq!(actual[1].id, AgentId::new("agent2"));
+        assert_eq!(actual[2].id, AgentId::new("agent3"));
+    }
+
+    #[test]
+    fn test_subscriptions_starts_with_case_sensitive() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 = Agent::new("agent1").subscribe(vec!["Event".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["event".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("event_test");
+
+        // Assert - Should only match agent2 because starts_with is case-sensitive
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].id, AgentId::new("agent2"));
+    }
+
+    #[test]
+    fn test_subscriptions_returns_cloned_agents() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        let agent1 = Agent::new("agent1").subscribe(vec!["event1".to_string()]);
+
+        let workflow = Workflow::new().agents(vec![agent1]);
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Act
+        let actual = conversation.subscriptions("event1");
+
+        // Assert - Verify we get a clone, not a reference
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].id, AgentId::new("agent1"));
+
+        // The returned agent should be independent of the original
+        let original_agent = conversation.get_agent(&AgentId::new("agent1")).unwrap();
+        assert_eq!(actual[0].id, original_agent.id);
+        assert_eq!(actual[0].subscribe, original_agent.subscribe);
+    }
+
+    #[test]
+    fn test_set_model() {
+        let workflow = Workflow::new().agents(vec![
+            Agent::new("agent-1")
+                .model(ModelId::new("sonnet-4"))
+                .compact(Compact::new(ModelId::new("gemini-1.5"))),
+            Agent::new("agent-2").model(ModelId::new("sonnet-3.5")),
+        ]);
+
+        let id = super::ConversationId::generate();
+        let mut conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+
+        let model_id = ModelId::new("qwen-2");
+        conversation.set_model(&model_id).unwrap();
+
+        // Check that all agents have the model set
+        for agent in conversation.agents.iter_mut() {
+            assert_eq!(agent.model, Some(model_id.clone()));
+            if let Some(ref mut compact) = agent.compact {
+                assert_eq!(compact.model, model_id.clone());
+            }
+        }
     }
 }

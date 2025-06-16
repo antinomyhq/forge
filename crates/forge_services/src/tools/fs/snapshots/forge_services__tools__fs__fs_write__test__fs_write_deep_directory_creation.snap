@@ -1,9 +1,0 @@
----
-source: crates/forge_services/src/tools/fs/fs_write.rs
-expression: normalized_result
----
----
-path: [TEMP_DIR]/level1/level2/level3/deep.txt
-operation: CREATE
-total_chars: 31
----

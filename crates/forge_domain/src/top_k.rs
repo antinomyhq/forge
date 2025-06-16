@@ -1,6 +1,7 @@
 use std::fmt;
 use std::ops::Deref;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A newtype for top_k values with built-in validation
@@ -11,7 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// - Higher values (e.g., 100) make responses more diverse by considering more
 ///   token options
 /// - Valid range is 1 to 1000 (inclusive)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, JsonSchema)]
 pub struct TopK(u32);
 
 impl TopK {

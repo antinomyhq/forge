@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use forge_domain::{
-    ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
 use reqwest::redirect::Policy;
 use tokio::sync::RwLock;
@@ -32,12 +32,15 @@ impl Client {
         provider: Provider,
         retry_config: Arc<RetryConfig>,
         version: impl ToString,
+        timeout_config: HttpConfig,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
-            .read_timeout(std::time::Duration::from_secs(60))
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
-            .pool_max_idle_per_host(5)
-            .redirect(Policy::limited(10))
+            .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
+            .pool_idle_timeout(std::time::Duration::from_secs(
+                timeout_config.pool_idle_timeout,
+            ))
+            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
+            .redirect(Policy::limited(timeout_config.max_redirects))
             .build()?;
 
         let inner = match &provider {
@@ -144,7 +147,13 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, Arc::new(RetryConfig::default()), "dev").unwrap();
+        let client = Client::new(
+            provider,
+            Arc::new(RetryConfig::default()),
+            "dev",
+            HttpConfig::default(),
+        )
+        .unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -157,7 +166,13 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(provider, Arc::new(RetryConfig::default()), "dev").unwrap();
+        let client = Client::new(
+            provider,
+            Arc::new(RetryConfig::default()),
+            "dev",
+            HttpConfig::default(),
+        )
+        .unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)

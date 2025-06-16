@@ -1,0 +1,574 @@
+use std::collections::HashSet;
+use std::path::PathBuf;
+
+use convert_case::{Case, Casing};
+use derive_more::From;
+use forge_tool_macros::ToolDescription;
+use schemars::schema::RootSchema;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use strum::IntoEnumIterator;
+use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
+
+use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
+
+/// Enum representing all possible tool input types.
+///
+/// This enum contains variants for each type of input that can be passed to
+/// tools in the application. Each variant corresponds to the input type for a
+/// specific tool.
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    From,
+    EnumIter,
+    Display,
+    PartialEq,
+    EnumDiscriminants,
+)]
+#[strum_discriminants(derive(Display))]
+#[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+pub enum Tools {
+    ForgeToolFsRead(FSRead),
+    ForgeToolFsCreate(FSWrite),
+    ForgeToolFsSearch(FSSearch),
+    ForgeToolFsRemove(FSRemove),
+    ForgeToolFsPatch(FSPatch),
+    ForgeToolFsUndo(FSUndo),
+    ForgeToolProcessShell(Shell),
+    ForgeToolNetFetch(NetFetch),
+    ForgeToolFollowup(Followup),
+    ForgeToolAttemptCompletion(AttemptCompletion),
+}
+
+/// Input structure for agent tool calls. This serves as the generic schema
+/// for dynamically registered agent tools, allowing users to specify tasks
+/// for specific agents.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct AgentInput {
+    /// A clear and detailed description of the task to be performed by the
+    /// agent. Provide sufficient context and specific requirements to
+    /// enable the agent to understand and execute the work accurately.
+    pub task: String,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Reads file contents from the specified absolute path. Ideal for analyzing
+/// code, configuration files, documentation, or textual data. Automatically
+/// extracts text from PDF and DOCX files, preserving the original formatting.
+/// Returns the content as a string. For files larger than 2,000 lines,
+/// the tool automatically returns only the first 2,000 lines. You should
+/// always rely on this default behavior and avoid specifying custom ranges
+/// unless absolutely necessary. If needed, specify a range with the start_line
+/// and end_line parameters, ensuring the total range does not exceed 2,000
+/// lines. Specifying a range exceeding this limit will result in an error.
+/// Binary files are automatically detected and rejected.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSRead {
+    /// The path of the file to read, always provide absolute paths.
+    pub path: String,
+
+    /// Optional start position in lines (1-based). If provided, reading
+    /// will start from this line position.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<u64>,
+
+    /// Optional end position in lines (inclusive). If provided, reading
+    /// will end at this line position.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<u64>,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Use it to create a new file at a specified path with the provided content.
+/// Always provide absolute paths for file locations. The tool
+/// automatically handles the creation of any missing intermediary directories
+/// in the specified path.
+/// IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the
+/// shell tool instead.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSWrite {
+    /// The path of the file to write to (absolute path required)
+    pub path: String,
+
+    /// The content to write to the file. ALWAYS provide the COMPLETE intended
+    /// content of the file, without any truncation or omissions. You MUST
+    /// include ALL parts of the file, even if they haven't been modified.
+    pub content: String,
+
+    /// If set to true, existing files will be overwritten. If not set and the
+    /// file exists, an error will be returned with the content of the
+    /// existing file.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_default")]
+    pub overwrite: bool,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Recursively searches directories for files by content (regex) and/or name
+/// (glob pattern). Provides context-rich results with line numbers for content
+/// matches. Two modes: content search (when regex provided) or file finder
+/// (when regex omitted). Uses case-insensitive Rust regex syntax. Requires
+/// absolute paths. Avoids binary files and excluded directories. Best for code
+/// exploration, API usage discovery, configuration settings, or finding
+/// patterns across projects. For large pages, returns the first 200
+/// lines and stores the complete content in a temporary file for
+/// subsequent access.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSSearch {
+    /// The absolute path of the directory or file to search in. If it's a
+    /// directory, it will be searched recursively. If it's a file path,
+    /// only that specific file will be searched.
+    pub path: String,
+
+    /// The regular expression pattern to search for in file contents. Uses Rust
+    /// regex syntax. If not provided, only file name matching will be
+    /// performed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub regex: Option<String>,
+
+    /// Starting index for the search results (1-based).
+    pub start_index: Option<u64>,
+
+    /// Maximum number of lines to return in the search results.
+    pub max_search_lines: Option<u64>,
+
+    /// Glob pattern to filter files (e.g., '*.ts' for TypeScript files).
+    /// If not provided, it will search all files (*).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_pattern: Option<String>,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Request to remove a file at the specified path. Use this when you need to
+/// delete an existing file. The path must be absolute. This operation cannot
+/// be undone, so use it carefully.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSRemove {
+    /// The path of the file to remove (absolute path required)
+    pub path: String,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Operation types that can be performed on matched text
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, AsRefStr)]
+#[serde(rename_all = "snake_case")]
+pub enum PatchOperation {
+    /// Prepend content before the matched text
+    #[default]
+    Prepend,
+
+    /// Append content after the matched text
+    Append,
+
+    /// Replace the matched text with new content
+    Replace,
+
+    /// Swap the matched text with another text (search for the second text and
+    /// swap them)
+    Swap,
+}
+
+/// Modifies files with targeted line operations on matched patterns. Supports
+/// prepend, append, replace, swap, delete operations on first pattern
+/// occurrence. Ideal for precise changes to configs, code, or docs while
+/// preserving context. Not suitable for complex refactoring or modifying all
+/// pattern occurrences - use `forge_tool_fs_create` instead for complete
+/// rewrites and `forge_tool_fs_undo` for undoing the last operation. Fails if
+/// search pattern isn't found.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSPatch {
+    /// The path to the file to modify
+    pub path: String,
+
+    /// The exact line to search for in the file. When
+    /// skipped the patch operation applies to the entire content. `Append` adds
+    /// the new content to the end, `Prepend` adds it to the beginning, and
+    /// `Replace` fully overwrites the original content. `Swap` requires a
+    /// search target, so without one, it makes no changes.
+    pub search: Option<String>,
+
+    /// The operation to perform on the matched text. Possible options are only
+    /// 'prepend', 'append', 'replace', and 'swap'.
+    pub operation: PatchOperation,
+
+    /// The content to use for the operation (replacement text, line to
+    /// prepend/append, or target line for swap operations)
+    pub content: String,
+
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Reverts the most recent file operation (create/modify/delete) on a specific
+/// file. Use this tool when you need to recover from incorrect file changes or
+/// if a revert is requested by the user.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSUndo {
+    /// The absolute path of the file to revert to its previous state.
+    pub path: String,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Executes shell commands with safety measures using restricted bash (rbash).
+/// Prevents potentially harmful operations like absolute path execution and
+/// directory changes. Use for file system interaction, running utilities,
+/// installing packages, or executing build commands. For operations requiring
+/// unrestricted access, advise users to run forge CLI with '-u' flag. Returns
+/// complete output including stdout, stderr, and exit code for diagnostic
+/// purposes.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct Shell {
+    /// The shell command to execute.
+    pub command: String,
+
+    /// The working directory where the command should be executed.
+    pub cwd: PathBuf,
+
+    /// Whether to preserve ANSI escape codes in the output.
+    /// If true, ANSI escape codes will be preserved in the output.
+    /// If false (default), ANSI escape codes will be stripped from the output.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_default")]
+    pub keep_ansi: bool,
+
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Input type for the net fetch tool
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct NetFetch {
+    /// URL to fetch
+    pub url: String,
+
+    /// Get raw content without any markdown conversion (default: false)
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw: Option<bool>,
+
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Use this tool when you encounter ambiguities, need clarification, or require
+/// more details to proceed effectively. Use this tool judiciously to maintain a
+/// balance between gathering necessary information and avoiding excessive
+/// back-and-forth.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct Followup {
+    /// Question to ask the user
+    pub question: String,
+
+    /// If true, allows selecting multiple options; if false (default), only one
+    /// option can be selected
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiple: Option<bool>,
+
+    /// First option to choose from
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option1: Option<String>,
+
+    /// Second option to choose from
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option2: Option<String>,
+
+    /// Third option to choose from
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option3: Option<String>,
+
+    /// Fourth option to choose from
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option4: Option<String>,
+
+    /// Fifth option to choose from
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option5: Option<String>,
+
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// After each tool use, the user will respond with the result of
+/// that tool use, i.e. if it succeeded or failed, along with any reasons for
+/// failure. Once you've received the results of tool uses and can confirm that
+/// the task is complete, use this tool to present the result of your work to
+/// the user. The user may respond with feedback if they are not satisfied with
+/// the result, which you can use to make improvements and try again.
+/// IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the
+/// user that any previous tool uses were successful. Failure to do so will
+/// result in code corruption and system failure. Before using this tool, you
+/// must ask yourself in <forge_thinking></forge_thinking> tags if you've
+/// confirmed from the user that any previous tool uses were successful. If not,
+/// then DO NOT use this tool.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct AttemptCompletion {
+    /// The result of the task. Formulate this result in a way that is final and
+    /// does not require further input from the user. Don't end your result with
+    /// questions or offers for further assistance.
+    pub result: String,
+}
+
+fn default_raw() -> Option<bool> {
+    Some(false)
+}
+
+/// Retrieves content from URLs as markdown or raw text. Enables access to
+/// current online information including websites, APIs and documentation. Use
+/// for obtaining up-to-date information beyond training data, verifying facts,
+/// or retrieving specific online content. Handles HTTP/HTTPS and converts HTML
+/// to readable markdown by default. Cannot access private/restricted resources
+/// requiring authentication. Respects robots.txt and may be blocked by
+/// anti-scraping measures. For large pages, returns the first 40,000 characters
+/// and stores the complete content in a temporary file for subsequent access.
+#[derive(Default, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FetchInput {
+    /// URL to fetch
+    pub url: String,
+    /// Get raw content without any markdown conversion (default: false)
+    #[serde(default = "default_raw")]
+    pub raw: Option<bool>,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+/// Request to list files and directories within the specified directory. If
+/// recursive is true, it will list all files and directories recursively. If
+/// recursive is false or not provided, it will only list the top-level
+/// contents. The path must be absolute. Do not use this tool to confirm the
+/// existence of files you may have created, as the user will let you know if
+/// the files were created successfully or not.
+#[derive(Default, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSListInput {
+    /// The path of the directory to list contents for (absolute path required)
+    pub path: String,
+    /// Whether to list files recursively. Use true for recursive listing, false
+    /// or omit for top-level only.
+    pub recursive: Option<bool>,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Request to retrieve detailed metadata about a file or directory at the
+/// specified path. Returns comprehensive information including size, creation
+/// time, last modified time, permissions, and type. Path must be absolute. Use
+/// this when you need to understand file characteristics without reading the
+/// actual content.
+#[derive(Default, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSFileInfoInput {
+    /// The path of the file or directory to inspect (absolute path required)
+    pub path: String,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct UndoInput {
+    /// The absolute path of the file to revert to its previous state. Must be
+    /// the exact path that was previously modified, created, or deleted by
+    /// a Forge file operation. If the file was deleted, provide the
+    /// original path it had before deletion. The system requires a prior
+    /// snapshot for this path.
+    pub path: String,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Input for the select tool
+#[derive(Deserialize, JsonSchema)]
+pub struct SelectInput {
+    /// Question to ask the user
+    pub question: String,
+
+    /// First option to choose from
+    pub option1: Option<String>,
+
+    /// Second option to choose from
+    pub option2: Option<String>,
+
+    /// Third option to choose from
+    pub option3: Option<String>,
+
+    /// Fourth option to choose from
+    pub option4: Option<String>,
+
+    /// Fifth option to choose from
+    pub option5: Option<String>,
+
+    /// If true, allows selecting multiple options; if false (default), only one
+    /// option can be selected
+    #[schemars(default)]
+    pub multiple: Option<bool>,
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Helper function to check if a value equals its default value
+fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    t == &T::default()
+}
+
+impl ToolDescription for Tools {
+    fn description(&self) -> String {
+        match self {
+            Tools::ForgeToolFsPatch(v) => v.description(),
+            Tools::ForgeToolProcessShell(v) => v.description(),
+            Tools::ForgeToolFollowup(v) => v.description(),
+            Tools::ForgeToolNetFetch(v) => v.description(),
+            Tools::ForgeToolAttemptCompletion(v) => v.description(),
+            Tools::ForgeToolFsSearch(v) => v.description(),
+            Tools::ForgeToolFsRead(v) => v.description(),
+            Tools::ForgeToolFsRemove(v) => v.description(),
+            Tools::ForgeToolFsUndo(v) => v.description(),
+            Tools::ForgeToolFsCreate(v) => v.description(),
+        }
+    }
+}
+lazy_static::lazy_static! {
+    // Cache of all tool names
+    static ref FORGE_TOOLS: HashSet<ToolName> = Tools::iter()
+        .map(ToolName::new)
+        .collect();
+}
+
+impl Tools {
+    pub fn schema(&self) -> RootSchema {
+        match self {
+            Tools::ForgeToolFsPatch(_) => schemars::schema_for!(FSPatch),
+            Tools::ForgeToolProcessShell(_) => schemars::schema_for!(Shell),
+            Tools::ForgeToolFollowup(_) => schemars::schema_for!(Followup),
+            Tools::ForgeToolNetFetch(_) => schemars::schema_for!(NetFetch),
+            Tools::ForgeToolAttemptCompletion(_) => schemars::schema_for!(AttemptCompletion),
+            Tools::ForgeToolFsSearch(_) => schemars::schema_for!(FSSearch),
+            Tools::ForgeToolFsRead(_) => schemars::schema_for!(FSRead),
+            Tools::ForgeToolFsRemove(_) => schemars::schema_for!(FSRemove),
+            Tools::ForgeToolFsUndo(_) => schemars::schema_for!(FSUndo),
+            Tools::ForgeToolFsCreate(_) => schemars::schema_for!(FSWrite),
+        }
+    }
+
+    pub fn definition(&self) -> ToolDefinition {
+        ToolDefinition::new(self)
+            .description(self.description())
+            .input_schema(self.schema())
+    }
+    pub fn contains(tool_name: &ToolName) -> bool {
+        FORGE_TOOLS.contains(tool_name)
+    }
+    pub fn is_complete(tool_name: &ToolName) -> bool {
+        // Tools that convey that the execution should yield
+        [
+            ToolsDiscriminants::ForgeToolFollowup,
+            ToolsDiscriminants::ForgeToolAttemptCompletion,
+        ]
+        .iter()
+        .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+    }
+}
+
+impl ToolsDiscriminants {
+    pub fn name(&self) -> ToolName {
+        ToolName::new(self.to_string().to_case(Case::Snake))
+    }
+
+    // TODO: This is an extremely slow operation
+    pub fn definition(&self) -> ToolDefinition {
+        Tools::iter()
+            .find(|tool| tool.definition().name == self.name())
+            .map(|tool| tool.definition())
+            .expect("Forge tool definition not found")
+    }
+}
+
+impl TryFrom<ToolCallFull> for Tools {
+    type Error = serde_json::Error;
+
+    fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
+        let object = json!({
+            "name": value.name.to_string(),
+            "arguments": value.arguments
+        });
+
+        serde_json::from_value(object)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use serde_json::json;
+
+    use crate::{FSRead, ToolCallFull, ToolName, Tools, ToolsDiscriminants};
+
+    #[test]
+    fn foo() {
+        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read")).arguments(json!({
+            "path": "/some/path/foo.txt",
+        }));
+
+        let actual = Tools::try_from(toolcall).unwrap();
+        let expected = Tools::ForgeToolFsRead(FSRead {
+            path: "/some/path/foo.txt".to_string(),
+            start_line: None,
+            end_line: None,
+            explanation: None,
+        });
+
+        pretty_assertions::assert_eq!(actual, expected);
+    }
+    #[test]
+    fn test_is_complete() {
+        let complete_tool = ToolName::new("forge_tool_attempt_completion");
+        let incomplete_tool = ToolName::new("forge_tool_fs_read");
+
+        assert!(Tools::is_complete(&complete_tool));
+        assert!(!Tools::is_complete(&incomplete_tool));
+    }
+
+    #[test]
+    fn test_tool_definition() {
+        let actual = ToolsDiscriminants::ForgeToolFsRemove.name();
+        let expected = ToolName::new("forge_tool_fs_remove");
+        assert_eq!(actual, expected);
+    }
+}

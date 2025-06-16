@@ -1,8 +1,10 @@
+# yaml-language-server: $schema=./forge.schema.json
 variables:
-  mode: ACT
+  operating_agent: Forge
 
 top_p: 0.8
 top_k: 30
+max_tokens: 20480
 
 updates:
   frequency: "daily"
@@ -14,19 +16,22 @@ models:
   - &advanced_model anthropic/claude-sonnet-4
 
 agents:
-  - id: software-engineer
+  - id: forge
+    title: "Implementation focussed"
+    description: |-
+      Hands-on implementation agent that executes software development tasks through a structured 4-phase approach: task analysis, solution strategy, implementation, and quality assurance. Makes actual changes to codebases, runs shell commands, creates/modifies files, installs dependencies, and performs concrete development work. Use for building features, fixing bugs, refactoring code, or any task requiring actual modifications. Do not use for analysis-only tasks or when you want to explore options without making changes. Always validates changes through compilation and testing.
     compact:
       max_tokens: 2000
-      token_threshold: 160000
+      token_threshold: 100000
       model: *advanced_model
       retention_window: 6
       message_threshold: 200
-      prompt: "{{> system-prompt-context-summarizer.hbs }}"
+      prompt: "{{> forge-system-prompt-context-summarizer.hbs }}"
     model: *advanced_model
     system_prompt: |-
-      {{> system-prompt-engineer-act.hbs }}
+      {{> forge-system-prompt-engineer-act.hbs }}
     user_prompt: |-
-      {{#if (eq event.name 'act/user_task_update')}}
+      {{#if (eq event.name 'forge/user_task_update')}}
       <feedback>{{event.value}}</feedback>
       {{else}}
       <task>{{event.value}}</task>
@@ -40,25 +45,24 @@ agents:
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_fs_undo
-      - forge_tool_attempt_completion
-    subscribe:
-      - act/user_task_init
-      - act/user_task_update
     max_walker_depth: 1
 
-  - id: software-designer
+  - id: muse
+    title: "Analysis and planning focussed"
+    description: |-
+      Strategic planning agent that analyzes codebases and creates comprehensive implementation plans without making any actual changes. Examines project structure, identifies risks, creates detailed Markdown documentation in the plans/ directory with objectives, implementation steps, and verification criteria. Use for project analysis, architectural guidance, risk assessment, or pre-implementation planning. Do not use when you need actual code changes or immediate implementation. Provides advisory recommendations and strategic roadmaps only.
     compact:
       max_tokens: 2000
       token_threshold: 120000
       model: *advanced_model
       retention_window: 6
       message_threshold: 200
-      prompt: "{{> system-prompt-context-summarizer.hbs }}"
+      prompt: "{{> forge-system-prompt-context-summarizer.hbs }}"
     model: *advanced_model
     system_prompt: |-
-      {{> system-prompt-engineer-plan.hbs }}
+      {{> forge-system-prompt-engineer-plan.hbs }}
     user_prompt: |-
-      {{#if (eq event.name 'plan/user_task_update')}}
+      {{#if (eq event.name 'muse/user_task_update')}}
       <feedback>{{event.value}}</feedback>
       {{else}}
       <task>{{event.value}}</task>
@@ -71,8 +75,4 @@ agents:
       - forge_tool_fs_search
       - forge_tool_fs_create
       - forge_tool_fs_patch
-      - forge_tool_attempt_completion
-    subscribe:
-      - plan/user_task_init
-      - plan/user_task_update
     max_walker_depth: 1

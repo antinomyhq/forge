@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -5,10 +6,12 @@ use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
 
+use crate::orch::Orchestrator;
+use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
 use crate::{
     AttachmentService, ChatService, ConversationService, EnvironmentService, FileDiscoveryService,
-    Orchestrator, Services, ToolService, WorkflowService,
+    Orchestrator, Services, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -16,7 +19,6 @@ use crate::{
 /// ForgeAPI chat method.
 pub struct ForgeApp<S: Services> {
     services: Arc<S>,
-    #[allow(dead_code)]
     tool_registry: ToolRegistry<S>,
 }
 
@@ -43,7 +45,7 @@ impl<S: Services> ForgeApp<S> {
             .expect("conversation for the request should've been created at this point.");
 
         // Get tool definitions and models
-        let tool_definitions = services.tool_service().list().await?;
+        let tool_definitions = self.tool_registry.list().await?;
         let models = services.chat_service().models().await?;
 
         // Discover files using the discovery service
@@ -63,6 +65,18 @@ impl<S: Services> ForgeApp<S> {
 
         // Get environment for orchestrator creation
         let environment = services.environment_service().get_environment();
+
+        // Register templates using workflow path or environment fallback
+        let template_path = workflow
+            .templates
+            .map_or(environment.templates(), |templates| {
+                PathBuf::from(templates)
+            });
+
+        services
+            .template_service()
+            .register_template(template_path)
+            .await?;
 
         // Always try to get attachments and overwrite them
         let attachments = services
@@ -186,5 +200,8 @@ impl<S: Services> ForgeApp<S> {
             original_messages,
             compacted_messages,
         ))
+    }
+    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
+        self.tool_registry.list().await
     }
 }

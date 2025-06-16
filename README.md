@@ -17,12 +17,14 @@
 
 - [Quickstart](#quickstart)
 - [Usage Examples](#usage-examples)
-- [Interactive Mode Examples](#interactive-mode-examples)
 - [Why Forge?](#why-forge)
 - [Command-Line Options](#command-line-options)
 - [Advanced Configuration](#advanced-configuration)
   - [Provider Configuration](#provider-configuration)
   - [forge.yaml Configuration Options](#forgeyaml-configuration-options)
+  - [MCP Configuration](#mcp-configuration)
+  - [Example Use Cases](#example-use-cases)
+  - [Usage in Multi-Agent Workflows](#usage-in-multi-agent-workflows)
 - [Documentation](#documentation)
 - [Community](#community)
 - [Support Us](#support-us)
@@ -39,7 +41,7 @@ Install globally:
 npm install -g @antinomyhq/forge
 ```
 
-Sign up at [Antinomy.ai](https://app.antinomy.ai/app/) to enable the Forge provider.
+Sign up at [Forgecode.dev](https://app.forgecode.dev/app/) to enable the Forge provider.
 
 Then set up your Forge provider key:
 
@@ -183,7 +185,7 @@ FORGE_KEY=ForgeKey
 ```
 
 To use Antinomy's provider with Forge:
-1. Visit [https://app.antinomy.ai/](https://app.antinomy.ai/)
+1. Visit [https://app.forgecode.dev/](https://app.forgecode.dev/)
 2. Login with your existing credentials or create a new account
 3. Once logged in, your account will automatically enable the Forge Provider
 

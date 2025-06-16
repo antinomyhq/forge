@@ -26,9 +26,6 @@ impl crate::ForgeFS {
         let path_ref = path.as_ref();
 
         // Basic validation
-        if start_line == 0 || end_line == 0 {
-            return Err(Error::StartBeyondFileSize { start: start_line, total: 0 }.into());
-        }
         if start_line > end_line {
             return Err(Error::StartGreaterThanEnd { start: start_line, end: end_line }.into());
         }
@@ -37,6 +34,10 @@ impl crate::ForgeFS {
         let mut file = tokio::fs::File::open(path_ref)
             .await
             .with_context(|| format!("Failed to open file {}", path_ref.display()))?;
+
+        if start_line == 0 || end_line == 0 {
+            return Err(Error::IndexStartingWithZero { start: start_line, end: end_line }.into());
+        }
 
         let (is_text, file_type) = Self::is_binary(&mut file).await?;
         if !is_text {
@@ -47,7 +48,10 @@ impl crate::ForgeFS {
         let content = tokio::fs::read_to_string(path_ref)
             .await
             .with_context(|| format!("Failed to read file content from {}", path_ref.display()))?;
-
+        if start_line < 2 && content.is_empty() {
+            // If the file is empty, return empty content
+            return Ok((String::new(), FileInfo::new(start_line, end_line, 0)));
+        }
         // Split into lines
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len() as u64;

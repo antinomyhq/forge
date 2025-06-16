@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use derive_setters::Setters;
 use tokio::sync::mpsc::Sender;
 
 use crate::ChatResponse;
@@ -9,29 +8,15 @@ use crate::ChatResponse;
 type ArcSender = Arc<Sender<anyhow::Result<ChatResponse>>>;
 
 /// Provides additional context for tool calls.
-#[derive(Default, Clone, Debug, Setters)]
+#[derive(Default, Clone, Debug)]
 pub struct ToolCallContext {
-    pub sender: Option<ArcSender>,
-    /// Indicates whether the tool execution has been completed
-    /// This is wrapped in an RWLock for thread-safety
-    #[setters(skip)]
-    pub is_complete: bool,
+    sender: Option<ArcSender>,
 }
 
 impl ToolCallContext {
     /// Creates a new ToolCallContext with default values
-    pub fn new() -> Self {
-        Self { sender: None, is_complete: false }
-    }
-
-    /// Sets the is_complete flag to true
-    pub async fn set_complete(&mut self) {
-        self.is_complete = true;
-    }
-
-    /// Gets the current value of is_complete flag
-    pub async fn get_complete(&self) -> bool {
-        self.is_complete
+    pub fn new(sender: Option<ArcSender>) -> Self {
+        Self { sender }
     }
 
     /// Send a message through the sender if available
@@ -71,19 +56,6 @@ mod tests {
     fn test_create_context() {
         let context = ToolCallContext::default();
         assert!(context.sender.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_is_complete_default() {
-        let context = ToolCallContext::default();
-        assert!(!context.get_complete().await);
-    }
-
-    #[tokio::test]
-    async fn test_set_complete() {
-        let mut context = ToolCallContext::default();
-        context.set_complete().await;
-        assert!(context.get_complete().await);
     }
 
     #[test]

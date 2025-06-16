@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::{
     AuthService, ChatService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, KeyService, McpConfigManager, Services, ToolService, WorkflowService,
+    ForgeApp, KeyService, McpConfigManager, Services, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -39,7 +39,8 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
     }
 
     async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        self.app.tool_service().list().await
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.list_tools().await
     }
 
     async fn models(&self) -> Result<Vec<Model>> {

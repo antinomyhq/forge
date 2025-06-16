@@ -8,7 +8,6 @@ use futures::Stream;
 use tracing::{debug, info};
 
 use crate::agent::AgentService;
-use crate::template::Templates;
 
 /// A service dedicated to handling context compaction.
 pub struct Compactor<S> {
@@ -71,10 +70,13 @@ impl<S: AgentService> Compactor<S> {
             "Created context compaction summary"
         );
 
-        let summary = Templates::render(
-            "{{> partial-summary-frame.hbs}}",
-            &serde_json::json!({ "summary": summary }),
-        )?;
+        let summary = self
+            .services
+            .render(
+                "{{> forge-partial-summary-frame.hbs}}",
+                &serde_json::json!({ "summary": summary }),
+            )
+            .await?;
 
         context.messages.splice(
             start..=end,
@@ -100,13 +102,16 @@ impl<S: AgentService> Compactor<S> {
             "summary_tag": summary_tag
         });
 
-        let prompt = Templates::render(
-            compact
-                .prompt
-                .as_deref()
-                .unwrap_or("{{> system-prompt-context-summarizer.hbs}}"),
-            &ctx,
-        )?;
+        let prompt = self
+            .services
+            .render(
+                compact
+                    .prompt
+                    .as_deref()
+                    .unwrap_or("{{> forge-system-prompt-context-summarizer.hbs}}"),
+                &ctx,
+            )
+            .await?;
 
         let mut context = Context::default()
             .add_message(ContextMessage::user(prompt, compact.model.clone().into()));

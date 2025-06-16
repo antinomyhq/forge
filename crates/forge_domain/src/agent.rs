@@ -1,6 +1,9 @@
+use std::borrow::Cow;
+
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use merge::Merge;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::compact::Compact;
@@ -8,27 +11,36 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, Error, EventContext, ModelId, Result, SystemContext, ToolDefinition, ToolName, TopK,
-    TopP,
+    Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
+    ToolName, TopK, TopP,
 };
 
 // Unique identifier for an agent
-#[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
-pub struct AgentId(String);
+pub struct AgentId(Cow<'static, str>);
 impl AgentId {
     // Creates a new agent ID from a string-like value
     pub fn new(id: impl ToString) -> Self {
-        Self(id.to_string())
+        Self(Cow::Owned(id.to_string()))
     }
 
     // Returns the agent ID as a string reference
     pub fn as_str(&self) -> &str {
-        self.0.as_str()
+        self.0.as_ref()
+    }
+
+    pub const FORGE: AgentId = AgentId(Cow::Borrowed("forge"));
+    pub const MUSE: AgentId = AgentId(Cow::Borrowed("muse"));
+}
+
+impl Default for AgentId {
+    fn default() -> Self {
+        AgentId::FORGE
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters)]
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
 #[setters(strip_option, into)]
 pub struct Agent {
     /// Flag to enable/disable tool support for this agent.
@@ -40,6 +52,11 @@ pub struct Agent {
     // Unique identifier for the agent
     #[merge(strategy = crate::merge::std::overwrite)]
     pub id: AgentId,
+
+    /// Human-readable title for the agent
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub title: Option<String>,
 
     // The language model ID to be used by this agent
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -63,13 +80,13 @@ pub struct Agent {
 
     /// Tools that the agent can use    
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = crate::merge::option)]
+    #[merge(strategy = merge_opt_vec)]
     pub tools: Option<Vec<ToolName>>,
 
     // The transforms feature has been removed
     /// Used to specify the events the agent is interested in    
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = merge_subscription)]
+    #[merge(strategy = merge_opt_vec)]
     pub subscribe: Option<Vec<String>>,
 
     /// Maximum number of turns the agent can take    
@@ -132,9 +149,21 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub top_k: Option<TopK>,
+
+    /// Maximum number of tokens the model can generate
+    ///
+    /// Controls the maximum length of the model's response.
+    /// - Lower values (e.g., 100) limit response length for concise outputs
+    /// - Higher values (e.g., 4000) allow for longer, more detailed responses
+    /// - Valid range is 1 to 100,000
+    /// - If not specified, the model provider's default will be used
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub max_tokens: Option<MaxTokens>,
 }
 
-fn merge_subscription(base: &mut Option<Vec<String>>, other: Option<Vec<String>>) {
+fn merge_opt_vec<T>(base: &mut Option<Vec<T>>, other: Option<Vec<T>>) {
     if let Some(other) = other {
         if let Some(base) = base {
             base.extend(other);
@@ -145,24 +174,26 @@ fn merge_subscription(base: &mut Option<Vec<String>>, other: Option<Vec<String>>
 }
 
 impl Agent {
-    pub fn new(id: impl ToString) -> Self {
+    pub fn new(id: impl Into<AgentId>) -> Self {
         Self {
-            id: AgentId::new(id),
-            tool_supported: None,
-            model: None,
-            description: None,
-            system_prompt: None,
-            user_prompt: None,
-            tools: None,
+            id: id.into(),
+            title: Default::default(),
+            tool_supported: Default::default(),
+            model: Default::default(),
+            description: Default::default(),
+            system_prompt: Default::default(),
+            user_prompt: Default::default(),
+            tools: Default::default(),
             // transforms field removed
-            subscribe: None,
-            max_turns: None,
-            max_walker_depth: None,
-            compact: None,
-            custom_rules: None,
-            temperature: None,
-            top_p: None,
-            top_k: None,
+            subscribe: Default::default(),
+            max_turns: Default::default(),
+            max_walker_depth: Default::default(),
+            compact: Default::default(),
+            custom_rules: Default::default(),
+            temperature: Default::default(),
+            top_p: Default::default(),
+            top_k: Default::default(),
+            max_tokens: Default::default(),
         }
     }
 
@@ -180,6 +211,15 @@ impl Agent {
             compact.should_compact(context, token_count)
         } else {
             false
+        }
+    }
+
+    pub fn add_subscription(&mut self, event: impl ToString) {
+        let event_string = event.to_string();
+
+        let subscribe_list = self.subscribe.get_or_insert_with(Vec::new);
+        if !subscribe_list.contains(&event_string) {
+            subscribe_list.push(event_string);
         }
     }
 }
@@ -205,6 +245,18 @@ pub fn estimate_token_count(count: usize) -> usize {
     count / 4
 }
 
+impl From<Agent> for ToolDefinition {
+    fn from(value: Agent) -> Self {
+        let description = value.description.unwrap_or_default();
+        let name = ToolName::new(value.id);
+        ToolDefinition {
+            name,
+            description,
+            input_schema: schemars::schema_for!(crate::AgentInput),
+        }
+    }
+}
+
 // The Transform enum has been removed
 
 #[cfg(test)]
@@ -213,6 +265,12 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    impl Into<AgentId> for &str {
+        fn into(self) -> AgentId {
+            AgentId::new(self)
+        }
+    }
 
     #[test]
     fn test_merge_model() {
@@ -257,7 +315,7 @@ mod tests {
         assert!(tools.contains(&ToolName::new("tool2")));
         assert!(tools.contains(&ToolName::new("tool3")));
 
-        // Base has a value, should not be overwritten
+        // Base has a value, should merge with other's tools
         let mut base =
             Agent::new("Base").tools(vec![ToolName::new("tool1"), ToolName::new("tool2")]);
         let other = Agent::new("Other").tools(vec![ToolName::new("tool3"), ToolName::new("tool4")]);
@@ -265,7 +323,9 @@ mod tests {
 
         // Should have other's tools
         let tools = base.tools.as_ref().unwrap();
-        assert_eq!(tools.len(), 2);
+        assert_eq!(tools.len(), 4);
+        assert!(tools.contains(&ToolName::new("tool1")));
+        assert!(tools.contains(&ToolName::new("tool2")));
         assert!(tools.contains(&ToolName::new("tool3")));
         assert!(tools.contains(&ToolName::new("tool4")));
     }
@@ -428,5 +488,112 @@ mod tests {
 
         let agent: Agent = serde_json::from_value(json).unwrap();
         assert_eq!(agent.top_k, None);
+    }
+
+    #[test]
+    fn test_max_tokens_validation() {
+        // Valid max_tokens values should deserialize correctly
+        let valid_values = [1, 100, 1000, 4000, 8000, 100_000];
+        for value in valid_values {
+            let json = json!({
+                "id": "test-agent",
+                "max_tokens": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(agent.is_ok(), "Valid max_tokens {value} should deserialize");
+            assert_eq!(agent.unwrap().max_tokens.unwrap().value(), value);
+        }
+
+        // Invalid max_tokens values should fail deserialization
+        let invalid_values = [0, 100_001, 200_000, 1_000_000];
+        for value in invalid_values {
+            let json = json!({
+                "id": "test-agent",
+                "max_tokens": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(
+                agent.is_err(),
+                "Invalid max_tokens {value} should fail deserialization"
+            );
+            let err = agent.unwrap_err().to_string();
+            assert!(
+                err.contains("max_tokens must be between 1 and 100000"),
+                "Error should mention valid range: {err}"
+            );
+        }
+
+        // No max_tokens should deserialize to None
+        let json = json!({
+            "id": "test-agent"
+        });
+
+        let agent: Agent = serde_json::from_value(json).unwrap();
+        assert_eq!(agent.max_tokens, None);
+    }
+
+    #[test]
+    fn test_add_subscription_to_empty_agent() {
+        let mut fixture = Agent::new("test-agent");
+        fixture.add_subscription("test-event");
+
+        let actual = fixture.subscribe.as_ref().unwrap();
+        let expected = vec!["test-event".to_string()];
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_add_subscription_to_existing_list() {
+        let mut fixture = Agent::new("test-agent").subscribe(vec!["existing-event".to_string()]);
+        fixture.add_subscription("new-event");
+
+        let actual = fixture.subscribe.as_ref().unwrap();
+        let expected = vec!["existing-event".to_string(), "new-event".to_string()];
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_add_subscription_duplicate_prevention() {
+        let mut fixture = Agent::new("test-agent").subscribe(vec!["existing-event".to_string()]);
+        fixture.add_subscription("existing-event");
+
+        let actual = fixture.subscribe.as_ref().unwrap();
+        let expected = vec!["existing-event".to_string()];
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_add_subscription_multiple_events() {
+        let mut fixture = Agent::new("test-agent");
+        fixture.add_subscription("event1");
+        fixture.add_subscription("event2");
+        fixture.add_subscription("event1"); // duplicate
+        fixture.add_subscription("event3");
+
+        let actual = fixture.subscribe.as_ref().unwrap();
+        let expected = vec![
+            "event1".to_string(),
+            "event2".to_string(),
+            "event3".to_string(),
+        ];
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_add_subscription_with_string_types() {
+        let mut fixture = Agent::new("test-agent");
+        fixture.add_subscription("string_literal");
+        fixture.add_subscription(String::from("owned_string"));
+        fixture.add_subscription(&"string_ref".to_string());
+
+        let actual = fixture.subscribe.as_ref().unwrap();
+        let expected = vec![
+            "string_literal".to_string(),
+            "owned_string".to_string(),
+            "string_ref".to_string(),
+        ];
+        assert_eq!(actual, &expected);
     }
 }

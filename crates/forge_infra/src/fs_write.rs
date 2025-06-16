@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
 use bytes::Bytes;
 use forge_services::{FsSnapshotService, FsWriteService};
 
@@ -17,8 +16,13 @@ impl<S> ForgeFileWriteService<S> {
 
 #[async_trait::async_trait]
 impl<S: FsSnapshotService> FsWriteService for ForgeFileWriteService<S> {
-    async fn write(&self, path: &Path, contents: Bytes) -> Result<()> {
-        if forge_fs::ForgeFS::exists(path) {
+    async fn write(
+        &self,
+        path: &Path,
+        contents: Bytes,
+        capture_snapshot: bool,
+    ) -> anyhow::Result<()> {
+        if forge_fs::ForgeFS::exists(path) && capture_snapshot {
             let _ = self.snaps.create_snapshot(path).await?;
         }
 
@@ -34,7 +38,7 @@ impl<S: FsSnapshotService> FsWriteService for ForgeFileWriteService<S> {
             .into_temp_path()
             .to_path_buf();
 
-        self.write(&path, content.to_string().into()).await?;
+        self.write(&path, content.to_string().into(), false).await?;
 
         Ok(path)
     }

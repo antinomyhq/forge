@@ -51,7 +51,12 @@ pub trait FsReadService: Send + Sync {
 #[async_trait::async_trait]
 pub trait FsWriteService: Send + Sync {
     /// Writes the content of a file at the specified path.
-    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()>;
+    async fn write(
+        &self,
+        path: &Path,
+        contents: Bytes,
+        capture_snapshot: bool,
+    ) -> anyhow::Result<()>;
 
     /// Writes content to a temporary file with the given prefix and extension,
     /// and returns its path. The file will be kept (not deleted) after
@@ -74,6 +79,7 @@ pub trait FileRemoveService: Send + Sync {
 pub trait FsMetaService: Send + Sync {
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool>;
     async fn exists(&self, path: &Path) -> anyhow::Result<bool>;
+    async fn file_size(&self, path: &Path) -> anyhow::Result<u64>;
 }
 
 #[async_trait::async_trait]
@@ -129,7 +135,7 @@ pub trait InquireService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait McpClient: Send + Sync + 'static {
+pub trait McpClient: Clone + Send + Sync + 'static {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
     async fn call(
         &self,

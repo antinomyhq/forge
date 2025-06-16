@@ -1,0 +1,13 @@
+---
+source: crates/forge_app/src/execution_result.rs
+expression: to_value(actual)
+---
+<search_results
+  path="/home/user/project"
+  total_lines="2"
+  display_lines="0-2"
+  regex="Hello"
+  file_pattern="*.txt"
+><![CDATA[file1.txt:1:Hello world
+file2.txt:3:Hello universe]]>
+</search_results>

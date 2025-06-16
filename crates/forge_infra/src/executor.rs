@@ -180,6 +180,13 @@ mod tests {
             .to_string(),
             base_path: PathBuf::from("/base"),
             retry_config: Default::default(),
+            fetch_truncation_limit: 0,
+            stdout_max_prefix_length: 0,
+            max_search_lines: 0,
+            max_read_size: 0,
+            stdout_max_suffix_length: 0,
+            http: Default::default(),
+            max_file_size: 10_000_000,
         }
     }
 

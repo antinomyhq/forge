@@ -99,12 +99,10 @@ mod tests {
     use insta::assert_snapshot;
     use schemars::JsonSchema;
     use serde::Deserialize;
+    use strum::IntoEnumIterator;
 
     use super::*;
-    use crate::{
-        ExecutableTool, NamedTool, ToolCallContext, ToolDefinition, ToolDescription, ToolName,
-        ToolOutput,
-    };
+    use crate::{NamedTool, ToolDescription, ToolName, Tools};
 
     #[derive(Default)]
     pub struct MangoTool;
@@ -132,22 +130,9 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
-    impl ExecutableTool for MangoTool {
-        type Input = ToolInput;
-
-        async fn call(
-            &self,
-            _: &mut ToolCallContext,
-            _: Self::Input,
-        ) -> anyhow::Result<ToolOutput> {
-            Ok(ToolOutput::text("Completed".to_string()))
-        }
-    }
-
     #[test]
-    fn test_tool_usage_prompt_to_string() {
-        let tools = vec![ToolDefinition::from(&MangoTool)];
+    fn test_tool_usage() {
+        let tools = Tools::iter().map(|v| v.definition()).collect::<Vec<_>>();
         let prompt = ToolUsagePrompt::from(&tools);
         assert_snapshot!(prompt);
     }

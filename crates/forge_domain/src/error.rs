@@ -52,8 +52,8 @@ pub enum Error {
     #[from(skip)]
     NoModelDefined(AgentId),
 
-    #[error("Failed after {0} attempts: {1:?}")]
-    Retryable(usize, anyhow::Error),
+    #[error(transparent)]
+    Retryable(anyhow::Error),
 }
 
 pub type Result<A> = std::result::Result<A, Error>;

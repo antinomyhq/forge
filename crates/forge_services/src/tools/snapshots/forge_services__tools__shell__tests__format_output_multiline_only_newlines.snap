@@ -1,9 +1,0 @@
----
-source: crates/forge_services/src/tools/shell.rs
-expression: actual
----
----
-command: only newlines
-exit_code: 0
----
-Command executed successfully with no output.

@@ -29,10 +29,13 @@ dotenv = "0.15.0"
 futures = "0.3.31"
 gh-workflow-tailcall = "0.5.2"
 glob = "0.3.2"
+grep-searcher = "0.1.14"
+grep-regex = "0.1.13"
 handlebars = { version = "6.2.0", features = ["rust-embed"] }
 html2md = "0.2.15"
 http = "1.2.0"
 ignore = "0.4.23"
+is_ci = "1.2.0"
 indexmap = "2.7.1"
 insta = { version = "1.42.0", features = ["json"] }
 lazy_static = "1.4.0"

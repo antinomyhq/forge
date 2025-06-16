@@ -1,27 +1,7 @@
-use std::str::FromStr;
-
 use derive_setters::Setters;
-use forge_api::{ConversationId, ModelId, Provider, Usage, Workflow};
-use strum_macros::EnumString;
+use forge_api::{AgentId, ConversationId, ModelId, Provider, Usage, Workflow};
 
 use crate::prompt::ForgePrompt;
-
-#[derive(Debug, Clone, Default, EnumString)]
-#[strum(ascii_case_insensitive)]
-pub enum Mode {
-    Plan,
-    #[default]
-    Act,
-}
-
-impl std::fmt::Display for Mode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Mode::Plan => write!(f, "PLAN"),
-            Mode::Act => write!(f, "ACT"),
-        }
-    }
-}
 
 //TODO: UIState and ForgePrompt seem like the same thing and can be merged
 /// State information for the UI
@@ -30,7 +10,7 @@ impl std::fmt::Display for Mode {
 pub struct UIState {
     pub conversation_id: Option<ConversationId>,
     pub usage: Usage,
-    pub mode: Mode,
+    pub operating_agent: AgentId,
     pub is_first: bool,
     pub model: Option<ModelId>,
     pub provider: Option<Provider>,
@@ -38,17 +18,28 @@ pub struct UIState {
 
 impl UIState {
     pub fn new(workflow: Workflow) -> Self {
-        let mode = workflow
+        let operating_agent = workflow
             .variables
-            .get("mode")
-            .and_then(|value| value.as_str().and_then(|m| Mode::from_str(m).ok()))
+            .get("operating_agent")
+            .and_then(|value| value.as_str())
+            .and_then(|agent_id_str| {
+                // Validate that the agent exists in the workflow before creating AgentId
+                let agent_id = AgentId::new(agent_id_str);
+                if workflow.agents.iter().any(|agent| agent.id == agent_id) {
+                    Some(agent_id)
+                } else {
+                    None
+                }
+            })
+            .or_else(|| workflow.agents.first().map(|agent| agent.id.clone()))
             .unwrap_or_default();
+
         Self {
             conversation_id: Default::default(),
             usage: Default::default(),
-            mode,
             is_first: true,
             model: workflow.model,
+            operating_agent,
             provider: Default::default(),
         }
     }
@@ -58,8 +49,8 @@ impl From<UIState> for ForgePrompt {
     fn from(state: UIState) -> Self {
         ForgePrompt {
             usage: Some(state.usage),
-            mode: state.mode,
             model: state.model,
+            agent_id: state.operating_agent,
         }
     }
 }
