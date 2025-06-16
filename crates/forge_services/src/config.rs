@@ -30,6 +30,7 @@ impl<I: Infrastructure> ForgeConfigService<I> {
             .write(
                 env.forge_config().as_path(),
                 Bytes::from(serde_json::to_vec(config)?),
+                false,
             )
             .await
     }

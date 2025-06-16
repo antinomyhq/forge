@@ -32,7 +32,7 @@ impl Client {
         provider: Provider,
         retry_config: Arc<RetryConfig>,
         version: impl ToString,
-        timeout_config: HttpConfig,
+        timeout_config: &HttpConfig,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
             .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))

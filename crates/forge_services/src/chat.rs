@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::{ChatService, EnvironmentService, KeyService};
 use forge_domain::{
-    ChatCompletionMessage, Context as ChatContext, ForgeKey, Model, ModelId, Provider,
+    ChatCompletionMessage, Context as ChatContext, ForgeKey, HttpConfig, Model, ModelId, Provider,
     ResultStream, RetryConfig,
 };
 use forge_provider::Client;
@@ -18,6 +18,7 @@ pub struct ForgeProviderService<I, K> {
     retry_config: Arc<RetryConfig>,
     cached_client: Arc<RwLock<Option<Client>>>,
     version: String,
+    timeout_config: HttpConfig,
 }
 
 impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
@@ -31,6 +32,7 @@ impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
             retry_config,
             cached_client: Arc::new(RwLock::new(None)),
             version,
+            timeout_config: env.http,
         }
     }
     async fn key(&self) -> Result<ForgeKey> {
@@ -60,7 +62,12 @@ impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
 
         // Client doesn't exist, create new one
         let provider = self.provider().await?;
-        let client = Client::new(provider, self.retry_config.clone(), &self.version)?;
+        let client = Client::new(
+            provider,
+            self.retry_config.clone(),
+            &self.version,
+            &self.timeout_config,
+        )?;
 
         // Cache the new client
         {
