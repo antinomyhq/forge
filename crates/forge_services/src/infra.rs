@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_app::EnvironmentService;
-use forge_domain::{CommandOutput, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
+use forge_domain::{
+    CommandOutput, McpServerConfig, MimeType, ToolDefinition, ToolName, ToolOutput,
+};
 use forge_snaps::Snapshot;
 
 /// Repository for accessing system environment information
@@ -76,6 +78,7 @@ pub trait FsMetaService: Send + Sync {
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool>;
     async fn exists(&self, path: &Path) -> anyhow::Result<bool>;
     async fn file_size(&self, path: &Path) -> anyhow::Result<u64>;
+    async fn mime_type(&self, path: &Path) -> anyhow::Result<MimeType>;
 }
 
 #[async_trait::async_trait]

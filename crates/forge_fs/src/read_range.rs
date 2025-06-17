@@ -38,11 +38,15 @@ impl crate::ForgeFS {
         if start_line == 0 || end_line == 0 {
             return Err(Error::IndexStartingWithZero { start: start_line, end: end_line }.into());
         }
+        println!("{}", std::backtrace::Backtrace::force_capture());
 
-        let (is_text, file_type) = Self::is_binary(&mut file).await?;
-        if !is_text {
-            return Err(Error::BinaryFileNotSupported(file_type).into());
+        if let Some(mime_type) = Self::mime_type_from_file(&mut file).await? {
+            if mime_type.is_binary() {
+                return Err(Error::BinaryFileNotSupported(mime_type.as_str().to_string()).into());
+            }
         }
+        // If MIME type is None (empty files or undetected), assume it's text and
+        // continue
 
         // Read file content
         let content = tokio::fs::read_to_string(path_ref)

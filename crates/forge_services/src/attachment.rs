@@ -55,7 +55,7 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         //NOTE: Attachments should not be truncated since they are provided by the user
         let content = match mime_type {
             Some(mime_type) => AttachmentContent::Image(Image::new_bytes(
-                self.infra.file_read_service().read(&path).await?,
+                &self.infra.file_read_service().read(&path).await?,
                 mime_type,
             )),
             None => AttachmentContent::FileContent(
@@ -84,8 +84,8 @@ pub mod tests {
     use bytes::Bytes;
     use forge_app::{AttachmentService, EnvironmentService};
     use forge_domain::{
-        AttachmentContent, CommandOutput, Environment, Provider, ToolDefinition, ToolName,
-        ToolOutput,
+        AttachmentContent, CommandOutput, Environment, MimeType, Provider, ToolDefinition,
+        ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -308,6 +308,10 @@ pub mod tests {
             } else {
                 Err(anyhow::anyhow!("File not found: {}", path.display()))
             }
+        }
+
+        async fn mime_type(&self, _: &Path) -> anyhow::Result<MimeType> {
+            Ok(MimeType::Text)
         }
     }
 

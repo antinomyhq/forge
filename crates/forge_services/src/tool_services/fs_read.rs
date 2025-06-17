@@ -1,8 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use forge_app::{Content, EnvironmentService, FsReadService, ReadOutput};
+use forge_domain::{Image, MimeType, Pdf};
 
 use crate::utils::assert_absolute_path;
 use crate::{FsMetaService, FsReadService as _, Infrastructure};
@@ -81,18 +82,12 @@ impl<F: Infrastructure> ForgeFsRead<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self(infra)
     }
-}
-
-#[async_trait::async_trait]
-impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
-    async fn read(
+    async fn read_utf8(
         &self,
-        path: String,
+        path: &Path,
         start_line: Option<u64>,
         end_line: Option<u64>,
     ) -> anyhow::Result<ReadOutput> {
-        let path = Path::new(&path);
-        assert_absolute_path(path)?;
         let env = self.0.environment_service().get_environment();
 
         // Validate file size before reading content
@@ -113,6 +108,60 @@ impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
         })
+    }
+
+    async fn read_raw(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
+        self.0
+            .file_read_service()
+            .read(path)
+            .await
+            .with_context(|| format!("Failed to read file content from {}", path.display()))
+    }
+    async fn read_pdf(&self, path: &Path, mime_type: MimeType) -> anyhow::Result<ReadOutput> {
+        Ok(ReadOutput {
+            content: Content::Pdf(Pdf::new_bytes(
+                path.file_name().and_then(|v| v.to_str()).unwrap_or(""),
+                &self.read_raw(path).await?,
+                mime_type,
+            )),
+            start_line: 1,
+            end_line: 1,
+            total_lines: 1,
+        })
+    }
+
+    async fn read_image(&self, path: &Path, mime_type: MimeType) -> anyhow::Result<ReadOutput> {
+        Ok(ReadOutput {
+            content: Content::Image(Image::new_bytes(&self.read_raw(path).await?, mime_type)),
+            start_line: 1,
+            end_line: 1,
+            total_lines: 1,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
+    async fn read(
+        &self,
+        path: String,
+        start_line: Option<u64>,
+        end_line: Option<u64>,
+    ) -> anyhow::Result<ReadOutput> {
+        let path = Path::new(&path);
+        assert_absolute_path(path)?;
+        let ty = self.0.file_meta_service().mime_type(path).await?;
+        match &ty {
+            MimeType::Text => self.read_utf8(path, start_line, end_line).await,
+            MimeType::Pdf => self.read_pdf(path, ty).await,
+            MimeType::Image(_) => self.read_image(path, ty).await,
+            MimeType::Other(_) => {
+                bail!(
+                    "Unsupported file type: {}. Only text and image files are supported.",
+                    ty
+                );
+            }
+        }
     }
 }
 

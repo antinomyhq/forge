@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use super::{ToolCallFull, ToolResult};
+use super::{Pdf, ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
@@ -18,6 +18,7 @@ pub enum ContextMessage {
     Text(TextMessage),
     Tool(ToolResult),
     Image(Image),
+    Pdf(Pdf),
 }
 
 impl ContextMessage {
@@ -61,7 +62,7 @@ impl ContextMessage {
         match self {
             ContextMessage::Text(message) => message.role == role,
             ContextMessage::Tool(_) => false,
-            ContextMessage::Image(_) => Role::User == role,
+            ContextMessage::Image(_) | ContextMessage::Pdf(_) => Role::User == role,
         }
     }
 
@@ -70,6 +71,7 @@ impl ContextMessage {
             ContextMessage::Text(message) => message.tool_calls.is_some(),
             ContextMessage::Tool(_) => false,
             ContextMessage::Image(_) => false,
+            ContextMessage::Pdf(_) => false,
         }
     }
 }
@@ -128,6 +130,10 @@ pub struct Context {
 }
 
 impl Context {
+    pub fn add_pdf(mut self, pdf: Pdf) -> Self {
+        self.messages.push(ContextMessage::Pdf(pdf));
+        self
+    }
     pub fn add_base64_url(mut self, image: Image) -> Self {
         self.messages.push(ContextMessage::Image(image));
         self
@@ -208,6 +214,9 @@ impl Context {
                 }
                 ContextMessage::Image(_) => {
                     lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
+                }
+                ContextMessage::Pdf(_) => {
+                    lines.push_str("<pdf path=\"[base64 URL]\">".to_string().as_str());
                 }
             }
         }

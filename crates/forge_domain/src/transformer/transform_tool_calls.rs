@@ -1,5 +1,5 @@
 use super::Transformer;
-use crate::{Context, ContextMessage, ModelId, Role, TextMessage};
+use crate::{Context, ContextMessage, ModelId, Role, TextMessage, ToolValue};
 
 pub struct TransformToolCalls {
     pub model: Option<ModelId>,
@@ -49,6 +49,9 @@ impl Transformer for TransformToolCalls {
                             }
                             crate::ToolValue::Image(image) => {
                                 new_messages.push(ContextMessage::Image(image));
+                            }
+                            ToolValue::Pdf(pdf) => {
+                                new_messages.push(ContextMessage::Pdf(pdf));
                             }
                             crate::ToolValue::Empty => {}
                         }
