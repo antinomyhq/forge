@@ -189,23 +189,6 @@ pub mod tests {
         }
     }
 
-    #[derive(Debug, Clone)]
-    pub struct MockInfrastructure {
-        env_service: Arc<MockEnvironmentService>,
-        pub file_service: Arc<MockFileService>,
-        file_snapshot_service: Arc<MockSnapService>,
-    }
-
-    impl MockInfrastructure {
-        pub fn new() -> Self {
-            Self {
-                env_service: Arc::new(MockEnvironmentService {}),
-                file_service: Arc::new(MockFileService::new()),
-                file_snapshot_service: Arc::new(MockSnapService),
-            }
-        }
-    }
-
     #[derive(Debug)]
     pub struct MockFileService {
         files: Mutex<Vec<(PathBuf, Bytes)>>,
