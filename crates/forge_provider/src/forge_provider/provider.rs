@@ -71,6 +71,7 @@ impl ForgeProvider {
             reqwest::header::CONNECTION,
             HeaderValue::from_static("keep-alive"),
         );
+        debug!(headers = ?headers, "Request Headers");
         headers
     }
 
