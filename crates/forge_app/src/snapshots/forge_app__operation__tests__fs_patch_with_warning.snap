@@ -1,0 +1,13 @@
+---
+source: crates/forge_app/src/operation.rs
+expression: to_value(actual)
+---
+<file_diff
+  path="/home/user/large_file.txt"
+  total_lines="3"
+><![CDATA[1   1    | line1
+    2    |+new line
+2   3    | line2
+]]>
+<warning>Large file modification</warning>
+</file_diff>

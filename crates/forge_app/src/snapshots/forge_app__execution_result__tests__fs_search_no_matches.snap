@@ -1,9 +1,0 @@
----
-source: crates/forge_app/src/execution_result.rs
-expression: to_value(actual)
----
-<search_results
-  path="/home/user/empty_project"
-  regex="nonexistent"
->
-</search_results>

@@ -7,7 +7,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
-use tracing::debug;
+use tracing::{debug, info};
 
 use super::model::{ListModelResponse, Model};
 use super::request::Request;
@@ -71,6 +71,7 @@ impl ForgeProvider {
             reqwest::header::CONNECTION,
             HeaderValue::from_static("keep-alive"),
         );
+        debug!(headers = ?headers, "Request Headers");
         headers
     }
 
@@ -84,10 +85,12 @@ impl ForgeProvider {
         request = pipeline.transform(request);
 
         let url = self.url("chat/completions")?;
+        let headers = self.headers();
 
-        debug!(
+        info!(
             url = %url,
             model = %model,
+            headers = ?headers,
             message_count = %request.message_count(),
             message_cache_count = %request.message_cache_count(),
             "Connecting Upstream"
@@ -96,7 +99,7 @@ impl ForgeProvider {
         let es = self
             .client
             .post(url.clone())
-            .headers(self.headers())
+            .headers(headers)
             .json(&request)
             .eventsource()
             .with_context(|| format_http_context(None, "POST", &url))?;
@@ -185,13 +188,9 @@ impl ForgeProvider {
     }
 
     async fn fetch_models(&self, url: Url) -> Result<String, anyhow::Error> {
-        match self
-            .client
-            .get(url.clone())
-            .headers(self.headers())
-            .send()
-            .await
-        {
+        let headers = self.headers();
+        info!(method = "GET", url = %url, headers = ?headers, "Fetching Models");
+        match self.client.get(url.clone()).headers(headers).send().await {
             Ok(response) => {
                 let ctx_message = format_http_context(Some(response.status()), "GET", &url);
                 match response.error_for_status() {
