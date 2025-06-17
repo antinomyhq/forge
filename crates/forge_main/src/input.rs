@@ -37,21 +37,28 @@ impl Console {
         let mut engine = ForgeEditor::new(self.env.clone(), self.command.clone());
         loop {
             let result = engine.prompt(&prompt)?;
-            match result {
-                ReadResult::Continue => continue,
-                ReadResult::Exit => return Ok(Command::Exit),
-                ReadResult::Empty => continue,
-                ReadResult::Success(text) => {
-                    tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::Prompt(text.clone())));
-                    match self.command.parse(&text) {
-                        Ok(command) => return Ok(command),
-                        Err(error) => {
-                            tracing::error!(error = ?error);
-                            eprintln!("{}", TitleFormat::error(error.to_string()));
-                        }
+            if let Some(command) = self.process_read(result).await? {
+                return Ok(command);
+            };
+        }
+    }
+    pub async fn process_read(&self, result: ReadResult) -> anyhow::Result<Option<Command>> {
+        match result {
+            ReadResult::Continue => (),
+            ReadResult::Exit => return Ok(Some(Command::Exit)),
+            ReadResult::Empty => (),
+            ReadResult::Success(text) => {
+                tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::Prompt(text.clone())));
+                match self.command.parse(&text) {
+                    Ok(command) => return Ok(Some(command)),
+                    Err(error) => {
+                        tracing::error!(error = ?error);
+                        eprintln!("{}", TitleFormat::error(error.to_string()));
                     }
                 }
             }
         }
+
+        Ok(None)
     }
 }

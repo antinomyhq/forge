@@ -24,4 +24,6 @@ rmcp.workspace = true
 tracing.workspace = true
 backon.workspace = true
 thiserror.workspace = true
+futures.workspace = true
+async-jsonl.workspace = true
 forge_app.workspace = true

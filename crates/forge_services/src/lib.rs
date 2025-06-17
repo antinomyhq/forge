@@ -1,6 +1,8 @@
 mod attachment;
 mod clipper;
+mod console;
 mod conversation;
+mod convo_manager_service;
 mod discovery;
 mod forge_services;
 mod infra;

@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use forge_domain::{
-    Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    Attachment, Buffer, ChatCompletionMessage, CommandOutput, Context, Conversation,
+    ConversationId, Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream,
+    Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 
@@ -272,6 +272,20 @@ pub trait ShellService: Send + Sync {
     ) -> anyhow::Result<ShellOutput>;
 }
 
+#[async_trait::async_trait]
+pub trait ConversationSessionManager: Send + Sync {
+    async fn load(&self) -> anyhow::Result<Conversation>;
+    async fn state(&self, buffer_size: usize) -> anyhow::Result<Vec<Buffer>>;
+    async fn buffer_update(&self, state: Buffer) -> anyhow::Result<()>;
+    async fn conversation_update(&self, conversation: &Conversation) -> anyhow::Result<()>;
+    async fn clear(&self) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait ConsoleService: Send + Sync {
+    async fn print(&self, output: &str) -> anyhow::Result<()>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -294,6 +308,8 @@ pub trait Services: Send + Sync + 'static + Clone {
     type NetFetchService: NetFetchService;
     type ShellService: ShellService;
     type McpService: McpService;
+    type ConversationSessionManager: ConversationSessionManager;
+    type ConsoleService: ConsoleService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -313,4 +329,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
+    fn conversation_session_manager(&self) -> &Self::ConversationSessionManager;
+    fn console_service(&self) -> &Self::ConsoleService;
 }

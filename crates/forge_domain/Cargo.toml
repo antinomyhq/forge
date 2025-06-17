@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
+pin-project.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
@@ -30,6 +31,8 @@ regex.workspace = true
 forge_tool_macros.workspace = true
 lazy_static = "1.5.0"
 convert_case.workspace = true
+async-jsonl.workspace = true
+futures.workspace = true
 
 [dev-dependencies]
 insta = { workspace = true, features = ["yaml"] }

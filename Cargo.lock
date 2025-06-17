@@ -93,9 +93,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.97"
+version = "1.0.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
+checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
 name = "assert-json-diff"
@@ -105,6 +105,20 @@ checksum = "47e4f2b81832e72834d7518d8487a0396a28cc408186a2e8854c0f98011faf12"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "async-jsonl"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5c3e7ecf3189594436a37c6d6c1500748b19d6e1170ced908a55796d460059f"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -131,9 +145,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.87"
+version = "0.1.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d556ec1359574147ec0c4fc5eb525f3f23263a592b1a9c07e0a75b427de55c97"
+checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1044,6 +1058,7 @@ name = "forge_domain"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-jsonl",
  "async-trait",
  "base64 0.22.1",
  "chrono",
@@ -1053,11 +1068,13 @@ dependencies = [
  "derive_setters",
  "forge_template",
  "forge_tool_macros",
+ "futures",
  "insta",
  "is_ci",
  "lazy_static",
  "merge",
  "nom 8.0.0",
+ "pin-project",
  "pretty_assertions",
  "regex",
  "schemars",
@@ -1092,6 +1109,7 @@ name = "forge_infra"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-jsonl",
  "async-trait",
  "backon",
  "bytes",
@@ -1102,6 +1120,7 @@ dependencies = [
  "forge_fs",
  "forge_services",
  "forge_snaps",
+ "futures",
  "inquire",
  "pretty_assertions",
  "reqwest 0.12.12",
@@ -1282,6 +1301,7 @@ name = "forge_spinner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "colored 3.0.0",
  "indicatif",
  "rand 0.8.5",
@@ -3501,18 +3521,18 @@ checksum = "f79dfe2d285b0488816f30e700a7438c5a73d816b5b7d3ac72fbc48b0d185e03"
 
 [[package]]
 name = "serde"
-version = "1.0.217"
+version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02fc4265df13d6fa1d00ecff087228cc0a2b5f3c0e87e258d8b94a156e984c70"
+checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.217"
+version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a9bf7cf98d04a2b28aead066b7496853d4779c9cc183c440dbac457641e19a0"
+checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4066,9 +4086,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.44.2"
+version = "1.45.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6b88822cbe49de4185e3a4cbf8321dd487cf5fe0c5c65695fef6346371e9c48"
+checksum = "75ef51a33ef1da925cea3e4eb122833cb377c61439ca401b770f54902b806779"
 dependencies = [
  "backtrace",
  "bytes",
