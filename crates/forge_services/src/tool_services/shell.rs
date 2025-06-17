@@ -6,7 +6,7 @@ use forge_app::{EnvironmentService, ShellOutput, ShellService};
 use forge_domain::Environment;
 use strip_ansi_escapes::strip;
 
-use crate::{CommandExecutorService, Infrastructure};
+use crate::CommandExecutorService;
 
 // Strips out the ansi codes from content.
 fn strip_ansi(content: String) -> String {
@@ -25,10 +25,10 @@ pub struct ForgeShell<I> {
     infra: Arc<I>,
 }
 
-impl<I: Infrastructure> ForgeShell<I> {
+impl<I: EnvironmentService> ForgeShell<I> {
     /// Create a new Shell with environment configuration
     pub fn new(infra: Arc<I>) -> Self {
-        let env = infra.environment_service().get_environment();
+        let env = infra.get_environment();
         Self { env, infra }
     }
 
@@ -41,7 +41,7 @@ impl<I: Infrastructure> ForgeShell<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: Infrastructure> ShellService for ForgeShell<I> {
+impl<I: CommandExecutorService + EnvironmentService> ShellService for ForgeShell<I> {
     async fn execute(
         &self,
         command: String,
@@ -52,7 +52,6 @@ impl<I: Infrastructure> ShellService for ForgeShell<I> {
 
         let mut output = self
             .infra
-            .command_executor_service()
             .execute_command(command, cwd)
             .await?;
 

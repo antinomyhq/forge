@@ -5,14 +5,14 @@ use std::sync::Arc;
 use forge_app::{AttachmentService, EnvironmentService};
 use forge_domain::{Attachment, AttachmentContent, Image};
 
-use crate::{FsReadService, Infrastructure};
+use crate::FsReadService;
 
 #[derive(Clone)]
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
-impl<F: Infrastructure> ForgeChatRequest<F> {
+impl<F: FsReadService + EnvironmentService> ForgeChatRequest<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -36,12 +36,7 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         let extension = path.extension().map(|v| v.to_string_lossy().to_string());
 
         if !path.is_absolute() {
-            path = self
-                .infra
-                .environment_service()
-                .get_environment()
-                .cwd
-                .join(path);
+            path = self.infra.get_environment().cwd.join(path);
         }
 
         // Determine file type (text or image with format)
@@ -54,13 +49,10 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
 
         //NOTE: Attachments should not be truncated since they are provided by the user
         let content = match mime_type {
-            Some(mime_type) => AttachmentContent::Image(Image::new_bytes(
-                self.infra.file_read_service().read(&path).await?,
-                mime_type,
-            )),
-            None => AttachmentContent::FileContent(
-                self.infra.file_read_service().read_utf8(&path).await?,
-            ),
+            Some(mime_type) => {
+                AttachmentContent::Image(Image::new_bytes(self.infra.read(&path).await?, mime_type))
+            }
+            None => AttachmentContent::FileContent(self.infra.read_utf8(&path).await?),
         };
 
         Ok(Attachment { content, path: path.to_string_lossy().to_string() })
@@ -68,7 +60,7 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> AttachmentService for ForgeChatRequest<F> {
+impl<F: FsReadService + EnvironmentService> AttachmentService for ForgeChatRequest<F> {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.prepare_attachments(Attachment::parse_all(url)).await
     }
@@ -94,8 +86,7 @@ pub mod tests {
     use crate::utils::AttachmentExtension;
     use crate::{
         CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, Infrastructure, InquireService,
-        McpClient, McpServer,
+        FsReadService, FsSnapshotService, FsWriteService, InquireService, McpClient, McpServer,
     };
 
     #[derive(Debug)]
@@ -487,59 +478,6 @@ pub mod tests {
                 return Err(anyhow::anyhow!("No options provided"));
             }
             Ok(Some(options))
-        }
-    }
-
-    impl Infrastructure for MockInfrastructure {
-        type EnvironmentService = MockEnvironmentService;
-        type FsReadService = MockFileService;
-        type FsWriteService = MockFileService;
-        type FsRemoveService = MockFileService;
-        type FsMetaService = MockFileService;
-        type FsCreateDirsService = MockFileService;
-        type FsSnapshotService = MockSnapService;
-        type CommandExecutorService = ();
-        type InquireService = ();
-        type McpServer = ();
-
-        fn environment_service(&self) -> &Self::EnvironmentService {
-            &self.env_service
-        }
-
-        fn file_read_service(&self) -> &Self::FsReadService {
-            &self.file_service
-        }
-
-        fn file_write_service(&self) -> &Self::FsWriteService {
-            &self.file_service
-        }
-
-        fn file_meta_service(&self) -> &Self::FsMetaService {
-            &self.file_service
-        }
-
-        fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
-            &self.file_snapshot_service
-        }
-
-        fn file_remove_service(&self) -> &Self::FsRemoveService {
-            &self.file_service
-        }
-
-        fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
-            &self.file_service
-        }
-
-        fn command_executor_service(&self) -> &Self::CommandExecutorService {
-            &()
-        }
-
-        fn inquire_service(&self) -> &Self::InquireService {
-            &()
-        }
-
-        fn mcp_server(&self) -> &Self::McpServer {
-            &()
         }
     }
 

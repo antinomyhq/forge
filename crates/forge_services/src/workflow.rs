@@ -5,7 +5,7 @@ use anyhow::Context;
 use forge_app::WorkflowService;
 use forge_domain::Workflow;
 
-use crate::{FsReadService, FsWriteService, Infrastructure};
+use crate::{FsReadService, FsWriteService};
 
 /// A workflow loader to load the workflow from the given path.
 /// It also resolves the internal paths specified in the workflow.
@@ -19,7 +19,7 @@ impl<F> ForgeWorkflowService<F> {
     }
 }
 
-impl<F: Infrastructure> ForgeWorkflowService<F> {
+impl<F: FsWriteService + FsReadService> ForgeWorkflowService<F> {
     /// Find a forge.yaml config file by traversing parent directories.
     /// Returns the path to the first found config file, or the original path if
     /// none is found.
@@ -66,13 +66,12 @@ impl<F: Infrastructure> ForgeWorkflowService<F> {
         if !path.exists() {
             let workflow = Workflow::new();
             self.infra
-                .file_write_service()
                 .write(path, self.serialize_workflow(&workflow)?.into(), true)
                 .await?;
 
             Ok(workflow)
         } else {
-            let content = self.infra.file_read_service().read_utf8(path).await?;
+            let content = self.infra.read_utf8(path).await?;
             let workflow: Workflow = serde_yml::from_str(&content)
                 .with_context(|| format!("Failed to parse workflow from {}", path.display()))?;
             Ok(workflow)
@@ -92,7 +91,7 @@ impl<F: Infrastructure> ForgeWorkflowService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> WorkflowService for ForgeWorkflowService<F> {
+impl<F: FsWriteService + FsReadService> WorkflowService for ForgeWorkflowService<F> {
     async fn resolve(&self, path: Option<PathBuf>) -> PathBuf {
         self.resolve_path(path).await
     }
@@ -111,10 +110,7 @@ impl<F: Infrastructure> WorkflowService for ForgeWorkflowService<F> {
         let resolved_path = self.resolve_path(Some(path_buf)).await;
 
         let content = self.serialize_workflow(workflow)?;
-        self.infra
-            .file_write_service()
-            .write(&resolved_path, content.into(), true)
-            .await
+        self.infra.write(&resolved_path, content.into(), true).await
     }
 
     async fn update_workflow<Func>(&self, path: Option<&Path>, f: Func) -> anyhow::Result<Workflow>

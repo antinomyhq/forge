@@ -8,7 +8,7 @@ use handlebars::{no_escape, Handlebars};
 use rust_embed::Embed;
 use tokio::sync::RwLock;
 
-use crate::{FsReadService, Infrastructure};
+use crate::FsReadService;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -20,7 +20,7 @@ pub struct ForgeTemplateService<F> {
     infra: Arc<F>,
 }
 
-impl<F: Infrastructure> ForgeTemplateService<F> {
+impl<F: EnvironmentService + FsReadService> ForgeTemplateService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let mut hb = Handlebars::new();
         hb.set_strict_mode(true);
@@ -50,11 +50,7 @@ impl<F: Infrastructure> ForgeTemplateService<F> {
                 .with_context(|| format!("Invalid filename: {}", template_path.display()))?
                 .to_string();
             let template_path = cwd.join(template_path.clone());
-            let content = self
-                .infra
-                .file_read_service()
-                .read_utf8(&template_path)
-                .await?;
+            let content = self.infra.read_utf8(&template_path).await?;
             Ok::<_, anyhow::Error>((template_name, content))
         });
 
@@ -85,9 +81,9 @@ fn compile_template(name: &str, content: &str) -> anyhow::Result<handlebars::tem
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> TemplateService for ForgeTemplateService<F> {
+impl<F: EnvironmentService+ FsReadService> TemplateService for ForgeTemplateService<F> {
     async fn register_template(&self, path: PathBuf) -> anyhow::Result<()> {
-        let cwd = &self.infra.environment_service().get_environment().cwd;
+        let cwd = &self.infra.get_environment().cwd;
 
         // Discover and filter unregistered templates in one pass
         let guard = self.hb.read().await;

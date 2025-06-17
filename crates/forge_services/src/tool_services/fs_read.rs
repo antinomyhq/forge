@@ -5,7 +5,7 @@ use anyhow::Context;
 use forge_app::{Content, EnvironmentService, FsReadService, ReadOutput};
 
 use crate::utils::assert_absolute_path;
-use crate::{FsMetaService, FsReadService as _, Infrastructure};
+use crate::{FsMetaService, FsReadService as InfraFsReadService};
 
 /// Resolves and validates line ranges, ensuring they are always valid
 /// and within the specified maximum size.
@@ -49,12 +49,12 @@ pub fn resolve_range(start_line: Option<u64>, end_line: Option<u64>, max_size: u
 /// # Returns
 /// * `Ok(())` if file size is within limits
 /// * `Err(anyhow::Error)` if file exceeds max_file_size
-async fn assert_file_size<F: Infrastructure>(
+async fn assert_file_size<F: FsMetaService>(
     infra: &F,
     path: &Path,
     max_file_size: u64,
 ) -> anyhow::Result<()> {
-    let file_size = infra.file_meta_service().file_size(path).await?;
+    let file_size = infra.file_size(path).await?;
     if file_size > max_file_size {
         return Err(anyhow::anyhow!(
             "File size ({} bytes) exceeds the maximum allowed size of {} bytes",
@@ -77,14 +77,14 @@ async fn assert_file_size<F: Infrastructure>(
 /// Binary files are automatically detected and rejected.
 pub struct ForgeFsRead<F>(Arc<F>);
 
-impl<F: Infrastructure> ForgeFsRead<F> {
+impl<F> ForgeFsRead<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self(infra)
     }
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
+impl<F: FsMetaService + EnvironmentService  + InfraFsReadService> FsReadService for ForgeFsRead<F> {
     async fn read(
         &self,
         path: String,
@@ -93,7 +93,7 @@ impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
     ) -> anyhow::Result<ReadOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
-        let env = self.0.environment_service().get_environment();
+        let env = self.0.get_environment();
 
         // Validate file size before reading content
         assert_file_size(&*self.0, path, env.max_file_size).await?;
@@ -102,7 +102,6 @@ impl<F: Infrastructure> FsReadService for ForgeFsRead<F> {
 
         let (content, file_info) = self
             .0
-            .file_read_service()
             .range_read_utf8(path, start_line, end_line)
             .await
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;

@@ -8,7 +8,7 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{CommandExecutorService, ForgeServices, Infrastructure};
+use forge_services::{CommandExecutorService, ForgeServices};
 use forge_stream::MpscStream;
 
 use crate::API;
@@ -18,7 +18,7 @@ pub struct ForgeAPI<A, F> {
     infra: Arc<F>,
 }
 
-impl<A: Services, F: Infrastructure> ForgeAPI<A, F> {
+impl<A: Services, F> ForgeAPI<A, F> {
     pub fn new(app: Arc<A>, infra: Arc<F>) -> Self {
         Self { app, infra }
     }
@@ -33,7 +33,7 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandExecutorService> API for ForgeAPI<A, F> {
     async fn discover(&self) -> Result<Vec<File>> {
         self.app.file_discovery_service().collect(None).await
     }
@@ -112,7 +112,6 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
         working_dir: PathBuf,
     ) -> anyhow::Result<CommandOutput> {
         self.infra
-            .command_executor_service()
             .execute_command(command.to_string(), working_dir)
             .await
     }
@@ -136,9 +135,6 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
         &self,
         command: &str,
     ) -> anyhow::Result<std::process::ExitStatus> {
-        self.infra
-            .command_executor_service()
-            .execute_command_raw(command)
-            .await
+        self.infra.execute_command_raw(command).await
     }
 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_app::Services;
+use forge_app::{EnvironmentService, Services};
 
 use crate::attachment::ForgeChatRequest;
 use crate::conversation::ForgeConversationService;
@@ -13,10 +13,12 @@ use crate::tool_services::{
     ForgeFsSearch, ForgeFsUndo, ForgeShell,
 };
 use crate::workflow::ForgeWorkflowService;
-use crate::{Infrastructure, McpServer};
+use crate::{
+    CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService, FsReadService,
+    FsSnapshotService, FsWriteService, InquireService, McpServer,
+};
 
-type McpService<F> =
-    ForgeMcpService<ForgeMcpManager<F>, F, <<F as Infrastructure>::McpServer as McpServer>::Client>;
+type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServer>::Client>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -25,7 +27,7 @@ type McpService<F> =
 /// - F: The infrastructure implementation that provides core services like
 ///   environment, file reading, vector indexing, and embedding.
 #[derive(Clone)]
-pub struct ForgeServices<F: Infrastructure> {
+pub struct ForgeServices<F: McpServer> {
     infra: Arc<F>,
     provider_service: Arc<ForgeProviderService>,
     conversation_service: Arc<ForgeConversationService<McpService<F>>>,
@@ -46,7 +48,9 @@ pub struct ForgeServices<F: Infrastructure> {
     mcp_service: Arc<McpService<F>>,
 }
 
-impl<F: Infrastructure> ForgeServices<F> {
+impl<F: McpServer + EnvironmentService + FsWriteService + FsMetaService + FsReadService>
+    ForgeServices<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
         let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
@@ -90,12 +94,25 @@ impl<F: Infrastructure> ForgeServices<F> {
     }
 }
 
-impl<F: Infrastructure> Services for ForgeServices<F> {
+impl<
+        F: McpServer
+            + FsReadService
+            + FsWriteService
+            + FsCreateDirsService
+            + FileRemoveService
+            + InquireService
+            + CommandExecutorService
+            + EnvironmentService
+            + FsMetaService
+            + FsSnapshotService
+            + Clone,
+    > Services for ForgeServices<F>
+{
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService<McpService<F>>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
-    type EnvironmentService = F::EnvironmentService;
+    type EnvironmentService = F;
     type WorkflowService = ForgeWorkflowService<F>;
     type FileDiscoveryService = ForgeDiscoveryService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
@@ -127,7 +144,7 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
     }
 
     fn environment_service(&self) -> &Self::EnvironmentService {
-        self.infra.environment_service()
+        &self.infra
     }
 
     fn workflow_service(&self) -> &Self::WorkflowService {
@@ -180,58 +197,5 @@ impl<F: Infrastructure> Services for ForgeServices<F> {
 
     fn mcp_service(&self) -> &Self::McpService {
         &self.mcp_service
-    }
-}
-
-impl<F: Infrastructure> Infrastructure for ForgeServices<F> {
-    type EnvironmentService = F::EnvironmentService;
-    type FsReadService = F::FsReadService;
-    type FsWriteService = F::FsWriteService;
-    type FsMetaService = F::FsMetaService;
-    type FsSnapshotService = F::FsSnapshotService;
-    type FsRemoveService = F::FsRemoveService;
-    type FsCreateDirsService = F::FsCreateDirsService;
-    type CommandExecutorService = F::CommandExecutorService;
-    type InquireService = F::InquireService;
-    type McpServer = F::McpServer;
-
-    fn environment_service(&self) -> &Self::EnvironmentService {
-        self.infra.environment_service()
-    }
-
-    fn file_read_service(&self) -> &Self::FsReadService {
-        self.infra.file_read_service()
-    }
-
-    fn file_write_service(&self) -> &Self::FsWriteService {
-        self.infra.file_write_service()
-    }
-
-    fn file_meta_service(&self) -> &Self::FsMetaService {
-        self.infra.file_meta_service()
-    }
-
-    fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
-        self.infra.file_snapshot_service()
-    }
-
-    fn file_remove_service(&self) -> &Self::FsRemoveService {
-        self.infra.file_remove_service()
-    }
-
-    fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
-        self.infra.create_dirs_service()
-    }
-
-    fn command_executor_service(&self) -> &Self::CommandExecutorService {
-        self.infra.command_executor_service()
-    }
-
-    fn inquire_service(&self) -> &Self::InquireService {
-        self.infra.inquire_service()
-    }
-
-    fn mcp_server(&self) -> &Self::McpServer {
-        self.infra.mcp_server()
     }
 }

@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_app::EnvironmentService;
 use forge_domain::{CommandOutput, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
 use forge_snaps::Snapshot;
 
@@ -144,28 +143,4 @@ pub trait McpClient: Clone + Send + Sync + 'static {
 pub trait McpServer: Send + Sync + 'static {
     type Client: McpClient;
     async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
-}
-
-pub trait Infrastructure: Send + Sync + Clone + 'static {
-    type EnvironmentService: EnvironmentService;
-    type FsMetaService: FsMetaService;
-    type FsReadService: FsReadService;
-    type FsRemoveService: FileRemoveService;
-    type FsSnapshotService: FsSnapshotService;
-    type FsWriteService: FsWriteService;
-    type FsCreateDirsService: FsCreateDirsService;
-    type CommandExecutorService: CommandExecutorService;
-    type InquireService: InquireService;
-    type McpServer: McpServer;
-
-    fn environment_service(&self) -> &Self::EnvironmentService;
-    fn file_meta_service(&self) -> &Self::FsMetaService;
-    fn file_read_service(&self) -> &Self::FsReadService;
-    fn file_remove_service(&self) -> &Self::FsRemoveService;
-    fn file_snapshot_service(&self) -> &Self::FsSnapshotService;
-    fn file_write_service(&self) -> &Self::FsWriteService;
-    fn create_dirs_service(&self) -> &Self::FsCreateDirsService;
-    fn command_executor_service(&self) -> &Self::CommandExecutorService;
-    fn inquire_service(&self) -> &Self::InquireService;
-    fn mcp_server(&self) -> &Self::McpServer;
 }

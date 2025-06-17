@@ -9,7 +9,7 @@ use tokio::fs;
 
 // No longer using dissimilar for fuzzy matching
 use crate::utils::assert_absolute_path;
-use crate::{tool_services, FsWriteService, Infrastructure};
+use crate::{tool_services, FsWriteService};
 
 /// A match found in the source text. Represents a range in the source text that
 /// can be used for extraction or replacement operations. Stores the position
@@ -175,14 +175,14 @@ fn apply_replacement(
 /// search pattern isn't found.
 pub struct ForgeFsPatch<F>(Arc<F>);
 
-impl<F: Infrastructure> ForgeFsPatch<F> {
+impl<F> ForgeFsPatch<F> {
     pub fn new(input: Arc<F>) -> Self {
         Self(input)
     }
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> FsPatchService for ForgeFsPatch<F> {
+impl<F: FsWriteService> FsPatchService for ForgeFsPatch<F> {
     async fn patch(
         &self,
         input_path: String,
@@ -205,7 +205,6 @@ impl<F: Infrastructure> FsPatchService for ForgeFsPatch<F> {
 
         // Write final content to file after all patches are applied
         self.0
-            .file_write_service()
             .write(path, Bytes::from(current_content.clone()), true)
             .await?;
 

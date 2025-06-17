@@ -6,10 +6,7 @@ use bytes::Bytes;
 use forge_app::{FsCreateOutput, FsCreateService};
 
 use crate::utils::assert_absolute_path;
-use crate::{
-    tool_services, FsCreateDirsService, FsMetaService, FsReadService, FsWriteService,
-    Infrastructure,
-};
+use crate::{tool_services, FsCreateDirsService, FsMetaService, FsReadService, FsWriteService};
 
 /// Use it to create a new file at a specified path with the provided content.
 /// Always provide absolute paths for file locations. The tool
@@ -19,14 +16,16 @@ use crate::{
 /// shell tool instead.
 pub struct ForgeFsCreate<F>(Arc<F>);
 
-impl<F: Infrastructure> ForgeFsCreate<F> {
+impl<F> ForgeFsCreate<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self(infra)
     }
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
+impl<F: FsCreateDirsService + FsMetaService + FsReadService + FsWriteService + Send + Sync>
+    FsCreateService for ForgeFsCreate<F>
+{
     async fn create(
         &self,
         path: String,
@@ -40,13 +39,12 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
         let syntax_warning = tool_services::syn::validate(path, &content);
         if let Some(parent) = Path::new(&path).parent() {
             self.0
-                .create_dirs_service()
                 .create_dirs(parent)
                 .await
                 .with_context(|| format!("Failed to create directories: {}", path.display()))?;
         }
         // Check if the file exists
-        let file_exists = self.0.file_meta_service().is_file(path).await?;
+        let file_exists = self.0.is_file(path).await?;
 
         // If file exists and overwrite flag is not set, return an error with the
         // existing content
@@ -61,14 +59,13 @@ impl<F: Infrastructure> FsCreateService for ForgeFsCreate<F> {
 
         // record the file content before they're modified
         let old_content = if file_exists && overwrite {
-            Some(self.0.file_read_service().read_utf8(path).await?)
+            Some(self.0.read_utf8(path).await?)
         } else {
             None
         };
 
         // Write file only after validation passes and directories are created
         self.0
-            .file_write_service()
             .write(path, Bytes::from(content), capture_snapshot)
             .await?;
 

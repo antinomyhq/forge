@@ -5,8 +5,6 @@ use forge_app::{EnvironmentService, ProviderService};
 use forge_domain::{ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream};
 use forge_provider::Client;
 
-use crate::Infrastructure;
-
 #[derive(Clone)]
 pub struct ForgeProviderService {
     // The provider service implementation
@@ -14,9 +12,8 @@ pub struct ForgeProviderService {
 }
 
 impl ForgeProviderService {
-    pub fn new<F: Infrastructure>(infra: Arc<F>) -> Self {
-        let infra = infra.clone();
-        let env = infra.environment_service().get_environment();
+    pub fn new<F: EnvironmentService>(infra: Arc<F>) -> Self {
+        let env = infra.get_environment();
         let provider = env.provider.clone();
         let retry_config = env.retry_config.clone();
         let version = env.version();
