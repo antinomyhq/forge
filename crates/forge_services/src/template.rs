@@ -81,7 +81,7 @@ fn compile_template(name: &str, content: &str) -> anyhow::Result<handlebars::tem
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentService+ FsReadService> TemplateService for ForgeTemplateService<F> {
+impl<F: EnvironmentService + FsReadService> TemplateService for ForgeTemplateService<F> {
     async fn register_template(&self, path: PathBuf) -> anyhow::Result<()> {
         let cwd = &self.infra.get_environment().cwd;
 
@@ -137,12 +137,12 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::attachment::tests::MockInfrastructure;
+    use crate::attachment::tests::MockCompositeService;
 
     #[tokio::test]
     async fn test_render_simple_template() {
         // Fixture: Create template service and data
-        let service = ForgeTemplateService::new(Arc::new(MockInfrastructure::new()));
+        let service = ForgeTemplateService::new(Arc::new(MockCompositeService::new()));
         let data = json!({
             "name": "Forge",
             "version": "1.0",
@@ -161,7 +161,7 @@ mod tests {
     #[tokio::test]
     async fn test_render_partial_system_info() {
         // Fixture: Create template service and data
-        let service = ForgeTemplateService::new(Arc::new(MockInfrastructure::new()));
+        let service = ForgeTemplateService::new(Arc::new(MockCompositeService::new()));
         let data = json!({
             "env": {
                 "os": "test-os",
@@ -291,7 +291,7 @@ mod tests {
         use std::path::Path;
 
         // Fixture: Create service and empty file list
-        let service = ForgeTemplateService::new(Arc::new(MockInfrastructure::new()));
+        let service = ForgeTemplateService::new(Arc::new(MockCompositeService::new()));
         let file_paths: Vec<PathBuf> = vec![];
         let temp_path = Path::new("/tmp");
 

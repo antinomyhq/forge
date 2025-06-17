@@ -116,7 +116,7 @@ pub mod tests {
     }
 
     impl MockFileService {
-        fn new() -> Self {
+        pub fn new() -> Self {
             let mut files = HashMap::new();
             // Add some mock files
             files.insert(
@@ -481,10 +481,59 @@ pub mod tests {
         }
     }
 
+    // Create a composite mock service that implements the required traits
+    #[derive(Debug, Clone)]
+    pub struct MockCompositeService {
+        file_service: Arc<MockFileService>,
+        env_service: Arc<MockEnvironmentService>,
+    }
+
+    impl MockCompositeService {
+        pub fn new() -> Self {
+            Self {
+                file_service: Arc::new(MockFileService::new()),
+                env_service: Arc::new(MockEnvironmentService {}),
+            }
+        }
+
+        pub fn add_file(&self, path: PathBuf, content: String) {
+            self.file_service.add_file(path, content);
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FsReadService for MockCompositeService {
+        async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
+            self.file_service.read_utf8(path).await
+        }
+
+        async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
+            self.file_service.read(path).await
+        }
+
+        async fn range_read_utf8(
+            &self,
+            path: &Path,
+            start_line: u64,
+            end_line: u64,
+        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+            self.file_service
+                .range_read_utf8(path, start_line, end_line)
+                .await
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl EnvironmentService for MockCompositeService {
+        fn get_environment(&self) -> Environment {
+            self.env_service.get_environment()
+        }
+    }
+
     #[tokio::test]
     async fn test_add_url_with_text_file() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with a text file path in chat message
@@ -506,7 +555,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_image() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an image file
@@ -533,7 +582,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_jpg_image_with_spaces() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an image file that has spaces in the path
@@ -559,10 +608,10 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_multiple_files() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
 
         // Add an extra file to our mock service
-        infra.file_service.add_file(
+        infra.add_file(
             PathBuf::from("/test/file2.txt"),
             "This is another text file".to_string(),
         );
@@ -598,7 +647,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_nonexistent_file() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with a file that doesn't exist
@@ -615,7 +664,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_empty() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an empty message
@@ -631,10 +680,10 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_unsupported_extension() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
 
         // Add a file with unsupported extension
-        infra.file_service.add_file(
+        infra.add_file(
             PathBuf::from("/test/unknown.xyz"),
             "Some content".to_string(),
         );

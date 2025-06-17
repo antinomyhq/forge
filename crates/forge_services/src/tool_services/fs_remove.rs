@@ -1,9 +1,10 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use forge_app::{FsRemoveOutput, FsRemoveService};
+
 use crate::utils::assert_absolute_path;
 use crate::FileRemoveService;
-use forge_app::{FsRemoveOutput, FsRemoveService};
 
 /// Request to remove a file at the specified path. Use this when you need to
 /// delete an existing file. The path must be absolute. This operation cannot
