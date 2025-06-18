@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -66,17 +67,16 @@ impl<S: Services> ForgeApp<S> {
         // Get environment for orchestrator creation
         let environment = services.environment_service().get_environment();
 
-        // Register templates using workflow path or environment fallback
-        let template_path = workflow
-            .templates
-            .map_or(environment.templates(), |templates| {
-                PathBuf::from(templates)
-            });
+        // Register templates using workflow paths plus environment fallback
+        let mut template_paths = vec![environment.templates()];
+        template_paths.extend(workflow.templates.iter().map(|g| PathBuf::from(g.deref())));
 
-        services
-            .template_service()
-            .register_template(template_path)
-            .await?;
+        for template_path in template_paths {
+            services
+                .template_service()
+                .register_template(template_path)
+                .await?;
+        }
 
         // Always try to get attachments and overwrite them
         let attachments = services

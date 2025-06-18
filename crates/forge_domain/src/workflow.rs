@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use derive_more::Deref;
 use derive_setters::Setters;
 use merge::Merge;
 use schemars::JsonSchema;
@@ -17,9 +18,9 @@ use crate::{Agent, AgentId, MaxTokens, ModelId, TopK, TopP};
 pub struct Workflow {
     /// Path pattern for custom template files (supports glob patterns)
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = crate::merge::option)]
-    pub templates: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[merge(strategy = crate::merge::vec::unify_by_key)]
+    pub templates: Vec<Glob>,
 
     /// Agents that are part of this workflow
     #[merge(strategy = crate::merge::vec::unify_by_key)]
@@ -150,16 +151,16 @@ impl Workflow {
             agents: Vec::new(),
             variables: HashMap::new(),
             commands: Vec::new(),
-            model: None,
-            max_walker_depth: None,
-            custom_rules: None,
-            temperature: None,
-            top_p: None,
-            top_k: None,
-            max_tokens: None,
-            tool_supported: None,
-            updates: None,
-            templates: None,
+            model: Default::default(),
+            max_walker_depth: Default::default(),
+            custom_rules: Default::default(),
+            temperature: Default::default(),
+            top_p: Default::default(),
+            top_k: Default::default(),
+            max_tokens: Default::default(),
+            tool_supported: Default::default(),
+            updates: Default::default(),
+            templates: Default::default(),
         }
     }
 
@@ -170,6 +171,16 @@ impl Workflow {
     pub fn get_agent(&self, id: &AgentId) -> crate::Result<&Agent> {
         self.find_agent(id)
             .ok_or_else(|| crate::Error::AgentUndefined(id.clone()))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Deref)]
+#[serde(transparent)]
+pub struct Glob(String);
+
+impl Merge for Glob {
+    fn merge(&mut self, other: Self) {
+        self.0 = other.0;
     }
 }
 
