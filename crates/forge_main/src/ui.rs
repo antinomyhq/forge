@@ -141,10 +141,11 @@ impl<F: API> UI<F> {
         ))
     }
 
-    pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
+    pub async fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
         // Parse CLI arguments first to get flags
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
+
         Ok(Self {
             state: Default::default(),
             api,
