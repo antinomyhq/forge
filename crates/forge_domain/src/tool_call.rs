@@ -19,6 +19,11 @@ impl ToolCallId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    fn generate() -> Self {
+        let id = format!("forge_call_id_{}", uuid::Uuid::new_v4());
+        ToolCallId(id)
+    }
 }
 
 /// Contains a part message for using a tool. This is received as a part of the
@@ -128,9 +133,16 @@ impl ToolCallFull {
     pub fn try_from_xml(input: &str) -> std::result::Result<Vec<ToolCallFull>, Error> {
         match extract_tag_content(input, "forge_tool_call") {
             None => Ok(Default::default()),
-            Some(content) => Ok(vec![
-                serde_json::from_str(content).map_err(Error::ToolCallArgument)?
-            ]),
+            Some(content) => {
+                let mut tool_call: ToolCallFull =
+                    serde_json::from_str(content).map_err(Error::ToolCallArgument)?;
+
+                // User might switch the model from a tool unsupported to tool supported model
+                // leaving a lot of messages without tool calls
+
+                tool_call.call_id = Some(ToolCallId::generate());
+                Ok(vec![tool_call])
+            }
         }
     }
 }
