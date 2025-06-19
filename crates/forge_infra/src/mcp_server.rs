@@ -1,5 +1,5 @@
 use forge_domain::McpServerConfig;
-use forge_services::McpServer;
+use forge_services::McpServerInfra;
 
 use crate::mcp_client::ForgeMcpClient;
 
@@ -7,7 +7,7 @@ use crate::mcp_client::ForgeMcpClient;
 pub struct ForgeMcpServer;
 
 #[async_trait::async_trait]
-impl McpServer for ForgeMcpServer {
+impl McpServerInfra for ForgeMcpServer {
     type Client = ForgeMcpClient;
 
     async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client> {

@@ -42,11 +42,11 @@ pub struct MessageStart {
 
 #[derive(Deserialize, PartialEq, Clone, Debug)]
 pub struct Usage {
-    pub input_tokens: Option<u64>,
-    pub output_tokens: Option<u64>,
+    pub input_tokens: Option<usize>,
+    pub output_tokens: Option<usize>,
 
-    pub cache_read_input_tokens: Option<u64>,
-    pub cache_creation_input_tokens: Option<u64>,
+    pub cache_read_input_tokens: Option<usize>,
+    pub cache_creation_input_tokens: Option<usize>,
 }
 
 impl From<Usage> for forge_domain::Usage {

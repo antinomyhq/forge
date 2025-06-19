@@ -7,12 +7,11 @@ use super::{ToolCall, ToolCallFull};
 
 #[derive(Default, Clone, Debug, Serialize, PartialEq)]
 pub struct Usage {
-    pub prompt_tokens: u64,
-    pub completion_tokens: u64,
-    pub total_tokens: u64,
-    pub estimated_tokens: u64,
-    pub content_length: u64,
-    pub cached_tokens: u64,
+    pub prompt_tokens: usize,
+    pub completion_tokens: usize,
+    pub total_tokens: usize,
+    pub estimated_tokens: usize,
+    pub cached_tokens: usize,
     pub cost: Option<f64>,
 }
 

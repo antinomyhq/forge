@@ -1,4 +1,5 @@
 use gh_workflow_tailcall::*;
+use serde_json::Value;
 
 /// Create a workflow for NPM releases
 pub fn create_npm_workflow() -> Workflow {
@@ -19,13 +20,16 @@ pub fn create_npm_workflow() -> Workflow {
     npm_workflow
 }
 
-/// Create an NPM release job
+/// Create an NPM release job using matrix strategy for multiple repositories
 pub fn create_npm_release_job() -> Job {
+    let matrix = create_npm_matrix();
+
     Job::new("npm_release")
+        .strategy(Strategy { fail_fast: None, max_parallel: None, matrix: Some(matrix) })
         .runs_on("ubuntu-latest")
         .add_step(
             Step::uses("actions", "checkout", "v4")
-                .add_with(("repository", "antinomyhq/npm-code-forge"))
+                .add_with(("repository", "${{ matrix.repository }}"))
                 .add_with(("ref", "main"))
                 .add_with(("token", "${{ secrets.NPM_ACCESS }}")),
         )
@@ -36,4 +40,14 @@ pub fn create_npm_release_job() -> Job {
                 .add_env(("CI", "true"))
                 .add_env(("NPM_TOKEN", "${{ secrets.NPM_TOKEN }}")),
         )
+}
+
+/// Creates a matrix Value for NPM repositories
+fn create_npm_matrix() -> Value {
+    serde_json::json!({
+        "repository": [
+            "antinomyhq/npm-code-forge",
+            "antinomyhq/npm-forgecode"
+        ]
+    })
 }

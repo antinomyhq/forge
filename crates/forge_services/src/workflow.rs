@@ -5,7 +5,7 @@ use anyhow::Context;
 use forge_app::WorkflowService;
 use forge_domain::Workflow;
 
-use crate::{FsReadService, FsWriteService, Infrastructure};
+use crate::{FileReaderInfra, FileWriterInfra};
 
 /// A workflow loader to load the workflow from the given path.
 /// It also resolves the internal paths specified in the workflow.
@@ -19,7 +19,7 @@ impl<F> ForgeWorkflowService<F> {
     }
 }
 
-impl<F: Infrastructure> ForgeWorkflowService<F> {
+impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
     /// Find a forge.yaml config file by traversing parent directories.
     /// Returns the path to the first found config file, or the original path if
     /// none is found.
@@ -59,20 +59,19 @@ impl<F: Infrastructure> ForgeWorkflowService<F> {
     /// If the path is just "forge.yaml", searches for it in parent directories.
     /// If the file doesn't exist anywhere, creates a new empty workflow file at
     /// the specified path (in the current directory).
-    pub async fn read(&self, path: &Path) -> anyhow::Result<Workflow> {
+    async fn read(&self, path: &Path) -> anyhow::Result<Workflow> {
         // First, try to find the config file in parent directories if needed
         let path = &self.resolve_path(Some(path.into())).await;
 
         if !path.exists() {
             let workflow = Workflow::new();
             self.infra
-                .file_write_service()
                 .write(path, self.serialize_workflow(&workflow)?.into(), true)
                 .await?;
 
             Ok(workflow)
         } else {
-            let content = self.infra.file_read_service().read_utf8(path).await?;
+            let content = self.infra.read_utf8(path).await?;
             let workflow: Workflow = serde_yml::from_str(&content)
                 .with_context(|| format!("Failed to parse workflow from {}", path.display()))?;
             Ok(workflow)
@@ -92,17 +91,17 @@ impl<F: Infrastructure> ForgeWorkflowService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> WorkflowService for ForgeWorkflowService<F> {
+impl<F: FileWriterInfra + FileReaderInfra> WorkflowService for ForgeWorkflowService<F> {
     async fn resolve(&self, path: Option<PathBuf>) -> PathBuf {
         self.resolve_path(path).await
     }
 
-    async fn read(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
+    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         let path_to_use = path.unwrap_or_else(|| Path::new("forge.yaml"));
         self.read(path_to_use).await
     }
 
-    async fn write(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
+    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
         // First, try to find the config file in parent directories if needed
         let path_buf = match path {
             Some(p) => p.to_path_buf(),
@@ -111,10 +110,7 @@ impl<F: Infrastructure> WorkflowService for ForgeWorkflowService<F> {
         let resolved_path = self.resolve_path(Some(path_buf)).await;
 
         let content = self.serialize_workflow(workflow)?;
-        self.infra
-            .file_write_service()
-            .write(&resolved_path, content.into(), true)
-            .await
+        self.infra.write(&resolved_path, content.into(), true).await
     }
 
     async fn update_workflow<Func>(&self, path: Option<&Path>, f: Func) -> anyhow::Result<Workflow>
@@ -129,7 +125,7 @@ impl<F: Infrastructure> WorkflowService for ForgeWorkflowService<F> {
         f(&mut workflow);
 
         // Write the updated workflow back
-        self.write(path, &workflow).await?;
+        self.write_workflow(path, &workflow).await?;
 
         Ok(workflow)
     }

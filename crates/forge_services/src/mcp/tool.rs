@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_domain::{ToolName, ToolOutput};
 
-use crate::McpClient;
+use crate::McpClientInfra;
 
 #[derive(Clone)]
 pub struct McpExecutor<T> {
@@ -10,7 +10,7 @@ pub struct McpExecutor<T> {
     pub tool_name: ToolName,
 }
 
-impl<T: McpClient> McpExecutor<T> {
+impl<T: McpClientInfra> McpExecutor<T> {
     pub fn new(tool_name: ToolName, client: Arc<T>) -> anyhow::Result<Self> {
         Ok(Self { client, tool_name })
     }

@@ -44,7 +44,7 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
         Ok(())
     }
 
-    async fn create(&self, workflow: Workflow) -> Result<Conversation> {
+    async fn create_conversation(&self, workflow: Workflow) -> Result<Conversation> {
         let id = ConversationId::generate();
         let conversation = Conversation::new(
             id.clone(),

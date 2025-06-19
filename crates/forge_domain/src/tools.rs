@@ -79,12 +79,12 @@ pub struct FSRead {
     /// Optional start position in lines (1-based). If provided, reading
     /// will start from this line position.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_line: Option<u64>,
+    pub start_line: Option<i32>,
 
     /// Optional end position in lines (inclusive). If provided, reading
     /// will end at this line position.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_line: Option<u64>,
+    pub end_line: Option<i32>,
     /// One sentence explanation as to why this specific tool is being used, and
     /// how it contributes to the goal.
     #[serde(default)]
@@ -142,10 +142,10 @@ pub struct FSSearch {
     pub regex: Option<String>,
 
     /// Starting index for the search results (1-based).
-    pub start_index: Option<u64>,
+    pub start_index: Option<i32>,
 
     /// Maximum number of lines to return in the search results.
-    pub max_search_lines: Option<u64>,
+    pub max_search_lines: Option<i32>,
 
     /// Glob pattern to filter files (e.g., '*.ts' for TypeScript files).
     /// If not provided, it will search all files (*).
@@ -171,7 +171,7 @@ pub struct FSRemove {
 }
 
 /// Operation types that can be performed on matched text
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, AsRefStr)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, AsRefStr, EnumIter)]
 #[serde(rename_all = "snake_case")]
 pub enum PatchOperation {
     /// Prepend content before the matched text
@@ -187,6 +187,32 @@ pub enum PatchOperation {
     /// Swap the matched text with another text (search for the second text and
     /// swap them)
     Swap,
+}
+
+// TODO: do the Blanket impl for all the unit enums
+impl JsonSchema for PatchOperation {
+    fn schema_name() -> String {
+        std::any::type_name::<Self>()
+            .split("::")
+            .last()
+            .unwrap_or("PatchOperation")
+            .to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        use schemars::schema::{InstanceType, Schema, SchemaObject};
+        let variants: Vec<serde_json::Value> = Self::iter()
+            .map(|variant| variant.as_ref().to_case(Case::Snake).into())
+            .collect();
+        Schema::Object(SchemaObject {
+            instance_type: Some(InstanceType::String.into()),
+            enum_values: Some(variants),
+            metadata: Some(Box::new(schemars::schema::Metadata {
+                ..Default::default()
+            })),
+            ..Default::default()
+        })
+    }
 }
 
 /// Modifies files with targeted line operations on matched patterns. Supports
@@ -210,6 +236,11 @@ pub struct FSPatch {
 
     /// The operation to perform on the matched text. Possible options are only
     /// 'prepend', 'append', 'replace', and 'swap'.
+    /// prepend allows you to prepend content before the matched text, append
+    /// allows you to append content after the matched text, replace allows
+    /// you to replace the matched text with new content, and swap allows
+    /// you to swap the matched text with another text (search for the
+    /// second text and swap them).
     pub operation: PatchOperation,
 
     /// The content to use for the operation (replacement text, line to
@@ -473,17 +504,28 @@ lazy_static::lazy_static! {
 
 impl Tools {
     pub fn schema(&self) -> RootSchema {
+        use schemars::gen::SchemaSettings;
+        let gen = SchemaSettings::default()
+            .with(|s| {
+                // incase of null, add nullable property.
+                s.option_nullable = true;
+                // incase of option type, don't add null in type.
+                s.option_add_null_type = false;
+                s.meta_schema = None;
+                s.inline_subschemas = true;
+            })
+            .into_generator();
         match self {
-            Tools::ForgeToolFsPatch(_) => schemars::schema_for!(FSPatch),
-            Tools::ForgeToolProcessShell(_) => schemars::schema_for!(Shell),
-            Tools::ForgeToolFollowup(_) => schemars::schema_for!(Followup),
-            Tools::ForgeToolNetFetch(_) => schemars::schema_for!(NetFetch),
-            Tools::ForgeToolAttemptCompletion(_) => schemars::schema_for!(AttemptCompletion),
-            Tools::ForgeToolFsSearch(_) => schemars::schema_for!(FSSearch),
-            Tools::ForgeToolFsRead(_) => schemars::schema_for!(FSRead),
-            Tools::ForgeToolFsRemove(_) => schemars::schema_for!(FSRemove),
-            Tools::ForgeToolFsUndo(_) => schemars::schema_for!(FSUndo),
-            Tools::ForgeToolFsCreate(_) => schemars::schema_for!(FSWrite),
+            Tools::ForgeToolFsPatch(_) => gen.into_root_schema_for::<FSPatch>(),
+            Tools::ForgeToolProcessShell(_) => gen.into_root_schema_for::<Shell>(),
+            Tools::ForgeToolFollowup(_) => gen.into_root_schema_for::<Followup>(),
+            Tools::ForgeToolNetFetch(_) => gen.into_root_schema_for::<NetFetch>(),
+            Tools::ForgeToolAttemptCompletion(_) => gen.into_root_schema_for::<AttemptCompletion>(),
+            Tools::ForgeToolFsSearch(_) => gen.into_root_schema_for::<FSSearch>(),
+            Tools::ForgeToolFsRead(_) => gen.into_root_schema_for::<FSRead>(),
+            Tools::ForgeToolFsRemove(_) => gen.into_root_schema_for::<FSRemove>(),
+            Tools::ForgeToolFsUndo(_) => gen.into_root_schema_for::<FSUndo>(),
+            Tools::ForgeToolFsCreate(_) => gen.into_root_schema_for::<FSWrite>(),
         }
     }
 
@@ -537,6 +579,7 @@ impl TryFrom<ToolCallFull> for Tools {
 mod tests {
     use pretty_assertions::assert_eq;
     use serde_json::json;
+    use strum::IntoEnumIterator;
 
     use crate::{FSRead, ToolCallFull, ToolName, Tools, ToolsDiscriminants};
 
@@ -570,5 +613,19 @@ mod tests {
         let actual = ToolsDiscriminants::ForgeToolFsRemove.name();
         let expected = ToolName::new("forge_tool_fs_remove");
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_tool_definition_json() {
+        let tools = Tools::iter()
+            .map(|tool| {
+                let definition = tool.definition();
+                serde_json::to_string_pretty(&definition)
+                    .expect("Failed to serialize tool definition to JSON")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        insta::assert_snapshot!(tools);
     }
 }

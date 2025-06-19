@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_domain::{CommandOutput, Environment};
-use forge_services::CommandExecutorService;
+use forge_services::CommandInfra;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -137,7 +137,7 @@ async fn stream<A: AsyncReadExt + Unpin, W: Write>(
 
 /// The implementation for CommandExecutorService
 #[async_trait::async_trait]
-impl CommandExecutorService for ForgeCommandExecutorService {
+impl CommandInfra for ForgeCommandExecutorService {
     async fn execute_command(
         &self,
         command: String,

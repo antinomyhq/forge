@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use forge_domain::Environment;
-use forge_services::FsSnapshotService;
+use forge_services::SnapshotInfra;
 use forge_snaps::Snapshot;
 
 pub struct ForgeFileSnapshotService {
@@ -19,7 +19,7 @@ impl ForgeFileSnapshotService {
 }
 
 #[async_trait::async_trait]
-impl FsSnapshotService for ForgeFileSnapshotService {
+impl SnapshotInfra for ForgeFileSnapshotService {
     // Creation
     async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot> {
         self.inner.create_snapshot(file_path.to_path_buf()).await

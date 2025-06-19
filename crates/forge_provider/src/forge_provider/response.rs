@@ -29,16 +29,16 @@ pub enum Response {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseUsage {
-    pub prompt_tokens: u64,
-    pub completion_tokens: u64,
-    pub total_tokens: u64,
+    pub prompt_tokens: usize,
+    pub completion_tokens: usize,
+    pub total_tokens: usize,
     pub cost: Option<f64>,
     pub prompt_tokens_details: Option<PromptTokenDetails>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PromptTokenDetails {
-    pub cached_tokens: u64,
+    pub cached_tokens: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

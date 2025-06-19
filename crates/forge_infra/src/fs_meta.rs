@@ -1,11 +1,11 @@
 use std::path::Path;
 
 use anyhow::Result;
-use forge_services::FsMetaService;
+use forge_services::FileInfoInfra;
 
 pub struct ForgeFileMetaService;
 #[async_trait::async_trait]
-impl FsMetaService for ForgeFileMetaService {
+impl FileInfoInfra for ForgeFileMetaService {
     async fn is_file(&self, path: &Path) -> Result<bool> {
         Ok(forge_fs::ForgeFS::is_file(path))
     }

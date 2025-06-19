@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_services::{FsSnapshotService, FsWriteService};
+use forge_services::{FileWriterInfra, SnapshotInfra};
 
 pub struct ForgeFileWriteService<S> {
     snaps: Arc<S>,
@@ -15,7 +15,7 @@ impl<S> ForgeFileWriteService<S> {
 }
 
 #[async_trait::async_trait]
-impl<S: FsSnapshotService> FsWriteService for ForgeFileWriteService<S> {
+impl<S: SnapshotInfra> FileWriterInfra for ForgeFileWriteService<S> {
     async fn write(
         &self,
         path: &Path,

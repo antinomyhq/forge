@@ -94,10 +94,10 @@ pub trait ChatService: Send + Sync {
 #[async_trait::async_trait]
 pub trait McpConfigManager: Send + Sync {
     /// Responsible to load the MCP servers from all configuration files.
-    async fn read(&self) -> anyhow::Result<McpConfig>;
+    async fn read_mcp_config(&self) -> anyhow::Result<McpConfig>;
 
     /// Responsible for writing the McpConfig on disk.
-    async fn write(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()>;
+    async fn write_mcp_config(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -112,7 +112,7 @@ pub trait ConversationService: Send + Sync {
 
     async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()>;
 
-    async fn create(&self, workflow: Workflow) -> anyhow::Result<Conversation>;
+    async fn create_conversation(&self, workflow: Workflow) -> anyhow::Result<Conversation>;
 
     /// This is useful when you want to perform several operations on a
     /// conversation atomically.
@@ -124,7 +124,7 @@ pub trait ConversationService: Send + Sync {
 #[async_trait::async_trait]
 pub trait TemplateService: Send + Sync {
     async fn register_template(&self, path: PathBuf) -> anyhow::Result<()>;
-    async fn render(
+    async fn render_template(
         &self,
         template: impl ToString + Send,
         object: &(impl serde::Serialize + Sync),
@@ -157,12 +157,12 @@ pub trait WorkflowService {
     /// Reads the workflow from the given path.
     /// If no path is provided, it will try to find forge.yaml in the current
     /// directory or its parent directories.
-    async fn read(&self, path: Option<&Path>) -> anyhow::Result<Workflow>;
+    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow>;
 
     /// Reads the workflow from the given path and merges it with an default
     /// workflow.
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        let workflow = self.read(path).await?;
+        let workflow = self.read_workflow(path).await?;
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow);
         Ok(base_workflow)
@@ -171,7 +171,7 @@ pub trait WorkflowService {
     /// Writes the given workflow to the specified path.
     /// If no path is provided, it will try to find forge.yaml in the current
     /// directory or its parent directories.
-    async fn write(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()>;
+    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()>;
 
     /// Updates the workflow at the given path using the provided closure.
     /// If no path is provided, it will try to find forge.yaml in the current
@@ -322,7 +322,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn conversation_service(&self) -> &Self::ConversationService;
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
-    fn environment_service(&self) -> &Self::EnvironmentService;
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
@@ -336,7 +335,234 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
+    fn environment_service(&self) -> &Self::EnvironmentService;
     fn auth_service(&self) -> &Self::AuthService;
     fn config_service(&self) -> &Self::ConfigService;
     fn key_service(&self) -> &Self::KeyService;
+}
+
+#[async_trait::async_trait]
+impl<I: Services> ConversationService for I {
+    async fn find(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_service().find(id).await
+    }
+
+    async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()> {
+        self.conversation_service().upsert(conversation).await
+    }
+
+    async fn create_conversation(&self, workflow: Workflow) -> anyhow::Result<Conversation> {
+        self.conversation_service()
+            .create_conversation(workflow)
+            .await
+    }
+
+    async fn update<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
+    where
+        F: FnOnce(&mut Conversation) -> T + Send,
+    {
+        self.conversation_service().update(id, f).await
+    }
+}
+#[async_trait::async_trait]
+impl<I: Services> ChatService for I {
+    async fn chat(
+        &self,
+        id: &ModelId,
+        context: Context,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        self.chat_service().chat(id, context).await
+    }
+
+    async fn models(&self) -> anyhow::Result<Vec<Model>> {
+        self.chat_service().models().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> McpConfigManager for I {
+    async fn read_mcp_config(&self) -> anyhow::Result<McpConfig> {
+        self.mcp_config_manager().read_mcp_config().await
+    }
+
+    async fn write_mcp_config(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()> {
+        self.mcp_config_manager()
+            .write_mcp_config(config, scope)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> McpService for I {
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.mcp_service().list().await
+    }
+
+    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
+        self.mcp_service().call(call).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> TemplateService for I {
+    async fn register_template(&self, path: PathBuf) -> anyhow::Result<()> {
+        self.template_service().register_template(path).await
+    }
+
+    async fn render_template(
+        &self,
+        template: impl ToString + Send,
+        object: &(impl serde::Serialize + Sync),
+    ) -> anyhow::Result<String> {
+        self.template_service()
+            .render_template(template, object)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> AttachmentService for I {
+    async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
+        self.attachment_service().attachments(url).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> WorkflowService for I {
+    async fn resolve(&self, path: Option<std::path::PathBuf>) -> std::path::PathBuf {
+        self.workflow_service().resolve(path).await
+    }
+
+    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
+        self.workflow_service().read_workflow(path).await
+    }
+
+    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
+        self.workflow_service().write_workflow(path, workflow).await
+    }
+
+    async fn update_workflow<F>(&self, path: Option<&Path>, f: F) -> anyhow::Result<Workflow>
+    where
+        F: FnOnce(&mut Workflow) + Send,
+    {
+        self.workflow_service().update_workflow(path, f).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FileDiscoveryService for I {
+    async fn collect(&self, max_depth: Option<usize>) -> anyhow::Result<Vec<File>> {
+        self.file_discovery_service().collect(max_depth).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FsCreateService for I {
+    async fn create(
+        &self,
+        path: String,
+        content: String,
+        overwrite: bool,
+        capture_snapshot: bool,
+    ) -> anyhow::Result<FsCreateOutput> {
+        self.fs_create_service()
+            .create(path, content, overwrite, capture_snapshot)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FsPatchService for I {
+    async fn patch(
+        &self,
+        path: String,
+        search: Option<String>,
+        operation: PatchOperation,
+        content: String,
+    ) -> anyhow::Result<PatchOutput> {
+        self.fs_patch_service()
+            .patch(path, search, operation, content)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FsReadService for I {
+    async fn read(
+        &self,
+        path: String,
+        start_line: Option<u64>,
+        end_line: Option<u64>,
+    ) -> anyhow::Result<ReadOutput> {
+        self.fs_read_service()
+            .read(path, start_line, end_line)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FsRemoveService for I {
+    async fn remove(&self, path: String) -> anyhow::Result<FsRemoveOutput> {
+        self.fs_remove_service().remove(path).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FsSearchService for I {
+    async fn search(
+        &self,
+        path: String,
+        regex: Option<String>,
+        file_pattern: Option<String>,
+    ) -> anyhow::Result<Option<SearchResult>> {
+        self.fs_search_service()
+            .search(path, regex, file_pattern)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FollowUpService for I {
+    async fn follow_up(
+        &self,
+        question: String,
+        options: Vec<String>,
+        multiple: Option<bool>,
+    ) -> anyhow::Result<Option<String>> {
+        self.follow_up_service()
+            .follow_up(question, options, multiple)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FsUndoService for I {
+    async fn undo(&self, path: String) -> anyhow::Result<FsUndoOutput> {
+        self.fs_undo_service().undo(path).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> NetFetchService for I {
+    async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<HttpResponse> {
+        self.net_fetch_service().fetch(url, raw).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> ShellService for I {
+    async fn execute(
+        &self,
+        command: String,
+        cwd: PathBuf,
+        keep_ansi: bool,
+    ) -> anyhow::Result<ShellOutput> {
+        self.shell_service().execute(command, cwd, keep_ansi).await
+    }
+}
+
+impl<I: Services> EnvironmentService for I {
+    fn get_environment(&self) -> Environment {
+        self.environment_service().get_environment()
+    }
 }

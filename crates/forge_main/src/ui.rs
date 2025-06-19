@@ -52,10 +52,11 @@ impl From<PartialEvent> for Event {
     }
 }
 
-pub struct UI<F> {
+pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
     state: UIState,
-    api: Arc<F>,
+    api: Arc<F::Output>,
+    new_api: Arc<F>,
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
@@ -64,7 +65,7 @@ pub struct UI<F> {
     _guard: forge_tracker::Guard,
 }
 
-impl<F: API> UI<F> {
+impl<A: API, F: Fn() -> A> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -81,7 +82,7 @@ impl<F: API> UI<F> {
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
-        self.init_state().await?;
+        self.init_state(false).await?;
         banner::display()?;
         Ok(())
     }
@@ -141,13 +142,15 @@ impl<F: API> UI<F> {
         ))
     }
 
-    pub fn init(cli: Cli, api: Arc<F>) -> Result<Self> {
+    pub fn init(cli: Cli, f: F) -> Result<Self> {
         // Parse CLI arguments first to get flags
+        let api = Arc::new(f());
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
         Ok(Self {
             state: Default::default(),
             api,
+            new_api: Arc::new(f),
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
@@ -191,7 +194,7 @@ impl<F: API> UI<F> {
 
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
-        self.init_state().await?;
+        self.init_state(true).await?;
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -540,7 +543,7 @@ impl<F: API> UI<F> {
                 self.spinner.start(Some("Initializing"))?;
 
                 // Select a model if workflow doesn't have one
-                let workflow = self.init_state().await?;
+                let workflow = self.init_state(false).await?;
                 // We need to try and get the conversation ID first before fetching the model
                 let id = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation =
@@ -565,7 +568,9 @@ impl<F: API> UI<F> {
     }
 
     /// Initialize the state of the UI
-    async fn init_state(&mut self) -> Result<Workflow> {
+    async fn init_state(&mut self, first: bool) -> Result<Workflow> {
+        self.api = Arc::new((self.new_api)());
+
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(
@@ -576,7 +581,10 @@ impl<F: API> UI<F> {
         }
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
-        on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+        if first {
+            // only call on_update if this is the first initialization
+            on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+        }
         self.api
             .write_workflow(self.cli.workflow.as_deref(), &workflow)
             .await?;
@@ -777,27 +785,155 @@ struct CliModel(Model);
 
 impl Display for CliModel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::fmt::Write;
-
         write!(f, "{}", self.0.id)?;
-        let mut info = String::new();
-        write!(info, "[ ")?;
+
+        let mut info_parts = Vec::new();
+
+        // Add context length if available
         if let Some(limit) = self.0.context_length {
-            if limit > 1_000_000 {
-                write!(info, "{}M", (limit / 1_000_000))?;
-            } else if limit > 1000 {
-                write!(info, "{}k", (limit / 1000))?;
+            if limit >= 1_000_000 {
+                info_parts.push(format!("{}M", limit / 1_000_000));
+            } else if limit >= 1000 {
+                info_parts.push(format!("{}k", limit / 1000));
             } else {
-                write!(info, "{}", (limit))?;
+                info_parts.push(format!("{limit}"));
             }
         }
-        if self.0.tools_supported.unwrap_or_default() {
-            write!(info, " 🛠️")?;
+
+        // Add tools support indicator if explicitly supported
+        if self.0.tools_supported == Some(true) {
+            info_parts.push("🛠️".to_string());
         }
 
-        write!(info, " ]")?;
+        // Only show brackets if we have info to display
+        if !info_parts.is_empty() {
+            let info = format!("[ {} ]", info_parts.join(" "));
+            write!(f, " {}", info.dimmed())?;
+        }
 
-        write!(f, " {}", info.dimmed())?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use console::strip_ansi_codes;
+    use forge_domain::{Model, ModelId};
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    fn create_model_fixture(
+        id: &str,
+        context_length: Option<u64>,
+        tools_supported: Option<bool>,
+    ) -> Model {
+        Model {
+            id: ModelId::new(id),
+            name: None,
+            description: None,
+            context_length,
+            tools_supported,
+            supports_parallel_tool_calls: None,
+        }
+    }
+
+    #[test]
+    fn test_cli_model_display_with_context_and_tools() {
+        let fixture = create_model_fixture("gpt-4", Some(128000), Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "gpt-4 [ 128k 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_with_large_context() {
+        let fixture = create_model_fixture("claude-3", Some(2000000), Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "claude-3 [ 2M 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_with_small_context() {
+        let fixture = create_model_fixture("small-model", Some(512), Some(false));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "small-model [ 512 ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_with_context_only() {
+        let fixture = create_model_fixture("text-model", Some(4096), Some(false));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "text-model [ 4k ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_with_tools_only() {
+        let fixture = create_model_fixture("tool-model", None, Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "tool-model [ 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_empty_context_and_no_tools() {
+        let fixture = create_model_fixture("basic-model", None, Some(false));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "basic-model";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_empty_context_and_none_tools() {
+        let fixture = create_model_fixture("unknown-model", None, None);
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "unknown-model";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_exact_thousands() {
+        let fixture = create_model_fixture("exact-k", Some(8000), Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "exact-k [ 8k 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_exact_millions() {
+        let fixture = create_model_fixture("exact-m", Some(1000000), Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "exact-m [ 1M 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_edge_case_999() {
+        let fixture = create_model_fixture("edge-999", Some(999), None);
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "edge-999 [ 999 ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_edge_case_1001() {
+        let fixture = create_model_fixture("edge-1001", Some(1001), None);
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "edge-1001 [ 1k ]";
+        assert_eq!(actual, expected);
     }
 }

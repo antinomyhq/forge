@@ -26,7 +26,7 @@ impl<S: Services> AgentExecutor<S> {
         if let Some(tool_agents) = self.tool_agents.read().await.clone() {
             return Ok(tool_agents);
         }
-        let workflow = self.services.workflow_service().read_merged(None).await?;
+        let workflow = self.services.read_merged(None).await?;
 
         let agents: Vec<ToolDefinition> = workflow.agents.into_iter().map(Into::into).collect();
         *self.tool_agents.write().await = Some(agents.clone());
@@ -52,12 +52,9 @@ impl<S: Services> AgentExecutor<S> {
             .await?;
 
         // Create a new conversation for agent execution
-        let workflow = self.services.workflow_service().read_merged(None).await?;
-        let conversation = self
-            .services
-            .conversation_service()
-            .create(workflow)
-            .await?;
+        let workflow = self.services.read_merged(None).await?;
+        let conversation =
+            ConversationService::create_conversation(self.services.as_ref(), workflow).await?;
 
         // Execute the request through the ForgeApp
         let app = crate::ForgeApp::new(self.services.clone());

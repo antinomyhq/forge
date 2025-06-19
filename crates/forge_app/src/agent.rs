@@ -13,7 +13,7 @@ use crate::{ChatService, ConversationService, Services, TemplateService};
 #[async_trait::async_trait]
 pub trait AgentService: Send + Sync + 'static {
     /// Execute a chat completion request
-    async fn chat(
+    async fn chat_agent(
         &self,
         id: &ModelId,
         context: Context,
@@ -40,16 +40,14 @@ pub trait AgentService: Send + Sync + 'static {
 
 /// Blanket implementation of AgentService for any type that implements Services
 #[async_trait::async_trait]
-impl<T> AgentService for T
-where
-    T: Services,
-{
-    async fn chat(
+impl<T: Services> AgentService for T {
+    async fn chat_agent(
         &self,
         id: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.chat_service().chat(id, context).await
+        self.chat(id, context).await
+        // self.chat_service().chat(id, context).await
     }
 
     async fn call(
@@ -67,10 +65,10 @@ where
         template: &str,
         object: &(impl serde::Serialize + Sync),
     ) -> anyhow::Result<String> {
-        self.template_service().render(template, object).await
+        self.render_template(template, object).await
     }
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.conversation_service().upsert(conversation).await
+        self.upsert(conversation).await
     }
 }

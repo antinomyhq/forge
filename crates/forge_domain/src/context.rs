@@ -7,7 +7,7 @@ use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
-use crate::{ConversationId, Image, ModelId, ToolChoice, ToolDefinition};
+use crate::{ConversationId, Image, ModelId, ToolChoice, ToolDefinition, ToolValue};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -21,6 +21,79 @@ pub enum ContextMessage {
 }
 
 impl ContextMessage {
+    /// Estimates the number of tokens in a message using character-based
+    /// approximation.
+    /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
+    pub fn token_count(&self) -> usize {
+        let char_count = match self {
+            ContextMessage::Text(text_message)
+                if matches!(text_message.role, Role::User | Role::Assistant) =>
+            {
+                text_message.content.chars().count()
+                    + text_message
+                        .tool_calls
+                        .as_ref()
+                        .map(|tool_calls| {
+                            tool_calls
+                                .iter()
+                                .map(|tc| {
+                                    tc.arguments.to_string().chars().count()
+                                        + tc.name.as_str().chars().count()
+                                })
+                                .sum()
+                        })
+                        .unwrap_or(0)
+            }
+            ContextMessage::Tool(tool_result) => tool_result
+                .output
+                .values
+                .iter()
+                .map(|result| match result {
+                    ToolValue::Text(text) => text.chars().count(),
+                    _ => 0,
+                })
+                .sum(),
+            _ => 0,
+        };
+
+        char_count.div_ceil(4)
+    }
+
+    pub fn to_text(&self) -> String {
+        let mut lines = String::new();
+        match self {
+            ContextMessage::Text(message) => {
+                lines.push_str(&format!("<message role=\"{}\">", message.role));
+                lines.push_str(&format!("<content>{}</content>", message.content));
+                if let Some(tool_calls) = &message.tool_calls {
+                    for call in tool_calls {
+                        lines.push_str(&format!(
+                            "<forge_tool_call name=\"{}\"><![CDATA[{}]]></forge_tool_call>",
+                            call.name,
+                            serde_json::to_string(&call.arguments).unwrap()
+                        ));
+                    }
+                }
+
+                lines.push_str("</message>");
+            }
+            ContextMessage::Tool(result) => {
+                lines.push_str("<message role=\"tool\">");
+
+                lines.push_str(&format!(
+                    "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
+                    result.name,
+                    serde_json::to_string(&result.output).unwrap()
+                ));
+                lines.push_str("</message>");
+            }
+            ContextMessage::Image(_) => {
+                lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
+            }
+        }
+        lines
+    }
+
     pub fn user(content: impl ToString, model: Option<ModelId>) -> Self {
         TextMessage {
             role: Role::User,
@@ -62,6 +135,14 @@ impl ContextMessage {
             ContextMessage::Text(message) => message.role == role,
             ContextMessage::Tool(_) => false,
             ContextMessage::Image(_) => Role::User == role,
+        }
+    }
+
+    pub fn has_tool_result(&self) -> bool {
+        match self {
+            ContextMessage::Text(_) => false,
+            ContextMessage::Tool(_) => true,
+            ContextMessage::Image(_) => false,
         }
     }
 
@@ -180,36 +261,7 @@ impl Context {
         let mut lines = String::new();
 
         for message in self.messages.iter() {
-            match message {
-                ContextMessage::Text(message) => {
-                    lines.push_str(&format!("<message role=\"{}\">", message.role));
-                    lines.push_str(&format!("<content>{}</content>", message.content));
-                    if let Some(tool_calls) = &message.tool_calls {
-                        for call in tool_calls {
-                            lines.push_str(&format!(
-                                "<forge_tool_call name=\"{}\"><![CDATA[{}]]></forge_tool_call>",
-                                call.name,
-                                serde_json::to_string(&call.arguments).unwrap()
-                            ));
-                        }
-                    }
-
-                    lines.push_str("</message>");
-                }
-                ContextMessage::Tool(result) => {
-                    lines.push_str("<message role=\"tool\">");
-
-                    lines.push_str(&format!(
-                        "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
-                        result.name,
-                        serde_json::to_string(&result.output).unwrap()
-                    ));
-                    lines.push_str("</message>");
-                }
-                ContextMessage::Image(_) => {
-                    lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
-                }
-            }
+            lines.push_str(&message.to_text());
         }
 
         format!("<chat_history>{lines}</chat_history>")
@@ -241,6 +293,10 @@ impl Context {
                 .map(|record| record.1.clone())
                 .collect::<Vec<_>>(),
         )
+    }
+
+    pub fn token_count(&self) -> usize {
+        self.messages.iter().map(|m| m.token_count()).sum()
     }
 }
 

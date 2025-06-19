@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_app::FollowUpService;
 
-use crate::{Infrastructure, InquireService};
+use crate::UserInfra;
 
 /// Use this tool when you encounter ambiguities, need clarification, or require
 /// more details to proceed effectively. Use this tool judiciously to maintain a
@@ -13,21 +13,21 @@ pub struct ForgeFollowup<F> {
     infra: Arc<F>,
 }
 
-impl<F: Infrastructure> ForgeFollowup<F> {
+impl<F> ForgeFollowup<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> FollowUpService for ForgeFollowup<F> {
+impl<F: UserInfra> FollowUpService for ForgeFollowup<F> {
     async fn follow_up(
         &self,
         question: String,
         options: Vec<String>,
         multiple: Option<bool>,
     ) -> anyhow::Result<Option<String>> {
-        let inquire = self.infra.inquire_service();
+        let inquire = &self.infra;
         let result = match (options.is_empty(), multiple.unwrap_or_default()) {
             (true, _) => inquire.prompt_question(&question).await?,
             (false, true) => inquire

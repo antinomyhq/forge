@@ -8,6 +8,7 @@ mod conversation_html;
 mod update;
 
 mod auth;
+mod compaction_strategy;
 mod config;
 mod context;
 mod conversation;
@@ -54,6 +55,7 @@ pub use chat_request::*;
 pub use chat_response::*;
 pub use compact::*;
 pub use compaction_result::*;
+pub use compaction_strategy::*;
 pub use config::*;
 pub use context::*;
 pub use conversation::*;

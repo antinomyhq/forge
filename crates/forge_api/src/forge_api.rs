@@ -8,7 +8,7 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{CommandExecutorService, ForgeServices, Infrastructure, ProviderService};
+use forge_services::{CommandInfra, ForgeServices};
 use forge_stream::MpscStream;
 
 use crate::API;
@@ -18,7 +18,7 @@ pub struct ForgeAPI<A, F> {
     infra: Arc<F>,
 }
 
-impl<A: Services, F: Infrastructure> ForgeAPI<A, F> {
+impl<A, F> ForgeAPI<A, F> {
     pub fn new(app: Arc<A>, infra: Arc<F>) -> Self {
         Self { app, infra }
     }
@@ -33,9 +33,9 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn discover(&self) -> Result<Vec<File>> {
-        self.app.file_discovery_service().collect(None).await
+        self.app.collect(None).await
     }
 
     async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
@@ -44,7 +44,7 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
-        Ok(self.app.chat_service().models().await?)
+        Ok(self.app.models().await?)
     }
 
     async fn chat(
@@ -60,14 +60,11 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
         &self,
         workflow: W,
     ) -> anyhow::Result<Conversation> {
-        self.app
-            .conversation_service()
-            .create(workflow.into())
-            .await
+        self.app.create_conversation(workflow.into()).await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.app.conversation_service().upsert(conversation).await
+        self.app.upsert(conversation).await
     }
 
     async fn compact_conversation(
@@ -79,31 +76,29 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
     }
 
     fn environment(&self) -> Environment {
-        Services::environment_service(self.app.as_ref())
-            .get_environment()
-            .clone()
+        self.app.get_environment().clone()
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.app.workflow_service().read(path).await
+        self.app.read_workflow(path).await
     }
 
     async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        self.app.workflow_service().write(path, workflow).await
+        self.app.write_workflow(path, workflow).await
     }
 
     async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>
     where
         T: FnOnce(&mut Workflow) + Send,
     {
-        self.app.workflow_service().update_workflow(path, f).await
+        self.app.update_workflow(path, f).await
     }
 
     async fn conversation(
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>> {
-        self.app.conversation_service().find(conversation_id).await
+        self.app.find(conversation_id).await
     }
 
     async fn execute_shell_command(
@@ -112,22 +107,19 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
         working_dir: PathBuf,
     ) -> anyhow::Result<CommandOutput> {
         self.infra
-            .command_executor_service()
             .execute_command(command.to_string(), working_dir)
             .await
     }
     async fn read_mcp_config(&self) -> Result<McpConfig> {
         self.app
-            .mcp_config_manager()
-            .read()
+            .read_mcp_config()
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()> {
         self.app
-            .mcp_config_manager()
-            .write(config, scope)
+            .write_mcp_config(config, scope)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
@@ -136,10 +128,7 @@ impl<A: Services, F: Infrastructure> API for ForgeAPI<A, F> {
         &self,
         command: &str,
     ) -> anyhow::Result<std::process::ExitStatus> {
-        self.infra
-            .command_executor_service()
-            .execute_command_raw(command)
-            .await
+        self.infra.execute_command_raw(command).await
     }
 
     async fn init_login(&self) -> Result<InitAuth> {

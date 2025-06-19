@@ -27,10 +27,15 @@ jobs:
   npm_release:
     name: npm_release
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        repository:
+        - antinomyhq/npm-code-forge
+        - antinomyhq/npm-forgecode
     steps:
     - uses: actions/checkout@v4
       with:
-        repository: antinomyhq/npm-code-forge
+        repository: ${{ matrix.repository }}
         ref: main
         token: ${{ secrets.NPM_ACCESS }}
     - run: ./update-package.sh ${{ github.event.release.tag_name }}

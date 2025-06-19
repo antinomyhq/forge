@@ -26,6 +26,7 @@ agents:
       model: *advanced_model
       retention_window: 6
       message_threshold: 200
+      eviction_window: 0.2
       prompt: "{{> forge-system-prompt-context-summarizer.hbs }}"
     model: *advanced_model
     system_prompt: |-
@@ -57,6 +58,7 @@ agents:
       model: *advanced_model
       retention_window: 6
       message_threshold: 200
+      eviction_window: 0.2
       prompt: "{{> forge-system-prompt-context-summarizer.hbs }}"
     model: *advanced_model
     system_prompt: |-

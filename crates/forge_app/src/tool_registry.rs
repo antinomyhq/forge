@@ -97,7 +97,7 @@ impl<S: Services> ToolRegistry<S> {
     }
 
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        let mcp_tools = self.mcp_executor.services.mcp_service().list().await?;
+        let mcp_tools = self.mcp_executor.services.list().await?;
         let agent_tools = self.agent_executor.tool_agents().await?;
 
         let tools = Tools::iter()

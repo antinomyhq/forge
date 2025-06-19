@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use forge_domain::Environment;
 
 use crate::utils::format_match;
-use crate::{FsCreateService, Match, Services};
+use crate::{FsCreateService, Match};
 
-pub async fn create_temp_file<S: Services>(
+pub async fn create_temp_file<S: FsCreateService>(
     services: &S,
     prefix: &str,
     ext: &str,
@@ -19,7 +19,6 @@ pub async fn create_temp_file<S: Services>(
         .into_temp_path()
         .to_path_buf();
     services
-        .fs_create_service()
         .create(
             path.to_string_lossy().to_string(),
             content.to_string(),

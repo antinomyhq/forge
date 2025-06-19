@@ -10,7 +10,7 @@ use forge_domain::{
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
-use crate::{Infrastructure, McpClient, McpServer};
+use crate::{McpClientInfra, McpServerInfra};
 
 #[derive(Clone)]
 pub struct ForgeMcpService<M, I, C> {
@@ -26,10 +26,10 @@ struct ToolHolder<T> {
     executable: T,
 }
 
-impl<M: McpConfigManager, I: Infrastructure, C> ForgeMcpService<M, I, C>
+impl<M: McpConfigManager, I: McpServerInfra, C> ForgeMcpService<M, I, C>
 where
-    C: McpClient + Clone,
-    C: From<<I::McpServer as McpServer>::Client>,
+    C: McpClientInfra + Clone,
+    C: From<<I as McpServerInfra>::Client>,
 {
     pub fn new(manager: Arc<M>, infra: Arc<I>) -> Self {
         Self {
@@ -69,7 +69,7 @@ where
     }
 
     async fn connect(&self, server_name: &str, config: McpServerConfig) -> anyhow::Result<()> {
-        let client = self.infra.mcp_server().connect(config).await?;
+        let client = self.infra.connect(config).await?;
         let client = Arc::new(C::from(client));
         self.insert_clients(server_name, client).await?;
 
@@ -77,7 +77,7 @@ where
     }
 
     async fn init_mcp(&self) -> anyhow::Result<()> {
-        let mcp = self.manager.read().await?;
+        let mcp = self.manager.read_mcp_config().await?;
 
         // If config is unchanged, skip reinitialization
         if !self.is_config_modified(&mcp).await {
@@ -128,10 +128,10 @@ where
 }
 
 #[async_trait::async_trait]
-impl<R: McpConfigManager, I: Infrastructure, C> McpService for ForgeMcpService<R, I, C>
+impl<R: McpConfigManager, I: McpServerInfra, C> McpService for ForgeMcpService<R, I, C>
 where
-    C: McpClient + Clone,
-    C: From<<I::McpServer as McpServer>::Client>,
+    C: McpClientInfra + Clone,
+    C: From<<I as McpServerInfra>::Client>,
 {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         self.list().await

@@ -236,7 +236,7 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(ImageHandling::new());
         let response = self
             .services
-            .chat(model_id, transformers.transform(context))
+            .chat_agent(model_id, transformers.transform(context))
             .await?;
         response.into_full(!tool_supported).await
     }
@@ -267,6 +267,13 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Render the system prompts with the variables
         context = self.set_system_prompt(context, &agent, &variables).await?;
+
+        // Create a new compactor
+        let compactor = Compactor::new(self.services.clone());
+
+        // Perform an aggressive compaction before starting out
+        // TODO: Improve compaction by providing context of the user message
+        context = compactor.compact(&agent, context, true).await?;
 
         // Render user prompts
         context = self
@@ -319,6 +326,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         let mut empty_tool_call_count = 0;
         let is_tool_supported = self.is_tool_supported(&agent)?;
+
         while !is_complete {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
@@ -331,14 +339,13 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?;
 
             // Set estimated tokens
-            usage.estimated_tokens = estimate_token_count(context.to_text().len()) as u64;
+            usage.estimated_tokens = context.token_count();
 
             // Send the usage information if available
 
             info!(
                 token_usage = usage.prompt_tokens,
                 estimated_token_usage = usage.estimated_tokens,
-                content_length = usage.content_length,
                 "Processing usage information"
             );
 
@@ -347,8 +354,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Check if context requires compression and decide to compact
             if agent.should_compact(&context, max(usage.prompt_tokens, usage.estimated_tokens)) {
                 info!(agent_id = %agent.id, "Compaction needed, applying compaction");
-                let compactor = Compactor::new(self.services.clone());
-                context = compactor.compact_context(&agent, context).await?;
+                context = compactor.compact(&agent, context, false).await?;
             } else {
                 debug!(agent_id = %agent.id, "Compaction not needed");
             }

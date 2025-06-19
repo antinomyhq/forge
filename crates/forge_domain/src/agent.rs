@@ -205,7 +205,7 @@ impl Agent {
             .description(self.description.clone().unwrap()))
     }
     /// Checks if compaction should be applied
-    pub fn should_compact(&self, context: &Context, token_count: u64) -> bool {
+    pub fn should_compact(&self, context: &Context, token_count: usize) -> bool {
         // Return false if compaction is not configured
         if let Some(compact) = &self.compact {
             compact.should_compact(context, token_count)

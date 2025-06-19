@@ -3,12 +3,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_app::EnvironmentService;
-use forge_domain::{
-    CommandOutput, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response, RetryConfig,
-    ToolDefinition, ToolName, ToolOutput,
-};
+use forge_domain::{CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response, RetryConfig, ToolDefinition, ToolName, ToolOutput};
 use forge_snaps::Snapshot;
+
+pub trait EnvironmentInfra: Send + Sync {
+    fn get_environment(&self) -> Environment;
+}
 
 /// Repository for accessing system environment information
 /// This uses the EnvironmentService trait from forge_domain
@@ -17,7 +17,7 @@ use forge_snaps::Snapshot;
 /// This trait provides an abstraction over file reading operations, allowing
 /// for both real file system access and test mocking.
 #[async_trait::async_trait]
-pub trait FsReadService: Send + Sync {
+pub trait FileReaderInfra: Send + Sync {
     /// Reads the content of a file at the specified path.
     /// Returns the file content as a UTF-8 string.
     async fn read_utf8(&self, path: &Path) -> anyhow::Result<String>;
@@ -49,7 +49,7 @@ pub trait FsReadService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait FsWriteService: Send + Sync {
+pub trait FileWriterInfra: Send + Sync {
     /// Writes the content of a file at the specified path.
     async fn write(
         &self,
@@ -70,26 +70,26 @@ pub trait FsWriteService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait FileRemoveService: Send + Sync {
+pub trait FileRemoverInfra: Send + Sync {
     /// Removes a file at the specified path.
     async fn remove(&self, path: &Path) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
-pub trait FsMetaService: Send + Sync {
+pub trait FileInfoInfra: Send + Sync {
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool>;
     async fn exists(&self, path: &Path) -> anyhow::Result<bool>;
     async fn file_size(&self, path: &Path) -> anyhow::Result<u64>;
 }
 
 #[async_trait::async_trait]
-pub trait FsCreateDirsService {
+pub trait FileDirectoryInfra {
     async fn create_dirs(&self, path: &Path) -> anyhow::Result<()>;
 }
 
 /// Service for managing file snapshots
 #[async_trait::async_trait]
-pub trait FsSnapshotService: Send + Sync {
+pub trait SnapshotInfra: Send + Sync {
     // Creation
     async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot>;
 
@@ -99,7 +99,7 @@ pub trait FsSnapshotService: Send + Sync {
 
 /// Service for executing shell commands
 #[async_trait::async_trait]
-pub trait CommandExecutorService: Send + Sync {
+pub trait CommandInfra: Send + Sync {
     /// Executes a shell command and returns the output
     async fn execute_command(
         &self,
@@ -112,7 +112,7 @@ pub trait CommandExecutorService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait InquireService: Send + Sync {
+pub trait UserInfra: Send + Sync {
     /// Prompts the user with question
     /// Returns None if the user interrupts the prompt
     async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>>;
@@ -135,7 +135,7 @@ pub trait InquireService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait McpClient: Clone + Send + Sync + 'static {
+pub trait McpClientInfra: Clone + Send + Sync + 'static {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
     async fn call(
         &self,
@@ -145,11 +145,12 @@ pub trait McpClient: Clone + Send + Sync + 'static {
 }
 
 #[async_trait::async_trait]
-pub trait McpServer: Send + Sync + 'static {
-    type Client: McpClient;
+pub trait McpServerInfra: Send + Sync + 'static {
+    type Client: McpClientInfra;
     async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
 }
 
+// TODO: rename me, add Infra suffix
 #[async_trait::async_trait]
 pub trait HttpService: Send + Sync + 'static {
     async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
@@ -167,32 +168,4 @@ pub trait HttpService: Send + Sync + 'static {
 pub trait ProviderService: Send + Sync + 'static {
     fn get(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
     fn provider_url(&self) -> Option<ProviderUrl>;
-}
-
-pub trait Infrastructure: Send + Sync + Clone + 'static {
-    type EnvironmentService: EnvironmentService;
-    type FsMetaService: FsMetaService;
-    type FsReadService: FsReadService;
-    type FsRemoveService: FileRemoveService;
-    type FsSnapshotService: FsSnapshotService;
-    type FsWriteService: FsWriteService;
-    type FsCreateDirsService: FsCreateDirsService;
-    type CommandExecutorService: CommandExecutorService;
-    type InquireService: InquireService;
-    type McpServer: McpServer;
-    type HttpService: HttpService;
-    type ProviderService: ProviderService;
-
-    fn environment_service(&self) -> &Self::EnvironmentService;
-    fn file_meta_service(&self) -> &Self::FsMetaService;
-    fn file_read_service(&self) -> &Self::FsReadService;
-    fn file_remove_service(&self) -> &Self::FsRemoveService;
-    fn file_snapshot_service(&self) -> &Self::FsSnapshotService;
-    fn file_write_service(&self) -> &Self::FsWriteService;
-    fn create_dirs_service(&self) -> &Self::FsCreateDirsService;
-    fn command_executor_service(&self) -> &Self::CommandExecutorService;
-    fn inquire_service(&self) -> &Self::InquireService;
-    fn mcp_server(&self) -> &Self::McpServer;
-    fn http_service(&self) -> &Self::HttpService;
-    fn provider_service(&self) -> &Self::ProviderService;
 }

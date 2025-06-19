@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
-use forge_services::McpClient;
+use forge_services::McpClientInfra;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::schemars::schema::RootSchema;
 use rmcp::service::RunningService;
@@ -172,7 +172,7 @@ impl ForgeMcpClient {
 }
 
 #[async_trait::async_trait]
-impl McpClient for ForgeMcpClient {
+impl McpClientInfra for ForgeMcpClient {
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         self.attempt_with_retry(|| self.list()).await
     }

@@ -2,17 +2,17 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use forge_app::{AttachmentService, EnvironmentService};
+use forge_app::AttachmentService;
 use forge_domain::{Attachment, AttachmentContent, Image};
 
-use crate::{FsReadService, Infrastructure};
+use crate::{EnvironmentInfra, FileReaderInfra};
 
 #[derive(Clone)]
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
-impl<F: Infrastructure> ForgeChatRequest<F> {
+impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -36,12 +36,7 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
         let extension = path.extension().map(|v| v.to_string_lossy().to_string());
 
         if !path.is_absolute() {
-            path = self
-                .infra
-                .environment_service()
-                .get_environment()
-                .cwd
-                .join(path);
+            path = self.infra.get_environment().cwd.join(path);
         }
 
         // Determine file type (text or image with format)
@@ -54,13 +49,10 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
 
         //NOTE: Attachments should not be truncated since they are provided by the user
         let content = match mime_type {
-            Some(mime_type) => AttachmentContent::Image(Image::new_bytes(
-                self.infra.file_read_service().read(&path).await?,
-                mime_type,
-            )),
-            None => AttachmentContent::FileContent(
-                self.infra.file_read_service().read_utf8(&path).await?,
-            ),
+            Some(mime_type) => {
+                AttachmentContent::Image(Image::new_bytes(self.infra.read(&path).await?, mime_type))
+            }
+            None => AttachmentContent::FileContent(self.infra.read_utf8(&path).await?),
         };
 
         Ok(Attachment { content, path: path.to_string_lossy().to_string() })
@@ -68,7 +60,7 @@ impl<F: Infrastructure> ForgeChatRequest<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> AttachmentService for ForgeChatRequest<F> {
+impl<F: FileReaderInfra + EnvironmentInfra> AttachmentService for ForgeChatRequest<F> {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.prepare_attachments(Attachment::parse_all(url)).await
     }
@@ -83,7 +75,7 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_app::{AttachmentService, EnvironmentService};
+    use forge_app::AttachmentService;
     use forge_domain::{
         AttachmentContent, CommandOutput, Environment, ForgeKey, Provider, ProviderUrl, Response,
         RetryConfig, ToolDefinition, ToolName, ToolOutput,
@@ -94,16 +86,16 @@ pub mod tests {
     use crate::attachment::ForgeChatRequest;
     use crate::utils::AttachmentExtension;
     use crate::{
-        CommandExecutorService, FileRemoveService, FsCreateDirsService, FsMetaService,
-        FsReadService, FsSnapshotService, FsWriteService, HttpService, Infrastructure,
-        InquireService, McpClient, McpServer, ProviderService,
+        CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, SnapshotInfra,
+        UserInfra,
     };
 
     #[derive(Debug)]
-    pub struct MockEnvironmentService {}
+    pub struct MockEnvironmentInfra {}
 
     #[async_trait::async_trait]
-    impl EnvironmentService for MockEnvironmentService {
+    impl EnvironmentInfra for MockEnvironmentInfra {
         fn get_environment(&self) -> Environment {
             Environment {
                 os: "test".to_string(),
@@ -125,7 +117,7 @@ pub mod tests {
     }
 
     impl MockFileService {
-        fn new() -> Self {
+        pub fn new() -> Self {
             let mut files = HashMap::new();
             // Add some mock files
             files.insert(
@@ -158,7 +150,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl FsReadService for MockFileService {
+    impl FileReaderInfra for MockFileService {
         async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
             let files = self.files.lock().unwrap();
             match files.iter().find(|v| v.0 == path) {
@@ -198,30 +190,13 @@ pub mod tests {
         }
     }
 
-    #[derive(Debug, Clone)]
-    pub struct MockInfrastructure {
-        env_service: Arc<MockEnvironmentService>,
-        pub file_service: Arc<MockFileService>,
-        file_snapshot_service: Arc<MockSnapService>,
-    }
-
-    impl MockInfrastructure {
-        pub fn new() -> Self {
-            Self {
-                env_service: Arc::new(MockEnvironmentService {}),
-                file_service: Arc::new(MockFileService::new()),
-                file_snapshot_service: Arc::new(MockSnapService),
-            }
-        }
-    }
-
     #[derive(Debug)]
     pub struct MockFileService {
         files: Mutex<Vec<(PathBuf, Bytes)>>,
     }
 
     #[async_trait::async_trait]
-    impl FileRemoveService for MockFileService {
+    impl FileRemoverInfra for MockFileService {
         async fn remove(&self, path: &Path) -> anyhow::Result<()> {
             if !self.exists(path).await? {
                 return Err(anyhow::anyhow!("File not found: {:?}", path));
@@ -232,7 +207,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl FsCreateDirsService for MockFileService {
+    impl FileDirectoryInfra for MockFileService {
         async fn create_dirs(&self, path: &Path) -> anyhow::Result<()> {
             self.files
                 .lock()
@@ -243,7 +218,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl FsWriteService for MockFileService {
+    impl FileWriterInfra for MockFileService {
         async fn write(
             &self,
             path: &Path,
@@ -275,7 +250,7 @@ pub mod tests {
     pub struct MockSnapService;
 
     #[async_trait::async_trait]
-    impl FsSnapshotService for MockSnapService {
+    impl SnapshotInfra for MockSnapService {
         async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
             unimplemented!()
         }
@@ -286,7 +261,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl FsMetaService for MockFileService {
+    impl FileInfoInfra for MockFileService {
         async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
             Ok(self
                 .files
@@ -312,7 +287,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl McpClient for () {
+    impl McpClientInfra for () {
         async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
             Ok(vec![])
         }
@@ -323,7 +298,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl McpServer for () {
+    impl McpServerInfra for () {
         type Client = ();
 
         async fn connect(&self, _: forge_domain::McpServerConfig) -> anyhow::Result<Self::Client> {
@@ -332,7 +307,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl CommandExecutorService for () {
+    impl CommandInfra for () {
         async fn execute_command(
             &self,
             command: String,
@@ -456,7 +431,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl InquireService for () {
+    impl UserInfra for () {
         /// Prompts the user with question
         async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
             // For testing, we can just return the question as the answer
@@ -490,104 +465,59 @@ pub mod tests {
         }
     }
 
+    // Create a composite mock service that implements the required traits
+    #[derive(Debug, Clone)]
+    pub struct MockCompositeService {
+        file_service: Arc<MockFileService>,
+        env_service: Arc<MockEnvironmentInfra>,
+    }
+
+    impl MockCompositeService {
+        pub fn new() -> Self {
+            Self {
+                file_service: Arc::new(MockFileService::new()),
+                env_service: Arc::new(MockEnvironmentInfra {}),
+            }
+        }
+
+        pub fn add_file(&self, path: PathBuf, content: String) {
+            self.file_service.add_file(path, content);
+        }
+    }
+
     #[async_trait::async_trait]
-    impl HttpService for () {
-        async fn get(&self, _: &str) -> anyhow::Result<Response<Bytes>> {
-            unimplemented!()
+    impl FileReaderInfra for MockCompositeService {
+        async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
+            self.file_service.read_utf8(path).await
         }
 
-        async fn post(&self, _: &str, _: Bytes) -> anyhow::Result<Response<Bytes>> {
-            unimplemented!()
+        async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
+            self.file_service.read(path).await
         }
 
-        async fn delete(&self, _: &str) -> anyhow::Result<Response<Bytes>> {
-            unimplemented!()
-        }
-
-        async fn poll<T, F>(&self, _: RetryConfig, _: impl Fn() -> F + Send) -> anyhow::Result<T>
-        where
-            F: Future<Output = anyhow::Result<T>> + Send,
-        {
-            unimplemented!()
-        }
-    }
-
-    impl ProviderService for () {
-        fn get(&self, _: Option<ForgeKey>) -> Option<Provider> {
-            unimplemented!()
-        }
-
-        fn provider_url(&self) -> Option<ProviderUrl> {
-            None
+        async fn range_read_utf8(
+            &self,
+            path: &Path,
+            start_line: u64,
+            end_line: u64,
+        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+            self.file_service
+                .range_read_utf8(path, start_line, end_line)
+                .await
         }
     }
 
-    impl Infrastructure for MockInfrastructure {
-        type EnvironmentService = MockEnvironmentService;
-        type FsReadService = MockFileService;
-        type FsWriteService = MockFileService;
-        type FsRemoveService = MockFileService;
-        type FsMetaService = MockFileService;
-        type FsCreateDirsService = MockFileService;
-        type FsSnapshotService = MockSnapService;
-        type CommandExecutorService = ();
-        type InquireService = ();
-        type McpServer = ();
-        type HttpService = ();
-        type ProviderService = ();
-
-        fn environment_service(&self) -> &Self::EnvironmentService {
-            &self.env_service
-        }
-
-        fn file_read_service(&self) -> &Self::FsReadService {
-            &self.file_service
-        }
-
-        fn file_write_service(&self) -> &Self::FsWriteService {
-            &self.file_service
-        }
-
-        fn file_meta_service(&self) -> &Self::FsMetaService {
-            &self.file_service
-        }
-
-        fn file_snapshot_service(&self) -> &Self::FsSnapshotService {
-            &self.file_snapshot_service
-        }
-
-        fn file_remove_service(&self) -> &Self::FsRemoveService {
-            &self.file_service
-        }
-
-        fn create_dirs_service(&self) -> &Self::FsCreateDirsService {
-            &self.file_service
-        }
-
-        fn command_executor_service(&self) -> &Self::CommandExecutorService {
-            &()
-        }
-
-        fn inquire_service(&self) -> &Self::InquireService {
-            &()
-        }
-
-        fn mcp_server(&self) -> &Self::McpServer {
-            &()
-        }
-
-        fn http_service(&self) -> &Self::HttpService {
-            &()
-        }
-        fn provider_service(&self) -> &Self::ProviderService {
-            &()
+    #[async_trait::async_trait]
+    impl EnvironmentInfra for MockCompositeService {
+        fn get_environment(&self) -> Environment {
+            self.env_service.get_environment()
         }
     }
 
     #[tokio::test]
     async fn test_add_url_with_text_file() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with a text file path in chat message
@@ -609,7 +539,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_image() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an image file
@@ -636,7 +566,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_jpg_image_with_spaces() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an image file that has spaces in the path
@@ -662,10 +592,10 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_multiple_files() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
 
         // Add an extra file to our mock service
-        infra.file_service.add_file(
+        infra.add_file(
             PathBuf::from("/test/file2.txt"),
             "This is another text file".to_string(),
         );
@@ -701,7 +631,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_nonexistent_file() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with a file that doesn't exist
@@ -718,7 +648,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_empty() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
         let chat_request = ForgeChatRequest::new(infra.clone());
 
         // Test with an empty message
@@ -734,10 +664,10 @@ pub mod tests {
     #[tokio::test]
     async fn test_add_url_with_unsupported_extension() {
         // Setup
-        let infra = Arc::new(MockInfrastructure::new());
+        let infra = Arc::new(MockCompositeService::new());
 
         // Add a file with unsupported extension
-        infra.file_service.add_file(
+        infra.add_file(
             PathBuf::from("/test/unknown.xyz"),
             "Some content".to_string(),
         );

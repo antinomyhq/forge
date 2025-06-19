@@ -1,15 +1,15 @@
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
-use forge_app::EnvironmentService;
 use forge_domain::{Environment, RetryConfig};
+use forge_services::EnvironmentInfra;
 
-pub struct ForgeEnvironmentService {
+pub struct ForgeEnvironmentInfra {
     restricted: bool,
     is_env_loaded: RwLock<bool>,
 }
 
-impl ForgeEnvironmentService {
+impl ForgeEnvironmentInfra {
     /// Creates a new EnvironmentFactory with current working directory
     ///
     /// # Arguments
@@ -147,7 +147,7 @@ impl ForgeEnvironmentService {
     }
 }
 
-impl EnvironmentService for ForgeEnvironmentService {
+impl EnvironmentInfra for ForgeEnvironmentInfra {
     fn get_environment(&self) -> Environment {
         self.get()
     }
@@ -181,7 +181,7 @@ mod tests {
     fn test_load_all_single_env() {
         let (_root, cwd) = setup_envs(vec![("", "TEST_KEY1=VALUE1")]);
 
-        ForgeEnvironmentService::dot_env(&cwd);
+        ForgeEnvironmentInfra::dot_env(&cwd);
 
         assert_eq!(env::var("TEST_KEY1").unwrap(), "VALUE1");
     }
@@ -190,7 +190,7 @@ mod tests {
     fn test_load_all_nested_envs_override() {
         let (_root, cwd) = setup_envs(vec![("a/b", "TEST_KEY2=SUB"), ("a", "TEST_KEY2=ROOT")]);
 
-        ForgeEnvironmentService::dot_env(&cwd);
+        ForgeEnvironmentInfra::dot_env(&cwd);
 
         assert_eq!(env::var("TEST_KEY2").unwrap(), "SUB");
     }
@@ -202,7 +202,7 @@ mod tests {
             ("a", "ROOT_KEY3=ROOT_VAL"),
         ]);
 
-        ForgeEnvironmentService::dot_env(&cwd);
+        ForgeEnvironmentInfra::dot_env(&cwd);
 
         assert_eq!(env::var("ROOT_KEY3").unwrap(), "ROOT_VAL");
         assert_eq!(env::var("SUB_KEY3").unwrap(), "SUB_VAL");
@@ -217,7 +217,7 @@ mod tests {
 
         env::set_var("TEST_KEY4", "STD_ENV_VAL");
 
-        ForgeEnvironmentService::dot_env(&cwd);
+        ForgeEnvironmentInfra::dot_env(&cwd);
 
         assert_eq!(env::var("TEST_KEY4").unwrap(), "STD_ENV_VAL");
     }
@@ -226,7 +226,7 @@ mod tests {
     fn test_custom_scenario() {
         let (_root, cwd) = setup_envs(vec![("a/b", "A1=1\nB1=2"), ("a", "A1=2\nC1=3")]);
 
-        ForgeEnvironmentService::dot_env(&cwd);
+        ForgeEnvironmentInfra::dot_env(&cwd);
 
         assert_eq!(env::var("A1").unwrap(), "1");
         assert_eq!(env::var("B1").unwrap(), "2");
@@ -239,7 +239,7 @@ mod tests {
 
         env::set_var("A2", "STD_ENV");
 
-        ForgeEnvironmentService::dot_env(&cwd);
+        ForgeEnvironmentInfra::dot_env(&cwd);
 
         assert_eq!(env::var("A2").unwrap(), "STD_ENV");
     }
@@ -255,7 +255,7 @@ mod tests {
             env::remove_var("FORGE_RETRY_STATUS_CODES");
 
             // Verify that the environment service uses the same default as RetryConfig
-            let env_service = ForgeEnvironmentService::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false);
             let retry_config_from_env = env_service.resolve_retry_config();
             let default_retry_config = RetryConfig::default();
 
@@ -297,7 +297,7 @@ mod tests {
             env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "5");
             env::set_var("FORGE_RETRY_STATUS_CODES", "429,500,502");
 
-            let env_service = ForgeEnvironmentService::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false);
             let config = env_service.resolve_retry_config();
 
             assert_eq!(config.initial_backoff_ms, 500);
@@ -324,7 +324,7 @@ mod tests {
             env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "10");
             env::set_var("FORGE_RETRY_STATUS_CODES", "503,504");
 
-            let env_service = ForgeEnvironmentService::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false);
             let config = env_service.resolve_retry_config();
             let default_config = RetryConfig::default();
 
@@ -355,7 +355,7 @@ mod tests {
             env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "abc");
             env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes,here");
 
-            let env_service = ForgeEnvironmentService::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false);
             let config = env_service.resolve_retry_config();
             let default_config = RetryConfig::default();
 

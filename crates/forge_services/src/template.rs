@@ -2,13 +2,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{EnvironmentService, TemplateService};
+use forge_app::TemplateService;
 use futures::future;
 use handlebars::{no_escape, Handlebars};
 use rust_embed::Embed;
 use tokio::sync::RwLock;
 
-use crate::{FsReadService, Infrastructure};
+use crate::{EnvironmentInfra, FileReaderInfra};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -20,7 +20,7 @@ pub struct ForgeTemplateService<F> {
     infra: Arc<F>,
 }
 
-impl<F: Infrastructure> ForgeTemplateService<F> {
+impl<F: EnvironmentInfra + FileReaderInfra> ForgeTemplateService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let mut hb = Handlebars::new();
         hb.set_strict_mode(true);
@@ -50,11 +50,7 @@ impl<F: Infrastructure> ForgeTemplateService<F> {
                 .with_context(|| format!("Invalid filename: {}", template_path.display()))?
                 .to_string();
             let template_path = cwd.join(template_path.clone());
-            let content = self
-                .infra
-                .file_read_service()
-                .read_utf8(&template_path)
-                .await?;
+            let content = self.infra.read_utf8(&template_path).await?;
             Ok::<_, anyhow::Error>((template_name, content))
         });
 
@@ -85,9 +81,9 @@ fn compile_template(name: &str, content: &str) -> anyhow::Result<handlebars::tem
 }
 
 #[async_trait::async_trait]
-impl<F: Infrastructure> TemplateService for ForgeTemplateService<F> {
+impl<F: EnvironmentInfra + FileReaderInfra> TemplateService for ForgeTemplateService<F> {
     async fn register_template(&self, path: PathBuf) -> anyhow::Result<()> {
-        let cwd = &self.infra.environment_service().get_environment().cwd;
+        let cwd = &self.infra.get_environment().cwd;
 
         // Discover and filter unregistered templates in one pass
         let guard = self.hb.read().await;
@@ -124,7 +120,7 @@ impl<F: Infrastructure> TemplateService for ForgeTemplateService<F> {
         Ok(())
     }
 
-    async fn render(
+    async fn render_template(
         &self,
         template: impl ToString + Send,
         object: &(impl serde::Serialize + Sync),
@@ -141,12 +137,12 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::attachment::tests::MockInfrastructure;
+    use crate::attachment::tests::MockCompositeService;
 
     #[tokio::test]
     async fn test_render_simple_template() {
         // Fixture: Create template service and data
-        let service = ForgeTemplateService::new(Arc::new(MockInfrastructure::new()));
+        let service = ForgeTemplateService::new(Arc::new(MockCompositeService::new()));
         let data = json!({
             "name": "Forge",
             "version": "1.0",
@@ -155,7 +151,7 @@ mod tests {
 
         // Actual: Render a simple template
         let template = "App: {{name}} v{{version}} - Features: {{#each features}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}";
-        let actual = service.render(template, &data).await.unwrap();
+        let actual = service.render_template(template, &data).await.unwrap();
 
         // Expected: Result should match the expected string
         let expected = "App: Forge v1.0 - Features: templates, rendering, handlebars";
@@ -165,7 +161,7 @@ mod tests {
     #[tokio::test]
     async fn test_render_partial_system_info() {
         // Fixture: Create template service and data
-        let service = ForgeTemplateService::new(Arc::new(MockInfrastructure::new()));
+        let service = ForgeTemplateService::new(Arc::new(MockCompositeService::new()));
         let data = json!({
             "env": {
                 "os": "test-os",
@@ -182,7 +178,7 @@ mod tests {
 
         // Actual: Render the partial-system-info template
         let actual = service
-            .render("{{> forge-partial-system-info.hbs }}", &data)
+            .render_template("{{> forge-partial-system-info.hbs }}", &data)
             .await
             .unwrap();
 
@@ -295,7 +291,7 @@ mod tests {
         use std::path::Path;
 
         // Fixture: Create service and empty file list
-        let service = ForgeTemplateService::new(Arc::new(MockInfrastructure::new()));
+        let service = ForgeTemplateService::new(Arc::new(MockCompositeService::new()));
         let file_paths: Vec<PathBuf> = vec![];
         let temp_path = Path::new("/tmp");
 

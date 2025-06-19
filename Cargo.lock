@@ -1142,6 +1142,7 @@ dependencies = [
  "chrono",
  "clap",
  "colored 3.0.0",
+ "console",
  "convert_case",
  "derive_setters",
  "forge_api",

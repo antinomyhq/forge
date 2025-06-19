@@ -17,7 +17,7 @@ use crate::{
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the
 /// ForgeAPI chat method.
-pub struct ForgeApp<S: Services> {
+pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
 }
@@ -38,7 +38,6 @@ impl<S: Services> ForgeApp<S> {
 
         // Get the conversation for the chat request
         let conversation = services
-            .conversation_service()
             .find(&chat.conversation_id)
             .await
             .unwrap_or_default()
@@ -46,17 +45,14 @@ impl<S: Services> ForgeApp<S> {
 
         // Get tool definitions and models
         let tool_definitions = self.tool_registry.list().await?;
-        let models = services.chat_service().models().await?;
+        let models = services.models().await?;
 
         // Discover files using the discovery service
-        let workflow = services
-            .workflow_service()
-            .read(None)
+        let workflow = WorkflowService::read_workflow(services.as_ref(), None)
             .await
             .unwrap_or_default();
         let max_depth = workflow.max_walker_depth;
         let files = services
-            .file_discovery_service()
             .collect(max_depth)
             .await?
             .into_iter()
@@ -64,7 +60,7 @@ impl<S: Services> ForgeApp<S> {
             .collect::<Vec<_>>();
 
         // Get environment for orchestrator creation
-        let environment = services.environment_service().get_environment();
+        let environment = services.get_environment();
 
         // Register templates using workflow path or environment fallback
         let template_path = workflow
@@ -73,16 +69,10 @@ impl<S: Services> ForgeApp<S> {
                 PathBuf::from(templates)
             });
 
-        services
-            .template_service()
-            .register_template(template_path)
-            .await?;
+        services.register_template(template_path).await?;
 
         // Always try to get attachments and overwrite them
-        let attachments = services
-            .attachment_service()
-            .attachments(&chat.event.value.to_string())
-            .await?;
+        let attachments = services.attachments(&chat.event.value.to_string()).await?;
         chat.event = chat.event.attachments(attachments);
 
         // Create the orchestrator with all necessary dependencies
@@ -108,7 +98,7 @@ impl<S: Services> ForgeApp<S> {
 
                     // Always save conversation using get_conversation()
                     let conversation = orch.get_conversation().clone();
-                    let save_result = services.conversation_service().upsert(conversation).await;
+                    let save_result = services.upsert(conversation).await;
 
                     // Send any error to the stream (prioritize dispatch error over save error)
                     #[allow(clippy::collapsible_if)]
@@ -136,7 +126,6 @@ impl<S: Services> ForgeApp<S> {
         // Get the conversation
         let mut conversation = self
             .services
-            .conversation_service()
             .find(conversation_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", conversation_id))?;
@@ -152,8 +141,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Calculate original metrics
         let original_messages = context.messages.len();
-        let original_text = context.to_text();
-        let original_tokens = estimate_token_count(original_text.len());
+        let original_tokens = context.token_count();
 
         // Find the main agent (first agent in the conversation)
         // In most cases, there should be a primary agent for compaction
@@ -163,35 +151,20 @@ impl<S: Services> ForgeApp<S> {
             .ok_or_else(|| anyhow::anyhow!("No agents found in conversation"))?
             .clone();
 
-        // Check if the agent has compaction configured
-        if agent.compact.is_none() {
-            // No compaction configured, return original metrics as both original and
-            // compacted
-            return Ok(CompactionResult::new(
-                original_tokens,
-                original_tokens,
-                original_messages,
-                original_messages,
-            ));
-        }
-
         // Apply compaction using the Compactor
         let compactor = Compactor::new(self.services.clone());
-        let compacted_context = compactor.compact_context(&agent, context).await?;
+
+        let compacted_context = compactor.compact(&agent, context, true).await?;
 
         // Calculate compacted metrics
         let compacted_messages = compacted_context.messages.len();
-        let compacted_text = compacted_context.to_text();
-        let compacted_tokens = estimate_token_count(compacted_text.len());
+        let compacted_tokens = compacted_context.token_count();
 
         // Update the conversation with the compacted context
         conversation.context = Some(compacted_context);
 
         // Save the updated conversation
-        self.services
-            .conversation_service()
-            .upsert(conversation)
-            .await?;
+        self.services.upsert(conversation).await?;
 
         // Return the compaction metrics
         Ok(CompactionResult::new(
@@ -201,6 +174,7 @@ impl<S: Services> ForgeApp<S> {
             compacted_messages,
         ))
     }
+
     pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
         self.tool_registry.list().await
     }

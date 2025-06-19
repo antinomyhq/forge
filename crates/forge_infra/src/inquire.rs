@@ -1,5 +1,5 @@
 use anyhow::Result;
-use forge_services::InquireService;
+use forge_services::UserInfra;
 use inquire::ui::{RenderConfig, Styled};
 use inquire::{InquireError, MultiSelect, Select, Text};
 
@@ -39,7 +39,7 @@ impl ForgeInquire {
 }
 
 #[async_trait::async_trait]
-impl InquireService for ForgeInquire {
+impl UserInfra for ForgeInquire {
     async fn prompt_question(&self, question: &str) -> Result<Option<String>> {
         let question = question.to_string();
         self.prompt(move || {

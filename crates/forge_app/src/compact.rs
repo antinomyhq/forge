@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    Agent, ChatCompletionMessage, ChatCompletionMessageFull, Compact, Context, ContextMessage,
-    ResultStreamExt, extract_tag_content, find_compact_sequence,
+    Agent, ChatCompletionMessage, ChatCompletionMessageFull, Compact, CompactionStrategy, Context,
+    ContextMessage, ResultStreamExt, extract_tag_content,
 };
 use futures::Stream;
 use tracing::{debug, info};
@@ -20,18 +20,25 @@ impl<S: AgentService> Compactor<S> {
     }
 
     /// Apply compaction to the context if requested.
-    pub async fn compact_context(
+    pub async fn compact(
         &self,
         agent: &Agent,
         context: Context,
+        max: bool,
     ) -> anyhow::Result<Context> {
         if let Some(ref compact) = agent.compact {
             debug!(agent_id = %agent.id, "Context compaction triggered");
 
-            match find_compact_sequence(&context, compact.retention_window)
-                .into_iter()
-                .next()
-            {
+            let eviction = CompactionStrategy::evict(compact.eviction_window);
+            let retention = CompactionStrategy::retain(compact.retention_window);
+
+            let strategy = if max {
+                retention
+            } else {
+                eviction.min(retention)
+            };
+
+            match strategy.eviction_range(&context) {
                 Some(sequence) => {
                     debug!(agent_id = %agent.id, "Compressing sequence");
                     self.compress_single_sequence(compact, context, sequence)
@@ -120,7 +127,7 @@ impl<S: AgentService> Compactor<S> {
             context = context.max_tokens(max_token);
         }
 
-        let response = self.services.chat(&compact.model, context).await?;
+        let response = self.services.chat_agent(&compact.model, context).await?;
 
         self.collect_completion_stream_content(compact, response)
             .await

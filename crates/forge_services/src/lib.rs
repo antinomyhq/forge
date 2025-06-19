@@ -5,6 +5,7 @@ mod clipper;
 mod config;
 mod conversation;
 mod discovery;
+mod env;
 mod forge_services;
 mod infra;
 mod key;

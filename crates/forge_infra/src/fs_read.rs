@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Result;
-use forge_services::FsReadService;
+use forge_services::FileReaderInfra;
 
 pub struct ForgeFileReadService;
 
@@ -18,7 +18,7 @@ impl ForgeFileReadService {
 }
 
 #[async_trait::async_trait]
-impl FsReadService for ForgeFileReadService {
+impl FileReaderInfra for ForgeFileReadService {
     async fn read_utf8(&self, path: &Path) -> Result<String> {
         forge_fs::ForgeFS::read_utf8(path).await
     }
