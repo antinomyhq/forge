@@ -6,7 +6,6 @@ mod chat_response;
 mod compact;
 mod compaction_result;
 mod compaction_strategy;
-mod config;
 mod context;
 mod conversation;
 mod conversation_html;
