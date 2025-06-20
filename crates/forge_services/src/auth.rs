@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use anyhow::bail;
+use anyhow::{bail, Context};
 use forge_app::{AuthService, KeyService};
-use forge_domain::{InitAuth, Provider, ProviderUrl, RetryConfig};
+use forge_domain::{ForgeKey, InitAuth, Provider, ProviderUrl, RetryConfig};
 
 use crate::{HttpInfra, ProviderInfra};
 
@@ -61,12 +61,14 @@ impl<I: ProviderInfra + HttpInfra, K: KeyService> ForgeAuthService<I, K> {
         );
 
         let response = self.infra.get(&url).await?;
+        let key = serde_json::from_slice::<serde_json::Value>(&response.body)?;
         match response.status.as_u16() {
-            200 => {
-                self.key_service
-                    .set(serde_json::from_slice(&response.body)?)
-                    .await
-            }
+            200 => self.key_service.set(ForgeKey::from(
+                key.get("apiKey")
+                    .and_then(|v| v.as_str())
+                    .map(|v| v.to_string())
+                    .context("Key not found in response")?,
+            )).await,
             202 => bail!("Login timeout"),
             _ => bail!("Failed to log in"),
         }

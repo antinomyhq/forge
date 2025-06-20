@@ -9,7 +9,7 @@ pub struct ForgeProviderService;
 impl ProviderInfra for ForgeProviderService {
     fn get_provider_infra(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
         if let Some(forge_key) = forge_key {
-            let provider = Provider::antinomy(&forge_key.key);
+            let provider = Provider::antinomy(forge_key.as_str());
             return Some(override_url(provider, self.provider_url()));
         }
         resolve_env_provider(self.provider_url())

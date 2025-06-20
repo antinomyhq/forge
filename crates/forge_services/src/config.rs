@@ -16,14 +16,14 @@ impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> ForgeConfigService
     }
     async fn read(&self) -> anyhow::Result<ForgeConfig> {
         let env = self.infra.get_environment();
-        let config = self.infra.read(env.forge_config().as_path()).await?;
+        let config = self.infra.read(env.global_config().as_path()).await?;
         Ok(serde_json::from_slice(&config)?)
     }
     async fn write(&self, config: &ForgeConfig) -> anyhow::Result<()> {
         let env = self.infra.get_environment();
         self.infra
             .write(
-                env.forge_config().as_path(),
+                env.global_config().as_path(),
                 Bytes::from(serde_json::to_vec(config)?),
                 false,
             )
