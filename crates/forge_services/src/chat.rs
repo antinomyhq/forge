@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use crate::{EnvironmentInfra, ProviderInfra};
 use anyhow::{Context, Result};
-use forge_app::{ChatService, EnvironmentService, KeyService};
+use forge_app::{ChatService, KeyService};
 use forge_domain::{
     ChatCompletionMessage, Context as ChatContext, ForgeKey, HttpConfig, Model, ModelId, Provider,
     ResultStream, RetryConfig,
@@ -9,10 +10,8 @@ use forge_domain::{
 use forge_provider::Client;
 use tokio::sync::RwLock;
 
-use crate::{Infrastructure, ProviderService};
-
 #[derive(Clone)]
-pub struct ForgeProviderService<I, K> {
+pub struct ForgeChatService<I, K> {
     infra: Arc<I>,
     key_service: Arc<K>,
     retry_config: Arc<RetryConfig>,
@@ -21,9 +20,9 @@ pub struct ForgeProviderService<I, K> {
     timeout_config: HttpConfig,
 }
 
-impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
+impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ForgeChatService<I, K> {
     pub fn new(infra: Arc<I>, key_service: Arc<K>) -> Self {
-        let env = infra.environment_service().get_environment();
+        let env = infra.get_environment();
         let version = env.version();
         let retry_config = Arc::new(env.retry_config);
         Self {
@@ -47,8 +46,7 @@ impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
         let key = self.key().await?;
 
         self.infra
-            .provider_service()
-            .get(Some(key))
+            .get_provider_infra(Some(key))
             .context("User isn't logged in")
     }
 
@@ -80,7 +78,9 @@ impl<K: KeyService, I: Infrastructure> ForgeProviderService<I, K> {
 }
 
 #[async_trait::async_trait]
-impl<K: KeyService, I: Infrastructure> ChatService for ForgeProviderService<I, K> {
+impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ChatService
+    for ForgeChatService<I, K>
+{
     async fn chat(
         &self,
         model: &ModelId,

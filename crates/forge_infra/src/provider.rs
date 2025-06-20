@@ -1,13 +1,13 @@
 use forge_domain::{ForgeKey, Provider, ProviderUrl};
-use forge_services::ProviderService;
+use forge_services::ProviderInfra;
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
 
 #[derive(Clone)]
 pub struct ForgeProviderService;
 
-impl ProviderService for ForgeProviderService {
-    fn get(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
+impl ProviderInfra for ForgeProviderService {
+    fn get_provider_infra(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
         if let Some(forge_key) = forge_key {
             let provider = Provider::antinomy(&forge_key.key);
             return Some(override_url(provider, self.provider_url()));

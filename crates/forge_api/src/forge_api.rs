@@ -2,10 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::{
-    AuthService, ChatService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, KeyService, McpConfigManager, Services, WorkflowService,
-};
+use forge_app::{AuthService, ChatService, ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, KeyService, McpConfigManager, ProviderService, Services, WorkflowService};
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::{CommandInfra, ForgeServices};
@@ -147,9 +144,8 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         self.app.key_service().get().await
     }
     fn provider(&self, key: Option<ForgeKey>) -> Result<Provider> {
-        self.infra
-            .provider_service()
-            .get(key)
+        self.app
+            .get_provider(key)
             .context("User isn't logged in")
     }
 }

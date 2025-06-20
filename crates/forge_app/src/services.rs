@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, ForgeConfig, ForgeKey, InitAuth, McpConfig, Model, ModelId, PatchOperation,
-    ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    Provider, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 
@@ -292,6 +292,10 @@ pub trait AuthService: Send + Sync {
     async fn logout(&self) -> anyhow::Result<()>;
 }
 
+pub trait ProviderService: Send + Sync {
+    fn get_provider(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -317,6 +321,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AuthService: AuthService;
     type ConfigService: ConfigService;
     type KeyService: KeyService;
+    type ProviderService: ProviderService;
 
     fn chat_service(&self) -> &Self::ChatService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -339,6 +344,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn auth_service(&self) -> &Self::AuthService;
     fn config_service(&self) -> &Self::ConfigService;
     fn key_service(&self) -> &Self::KeyService;
+    fn provider_service(&self) -> &Self::ProviderService;
 }
 
 #[async_trait::async_trait]
@@ -564,5 +570,51 @@ impl<I: Services> ShellService for I {
 impl<I: Services> EnvironmentService for I {
     fn get_environment(&self) -> Environment {
         self.environment_service().get_environment()
+    }
+}
+impl<I: Services> ProviderService for I {
+    fn get_provider(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
+        self.provider_service().get_provider(forge_key)
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> ConfigService for I {
+    async fn read(&self) -> anyhow::Result<ForgeConfig> {
+        self.config_service().read().await
+    }
+
+    async fn write(&self, config: &ForgeConfig) -> anyhow::Result<()> {
+        self.config_service().write(config).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> AuthService for I {
+    async fn init(&self) -> anyhow::Result<InitAuth> {
+        self.auth_service().init().await
+    }
+
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
+        self.auth_service().login(auth).await
+    }
+
+    async fn logout(&self) -> anyhow::Result<()> {
+        self.auth_service().logout().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> KeyService for I {
+    async fn get(&self) -> Option<ForgeKey> {
+        self.key_service().get().await
+    }
+
+    async fn set(&self, key: ForgeKey) -> anyhow::Result<()> {
+        self.key_service().set(key).await
+    }
+
+    async fn delete(&self) -> anyhow::Result<()> {
+        self.key_service().delete().await
     }
 }

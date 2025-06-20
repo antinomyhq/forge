@@ -152,7 +152,7 @@ pub trait McpServerInfra: Send + Sync + 'static {
 
 // TODO: rename me, add Infra suffix
 #[async_trait::async_trait]
-pub trait HttpService: Send + Sync + 'static {
+pub trait HttpInfra: Send + Sync + 'static {
     async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
     async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>>;
     async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
@@ -165,7 +165,7 @@ pub trait HttpService: Send + Sync + 'static {
         F: Future<Output = anyhow::Result<T>> + Send;
 }
 
-pub trait ProviderService: Send + Sync + 'static {
-    fn get(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
+pub trait ProviderInfra: Send + Sync + 'static {
+    fn get_provider_infra(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
     fn provider_url(&self) -> Option<ProviderUrl>;
 }

@@ -4,7 +4,7 @@ use anyhow::bail;
 use forge_app::{AuthService, KeyService};
 use forge_domain::{InitAuth, Provider, ProviderUrl, RetryConfig};
 
-use crate::{HttpService, Infrastructure, ProviderService};
+use crate::{HttpInfra, ProviderInfra};
 
 const TOKEN_POLL_ROUTE: &str = "cli/auth/token/";
 const AUTH_INIT_ROUTE: &str = "cli/auth/init";
@@ -16,7 +16,7 @@ pub struct ForgeAuthService<I, K> {
     key_service: Arc<K>,
 }
 
-impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
+impl<I: ProviderInfra + HttpInfra, K: KeyService> ForgeAuthService<I, K> {
     pub fn new(infra: Arc<I>, key_service: Arc<K>) -> Self {
         Self { infra, key_service }
     }
@@ -24,12 +24,11 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
         let init_url = format!(
             "{}{AUTH_INIT_ROUTE}",
             self.infra
-                .provider_service()
                 .provider_url()
                 .map(ProviderUrl::into_string)
                 .unwrap_or(Provider::ANTINOMY_URL.to_string())
         );
-        let resp = self.infra.http_service().get(&init_url).await?;
+        let resp = self.infra.get(&init_url).await?;
         if !resp.status.is_success() {
             bail!("Failed to initialize auth")
         }
@@ -42,7 +41,6 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
             let url = format!(
                 "{}{AUTH_CANCEL_ROUTE}{}",
                 self.infra
-                    .provider_service()
                     .provider_url()
                     .map(ProviderUrl::into_string)
                     .unwrap_or(Provider::ANTINOMY_URL.to_string()),
@@ -50,20 +48,19 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
             );
 
             // Delete the session if auth is already completed in another session.
-            self.infra.http_service().delete(&url).await?;
+            self.infra.delete(&url).await?;
             return Ok(());
         }
         let url = format!(
             "{}{TOKEN_POLL_ROUTE}{}",
             self.infra
-                .provider_service()
                 .provider_url()
                 .map(ProviderUrl::into_string)
                 .unwrap_or(Provider::ANTINOMY_URL.to_string()),
             auth.session_id
         );
 
-        let response = self.infra.http_service().get(&url).await?;
+        let response = self.infra.get(&url).await?;
         match response.status.as_u16() {
             200 => {
                 self.key_service
@@ -80,14 +77,13 @@ impl<I: Infrastructure, K: KeyService> ForgeAuthService<I, K> {
 }
 
 #[async_trait::async_trait]
-impl<I: Infrastructure, C: KeyService> AuthService for ForgeAuthService<I, C> {
+impl<I: ProviderInfra + HttpInfra, C: KeyService> AuthService for ForgeAuthService<I, C> {
     async fn init(&self) -> anyhow::Result<InitAuth> {
         self.init().await
     }
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
         self.infra
-            .http_service()
             // TODO: Add `when` config to differentiate b/w 202 and other error codes.
             .poll(
                 RetryConfig::default()

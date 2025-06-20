@@ -6,7 +6,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_domain::{CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response, RetryConfig};
 use forge_fs::FileInfo as FileInfoData;
-use forge_services::{CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpService, McpServerInfra, ProviderService, SnapshotInfra, UserInfra};
+use forge_services::{CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderInfra, SnapshotInfra, UserInfra};
 
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -206,7 +206,7 @@ impl McpServerInfra for ForgeInfra {
 }
 
 #[async_trait::async_trait]
-impl HttpService for ForgeInfra {
+impl HttpInfra for ForgeInfra {
     async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
         self.http_service.get(url).await
     }
@@ -231,9 +231,9 @@ impl HttpService for ForgeInfra {
     }
 }
 
-impl ProviderService for ForgeInfra {
-    fn get(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
-        self.provider_service.get(forge_key)
+impl ProviderInfra for ForgeInfra {
+    fn get_provider_infra(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
+        self.provider_service.get_provider_infra(forge_key)
     }
 
     fn provider_url(&self) -> Option<ProviderUrl> {

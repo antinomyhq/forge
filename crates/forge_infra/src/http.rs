@@ -4,7 +4,7 @@ use std::time::Duration;
 use backon::{ExponentialBuilder, Retryable};
 use bytes::Bytes;
 use forge_domain::{Response, RetryConfig};
-use forge_services::HttpService;
+use forge_services::HttpInfra;
 use reqwest::Client;
 
 #[derive(Default)]
@@ -47,7 +47,7 @@ impl ForgeHttpService {
 }
 
 #[async_trait::async_trait]
-impl HttpService for ForgeHttpService {
+impl HttpInfra for ForgeHttpService {
     async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
         self.get(url).await
     }
