@@ -1,17 +1,15 @@
 mod agent;
 mod attachment;
+mod auth;
 mod chat_request;
 mod chat_response;
 mod compact;
 mod compaction_result;
-mod conversation_html;
-mod update;
-
-mod auth;
 mod compaction_strategy;
 mod config;
 mod context;
 mod conversation;
+mod conversation_html;
 mod env;
 mod error;
 mod event;
@@ -45,6 +43,7 @@ mod tools;
 mod top_k;
 mod top_p;
 mod transformer;
+mod update;
 mod workflow;
 mod xml;
 
