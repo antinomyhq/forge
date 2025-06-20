@@ -4,10 +4,11 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response,
-    RetryConfig, ToolDefinition, ToolName, ToolOutput,
+    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, RetryConfig,
+    ToolDefinition, ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
+use reqwest::Response;
 
 pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;
@@ -156,9 +157,9 @@ pub trait McpServerInfra: Send + Sync + 'static {
 // TODO: rename me, add Infra suffix
 #[async_trait::async_trait]
 pub trait HttpInfra: Send + Sync + 'static {
-    async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>>;
-    async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>>;
+    async fn get(&self, url: &str) -> anyhow::Result<Response>;
+    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response>;
+    async fn delete(&self, url: &str) -> anyhow::Result<Response>;
     async fn poll<T, F>(
         &self,
         builder: RetryConfig,

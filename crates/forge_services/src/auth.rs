@@ -29,11 +29,11 @@ impl<I: ProviderInfra + HttpInfra, K: KeyService> ForgeAuthService<I, K> {
                 .unwrap_or(Provider::ANTINOMY_URL.to_string())
         );
         let resp = self.infra.get(&init_url).await?;
-        if !resp.status.is_success() {
+        if !resp.status().is_success() {
             bail!("Failed to initialize auth")
         }
 
-        Ok(serde_json::from_slice(&resp.body)?)
+        Ok(serde_json::from_slice(&resp.bytes().await?)?)
     }
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
@@ -61,14 +61,18 @@ impl<I: ProviderInfra + HttpInfra, K: KeyService> ForgeAuthService<I, K> {
         );
 
         let response = self.infra.get(&url).await?;
-        let key = serde_json::from_slice::<serde_json::Value>(&response.body)?;
-        match response.status.as_u16() {
-            200 => self.key_service.set(ForgeKey::from(
-                key.get("apiKey")
-                    .and_then(|v| v.as_str())
-                    .map(|v| v.to_string())
-                    .context("Key not found in response")?,
-            )).await,
+        match response.status().as_u16() {
+            200 => {
+                self.key_service
+                    .set(ForgeKey::from(
+                        serde_json::from_slice::<serde_json::Value>(&response.bytes().await?)?
+                            .get("apiKey")
+                            .and_then(|v| v.as_str())
+                            .map(|v| v.to_string())
+                            .context("Key not found in response")?,
+                    ))
+                    .await
+            }
             202 => bail!("Login timeout"),
             _ => bail!("Failed to log in"),
         }

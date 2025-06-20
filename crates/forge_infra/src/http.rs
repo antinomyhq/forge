@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use backon::{ExponentialBuilder, Retryable};
 use bytes::Bytes;
-use forge_domain::{Response, RetryConfig};
+use forge_domain::RetryConfig;
 use forge_services::HttpInfra;
-use reqwest::Client;
+use reqwest::{Client, Response};
 
 #[derive(Default)]
 pub struct ForgeHttpService {
@@ -16,47 +16,44 @@ impl ForgeHttpService {
     pub fn new() -> Self {
         Default::default()
     }
-    async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
-        let response = self
+    async fn get(&self, url: &str) -> anyhow::Result<Response> {
+        Ok(self
             .client
             .get(url)
             .header("User-Agent", "Forge")
             .send()
-            .await?;
-        Response::from_reqwest(response).await
+            .await?)
     }
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>> {
-        let response = self
+    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {
+        Ok(self
             .client
             .post(url)
             .header("User-Agent", "Forge")
             .body(body)
             .send()
-            .await?;
-        Response::from_reqwest(response).await
+            .await?)
     }
-    async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
-        let response = self
+    async fn delete(&self, url: &str) -> anyhow::Result<Response> {
+        Ok(self
             .client
             .delete(url)
             .header("User-Agent", "Forge")
             .send()
-            .await?;
-        Response::from_reqwest(response).await
+            .await?)
     }
 }
 
 #[async_trait::async_trait]
 impl HttpInfra for ForgeHttpService {
-    async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
+    async fn get(&self, url: &str) -> anyhow::Result<Response> {
         self.get(url).await
     }
 
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>> {
+    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {
         self.post(url, body).await
     }
 
-    async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
+    async fn delete(&self, url: &str) -> anyhow::Result<Response> {
         self.delete(url).await
     }
 

@@ -4,8 +4,9 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use reqwest::Response;
 use forge_domain::{
-    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response,
+    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl,
     RetryConfig,
 };
 use forge_fs::FileInfo as FileInfoData;
@@ -214,15 +215,15 @@ impl McpServerInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl HttpInfra for ForgeInfra {
-    async fn get(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
+    async fn get(&self, url: &str) -> anyhow::Result<Response> {
         self.http_service.get(url).await
     }
 
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response<Bytes>> {
+    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {
         self.http_service.post(url, body).await
     }
 
-    async fn delete(&self, url: &str) -> anyhow::Result<Response<Bytes>> {
+    async fn delete(&self, url: &str) -> anyhow::Result<Response> {
         self.http_service.delete(url).await
     }
 
