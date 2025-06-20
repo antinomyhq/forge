@@ -3,9 +3,7 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{
-    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl,
-};
+use forge_domain::{CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,

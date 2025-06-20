@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl,
-    ToolDefinition, ToolName, ToolOutput,
+    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, ToolDefinition,
+    ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
 use reqwest::Response;

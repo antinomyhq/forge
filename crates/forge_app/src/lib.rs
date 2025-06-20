@@ -1,6 +1,7 @@
 mod agent;
 mod agent_executor;
 mod app;
+mod authenticator;
 mod compact;
 mod error;
 mod fmt_input;
@@ -14,7 +15,6 @@ mod tool_executor;
 mod tool_registry;
 mod truncation;
 mod utils;
-mod authenticator;
 
 pub use app::*;
 pub use fmt_output::*;

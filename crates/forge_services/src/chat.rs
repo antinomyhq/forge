@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::{ProviderService, KeyService};
+use forge_app::{KeyService, ProviderService};
 use forge_domain::{
     ChatCompletionMessage, Context as ChatContext, ForgeKey, HttpConfig, Model, ModelId, Provider,
     ResultStream, RetryConfig,
@@ -79,7 +79,9 @@ impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ForgeChatService<I, K> 
 }
 
 #[async_trait::async_trait]
-impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ProviderService for ForgeChatService<I, K> {
+impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ProviderService
+    for ForgeChatService<I, K>
+{
     async fn chat(
         &self,
         model: &ModelId,
