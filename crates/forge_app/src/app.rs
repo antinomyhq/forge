@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
@@ -10,10 +10,7 @@ use crate::authenticator::Authenticator;
 use crate::orch::Orchestrator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
-use crate::{
-    AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ProviderService, Services, WorkflowService,
-};
+use crate::{AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, KeyService, ProviderService, Services, WorkflowService};
 
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the
@@ -51,7 +48,8 @@ impl<S: Services> ForgeApp<S> {
 
         // Get tool definitions and models
         let tool_definitions = self.tool_registry.list().await?;
-        let models = services.models().await?;
+        let key = services.get_key().await.context("User not logged in")?;
+        let models = services.models(key).await?;
 
         // Discover files using the discovery service
         let workflow = WorkflowService::read_workflow(services.as_ref(), None)

@@ -44,7 +44,10 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
-        Ok(self.app.models().await?)
+        Ok(self
+            .app
+            .models(self.app.get_key().await.context("User not logged in")?)
+            .await?)
     }
 
     async fn chat(

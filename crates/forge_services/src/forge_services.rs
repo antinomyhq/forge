@@ -4,14 +4,14 @@ use forge_app::Services;
 
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
-use crate::chat::ForgeChatService;
+use crate::provider::ForgeProviderService;
 use crate::config::ForgeConfigService;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::key::ForgeKeyService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
-use crate::provider::ForgeProviderService;
+use crate::provider_registry::ForgeProviderRegistry;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
@@ -36,7 +36,7 @@ type KeyService<F> = ForgeKeyService<ForgeConfigService<F>>;
 ///   environment, file reading, vector indexing, and embedding.
 #[derive(Clone)]
 pub struct ForgeServices<F: McpServerInfra> {
-    chat_service: Arc<ForgeChatService<F, KeyService<F>>>,
+    chat_service: Arc<ForgeProviderService<F>>,
     conversation_service: Arc<ForgeConversationService<McpService<F>>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
@@ -57,7 +57,7 @@ pub struct ForgeServices<F: McpServerInfra> {
     config_service: Arc<ForgeConfigService<F>>,
     auth_service: Arc<AuthService<F>>,
     key_service: Arc<KeyService<F>>,
-    provider_service: Arc<ForgeProviderService<F>>,
+    provider_service: Arc<ForgeProviderRegistry<F>>,
 }
 
 impl<
@@ -85,7 +85,7 @@ impl<
         let key_service = Arc::new(ForgeKeyService::new(config_service.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
 
-        let chat_service = Arc::new(ForgeChatService::new(infra.clone(), key_service.clone()));
+        let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
         let file_search_service = Arc::new(ForgeFsSearch::new());
@@ -95,7 +95,7 @@ impl<
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
-        let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
+        let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra));
         Self {
             conversation_service,
@@ -140,7 +140,7 @@ impl<
             + Clone,
     > Services for ForgeServices<F>
 {
-    type ProviderService = ForgeChatService<F, Self::KeyService>;
+    type ProviderService = ForgeProviderService<F>;
     type ConversationService = ForgeConversationService<McpService<F>>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
@@ -161,7 +161,7 @@ impl<
     type ConfigService = ForgeConfigService<F>;
     type AuthService = AuthService<F>;
     type KeyService = KeyService<F>;
-    type ProviderRegistry = ForgeProviderService<F>;
+    type ProviderRegistry = ForgeProviderRegistry<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
