@@ -4,13 +4,13 @@ use forge_app::Services;
 
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
-use crate::provider::ForgeProviderService;
 use crate::config::ForgeConfigService;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::key::ForgeKeyService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
+use crate::provider::ForgeProviderService;
 use crate::provider_registry::ForgeProviderRegistry;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{

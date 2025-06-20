@@ -1,9 +1,10 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use forge_domain::{
     Agent, ChatCompletionMessage, Context, Conversation, ModelId, ResultStream, ToolCallContext,
     ToolCallFull, ToolResult,
 };
-use std::sync::Arc;
 
 use crate::tool_registry::ToolRegistry;
 use crate::{ConversationService, KeyService, ProviderService, Services, TemplateService};
