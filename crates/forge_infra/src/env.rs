@@ -1,12 +1,13 @@
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use forge_domain::{Environment, RetryConfig};
 use forge_services::EnvironmentInfra;
 
+#[derive(Clone)]
 pub struct ForgeEnvironmentInfra {
     restricted: bool,
-    is_env_loaded: RwLock<bool>,
+    is_env_loaded: Arc<RwLock<bool>>,
 }
 
 impl ForgeEnvironmentInfra {

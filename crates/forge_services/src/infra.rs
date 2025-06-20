@@ -162,7 +162,7 @@ pub trait HttpInfra: Send + Sync + 'static {
     async fn delete(&self, url: &str) -> anyhow::Result<Response>;
 }
 
-pub trait ProviderInfra: Send + Sync + 'static {
+pub trait ProviderInfra: Send + Sync {
     fn get_provider_infra(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
     fn provider_url(&self) -> Option<ProviderUrl>;
 }

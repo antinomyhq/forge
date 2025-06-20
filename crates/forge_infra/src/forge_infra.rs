@@ -24,7 +24,7 @@ use crate::http::ForgeHttpService;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
-use crate::provider::ForgeProviderService;
+use crate::provider::ForgeProviderInfra;
 
 #[derive(Clone)]
 pub struct ForgeInfra {
@@ -39,7 +39,7 @@ pub struct ForgeInfra {
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     http_service: Arc<ForgeHttpService>,
-    provider_service: ForgeProviderService,
+    provider_service: ForgeProviderInfra<ForgeEnvironmentInfra>,
 }
 
 impl ForgeInfra {
@@ -48,6 +48,7 @@ impl ForgeInfra {
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let http_service = Arc::new(ForgeHttpService::new());
+        let provider_service = ForgeProviderInfra::new(environment_service.clone());
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -65,7 +66,7 @@ impl ForgeInfra {
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
             http_service,
-            provider_service: ForgeProviderService,
+            provider_service,
         }
     }
 }
