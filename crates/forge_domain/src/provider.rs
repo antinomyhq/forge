@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum ProviderUrl {
     OpenAI(String),
     Anthropic(String),

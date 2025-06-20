@@ -10,7 +10,7 @@ use forge_api::{
     Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{ForgeKey, McpConfig, McpServerConfig, Provider, Scope};
+use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -595,21 +595,18 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         Ok(workflow)
     }
     async fn init_provider(&mut self) -> Result<Provider> {
-        match self.api.provider(None) {
-            // Use a key if it's available in the environment.
-            Ok(provider) => Ok(provider),
-            Err(_) => match self.api.api_key().await {
-                // Use the forge key if available in the config.
-                Some(forge_key) => self.api.provider(Some(forge_key)),
-                None => {
-                    // If no key is available, start the login flow.
-                    let key = self.login().await?;
-                    self.api.provider(Some(key))
-                }
-            },
+        match self.api.provider().await? {
+            // Use the forge key if available in the config.
+            Some(provider) => Ok(provider),
+            None => {
+                // If no key is available, start the login flow.
+                self.login().await?;
+                self.api.provider().await?
+                    .context("Failed to retrieve provider after login")
+            }
         }
     }
-    async fn login(&mut self) -> Result<ForgeKey> {
+    async fn login(&mut self) -> Result<()> {
         self.writeln(TitleFormat::info("Initiating login..."))?;
         let auth = self.api.init_login().await?;
         self.writeln(TitleFormat::action(format!(
@@ -621,14 +618,8 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             .start(Some("Waiting for login to complete..."))?;
         self.api.login(&auth).await?;
 
-        let result = self
-            .api
-            .api_key()
-            .await
-            .context("Failed to retrieve an API key")?;
-
         self.spinner.stop(None)?;
-        Ok(result)
+        Ok(())
     }
 
     async fn on_message(&mut self, content: String) -> Result<()> {

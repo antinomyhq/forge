@@ -8,7 +8,6 @@ use crate::config::ForgeConfigService;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
-use crate::key::ForgeKeyService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::provider::ForgeProviderService;
 use crate::provider_registry::ForgeProviderRegistry;
@@ -26,7 +25,6 @@ use crate::{
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
-type KeyService<F> = ForgeKeyService<ForgeConfigService<F>>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -56,7 +54,6 @@ pub struct ForgeServices<F: McpServerInfra> {
     env_service: Arc<ForgeEnvironmentService<F>>,
     config_service: Arc<ForgeConfigService<F>>,
     auth_service: Arc<AuthService<F>>,
-    key_service: Arc<KeyService<F>>,
     provider_service: Arc<ForgeProviderRegistry<F>>,
 }
 
@@ -81,7 +78,6 @@ impl<
         let conversation_service = Arc::new(ForgeConversationService::new(mcp_service.clone()));
 
         let config_service = Arc::new(ForgeConfigService::new(infra.clone()));
-        let key_service = Arc::new(ForgeKeyService::new(config_service.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
 
         let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
@@ -116,7 +112,6 @@ impl<
             env_service,
             config_service,
             auth_service,
-            key_service,
             chat_service,
             provider_service,
         }
@@ -158,7 +153,6 @@ impl<
     type McpService = McpService<F>;
     type ConfigService = ForgeConfigService<F>;
     type AuthService = AuthService<F>;
-    type KeyService = KeyService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
@@ -239,10 +233,6 @@ impl<
 
     fn config_service(&self) -> &Self::ConfigService {
         self.config_service.as_ref()
-    }
-
-    fn key_service(&self) -> &Self::KeyService {
-        self.key_service.as_ref()
     }
 
     fn provider_registry(&self) -> &Self::ProviderRegistry {

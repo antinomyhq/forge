@@ -4,7 +4,7 @@ use std::time::Duration;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{InitAuth, RetryConfig};
 
-use crate::{AuthService, KeyService, ProviderRegistry, Services};
+use crate::{AuthService, ConfigService, ProviderRegistry, Services};
 
 pub struct Authenticator<S> {
     service: Arc<S>,
@@ -28,10 +28,14 @@ impl<S: Services> Authenticator<S> {
         .await
     }
     pub async fn logout(&self) -> anyhow::Result<()> {
-        self.service.delete_key().await
+        let mut config = self.service.read().await?;
+        config.key_info.take();
+        self.service.write(&config).await?;
+        Ok(())
     }
     async fn login_inner(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
-        if self.service.get_key().await.is_some() {
+        let mut config = self.service.read().await?;
+        if config.key_info.is_some() {
             self.service
                 .cancel_auth(init_auth, self.service.provider_url())
                 .await?;
@@ -40,7 +44,9 @@ impl<S: Services> Authenticator<S> {
             .service
             .login(init_auth, self.service.provider_url())
             .await?;
-        self.service.set_key(key).await?;
+
+        config.key_info.replace(key);
+        self.service.write(&config).await?;
         Ok(())
     }
     async fn poll<T, F>(

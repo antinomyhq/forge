@@ -72,8 +72,8 @@ impl EnvironmentInfra for ForgeInfra {
         self.environment_service.get_environment()
     }
 
-    fn get_env_var(&self, _key: &str) -> Option<String> {
-        None
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        self.environment_service.get_env_var(key)
     }
 }
 

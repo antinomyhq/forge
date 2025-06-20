@@ -10,7 +10,7 @@ use crate::authenticator::Authenticator;
 use crate::orch::Orchestrator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
-use crate::{AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, KeyService, ProviderRegistry, ProviderService, Services, WorkflowService};
+use crate::{AttachmentService, ConfigService, ConversationService, EnvironmentService, FileDiscoveryService, ProviderRegistry, ProviderService, Services, WorkflowService};
 
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the
@@ -48,8 +48,8 @@ impl<S: Services> ForgeApp<S> {
 
         // Get tool definitions and models
         let tool_definitions = self.tool_registry.list().await?;
-        let key = services.get_key().await;
-        let provider = services.get_provider(key).context("Failed to get provider")?;
+        let config = services.read().await?;
+        let provider = services.get_provider(config).context("Failed to get provider")?;
         let models = services.models(provider).await?;
 
         // Discover files using the discovery service

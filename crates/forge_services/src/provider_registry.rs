@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::ProviderRegistry;
-use forge_domain::{ForgeKey, Provider, ProviderUrl};
+use forge_domain::{ForgeConfig, Provider, ProviderUrl};
 
 use crate::EnvironmentInfra;
 
@@ -27,8 +27,8 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
         }
         None
     }
-    fn get_provider(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
-        if let Some(forge_key) = forge_key {
+    fn get_provider(&self, forge_config: ForgeConfig) -> Option<Provider> {
+        if let Some(forge_key) = &forge_config.key_info {
             let provider = Provider::antinomy(forge_key.as_str());
             return Some(override_url(provider, self.provider_url()));
         }
@@ -37,8 +37,8 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
 }
 
 impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
-    fn get_provider(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
-        self.get_provider(forge_key)
+    fn get_provider(&self, config: ForgeConfig) -> Option<Provider> {
+        self.get_provider(config)
     }
 
     fn provider_url(&self) -> Option<ProviderUrl> {

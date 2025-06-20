@@ -7,7 +7,10 @@ use forge_domain::{
 };
 
 use crate::tool_registry::ToolRegistry;
-use crate::{ConversationService, KeyService, ProviderRegistry, ProviderService, Services, TemplateService};
+use crate::{
+    ConfigService, ConversationService, ProviderRegistry, ProviderService, Services,
+    TemplateService,
+};
 
 /// Agent service trait that provides core chat and tool call functionality.
 /// This trait abstracts the essential operations needed by the Orchestrator.
@@ -47,12 +50,10 @@ impl<T: Services> AgentService for T {
         id: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.chat(
-            id,
-            context,
-            self.get_provider(self.get_key().await).context("User not logged in")?,
-        )
-        .await
+        let config = self.read().await?;
+        self.chat(id, context, self
+            .get_provider(config)
+            .context("Failed to get provider")?).await
     }
 
     async fn call(

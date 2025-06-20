@@ -7,7 +7,6 @@ mod discovery;
 mod env;
 mod forge_services;
 mod infra;
-mod key;
 mod mcp;
 mod provider;
 mod provider_registry;

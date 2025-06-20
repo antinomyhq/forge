@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{
-    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, KeyService,
+    ConfigService, ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp,
     McpConfigManager, ProviderRegistry, ProviderService, Services, WorkflowService,
 };
 use forge_domain::*;
@@ -46,10 +46,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn models(&self) -> Result<Vec<Model>> {
         Ok(self
             .app
-            .models(
-                self.provider(self.app.get_key().await)
-                    .context("User not logged in")?,
-            )
+            .models(self.provider().await?.context("User is not logged in")?)
             .await?)
     }
 
@@ -151,11 +148,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         let forge_app = ForgeApp::new(self.app.clone());
         forge_app.logout().await
     }
-
-    async fn api_key(&self) -> Option<ForgeKey> {
-        self.app.key_service().get_key().await
-    }
-    fn provider(&self, key: Option<ForgeKey>) -> Result<Provider> {
-        self.app.get_provider(key).context("User isn't logged in")
+    async fn provider(&self) -> Result<Option<Provider>> {
+        Ok(self.app.get_provider(self.app.read().await?))
     }
 }
