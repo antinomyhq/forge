@@ -49,15 +49,15 @@ impl<C: ConfigService> ForgeKeyService<C> {
 
 #[async_trait::async_trait]
 impl<C: ConfigService> KeyService for ForgeKeyService<C> {
-    async fn get(&self) -> Option<ForgeKey> {
+    async fn get_key(&self) -> Option<ForgeKey> {
         self.get().await
     }
 
-    async fn set(&self, key: ForgeKey) -> anyhow::Result<()> {
+    async fn set_key(&self, key: ForgeKey) -> anyhow::Result<()> {
         self.set(key).await
     }
 
-    async fn delete(&self) -> anyhow::Result<()> {
+    async fn delete_key(&self) -> anyhow::Result<()> {
         self.delete().await
     }
 }

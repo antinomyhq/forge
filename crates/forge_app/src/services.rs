@@ -82,7 +82,7 @@ pub struct FsUndoOutput {
 }
 
 #[async_trait::async_trait]
-pub trait ChatService: Send + Sync {
+pub trait ProviderService: Send + Sync {
     async fn chat(
         &self,
         id: &ModelId,
@@ -138,9 +138,9 @@ pub trait AttachmentService {
 
 #[async_trait::async_trait]
 pub trait KeyService: Send + Sync {
-    async fn get(&self) -> Option<ForgeKey>;
-    async fn set(&self, key: ForgeKey) -> anyhow::Result<()>;
-    async fn delete(&self) -> anyhow::Result<()>;
+    async fn get_key(&self) -> Option<ForgeKey>;
+    async fn set_key(&self, key: ForgeKey) -> anyhow::Result<()>;
+    async fn delete_key(&self) -> anyhow::Result<()>;
 }
 
 pub trait EnvironmentService: Send + Sync {
@@ -287,12 +287,12 @@ pub trait ConfigService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
-    async fn init(&self) -> anyhow::Result<InitAuth>;
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<()>;
-    async fn logout(&self) -> anyhow::Result<()>;
+    async fn init_auth(&self) -> anyhow::Result<InitAuth>;
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey>;
+    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()>;
 }
 
-pub trait ProviderService: Send + Sync {
+pub trait ProviderRegistry: Send + Sync {
     fn get_provider(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
 }
 
@@ -300,7 +300,7 @@ pub trait ProviderService: Send + Sync {
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
 pub trait Services: Send + Sync + 'static + Clone {
-    type ChatService: ChatService;
+    type ProviderService: ProviderService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
@@ -321,9 +321,9 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AuthService: AuthService;
     type ConfigService: ConfigService;
     type KeyService: KeyService;
-    type ProviderService: ProviderService;
+    type ProviderRegistry: ProviderRegistry;
 
-    fn chat_service(&self) -> &Self::ChatService;
+    fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
@@ -344,7 +344,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn auth_service(&self) -> &Self::AuthService;
     fn config_service(&self) -> &Self::ConfigService;
     fn key_service(&self) -> &Self::KeyService;
-    fn provider_service(&self) -> &Self::ProviderService;
+    fn provider_registry(&self) -> &Self::ProviderRegistry;
 }
 
 #[async_trait::async_trait]
@@ -371,17 +371,17 @@ impl<I: Services> ConversationService for I {
     }
 }
 #[async_trait::async_trait]
-impl<I: Services> ChatService for I {
+impl<I: Services> ProviderService for I {
     async fn chat(
         &self,
         id: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.chat_service().chat(id, context).await
+        self.provider_service().chat(id, context).await
     }
 
     async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        self.chat_service().models().await
+        self.provider_service().models().await
     }
 }
 
@@ -572,9 +572,9 @@ impl<I: Services> EnvironmentService for I {
         self.environment_service().get_environment()
     }
 }
-impl<I: Services> ProviderService for I {
+impl<I: Services> ProviderRegistry for I {
     fn get_provider(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
-        self.provider_service().get_provider(forge_key)
+        self.provider_registry().get_provider(forge_key)
     }
 }
 
@@ -591,30 +591,30 @@ impl<I: Services> ConfigService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AuthService for I {
-    async fn init(&self) -> anyhow::Result<InitAuth> {
-        self.auth_service().init().await
+    async fn init_auth(&self) -> anyhow::Result<InitAuth> {
+        self.auth_service().init_auth().await
     }
 
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<()> {
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
         self.auth_service().login(auth).await
     }
 
-    async fn logout(&self) -> anyhow::Result<()> {
-        self.auth_service().logout().await
+    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()> {
+        self.auth_service().cancel_auth(auth).await
     }
 }
 
 #[async_trait::async_trait]
 impl<I: Services> KeyService for I {
-    async fn get(&self) -> Option<ForgeKey> {
-        self.key_service().get().await
+    async fn get_key(&self) -> Option<ForgeKey> {
+        self.key_service().get_key().await
     }
 
-    async fn set(&self, key: ForgeKey) -> anyhow::Result<()> {
-        self.key_service().set(key).await
+    async fn set_key(&self, key: ForgeKey) -> anyhow::Result<()> {
+        self.key_service().set_key(key).await
     }
 
-    async fn delete(&self) -> anyhow::Result<()> {
-        self.key_service().delete().await
+    async fn delete_key(&self) -> anyhow::Result<()> {
+        self.key_service().delete_key().await
     }
 }

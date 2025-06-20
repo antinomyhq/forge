@@ -1,0 +1,57 @@
+use crate::{AuthService, KeyService, Services};
+use backon::{ExponentialBuilder, Retryable};
+use forge_domain::{InitAuth, RetryConfig};
+use std::sync::Arc;
+use std::time::Duration;
+
+pub struct Authenticator<S> {
+    service: Arc<S>,
+}
+
+impl<S: Services> Authenticator<S> {
+    pub fn new(service: Arc<S>) -> Self {
+        Self { service }
+    }
+    pub async fn init(&self) -> anyhow::Result<InitAuth> {
+        self.service.init_auth().await
+    }
+    pub async fn login(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
+        self.poll(
+            RetryConfig::default()
+                .max_retry_attempts(300usize)
+                .max_delay(2)
+                .backoff_factor(1u64),
+            || self.login_inner(init_auth),
+        )
+        .await
+    }
+    pub async fn logout(&self) -> anyhow::Result<()> {
+        self.service.delete_key().await
+    }
+    async fn login_inner(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
+        if self.service.get_key().await.is_some() {
+            self.service.cancel_auth(init_auth).await?;
+        }
+        let key = self.service.login(init_auth).await?;
+        self.service.set_key(key).await?;
+        Ok(())
+    }
+    async fn poll<T, F>(
+        &self,
+        config: RetryConfig,
+        call: impl Fn() -> F + Send,
+    ) -> anyhow::Result<T>
+    where
+        F: Future<Output = anyhow::Result<T>> + Send,
+    {
+        let mut builder = ExponentialBuilder::default()
+            .with_factor(config.backoff_factor as f32)
+            .with_max_times(config.max_retry_attempts)
+            .with_jitter();
+        if let Some(max_delay) = config.max_delay {
+            builder = builder.with_max_delay(Duration::from_secs(max_delay))
+        }
+
+        call.retry(builder).await
+    }
+}

@@ -1,11 +1,10 @@
-use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, RetryConfig,
+    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl,
 };
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
@@ -76,6 +75,10 @@ impl ForgeInfra {
 impl EnvironmentInfra for ForgeInfra {
     fn get_environment(&self) -> Environment {
         self.environment_service.get_environment()
+    }
+
+    fn get_env_var(&self, _key: &str) -> Option<String> {
+        None
     }
 }
 
@@ -224,17 +227,6 @@ impl HttpInfra for ForgeInfra {
 
     async fn delete(&self, url: &str) -> anyhow::Result<Response> {
         self.http_service.delete(url).await
-    }
-
-    async fn poll<T, F>(
-        &self,
-        builder: RetryConfig,
-        call: impl Fn() -> F + Send,
-    ) -> anyhow::Result<T>
-    where
-        F: Future<Output = anyhow::Result<T>> + Send,
-    {
-        self.http_service.poll(builder, call).await
     }
 }
 

@@ -25,7 +25,7 @@ use crate::{
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
-type AuthService<F> = ForgeAuthService<F, KeyService<F>>;
+type AuthService<F> = ForgeAuthService<F>;
 type KeyService<F> = ForgeKeyService<ForgeConfigService<F>>;
 
 /// ForgeApp is the main application container that implements the App trait.
@@ -83,7 +83,7 @@ impl<
 
         let config_service = Arc::new(ForgeConfigService::new(infra.clone()));
         let key_service = Arc::new(ForgeKeyService::new(config_service.clone()));
-        let auth_service = Arc::new(ForgeAuthService::new(infra.clone(), key_service.clone()));
+        let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
 
         let chat_service = Arc::new(ForgeChatService::new(infra.clone(), key_service.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
@@ -140,7 +140,7 @@ impl<
             + Clone,
     > Services for ForgeServices<F>
 {
-    type ChatService = ForgeChatService<F, Self::KeyService>;
+    type ProviderService = ForgeChatService<F, Self::KeyService>;
     type ConversationService = ForgeConversationService<McpService<F>>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
@@ -161,9 +161,9 @@ impl<
     type ConfigService = ForgeConfigService<F>;
     type AuthService = AuthService<F>;
     type KeyService = KeyService<F>;
-    type ProviderService = ForgeProviderService<F>;
+    type ProviderRegistry = ForgeProviderService<F>;
 
-    fn chat_service(&self) -> &Self::ChatService {
+    fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
     }
 
@@ -247,7 +247,7 @@ impl<
         self.key_service.as_ref()
     }
 
-    fn provider_service(&self) -> &Self::ProviderService {
+    fn provider_registry(&self) -> &Self::ProviderRegistry {
         &self.provider_service
     }
 }

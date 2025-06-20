@@ -1,9 +1,4 @@
-use std::future::Future;
-use std::time::Duration;
-
-use backon::{ExponentialBuilder, Retryable};
 use bytes::Bytes;
-use forge_domain::RetryConfig;
 use forge_services::HttpInfra;
 use reqwest::{Client, Response};
 
@@ -55,24 +50,5 @@ impl HttpInfra for ForgeHttpService {
 
     async fn delete(&self, url: &str) -> anyhow::Result<Response> {
         self.delete(url).await
-    }
-
-    async fn poll<T, F>(
-        &self,
-        config: RetryConfig,
-        call: impl Fn() -> F + Send,
-    ) -> anyhow::Result<T>
-    where
-        F: Future<Output = anyhow::Result<T>> + Send,
-    {
-        let mut builder = ExponentialBuilder::default()
-            .with_factor(config.backoff_factor as f32)
-            .with_max_times(config.max_retry_attempts)
-            .with_jitter();
-        if let Some(max_delay) = config.max_delay {
-            builder = builder.with_max_delay(Duration::from_secs(max_delay))
-        }
-
-        call.retry(builder).await
     }
 }

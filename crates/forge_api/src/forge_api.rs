@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{
-    AuthService, ChatService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, KeyService, McpConfigManager, ProviderService, Services, WorkflowService,
+    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp,
+    KeyService, McpConfigManager, ProviderRegistry, ProviderService, Services, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -132,19 +132,22 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn init_login(&self) -> Result<InitAuth> {
-        self.app.auth_service().init().await
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.init_auth().await
     }
 
     async fn login(&self, auth: &InitAuth) -> Result<()> {
-        self.app.auth_service().login(auth).await
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.login(auth).await
     }
 
     async fn logout(&self) -> Result<()> {
-        self.app.auth_service().logout().await
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.logout().await
     }
 
     async fn api_key(&self) -> Option<ForgeKey> {
-        self.app.key_service().get().await
+        self.app.key_service().get_key().await
     }
     fn provider(&self, key: Option<ForgeKey>) -> Result<Provider> {
         self.app.get_provider(key).context("User isn't logged in")

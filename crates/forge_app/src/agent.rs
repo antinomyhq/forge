@@ -6,7 +6,7 @@ use forge_domain::{
 };
 
 use crate::tool_registry::ToolRegistry;
-use crate::{ChatService, ConversationService, Services, TemplateService};
+use crate::{ProviderService, ConversationService, Services, TemplateService};
 
 /// Agent service trait that provides core chat and tool call functionality.
 /// This trait abstracts the essential operations needed by the Orchestrator.

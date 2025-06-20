@@ -69,7 +69,6 @@ impl<F: FileReaderInfra + EnvironmentInfra> AttachmentService for ForgeChatReque
 #[cfg(test)]
 pub mod tests {
     use std::collections::HashMap;
-    use std::future::Future;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
@@ -77,8 +76,8 @@ pub mod tests {
     use bytes::Bytes;
     use forge_app::AttachmentService;
     use forge_domain::{
-        AttachmentContent, CommandOutput, Environment, ForgeKey, Provider, ProviderUrl, Response,
-        RetryConfig, ToolDefinition, ToolName, ToolOutput,
+        AttachmentContent, CommandOutput, Environment
+        , ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -113,6 +112,10 @@ pub mod tests {
                 http: Default::default(),
                 max_file_size: 10_000_000,
             }
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
         }
     }
 
@@ -511,6 +514,10 @@ pub mod tests {
     impl EnvironmentInfra for MockCompositeService {
         fn get_environment(&self) -> Environment {
             self.env_service.get_environment()
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
         }
     }
 

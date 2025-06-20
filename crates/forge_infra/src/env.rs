@@ -151,6 +151,14 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     fn get_environment(&self) -> Environment {
         self.get()
     }
+
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        if !self.is_env_loaded.read().map(|v| *v).unwrap_or_default() {
+            *self.is_env_loaded.write().unwrap() = true;
+            Self::dot_env(&std::env::current_dir().unwrap_or(PathBuf::from(".")));
+        }
+        std::env::var(key).ok()
+    }
 }
 
 #[cfg(test)]

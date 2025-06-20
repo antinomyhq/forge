@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::{ChatService, KeyService};
+use forge_app::{ProviderService, KeyService};
 use forge_domain::{
     ChatCompletionMessage, Context as ChatContext, ForgeKey, HttpConfig, Model, ModelId, Provider,
     ResultStream, RetryConfig,
@@ -38,7 +38,7 @@ impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ForgeChatService<I, K> 
     async fn key(&self) -> Result<ForgeKey> {
         let forge_key = self
             .key_service
-            .get()
+            .get_key()
             .await
             .context("User isn't logged in")?;
         Ok(forge_key)
@@ -79,7 +79,7 @@ impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ForgeChatService<I, K> 
 }
 
 #[async_trait::async_trait]
-impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ChatService for ForgeChatService<I, K> {
+impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ProviderService for ForgeChatService<I, K> {
     async fn chat(
         &self,
         model: &ModelId,
