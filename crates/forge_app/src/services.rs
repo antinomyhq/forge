@@ -295,8 +295,8 @@ pub trait AuthService: Send + Sync {
 }
 
 pub trait ProviderRegistry: Send + Sync {
-    fn get_provider(&self, config: ForgeConfig) -> Option<Provider>;
-    fn provider_url(&self) -> Option<ProviderUrl>;
+    fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider>;
+    fn provider_url(&self) -> anyhow::Result<ProviderUrl>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -575,11 +575,11 @@ impl<I: Services> EnvironmentService for I {
     }
 }
 impl<I: Services> ProviderRegistry for I {
-    fn get_provider(&self, config: ForgeConfig) -> Option<Provider> {
+    fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider> {
         self.provider_registry().get_provider(config)
     }
 
-    fn provider_url(&self) -> Option<ProviderUrl> {
+    fn provider_url(&self) -> anyhow::Result<ProviderUrl> {
         self.provider_registry().provider_url()
     }
 }

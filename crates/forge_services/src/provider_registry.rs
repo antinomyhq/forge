@@ -1,7 +1,7 @@
-use std::sync::Arc;
-
+use anyhow::Context;
 use forge_app::ProviderRegistry;
 use forge_domain::{ForgeConfig, Provider, ProviderUrl};
+use std::sync::Arc;
 
 use crate::EnvironmentInfra;
 
@@ -37,12 +37,14 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
 }
 
 impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
-    fn get_provider(&self, config: ForgeConfig) -> Option<Provider> {
+    fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider> {
         self.get_provider(config)
+            .context("Failed to resolve provider, maybe user is not logged in?")
     }
 
-    fn provider_url(&self) -> Option<ProviderUrl> {
+    fn provider_url(&self) -> anyhow::Result<ProviderUrl> {
         self.provider_url()
+            .context("Failed to resolve provider URL")
     }
 }
 
