@@ -1,13 +1,14 @@
 use std::collections::HashSet;
-use std::fs::File;
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{FsSearchService, Match, MatchResult, SearchResult};
-use forge_walker::Walker;
 use grep_searcher::sinks::UTF8;
 
+use crate::infra::WalkerInfra;
 use crate::utils::assert_absolute_path;
+use crate::WalkerConfig;
 
 // Using FSSearchInput from forge_domain
 
@@ -37,9 +38,9 @@ impl FSSearchHelper<'_> {
         })
     }
 
-    fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
+    async fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
         // Don't process directories
-        if path.is_dir() {
+        if tokio::fs::metadata(path).await?.is_dir() {
             return Ok(false);
         }
 
@@ -66,17 +67,18 @@ impl FSSearchHelper<'_> {
 /// patterns across projects. For large pages, returns the first 200
 /// lines and stores the complete content in a temporary file for
 /// subsequent access.
-#[derive(Default)]
-pub struct ForgeFsSearch;
+pub struct ForgeFsSearch<W: WalkerInfra> {
+    walker: Arc<W>,
+}
 
-impl ForgeFsSearch {
-    pub fn new() -> Self {
-        Self
+impl<W: WalkerInfra> ForgeFsSearch<W> {
+    pub fn new(walker: Arc<W>) -> Self {
+        Self { walker }
     }
 }
 
 #[async_trait::async_trait]
-impl FsSearchService for ForgeFsSearch {
+impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
     async fn search(
         &self,
         input_path: String,
@@ -102,12 +104,12 @@ impl FsSearchService for ForgeFsSearch {
             }
             None => None,
         };
-        let paths = retrieve_file_paths(path).await?;
+        let paths = self.retrieve_file_paths(path).await?;
 
         let mut matches = Vec::new();
 
         for path in paths {
-            if !helper.match_file_path(path.as_path())? {
+            if !helper.match_file_path(path.as_path()).await? {
                 continue;
             }
 
@@ -122,11 +124,11 @@ impl FsSearchService for ForgeFsSearch {
                 let mut searcher = grep_searcher::Searcher::new();
                 let path_string = path.to_string_lossy().to_string();
 
-                let file = File::open(path)?;
+                let content = tokio::fs::read_to_string(path).await?;
                 let mut found_match = false;
-                searcher.search_file(
+                searcher.search_slice(
                     regex,
-                    &file,
+                    content.as_bytes(),
                     UTF8(|line_num, line| {
                         found_match = true;
                         matches.push(Match {
@@ -158,36 +160,69 @@ impl FsSearchService for ForgeFsSearch {
     }
 }
 
-async fn retrieve_file_paths(dir: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
-    if dir.is_dir() {
-        // note: Paths needs mutable to avoid flaky tests.
-        #[allow(unused_mut)]
-        let mut paths = Walker::max_all()
-            .cwd(dir.to_path_buf())
-            .get()
-            .await
-            .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?
-            .into_iter()
-            .map(|file| dir.join(file.path))
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
+impl<W: WalkerInfra> ForgeFsSearch<W> {
+    async fn retrieve_file_paths(&self, dir: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
+        let metadata = tokio::fs::metadata(dir).await?;
+        if metadata.is_dir() {
+            // note: Paths needs mutable to avoid flaky tests.
+            #[allow(unused_mut)]
+            let mut paths = self
+                .walker
+                .walk(WalkerConfig::unlimited().cwd(dir.to_path_buf()))
+                .await
+                .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?
+                .into_iter()
+                .map(|file| dir.join(file.path))
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
 
-        #[cfg(test)]
-        paths.sort();
+            #[cfg(test)]
+            paths.sort();
 
-        Ok(paths)
-    } else {
-        Ok(Vec::from_iter([dir.to_path_buf()]))
+            Ok(paths)
+        } else {
+            Ok(Vec::from_iter([dir.to_path_buf()]))
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use tokio::fs;
 
     use super::*;
+    use crate::infra::WalkedFile;
     use crate::utils::TempDir;
+
+    // Mock WalkerInfra for testing
+    struct MockInfra;
+
+    #[async_trait::async_trait]
+    impl WalkerInfra for MockInfra {
+        async fn walk(&self, config: crate::WalkerConfig) -> anyhow::Result<Vec<WalkedFile>> {
+            // Simple mock that just returns files in the directory
+            let mut files = Vec::new();
+            let metadata = tokio::fs::metadata(&config.cwd).await?;
+            if metadata.is_dir() {
+                let mut entries = tokio::fs::read_dir(&config.cwd).await?;
+                while let Some(entry) = entries.next_entry().await? {
+                    let path = entry.path();
+                    let relative_path = path
+                        .strip_prefix(&config.cwd)?
+                        .to_string_lossy()
+                        .to_string();
+                    let file_name = path.file_name().map(|n| n.to_string_lossy().to_string());
+                    let size = entry.metadata().await?.len();
+
+                    files.push(WalkedFile { path: relative_path, file_name, size });
+                }
+            }
+            Ok(files)
+        }
+    }
 
     async fn create_simple_test_directory() -> anyhow::Result<TempDir> {
         let temp_dir = TempDir::new()?;
@@ -202,7 +237,7 @@ mod test {
     #[tokio::test]
     async fn test_search_content_with_regex() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new()
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("test".to_string()),
@@ -217,7 +252,7 @@ mod test {
     #[tokio::test]
     async fn test_search_file_pattern_only() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new()
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 None,
@@ -235,7 +270,7 @@ mod test {
     #[tokio::test]
     async fn test_search_combined_pattern_and_content() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new()
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("test".to_string()),
@@ -254,7 +289,7 @@ mod test {
     async fn test_search_single_file() {
         let fixture = create_simple_test_directory().await.unwrap();
         let file_path = fixture.path().join("test.txt");
-        let actual = ForgeFsSearch::new()
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
             .search(
                 file_path.to_string_lossy().to_string(),
                 Some("hello".to_string()),
@@ -269,7 +304,7 @@ mod test {
     #[tokio::test]
     async fn test_search_no_matches() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new()
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("nonexistent".to_string()),
@@ -284,7 +319,7 @@ mod test {
     #[tokio::test]
     async fn test_search_pattern_no_matches() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new()
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 None,
@@ -298,7 +333,7 @@ mod test {
 
     #[tokio::test]
     async fn test_search_nonexistent_path() {
-        let result = ForgeFsSearch::new()
+        let result = ForgeFsSearch::new(Arc::new(MockInfra))
             .search(
                 "/nonexistent/path".to_string(),
                 Some("test".to_string()),
@@ -311,7 +346,7 @@ mod test {
 
     #[tokio::test]
     async fn test_search_relative_path_error() {
-        let result = ForgeFsSearch::new()
+        let result = ForgeFsSearch::new(Arc::new(MockInfra))
             .search("relative/path".to_string(), Some("test".to_string()), None)
             .await;
 

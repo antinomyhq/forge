@@ -19,8 +19,8 @@ use crate::tool_services::{
 use crate::workflow::ForgeWorkflowService;
 use crate::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra,
-    UserInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    WalkerInfra,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
@@ -33,7 +33,7 @@ type AuthService<F> = ForgeAuthService<F>;
 /// - F: The infrastructure implementation that provides core services like
 ///   environment, file reading, vector indexing, and embedding.
 #[derive(Clone)]
-pub struct ForgeServices<F: McpServerInfra> {
+pub struct ForgeServices<F: McpServerInfra + WalkerInfra> {
     chat_service: Arc<ForgeProviderService>,
     conversation_service: Arc<ForgeConversationService<McpService<F>>>,
     template_service: Arc<ForgeTemplateService<F>>,
@@ -43,7 +43,7 @@ pub struct ForgeServices<F: McpServerInfra> {
     mcp_manager: Arc<ForgeMcpManager<F>>,
     file_create_service: Arc<ForgeFsCreate<F>>,
     file_read_service: Arc<ForgeFsRead<F>>,
-    file_search_service: Arc<ForgeFsSearch>,
+    file_search_service: Arc<ForgeFsSearch<F>>,
     file_remove_service: Arc<ForgeFsRemove<F>>,
     file_patch_service: Arc<ForgeFsPatch<F>>,
     file_undo_service: Arc<ForgeFsUndo<F>>,
@@ -64,6 +64,7 @@ impl<
             + FileInfoInfra
             + FileReaderInfra
             + HttpInfra
+            + WalkerInfra,
     > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -83,7 +84,7 @@ impl<
         let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
-        let file_search_service = Arc::new(ForgeFsSearch::new());
+        let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
         let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
         let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
         let file_undo_service = Arc::new(ForgeFsUndo::new(infra.clone()));
@@ -130,6 +131,7 @@ impl<
             + FileDirectoryInfra
             + EnvironmentInfra
             + HttpInfra
+            + WalkerInfra
             + Clone,
     > Services for ForgeServices<F>
 {
@@ -145,7 +147,7 @@ impl<
     type FsPatchService = ForgeFsPatch<F>;
     type FsReadService = ForgeFsRead<F>;
     type FsRemoveService = ForgeFsRemove<F>;
-    type FsSearchService = ForgeFsSearch;
+    type FsSearchService = ForgeFsSearch<F>;
     type FollowUpService = ForgeFollowup<F>;
     type FsUndoService = ForgeFsUndo<F>;
     type NetFetchService = ForgeFetch;
