@@ -7,8 +7,8 @@ use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra,
-    UserInfra, WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    WalkerInfra,
 };
 use reqwest::Response;
 

@@ -4,8 +4,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    CommandOutput, Environment, McpServerConfig, ToolDefinition,
-    ToolName, ToolOutput,
+    CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
 use reqwest::Response;

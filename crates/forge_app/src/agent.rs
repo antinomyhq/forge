@@ -51,9 +51,13 @@ impl<T: Services> AgentService for T {
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let config = self.read().await?;
-        self.chat(id, context, self
-            .get_provider(config)
-            .context("Failed to get provider")?).await
+        self.chat(
+            id,
+            context,
+            self.get_provider(config)
+                .context("Failed to get provider")?,
+        )
+        .await
     }
 
     async fn call(
