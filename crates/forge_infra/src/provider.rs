@@ -1,6 +1,7 @@
+use std::sync::Arc;
+
 use forge_domain::{ForgeKey, Provider, ProviderUrl};
 use forge_services::{EnvironmentInfra, ProviderInfra};
-use std::sync::Arc;
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
 
