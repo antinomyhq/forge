@@ -4,9 +4,16 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response, RetryConfig};
+use forge_domain::{
+    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, Response,
+    RetryConfig,
+};
 use forge_fs::FileInfo as FileInfoData;
-use forge_services::{CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderInfra, SnapshotInfra, UserInfra};
+use forge_services::{
+    CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderInfra, SnapshotInfra,
+    UserInfra,
+};
 
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;

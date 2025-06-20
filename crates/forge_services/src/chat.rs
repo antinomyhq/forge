@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use crate::{EnvironmentInfra, ProviderInfra};
 use anyhow::{Context, Result};
 use forge_app::{ChatService, KeyService};
 use forge_domain::{
@@ -9,6 +8,8 @@ use forge_domain::{
 };
 use forge_provider::Client;
 use tokio::sync::RwLock;
+
+use crate::{EnvironmentInfra, ProviderInfra};
 
 #[derive(Clone)]
 pub struct ForgeChatService<I, K> {
@@ -78,9 +79,7 @@ impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ForgeChatService<I, K> 
 }
 
 #[async_trait::async_trait]
-impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ChatService
-    for ForgeChatService<I, K>
-{
+impl<K: KeyService, I: ProviderInfra + EnvironmentInfra> ChatService for ForgeChatService<I, K> {
     async fn chat(
         &self,
         model: &ModelId,
