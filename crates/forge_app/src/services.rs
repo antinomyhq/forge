@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, ForgeConfig, ForgeKey, InitAuth, McpConfig, Model, ModelId, PatchOperation,
-    Provider, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    Provider, ProviderUrl, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 
@@ -87,9 +87,9 @@ pub trait ProviderService: Send + Sync {
         &self,
         id: &ModelId,
         context: Context,
-        key: ForgeKey,
+        provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
-    async fn models(&self, key: ForgeKey) -> anyhow::Result<Vec<Model>>;
+    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>>;
 }
 
 #[async_trait::async_trait]
@@ -288,13 +288,22 @@ pub trait ConfigService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
-    async fn init_auth(&self) -> anyhow::Result<InitAuth>;
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey>;
-    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()>;
+    async fn init_auth(&self, provider_url: Option<ProviderUrl>) -> anyhow::Result<InitAuth>;
+    async fn login(
+        &self,
+        auth: &InitAuth,
+        provider_url: Option<ProviderUrl>,
+    ) -> anyhow::Result<ForgeKey>;
+    async fn cancel_auth(
+        &self,
+        auth: &InitAuth,
+        provider_url: Option<ProviderUrl>,
+    ) -> anyhow::Result<()>;
 }
 
 pub trait ProviderRegistry: Send + Sync {
     fn get_provider(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
+    fn provider_url(&self) -> Option<ProviderUrl>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -377,13 +386,13 @@ impl<I: Services> ProviderService for I {
         &self,
         id: &ModelId,
         context: Context,
-        key: ForgeKey,
+        provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.provider_service().chat(id, context, key).await
+        self.provider_service().chat(id, context, provider).await
     }
 
-    async fn models(&self, key: ForgeKey) -> anyhow::Result<Vec<Model>> {
-        self.provider_service().models(key).await
+    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>> {
+        self.provider_service().models(provider).await
     }
 }
 
@@ -578,6 +587,10 @@ impl<I: Services> ProviderRegistry for I {
     fn get_provider(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
         self.provider_registry().get_provider(forge_key)
     }
+
+    fn provider_url(&self) -> Option<ProviderUrl> {
+        self.provider_registry().provider_url()
+    }
 }
 
 #[async_trait::async_trait]
@@ -593,16 +606,24 @@ impl<I: Services> ConfigService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AuthService for I {
-    async fn init_auth(&self) -> anyhow::Result<InitAuth> {
-        self.auth_service().init_auth().await
+    async fn init_auth(&self, provider_url: Option<ProviderUrl>) -> anyhow::Result<InitAuth> {
+        self.auth_service().init_auth(provider_url).await
     }
 
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
-        self.auth_service().login(auth).await
+    async fn login(
+        &self,
+        auth: &InitAuth,
+        provider_url: Option<ProviderUrl>,
+    ) -> anyhow::Result<ForgeKey> {
+        self.auth_service().login(auth, provider_url).await
     }
 
-    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()> {
-        self.auth_service().cancel_auth(auth).await
+    async fn cancel_auth(
+        &self,
+        auth: &InitAuth,
+        provider_url: Option<ProviderUrl>,
+    ) -> anyhow::Result<()> {
+        self.auth_service().cancel_auth(auth, provider_url).await
     }
 }
 

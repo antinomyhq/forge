@@ -20,7 +20,7 @@ use crate::tool_services::{
 use crate::workflow::ForgeWorkflowService;
 use crate::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderInfra, SnapshotInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra,
     UserInfra,
 };
 
@@ -36,7 +36,7 @@ type KeyService<F> = ForgeKeyService<ForgeConfigService<F>>;
 ///   environment, file reading, vector indexing, and embedding.
 #[derive(Clone)]
 pub struct ForgeServices<F: McpServerInfra> {
-    chat_service: Arc<ForgeProviderService<F>>,
+    chat_service: Arc<ForgeProviderService>,
     conversation_service: Arc<ForgeConversationService<McpService<F>>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
@@ -67,7 +67,6 @@ impl<
             + FileInfoInfra
             + FileReaderInfra
             + HttpInfra
-            + ProviderInfra,
     > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -136,11 +135,10 @@ impl<
             + FileDirectoryInfra
             + EnvironmentInfra
             + HttpInfra
-            + ProviderInfra
             + Clone,
     > Services for ForgeServices<F>
 {
-    type ProviderService = ForgeProviderService<F>;
+    type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService<McpService<F>>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;

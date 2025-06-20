@@ -3,11 +3,11 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl};
+use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderInfra, SnapshotInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra,
     UserInfra,
 };
 use reqwest::Response;
@@ -24,7 +24,6 @@ use crate::http::ForgeHttpService;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
-use crate::provider::ForgeProviderInfra;
 
 #[derive(Clone)]
 pub struct ForgeInfra {
@@ -39,7 +38,6 @@ pub struct ForgeInfra {
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     http_service: Arc<ForgeHttpService>,
-    provider_service: ForgeProviderInfra<ForgeEnvironmentInfra>,
 }
 
 impl ForgeInfra {
@@ -48,7 +46,6 @@ impl ForgeInfra {
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let http_service = Arc::new(ForgeHttpService::new());
-        let provider_service = ForgeProviderInfra::new(environment_service.clone());
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -66,7 +63,6 @@ impl ForgeInfra {
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
             http_service,
-            provider_service,
         }
     }
 }
@@ -226,15 +222,5 @@ impl HttpInfra for ForgeInfra {
 
     async fn delete(&self, url: &str) -> anyhow::Result<Response> {
         self.http_service.delete(url).await
-    }
-}
-
-impl ProviderInfra for ForgeInfra {
-    fn get_provider_infra(&self, forge_key: Option<ForgeKey>) -> Option<Provider> {
-        self.provider_service.get_provider_infra(forge_key)
-    }
-
-    fn provider_url(&self) -> Option<ProviderUrl> {
-        self.provider_service.provider_url()
     }
 }

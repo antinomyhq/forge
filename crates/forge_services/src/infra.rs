@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, Environment, ForgeKey, McpServerConfig, Provider, ProviderUrl, ToolDefinition,
+    CommandOutput, Environment, McpServerConfig, ToolDefinition,
     ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
@@ -160,9 +160,4 @@ pub trait HttpInfra: Send + Sync + 'static {
     async fn get(&self, url: &str) -> anyhow::Result<Response>;
     async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response>;
     async fn delete(&self, url: &str) -> anyhow::Result<Response>;
-}
-
-pub trait ProviderInfra: Send + Sync {
-    fn get_provider_infra(&self, forge_key: Option<ForgeKey>) -> Option<Provider>;
-    fn provider_url(&self) -> Option<ProviderUrl>;
 }

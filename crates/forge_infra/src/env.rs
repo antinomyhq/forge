@@ -15,9 +15,11 @@ impl ForgeEnvironmentInfra {
     /// * `unrestricted` - If true, use unrestricted shell mode (sh/bash) If
     ///   false, use restricted shell mode (rbash)
     pub fn new(restricted: bool) -> Self {
-        let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
-        Self::dot_env(&cwd);
+        Self::dot_env(&Self::cwd());
         Self { restricted }
+    }
+    fn cwd() -> PathBuf {
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
     }
 
     /// Get path to appropriate shell based on platform and mode
@@ -97,7 +99,7 @@ impl ForgeEnvironmentInfra {
     }
 
     fn get(&self) -> Environment {
-        let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
+        let cwd = Self::cwd();
         let retry_config = self.resolve_retry_config();
 
         Environment {

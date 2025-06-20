@@ -13,7 +13,6 @@ mod http;
 mod inquire;
 mod mcp_client;
 mod mcp_server;
-mod provider;
 
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
