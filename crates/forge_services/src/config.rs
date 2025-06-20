@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::ConfigService;
+use forge_app::GlobalConfigService;
 use forge_domain::ForgeConfig;
 
 use crate::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
@@ -32,14 +32,14 @@ impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> ForgeConfigService
 }
 
 #[async_trait::async_trait]
-impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> ConfigService
+impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> GlobalConfigService
     for ForgeConfigService<I>
 {
-    async fn read(&self) -> anyhow::Result<ForgeConfig> {
+    async fn read_global_config(&self) -> anyhow::Result<ForgeConfig> {
         self.read().await
     }
 
-    async fn write(&self, config: &ForgeConfig) -> anyhow::Result<()> {
+    async fn write_global_config(&self, config: &ForgeConfig) -> anyhow::Result<()> {
         self.write(config).await
     }
 }

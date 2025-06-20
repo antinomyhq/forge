@@ -274,9 +274,9 @@ pub trait ShellService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait ConfigService: Send + Sync {
-    async fn read(&self) -> anyhow::Result<ForgeConfig>;
-    async fn write(&self, config: &ForgeConfig) -> anyhow::Result<()>;
+pub trait GlobalConfigService: Send + Sync {
+    async fn read_global_config(&self) -> anyhow::Result<ForgeConfig>;
+    async fn write_global_config(&self, config: &ForgeConfig) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -322,7 +322,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ShellService: ShellService;
     type McpService: McpService;
     type AuthService: AuthService;
-    type ConfigService: ConfigService;
+    type ConfigService: GlobalConfigService;
     type ProviderRegistry: ProviderRegistry;
 
     fn provider_service(&self) -> &Self::ProviderService;
@@ -585,13 +585,13 @@ impl<I: Services> ProviderRegistry for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> ConfigService for I {
-    async fn read(&self) -> anyhow::Result<ForgeConfig> {
-        self.config_service().read().await
+impl<I: Services> GlobalConfigService for I {
+    async fn read_global_config(&self) -> anyhow::Result<ForgeConfig> {
+        self.config_service().read_global_config().await
     }
 
-    async fn write(&self, config: &ForgeConfig) -> anyhow::Result<()> {
-        self.config_service().write(config).await
+    async fn write_global_config(&self, config: &ForgeConfig) -> anyhow::Result<()> {
+        self.config_service().write_global_config(config).await
     }
 }
 

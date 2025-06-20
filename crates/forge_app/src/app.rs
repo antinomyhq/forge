@@ -11,7 +11,7 @@ use crate::orch::Orchestrator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AttachmentService, ConfigService, ConversationService, EnvironmentService,
+    AttachmentService, GlobalConfigService, ConversationService, EnvironmentService,
     FileDiscoveryService, ProviderRegistry, ProviderService, Services, WorkflowService,
 };
 
@@ -51,7 +51,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Get tool definitions and models
         let tool_definitions = self.tool_registry.list().await?;
-        let config = services.read().await?;
+        let config = services.read_global_config().await?;
         let provider = services
             .get_provider(config)
             .context("Failed to get provider")?;

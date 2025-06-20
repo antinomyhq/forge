@@ -8,7 +8,7 @@ use forge_domain::{
 
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    ConfigService, ConversationService, ProviderRegistry, ProviderService, Services,
+    GlobalConfigService, ConversationService, ProviderRegistry, ProviderService, Services,
     TemplateService,
 };
 
@@ -50,7 +50,7 @@ impl<T: Services> AgentService for T {
         id: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let config = self.read().await?;
+        let config = self.read_global_config().await?;
         self.chat(
             id,
             context,
