@@ -46,7 +46,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn models(&self) -> Result<Vec<Model>> {
         Ok(self
             .app
-            .models(self.provider().await?.context("User is not logged in")?)
+            .models(self.provider().await.context("User is not logged in")?)
             .await?)
     }
 
@@ -148,7 +148,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         let forge_app = ForgeApp::new(self.app.clone());
         forge_app.logout().await
     }
-    async fn provider(&self) -> Result<Option<Provider>> {
-        Ok(self.app.get_provider(self.app.read().await?))
+    async fn provider(&self) -> Option<Provider> {
+        self.app.get_provider(self.app.read().await.ok()?)
     }
 }

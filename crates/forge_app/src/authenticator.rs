@@ -28,17 +28,19 @@ impl<S: Services> Authenticator<S> {
         .await
     }
     pub async fn logout(&self) -> anyhow::Result<()> {
-        let mut config = self.service.read().await?;
-        config.key_info.take();
-        self.service.write(&config).await?;
+        if let Ok(mut config) = self.service.read().await {
+            config.key_info.take();
+            self.service.write(&config).await?;
+        }
         Ok(())
     }
     async fn login_inner(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
-        let mut config = self.service.read().await?;
+        let mut config = self.service.read().await.unwrap_or_default();
         if config.key_info.is_some() {
             self.service
                 .cancel_auth(init_auth, self.service.provider_url())
                 .await?;
+            return Ok(());
         }
         let key = self
             .service

@@ -87,5 +87,5 @@ pub trait API: Sync + Send {
     async fn init_login(&self) -> Result<InitAuth>;
     async fn login(&self, auth: &InitAuth) -> Result<()>;
     async fn logout(&self) -> anyhow::Result<()>;
-    async fn provider(&self) -> Result<Option<Provider>>;
+    async fn provider(&self) -> Option<Provider>;
 }

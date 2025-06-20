@@ -595,13 +595,15 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         Ok(workflow)
     }
     async fn init_provider(&mut self) -> Result<Provider> {
-        match self.api.provider().await? {
+        match self.api.provider().await {
             // Use the forge key if available in the config.
             Some(provider) => Ok(provider),
             None => {
                 // If no key is available, start the login flow.
                 self.login().await?;
-                self.api.provider().await?
+                self.api
+                    .provider()
+                    .await
                     .context("Failed to retrieve provider after login")
             }
         }
