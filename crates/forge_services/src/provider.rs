@@ -1,7 +1,9 @@
-use crate::ProviderInfra;
+use std::sync::Arc;
+
 use forge_app::ProviderService;
 use forge_domain::{ForgeKey, Provider};
-use std::sync::Arc;
+
+use crate::ProviderInfra;
 
 pub struct ForgeProviderService<F> {
     infra: Arc<F>,
