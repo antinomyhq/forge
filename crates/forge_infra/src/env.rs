@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
 
 use forge_domain::{Environment, RetryConfig};
 use forge_services::EnvironmentInfra;
@@ -7,7 +6,6 @@ use forge_services::EnvironmentInfra;
 #[derive(Clone)]
 pub struct ForgeEnvironmentInfra {
     restricted: bool,
-    is_env_loaded: Arc<RwLock<bool>>,
 }
 
 impl ForgeEnvironmentInfra {
@@ -17,7 +15,9 @@ impl ForgeEnvironmentInfra {
     /// * `unrestricted` - If true, use unrestricted shell mode (sh/bash) If
     ///   false, use restricted shell mode (rbash)
     pub fn new(restricted: bool) -> Self {
-        Self { restricted, is_env_loaded: Default::default() }
+        let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
+        Self::dot_env(&cwd);
+        Self { restricted }
     }
 
     /// Get path to appropriate shell based on platform and mode
@@ -98,11 +98,6 @@ impl ForgeEnvironmentInfra {
 
     fn get(&self) -> Environment {
         let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
-        if !self.is_env_loaded.read().map(|v| *v).unwrap_or_default() {
-            *self.is_env_loaded.write().unwrap() = true;
-            Self::dot_env(&cwd);
-        }
-
         let retry_config = self.resolve_retry_config();
 
         Environment {
@@ -154,10 +149,6 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     }
 
     fn get_env_var(&self, key: &str) -> Option<String> {
-        if !self.is_env_loaded.read().map(|v| *v).unwrap_or_default() {
-            *self.is_env_loaded.write().unwrap() = true;
-            Self::dot_env(&std::env::current_dir().unwrap_or(PathBuf::from(".")));
-        }
         std::env::var(key).ok()
     }
 }
