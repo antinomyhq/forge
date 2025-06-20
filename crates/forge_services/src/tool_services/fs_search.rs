@@ -3,12 +3,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{FsSearchService, Match, MatchResult, SearchResult};
+use forge_app::{FsSearchService, Match, MatchResult, SearchResult, Walker};
 use grep_searcher::sinks::UTF8;
 
 use crate::infra::WalkerInfra;
 use crate::utils::assert_absolute_path;
-use crate::WalkerConfig;
 
 // Using FSSearchInput from forge_domain
 
@@ -168,7 +167,7 @@ impl<W: WalkerInfra> ForgeFsSearch<W> {
             #[allow(unused_mut)]
             let mut paths = self
                 .walker
-                .walk(WalkerConfig::unlimited().cwd(dir.to_path_buf()))
+                .walk(Walker::unlimited().cwd(dir.to_path_buf()))
                 .await
                 .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?
                 .into_iter()
@@ -191,10 +190,10 @@ impl<W: WalkerInfra> ForgeFsSearch<W> {
 mod test {
     use std::sync::Arc;
 
+    use forge_app::{WalkedFile, Walker};
     use tokio::fs;
 
     use super::*;
-    use crate::infra::WalkedFile;
     use crate::utils::TempDir;
 
     // Mock WalkerInfra for testing
@@ -202,7 +201,7 @@ mod test {
 
     #[async_trait::async_trait]
     impl WalkerInfra for MockInfra {
-        async fn walk(&self, config: crate::WalkerConfig) -> anyhow::Result<Vec<WalkedFile>> {
+        async fn walk(&self, config: Walker) -> anyhow::Result<Vec<WalkedFile>> {
             // Simple mock that just returns files in the directory
             let mut files = Vec::new();
             let metadata = tokio::fs::metadata(&config.cwd).await?;

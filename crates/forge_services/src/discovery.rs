@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::FileDiscoveryService;
+use forge_app::{FileDiscoveryService, Walker};
 use forge_domain::File;
 
-use crate::{EnvironmentInfra, WalkerConfig, WalkerInfra};
+use crate::{EnvironmentInfra, WalkerInfra};
 
 pub struct ForgeDiscoveryService<F> {
     service: Arc<F>,
@@ -17,15 +17,7 @@ impl<F> ForgeDiscoveryService<F> {
 }
 
 impl<F: EnvironmentInfra + WalkerInfra> ForgeDiscoveryService<F> {
-    async fn discover_with_depth(&self, max_depth: Option<usize>) -> Result<Vec<File>> {
-        let cwd = self.service.get_environment().cwd.clone();
-
-        let config = if let Some(depth) = max_depth {
-            WalkerConfig::unlimited().cwd(cwd).max_depth(depth)
-        } else {
-            WalkerConfig::unlimited().cwd(cwd)
-        };
-
+    async fn discover_with_config(&self, config: Walker) -> Result<Vec<File>> {
         let files = self.service.walk(config).await?;
         Ok(files
             .into_iter()
@@ -38,7 +30,7 @@ impl<F: EnvironmentInfra + WalkerInfra> ForgeDiscoveryService<F> {
 impl<F: EnvironmentInfra + WalkerInfra + Send + Sync> FileDiscoveryService
     for ForgeDiscoveryService<F>
 {
-    async fn collect(&self, max_depth: Option<usize>) -> Result<Vec<File>> {
-        self.discover_with_depth(max_depth).await
+    async fn collect_files(&self, config: Walker) -> Result<Vec<File>> {
+        self.discover_with_config(config).await
     }
 }

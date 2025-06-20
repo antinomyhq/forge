@@ -1,5 +1,5 @@
 use anyhow::Result;
-use forge_services::{WalkedFile, WalkerConfig};
+use forge_app::{WalkedFile, Walker};
 
 pub struct ForgeWalkerService;
 
@@ -8,7 +8,7 @@ impl ForgeWalkerService {
         Self
     }
 
-    pub async fn walk(&self, config: WalkerConfig) -> Result<Vec<WalkedFile>> {
+    pub async fn walk(&self, config: Walker) -> Result<Vec<WalkedFile>> {
         // Convert domain config to forge_walker config
         let mut walker = if config.max_depth.is_none()
             && config.max_breadth.is_none()
@@ -65,7 +65,7 @@ mod tests {
         std::fs::write(fixture.path().join("test.txt"), "test content").unwrap();
 
         let service = ForgeWalkerService::new();
-        let config = WalkerConfig::conservative().cwd(fixture.path().to_path_buf());
+        let config = Walker::conservative().cwd(fixture.path().to_path_buf());
 
         let actual = service.walk(config).await.unwrap();
 
@@ -80,7 +80,7 @@ mod tests {
         std::fs::write(fixture.path().join("test.txt"), "test content").unwrap();
 
         let service = ForgeWalkerService::new();
-        let config = WalkerConfig::unlimited().cwd(fixture.path().to_path_buf());
+        let config = Walker::unlimited().cwd(fixture.path().to_path_buf());
 
         let actual = service.walk(config).await.unwrap();
 

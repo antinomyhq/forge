@@ -215,10 +215,7 @@ impl McpServerInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl WalkerInfra for ForgeInfra {
-    async fn walk(
-        &self,
-        config: forge_services::WalkerConfig,
-    ) -> anyhow::Result<Vec<forge_services::WalkedFile>> {
+    async fn walk(&self, config: forge_app::Walker) -> anyhow::Result<Vec<forge_app::WalkedFile>> {
         self.walker_service.walk(config).await
     }
 }

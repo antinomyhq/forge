@@ -5,6 +5,7 @@ variables:
 top_p: 0.8
 top_k: 30
 max_tokens: 20480
+max_walker_depth: 1
 
 updates:
   frequency: "daily"
@@ -46,7 +47,6 @@ agents:
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_fs_undo
-    max_walker_depth: 1
 
   - id: muse
     title: "Analysis and planning focussed"
@@ -77,4 +77,3 @@ agents:
       - forge_tool_fs_search
       - forge_tool_fs_create
       - forge_tool_fs_patch
-    max_walker_depth: 1
