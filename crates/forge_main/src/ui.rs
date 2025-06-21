@@ -355,6 +355,16 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             Command::Update => {
                 on_update(self.api.clone(), None).await;
             }
+            Command::ReleaseNotes => {
+                self.spinner.start(Some("Fetching release notes"))?;
+                if let Err(e) = self.on_release_notes().await {
+                    self.spinner.stop(None)?;
+                    self.writeln(TitleFormat::error(format!(
+                        "Failed to fetch release notes: {}",
+                        e
+                    )))?;
+                }
+            }
             Command::Exit => {
                 return Ok(true);
             }
@@ -418,6 +428,53 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
         Ok(false)
     }
+
+    /// Fetches and displays the latest release notes from GitHub.
+    /// Limits output to the 3 most recent releases.
+    async fn on_release_notes(&mut self) -> Result<()> {
+        use crate::update::GITHUB_API_URL;
+        use colored::Colorize;
+        use reqwest::Client;
+        use serde_json::Value;
+
+        let client = Client::new();
+        let response = client
+            .get(GITHUB_API_URL)
+            .header("User-Agent", "Forge-Release-Notes")
+            .send()
+            .await?
+            .json::<Vec<Value>>()
+            .await?;
+
+        let mut output = String::new();
+        output.push_str(&TitleFormat::action("Release Notes").to_string());
+        output.push_str("\n\n");
+
+        for release in response.iter().take(3) {
+            if let Some(tag_name) = release.get("tag_name").and_then(|v| v.as_str()) {
+                if let Some(published_at) = release.get("published_at").and_then(|v| v.as_str()) {
+                    output.push_str(&format!(
+                        "Version: {} (Published: {})\n",
+                        tag_name.bold().white(),
+                        published_at.dimmed()
+                    ));
+                } else {
+                    output.push_str(&format!("Version: {}\n", tag_name.bold().white()));
+                }
+            }
+            if let Some(body) = release.get("body").and_then(|v| v.as_str()) {
+                let markdown_body = self.markdown.render(body);
+                output.push_str(&format!("{}\n\n", markdown_body));
+            } else {
+                output.push_str("No release notes available.\n\n");
+            }
+        }
+
+        self.spinner.stop(None)?;
+        self.writeln(output)?;
+        Ok(())
+    }
+
     async fn on_compaction(&mut self) -> Result<(), anyhow::Error> {
         let conversation_id = self.init_conversation().await?;
         let compaction_result = self.api.compact_conversation(&conversation_id).await?;

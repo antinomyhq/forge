@@ -16,6 +16,7 @@ pub fn display() -> io::Result<()> {
         ("Get started:", "/info, /help"),
         ("Switch agent:", "/forge or /muse"),
         ("Update:", "/update"),
+        ("Release Notes:", "/release-notes"),
         ("Quit:", "/exit or <CTRL+D>"),
     ];
 
