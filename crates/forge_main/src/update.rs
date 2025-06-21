@@ -47,7 +47,7 @@ async fn execute_update_command(api: Arc<impl API>) {
 async fn confirm_update(version: Version) -> bool {
     let release_notes_diff = fetch_release_notes_diff()
         .await
-        .unwrap_or_else(|e| format!("Could not fetch release notes: {}", e));
+        .unwrap_or_else(|e| format!("Could not fetch release notes: {e}"));
 
     let answer = inquire::Confirm::new(&format!(
         "Confirm upgrade from {} -> {} (latest)?\nRelease Notes Diff:\n{}",
@@ -97,13 +97,12 @@ async fn fetch_release_notes_diff() -> anyhow::Result<String> {
     }
 
     let mut output = format!(
-        "Current Version ({}):\n{}\n\n",
-        current_version, current_notes
+        "Current Version ({current_version}):\n{current_notes}\n\n"
     );
     if !newer_notes.is_empty() {
         output.push_str("Newer Versions:\n");
         for (version, notes) in newer_notes.iter().rev() {
-            output.push_str(&format!("Version {}:\n{}\n\n", version, notes));
+            output.push_str(&format!("Version {version}:\n{notes}\n\n"));
         }
     } else {
         output.push_str("No newer versions found.\n");

@@ -360,8 +360,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 if let Err(e) = self.on_release_notes().await {
                     self.spinner.stop(None)?;
                     self.writeln(TitleFormat::error(format!(
-                        "Failed to fetch release notes: {}",
-                        e
+                        "Failed to fetch release notes: {e}"
                     )))?;
                 }
             }
@@ -432,10 +431,11 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     /// Fetches and displays the latest release notes from GitHub.
     /// Limits output to the 3 most recent releases.
     async fn on_release_notes(&mut self) -> Result<()> {
-        use crate::update::GITHUB_API_URL;
         use colored::Colorize;
         use reqwest::Client;
         use serde_json::Value;
+
+        use crate::update::GITHUB_API_URL;
 
         let client = Client::new();
         let response = client
@@ -464,7 +464,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             }
             if let Some(body) = release.get("body").and_then(|v| v.as_str()) {
                 let markdown_body = self.markdown.render(body);
-                output.push_str(&format!("{}\n\n", markdown_body));
+                output.push_str(&format!("{markdown_body}\n\n"));
             } else {
                 output.push_str("No release notes available.\n\n");
             }
