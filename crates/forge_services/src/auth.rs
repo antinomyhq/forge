@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context};
 use forge_app::AuthService;
-use forge_domain::{ForgeKey, InitAuth, Provider, ProviderUrl};
+use forge_domain::{ForgeKey, InitAuth, Provider};
 
-use crate::HttpInfra;
+use crate::{EnvironmentInfra, HttpInfra};
 
 const TOKEN_POLL_ROUTE: &str = "cli/auth/token/";
 const AUTH_INIT_ROUTE: &str = "cli/auth/init";
@@ -15,15 +15,15 @@ pub struct ForgeAuthService<I> {
     infra: Arc<I>,
 }
 
-impl<I: HttpInfra> ForgeAuthService<I> {
+impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
-    async fn init(&self, provider_url: Option<ProviderUrl>) -> anyhow::Result<InitAuth> {
+    async fn init(&self) -> anyhow::Result<InitAuth> {
         let init_url = format!(
             "{}{AUTH_INIT_ROUTE}",
-            provider_url
-                .map(ProviderUrl::into_string)
+            self.infra
+                .get_env_var("FORGE_API_URL")
                 .unwrap_or(Provider::ANTINOMY_URL.to_string())
         );
         let resp = self.infra.get(&init_url).await?;
@@ -34,15 +34,11 @@ impl<I: HttpInfra> ForgeAuthService<I> {
         Ok(serde_json::from_slice(&resp.bytes().await?)?)
     }
 
-    async fn login(
-        &self,
-        auth: &InitAuth,
-        provider_url: Option<ProviderUrl>,
-    ) -> anyhow::Result<ForgeKey> {
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
         let url = format!(
             "{}{TOKEN_POLL_ROUTE}{}",
-            provider_url
-                .map(ProviderUrl::into_string)
+            self.infra
+                .get_env_var("FORGE_API_URL")
                 .unwrap_or(Provider::ANTINOMY_URL.to_string()),
             auth.session_id
         );
@@ -61,15 +57,11 @@ impl<I: HttpInfra> ForgeAuthService<I> {
         }
     }
 
-    async fn cancel(
-        &self,
-        auth: &InitAuth,
-        provider_url: Option<ProviderUrl>,
-    ) -> anyhow::Result<()> {
+    async fn cancel(&self, auth: &InitAuth) -> anyhow::Result<()> {
         let url = format!(
             "{}{AUTH_CANCEL_ROUTE}{}",
-            provider_url
-                .map(ProviderUrl::into_string)
+            self.infra
+                .get_env_var("FORGE_API_URL")
                 .unwrap_or(Provider::ANTINOMY_URL.to_string()),
             auth.session_id,
         );
@@ -81,23 +73,15 @@ impl<I: HttpInfra> ForgeAuthService<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: HttpInfra> AuthService for ForgeAuthService<I> {
-    async fn init_auth(&self, provider_url: Option<ProviderUrl>) -> anyhow::Result<InitAuth> {
-        self.init(provider_url).await
+impl<I: HttpInfra + EnvironmentInfra> AuthService for ForgeAuthService<I> {
+    async fn init_auth(&self) -> anyhow::Result<InitAuth> {
+        self.init().await
     }
 
-    async fn login(
-        &self,
-        auth: &InitAuth,
-        provider_url: Option<ProviderUrl>,
-    ) -> anyhow::Result<ForgeKey> {
-        self.login(auth, provider_url).await
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
+        self.login(auth).await
     }
-    async fn cancel_auth(
-        &self,
-        auth: &InitAuth,
-        provider_url: Option<ProviderUrl>,
-    ) -> anyhow::Result<()> {
-        self.cancel(auth, provider_url).await
+    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()> {
+        self.cancel(auth).await
     }
 }

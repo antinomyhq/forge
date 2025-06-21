@@ -597,14 +597,13 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     async fn init_provider(&mut self) -> Result<Provider> {
         match self.api.provider().await {
             // Use the forge key if available in the config.
-            Some(provider) => Ok(provider),
-            None => {
+            Ok(provider) => Ok(provider),
+            Err(_) => {
                 // If no key is available, start the login flow.
                 self.login().await?;
                 self.api
                     .provider()
                     .await
-                    .context("Failed to retrieve provider after login")
             }
         }
     }

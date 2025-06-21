@@ -42,11 +42,6 @@ impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
         self.get_provider(config)
             .context("Failed to resolve provider, maybe user is not logged in?")
     }
-
-    fn provider_url(&self) -> anyhow::Result<ProviderUrl> {
-        self.provider_url()
-            .context("Failed to resolve provider URL")
-    }
 }
 
 fn resolve_env_provider<F: EnvironmentInfra>(

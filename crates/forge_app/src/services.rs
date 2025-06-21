@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, ForgeConfig, ForgeKey, InitAuth, McpConfig, Model, ModelId, PatchOperation,
-    Provider, ProviderUrl, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    Provider, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 
@@ -283,22 +283,13 @@ pub trait GlobalConfigService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
-    async fn init_auth(&self, provider_url: Option<ProviderUrl>) -> anyhow::Result<InitAuth>;
-    async fn login(
-        &self,
-        auth: &InitAuth,
-        provider_url: Option<ProviderUrl>,
-    ) -> anyhow::Result<ForgeKey>;
-    async fn cancel_auth(
-        &self,
-        auth: &InitAuth,
-        provider_url: Option<ProviderUrl>,
-    ) -> anyhow::Result<()>;
+    async fn init_auth(&self) -> anyhow::Result<InitAuth>;
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey>;
+    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()>;
 }
 
 pub trait ProviderRegistry: Send + Sync {
     fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider>;
-    fn provider_url(&self) -> anyhow::Result<ProviderUrl>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -580,10 +571,6 @@ impl<I: Services> ProviderRegistry for I {
     fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider> {
         self.provider_registry().get_provider(config)
     }
-
-    fn provider_url(&self) -> anyhow::Result<ProviderUrl> {
-        self.provider_registry().provider_url()
-    }
 }
 
 #[async_trait::async_trait]
@@ -599,23 +586,15 @@ impl<I: Services> GlobalConfigService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AuthService for I {
-    async fn init_auth(&self, provider_url: Option<ProviderUrl>) -> anyhow::Result<InitAuth> {
-        self.auth_service().init_auth(provider_url).await
+    async fn init_auth(&self) -> anyhow::Result<InitAuth> {
+        self.auth_service().init_auth().await
     }
 
-    async fn login(
-        &self,
-        auth: &InitAuth,
-        provider_url: Option<ProviderUrl>,
-    ) -> anyhow::Result<ForgeKey> {
-        self.auth_service().login(auth, provider_url).await
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
+        self.auth_service().login(auth).await
     }
 
-    async fn cancel_auth(
-        &self,
-        auth: &InitAuth,
-        provider_url: Option<ProviderUrl>,
-    ) -> anyhow::Result<()> {
-        self.auth_service().cancel_auth(auth, provider_url).await
+    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()> {
+        self.auth_service().cancel_auth(auth).await
     }
 }
