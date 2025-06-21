@@ -150,9 +150,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         let forge_app = ForgeApp::new(self.app.clone());
         forge_app.logout().await
     }
-    async fn provider(&self) -> Option<Provider> {
-        self.app
-            .get_provider(self.app.read_global_config().await.ok()?)
-            .ok()
+    async fn provider(&self) -> anyhow::Result<Provider> {
+        self.app.get_provider(self.app.read_global_config().await?)
     }
 }
