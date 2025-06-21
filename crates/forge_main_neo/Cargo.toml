@@ -1,0 +1,11 @@
+[package]
+name = "forge_main_neo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ratatui = "0.29.0"
+forge_api.workspace = true
+color-eyre = "0.6.5"
+edtui = {version = "0.9.6", features = ["mouse-support"]}
+derive_more.workspace = true
