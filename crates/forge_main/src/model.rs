@@ -170,6 +170,7 @@ impl ForgeCommandManager {
             "/info" => Ok(Command::Info),
             "/exit" => Ok(Command::Exit),
             "/update" => Ok(Command::Update),
+            "/release-notes" => Ok(Command::ReleaseNotes),
             "/dump" => {
                 if !parameters.is_empty() && parameters[0] == "html" {
                     Ok(Command::Dump(Some("html".to_string())))
@@ -235,6 +236,9 @@ pub enum Command {
     /// Updates the forge version
     #[strum(props(usage = "Updates to the latest compatible version of forge"))]
     Update,
+    /// Displays release notes for each version
+    #[strum(props(usage = "Displays release notes for each version"))]
+    ReleaseNotes,
     /// Switch to "forge" agent.
     /// This can be triggered with the '/forge' command.
     #[strum(props(usage = "Enable implementation mode with code changes"))]
@@ -279,6 +283,7 @@ impl Command {
             Command::New => "/new",
             Command::Message(_) => "/message",
             Command::Update => "/update",
+            Command::ReleaseNotes => "/release-notes",
             Command::Info => "/info",
             Command::Exit => "/exit",
             Command::Forge => "/forge",
