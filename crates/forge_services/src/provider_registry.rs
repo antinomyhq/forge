@@ -1,7 +1,8 @@
+use std::sync::Arc;
+
 use anyhow::Context;
 use forge_app::ProviderRegistry;
 use forge_domain::{ForgeConfig, Provider, ProviderUrl};
-use std::sync::Arc;
 
 use crate::EnvironmentInfra;
 
