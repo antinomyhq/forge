@@ -32,7 +32,7 @@ pub struct ForgeInfra {
     file_meta_service: Arc<ForgeFileMetaService>,
     file_remove_service: Arc<ForgeFileRemoveService<ForgeFileSnapshotService>>,
     create_dirs_service: Arc<ForgeCreateDirsService>,
-    command_executor_service: Arc<ForgeCommandExecutorService>,
+    command_executor_service: Arc<ForgeCommandExecutorService<ForgeInquire>>,
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
@@ -43,6 +43,7 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
+        let inquire_service = Arc::new(ForgeInquire::new());
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -56,8 +57,9 @@ impl ForgeInfra {
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
                 restricted,
                 env.clone(),
+                inquire_service.clone(),
             )),
-            inquire_service: Arc::new(ForgeInquire::new()),
+            inquire_service,
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
         }

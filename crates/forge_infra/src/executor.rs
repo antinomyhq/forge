@@ -3,24 +3,25 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_domain::{CommandOutput, Environment};
-use forge_services::CommandInfra;
+use forge_services::{CommandInfra, UserInfra};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
 /// Service for executing shell commands
 #[derive(Clone, Debug)]
-pub struct ForgeCommandExecutorService {
+pub struct ForgeCommandExecutorService<U> {
     restricted: bool,
     env: Environment,
+    user_infra: Arc<U>,
 
     // Mutex to ensure that only one command is executed at a time
     ready: Arc<Mutex<()>>,
 }
 
-impl ForgeCommandExecutorService {
-    pub fn new(restricted: bool, env: Environment) -> Self {
-        Self { restricted, env, ready: Arc::new(Mutex::new(())) }
+impl<U: UserInfra> ForgeCommandExecutorService<U> {
+    pub fn new(restricted: bool, env: Environment, user_infra: Arc<U>) -> Self {
+        Self { restricted, env, user_infra, ready: Arc::new(Mutex::new(())) }
     }
 
     fn prepare_command(&self, command_str: &str, working_dir: Option<&Path>) -> Command {
@@ -82,6 +83,24 @@ impl ForgeCommandExecutorService {
         command: String,
         working_dir: &Path,
     ) -> anyhow::Result<CommandOutput> {
+        // Ask for user confirmation before executing the command
+        let confirmation_message = format!("Execute shell command: '{command}'?");
+        let options = vec!["Yes".to_string(), "No".to_string()];
+
+        match self
+            .user_infra
+            .select_one(&confirmation_message, options)
+            .await?
+        {
+            Some(choice) if choice == "Yes" => {
+                // User confirmed, proceed with execution
+            }
+            _ => {
+                // User rejected or cancelled, return an error
+                return Err(anyhow::anyhow!("Shell command execution cancelled by user"));
+            }
+        }
+
         let ready = self.ready.lock().await;
 
         let mut prepared_command = self.prepare_command(&command, Some(working_dir));
@@ -137,7 +156,7 @@ async fn stream<A: AsyncReadExt + Unpin, W: Write>(
 
 /// The implementation for CommandExecutorService
 #[async_trait::async_trait]
-impl CommandInfra for ForgeCommandExecutorService {
+impl<U: UserInfra> CommandInfra for ForgeCommandExecutorService<U> {
     async fn execute_command(
         &self,
         command: String,
@@ -147,6 +166,24 @@ impl CommandInfra for ForgeCommandExecutorService {
     }
 
     async fn execute_command_raw(&self, command: &str) -> anyhow::Result<std::process::ExitStatus> {
+        // Ask for user confirmation before executing the command
+        let confirmation_message = format!("Execute shell command: '{command}'?");
+        let options = vec!["Yes".to_string(), "No".to_string()];
+
+        match self
+            .user_infra
+            .select_one(&confirmation_message, options)
+            .await?
+        {
+            Some(choice) if choice == "Yes" => {
+                // User confirmed, proceed with execution
+            }
+            _ => {
+                // User rejected or cancelled, return an error
+                return Err(anyhow::anyhow!("Shell command execution cancelled by user"));
+            }
+        }
+
         let mut prepared_command = self.prepare_command(command, None);
 
         // overwrite the stdin, stdout and stderr to inherit
@@ -193,7 +230,34 @@ mod tests {
 
     #[tokio::test]
     async fn test_command_executor() {
-        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        // Create a mock user infra that always says "Yes"
+        struct MockUserInfra;
+
+        #[async_trait::async_trait]
+        impl UserInfra for MockUserInfra {
+            async fn prompt_question(&self, _question: &str) -> anyhow::Result<Option<String>> {
+                Ok(Some("yes".to_string()))
+            }
+
+            async fn select_one(
+                &self,
+                _message: &str,
+                options: Vec<String>,
+            ) -> anyhow::Result<Option<String>> {
+                // Always select the first option (which should be "Yes")
+                Ok(options.first().cloned())
+            }
+
+            async fn select_many(
+                &self,
+                _message: &str,
+                options: Vec<String>,
+            ) -> anyhow::Result<Option<Vec<String>>> {
+                Ok(Some(options))
+            }
+        }
+
+        let fixture = ForgeCommandExecutorService::new(false, test_env(), Arc::new(MockUserInfra));
         let cmd = "echo 'hello world'";
         let dir = ".";
 
