@@ -601,9 +601,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             Err(_) => {
                 // If no key is available, start the login flow.
                 self.login().await?;
-                self.api
-                    .provider()
-                    .await
+                self.api.provider().await
             }
         }
     }

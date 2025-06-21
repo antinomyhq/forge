@@ -38,15 +38,10 @@ impl<S: Services> Authenticator<S> {
     async fn login_inner(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
         let mut config = self.service.read_global_config().await.unwrap_or_default();
         if config.key_info.is_some() {
-            self.service
-                .cancel_auth(init_auth)
-                .await?;
+            self.service.cancel_auth(init_auth).await?;
             return Ok(());
         }
-        let key = self
-            .service
-            .login(init_auth)
-            .await?;
+        let key = self.service.login(init_auth).await?;
 
         config.key_info.replace(key);
         self.service.write_global_config(&config).await?;
