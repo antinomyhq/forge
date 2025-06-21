@@ -83,4 +83,9 @@ pub trait API: Sync + Send {
     /// user's home directory Local configuration is stored in the current
     /// project directory
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
+
+    async fn init_login(&self) -> Result<InitAuth>;
+    async fn login(&self, auth: &InitAuth) -> Result<()>;
+    async fn logout(&self) -> anyhow::Result<()>;
+    async fn provider(&self) -> anyhow::Result<Provider>;
 }

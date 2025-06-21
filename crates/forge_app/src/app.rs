@@ -1,17 +1,18 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
 
+use crate::authenticator::Authenticator;
 use crate::orch::Orchestrator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
 use crate::{
     AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ProviderService, Services, Walker, WorkflowService,
+    GlobalConfigService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -20,12 +21,17 @@ use crate::{
 pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
+    authenticator: Authenticator<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
     /// Creates a new ForgeApp instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
-        Self { tool_registry: ToolRegistry::new(services.clone()), services }
+        Self {
+            tool_registry: ToolRegistry::new(services.clone()),
+            authenticator: Authenticator::new(services.clone()),
+            services,
+        }
     }
 
     /// Executes a chat request and returns a stream of responses.
@@ -45,7 +51,11 @@ impl<S: Services> ForgeApp<S> {
 
         // Get tool definitions and models
         let tool_definitions = self.tool_registry.list().await?;
-        let models = services.models().await?;
+        let config = services.read_global_config().await?;
+        let provider = services
+            .get_provider(config)
+            .context("Failed to get provider")?;
+        let models = services.models(provider).await?;
 
         // Discover files using the discovery service
         let workflow = services.read_merged(None).await.unwrap_or_default();
@@ -180,5 +190,14 @@ impl<S: Services> ForgeApp<S> {
 
     pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
         self.tool_registry.list().await
+    }
+    pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
+        self.authenticator.login(init_auth).await
+    }
+    pub async fn init_auth(&self) -> Result<InitAuth> {
+        self.authenticator.init().await
+    }
+    pub async fn logout(&self) -> Result<()> {
+        self.authenticator.logout().await
     }
 }

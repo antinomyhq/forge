@@ -1,6 +1,7 @@
 mod agent;
 mod agent_executor;
 mod app;
+mod authenticator;
 mod compact;
 mod error;
 mod fmt_input;

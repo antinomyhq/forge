@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    Environment, File, ForgeConfig, ForgeKey, InitAuth, McpConfig, Model, ModelId, PatchOperation,
+    Provider, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 
@@ -84,13 +84,14 @@ pub struct FsUndoOutput {
 }
 
 #[async_trait::async_trait]
-pub trait ProviderService: Send + Sync + 'static {
+pub trait ProviderService: Send + Sync {
     async fn chat(
         &self,
         id: &ModelId,
         context: Context,
+        provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
-    async fn models(&self) -> anyhow::Result<Vec<Model>>;
+    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>>;
 }
 
 #[async_trait::async_trait]
@@ -274,6 +275,23 @@ pub trait ShellService: Send + Sync {
     ) -> anyhow::Result<ShellOutput>;
 }
 
+#[async_trait::async_trait]
+pub trait GlobalConfigService: Send + Sync {
+    async fn read_global_config(&self) -> anyhow::Result<ForgeConfig>;
+    async fn write_global_config(&self, config: &ForgeConfig) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait AuthService: Send + Sync {
+    async fn init_auth(&self) -> anyhow::Result<InitAuth>;
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey>;
+    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()>;
+}
+
+pub trait ProviderRegistry: Send + Sync {
+    fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -296,6 +314,9 @@ pub trait Services: Send + Sync + 'static + Clone {
     type NetFetchService: NetFetchService;
     type ShellService: ShellService;
     type McpService: McpService;
+    type AuthService: AuthService;
+    type ConfigService: GlobalConfigService;
+    type ProviderRegistry: ProviderRegistry;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -315,6 +336,9 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
     fn environment_service(&self) -> &Self::EnvironmentService;
+    fn auth_service(&self) -> &Self::AuthService;
+    fn config_service(&self) -> &Self::ConfigService;
+    fn provider_registry(&self) -> &Self::ProviderRegistry;
 }
 
 #[async_trait::async_trait]
@@ -346,12 +370,13 @@ impl<I: Services> ProviderService for I {
         &self,
         id: &ModelId,
         context: Context,
+        provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.provider_service().chat(id, context).await
+        self.provider_service().chat(id, context, provider).await
     }
 
-    async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        self.provider_service().models().await
+    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>> {
+        self.provider_service().models(provider).await
     }
 }
 
@@ -540,5 +565,36 @@ impl<I: Services> ShellService for I {
 impl<I: Services> EnvironmentService for I {
     fn get_environment(&self) -> Environment {
         self.environment_service().get_environment()
+    }
+}
+impl<I: Services> ProviderRegistry for I {
+    fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider> {
+        self.provider_registry().get_provider(config)
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> GlobalConfigService for I {
+    async fn read_global_config(&self) -> anyhow::Result<ForgeConfig> {
+        self.config_service().read_global_config().await
+    }
+
+    async fn write_global_config(&self, config: &ForgeConfig) -> anyhow::Result<()> {
+        self.config_service().write_global_config(config).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> AuthService for I {
+    async fn init_auth(&self) -> anyhow::Result<InitAuth> {
+        self.auth_service().init_auth().await
+    }
+
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
+        self.auth_service().login(auth).await
+    }
+
+    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()> {
+        self.auth_service().cancel_auth(auth).await
     }
 }

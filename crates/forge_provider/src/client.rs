@@ -30,9 +30,9 @@ enum InnerClient {
 impl Client {
     pub fn new(
         provider: Provider,
-        retry_config: RetryConfig,
+        retry_config: Arc<RetryConfig>,
         version: impl ToString,
-        timeout_config: HttpConfig,
+        timeout_config: &HttpConfig,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
             .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
@@ -68,7 +68,7 @@ impl Client {
 
         Ok(Self {
             inner: Arc::new(inner),
-            retry_config: Arc::new(retry_config),
+            retry_config,
             models_cache: Arc::new(RwLock::new(HashMap::new())),
         })
     }
@@ -149,9 +149,9 @@ mod tests {
         };
         let client = Client::new(
             provider,
-            RetryConfig::default(),
+            Arc::new(RetryConfig::default()),
             "dev",
-            HttpConfig::default(),
+            &HttpConfig::default(),
         )
         .unwrap();
 
@@ -168,9 +168,9 @@ mod tests {
         };
         let client = Client::new(
             provider,
-            RetryConfig::default(),
+            Arc::new(RetryConfig::default()),
             "dev",
-            HttpConfig::default(),
+            &HttpConfig::default(),
         )
         .unwrap();
 

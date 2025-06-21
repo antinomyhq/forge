@@ -1,12 +1,16 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use forge_domain::{
     Agent, ChatCompletionMessage, Context, Conversation, ModelId, ResultStream, ToolCallContext,
     ToolCallFull, ToolResult,
 };
 
 use crate::tool_registry::ToolRegistry;
-use crate::{ConversationService, ProviderService, Services, TemplateService};
+use crate::{
+    ConversationService, GlobalConfigService, ProviderRegistry, ProviderService, Services,
+    TemplateService,
+};
 
 /// Agent service trait that provides core chat and tool call functionality.
 /// This trait abstracts the essential operations needed by the Orchestrator.
@@ -46,7 +50,14 @@ impl<T: Services> AgentService for T {
         id: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.chat(id, context).await
+        let config = self.read_global_config().await?;
+        self.chat(
+            id,
+            context,
+            self.get_provider(config)
+                .context("Failed to get provider")?,
+        )
+        .await
     }
 
     async fn call(
