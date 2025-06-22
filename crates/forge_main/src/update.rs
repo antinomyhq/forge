@@ -96,9 +96,7 @@ async fn fetch_release_notes_diff() -> anyhow::Result<String> {
         }
     }
 
-    let mut output = format!(
-        "Current Version ({current_version}):\n{current_notes}\n\n"
-    );
+    let mut output = format!("Current Version ({current_version}):\n{current_notes}\n\n");
     if !newer_notes.is_empty() {
         output.push_str("Newer Versions:\n");
         for (version, notes) in newer_notes.iter().rev() {
