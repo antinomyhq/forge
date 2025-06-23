@@ -374,6 +374,9 @@ pub struct AttemptCompletion {
     /// does not require further input from the user. Don't end your result with
     /// questions or offers for further assistance.
     pub result: String,
+
+    /// Task ID of the task that this result is related to.
+    pub task_id: Option<i32>,
 }
 
 /// Add a new task to the end of the task list. Tasks are stored in conversation

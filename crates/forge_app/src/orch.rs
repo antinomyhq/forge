@@ -362,7 +362,19 @@ impl<S: AgentService> Orchestrator<S> {
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
-            is_complete = tool_calls.iter().any(|call| Tools::is_complete(&call.name));
+            if let Some(call) = tool_calls
+                .iter()
+                .find(|call| Tools::is_complete(&call.name))
+            {
+                is_complete = true;
+                if let Ok(Tools::ForgeToolAttemptCompletion(completion)) =
+                    serde_json::from_value::<Tools>(call.arguments.clone())
+                {
+                    if let Some(task_id) = completion.task_id {
+                        let _ = self.conversation.tasks.remove(task_id);
+                    }
+                }
+            }
 
             if !is_complete && !has_no_tool_calls {
                 // If task is completed we would have already displayed a message so we can
