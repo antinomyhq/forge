@@ -340,6 +340,12 @@ expression: tools
       "result": {
         "description": "The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.",
         "type": "string"
+      },
+      "task_id": {
+        "description": "Task ID of the task that this result is related to.",
+        "type": "integer",
+        "format": "int32",
+        "nullable": true
       }
     }
   }
