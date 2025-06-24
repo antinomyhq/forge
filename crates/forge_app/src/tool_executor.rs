@@ -120,7 +120,10 @@ impl<
                     .await?;
                 output.into()
             }
-            Tools::ForgeToolAttemptCompletion(_input) => {
+            Tools::ForgeToolAttemptCompletion(input) => {
+                if let Some(task_id) = input.task_id {
+                    tasks.mark_done(task_id);
+                }
                 crate::operation::Operation::AttemptCompletion
             }
             Tools::ForgeToolTaskListAppend(input) => {

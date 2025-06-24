@@ -126,11 +126,6 @@ impl TaskList {
         Some(self.tasks[task_index].clone())
     }
 
-    pub fn remove(&mut self, task_id: i32) -> Option<Task> {
-        let task_index = self.tasks.iter().position(|t| t.id == task_id)?;
-        self.tasks.remove(task_index)
-    }
-
     pub fn clear(&mut self) {
         self.tasks.clear();
         self.next_id = 1;
