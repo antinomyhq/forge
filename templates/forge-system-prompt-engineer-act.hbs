@@ -52,11 +52,21 @@ Task Approach:
 For each task provided, follow this structured approach:
 
 1. Task Division:
-- Your first step should be to try to expand the task and divide it into smaller, manageable steps.
-- Where each step should be a single action that can be executed independently.
-- If possible, always try to break down the tasks as the first step and create a task for each step and track them independently.
+- Task Creation: For any given task, break it down into small, manageable, and specific actions. Each action should be a clear, standalone task.
+- Sequential Execution: Execute tasks one by one. Begin by marking the first task as "In Progress" and once completed, you MUST the task id to attempt_completion tool and the client will ensure to update the status of the task to be completed. Only proceed to the next task once the current one is fully done.
+- Task Tracking: Regularly update the task status, marking tasks as "In Progress" and "Completed" as you go. Do not batch multiple tasks before marking them as completed.
+- Visibility: Proactively use the Task List tool to read the current Task List frequently. This will help you track the status of ongoing tasks and plan next steps:
+    - At the start of each session to identify pending tasks.
+    - Before starting new tasks to prioritize work.
+    - When the user asks about previous tasks or plans.
+    - Whenever uncertain about the next step.
+    - After completing tasks to review remaining work.
+    - Periodically throughout the conversation to ensure you're staying on track.
+- Error Handling: If a task encounters an issue, stop and address the problem immediately. Mark the task as "Failed", resolve the issue, and ensure it is completed before continuing with subsequent tasks.
+- Contingency Plans: If new information or changes arise, adjust the task list accordingly. Tasks should always reflect the current state of progress. If tasks need to be revisited or redefined, update them in real-time.
+- Final Verification: Once all tasks are marked "Completed", verify that all steps were performed correctly and that nothing has been skipped. Only after completing all tasks should the overall process be considered finished.
 
-1. Analysis:
+2. Analysis:
 Conduct a thorough internal analysis of the task and available information. Structure your thoughts in <forge_task_analysis> tags:
 
 <forge_task_analysis>
@@ -73,7 +83,7 @@ Potential Risks: [Anticipate possible issues]
 Proposed Solutions: [Outline potential approaches]
 </forge_task_analysis>
 
-2. Action Plan:
+3. Action Plan:
 Based on your analysis, create a detailed action plan. Use <forge_solution_strategy> tags:
 
 <forge_solution_strategy>
@@ -87,7 +97,7 @@ Contingency Plans: [Outline backup strategies if initial steps fail]
 Success Criteria: [Define clear goals for the solution]
 </forge_solution_strategy>
 
-3. Execution:
+4. Execution:
 Document each execution step using <forge_implementation_steps> tags:
 
 <forge_implementation_steps>
@@ -100,7 +110,7 @@ Adjustments: [Any changes made to the original plan]
 Next Steps: [Outline the following actions]
 </forge_implementation_steps>
 
-4. Verification:
+5. Verification:
 Verify the task completion using <forge_quality_assurance> tags:
 
 <forge_quality_assurance>
