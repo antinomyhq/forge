@@ -1,40 +1,32 @@
 use std::sync::Arc;
 
+use derive_setters::Setters;
 use tokio::sync::mpsc::Sender;
 
-use crate::ChatResponse;
+use crate::{ChatResponse, TaskList};
 
 /// Type alias for Arc<Sender<Result<ChatResponse>>>
 type ArcSender = Arc<Sender<anyhow::Result<ChatResponse>>>;
 
 /// Provides additional context for tool calls.
-#[derive(Default, Clone, Debug)]
+#[derive(Debug, Setters)]
 pub struct ToolCallContext {
     sender: Option<ArcSender>,
+    pub tasks: TaskList,
 }
 
 impl ToolCallContext {
     /// Creates a new ToolCallContext with default values
-    pub fn new(sender: Option<ArcSender>) -> Self {
-        Self { sender }
+    pub fn new(task_list: TaskList) -> Self {
+        Self { sender: None, tasks: task_list }
     }
 
     /// Send a message through the sender if available
-    pub async fn send(&self, agent_message: ChatResponse) -> anyhow::Result<()> {
+    pub async fn send(&self, agent_message: impl Into<ChatResponse>) -> anyhow::Result<()> {
         if let Some(sender) = &self.sender {
-            sender.send(Ok(agent_message)).await?
+            sender.send(Ok(agent_message.into())).await?
         }
         Ok(())
-    }
-
-    pub async fn send_summary(&self, content: String) -> anyhow::Result<()> {
-        self.send(ChatResponse::Text {
-            text: content,
-            is_complete: true,
-            is_md: false,
-            is_summary: true,
-        })
-        .await
     }
 
     pub async fn send_text(&self, content: impl ToString) -> anyhow::Result<()> {
@@ -54,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_create_context() {
-        let context = ToolCallContext::default();
+        let context = ToolCallContext::new(TaskList::new());
         assert!(context.sender.is_none());
     }
 
@@ -62,7 +54,7 @@ mod tests {
     fn test_with_sender() {
         // This is just a type check test - we don't actually create a sender
         // as it's complex to set up in a unit test
-        let context = ToolCallContext::default();
+        let context = ToolCallContext::new(TaskList::new());
         assert!(context.sender.is_none());
     }
 }

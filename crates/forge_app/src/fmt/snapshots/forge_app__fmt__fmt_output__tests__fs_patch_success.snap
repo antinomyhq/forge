@@ -1,5 +1,5 @@
 ---
-source: crates/forge_app/src/fmt_output.rs
+source: crates/forge_app/src/fmt/fmt_output.rs
 expression: actual
 ---
 1        |-Hello world

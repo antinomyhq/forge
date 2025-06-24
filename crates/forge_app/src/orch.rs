@@ -54,7 +54,7 @@ impl<S: AgentService> Orchestrator<S> {
     // Helper function to get all tool results from a vector of tool calls
     #[async_recursion]
     async fn execute_tool_calls(
-        &mut self,
+        &self,
         agent: &Agent,
         tool_calls: &[ToolCallFull],
         tool_context: &mut ToolCallContext,
@@ -320,7 +320,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         self.conversation.context = Some(context.clone());
 
-        let mut tool_context = ToolCallContext::new(self.sender.clone());
         // Indicates whether the tool execution has been completed
         let mut is_complete = false;
 
@@ -379,6 +378,8 @@ impl<S: AgentService> Orchestrator<S> {
                 })
                 .await?;
             }
+            let mut tool_context =
+                ToolCallContext::new(self.conversation.tasks.clone()).sender(self.sender.clone());
 
             // Process tool calls and update context
             context = context.append_message(
@@ -386,6 +387,7 @@ impl<S: AgentService> Orchestrator<S> {
                 self.execute_tool_calls(&agent, &tool_calls, &mut tool_context)
                     .await?,
             );
+            self.conversation.tasks = tool_context.tasks;
 
             context = SetModel::new(model_id.clone()).transform(context);
 

@@ -20,8 +20,11 @@ impl MarkdownFormat {
         skin.inline_code = compound_style.clone();
 
         let codeblock_style = CompoundStyle::new(None, None, Default::default());
-
         skin.code_block = LineStyle::new(codeblock_style, Default::default());
+
+        let mut strikethrough_style = CompoundStyle::with_attr(Attribute::CrossedOut);
+        strikethrough_style.add_attr(Attribute::Dim);
+        skin.strikeout = strikethrough_style;
 
         Self { skin, max_consecutive_newlines: 2 }
     }
