@@ -6,9 +6,8 @@ use forge_domain::{ForgeKey, InitAuth, Provider};
 
 use crate::{EnvironmentInfra, HttpInfra};
 
-const TOKEN_POLL_ROUTE: &str = "cli/auth/token/";
+const AUTH_ROUTE: &str = "cli/auth/";
 const AUTH_INIT_ROUTE: &str = "cli/auth/init";
-const AUTH_CANCEL_ROUTE: &str = "cli/auth/cancel/";
 
 #[derive(Default, Clone)]
 pub struct ForgeAuthService<I> {
@@ -36,7 +35,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
         let url = format!(
-            "{}{TOKEN_POLL_ROUTE}{}",
+            "{}{AUTH_ROUTE}{}",
             self.infra
                 .get_env_var("FORGE_API_URL")
                 .unwrap_or(Provider::ANTINOMY_URL.to_string()),
@@ -59,7 +58,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
 
     async fn cancel(&self, auth: &InitAuth) -> anyhow::Result<()> {
         let url = format!(
-            "{}{AUTH_CANCEL_ROUTE}{}",
+            "{}{AUTH_ROUTE}{}",
             self.infra
                 .get_env_var("FORGE_API_URL")
                 .unwrap_or(Provider::ANTINOMY_URL.to_string()),
