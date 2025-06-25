@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_app::ProviderRegistry;
 use forge_domain::{ForgeConfig, Provider, ProviderUrl};
+use tokio::sync::RwLock;
 
 use crate::EnvironmentInfra;
 
@@ -10,11 +11,14 @@ type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
 
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,
+    // IMPORTANT: This cache is used to avoid logging out if the user has logged out from other
+    // session. This helps to keep the user logged in for current session.
+    cache: Arc<RwLock<Option<Provider>>>,
 }
 
 impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra }
+        Self { infra, cache: Arc::new(Default::default()) }
     }
 
     fn provider_url(&self) -> Option<ProviderUrl> {
@@ -37,10 +41,18 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
     }
 }
 
+#[async_trait::async_trait]
 impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
-    fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider> {
-        self.get_provider(config)
-            .context("Failed to resolve provider, maybe user is not logged in?")
+    async fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider> {
+        if let Some(provider) = self.cache.read().await.as_ref() {
+            return Ok(provider.clone());
+        }
+
+        let provider = self
+            .get_provider(config)
+            .context("Failed to resolve provider, maybe user is not logged in?")?;
+        self.cache.write().await.replace(provider.clone());
+        Ok(provider)
     }
 }
 

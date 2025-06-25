@@ -287,9 +287,9 @@ pub trait AuthService: Send + Sync {
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey>;
     async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()>;
 }
-
+#[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
-    fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider>;
+    async fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -567,9 +567,11 @@ impl<I: Services> EnvironmentService for I {
         self.environment_service().get_environment()
     }
 }
+
+#[async_trait::async_trait]
 impl<I: Services> ProviderRegistry for I {
-    fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider> {
-        self.provider_registry().get_provider(config)
+    async fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider> {
+        self.provider_registry().get_provider(config).await
     }
 }
 

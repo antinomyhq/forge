@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use forge_domain::{
     Agent, ChatCompletionMessage, Context, Conversation, ModelId, ResultStream, ToolCallContext,
     ToolCallFull, ToolResult,
@@ -50,14 +49,9 @@ impl<T: Services> AgentService for T {
         id: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let config = self.read_global_config().await?;
-        self.chat(
-            id,
-            context,
-            self.get_provider(config)
-                .context("Failed to get provider")?,
-        )
-        .await
+        let config = self.read_global_config().await.unwrap_or_default();
+        let provider = self.get_provider(config).await?;
+        self.chat(id, context, provider).await
     }
 
     async fn call(
