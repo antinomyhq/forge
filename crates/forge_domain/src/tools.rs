@@ -446,7 +446,8 @@ pub struct TaskListClear {
 /// Request to mark a task as completed. This tool is used when you have
 /// successfully completed a task and want to indicate that no further work is
 /// needed on it. The task will be removed from the task list.
-/// Use this tool to signal that a task is fully done and does not require any further action.
+/// Use this tool to signal that a task is fully done and does not require any
+/// further action.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct TaskListAttemptCompletion {
     /// Task ID of the task that this result is related to.
