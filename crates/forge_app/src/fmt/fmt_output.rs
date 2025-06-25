@@ -38,6 +38,11 @@ impl FormatContent for Operation {
             | Operation::TaskListClear { _input: _, before, after } => Some(
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
+            Operation::TaskListAttemptCompletion { _input, before, after } => {
+                let mut md = crate::fmt::fmt_task::to_markdown(before, after);
+                md.push('\n');
+                Some(ContentFormat::Markdown(md))
+            }
         }
     }
 }

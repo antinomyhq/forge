@@ -120,10 +120,7 @@ impl<
                     .await?;
                 output.into()
             }
-            Tools::ForgeToolAttemptCompletion(input) => {
-                if let Some(task_id) = input.task_id {
-                    tasks.mark_done(task_id);
-                }
+            Tools::ForgeToolAttemptCompletion(_input) => {
                 crate::operation::Operation::AttemptCompletion
             }
             Tools::ForgeToolTaskListAppend(input) => {
@@ -152,6 +149,12 @@ impl<
                 let before = tasks.clone();
                 tasks.clear();
                 Operation::TaskListClear { _input: input, before, after: tasks.clone() }
+            }
+            Tools::ForgeToolTaskListAttemptCompletion(input) => {
+                let before = tasks.clone();
+
+                tasks.mark_done(input.task_id);
+                Operation::TaskListAttemptCompletion { _input: input, before, after: tasks.clone() }
             }
         })
     }
