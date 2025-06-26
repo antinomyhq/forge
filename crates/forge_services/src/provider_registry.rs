@@ -34,7 +34,7 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
     }
     fn get_provider(&self, forge_config: ForgeConfig) -> Option<Provider> {
         if let Some(forge_key) = &forge_config.key_info {
-            let provider = Provider::antinomy(forge_key.as_str());
+            let provider = Provider::antinomy(forge_key.api_key.as_str());
             return Some(override_url(provider, self.provider_url()));
         }
         resolve_env_provider(self.provider_url(), self.infra.as_ref())

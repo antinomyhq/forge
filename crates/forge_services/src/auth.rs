@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use anyhow::{bail, Context};
+use anyhow::bail;
 use forge_app::AuthService;
-use forge_domain::{ForgeKey, InitAuth, Provider};
+use forge_domain::{InitAuth, LoginInfo, Provider};
 
 use crate::{EnvironmentInfra, HttpInfra};
 
@@ -33,7 +33,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
         Ok(serde_json::from_slice(&resp.bytes().await?)?)
     }
 
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
         let url = format!(
             "{}{AUTH_ROUTE}{}",
             self.infra
@@ -44,13 +44,9 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
 
         let response = self.infra.get(&url).await?;
         match response.status().as_u16() {
-            200 => Ok(ForgeKey::from(
-                serde_json::from_slice::<serde_json::Value>(&response.bytes().await?)?
-                    .get("apiKey")
-                    .and_then(|v| v.as_str())
-                    .map(|v| v.to_string())
-                    .context("Key not found in response")?,
-            )),
+            200 => Ok(serde_json::from_slice::<LoginInfo>(
+                &response.bytes().await?,
+            )?),
             202 => bail!("Login timeout"),
             _ => bail!("Failed to log in"),
         }
@@ -77,7 +73,7 @@ impl<I: HttpInfra + EnvironmentInfra> AuthService for ForgeAuthService<I> {
         self.init().await
     }
 
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
         self.login(auth).await
     }
     async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()> {

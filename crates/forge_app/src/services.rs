@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, ForgeConfig, ForgeKey, InitAuth, McpConfig, Model, ModelId, PatchOperation,
+    Environment, File, ForgeConfig, LoginInfo, InitAuth, McpConfig, Model, ModelId, PatchOperation,
     Provider, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
@@ -284,7 +284,7 @@ pub trait GlobalConfigService: Send + Sync {
 #[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
     async fn init_auth(&self) -> anyhow::Result<InitAuth>;
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey>;
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;
     async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()>;
 }
 #[async_trait::async_trait]
@@ -592,7 +592,7 @@ impl<I: Services> AuthService for I {
         self.auth_service().init_auth().await
     }
 
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<ForgeKey> {
+    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
         self.auth_service().login(auth).await
     }
 
