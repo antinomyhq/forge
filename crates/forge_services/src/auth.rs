@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::bail;
+use bytes::Bytes;
 use forge_app::AuthService;
 use forge_domain::{InitAuth, LoginInfo, Provider};
 
 use crate::{EnvironmentInfra, HttpInfra};
 
-const AUTH_ROUTE: &str = "cli/auth/";
-const AUTH_INIT_ROUTE: &str = "cli/auth/init";
+const AUTH_ROUTE: &str = "cli/auth/sessions/";
 
 #[derive(Default, Clone)]
 pub struct ForgeAuthService<I> {
@@ -20,12 +20,12 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
     }
     async fn init(&self) -> anyhow::Result<InitAuth> {
         let init_url = format!(
-            "{}{AUTH_INIT_ROUTE}",
+            "{}{AUTH_ROUTE}",
             self.infra
                 .get_env_var("FORGE_API_URL")
                 .unwrap_or(Provider::ANTINOMY_URL.to_string())
         );
-        let resp = self.infra.get(&init_url).await?;
+        let resp = self.infra.post(&init_url, Bytes::new()).await?;
         if !resp.status().is_success() {
             bail!("Failed to initialize auth")
         }
