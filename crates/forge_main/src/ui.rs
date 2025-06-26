@@ -328,7 +328,15 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                let info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+                let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+
+                // Add user information if available
+                if let Ok(config) = self.api.global_config().await {
+                    if let Some(login_info) = &config.key_info {
+                        info = info.extend(Info::from(login_info));
+                    }
+                }
+
                 self.writeln(info)?;
             }
             Command::Message(ref content) => {
@@ -617,6 +625,16 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         self.api.login(&auth).await?;
 
         self.spinner.stop(None)?;
+
+        // Display user information after successful login
+        if let Ok(config) = self.api.global_config().await {
+            if let Some(login_info) = &config.key_info {
+                self.writeln(TitleFormat::completion("Login successful!"))?;
+                let user_info = Info::from(login_info);
+                self.writeln(user_info)?;
+            }
+        }
+
         Ok(())
     }
 

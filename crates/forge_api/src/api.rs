@@ -88,4 +88,5 @@ pub trait API: Sync + Send {
     async fn login(&self, auth: &InitAuth) -> Result<()>;
     async fn logout(&self) -> anyhow::Result<()>;
     async fn provider(&self) -> anyhow::Result<Provider>;
+    async fn global_config(&self) -> anyhow::Result<ForgeConfig>;
 }

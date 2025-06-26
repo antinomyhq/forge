@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, ForgeConfig, LoginInfo, InitAuth, McpConfig, Model, ModelId, PatchOperation,
+    Environment, File, ForgeConfig, InitAuth, LoginInfo, McpConfig, Model, ModelId, PatchOperation,
     Provider, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;

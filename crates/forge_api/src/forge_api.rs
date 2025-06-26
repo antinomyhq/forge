@@ -155,4 +155,10 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             .get_provider(self.app.read_global_config().await.unwrap_or_default())
             .await
     }
+    async fn global_config(&self) -> anyhow::Result<ForgeConfig> {
+        self.app
+            .read_global_config()
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
 }
