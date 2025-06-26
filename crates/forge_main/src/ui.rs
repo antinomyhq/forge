@@ -82,7 +82,8 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
-        self.init_state(false, true).await?;
+        self.api = Arc::new((self.new_api)());
+        self.init_state(false).await?;
         banner::display()?;
         Ok(())
     }
@@ -194,7 +195,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
-        self.init_state(true, false).await?;
+        self.init_state(true).await?;
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -543,7 +544,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(Some("Initializing"))?;
 
                 // Select a model if workflow doesn't have one
-                let workflow = self.init_state(false, false).await?;
+                let workflow = self.init_state(false).await?;
                 // We need to try and get the conversation ID first before fetching the model
                 let id = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation =
@@ -568,10 +569,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     }
 
     /// Initialize the state of the UI
-    async fn init_state(&mut self, first: bool, recreate_api: bool) -> Result<Workflow> {
-        if recreate_api {
-            self.api = Arc::new((self.new_api)());
-        }
+    async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(

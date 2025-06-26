@@ -1,7 +1,7 @@
 <h1 align="center">⚒️ Forge: AI-Enhanced Terminal Development Environment</h1>
 <p align="center">A comprehensive coding agent that integrates AI capabilities with your development environment</p>
 
-<p align="center"><code>npm install -g @antinomyhq/forge</code></p>
+<p align="center"><code>npx forgecode@latest</code></p>
 
 [![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
 [![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
@@ -38,7 +38,7 @@
 Install globally:
 
 ```bash
-npm install -g @antinomyhq/forge
+npm install -g forgecode
 ```
 
 Sign up at [Forgecode.dev](https://app.forgecode.dev/app/) to enable the Forge provider.
