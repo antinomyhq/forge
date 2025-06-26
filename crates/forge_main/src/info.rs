@@ -202,8 +202,8 @@ impl From<&LoginInfo> for Info {
             info = info.add_key_value("Name", name);
         }
 
-        if !login_info.email.is_empty() {
-            info = info.add_key_value("Email(s)", login_info.email.join(", "));
+        if let Some(email) = &login_info.email {
+            info = info.add_key_value("Email", email);
         }
 
         info = info.add_key_value("Key Name", &login_info.key_name);
@@ -224,7 +224,7 @@ mod tests {
         let fixture = LoginInfo {
             api_key: "test-key".to_string(),
             key_name: "Test Key".to_string(),
-            email: vec!["test@example.com".to_string()],
+            email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
         };
 
@@ -240,34 +240,11 @@ mod tests {
     }
 
     #[test]
-    fn test_login_info_display_multiple_emails() {
-        let fixture = LoginInfo {
-            api_key: "test-key".to_string(),
-            key_name: "Test Key".to_string(),
-            email: vec![
-                "test1@example.com".to_string(),
-                "test2@example.com".to_string(),
-            ],
-            name: Some("Test User".to_string()),
-        };
-
-        let actual = Info::from(&fixture);
-
-        let expected = Info::new()
-            .add_title("User Information")
-            .add_key_value("Name", "Test User")
-            .add_key_value("Emails", "test1@example.com, test2@example.com")
-            .add_key_value("Key Name", "Test Key");
-
-        assert_eq!(actual.sections, expected.sections);
-    }
-
-    #[test]
     fn test_login_info_display_no_name() {
         let fixture = LoginInfo {
             api_key: "test-key".to_string(),
             key_name: "Test Key".to_string(),
-            email: vec!["test@example.com".to_string()],
+            email: Some("test@example.com".to_string()),
             name: None,
         };
 
