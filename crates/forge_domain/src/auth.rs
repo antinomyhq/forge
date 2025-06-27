@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct InitAuth {
     pub session_id: String,
     pub auth_url: String,
+    pub user_id: String,
 }
 
 #[derive(Default, Clone, Serialize, Deserialize)]

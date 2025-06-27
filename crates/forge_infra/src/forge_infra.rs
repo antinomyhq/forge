@@ -3,6 +3,7 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use reqwest::header::HeaderMap;
 use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
@@ -222,8 +223,8 @@ impl WalkerInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl HttpInfra for ForgeInfra {
-    async fn get(&self, url: &str) -> anyhow::Result<Response> {
-        self.http_service.get(url).await
+    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+        self.http_service.get(url, headers).await
     }
 
     async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {

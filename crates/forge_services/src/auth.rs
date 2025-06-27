@@ -4,6 +4,7 @@ use anyhow::bail;
 use bytes::Bytes;
 use forge_app::AuthService;
 use forge_domain::{InitAuth, LoginInfo, Provider};
+use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::{EnvironmentInfra, HttpInfra};
 
@@ -41,8 +42,10 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
                 .unwrap_or(Provider::ANTINOMY_URL.to_string()),
             auth.session_id
         );
+        let mut headers = HeaderMap::new();
+        headers.insert("X-User-ID", HeaderValue::from_str(auth.user_id.as_str())?);
 
-        let response = self.infra.get(&url).await?;
+        let response = self.infra.get(&url, Some(headers)).await?;
         match response.status().as_u16() {
             200 => Ok(serde_json::from_slice::<LoginInfo>(
                 &response.bytes().await?,

@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use forge_services::HttpInfra;
+use reqwest::header::HeaderMap;
 use reqwest::{Client, Response};
 
 #[derive(Default)]
@@ -11,11 +12,12 @@ impl ForgeHttpService {
     pub fn new() -> Self {
         Default::default()
     }
-    async fn get(&self, url: &str) -> anyhow::Result<Response> {
+    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
         Ok(self
             .client
             .get(url)
             .header("User-Agent", "Forge")
+            .headers(headers.unwrap_or_else(HeaderMap::new))
             .send()
             .await?)
     }
@@ -40,8 +42,8 @@ impl ForgeHttpService {
 
 #[async_trait::async_trait]
 impl HttpInfra for ForgeHttpService {
-    async fn get(&self, url: &str) -> anyhow::Result<Response> {
-        self.get(url).await
+    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+        self.get(url, headers).await
     }
 
     async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {

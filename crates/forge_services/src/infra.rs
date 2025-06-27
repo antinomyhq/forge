@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
+use reqwest::header::HeaderMap;
 use forge_app::{WalkedFile, Walker};
 use forge_domain::{
     CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
@@ -164,7 +165,7 @@ pub trait WalkerInfra: Send + Sync {
 // TODO: rename me, add Infra suffix
 #[async_trait::async_trait]
 pub trait HttpInfra: Send + Sync + 'static {
-    async fn get(&self, url: &str) -> anyhow::Result<Response>;
+    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
     async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response>;
     async fn delete(&self, url: &str) -> anyhow::Result<Response>;
 }
