@@ -17,7 +17,7 @@ impl ForgeHttpService {
             .client
             .get(url)
             .header("User-Agent", "Forge")
-            .headers(headers.unwrap_or_else(HeaderMap::new))
+            .headers(headers.unwrap_or_default())
             .send()
             .await?)
     }

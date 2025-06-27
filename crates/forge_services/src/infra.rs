@@ -2,12 +2,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use reqwest::header::HeaderMap;
 use forge_app::{WalkedFile, Walker};
 use forge_domain::{
     CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
+use reqwest::header::HeaderMap;
 use reqwest::Response;
 
 pub trait EnvironmentInfra: Send + Sync {

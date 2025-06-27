@@ -3,7 +3,6 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use reqwest::header::HeaderMap;
 use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
@@ -11,6 +10,7 @@ use forge_services::{
     FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
     WalkerInfra,
 };
+use reqwest::header::HeaderMap;
 use reqwest::Response;
 
 use crate::env::ForgeEnvironmentInfra;
