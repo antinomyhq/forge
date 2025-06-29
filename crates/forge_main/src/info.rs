@@ -207,7 +207,7 @@ impl From<&LoginInfo> for Info {
         }
 
         info = info.add_key_value("Key Name", &login_info.key_name);
-        info = info.add_key_value("Masked Key", &truncate_key(&login_info.masked_key));
+        info = info.add_key_value("Masked Key", truncate_key(&login_info.masked_key));
 
         info
     }
