@@ -207,9 +207,17 @@ impl From<&LoginInfo> for Info {
         }
 
         info = info.add_key_value("Key Name", &login_info.key_name);
-        info = info.add_key_value("Masked Key", &login_info.masked_key);
+        info = info.add_key_value("Masked Key", &truncate_key(&login_info.masked_key));
 
         info
+    }
+}
+
+fn truncate_key(key: &str) -> String {
+    if key.len() <= 20 {
+        key.to_string()
+    } else {
+        format!("{}...{}", &key[..=12], &key[key.len() - 4..])
     }
 }
 
