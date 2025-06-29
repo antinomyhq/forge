@@ -1,5 +1,7 @@
 mod attachment;
+mod auth;
 mod clipper;
+mod config;
 mod conversation;
 mod discovery;
 mod env;
@@ -7,6 +9,7 @@ mod forge_services;
 mod infra;
 mod mcp;
 mod provider;
+mod provider_registry;
 mod template;
 mod tool_services;
 mod utils;

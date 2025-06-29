@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use forge_app::{
-    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
-    ProviderService, Services, Walker, WorkflowService,
+    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, GlobalConfigService,
+    McpConfigManager, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -46,7 +46,10 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
-        Ok(self.app.models().await?)
+        Ok(self
+            .app
+            .models(self.provider().await.context("User is not logged in")?)
+            .await?)
     }
 
     async fn chat(
@@ -131,5 +134,31 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         command: &str,
     ) -> anyhow::Result<std::process::ExitStatus> {
         self.infra.execute_command_raw(command).await
+    }
+
+    async fn init_login(&self) -> Result<InitAuth> {
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.init_auth().await
+    }
+
+    async fn login(&self, auth: &InitAuth) -> Result<()> {
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.login(auth).await
+    }
+
+    async fn logout(&self) -> Result<()> {
+        let forge_app = ForgeApp::new(self.app.clone());
+        forge_app.logout().await
+    }
+    async fn provider(&self) -> anyhow::Result<Provider> {
+        self.app
+            .get_provider(self.app.read_global_config().await.unwrap_or_default())
+            .await
+    }
+    async fn global_config(&self) -> anyhow::Result<ForgeConfig> {
+        self.app
+            .read_global_config()
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
     }
 }

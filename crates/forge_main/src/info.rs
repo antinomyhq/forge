@@ -3,11 +3,13 @@ use std::path::{Path, PathBuf};
 
 use colored::Colorize;
 use forge_api::Environment;
+use forge_domain::LoginInfo;
 use forge_tracker::VERSION;
 
 use crate::model::ForgeCommandManager;
 use crate::state::UIState;
 
+#[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
     Items(String, Option<String>),
@@ -189,5 +191,83 @@ impl From<&ForgeCommandManager> for Info {
             .add_key_value("<OPT+ENTER>", "Insert new line (multiline input)");
 
         info
+    }
+}
+
+impl From<&LoginInfo> for Info {
+    fn from(login_info: &LoginInfo) -> Self {
+        let mut info = Info::new().add_title("User Information");
+
+        if let Some(name) = &login_info.name {
+            info = info.add_key_value("Name", name);
+        }
+
+        if let Some(email) = &login_info.email {
+            info = info.add_key_value("Email", email);
+        }
+
+        info = info.add_key_value("Key Name", &login_info.key_name);
+        info = info.add_key_value("Masked Key", truncate_key(&login_info.masked_key));
+
+        info
+    }
+}
+
+fn truncate_key(key: &str) -> String {
+    if key.len() <= 20 {
+        key.to_string()
+    } else {
+        format!("{}...{}", &key[..=12], &key[key.len() - 4..])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_domain::LoginInfo;
+    use pretty_assertions::assert_eq;
+
+    use crate::info::Info;
+
+    #[test]
+    fn test_login_info_display() {
+        let fixture = LoginInfo {
+            api_key: "test-key".to_string(),
+            key_name: "Test Key".to_string(),
+            masked_key: "sk-fg-v1-abcd...1234".to_string(),
+            email: Some("test@example.com".to_string()),
+            name: Some("Test User".to_string()),
+        };
+
+        let actual = Info::from(&fixture);
+
+        let expected = Info::new()
+            .add_title("User Information")
+            .add_key_value("Name", "Test User")
+            .add_key_value("Email", "test@example.com")
+            .add_key_value("Key Name", "Test Key")
+            .add_key_value("Masked Key", "sk-fg-v1-abcd...1234");
+
+        assert_eq!(actual.sections, expected.sections);
+    }
+
+    #[test]
+    fn test_login_info_display_no_name() {
+        let fixture = LoginInfo {
+            api_key: "test-key".to_string(),
+            key_name: "Test Key".to_string(),
+            masked_key: "sk-fg-v1-abcd...1234".to_string(),
+            email: Some("test@example.com".to_string()),
+            name: None,
+        };
+
+        let actual = Info::from(&fixture);
+
+        let expected = Info::new()
+            .add_title("User Information")
+            .add_key_value("Email", "test@example.com")
+            .add_key_value("Key Name", "Test Key")
+            .add_key_value("Masked Key", "sk-fg-v1-abcd...1234");
+
+        assert_eq!(actual.sections, expected.sections);
     }
 }
