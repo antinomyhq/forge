@@ -120,11 +120,57 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub tool_supported: Option<bool>,
+
+    /// Indexing configuration for codebase indexing
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub indexing: Option<IndexingConfig>,
 }
 
 impl Default for Workflow {
     fn default() -> Self {
         serde_yml::from_str(include_str!("../../../forge.default.yaml")).unwrap()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
+#[setters(strip_option)]
+pub struct IndexingConfig {
+    /// Sharding configuration for codebase indexing
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub sharding: Option<ShardingConfig>,
+
+    /// Patterns to ignore during codebase indexing
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[merge(strategy = crate::merge::vec::append)]
+    pub ignore_patterns: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, JsonSchema)]
+pub struct ShardingConfig {
+    /// Type of sharding to use
+    #[serde(flatten)]
+    pub sharding_type: ShardingType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", content = "limit")]
+pub enum ShardingType {
+    /// Shard by token count
+    #[serde(rename = "token")]
+    Token(usize),
+    /// Shard by byte count
+    #[serde(rename = "byte")]
+    Byte(usize),
+}
+
+impl merge::Merge for ShardingType {
+    fn merge(&mut self, other: Self) {
+        *self = other;
     }
 }
 
@@ -160,6 +206,7 @@ impl Workflow {
             tool_supported: None,
             updates: None,
             templates: None,
+            indexing: None,
         }
     }
 

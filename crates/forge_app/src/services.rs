@@ -83,6 +83,14 @@ pub struct FsUndoOutput {
     pub after_undo: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct Shard(pub String);
+
+#[derive(Debug)]
+pub struct CodebaseIndexOutput {
+    pub shards: Vec<Shard>,
+}
+
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync + 'static {
     async fn chat(
@@ -274,6 +282,14 @@ pub trait ShellService: Send + Sync {
     ) -> anyhow::Result<ShellOutput>;
 }
 
+#[async_trait::async_trait]
+pub trait IndexCodebaseService: Send + Sync {
+    async fn index(
+        &self,
+        target_directories: Option<Vec<String>>,
+    ) -> anyhow::Result<CodebaseIndexOutput>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -296,6 +312,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type NetFetchService: NetFetchService;
     type ShellService: ShellService;
     type McpService: McpService;
+    type IndexCodebaseService: IndexCodebaseService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -315,6 +332,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
     fn environment_service(&self) -> &Self::EnvironmentService;
+    fn index_codebase(&self) -> &Self::IndexCodebaseService;
 }
 
 #[async_trait::async_trait]
@@ -480,6 +498,16 @@ impl<I: Services> FsReadService for I {
 impl<I: Services> FsRemoveService for I {
     async fn remove(&self, path: String) -> anyhow::Result<FsRemoveOutput> {
         self.fs_remove_service().remove(path).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> IndexCodebaseService for I {
+    async fn index(
+        &self,
+        target_directories: Option<Vec<String>>,
+    ) -> anyhow::Result<CodebaseIndexOutput> {
+        self.index_codebase().index(target_directories).await
     }
 }
 

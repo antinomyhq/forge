@@ -49,6 +49,7 @@ pub enum Tools {
     ForgeToolTaskListUpdate(TaskListUpdate),
     ForgeToolTaskListList(TaskListList),
     ForgeToolTaskListClear(TaskListClear),
+    ForgeToolCodebaseSearch(CodebaseSearch),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -442,6 +443,31 @@ pub struct TaskListClear {
     pub explanation: Option<String>,
 }
 
+/// Use this tool for any question that can be answered by examining code.
+/// Find snippets of code from the codebase most relevant to the search query.
+/// If it makes sense to only search in particular directories, please specify
+/// them in the paths field.
+/// Unless there is a clear reason to use your own search query, please just
+/// reuse the user's exact query with their wording.
+/// Their exact wording/phrasing can often be helpful for searching. Keeping
+/// the same exact question format can also be helpful.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct CodebaseSearch {
+    /// The search query to find relevant code. You should reuse the user's
+    /// exact query/most recent message with their wording unless there is a
+    /// clear reason not to.
+    pub query: String,
+
+    /// Absolute file or directory paths to search (recursive if dir).
+    /// Use only when certain the answer is in these exact paths.
+    pub paths: Option<Vec<String>>,
+
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
 fn default_raw() -> Option<bool> {
     Some(false)
 }
@@ -568,6 +594,7 @@ impl ToolDescription for Tools {
             Tools::ForgeToolTaskListUpdate(v) => v.description(),
             Tools::ForgeToolTaskListList(v) => v.description(),
             Tools::ForgeToolTaskListClear(v) => v.description(),
+            Tools::ForgeToolCodebaseSearch(v) => v.description(),
         }
     }
 }
@@ -609,6 +636,7 @@ impl Tools {
             Tools::ForgeToolTaskListUpdate(_) => gen.into_root_schema_for::<TaskListUpdate>(),
             Tools::ForgeToolTaskListList(_) => gen.into_root_schema_for::<TaskListList>(),
             Tools::ForgeToolTaskListClear(_) => gen.into_root_schema_for::<TaskListClear>(),
+            Tools::ForgeToolCodebaseSearch(_) => gen.into_root_schema_for::<CodebaseSearch>(),
         }
     }
 
