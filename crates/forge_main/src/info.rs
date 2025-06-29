@@ -207,6 +207,7 @@ impl From<&LoginInfo> for Info {
         }
 
         info = info.add_key_value("Key Name", &login_info.key_name);
+        info = info.add_key_value("Masked Key", &login_info.masked_key);
 
         info
     }
@@ -224,6 +225,7 @@ mod tests {
         let fixture = LoginInfo {
             api_key: "test-key".to_string(),
             key_name: "Test Key".to_string(),
+            masked_key: "sk-fg-v1-abcd...1234".to_string(),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
         };
@@ -234,7 +236,8 @@ mod tests {
             .add_title("User Information")
             .add_key_value("Name", "Test User")
             .add_key_value("Email", "test@example.com")
-            .add_key_value("Key Name", "Test Key");
+            .add_key_value("Key Name", "Test Key")
+            .add_key_value("Masked Key", "sk-fg-v1-abcd...1234");
 
         assert_eq!(actual.sections, expected.sections);
     }
@@ -244,6 +247,7 @@ mod tests {
         let fixture = LoginInfo {
             api_key: "test-key".to_string(),
             key_name: "Test Key".to_string(),
+            masked_key: "sk-fg-v1-abcd...1234".to_string(),
             email: Some("test@example.com".to_string()),
             name: None,
         };
@@ -253,7 +257,8 @@ mod tests {
         let expected = Info::new()
             .add_title("User Information")
             .add_key_value("Email", "test@example.com")
-            .add_key_value("Key Name", "Test Key");
+            .add_key_value("Key Name", "Test Key")
+            .add_key_value("Masked Key", "sk-fg-v1-abcd...1234");
 
         assert_eq!(actual.sections, expected.sections);
     }
