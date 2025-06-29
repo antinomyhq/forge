@@ -8,7 +8,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::{EnvironmentInfra, HttpInfra};
 
-const AUTH_ROUTE: &str = "cli/auth/sessions/";
+const AUTH_ROUTE: &str = "auth/cli/sessions/";
 
 #[derive(Default, Clone)]
 pub struct ForgeAuthService<I> {
