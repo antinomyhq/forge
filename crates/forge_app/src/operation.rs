@@ -6,7 +6,8 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, NetFetch, TaskList,
-    TaskListAppend, TaskListAppendMultiple, TaskListClear, TaskListList, TaskListUpdate,
+    TaskListAppend, TaskListAppendMultiple, TaskListAttemptCompletion, TaskListClear, TaskListList,
+    TaskListUpdate,
 };
 use forge_template::Element;
 
@@ -85,6 +86,11 @@ pub enum Operation {
     },
     TaskListClear {
         _input: TaskListClear,
+        before: TaskList,
+        after: TaskList,
+    },
+    TaskListAttemptCompletion {
+        _input: TaskListAttemptCompletion,
         before: TaskList,
         after: TaskList,
     },
@@ -351,6 +357,21 @@ impl Operation {
                     .attr("done_tasks", stats.done_tasks)
                     .append(after.tasks().iter().map(|task| {
                         //
+                        Element::new("task")
+                            .attr("id", task.id)
+                            .attr("status", task.status.status_name())
+                            .cdata(task.task.as_str())
+                    }));
+                forge_domain::ToolOutput::text(elm)
+            }
+            Operation::TaskListAttemptCompletion { _input, before: _, after } => {
+                let stats = forge_domain::TaskStats::from(&after);
+                let elm = Element::new("task_list")
+                    .attr("total_tasks", stats.total_tasks)
+                    .attr("pending_tasks", stats.pending_tasks)
+                    .attr("in_progress_tasks", stats.in_progress_tasks)
+                    .attr("done_tasks", stats.done_tasks)
+                    .append(after.tasks().iter().map(|task| {
                         Element::new("task")
                             .attr("id", task.id)
                             .attr("status", task.status.status_name())

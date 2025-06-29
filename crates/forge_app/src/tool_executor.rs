@@ -150,6 +150,12 @@ impl<
                 tasks.clear();
                 Operation::TaskListClear { _input: input, before, after: tasks.clone() }
             }
+            Tools::ForgeToolTaskListAttemptCompletion(input) => {
+                let before = tasks.clone();
+
+                tasks.mark_done(input.task_id);
+                Operation::TaskListAttemptCompletion { _input: input, before, after: tasks.clone() }
+            }
         })
     }
 
