@@ -25,3 +25,4 @@ derive_builder.workspace = true
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
+mockito.workspace = true

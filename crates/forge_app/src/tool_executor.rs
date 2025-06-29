@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
-use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
+use anyhow::Context;
+use forge_domain::{TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::error::Error;
-use crate::fmt_input::{FormatInput, InputFormat};
-use crate::fmt_output::FormatOutput;
+use crate::fmt::content::FormatContent;
 use crate::operation::Operation;
+use crate::services::ShellService;
 use crate::{
-    EnvironmentService, FollowUpService, FsCreateService, FsPatchService, FsReadService,
-    FsRemoveService, FsSearchService, FsUndoService, NetFetchService, ShellService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
 };
 
 pub struct ToolExecutor<S> {
@@ -25,6 +26,7 @@ impl<
         + FsUndoService
         + ShellService
         + FollowUpService
+        + ConversationService
         + EnvironmentService,
 > ToolExecutor<S>
 {
@@ -32,7 +34,7 @@ impl<
         Self { services }
     }
 
-    async fn call_internal(&self, input: Tools) -> anyhow::Result<Operation> {
+    async fn call_internal(&self, input: Tools, tasks: &mut TaskList) -> anyhow::Result<Operation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 let output = self
@@ -121,6 +123,33 @@ impl<
             Tools::ForgeToolAttemptCompletion(_input) => {
                 crate::operation::Operation::AttemptCompletion
             }
+            Tools::ForgeToolTaskListAppend(input) => {
+                let before = tasks.clone();
+                tasks.append(&input.task);
+                Operation::TaskListAppend { _input: input, before, after: tasks.clone() }
+            }
+            Tools::ForgeToolTaskListAppendMultiple(input) => {
+                let before = tasks.clone();
+                tasks.append_multiple(input.tasks.clone());
+                Operation::TaskListAppendMultiple { _input: input, before, after: tasks.clone() }
+            }
+            Tools::ForgeToolTaskListUpdate(input) => {
+                let before = tasks.clone();
+                tasks
+                    .update_status(input.task_id, input.status.clone())
+                    .context("Task not found")?;
+                Operation::TaskListUpdate { _input: input, before, after: tasks.clone() }
+            }
+            Tools::ForgeToolTaskListList(input) => {
+                let before = tasks.clone();
+                // No operation needed, just return the current state
+                Operation::TaskListList { _input: input, before, after: tasks.clone() }
+            }
+            Tools::ForgeToolTaskListClear(input) => {
+                let before = tasks.clone();
+                tasks.clear();
+                Operation::TaskListClear { _input: input, before, after: tasks.clone() }
+            }
         })
     }
 
@@ -131,14 +160,15 @@ impl<
     ) -> anyhow::Result<ToolOutput> {
         let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
         let env = self.services.get_environment();
-        match tool_input.to_content(&env) {
-            InputFormat::Title(title) => context.send_text(title).await?,
-            InputFormat::Summary(summary) => context.send_summary(summary).await?,
-        };
+        if let Some(content) = tool_input.to_content(&env) {
+            context.send(content).await?;
+        }
 
         // Send tool call information
 
-        let execution_result = self.call_internal(tool_input.clone()).await;
+        let execution_result = self
+            .call_internal(tool_input.clone(), &mut context.tasks)
+            .await;
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
         }
@@ -147,7 +177,7 @@ impl<
 
         // Send formatted output message
         if let Some(output) = execution_result.to_content(&env) {
-            context.send_text(output).await?;
+            context.send(output).await?;
         }
 
         let truncation_path = execution_result

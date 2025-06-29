@@ -82,6 +82,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
+        self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
         banner::display()?;
         Ok(())
@@ -612,8 +613,6 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        self.api = Arc::new((self.new_api)());
-
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(

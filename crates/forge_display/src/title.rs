@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 use colored::Colorize;
 use derive_setters::Setters;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Category {
     Action,
     Info,
@@ -12,7 +12,7 @@ pub enum Category {
     Completion,
 }
 
-#[derive(Clone, Setters)]
+#[derive(Clone, Setters, Debug, PartialEq)]
 #[setters(into, strip_option)]
 pub struct TitleFormat {
     pub title: String,

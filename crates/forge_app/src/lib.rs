@@ -3,8 +3,7 @@ mod agent_executor;
 mod app;
 mod compact;
 mod error;
-mod fmt_input;
-mod fmt_output;
+pub mod fmt;
 mod mcp_executor;
 mod operation;
 mod orch;
@@ -17,6 +16,5 @@ mod utils;
 mod walker;
 
 pub use app::*;
-pub use fmt_output::*;
 pub use services::*;
 pub use walker::*;

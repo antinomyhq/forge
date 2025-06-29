@@ -1,37 +1,43 @@
 use forge_display::{DiffFormat, GrepFormat};
 use forge_domain::Environment;
 
+use crate::fmt::content::{ContentFormat, FormatContent};
 use crate::operation::Operation;
 use crate::utils::format_match;
 
-pub trait FormatOutput {
-    fn to_content(&self, env: &Environment) -> Option<String>;
-}
-
-impl FormatOutput for Operation {
-    fn to_content(&self, env: &Environment) -> Option<String> {
+impl FormatContent for Operation {
+    fn to_content(&self, env: &Environment) -> Option<ContentFormat> {
         match self {
             Operation::FsRead { input: _, output: _ } => None,
             Operation::FsCreate { input: _, output: _ } => None,
             Operation::FsRemove { input: _ } => None,
             Operation::FsSearch { input: _, output } => output.as_ref().map(|result| {
-                GrepFormat::new(
-                    result
-                        .matches
-                        .iter()
-                        .map(|match_| format_match(match_, env))
-                        .collect::<Vec<_>>(),
+                ContentFormat::PlainText(
+                    GrepFormat::new(
+                        result
+                            .matches
+                            .iter()
+                            .map(|match_| format_match(match_, env))
+                            .collect::<Vec<_>>(),
+                    )
+                    .format(),
                 )
-                .format()
             }),
-            Operation::FsPatch { input: _, output } => {
-                Some(DiffFormat::format(&output.before, &output.after))
-            }
+            Operation::FsPatch { input: _, output } => Some(ContentFormat::PlainText(
+                DiffFormat::format(&output.before, &output.after),
+            )),
             Operation::FsUndo { input: _, output: _ } => None,
             Operation::NetFetch { input: _, output: _ } => None,
             Operation::Shell { output: _ } => None,
             Operation::FollowUp { output: _ } => None,
             Operation::AttemptCompletion => None,
+            Operation::TaskListAppend { _input: _, before, after }
+            | Operation::TaskListAppendMultiple { _input: _, before, after }
+            | Operation::TaskListUpdate { _input: _, before, after }
+            | Operation::TaskListList { _input: _, before, after }
+            | Operation::TaskListClear { _input: _, before, after } => Some(
+                ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
+            ),
         }
     }
 }
@@ -45,12 +51,40 @@ mod tests {
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 
-    use super::FormatOutput;
+    use super::FormatContent;
+    use crate::fmt::content::ContentFormat;
     use crate::operation::Operation;
     use crate::{
         Content, FsCreateOutput, FsUndoOutput, HttpResponse, Match, MatchResult, PatchOutput,
         ReadOutput, ResponseContext, SearchResult, ShellOutput,
     };
+
+    impl std::fmt::Display for ContentFormat {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                ContentFormat::Title(title) => write!(f, "{title}"),
+                ContentFormat::PlainText(text) => write!(f, "{text}"),
+                ContentFormat::Markdown(text) => write!(f, "{text}"),
+            }
+        }
+    }
+
+    impl ContentFormat {
+        pub fn contains(&self, needle: &str) -> bool {
+            self.to_string().contains(needle)
+        }
+
+        pub fn as_str(&self) -> &str {
+            match self {
+                ContentFormat::PlainText(text) | ContentFormat::Markdown(text) => text,
+                ContentFormat::Title(_) => {
+                    // For titles, we can't return a reference to the formatted string
+                    // since it's computed on demand. Tests should use to_string() instead.
+                    panic!("as_str() not supported for Title format, use to_string() instead")
+                }
+            }
+        }
+    }
 
     fn fixture_environment() -> Environment {
         Environment {
