@@ -183,6 +183,7 @@ impl ForgeCommandManager {
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
             "/agent" => Ok(Command::Agent),
+
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 

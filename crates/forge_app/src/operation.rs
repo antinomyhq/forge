@@ -5,8 +5,8 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, NetFetch, TaskList,
-    TaskListAppend, TaskListAppendMultiple, TaskListClear, TaskListList, TaskListUpdate,
+    CodebaseSearch, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, NetFetch,
+    TaskList, TaskListAppend, TaskListAppendMultiple, TaskListClear, TaskListList, TaskListUpdate,
 };
 use forge_template::Element;
 
@@ -87,6 +87,10 @@ pub enum Operation {
         _input: TaskListClear,
         before: TaskList,
         after: TaskList,
+    },
+    CodebaseSearch {
+        input: CodebaseSearch,
+        output: String,
     },
 }
 
@@ -356,6 +360,12 @@ impl Operation {
                             .attr("status", task.status.status_name())
                             .cdata(task.task.as_str())
                     }));
+                forge_domain::ToolOutput::text(elm)
+            }
+            Operation::CodebaseSearch { input, output } => {
+                let elm = Element::new("codebase_search")
+                    .attr("query", input.query)
+                    .attr("output", output);
                 forge_domain::ToolOutput::text(elm)
             }
         }

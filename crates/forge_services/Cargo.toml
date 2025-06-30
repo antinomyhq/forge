@@ -58,6 +58,7 @@ merge.workspace = true
 strip-ansi-escapes.workspace = true
 rmcp.workspace = true
 forge_app.workspace = true
+yek = "0.21.0"
 
 [dev-dependencies]
 insta.workspace = true

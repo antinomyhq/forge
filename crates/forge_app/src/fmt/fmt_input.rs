@@ -92,6 +92,14 @@ impl FormatContent for Tools {
             }
             Tools::ForgeToolTaskListList(_) => TitleFormat::debug("Task Read".to_string()).into(),
             Tools::ForgeToolTaskListClear(_) => TitleFormat::debug("Task Clear".to_string()).into(),
+            Tools::ForgeToolCodebaseSearch(input) => {
+                let result = if let Some(paths) = &input.paths {
+                    format!("Codebase Search for '{}' in {:#?}", input.query, paths)
+                } else {
+                    format!("Codebase Search for '{}' at .", input.query)
+                };
+                TitleFormat::debug(result).into()
+            }
         };
 
         Some(output)
