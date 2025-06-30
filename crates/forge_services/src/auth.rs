@@ -65,7 +65,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
         );
 
         // Delete the session if auth is already completed in another session.
-        self.infra.delete(&url).await?;
+        self.infra.delete(&url).await.ok();
         Ok(())
     }
 }
