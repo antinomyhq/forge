@@ -1184,6 +1184,7 @@ dependencies = [
  "derive_setters",
  "forge_domain",
  "insta",
+ "mockito",
  "pretty_assertions",
  "regex",
  "reqwest 0.12.12",

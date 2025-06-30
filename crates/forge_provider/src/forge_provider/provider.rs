@@ -14,7 +14,7 @@ use super::request::Request;
 use super::response::Response;
 use crate::error::Error;
 use crate::forge_provider::transformers::{ProviderPipeline, Transformer};
-use crate::utils::format_http_context;
+use crate::utils::{format_http_context, sanitize_headers};
 
 #[derive(Clone, Builder)]
 pub struct ForgeProvider {
@@ -71,7 +71,7 @@ impl ForgeProvider {
             reqwest::header::CONNECTION,
             HeaderValue::from_static("keep-alive"),
         );
-        debug!(headers = ?headers, "Request Headers");
+        debug!(headers = ?sanitize_headers(&headers), "Request Headers");
         headers
     }
 
@@ -90,7 +90,7 @@ impl ForgeProvider {
         info!(
             url = %url,
             model = %model,
-            headers = ?headers,
+            headers = ?sanitize_headers(&headers),
             message_count = %request.message_count(),
             message_cache_count = %request.message_cache_count(),
             "Connecting Upstream"
@@ -189,19 +189,23 @@ impl ForgeProvider {
 
     async fn fetch_models(&self, url: Url) -> Result<String, anyhow::Error> {
         let headers = self.headers();
-        info!(method = "GET", url = %url, headers = ?headers, "Fetching Models");
+        info!(method = "GET", url = %url, headers = ?sanitize_headers(&headers), "Fetching Models");
         match self.client.get(url.clone()).headers(headers).send().await {
             Ok(response) => {
-                let ctx_message = format_http_context(Some(response.status()), "GET", &url);
-                match response.error_for_status() {
-                    Ok(response) => Ok(response
-                        .text()
-                        .await
+                let status = response.status();
+                let ctx_message = format_http_context(Some(status), "GET", &url);
+                let response = response
+                    .text()
+                    .await
+                    .with_context(|| ctx_message.clone())
+                    .with_context(|| "Failed to decode response into text")?;
+                if status.is_success() {
+                    Ok(response)
+                } else {
+                    // treat non 200 response as error.
+                    Err(anyhow::anyhow!(response))
                         .with_context(|| ctx_message)
-                        .with_context(|| "Failed to decode response into text")?),
-                    Err(err) => Err(err)
-                        .with_context(|| ctx_message)
-                        .with_context(|| "Failed because of a non 200 status code"),
+                        .with_context(|| "Failed to fetch the models")
                 }
             }
             Err(err) => {
@@ -255,8 +259,121 @@ impl From<Model> for forge_domain::Model {
 #[cfg(test)]
 mod tests {
     use anyhow::Context;
+    use reqwest::Client;
 
     use super::*;
+    use crate::mock_server::{normalize_ports, MockServer};
+
+    fn create_provider(base_url: &str) -> anyhow::Result<ForgeProvider> {
+        let provider = Provider::OpenAI {
+            url: reqwest::Url::parse(base_url)?,
+            key: Some("test-api-key".to_string()),
+        };
+
+        Ok(ForgeProvider::builder()
+            .client(Client::new())
+            .provider(provider)
+            .version("1.0.0".to_string())
+            .build()
+            .unwrap())
+    }
+
+    fn create_mock_models_response() -> serde_json::Value {
+        serde_json::json!({
+            "data": [
+                {
+                    "id": "model-1",
+                    "name": "Test Model 1",
+                    "description": "A test model",
+                    "context_length": 4096,
+                    "supported_parameters": ["tools", "supports_parallel_tool_calls"]
+                },
+                {
+                    "id": "model-2",
+                    "name": "Test Model 2",
+                    "description": "Another test model",
+                    "context_length": 8192,
+                    "supported_parameters": ["tools"]
+                }
+            ]
+        })
+    }
+
+    fn create_error_response(message: &str, code: u16) -> serde_json::Value {
+        serde_json::json!({
+            "error": {
+                "message": message,
+                "code": code
+            }
+        })
+    }
+
+    fn create_empty_response() -> serde_json::Value {
+        serde_json::json!({ "data": [] })
+    }
+
+    #[tokio::test]
+    async fn test_fetch_models_success() -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+        let mock = fixture
+            .mock_models(create_mock_models_response(), 200)
+            .await;
+        let provider = create_provider(&fixture.url())?;
+        let actual = provider.models().await?;
+
+        mock.assert_async().await;
+        insta::assert_json_snapshot!(actual);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_models_http_error_status() -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+        let mock = fixture
+            .mock_models(create_error_response("Invalid API key", 401), 401)
+            .await;
+
+        let provider = create_provider(&fixture.url())?;
+        let actual = provider.models().await;
+
+        mock.assert_async().await;
+
+        // Verify that we got an error
+        assert!(actual.is_err());
+        insta::assert_snapshot!(normalize_ports(format!("{:#?}", actual.unwrap_err())));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_models_server_error() -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+        let mock = fixture
+            .mock_models(create_error_response("Internal Server Error", 500), 500)
+            .await;
+
+        let provider = create_provider(&fixture.url())?;
+        let actual = provider.models().await;
+
+        mock.assert_async().await;
+
+        // Verify that we got an error
+        assert!(actual.is_err());
+        insta::assert_snapshot!(normalize_ports(format!("{:#?}", actual.unwrap_err())));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_models_empty_response() -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+        let mock = fixture.mock_models(create_empty_response(), 200).await;
+
+        let provider = create_provider(&fixture.url())?;
+        let actual = provider.models().await?;
+
+        mock.assert_async().await;
+        assert!(actual.is_empty());
+        Ok(())
+    }
 
     #[test]
     fn test_error_deserialization() -> Result<()> {

@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -351,7 +350,10 @@ impl<S: AgentService> Orchestrator<S> {
             self.send(ChatResponse::Usage(usage.clone())).await?;
 
             // Check if context requires compression and decide to compact
-            if agent.should_compact(&context, max(usage.prompt_tokens, usage.estimated_tokens)) {
+            let context_tokens = usage
+                .prompt_tokens
+                .max(usage.estimated_tokens.max(usage.total_tokens));
+            if agent.should_compact(&context, context_tokens) {
                 info!(agent_id = %agent.id, "Compaction needed, applying compaction");
                 context = compactor.compact(&agent, context, false).await?;
             } else {
