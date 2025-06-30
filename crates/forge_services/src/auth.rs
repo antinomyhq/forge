@@ -57,20 +57,6 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             _ => bail!("Failed to log in"),
         }
     }
-
-    async fn cancel(&self, auth: &InitAuth) -> anyhow::Result<()> {
-        let url = format!(
-            "{}{AUTH_ROUTE}{}",
-            self.infra
-                .get_env_var("FORGE_API_URL")
-                .unwrap_or(Provider::ANTINOMY_URL.to_string()),
-            auth.session_id,
-        );
-
-        // Delete the session if auth is already completed in another session.
-        self.infra.delete(&url).await.ok();
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
@@ -81,8 +67,5 @@ impl<I: HttpInfra + EnvironmentInfra> AuthService for ForgeAuthService<I> {
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
         self.login(auth).await
-    }
-    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()> {
-        self.cancel(auth).await
     }
 }

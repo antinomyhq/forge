@@ -285,7 +285,6 @@ pub trait GlobalConfigService: Send + Sync {
 pub trait AuthService: Send + Sync {
     async fn init_auth(&self) -> anyhow::Result<InitAuth>;
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;
-    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()>;
 }
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
@@ -594,9 +593,5 @@ impl<I: Services> AuthService for I {
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
         self.auth_service().login(auth).await
-    }
-
-    async fn cancel_auth(&self, auth: &InitAuth) -> anyhow::Result<()> {
-        self.auth_service().cancel_auth(auth).await
     }
 }
