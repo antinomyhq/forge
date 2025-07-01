@@ -58,6 +58,10 @@ pub struct Cli {
     /// Top-level subcommands
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
+
+    /// Path to the configuration file.
+    #[arg(long)]
+    pub config_path: Option<PathBuf>,
 }
 
 #[derive(Subcommand, Debug, Clone)]

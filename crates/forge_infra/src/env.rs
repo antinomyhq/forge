@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
+use std::collections::HashMap;
 
 use forge_domain::{Environment, Provider, RetryConfig};
 use forge_services::EnvironmentInfra;
@@ -7,6 +8,7 @@ use forge_services::EnvironmentInfra;
 pub struct ForgeEnvironmentInfra {
     restricted: bool,
     is_env_loaded: RwLock<bool>,
+    config_path: Option<PathBuf>,
 }
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
@@ -17,8 +19,8 @@ impl ForgeEnvironmentInfra {
     /// # Arguments
     /// * `unrestricted` - If true, use unrestricted shell mode (sh/bash) If
     ///   false, use restricted shell mode (rbash)
-    pub fn new(restricted: bool) -> Self {
-        Self { restricted, is_env_loaded: Default::default() }
+    pub fn new(restricted: bool, config_path: &Option<PathBuf>) -> Self {
+        Self { restricted, is_env_loaded: Default::default(), config_path: config_path.clone() }
     }
 
     /// Get path to appropriate shell based on platform and mode
@@ -39,6 +41,8 @@ impl ForgeEnvironmentInfra {
     /// Returns a tuple of (provider_key, provider)
     /// Panics if no API key is found in the environment
     fn resolve_provider(&self) -> Provider {
+        let yaml_config = self.load_yaml_config();
+        
         let keys: [ProviderSearch; 4] = [
             ("FORGE_KEY", Box::new(Provider::antinomy)),
             ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
@@ -54,15 +58,15 @@ impl ForgeEnvironmentInfra {
 
         keys.into_iter()
             .find_map(|(key, fun)| {
-                std::env::var(key).ok().map(|key| {
-                    let mut provider = fun(&key);
+                self.get_config_value(&yaml_config, key).map(|api_key| {
+                    let mut provider = fun(&api_key);
 
-                    if let Ok(url) = std::env::var("OPENAI_URL") {
+                    if let Some(url) = self.get_config_value(&yaml_config, "OPENAI_URL") {
                         provider.open_ai_url(url);
                     }
 
                     // Check for Anthropic URL override
-                    if let Ok(url) = std::env::var("ANTHROPIC_URL") {
+                    if let Some(url) = self.get_config_value(&yaml_config, "ANTHROPIC_URL") {
                         provider.anthropic_url(url);
                     }
 
@@ -75,28 +79,29 @@ impl ForgeEnvironmentInfra {
     /// Resolves retry configuration from environment variables or returns
     /// defaults
     fn resolve_retry_config(&self) -> RetryConfig {
+        let yaml_config = self.load_yaml_config();
         let mut config = RetryConfig::default();
 
-        // Override with environment variables if available
-        if let Ok(val) = std::env::var("FORGE_RETRY_INITIAL_BACKOFF_MS") {
+        // Override with YAML config or environment variables
+        if let Some(val) = self.get_config_value(&yaml_config, "FORGE_RETRY_INITIAL_BACKOFF_MS") {
             if let Ok(parsed) = val.parse::<u64>() {
                 config.initial_backoff_ms = parsed;
             }
         }
 
-        if let Ok(val) = std::env::var("FORGE_RETRY_BACKOFF_FACTOR") {
+        if let Some(val) = self.get_config_value(&yaml_config, "FORGE_RETRY_BACKOFF_FACTOR") {
             if let Ok(parsed) = val.parse::<u64>() {
                 config.backoff_factor = parsed;
             }
         }
 
-        if let Ok(val) = std::env::var("FORGE_RETRY_MAX_ATTEMPTS") {
+        if let Some(val) = self.get_config_value(&yaml_config, "FORGE_RETRY_MAX_ATTEMPTS") {
             if let Ok(parsed) = val.parse::<usize>() {
                 config.max_retry_attempts = parsed;
             }
         }
 
-        if let Ok(val) = std::env::var("FORGE_RETRY_STATUS_CODES") {
+        if let Some(val) = self.get_config_value(&yaml_config, "FORGE_RETRY_STATUS_CODES") {
             let status_codes: Vec<u16> = val
                 .split(',')
                 .filter_map(|code| code.trim().parse::<u16>().ok())
@@ -110,29 +115,101 @@ impl ForgeEnvironmentInfra {
     }
 
     fn resolve_timeout_config(&self) -> forge_domain::HttpConfig {
+        let yaml_config = self.load_yaml_config();
         let mut config = forge_domain::HttpConfig::default();
-        if let Ok(val) = std::env::var("FORGE_HTTP_READ_TIMEOUT") {
+        
+        if let Some(val) = self.get_config_value(&yaml_config, "FORGE_HTTP_READ_TIMEOUT") {
             if let Ok(parsed) = val.parse::<u64>() {
                 config.read_timeout = parsed;
             }
         }
-        if let Ok(val) = std::env::var("FORGE_HTTP_POOL_IDLE_TIMEOUT") {
+        if let Some(val) = self.get_config_value(&yaml_config, "FORGE_HTTP_POOL_IDLE_TIMEOUT") {
             if let Ok(parsed) = val.parse::<u64>() {
                 config.pool_idle_timeout = parsed;
             }
         }
-        if let Ok(val) = std::env::var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST") {
+        if let Some(val) = self.get_config_value(&yaml_config, "FORGE_HTTP_POOL_MAX_IDLE_PER_HOST") {
             if let Ok(parsed) = val.parse::<usize>() {
                 config.pool_max_idle_per_host = parsed;
             }
         }
-        if let Ok(val) = std::env::var("FORGE_HTTP_MAX_REDIRECTS") {
+        if let Some(val) = self.get_config_value(&yaml_config, "FORGE_HTTP_MAX_REDIRECTS") {
             if let Ok(parsed) = val.parse::<usize>() {
                 config.max_redirects = parsed;
             }
         }
 
         config
+    }
+
+    /// Load YAML configuration file and flatten nested keys using __ separator
+    fn load_yaml_config(&self) -> HashMap<String, String> {
+        let mut config = HashMap::new();
+        
+        if let Some(config_path) = &self.config_path {
+            if config_path.exists() && config_path.is_file() {
+                match std::fs::read_to_string(config_path) {
+                    Ok(content) => {
+                        match serde_yml::from_str::<serde_yml::Value>(&content) {
+                            Ok(yaml_value) => {
+                                Self::flatten_yaml(&yaml_value, String::new(), &mut config);
+                            }
+                            Err(e) => {
+                                eprintln!("Warning: Failed to parse YAML config file {}: {}", config_path.display(), e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: Failed to read config file {}: {}", config_path.display(), e);
+                    }
+                }
+            }
+        }
+        
+        config
+    }
+
+    /// Recursively flatten YAML structure with __ as separator
+    fn flatten_yaml(value: &serde_yml::Value, prefix: String, result: &mut HashMap<String, String>) {
+        match value {
+            serde_yml::Value::Mapping(map) => {
+                for (key, val) in map {
+                    if let Some(key_str) = key.as_str() {
+                        let new_key = if prefix.is_empty() {
+                            key_str.to_string()
+                        } else {
+                            format!("{}__{}", prefix, key_str)
+                        };
+                        Self::flatten_yaml(val, new_key, result);
+                    }
+                }
+            }
+            _ => {
+                if let Some(val_str) = Self::yaml_value_to_string(value) {
+                    result.insert(prefix, val_str);
+                }
+            }
+        }
+    }
+
+    /// Convert YAML value to string representation
+    fn yaml_value_to_string(value: &serde_yml::Value) -> Option<String> {
+        match value {
+            serde_yml::Value::String(s) => Some(s.clone()),
+            serde_yml::Value::Number(n) => Some(n.to_string()),
+            serde_yml::Value::Bool(b) => Some(b.to_string()),
+            serde_yml::Value::Null => None,
+            _ => None,
+        }
+    }
+
+    /// Get configuration value with preference: YAML config > environment variable
+    fn get_config_value(&self, yaml_config: &HashMap<String, String>, key: &str) -> Option<String> {
+        if let Some(value) = yaml_config.get(key) {
+            return Some(value.clone());
+        }
+        
+        std::env::var(key).ok()
     }
 
     fn get(&self) -> Environment {
@@ -297,7 +374,7 @@ mod tests {
             env::remove_var("FORGE_RETRY_STATUS_CODES");
 
             // Verify that the environment service uses the same default as RetryConfig
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, &None);
             let retry_config_from_env = env_service.resolve_retry_config();
             let default_retry_config = RetryConfig::default();
 
@@ -339,7 +416,7 @@ mod tests {
             env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "5");
             env::set_var("FORGE_RETRY_STATUS_CODES", "429,500,502");
 
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, &None);
             let config = env_service.resolve_retry_config();
 
             assert_eq!(config.initial_backoff_ms, 500);
@@ -366,7 +443,7 @@ mod tests {
             env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "10");
             env::set_var("FORGE_RETRY_STATUS_CODES", "503,504");
 
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, &None);
             let config = env_service.resolve_retry_config();
             let default_config = RetryConfig::default();
 
@@ -397,7 +474,7 @@ mod tests {
             env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "abc");
             env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes,here");
 
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, &None);
             let config = env_service.resolve_retry_config();
             let default_config = RetryConfig::default();
 
@@ -413,5 +490,51 @@ mod tests {
             env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
             env::remove_var("FORGE_RETRY_STATUS_CODES");
         }
+    }
+
+    #[test]
+    fn test_yaml_config_loading() {
+        use tempfile::NamedTempFile;
+        use std::io::Write;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "FORGE_KEY: \"test_key_from_yaml\"\nOPENAI_URL: \"https://api.custom.openai.com\"\nretry:\n  config:\n    max_attempts: 5\n    initial_backoff_ms: 1000\nnested:\n  deep:\n    value: \"deep_value\"").unwrap();
+
+        let config_path = Some(temp_file.path().to_path_buf());
+        let env_service = ForgeEnvironmentInfra::new(false, &config_path);
+        let yaml_config = env_service.load_yaml_config();
+
+        // Test direct keys
+        assert_eq!(yaml_config.get("FORGE_KEY"), Some(&"test_key_from_yaml".to_string()));
+        assert_eq!(yaml_config.get("OPENAI_URL"), Some(&"https://api.custom.openai.com".to_string()));
+
+        // Test nested keys with __ separator
+        assert_eq!(yaml_config.get("retry__config__max_attempts"), Some(&"5".to_string()));
+        assert_eq!(yaml_config.get("retry__config__initial_backoff_ms"), Some(&"1000".to_string()));
+        assert_eq!(yaml_config.get("nested__deep__value"), Some(&"deep_value".to_string()));
+    }
+
+    #[test]
+    fn test_yaml_config_precedence_over_env() {
+        use tempfile::NamedTempFile;
+        use std::io::Write;
+
+        // Set environment variable
+        env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "3");
+
+        // Create YAML config that should override the env var
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, "FORGE_RETRY_MAX_ATTEMPTS: 7").unwrap();
+
+        let config_path = Some(temp_file.path().to_path_buf());
+        let env_service = ForgeEnvironmentInfra::new(false, &config_path);
+        let yaml_config = env_service.load_yaml_config();
+
+        // YAML should take precedence
+        assert_eq!(env_service.get_config_value(&yaml_config, "FORGE_RETRY_MAX_ATTEMPTS"), 
+                   Some("7".to_string()));
+
+        // Clean up
+        env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
     }
 }

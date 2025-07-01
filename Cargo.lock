@@ -1109,6 +1109,7 @@ dependencies = [
  "rmcp",
  "serde",
  "serde_json",
+ "serde_yml",
  "tempfile",
  "thiserror 2.0.12",
  "tokio",
