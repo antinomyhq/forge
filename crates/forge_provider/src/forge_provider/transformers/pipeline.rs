@@ -55,6 +55,7 @@ mod tests {
         )));
 
         assert!(!supports_open_router_params(&Provider::openai("openai")));
+        assert!(!supports_open_router_params(&Provider::requesty("requesty")));
         assert!(!supports_open_router_params(&Provider::anthropic("claude")));
     }
 }

@@ -39,9 +39,10 @@ impl ForgeEnvironmentInfra {
     /// Returns a tuple of (provider_key, provider)
     /// Panics if no API key is found in the environment
     fn resolve_provider(&self) -> Provider {
-        let keys: [ProviderSearch; 4] = [
+        let keys: [ProviderSearch; 5] = [
             ("FORGE_KEY", Box::new(Provider::antinomy)),
             ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
+            ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
             ("OPENAI_API_KEY", Box::new(Provider::openai)),
             ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
         ];
