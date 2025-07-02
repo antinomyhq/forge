@@ -1,9 +1,10 @@
+use std::panic;
+
 use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_display::TitleFormat;
 use forge_main::{Cli, UI};
-use std::panic;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -17,7 +18,7 @@ async fn main() -> Result<()> {
             "Unexpected error occurred".to_string()
         };
 
-        eprintln!("{}", TitleFormat::error(format!("{message}")));
+        eprintln!("{}", TitleFormat::error(message.to_string()));
         std::process::exit(1);
     }));
 
