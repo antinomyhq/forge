@@ -2,12 +2,12 @@ use std::path::{Path, PathBuf};
 
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, ForgeConfig, InitAuth, LoginInfo, McpConfig, Model, ModelId, PatchOperation,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation,
     Provider, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 
-use crate::Walker;
+use crate::{ForgeConfig, InitAuth, LoginInfo, Walker};
 
 #[derive(Debug)]
 pub struct ShellOutput {

@@ -5,6 +5,7 @@ mod authenticator;
 mod compact;
 mod error;
 pub mod fmt;
+mod global_config;
 mod mcp_executor;
 mod operation;
 mod orch;
@@ -17,5 +18,6 @@ mod utils;
 mod walker;
 
 pub use app::*;
+pub use global_config::*;
 pub use services::*;
 pub use walker::*;

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use forge_app::ForgeConfig;
 use forge_app::GlobalConfigService;
-use forge_domain::ForgeConfig;
 
 use crate::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
 

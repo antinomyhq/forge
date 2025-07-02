@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use forge_app::{ForgeConfig, InitAuth};
 use forge_stream::MpscStream;
 
 use crate::*;

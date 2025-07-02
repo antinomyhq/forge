@@ -3,9 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use backon::{ExponentialBuilder, Retryable};
-use forge_domain::{InitAuth, RetryConfig};
+use forge_domain::RetryConfig;
 
-use crate::{AuthService, GlobalConfigService, Services};
+use crate::{AuthService, GlobalConfigService, InitAuth, Services};
 
 pub struct Authenticator<S> {
     service: Arc<S>,

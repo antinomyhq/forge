@@ -2,8 +2,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use colored::Colorize;
-use forge_api::Environment;
-use forge_domain::LoginInfo;
+use forge_api::{Environment, LoginInfo};
 use forge_tracker::VERSION;
 
 use crate::model::ForgeCommandManager;
@@ -218,9 +217,8 @@ fn truncate_key(key: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::LoginInfo;
     use pretty_assertions::assert_eq;
-
+    use forge_api::LoginInfo;
     use crate::info::Info;
 
     #[test]
@@ -236,11 +234,9 @@ mod tests {
         let actual = Info::from(&fixture);
 
         let expected = Info::new()
-            .add_title("User Information")
-            .add_key_value("Name", "Test User")
-            .add_key_value("Email", "test@example.com")
-            .add_key_value("Key Name", "Test Key")
-            .add_key_value("Masked Key", "sk-fg-v1-abcd...1234");
+            .add_title("User")
+            .add_key_value("Login", "test@example.com")
+            .add_key_value("Key", "sk-fg-v1-abcd...1234");
 
         assert_eq!(actual.sections, expected.sections);
     }
@@ -258,10 +254,9 @@ mod tests {
         let actual = Info::from(&fixture);
 
         let expected = Info::new()
-            .add_title("User Information")
-            .add_key_value("Email", "test@example.com")
-            .add_key_value("Key Name", "Test Key")
-            .add_key_value("Masked Key", "sk-fg-v1-abcd...1234");
+            .add_title("User")
+            .add_key_value("Login", "test@example.com")
+            .add_key_value("Key", "sk-fg-v1-abcd...1234");
 
         assert_eq!(actual.sections, expected.sections);
     }
