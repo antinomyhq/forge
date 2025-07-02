@@ -198,16 +198,11 @@ impl From<&LoginInfo> for Info {
     fn from(login_info: &LoginInfo) -> Self {
         let mut info = Info::new().add_title("User");
 
-        if let Some(name) = &login_info.name {
-            info = info.add_key_value("Name", name);
-        }
-
         if let Some(email) = &login_info.email {
-            info = info.add_key_value("Email", email);
+            info = info.add_key_value("Login", email);
         }
 
-        info = info.add_key_value("Key Name", &login_info.key_name);
-        info = info.add_key_value("Key", truncate_key(&login_info.masked_key));
+        info = info.add_key_value("Key", truncate_key(&login_info.api_key_masked));
 
         info
     }
@@ -232,8 +227,8 @@ mod tests {
     fn test_login_info_display() {
         let fixture = LoginInfo {
             api_key: "test-key".to_string(),
-            key_name: "Test Key".to_string(),
-            masked_key: "sk-fg-v1-abcd...1234".to_string(),
+            api_key_name: "Test Key".to_string(),
+            api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
         };
@@ -254,8 +249,8 @@ mod tests {
     fn test_login_info_display_no_name() {
         let fixture = LoginInfo {
             api_key: "test-key".to_string(),
-            key_name: "Test Key".to_string(),
-            masked_key: "sk-fg-v1-abcd...1234".to_string(),
+            api_key_name: "Test Key".to_string(),
+            api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
             email: Some("test@example.com".to_string()),
             name: None,
         };

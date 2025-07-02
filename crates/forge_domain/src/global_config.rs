@@ -19,8 +19,8 @@ pub struct ForgeConfig {
 #[serde(rename_all = "camelCase")]
 pub struct LoginInfo {
     pub api_key: String,
-    pub key_name: String,
-    pub masked_key: String,
+    pub api_key_name: String,
+    pub api_key_masked: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
