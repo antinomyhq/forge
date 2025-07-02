@@ -10,7 +10,11 @@ use crate::authenticator::Authenticator;
 use crate::orch::Orchestrator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
-use crate::{AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, GlobalConfigService, InitAuth, ProviderRegistry, ProviderService, Services, Walker, WorkflowService};
+use crate::{
+    AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService,
+    GlobalConfigService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
+    WorkflowService,
+};
 
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the

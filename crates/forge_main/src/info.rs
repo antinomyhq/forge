@@ -217,8 +217,9 @@ fn truncate_key(key: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use forge_api::LoginInfo;
+    use pretty_assertions::assert_eq;
+
     use crate::info::Info;
 
     #[test]
