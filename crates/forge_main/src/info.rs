@@ -196,7 +196,7 @@ impl From<&ForgeCommandManager> for Info {
 
 impl From<&LoginInfo> for Info {
     fn from(login_info: &LoginInfo) -> Self {
-        let mut info = Info::new().add_title("User Information");
+        let mut info = Info::new().add_title("User");
 
         if let Some(name) = &login_info.name {
             info = info.add_key_value("Name", name);
@@ -207,7 +207,7 @@ impl From<&LoginInfo> for Info {
         }
 
         info = info.add_key_value("Key Name", &login_info.key_name);
-        info = info.add_key_value("Masked Key", truncate_key(&login_info.masked_key));
+        info = info.add_key_value("Key", truncate_key(&login_info.masked_key));
 
         info
     }
