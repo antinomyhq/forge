@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use bytes::Bytes;
-use forge_app::{AuthService, InitAuth, LoginInfo};
+use forge_app::{AuthService, Error, InitAuth, LoginInfo};
 use forge_domain::Provider;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 
@@ -53,8 +53,8 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             200 => Ok(serde_json::from_slice::<LoginInfo>(
                 &response.bytes().await?,
             )?),
-            202 => bail!("Login timeout"),
-            _ => bail!("Failed to log in"),
+            202 => Err(Error::AuthInProgress.into()),
+            status => bail!("HTTP {}: Authentication failed", status),
         }
     }
 }

@@ -53,7 +53,7 @@ impl ForgeHttpService {
         headers.insert("X-Title", HeaderValue::from_static("forge"));
         headers.insert(
             "x-app-version",
-            HeaderValue::from_str(format!("v{}", VERSION).as_str())
+            HeaderValue::from_str(format!("v{VERSION}").as_str())
                 .unwrap_or(HeaderValue::from_static("v0.1.0-dev")),
         );
         headers.insert(

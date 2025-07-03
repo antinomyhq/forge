@@ -18,6 +18,7 @@ mod utils;
 mod walker;
 
 pub use app::*;
+pub use error::*;
 pub use global_config::*;
 pub use services::*;
 pub use walker::*;
