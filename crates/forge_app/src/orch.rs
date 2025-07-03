@@ -399,13 +399,15 @@ impl<S: AgentService> Orchestrator<S> {
             let mut tool_context =
                 ToolCallContext::new(self.conversation.tasks.clone()).sender(self.sender.clone());
 
-            // Check if tool calls are within allowed limits if tool_max_failure_limit is configured
+            // Check if tool calls are within allowed limits if tool_max_failure_limit is
+            // configured
             let allowed_limits_exceeded =
                 self.conversation
                     .tool_max_failure_limit
                     .is_some_and(|limit| {
                         tool_calls.iter().any(|call| {
-                            let attempts_till_now = self.tool_failure_attempts.get(&call.name).unwrap_or(&0);
+                            let attempts_till_now =
+                                self.tool_failure_attempts.get(&call.name).unwrap_or(&0);
                             *attempts_till_now > limit
                         })
                     });

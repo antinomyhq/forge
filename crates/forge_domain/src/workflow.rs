@@ -121,12 +121,11 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::option)]
     pub tool_supported: Option<bool>,
 
-
     /// Maximum number of times a tool can fail before the orchestrator
     /// forces the completion.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = crate::merge::option)] 
+    #[merge(strategy = crate::merge::option)]
     pub tool_max_failure_limit: Option<usize>,
 }
 
