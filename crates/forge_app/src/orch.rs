@@ -474,7 +474,9 @@ impl<S: AgentService> Orchestrator<S> {
                 warn!(
                     agent_id = %agent.id,
                     model_id = %model_id,
-                    "Tool call retry limit exceeded, forcing completion"
+                    tools = %self.tool_failure_attempts.iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
+                    tool_max_failure_limit = ?self.conversation.tool_max_failure_limit,
+                    "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
                 );
                 is_complete = true;
             }
