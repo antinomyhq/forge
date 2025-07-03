@@ -23,6 +23,18 @@ impl ToolName {
     }
 }
 
+impl From<String> for ToolName {
+    fn from(value: String) -> Self {
+        ToolName(value)
+    }
+}
+
+impl From<&str> for ToolName {
+    fn from(value: &str) -> Self {
+        ToolName(value.to_string())
+    }
+}
+
 pub trait NamedTool {
     fn tool_name() -> ToolName;
 }

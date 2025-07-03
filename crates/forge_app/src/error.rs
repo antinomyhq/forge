@@ -1,9 +1,9 @@
-use forge_domain::ToolName;
+use forge_domain::{ToolCallArgumentError, ToolName};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Invalid tool call arguments: {0}")]
-    CallArgument(serde_json::Error),
+    CallArgument(ToolCallArgumentError),
 
     #[error("Tool {0} not found")]
     NotFound(ToolName),

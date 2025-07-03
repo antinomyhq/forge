@@ -12,6 +12,7 @@ derive_setters.workspace = true
 nom.workspace = true
 schemars.workspace = true
 serde.workspace = true
+eserde = {version= "0.1.7", features=["json"]}
 serde_json.workspace = true
 strum.workspace = true
 strum_macros.workspace = true

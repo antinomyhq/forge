@@ -209,6 +209,18 @@ _No changes in `forge.yaml` required_
 </details>
 
 <details>
+<summary><strong>Requesty</strong></summary>
+
+```bash
+# .env
+REQUESTY_API_KEY=<your_requesty_api_key>
+```
+
+_No changes in `forge.yaml` required_
+
+</details>
+
+<details>
 <summary><strong>OpenAI</strong></summary>
 
 ```bash
@@ -342,9 +354,9 @@ Define custom commands as shortcuts for repetitive prompts:
 ```yaml
 # forge.yaml
 commands:
-  - name: "refactor"
-    description: "Refactor selected code"
-    prompt: "Please refactor this code to improve readability and performance"
+  - name: 'refactor'
+    description: 'Refactor selected code'
+    prompt: 'Please refactor this code to improve readability and performance'
 ```
 
 </details>
@@ -356,7 +368,7 @@ Specify the default AI model to use for all agents in the workflow.
 
 ```yaml
 # forge.yaml
-model: "claude-3.7-sonnet"
+model: 'claude-3.7-sonnet'
 ```
 
 </details>
@@ -417,16 +429,16 @@ Or manually create a `.mcp.json` file with the following structure:
 
 ```json
 {
-  "mcpServers": {
-    "server_name": {
-      "command": "command_to_execute",
-      "args": ["arg1", "arg2"],
-      "env": { "ENV_VAR": "value" }
-    },
-    "another_server": {
-      "url": "http://localhost:3000/events"
-    }
-  }
+	"mcpServers": {
+		"server_name": {
+			"command": "command_to_execute",
+			"args": ["arg1", "arg2"],
+			"env": { "ENV_VAR": "value" }
+		},
+		"another_server": {
+			"url": "http://localhost:3000/events"
+		}
+	}
 }
 ```
 
@@ -474,3 +486,4 @@ Your support drives Forge's continued evolution! By starring our GitHub reposito
 - Motivate our development team 💪
 - Enable us to prioritize new features 🛠️
 - Strengthen our open-source community 🌱
+

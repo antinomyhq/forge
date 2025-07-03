@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
@@ -331,9 +332,23 @@ impl<S: AgentService> Orchestrator<S> {
             self.services.update(self.conversation.clone()).await?;
 
             let ChatCompletionMessageFull { tool_calls, content, mut usage } =
-                crate::retry::retry_with_config(&self.environment.retry_config, || {
-                    self.execute_chat_turn(&model_id, context.clone(), is_tool_supported)
-                })
+                crate::retry::retry_with_config(
+                    &self.environment.retry_config,
+                    || self.execute_chat_turn(&model_id, context.clone(), is_tool_supported),
+                    self.sender.as_ref().map(|sender| {
+                        let sender = sender.clone();
+                        let agent_id = agent.id.clone();
+                        let model_id = model_id.clone();
+                        move |error: &anyhow::Error, duration: Duration| {
+                            tracing::error!(agent_id = %agent_id, error = %error, model=%model_id, "Retry Attempt");
+                            let retry_event = ChatResponse::RetryAttempt {
+                                cause: error.into(),
+                                duration,
+                            };
+                            let _ = sender.try_send(Ok(retry_event));
+                        }
+                    }),
+                )
                 .await?;
 
             // Set estimated tokens

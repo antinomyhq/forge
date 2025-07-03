@@ -14,7 +14,10 @@ pub enum Error {
     #[error("Missing tool name")]
     ToolCallMissingName,
 
-    #[error("Invalid tool call arguments: {0}")]
+    #[error("{0}")]
+    EToolCallArgument(ToolCallArgumentError),
+
+    #[error("JSON serialization/deserialization error: {0}")]
     ToolCallArgument(serde_json::Error),
 
     #[error("Invalid tool call XML: {0}")]
@@ -61,3 +64,18 @@ pub type BoxStream<A, E> =
     Pin<Box<dyn tokio_stream::Stream<Item = std::result::Result<A, E>> + Send>>;
 
 pub type ResultStream<A, E> = std::result::Result<BoxStream<A, E>, E>;
+
+#[derive(Debug, derive_more::From)]
+pub struct ToolCallArgumentError(eserde::DeserializationErrors);
+
+impl std::error::Error for ToolCallArgumentError {}
+
+impl std::fmt::Display for ToolCallArgumentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Invalid tool call arguments:")?;
+        for error in self.0.iter() {
+            writeln!(f, "- {error}")?;
+        }
+        Ok(())
+    }
+}

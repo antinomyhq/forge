@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_display::TitleFormat;
-use forge_main::{Cli, UI};
+use forge_main::{tracker, Cli, UI};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,6 +19,7 @@ async fn main() -> Result<()> {
         };
 
         eprintln!("{}", TitleFormat::error(message.to_string()));
+        tracker::error(message);
         std::process::exit(1);
     }));
 

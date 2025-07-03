@@ -1,17 +1,17 @@
-use std::future::Future;
 use std::time::Duration;
 
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Error, RetryConfig};
 
-/// Retry wrapper for operations that may fail with retryable errors
-pub async fn retry_with_config<T, FutureFn, Fut>(
+pub async fn retry_with_config<F, Fut, T, C>(
     config: &RetryConfig,
-    operation: FutureFn,
+    operation: F,
+    notify: Option<C>,
 ) -> anyhow::Result<T>
 where
-    FutureFn: FnMut() -> Fut,
-    Fut: Future<Output = anyhow::Result<T>>,
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<T>>,
+    C: Fn(&anyhow::Error, Duration) + Send + Sync + 'static,
 {
     let strategy = ExponentialBuilder::default()
         .with_min_delay(Duration::from_millis(config.min_delay_ms))
@@ -19,7 +19,12 @@ where
         .with_max_times(config.max_retry_attempts)
         .with_jitter();
 
-    operation.retry(strategy).when(should_retry).await
+    let retryable = operation.retry(&strategy).when(should_retry);
+
+    match notify {
+        Some(callback) => retryable.notify(callback).await,
+        None => retryable.await,
+    }
 }
 
 /// Determines if an error should trigger a retry attempt.

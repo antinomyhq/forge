@@ -114,10 +114,7 @@ impl Walker {
 
         // TODO: Convert to async and return a stream
         let walk = WalkBuilder::new(&self.cwd)
-            .hidden(true) // Skip hidden files
-            .git_global(true) // Use global gitignore
-            .git_ignore(true) // Use local .gitignore
-            .ignore(true) // Use .ignore files
+            .standard_filters(true) // use standard ignore filters.
             .max_depth(Some(self.max_depth))
             // TODO: use build_parallel() for better performance
             .build();
@@ -216,10 +213,34 @@ mod tests {
 
     /// Test Fixtures
     mod fixtures {
-        use std::fs::File;
+        use std::fs::{create_dir_all, File};
         use std::io::Write;
 
         use super::*;
+
+        pub struct Fixture(TempDir);
+
+        impl Default for Fixture {
+            fn default() -> Self {
+                let dir = tempdir().expect("Failed to create temp directory");
+                Fixture(dir)
+            }
+        }
+
+        impl Fixture {
+            pub fn add_file(&self, name: &str, content: &str) -> Result<()> {
+                let file_path = self.0.path().join(name);
+                if let Some(parent) = file_path.parent() {
+                    create_dir_all(parent)?;
+                }
+                File::create(file_path.as_path())?.write_all(content.as_bytes())?;
+                Ok(())
+            }
+
+            pub fn as_path(&self) -> &std::path::Path {
+                self.0.path()
+            }
+        }
 
         /// Creates a directory with files of specified sizes
         /// Returns a TempDir containing the test files
@@ -382,5 +403,56 @@ mod tests {
 
         assert!(dir.is_dir());
         assert!(dir.path.ends_with('/'));
+    }
+
+    #[tokio::test]
+    async fn test_walker_respects_ignore_file() {
+        let fixture = fixtures::Fixture::default();
+        fixture
+            .add_file("included/test.rs", "const test: &str = \"include_test\";")
+            .unwrap();
+        fixture
+            .add_file("included/main.rs", "const main: &str = \"include_main\";")
+            .unwrap();
+        fixture
+            .add_file("included/main.log", "included main log content")
+            .unwrap();
+        fixture
+            .add_file("excluded/test.rs", "const test: &str = \"exclude_test\";")
+            .unwrap();
+        fixture
+            .add_file("excluded/main.rs", "const main: &str = \"exclude_main\";")
+            .unwrap();
+        fixture
+            .add_file("excluded/main.log", "excluded main log content")
+            .unwrap();
+        fixture
+            .add_file("base.rs", "const base: &str = \"base\";")
+            .unwrap();
+        fixture
+            .add_file("main.log", "base main log content")
+            .unwrap();
+        fixture.add_file(".ignore", "excluded/**/*\n*.log").unwrap();
+
+        let actual = Walker::max_all()
+            .cwd(fixture.as_path().to_path_buf())
+            .get()
+            .await
+            .unwrap();
+
+        let mut expected = vec!["included/main.rs", "included/test.rs", "base.rs"];
+        expected.sort();
+
+        let mut actual_files: Vec<_> = actual
+            .iter()
+            .filter(|f| !f.is_dir())
+            .map(|f| f.path.as_str())
+            .collect();
+        actual_files.sort();
+
+        assert_eq!(
+            actual_files, expected,
+            "Walker should exclude files listed in .ignore file"
+        );
     }
 }

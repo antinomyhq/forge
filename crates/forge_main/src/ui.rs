@@ -28,7 +28,7 @@ use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::state::UIState;
 use crate::update::on_update;
-use crate::{banner, TRACKER};
+use crate::{banner, tracker, TRACKER};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -217,9 +217,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                                     TRACKER.set_conversation(conversation).await;
                                 }
                             }
-                            tokio::spawn(
-                                TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{error:?}"))),
-                            );
+                            tracker::error(&error);
                             tracing::error!(error = ?error);
                             self.spinner.stop(None)?;
                             eprintln!("{}", TitleFormat::error(format!("{error:?}")));
@@ -737,7 +735,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 } else {
                     ToolCallPayload::new(toolcall_result.name.to_string())
                 };
-                tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::ToolCall(payload)));
+                tracker::tool_call(payload);
 
                 self.spinner.start(None)?;
                 if !self.cli.verbose {
@@ -751,12 +749,17 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                     .map(|cost| cost + self.state.usage.cost.as_ref().map_or(0.0, |c| *c));
                 self.state.usage = usage;
             }
+            ChatResponse::RetryAttempt { cause, duration: _ } => {
+                self.spinner.start(Some("Retrying"))?;
+                self.writeln(TitleFormat::error(cause.as_str()))?;
+                tracker::error_string(cause.into_string());
+            }
         }
         Ok(())
     }
 
     fn update_model(&mut self, model: ModelId) {
-        tokio::spawn(TRACKER.set_model(model.to_string()));
+        tracker::set_model(model.to_string());
         self.state.model = Some(model);
     }
 
