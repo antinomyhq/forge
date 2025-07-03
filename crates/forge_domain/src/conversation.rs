@@ -39,6 +39,7 @@ pub struct Conversation {
     pub agents: Vec<Agent>,
     pub events: Vec<Event>,
     pub tasks: TaskList,
+    pub tool_max_failure_limit: Option<usize>,
 }
 
 impl Conversation {
@@ -160,6 +161,7 @@ impl Conversation {
             agents,
             events: Default::default(),
             tasks: TaskList::new(),
+            tool_max_failure_limit: workflow.tool_max_failure_limit,
         }
     }
 

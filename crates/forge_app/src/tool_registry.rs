@@ -85,11 +85,12 @@ impl<S: Services> ToolRegistry<S> {
         context: &mut ToolCallContext,
         call: ToolCallFull,
     ) -> ToolResult {
-        let call_clone = call.clone();
+        let call_id = call.call_id.clone();
+        let tool_name = call.name.clone();
         let output = self.call_inner(agent, call, context).await;
 
-        ToolResult::new(call_clone.name)
-            .call_id(call_clone.call_id)
+        ToolResult::new(tool_name)
+            .call_id(call_id)
             .output(output)
     }
 

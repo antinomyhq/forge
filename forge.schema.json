@@ -70,6 +70,15 @@
         "null"
       ]
     },
+    "tool_max_failure_limit": {
+      "description": "Maximum number of times a tool can fail before the orchestrator forces the completion.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 0.0
+    },
     "tool_supported": {
       "description": "Flag to enable/disable tool support for all agents in this workflow. If not specified, each agent's individual setting will be used. Default is false (tools disabled) when not specified.",
       "type": [
