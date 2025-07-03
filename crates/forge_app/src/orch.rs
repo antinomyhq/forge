@@ -431,8 +431,7 @@ impl<S: AgentService> Orchestrator<S> {
 
                         // Add attempt information to the error message so the agent can reflect on it.
                         let message = Element::new("retry").text(format!(
-                            "This tool call failed. You have {} attempt(s) remaining out of a maximum of {}. Please reflect on the error, adjust your approach if needed, and try again.",
-                            attempts_left, allowed_max_attempts
+                            "This tool call failed. You have {attempts_left} attempt(s) remaining out of a maximum of {allowed_max_attempts}. Please reflect on the error, adjust your approach if needed, and try again."
                         ));
 
                         result.output.combine_mut(ToolOutput::text(message));
