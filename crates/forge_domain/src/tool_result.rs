@@ -90,6 +90,10 @@ impl ToolOutput {
         ToolOutput { is_error: false, values: vec![ToolValue::Image(img)] }
     }
 
+    pub fn combine_mut(&mut self, value: ToolOutput) {
+        self.values.extend(value.values);
+    }
+
     pub fn combine(self, other: ToolOutput) -> Self {
         let mut items = self.values;
         items.extend(other.values);

@@ -413,19 +413,29 @@ impl<S: AgentService> Orchestrator<S> {
                     });
 
             // Process tool calls and update context
-            let tool_call_records = self
+            let mut tool_call_records = self
                 .execute_tool_calls(&agent, &tool_calls, &mut tool_context)
                 .await?;
 
             // Update the tool call attempts, if the tool call is an error
             // we increment the attempts, otherwise we remove it from the attempts map
-            if self.conversation.tool_max_failure_limit.is_some() {
-                tool_call_records.iter().for_each(|(_, result)| {
+            if let Some(allowed_max_attempts) = self.conversation.tool_max_failure_limit.as_ref() {
+                tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
-                        self.tool_failure_attempts
+                        let current_attempts = self
+                            .tool_failure_attempts
                             .entry(result.name.clone())
                             .and_modify(|count| *count += 1)
                             .or_insert(1);
+                        let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
+
+                        // Add attempt information to the error message so the agent can reflect on it.
+                        let message = Element::new("retry").text(format!(
+                            "This tool call failed. You have {} attempt(s) remaining out of a maximum of {}. Please reflect on the error, adjust your approach if needed, and try again.",
+                            attempts_left, allowed_max_attempts
+                        ));
+
+                        result.output.combine_mut(ToolOutput::text(message));
                     } else {
                         self.tool_failure_attempts.remove(&result.name);
                     }
