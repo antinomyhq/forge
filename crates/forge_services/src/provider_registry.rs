@@ -60,9 +60,10 @@ fn resolve_env_provider<F: EnvironmentInfra>(
     url: Option<ProviderUrl>,
     env: &F,
 ) -> Option<Provider> {
-    let keys: [ProviderSearch; 4] = [
+    let keys: [ProviderSearch; 5] = [
         ("FORGE_KEY", Box::new(Provider::antinomy)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
+        ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
         ("OPENAI_API_KEY", Box::new(Provider::openai)),
         ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
     ];
