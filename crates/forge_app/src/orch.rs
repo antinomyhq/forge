@@ -531,7 +531,7 @@ impl<S: AgentService> Orchestrator<S> {
     fn check_tool_call_failures(
         &self,
         tool_failure_attempts: &HashMap<ToolName, usize>,
-        tool_calls: &Vec<ToolCallFull>,
+        tool_calls: &[ToolCallFull],
     ) -> bool {
         self.conversation
             .max_tool_failure_per_turn
