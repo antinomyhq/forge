@@ -19,6 +19,14 @@ pub enum ChatResponse {
         cause: Cause,
         duration: Duration,
     },
+    Interrupt {
+        reason: InterruptionReason,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum InterruptionReason {
+    ToolFailureLimitExceeded,
 }
 
 #[derive(Clone)]

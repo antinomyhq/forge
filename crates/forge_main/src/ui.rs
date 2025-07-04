@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
-    Workflow, API,
+    AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event, InterruptionReason,
+    Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Scope};
@@ -695,6 +695,16 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(Some("Retrying"))?;
                 self.writeln(TitleFormat::error(cause.as_str()))?;
                 tracker::error_string(cause.into_string());
+            }
+            ChatResponse::Interrupt { reason } => {
+                self.spinner.stop(None)?;
+                match reason {
+                    InterruptionReason::ToolFailureLimitExceeded => {
+                        self.writeln(TitleFormat::error(
+                            "Tool failure limit exceeded, please try again.",
+                        ))?;
+                    }
+                }
             }
         }
         Ok(())
