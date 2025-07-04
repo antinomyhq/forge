@@ -489,7 +489,7 @@ impl<S: AgentService> Orchestrator<S> {
                     tool_max_failure_limit = ?self.conversation.tool_max_failure_limit,
                     "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
                 );
-                
+
                 if let Some(limit) = self.conversation.tool_max_failure_limit {
                     self.send(ChatResponse::Interrupt {
                         reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
