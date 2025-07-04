@@ -756,26 +756,29 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 };
 
                 self.writeln(TitleFormat::action(title))?;
-                let result = Select::new(
-                    "Do you want to continue anyway?",
-                    vec!["Yes", "No"]
-                        .into_iter()
-                        .map(|s| s.to_string())
-                        .collect(),
-                )
-                .with_render_config(
-                    RenderConfig::default().with_highlighted_option_prefix(Styled::new("➤")),
-                )
-                .with_starting_cursor(0)
-                .prompt()
-                .map_err(|e| anyhow::anyhow!(e))?;
-
-                if result == "Yes" {
-                    self.spinner.start(None)?;
-                    Box::pin(self.on_message(None)).await?;
-                }
+                self.should_continue().await?;
             }
         }
+        Ok(())
+    }
+
+    async fn should_continue(&mut self) -> anyhow::Result<()> {
+        const YES: &str = "yes";
+        const NO: &str = "no";
+        let result = Select::new(
+            "Do you want to continue anyway?",
+            vec![YES, NO].into_iter().map(|s| s.to_string()).collect(),
+        )
+        .with_render_config(
+            RenderConfig::default().with_highlighted_option_prefix(Styled::new("➤")),
+        )
+        .with_starting_cursor(0)
+        .prompt()
+        .map_err(|e| anyhow::anyhow!(e))?;
+        let _: () = if result == YES {
+            self.spinner.start(None)?;
+            Box::pin(self.on_message(None)).await?;
+        };
         Ok(())
     }
 
