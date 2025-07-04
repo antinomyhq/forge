@@ -405,15 +405,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
             let allowed_limits_exceeded =
-                self.conversation
-                    .max_tool_failure_per_turn
-                    .is_some_and(|limit| {
-                        tool_calls.iter().any(|call| {
-                            let attempts_till_now =
-                                tool_failure_attempts.get(&call.name).unwrap_or(&0);
-                            *attempts_till_now > limit
-                        })
-                    });
+                self.check_tool_call_failures(&tool_failure_attempts, &tool_calls);
 
             // Process tool calls and update context
             let mut tool_call_records = self
@@ -534,6 +526,21 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         Ok(())
+    }
+
+    fn check_tool_call_failures(
+        &self,
+        tool_failure_attempts: &HashMap<ToolName, usize>,
+        tool_calls: &Vec<ToolCallFull>,
+    ) -> bool {
+        self.conversation
+            .max_tool_failure_per_turn
+            .is_some_and(|limit| {
+                tool_calls
+                    .iter()
+                    .map(|call| tool_failure_attempts.get(&call.name).unwrap_or(&0))
+                    .any(|count| *count > limit)
+            })
     }
 
     async fn set_user_prompt(
