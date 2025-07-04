@@ -490,7 +490,9 @@ impl<S: AgentService> Orchestrator<S> {
                     "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
                 );
                 self.send(ChatResponse::Interrupt {
-                    reason: InterruptionReason::ToolFailureLimitExceeded,
+                    reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
+                        limit: self.conversation.tool_max_failure_limit.unwrap_or(0) as u64,
+                    },
                 })
                 .await?;
                 is_complete = true;

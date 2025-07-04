@@ -770,9 +770,9 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                             Box::pin(self.on_message(None)).await?;
                         }
                     }
-                    InterruptionReason::ToolFailureLimitExceeded => {
+                    InterruptionReason::MaxToolFailurePerTurnLimitReached { limit } => {
                         self.writeln(TitleFormat::error(
-                            "Tool failure limit exceeded, please try again.",
+                            format!("Tool failure limit of {limit} reached for this turn. Please revise your approach and try again.")
                         ))?;
                     }
                 }

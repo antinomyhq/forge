@@ -26,7 +26,7 @@ pub enum ChatResponse {
 
 #[derive(Debug, Clone)]
 pub enum InterruptionReason {
-    ToolFailureLimitExceeded,
+    MaxToolFailurePerTurnLimitReached { limit: u64 },
     MaxRequestPerTurnLimitReached { limit: u64 },
 }
 
