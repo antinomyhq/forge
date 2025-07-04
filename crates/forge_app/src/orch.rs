@@ -25,7 +25,6 @@ pub struct Orchestrator<S> {
     models: Vec<Model>,
     files: Vec<String>,
     current_time: chrono::DateTime<chrono::Local>,
-    tool_failure_attempts: HashMap<ToolName, usize>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -44,7 +43,6 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             current_time,
-            tool_failure_attempts: HashMap::new(),
         }
     }
 
@@ -245,6 +243,7 @@ impl<S: AgentService> Orchestrator<S> {
 
     // Create a helper method with the core functionality
     async fn init_agent(&mut self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
+        let mut tool_failure_attempts = HashMap::new();
         let variables = self.conversation.variables.clone();
         debug!(
             conversation_id = %self.conversation.id,
@@ -407,7 +406,7 @@ impl<S: AgentService> Orchestrator<S> {
                     .is_some_and(|limit| {
                         tool_calls.iter().any(|call| {
                             let attempts_till_now =
-                                self.tool_failure_attempts.get(&call.name).unwrap_or(&0);
+                                tool_failure_attempts.get(&call.name).unwrap_or(&0);
                             *attempts_till_now > limit
                         })
                     });
@@ -422,8 +421,7 @@ impl<S: AgentService> Orchestrator<S> {
             if let Some(allowed_max_attempts) = self.conversation.tool_max_failure_limit.as_ref() {
                 tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
-                        let current_attempts = self
-                            .tool_failure_attempts
+                        let current_attempts = tool_failure_attempts
                             .entry(result.name.clone())
                             .and_modify(|count| *count += 1)
                             .or_insert(1);
@@ -436,7 +434,7 @@ impl<S: AgentService> Orchestrator<S> {
 
                         result.output.combine_mut(ToolOutput::text(message));
                     } else {
-                        self.tool_failure_attempts.remove(&result.name);
+                        tool_failure_attempts.remove(&result.name);
                     }
                 });
             }
@@ -483,7 +481,7 @@ impl<S: AgentService> Orchestrator<S> {
                 warn!(
                     agent_id = %agent.id,
                     model_id = %model_id,
-                    tools = %self.tool_failure_attempts.iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
+                    tools = %tool_failure_attempts.iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
                     tool_max_failure_limit = ?self.conversation.tool_max_failure_limit,
                     "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
                 );
