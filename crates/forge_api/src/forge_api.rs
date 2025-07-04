@@ -161,9 +161,6 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             .await
     }
     async fn app_config(&self) -> anyhow::Result<AppConfig> {
-        self.app
-            .read_app_config()
-            .await
-            .map_err(|e| anyhow::anyhow!(e))
+        self.app.read_app_config().await
     }
 }
