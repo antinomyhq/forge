@@ -619,7 +619,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Waiting for login to complete"))?;
 
         self.api.login(&auth).await?;
-        
+
         self.spinner.stop(None)?;
 
         self.writeln(TitleFormat::info("Logon completed".to_string().as_str()))?;
