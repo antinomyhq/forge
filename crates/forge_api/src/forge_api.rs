@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{
-    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, AppConfig,
+    AppConfig, ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp,
     GlobalConfigService, InitAuth, McpConfigManager, ProviderRegistry, ProviderService, Services,
     Walker, WorkflowService,
 };
