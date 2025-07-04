@@ -611,27 +611,16 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         }
     }
     async fn login(&mut self) -> Result<()> {
-        self.writeln(TitleFormat::info("Initiating login..."))?;
         let auth = self.api.init_login().await?;
-        self.writeln(TitleFormat::action(format!(
-            "Please visit the following URL to log in: {}",
-            auth.auth_url
-        )))?;
         open::that(auth.auth_url.as_str()).ok();
-        self.spinner
-            .start(Some("Waiting for login to complete..."))?;
+        self.writeln(TitleFormat::info(
+            format!("Logon here: {}", auth.auth_url).as_str(),
+        ))?;
+        self.spinner.start(Some("Waiting for login to complete"))?;
+
         self.api.login(&auth).await?;
 
-        self.spinner.stop(None)?;
-
-        // Display user information after successful login
-        if let Ok(config) = self.api.app_config().await {
-            if let Some(login_info) = &config.key_info {
-                self.writeln(TitleFormat::completion("Login successful!"))?;
-                let user_info = Info::from(login_info);
-                self.writeln(user_info)?;
-            }
-        }
+        self.writeln(TitleFormat::info(format!("Logon completed").as_str()))?;
 
         Ok(())
     }
