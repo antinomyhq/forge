@@ -4,7 +4,7 @@ use forge_app::Services;
 
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
-use crate::config::ForgeConfigService;
+use crate::app_config::ForgeConfigService;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
