@@ -745,36 +745,34 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             }
             ChatResponse::Interrupt { reason } => {
                 self.spinner.stop(None)?;
-                match reason {
-                    InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
-                        self.writeln(TitleFormat::action(format!(
-                            "Maximum request ({limit}) per turn achieved"
-                        )))?;
-                        let result = Select::new(
-                            "Do you want to continue anyway?",
-                            vec!["Yes", "No"]
-                                .into_iter()
-                                .map(|s| s.to_string())
-                                .collect(),
-                        )
-                        .with_render_config(
-                            RenderConfig::default()
-                                .with_highlighted_option_prefix(Styled::new("➤")),
-                        )
-                        .with_starting_cursor(0)
-                        .prompt()
-                        .map_err(|e| anyhow::anyhow!(e))?;
 
-                        if result == "Yes" {
-                            self.spinner.start(None)?;
-                            Box::pin(self.on_message(None)).await?;
-                        }
+                let title = match reason {
+                    InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
+                        format!("Maximum request ({limit}) per turn achieved")
                     }
                     InterruptionReason::MaxToolFailurePerTurnLimitReached { limit } => {
-                        self.writeln(TitleFormat::error(
-                            format!("Tool failure limit of {limit} reached for this turn. Please revise your approach and try again.")
-                        ))?;
+                        format!("Maximum tool failure limit ({limit}) reached for this turn")
                     }
+                };
+
+                self.writeln(TitleFormat::action(title))?;
+                let result = Select::new(
+                    "Do you want to continue anyway?",
+                    vec!["Yes", "No"]
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                )
+                .with_render_config(
+                    RenderConfig::default().with_highlighted_option_prefix(Styled::new("➤")),
+                )
+                .with_starting_cursor(0)
+                .prompt()
+                .map_err(|e| anyhow::anyhow!(e))?;
+
+                if result == "Yes" {
+                    self.spinner.start(None)?;
+                    Box::pin(self.on_message(None)).await?;
                 }
             }
         }
