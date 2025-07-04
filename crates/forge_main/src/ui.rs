@@ -620,7 +620,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
         self.api.login(&auth).await?;
 
-        self.writeln(TitleFormat::info(format!("Logon completed").as_str()))?;
+        self.writeln(TitleFormat::info("Logon completed".to_string().as_str()))?;
 
         Ok(())
     }
