@@ -422,7 +422,8 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Update the tool call attempts, if the tool call is an error
             // we increment the attempts, otherwise we remove it from the attempts map
-            if let Some(allowed_max_attempts) = self.conversation.max_tool_failure_per_turn.as_ref() {
+            if let Some(allowed_max_attempts) = self.conversation.max_tool_failure_per_turn.as_ref()
+            {
                 tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
                         let current_attempts = tool_failure_attempts
