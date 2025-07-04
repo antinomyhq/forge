@@ -1,6 +1,20 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+#[derive(Debug, Clone)]
+pub enum ProviderUrl {
+    OpenAI(String),
+    Anthropic(String),
+}
+impl ProviderUrl {
+    pub fn into_string(self) -> String {
+        match self {
+            ProviderUrl::OpenAI(url) => url,
+            ProviderUrl::Anthropic(url) => url,
+        }
+    }
+}
+
 /// Providers that can be used.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Provider {
@@ -9,8 +23,14 @@ pub enum Provider {
 }
 
 impl Provider {
+    pub fn url(&mut self, url: ProviderUrl) {
+        match url {
+            ProviderUrl::OpenAI(url) => self.open_ai_url(url),
+            ProviderUrl::Anthropic(url) => self.anthropic_url(url),
+        }
+    }
     /// Sets the OpenAI URL if the provider is an OpenAI compatible provider
-    pub fn open_ai_url(&mut self, url: String) {
+    fn open_ai_url(&mut self, url: String) {
         match self {
             Provider::OpenAI { url: set_url, .. } => {
                 if url.ends_with("/") {
@@ -24,7 +44,7 @@ impl Provider {
     }
 
     /// Sets the Anthropic URL if the provider is Anthropic
-    pub fn anthropic_url(&mut self, url: String) {
+    fn anthropic_url(&mut self, url: String) {
         match self {
             Provider::Anthropic { url: set_url, .. } => {
                 if url.ends_with("/") {

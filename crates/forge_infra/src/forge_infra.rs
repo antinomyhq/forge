@@ -7,8 +7,11 @@ use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    WalkerInfra,
 };
+use reqwest::header::HeaderMap;
+use reqwest::Response;
 
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -18,6 +21,7 @@ use crate::fs_read::ForgeFileReadService;
 use crate::fs_remove::ForgeFileRemoveService;
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fs_write::ForgeFileWriteService;
+use crate::http::ForgeHttpService;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
@@ -36,6 +40,7 @@ pub struct ForgeInfra {
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
+    http_service: Arc<ForgeHttpService>,
 }
 
 impl ForgeInfra {
@@ -43,6 +48,7 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
+        let http_service = Arc::new(ForgeHttpService::new());
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -60,6 +66,7 @@ impl ForgeInfra {
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
+            http_service,
         }
     }
 }
@@ -67,6 +74,10 @@ impl ForgeInfra {
 impl EnvironmentInfra for ForgeInfra {
     fn get_environment(&self) -> Environment {
         self.environment_service.get_environment()
+    }
+
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        self.environment_service.get_env_var(key)
     }
 }
 
@@ -207,5 +218,20 @@ impl McpServerInfra for ForgeInfra {
 impl WalkerInfra for ForgeInfra {
     async fn walk(&self, config: forge_app::Walker) -> anyhow::Result<Vec<forge_app::WalkedFile>> {
         self.walker_service.walk(config).await
+    }
+}
+
+#[async_trait::async_trait]
+impl HttpInfra for ForgeInfra {
+    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+        self.http_service.get(url, headers).await
+    }
+
+    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {
+        self.http_service.post(url, body).await
+    }
+
+    async fn delete(&self, url: &str) -> anyhow::Result<Response> {
+        self.http_service.delete(url).await
     }
 }

@@ -2,12 +2,15 @@ use std::sync::Arc;
 
 use forge_app::Services;
 
+use crate::app_config::ForgeConfigService;
 use crate::attachment::ForgeChatRequest;
+use crate::auth::ForgeAuthService;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::provider::ForgeProviderService;
+use crate::provider_registry::ForgeProviderRegistry;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
@@ -16,10 +19,12 @@ use crate::tool_services::{
 use crate::workflow::ForgeWorkflowService;
 use crate::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    WalkerInfra,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
+type AuthService<F> = ForgeAuthService<F>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -29,7 +34,7 @@ type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra
 ///   environment, file reading, vector indexing, and embedding.
 #[derive(Clone)]
 pub struct ForgeServices<F: McpServerInfra + WalkerInfra> {
-    provider_service: Arc<ForgeProviderService>,
+    chat_service: Arc<ForgeProviderService>,
     conversation_service: Arc<ForgeConversationService<McpService<F>>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
@@ -47,6 +52,9 @@ pub struct ForgeServices<F: McpServerInfra + WalkerInfra> {
     followup_service: Arc<ForgeFollowup<F>>,
     mcp_service: Arc<McpService<F>>,
     env_service: Arc<ForgeEnvironmentService<F>>,
+    config_service: Arc<ForgeConfigService<F>>,
+    auth_service: Arc<AuthService<F>>,
+    provider_service: Arc<ForgeProviderRegistry<F>>,
 }
 
 impl<
@@ -55,6 +63,7 @@ impl<
             + FileWriterInfra
             + FileInfoInfra
             + FileReaderInfra
+            + HttpInfra
             + WalkerInfra,
     > ForgeServices<F>
 {
@@ -62,13 +71,14 @@ impl<
         let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
         let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
         let template_service = Arc::new(ForgeTemplateService::new(infra.clone()));
-        let provider_service = Arc::new(ForgeProviderService::new(infra.clone()));
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
-
-        let conversation_service = Arc::new(ForgeConversationService::new(mcp_service.clone()));
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
+        let conversation_service = Arc::new(ForgeConversationService::new(mcp_service.clone()));
+        let config_service = Arc::new(ForgeConfigService::new(infra.clone()));
+        let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
+        let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
@@ -78,11 +88,11 @@ impl<
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
+        let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra));
         Self {
             conversation_service,
             attachment_service,
-            provider_service,
             template_service,
             workflow_service,
             discovery_service: suggestion_service,
@@ -98,6 +108,10 @@ impl<
             followup_service,
             mcp_service,
             env_service,
+            config_service,
+            auth_service,
+            chat_service,
+            provider_service,
         }
     }
 }
@@ -113,6 +127,7 @@ impl<
             + FileInfoInfra
             + FileDirectoryInfra
             + EnvironmentInfra
+            + HttpInfra
             + WalkerInfra
             + Clone,
     > Services for ForgeServices<F>
@@ -135,9 +150,12 @@ impl<
     type NetFetchService = ForgeFetch;
     type ShellService = ForgeShell<F>;
     type McpService = McpService<F>;
+    type AppConfigService = ForgeConfigService<F>;
+    type AuthService = AuthService<F>;
+    type ProviderRegistry = ForgeProviderRegistry<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
-        &self.provider_service
+        &self.chat_service
     }
 
     fn conversation_service(&self) -> &Self::ConversationService {
@@ -206,5 +224,17 @@ impl<
 
     fn mcp_service(&self) -> &Self::McpService {
         &self.mcp_service
+    }
+
+    fn auth_service(&self) -> &Self::AuthService {
+        self.auth_service.as_ref()
+    }
+
+    fn app_config_service(&self) -> &Self::AppConfigService {
+        self.config_service.as_ref()
+    }
+
+    fn provider_registry(&self) -> &Self::ProviderRegistry {
+        &self.provider_service
     }
 }

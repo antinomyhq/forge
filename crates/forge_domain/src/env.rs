@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{HttpConfig, Provider, RetryConfig};
+use crate::{HttpConfig, RetryConfig};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -27,8 +27,6 @@ pub struct Environment {
     pub shell: String,
     /// The base path relative to which everything else stored.
     pub base_path: PathBuf,
-    /// Resolved provider based on the environment configuration.    
-    pub provider: Provider,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
     /// The maximum number of lines returned for FSSearch.
@@ -74,5 +72,8 @@ impl Environment {
     }
     pub fn version(&self) -> String {
         VERSION.to_string()
+    }
+    pub fn app_config(&self) -> PathBuf {
+        self.base_path.join(".config.json")
     }
 }

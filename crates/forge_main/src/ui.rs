@@ -10,7 +10,7 @@ use forge_api::{
     Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Scope};
+use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -326,7 +326,15 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                let info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+                let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+
+                // Add user information if available
+                if let Ok(config) = self.api.app_config().await {
+                    if let Some(login_info) = &config.key_info {
+                        info = info.extend(Info::from(login_info));
+                    }
+                }
+
                 self.writeln(info)?;
             }
             Command::Message(ref content) => {
@@ -412,6 +420,20 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 if let Ok(selected_agent) = select_prompt.prompt() {
                     self.on_agent_change(selected_agent.id).await?;
                 }
+            }
+            Command::Login => {
+                self.spinner.start(Some("Logging in"))?;
+                self.api.logout().await?;
+                self.login().await?;
+                self.spinner.stop(None)?;
+            }
+            Command::Logout => {
+                self.spinner.start(Some("Logging out"))?;
+                self.api.logout().await?;
+                self.spinner.stop(None)?;
+                self.writeln(TitleFormat::info("Logged out"))?;
+                // Exit the UI after logout
+                return Ok(true);
             }
         }
 
@@ -573,9 +595,34 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(base_workflow).provider(self.api.environment().provider);
+        self.state = UIState::new(base_workflow).provider(self.init_provider().await?);
 
         Ok(workflow)
+    }
+    async fn init_provider(&mut self) -> Result<Provider> {
+        match self.api.provider().await {
+            // Use the forge key if available in the config.
+            Ok(provider) => Ok(provider),
+            Err(_) => {
+                // If no key is available, start the login flow.
+                self.login().await?;
+                self.api.provider().await
+            }
+        }
+    }
+    async fn login(&mut self) -> Result<()> {
+        let auth = self.api.init_login().await?;
+        open::that(auth.auth_url.as_str()).ok();
+        self.writeln(TitleFormat::info(
+            format!("Logon here: {}", auth.auth_url).as_str(),
+        ))?;
+        self.spinner.start(Some("Waiting for login to complete"))?;
+
+        self.api.login(&auth).await?;
+
+        self.writeln(TitleFormat::info("Logon completed".to_string().as_str()))?;
+
+        Ok(())
     }
 
     async fn on_message(&mut self, content: String) -> Result<()> {

@@ -1,15 +1,12 @@
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
 
-use forge_domain::{Environment, Provider, RetryConfig};
+use forge_domain::{Environment, RetryConfig};
 use forge_services::EnvironmentInfra;
 
+#[derive(Clone)]
 pub struct ForgeEnvironmentInfra {
     restricted: bool,
-    is_env_loaded: RwLock<bool>,
 }
-
-type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
 
 impl ForgeEnvironmentInfra {
     /// Creates a new EnvironmentFactory with current working directory
@@ -18,7 +15,11 @@ impl ForgeEnvironmentInfra {
     /// * `unrestricted` - If true, use unrestricted shell mode (sh/bash) If
     ///   false, use restricted shell mode (rbash)
     pub fn new(restricted: bool) -> Self {
-        Self { restricted, is_env_loaded: Default::default() }
+        Self::dot_env(&Self::cwd());
+        Self { restricted }
+    }
+    fn cwd() -> PathBuf {
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
     }
 
     /// Get path to appropriate shell based on platform and mode
@@ -32,39 +33,6 @@ impl ForgeEnvironmentInfra {
             // Use user's preferred shell or fallback to sh
             std::env::var("SHELL").unwrap_or("/bin/sh".to_string())
         }
-    }
-
-    /// Resolves the provider key and provider from environment variables
-    ///
-    /// Returns a tuple of (provider_key, provider)
-    /// Panics if no API key is found in the environment
-    fn resolve_provider(&self) -> Provider {
-        let keys: [ProviderSearch; 5] = [
-            ("FORGE_KEY", Box::new(Provider::antinomy)),
-            ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
-            ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
-            ("OPENAI_API_KEY", Box::new(Provider::openai)),
-            ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
-        ];
-
-        keys.into_iter()
-            .find_map(|(key, fun)| {
-                std::env::var(key).ok().map(|key| {
-                    let mut provider = fun(&key);
-
-                    if let Ok(url) = std::env::var("OPENAI_URL") {
-                        provider.open_ai_url(url);
-                    }
-
-                    // Check for Anthropic URL override
-                    if let Ok(url) = std::env::var("ANTHROPIC_URL") {
-                        provider.anthropic_url(url);
-                    }
-
-                    provider
-                })
-            })
-            .unwrap_or_else(|| panic!("API key required. Get yours at https://app.forgecode.dev/"))
     }
 
     /// Resolves retry configuration from environment variables or returns
@@ -131,13 +99,7 @@ impl ForgeEnvironmentInfra {
     }
 
     fn get(&self) -> Environment {
-        let cwd = std::env::current_dir().unwrap_or(PathBuf::from("."));
-        if !self.is_env_loaded.read().map(|v| *v).unwrap_or_default() {
-            *self.is_env_loaded.write().unwrap() = true;
-            Self::dot_env(&cwd);
-        }
-
-        let provider = self.resolve_provider();
+        let cwd = Self::cwd();
         let retry_config = self.resolve_retry_config();
 
         Environment {
@@ -149,7 +111,6 @@ impl ForgeEnvironmentInfra {
                 .map(|a| a.join("forge"))
                 .unwrap_or(PathBuf::from(".").join("forge")),
             home: dirs::home_dir(),
-            provider,
             retry_config,
             max_search_lines: 200,
             fetch_truncation_limit: 40_000,
@@ -187,6 +148,10 @@ impl ForgeEnvironmentInfra {
 impl EnvironmentInfra for ForgeEnvironmentInfra {
     fn get_environment(&self) -> Environment {
         self.get()
+    }
+
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        std::env::var(key).ok()
     }
 }
 

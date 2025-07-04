@@ -21,4 +21,7 @@ pub enum Error {
 
     #[error("Empty tool response")]
     EmptyToolResponse,
+
+    #[error("Authentication still in progress")]
+    AuthInProgress,
 }
