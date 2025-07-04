@@ -11,8 +11,8 @@ use crate::orch::Orchestrator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService,
-    AppConfigService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
+    AppConfigService, AttachmentService, ConversationService, EnvironmentService,
+    FileDiscoveryService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
     WorkflowService,
 };
 
