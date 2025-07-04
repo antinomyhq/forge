@@ -26,3 +26,5 @@ backon.workspace = true
 thiserror.workspace = true
 forge_app.workspace = true
 forge_walker.workspace = true
+tokio-util.workspace = true
+tokio-stream.workspace = true

@@ -7,6 +7,8 @@ use forge_services::CommandInfra;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{BytesCodec, FramedRead};
 
 /// Service for executing shell commands
 #[derive(Clone, Debug)]
@@ -105,33 +107,41 @@ impl ForgeCommandExecutorService {
         drop(ready);
 
         Ok(CommandOutput {
-            stdout: String::from_utf8_lossy(&stdout_buffer).into_owned(),
-            stderr: String::from_utf8_lossy(&stderr_buffer).into_owned(),
+            stdout: String::from_utf8(stdout_buffer)?,
+            stderr: String::from_utf8(stderr_buffer)?,
             exit_code: status.code(),
             command,
         })
     }
 }
 
-/// reads the output from A and writes it to W
 async fn stream<A: AsyncReadExt + Unpin, W: Write>(
     io: &mut Option<A>,
     mut writer: W,
 ) -> io::Result<Vec<u8>> {
-    let mut output = Vec::new();
     if let Some(io) = io.as_mut() {
-        let mut buff = [0; 1024];
-        loop {
-            let n = io.read(&mut buff).await?;
-            if n == 0 {
-                break;
-            }
-            writer.write_all(&buff[..n])?;
-            // note: flush is necessary else we get the cursor could not be found error.
-            writer.flush()?;
-            output.extend_from_slice(&buff[..n]);
-        }
+        let mut frames = FramedRead::with_capacity(io, BytesCodec::new(), 1024);
+        return stream_frames(&mut frames, &mut writer).await;
     }
+    Ok(vec![])
+}
+
+async fn stream_frames<R, W: Write>(
+    frames: &mut FramedRead<R, BytesCodec>,
+    mut writer: W,
+) -> io::Result<Vec<u8>>
+where
+    R: AsyncReadExt + Unpin,
+{
+    let mut output = vec![];
+    while let Some(frame) = frames.next().await {
+        let text = frame?;
+        let bytes = text.as_ref();
+        writer.write_all(bytes)?;
+        writer.flush()?;
+        output.extend_from_slice(bytes);
+    }
+
     Ok(output)
 }
 
@@ -161,6 +171,8 @@ impl CommandInfra for ForgeCommandExecutorService {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use forge_domain::Provider;
     use pretty_assertions::assert_eq;
 
@@ -216,5 +228,34 @@ mod tests {
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
         assert_eq!(actual.stderr, expected.stderr);
         assert_eq!(actual.success(), expected.success());
+    }
+
+    #[tokio::test]
+    async fn test_stream_frames_small_capacity() {
+        let fixture = b"hello world test data";
+        let reader = Cursor::new(fixture);
+        let mut frames = FramedRead::with_capacity(reader, BytesCodec::new(), 1);
+        let mut writer = Vec::new();
+
+        let actual = stream_frames(&mut frames, &mut writer).await.unwrap();
+
+        assert_eq!(actual, fixture);
+        assert_eq!(writer, fixture);
+    }
+
+    #[tokio::test]
+    async fn test_stream_frames_special_chars() {
+        let fixture = "emoji: 🦀 unicode: café control: \t\n\r special: \"'\\";
+        let reader = Cursor::new(fixture.as_bytes());
+        // try to stream just 1 byte at a time
+        // it should still handle the 4 byte Unicode character correctly.
+        let mut frames = FramedRead::with_capacity(reader, BytesCodec::new(), 1);
+        let mut writer = Vec::new();
+
+        let actual = stream_frames(&mut frames, &mut writer).await.unwrap();
+        let expected = fixture.as_bytes();
+
+        assert_eq!(actual, expected);
+        assert_eq!(writer, expected);
     }
 }

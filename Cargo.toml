@@ -102,6 +102,7 @@ rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a9791
     "transport-child-process",
     "transport-sse-server",
 ] }
+tokio-util = { version = "0.7.15", features = ["codec"] }
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }
