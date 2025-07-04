@@ -153,7 +153,7 @@ impl<
     type NetFetchService = ForgeFetch;
     type ShellService = ForgeShell<F>;
     type McpService = McpService<F>;
-    type ConfigService = ForgeConfigService<F>;
+    type AppConfigService = ForgeConfigService<F>;
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
 
@@ -233,7 +233,7 @@ impl<
         self.auth_service.as_ref()
     }
 
-    fn config_service(&self) -> &Self::ConfigService {
+    fn app_config_service(&self) -> &Self::AppConfigService {
         self.config_service.as_ref()
     }
 

@@ -7,7 +7,7 @@ use forge_domain::{
 
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    ConversationService, GlobalConfigService, ProviderRegistry, ProviderService, Services,
+    ConversationService, AppConfigService, ProviderRegistry, ProviderService, Services,
     TemplateService,
 };
 

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::{
     AppConfig, ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp,
-    GlobalConfigService, InitAuth, McpConfigManager, ProviderRegistry, ProviderService, Services,
+    AppConfigService, InitAuth, McpConfigManager, ProviderRegistry, ProviderService, Services,
     Walker, WorkflowService,
 };
 use forge_domain::*;

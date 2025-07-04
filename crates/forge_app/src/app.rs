@@ -12,7 +12,7 @@ use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
 use crate::{
     AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService,
-    GlobalConfigService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
+    AppConfigService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
     WorkflowService,
 };
 

@@ -276,7 +276,7 @@ pub trait ShellService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait GlobalConfigService: Send + Sync {
+pub trait AppConfigService: Send + Sync {
     async fn read_app_config(&self) -> anyhow::Result<AppConfig>;
     async fn write_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
 }
@@ -314,7 +314,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ShellService: ShellService;
     type McpService: McpService;
     type AuthService: AuthService;
-    type ConfigService: GlobalConfigService;
+    type AppConfigService: AppConfigService;
     type ProviderRegistry: ProviderRegistry;
 
     fn provider_service(&self) -> &Self::ProviderService;
@@ -336,7 +336,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn mcp_service(&self) -> &Self::McpService;
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn auth_service(&self) -> &Self::AuthService;
-    fn config_service(&self) -> &Self::ConfigService;
+    fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
 }
 
@@ -575,13 +575,13 @@ impl<I: Services> ProviderRegistry for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> GlobalConfigService for I {
+impl<I: Services> AppConfigService for I {
     async fn read_app_config(&self) -> anyhow::Result<AppConfig> {
-        self.config_service().read_app_config().await
+        self.app_config_service().read_app_config().await
     }
 
     async fn write_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.config_service().write_app_config(config).await
+        self.app_config_service().write_app_config(config).await
     }
 }
 
