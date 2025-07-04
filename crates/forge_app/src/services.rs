@@ -7,7 +7,7 @@ use forge_domain::{
 };
 use merge::Merge;
 
-use crate::{ForgeConfig, InitAuth, LoginInfo, Walker};
+use crate::{AppConfig, InitAuth, LoginInfo, Walker};
 
 #[derive(Debug)]
 pub struct ShellOutput {
@@ -277,8 +277,8 @@ pub trait ShellService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait GlobalConfigService: Send + Sync {
-    async fn read_global_config(&self) -> anyhow::Result<ForgeConfig>;
-    async fn write_global_config(&self, config: &ForgeConfig) -> anyhow::Result<()>;
+    async fn read_app_config(&self) -> anyhow::Result<AppConfig>;
+    async fn write_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -288,7 +288,7 @@ pub trait AuthService: Send + Sync {
 }
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
-    async fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider>;
+    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -569,19 +569,19 @@ impl<I: Services> EnvironmentService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ProviderRegistry for I {
-    async fn get_provider(&self, config: ForgeConfig) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
         self.provider_registry().get_provider(config).await
     }
 }
 
 #[async_trait::async_trait]
 impl<I: Services> GlobalConfigService for I {
-    async fn read_global_config(&self) -> anyhow::Result<ForgeConfig> {
-        self.config_service().read_global_config().await
+    async fn read_app_config(&self) -> anyhow::Result<AppConfig> {
+        self.config_service().read_app_config().await
     }
 
-    async fn write_global_config(&self, config: &ForgeConfig) -> anyhow::Result<()> {
-        self.config_service().write_global_config(config).await
+    async fn write_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
+        self.config_service().write_app_config(config).await
     }
 }
 

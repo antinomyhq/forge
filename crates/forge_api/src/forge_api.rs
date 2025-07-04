@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{
-    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, ForgeConfig,
+    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, AppConfig,
     GlobalConfigService, InitAuth, McpConfigManager, ProviderRegistry, ProviderService, Services,
     Walker, WorkflowService,
 };
@@ -157,12 +157,12 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
     async fn provider(&self) -> anyhow::Result<Provider> {
         self.app
-            .get_provider(self.app.read_global_config().await.unwrap_or_default())
+            .get_provider(self.app.read_app_config().await.unwrap_or_default())
             .await
     }
-    async fn global_config(&self) -> anyhow::Result<ForgeConfig> {
+    async fn app_config(&self) -> anyhow::Result<AppConfig> {
         self.app
-            .read_global_config()
+            .read_app_config()
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }

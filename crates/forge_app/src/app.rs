@@ -52,7 +52,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Get tool definitions and models
         let tool_definitions = self.tool_registry.list().await?;
-        let config = services.read_global_config().await.unwrap_or_default();
+        let config = services.read_app_config().await.unwrap_or_default();
         let provider = services
             .get_provider(config)
             .await

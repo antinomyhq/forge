@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::{ForgeConfig, GlobalConfigService};
+use forge_app::{AppConfig, GlobalConfigService};
 
 use crate::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
 
@@ -13,16 +13,16 @@ impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> ForgeConfigService
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
-    async fn read(&self) -> anyhow::Result<ForgeConfig> {
+    async fn read(&self) -> anyhow::Result<AppConfig> {
         let env = self.infra.get_environment();
-        let config = self.infra.read(env.global_config().as_path()).await?;
+        let config = self.infra.read(env.app_config().as_path()).await?;
         Ok(serde_json::from_slice(&config)?)
     }
-    async fn write(&self, config: &ForgeConfig) -> anyhow::Result<()> {
+    async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
         let env = self.infra.get_environment();
         self.infra
             .write(
-                env.global_config().as_path(),
+                env.app_config().as_path(),
                 Bytes::from(serde_json::to_vec(config)?),
                 false,
             )
@@ -34,11 +34,11 @@ impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> ForgeConfigService
 impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> GlobalConfigService
     for ForgeConfigService<I>
 {
-    async fn read_global_config(&self) -> anyhow::Result<ForgeConfig> {
+    async fn read_app_config(&self) -> anyhow::Result<AppConfig> {
         self.read().await
     }
 
-    async fn write_global_config(&self, config: &ForgeConfig) -> anyhow::Result<()> {
+    async fn write_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
         self.write(config).await
     }
 }

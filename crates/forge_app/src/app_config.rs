@@ -11,7 +11,7 @@ pub struct InitAuth {
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ForgeConfig {
+pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
 }
 

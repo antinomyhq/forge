@@ -329,7 +329,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
 
                 // Add user information if available
-                if let Ok(config) = self.api.global_config().await {
+                if let Ok(config) = self.api.app_config().await {
                     if let Some(login_info) = &config.key_info {
                         info = info.extend(Info::from(login_info));
                     }
@@ -625,7 +625,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         self.spinner.stop(None)?;
 
         // Display user information after successful login
-        if let Ok(config) = self.api.global_config().await {
+        if let Ok(config) = self.api.app_config().await {
             if let Some(login_info) = &config.key_info {
                 self.writeln(TitleFormat::completion("Login successful!"))?;
                 let user_info = Info::from(login_info);
