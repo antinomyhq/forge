@@ -87,8 +87,10 @@ impl<S: Services> ForgeApp<S> {
         services.register_template(template_path).await?;
 
         // Always try to get attachments and overwrite them
-        let attachments = services.attachments(&chat.event.value.to_string()).await?;
-        chat.event = chat.event.attachments(attachments);
+        if let Some(value) = chat.event.value.as_ref() {
+            let attachments = services.attachments(&value.to_string()).await?;
+            chat.event = chat.event.attachments(attachments);
+        }
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(

@@ -25,6 +25,15 @@
         "null"
       ]
     },
+    "max_requests_per_turn": {
+      "description": "Maximum number of requests that can be made in a single turn",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 0.0
+    },
     "max_tokens": {
       "description": "Maximum number of tokens the model can generate for all agents\n\nControls the maximum length of the model's response. - Lower values (e.g., 100) limit response length for concise outputs - Higher values (e.g., 4000) allow for longer, more detailed responses - Valid range is 1 to 100,000 - If not specified, each agent's individual setting or the model provider's default will be used",
       "anyOf": [

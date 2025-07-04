@@ -48,7 +48,7 @@ impl PartialEvent {
 
 impl From<PartialEvent> for Event {
     fn from(value: PartialEvent) -> Self {
-        Event::new(value.name, value.value)
+        Event::new(value.name, Some(value.value))
     }
 }
 
@@ -133,7 +133,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     fn create_task_event<V: Into<Value>>(
         &self,
-        content: V,
+        content: Option<V>,
         event_name: &str,
     ) -> anyhow::Result<Event> {
         let operating_agent = &self.state.operating_agent;
@@ -189,7 +189,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
-            self.on_message(prompt).await?;
+            self.on_message(Some(prompt)).await?;
             return Ok(());
         }
 
@@ -339,7 +339,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             }
             Command::Message(ref content) => {
                 self.spinner.start(None)?;
-                self.on_message(content.clone()).await?;
+                self.on_message(Some(content.clone())).await?;
             }
             Command::Forge => {
                 self.on_agent_change(AgentId::FORGE).await?;
@@ -625,7 +625,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_message(&mut self, content: String) -> Result<()> {
+    async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
@@ -647,7 +647,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
         while let Some(message) = stream.next().await {
             match message {
-                Ok(message) => self.handle_chat_response(message)?,
+                Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
                     self.spinner.stop(None)?;
                     return Err(err);
@@ -698,7 +698,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
+    async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         match message {
             ChatResponse::Text { mut text, is_complete, is_md, is_summary } => {
                 if is_complete && !text.trim().is_empty() {
@@ -746,6 +746,30 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             ChatResponse::Interrupt { reason } => {
                 self.spinner.stop(None)?;
                 match reason {
+                    InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
+                        self.writeln(TitleFormat::action(format!(
+                            "Maximum request ({limit}) per turn achieved"
+                        )))?;
+                        let result = Select::new(
+                            "Do you want to continue anyway?",
+                            vec!["Yes", "No"]
+                                .into_iter()
+                                .map(|s| s.to_string())
+                                .collect(),
+                        )
+                        .with_render_config(
+                            RenderConfig::default()
+                                .with_highlighted_option_prefix(Styled::new("➤")),
+                        )
+                        .with_starting_cursor(0)
+                        .prompt()
+                        .map_err(|e| anyhow::anyhow!(e))?;
+
+                        if result == "Yes" {
+                            self.spinner.start(None)?;
+                            Box::pin(self.on_message(None)).await?;
+                        }
+                    }
                     InterruptionReason::ToolFailureLimitExceeded => {
                         self.writeln(TitleFormat::error(
                             "Tool failure limit exceeded, please try again.",

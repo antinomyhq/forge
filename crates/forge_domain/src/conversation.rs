@@ -40,6 +40,7 @@ pub struct Conversation {
     pub events: Vec<Event>,
     pub tasks: TaskList,
     pub tool_max_failure_limit: Option<usize>,
+    pub max_requests_per_turn: Option<usize>,
 }
 
 impl Conversation {
@@ -162,6 +163,7 @@ impl Conversation {
             events: Default::default(),
             tasks: TaskList::new(),
             tool_max_failure_limit: workflow.tool_max_failure_limit,
+            max_requests_per_turn: workflow.max_requests_per_turn,
         }
     }
 
