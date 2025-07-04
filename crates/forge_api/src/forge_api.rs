@@ -14,14 +14,14 @@ use forge_stream::MpscStream;
 
 use crate::API;
 
-pub struct ForgeAPI<A, F> {
-    app: Arc<A>,
+pub struct ForgeAPI<S, F> {
+    services: Arc<S>,
     infra: Arc<F>,
 }
 
 impl<A, F> ForgeAPI<A, F> {
-    pub fn new(app: Arc<A>, infra: Arc<F>) -> Self {
-        Self { app, infra }
+    pub fn new(services: Arc<A>, infra: Arc<F>) -> Self {
+        Self { services, infra }
     }
 }
 
@@ -36,19 +36,19 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 #[async_trait::async_trait]
 impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn discover(&self) -> Result<Vec<File>> {
-        let environment = self.app.get_environment();
+        let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
-        self.app.collect_files(config).await
+        self.services.collect_files(config).await
     }
 
     async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        let forge_app = ForgeApp::new(self.app.clone());
+        let forge_app = ForgeApp::new(self.services.clone());
         forge_app.list_tools().await
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
         Ok(self
-            .app
+            .services
             .models(self.provider().await.context("User is not logged in")?)
             .await?)
     }
@@ -58,7 +58,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         chat: ChatRequest,
     ) -> anyhow::Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
         // Create a ForgeApp instance and delegate the chat logic to it
-        let forge_app = ForgeApp::new(self.app.clone());
+        let forge_app = ForgeApp::new(self.services.clone());
         forge_app.chat(chat).await
     }
 
@@ -66,49 +66,49 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         &self,
         workflow: W,
     ) -> anyhow::Result<Conversation> {
-        self.app.create_conversation(workflow.into()).await
+        self.services.create_conversation(workflow.into()).await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.app.upsert(conversation).await
+        self.services.upsert(conversation).await
     }
 
     async fn compact_conversation(
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<CompactionResult> {
-        let forge_app = ForgeApp::new(self.app.clone());
+        let forge_app = ForgeApp::new(self.services.clone());
         forge_app.compact_conversation(conversation_id).await
     }
 
     fn environment(&self) -> Environment {
-        self.app.get_environment().clone()
+        self.services.get_environment().clone()
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.app.read_workflow(path).await
+        self.services.read_workflow(path).await
     }
 
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.app.read_merged(path).await
+        self.services.read_merged(path).await
     }
 
     async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        self.app.write_workflow(path, workflow).await
+        self.services.write_workflow(path, workflow).await
     }
 
     async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>
     where
         T: FnOnce(&mut Workflow) + Send,
     {
-        self.app.update_workflow(path, f).await
+        self.services.update_workflow(path, f).await
     }
 
     async fn conversation(
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>> {
-        self.app.find(conversation_id).await
+        self.services.find(conversation_id).await
     }
 
     async fn execute_shell_command(
@@ -121,14 +121,14 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             .await
     }
     async fn read_mcp_config(&self) -> Result<McpConfig> {
-        self.app
+        self.services
             .read_mcp_config()
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()> {
-        self.app
+        self.services
             .write_mcp_config(config, scope)
             .await
             .map_err(|e| anyhow::anyhow!(e))
@@ -142,25 +142,25 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn init_login(&self) -> Result<InitAuth> {
-        let forge_app = ForgeApp::new(self.app.clone());
+        let forge_app = ForgeApp::new(self.services.clone());
         forge_app.init_auth().await
     }
 
     async fn login(&self, auth: &InitAuth) -> Result<()> {
-        let forge_app = ForgeApp::new(self.app.clone());
+        let forge_app = ForgeApp::new(self.services.clone());
         forge_app.login(auth).await
     }
 
     async fn logout(&self) -> Result<()> {
-        let forge_app = ForgeApp::new(self.app.clone());
+        let forge_app = ForgeApp::new(self.services.clone());
         forge_app.logout().await
     }
     async fn provider(&self) -> anyhow::Result<Provider> {
-        self.app
-            .get_provider(self.app.read_app_config().await.unwrap_or_default())
+        self.services
+            .get_provider(self.services.read_app_config().await.unwrap_or_default())
             .await
     }
     async fn app_config(&self) -> anyhow::Result<AppConfig> {
-        self.app.read_app_config().await
+        self.services.read_app_config().await
     }
 }
