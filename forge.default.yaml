@@ -3,11 +3,11 @@ variables:
   operating_agent: Forge
 
 max_requests_per_turn: 50
+max_tool_failure_per_turn: 3
 top_p: 0.8
 top_k: 30
 max_tokens: 20480
 max_walker_depth: 1
-tool_max_failure_limit: 3
 
 updates:
   frequency: "daily"

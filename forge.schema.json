@@ -45,6 +45,15 @@
         }
       ]
     },
+    "max_tool_failure_per_turn": {
+      "description": "Maximum number of times a tool can fail before the orchestrator forces the completion.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 0.0
+    },
     "max_walker_depth": {
       "description": "Maximum depth to which the file walker should traverse for all agents If not provided, each agent's individual setting will be used",
       "type": [
@@ -78,15 +87,6 @@
         "string",
         "null"
       ]
-    },
-    "tool_max_failure_limit": {
-      "description": "Maximum number of times a tool can fail before the orchestrator forces the completion.",
-      "type": [
-        "integer",
-        "null"
-      ],
-      "format": "uint",
-      "minimum": 0.0
     },
     "tool_supported": {
       "description": "Flag to enable/disable tool support for all agents in this workflow. If not specified, each agent's individual setting will be used. Default is false (tools disabled) when not specified.",

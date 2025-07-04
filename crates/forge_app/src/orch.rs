@@ -402,11 +402,11 @@ impl<S: AgentService> Orchestrator<S> {
             let mut tool_context =
                 ToolCallContext::new(self.conversation.tasks.clone()).sender(self.sender.clone());
 
-            // Check if tool calls are within allowed limits if tool_max_failure_limit is
+            // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
             let allowed_limits_exceeded =
                 self.conversation
-                    .tool_max_failure_limit
+                    .max_tool_failure_per_turn
                     .is_some_and(|limit| {
                         tool_calls.iter().any(|call| {
                             let attempts_till_now =
@@ -422,7 +422,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Update the tool call attempts, if the tool call is an error
             // we increment the attempts, otherwise we remove it from the attempts map
-            if let Some(allowed_max_attempts) = self.conversation.tool_max_failure_limit.as_ref() {
+            if let Some(allowed_max_attempts) = self.conversation.max_tool_failure_per_turn.as_ref() {
                 tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
                         let current_attempts = tool_failure_attempts
@@ -486,11 +486,11 @@ impl<S: AgentService> Orchestrator<S> {
                     agent_id = %agent.id,
                     model_id = %model_id,
                     tools = %tool_failure_attempts.iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
-                    tool_max_failure_limit = ?self.conversation.tool_max_failure_limit,
+                    max_tool_failure_per_turn = ?self.conversation.max_tool_failure_per_turn,
                     "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
                 );
 
-                if let Some(limit) = self.conversation.tool_max_failure_limit {
+                if let Some(limit) = self.conversation.max_tool_failure_per_turn {
                     self.send(ChatResponse::Interrupt {
                         reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
                             limit: limit as u64,
