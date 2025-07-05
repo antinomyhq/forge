@@ -637,9 +637,7 @@ impl Tools {
             Tools::ForgeToolTaskListUpdate(_) => gen.into_root_schema_for::<TaskListUpdate>(),
             Tools::ForgeToolTaskListList(_) => gen.into_root_schema_for::<TaskListList>(),
             Tools::ForgeToolTaskListClear(_) => gen.into_root_schema_for::<TaskListClear>(),
-            Tools::ForgeToolTaskListDone(_) => {
-                gen.into_root_schema_for::<TaskListDone>()
-            }
+            Tools::ForgeToolTaskListDone(_) => gen.into_root_schema_for::<TaskListDone>(),
         }
     }
 

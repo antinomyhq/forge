@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, NetFetch, TaskList,
-    TaskListAppend, TaskListAppendMultiple, TaskListDone, TaskListClear, TaskListList,
+    TaskListAppend, TaskListAppendMultiple, TaskListClear, TaskListDone, TaskListList,
     TaskListUpdate,
 };
 use forge_template::Element;
