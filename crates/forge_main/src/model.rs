@@ -273,12 +273,12 @@ pub enum Command {
     ))]
     Agent,
 
-    /// Log in
-    #[strum(props(usage = "Login"))]
+    /// Log into the default provider.
+    #[strum(props(usage = "Log into the Forge provider"))]
     Login,
 
-    #[strum(props(usage = "Logout of the current session"))]
     /// Logs out of the current session.
+    #[strum(props(usage = "Logout of the current session"))]
     Logout,
 }
 

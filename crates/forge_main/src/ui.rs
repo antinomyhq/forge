@@ -614,7 +614,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         let auth = self.api.init_login().await?;
         open::that(auth.auth_url.as_str()).ok();
         self.writeln(TitleFormat::info(
-            format!("Logon here: {}", auth.auth_url).as_str(),
+            format!("Login here: {}", auth.auth_url).as_str(),
         ))?;
         self.spinner.start(Some("Waiting for login to complete"))?;
 
@@ -622,7 +622,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        self.writeln(TitleFormat::info("Logon completed".to_string().as_str()))?;
+        self.writeln(TitleFormat::info("Login completed".to_string().as_str()))?;
 
         Ok(())
     }
