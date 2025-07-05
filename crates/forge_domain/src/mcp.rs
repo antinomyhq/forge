@@ -16,10 +16,16 @@ pub enum Scope {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
-#[serde(untagged)]
+#[serde(rename_all = "camelCase")]
+// TODO: Needs review, we can not directly untag enums since the server could be
+// SSE or StreamableHttp. however to auto detect, we can either check route,
+// since SSE servers typically have a `/sse` route, and StreamableHttp servers
+// typically have a `/mcp` route. Or we can try connecting to both and see which
+// one succeeds.
 pub enum McpServerConfig {
     Stdio(McpStdioServer),
     Sse(McpSseServer),
+    StreamableHttp(McpStreamableHttpServer),
 }
 
 impl McpServerConfig {
@@ -61,6 +67,13 @@ pub struct McpSseServer {
     pub url: String,
 }
 
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
+pub struct McpStreamableHttpServer {
+    /// Url of the MCP server
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub url: String,
+}
+
 impl Display for McpServerConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut output = String::new();
@@ -77,6 +90,9 @@ impl Display for McpServerConfig {
             }
             McpServerConfig::Sse(sse) => {
                 output.push_str(&format!("{} ", sse.url));
+            }
+            McpServerConfig::StreamableHttp(streamable) => {
+                output.push_str(&format!("{} ", streamable.url));
             }
         }
 
