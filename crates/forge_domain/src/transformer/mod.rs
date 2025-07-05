@@ -73,10 +73,12 @@ where
 }
 
 // Re-export specific transformers
+mod drop_reasoning_details;
 mod image_handling;
 mod set_model;
 mod transform_tool_calls;
 
+pub use drop_reasoning_details::DropReasoningDetails;
 pub use image_handling::ImageHandling;
 pub use set_model::SetModel;
 pub use transform_tool_calls::TransformToolCalls;
@@ -116,6 +118,7 @@ mod tests {
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::assistant(
                 "I'll help you",
+                None,
                 Some(vec![tool_call]),
             ))
             .add_tool_results(vec![ToolResult {

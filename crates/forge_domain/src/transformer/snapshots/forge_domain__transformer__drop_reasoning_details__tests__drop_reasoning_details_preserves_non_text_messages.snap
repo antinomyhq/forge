@@ -1,0 +1,43 @@
+---
+source: crates/forge_domain/src/transformer/drop_reasoning_details.rs
+expression: snapshot
+---
+transformation: DropReasoningDetails_preserve_non_text
+before:
+  messages:
+    - text:
+        role: User
+        content: User with reasoning
+        tool_calls: ~
+        model: ~
+        reasoning_details:
+          - text: User reasoning
+            signature: ~
+    - image:
+        url: "data:image/png;base64,image_data"
+        mime_type: image/png
+    - tool:
+        name: preserve_tool
+        call_id: call_preserve
+        output:
+          is_error: false
+          values:
+            - text: Tool output
+after:
+  messages:
+    - text:
+        role: User
+        content: User with reasoning
+        tool_calls: ~
+        model: ~
+        reasoning_details: ~
+    - image:
+        url: "data:image/png;base64,image_data"
+        mime_type: image/png
+    - tool:
+        name: preserve_tool
+        call_id: call_preserve
+        output:
+          is_error: false
+          values:
+            - text: Tool output

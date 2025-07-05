@@ -24,6 +24,7 @@ after:
         content: First text output
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - image:
         url: "data:image/png;base64,test_image_data"
         mime_type: image/png
@@ -32,3 +33,4 @@ after:
         content: Second text output
         tool_calls: ~
         model: ~
+        reasoning_details: ~

@@ -60,18 +60,21 @@ mod tests {
                         content: c.to_string(),
                         tool_calls: None,
                         model: None,
+                        reasoning_details: None,
                     }),
                     'u' => ContextMessage::Text(TextMessage {
                         role: Role::User,
                         content: c.to_string(),
                         tool_calls: None,
                         model: ModelId::new("gpt-4").into(),
+                        reasoning_details: None,
                     }),
                     'a' => ContextMessage::Text(TextMessage {
                         role: Role::Assistant,
                         content: c.to_string(),
                         tool_calls: None,
                         model: None,
+                        reasoning_details: None,
                     }),
                     _ => {
                         panic!("Invalid character in test message");
@@ -84,6 +87,7 @@ mod tests {
             temperature: None,
             top_p: None,
             top_k: None,
+            reasoning: None,
         };
 
         let request = Request::from(context);

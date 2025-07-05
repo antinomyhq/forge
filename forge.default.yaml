@@ -40,6 +40,8 @@ agents:
       {{else}}
       <task>{{event.value}}</task>
       {{/if}}
+    reasoning:
+      enabled: true
     tools:
       - forge_tool_fs_read
       - forge_tool_fs_create

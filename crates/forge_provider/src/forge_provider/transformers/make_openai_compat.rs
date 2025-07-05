@@ -21,6 +21,7 @@ impl Transformer for MakeOpenAiCompat {
         request.min_p = None;
         request.top_a = None;
         request.session_id = None;
+        request.reasoning = None;
 
         let tools_present = request
             .tools
@@ -75,5 +76,19 @@ mod tests {
         let actual = transformer.transform(fixture);
         let expected = Some(true);
         assert_eq!(actual.parallel_tool_calls, expected);
+    }
+
+    #[test]
+    fn test_reasoning_removed() {
+        let fixture = Request::default().reasoning(forge_domain::ReasoningConfig {
+            enabled: Some(true),
+            effort: None,
+            max_tokens: None,
+            exclude: None,
+        });
+        let mut transformer = MakeOpenAiCompat;
+        let actual = transformer.transform(fixture);
+        let expected = None;
+        assert_eq!(actual.reasoning, expected);
     }
 }

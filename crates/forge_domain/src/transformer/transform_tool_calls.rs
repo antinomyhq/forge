@@ -37,6 +37,7 @@ impl Transformer for TransformToolCalls {
                         role: text_msg.role.clone(),
                         content: text_msg.content.clone(),
                         tool_calls: None,
+                        reasoning_details: text_msg.reasoning_details.clone(),
                         model: text_msg.model.clone(),
                     }));
                 }
@@ -99,6 +100,7 @@ mod tests {
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::assistant(
                 "I'll help you",
+                None,
                 Some(vec![tool_call]),
             ))
             .add_tool_results(vec![ToolResult {
@@ -141,7 +143,7 @@ mod tests {
         let fixture = Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::assistant("Assistant response", None));
+            .add_message(ContextMessage::assistant("Assistant response", None, None));
 
         let mut transformer = TransformToolCalls::new();
         let actual = transformer.transform(fixture.clone());

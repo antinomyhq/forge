@@ -13,6 +13,8 @@ pub struct Model {
     pub tools_supported: Option<bool>,
     /// Whether the model supports parallel tool calls
     pub supports_parallel_tool_calls: Option<bool>,
+    /// Whether the model supports reasoning
+    pub supports_reasoning: Option<bool>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]

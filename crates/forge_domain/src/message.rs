@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::EnumString;
 
 use super::{ToolCall, ToolCallFull};
+use crate::reasoning::{Reasoning, ReasoningFull};
 
 #[derive(Default, Clone, Debug, Serialize, PartialEq)]
 pub struct Usage {
@@ -22,6 +23,8 @@ pub struct Usage {
 #[setters(into, strip_option)]
 pub struct ChatCompletionMessage {
     pub content: Option<Content>,
+    pub reasoning: Option<Content>,
+    pub reasoning_details: Option<Vec<Reasoning>>,
     pub tool_calls: Vec<ToolCall>,
     pub finish_reason: Option<FinishReason>,
     pub usage: Option<Usage>,
@@ -94,6 +97,16 @@ impl ChatCompletionMessage {
         ChatCompletionMessage::default().content(content.into())
     }
 
+    pub fn add_reasoning_detail(mut self, detail: impl Into<Reasoning>) -> Self {
+        let detail = detail.into();
+        if let Some(ref mut details) = self.reasoning_details {
+            details.push(detail);
+        } else {
+            self.reasoning_details = Some(vec![detail]);
+        }
+        self
+    }
+
     pub fn add_tool_call(mut self, call_tool: impl Into<ToolCall>) -> Self {
         self.tool_calls.push(call_tool.into());
         self
@@ -126,7 +139,9 @@ impl ChatCompletionMessage {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChatCompletionMessageFull {
     pub content: String,
+    pub reasoning: Option<String>,
     pub tool_calls: Vec<ToolCallFull>,
+    pub reasoning_details: Option<Vec<ReasoningFull>>,
     pub usage: Usage,
 }
 

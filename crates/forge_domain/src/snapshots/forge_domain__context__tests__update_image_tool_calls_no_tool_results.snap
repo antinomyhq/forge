@@ -8,13 +8,16 @@ messages:
       content: System message
       tool_calls: ~
       model: ~
+      reasoning_details: ~
   - text:
       role: User
       content: User message
       tool_calls: ~
       model: ~
+      reasoning_details: ~
   - text:
       role: Assistant
       content: Assistant message
       tool_calls: ~
       model: ~
+      reasoning_details: ~

@@ -10,16 +10,19 @@ before:
         content: System message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - text:
         role: Assistant
         content: Assistant message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - text:
         role: User
         content: User message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
 after:
   messages:
     - text:
@@ -27,13 +30,16 @@ after:
         content: System message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - text:
         role: Assistant
         content: Assistant message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - text:
         role: User
         content: User message
         tool_calls: ~
         model: gpt-4
+        reasoning_details: ~

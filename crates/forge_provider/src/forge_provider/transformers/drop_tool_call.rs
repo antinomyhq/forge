@@ -61,6 +61,7 @@ mod tests {
                     content: "Using tool".to_string(),
                     tool_calls: Some(vec![tool_call]),
                     model: None,
+                    reasoning_details: None,
                 }),
                 ContextMessage::Tool(tool_result),
             ],
@@ -70,6 +71,7 @@ mod tests {
             temperature: None,
             top_p: None,
             top_k: None,
+            reasoning: None,
         };
 
         let request = Request::from(context);
