@@ -7,6 +7,7 @@ agents:
   - forge_tool_task_list_mark_done
   - forge_tool_task_list_list
   - forge_tool_task_list_clear
+  - forge_tool_task_list_attempt_completion
 variables:
   operating_agent: forge
 commands:

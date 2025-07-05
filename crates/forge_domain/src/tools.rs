@@ -52,6 +52,7 @@ pub enum Tools {
     ForgeToolTaskListUpdate(TaskListUpdate),
     ForgeToolTaskListList(TaskListList),
     ForgeToolTaskListClear(TaskListClear),
+    ForgeToolTaskListDone(TaskListDone),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -457,6 +458,17 @@ pub struct TaskListClear {
     pub explanation: Option<String>,
 }
 
+/// Request to mark a task as completed. This tool is used when you have
+/// successfully completed a task and want to indicate that no further work is
+/// needed on it. The task will be removed from the task list.
+/// Use this tool to signal that a task is fully done and does not require any
+/// further action.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct TaskListDone {
+    /// Task ID of the task that this result is related to.
+    pub task_id: i32,
+}
+
 fn default_raw() -> Option<bool> {
     Some(false)
 }
@@ -583,6 +595,7 @@ impl ToolDescription for Tools {
             Tools::ForgeToolTaskListUpdate(v) => v.description(),
             Tools::ForgeToolTaskListList(v) => v.description(),
             Tools::ForgeToolTaskListClear(v) => v.description(),
+            Tools::ForgeToolTaskListDone(v) => v.description(),
         }
     }
 }
@@ -624,6 +637,7 @@ impl Tools {
             Tools::ForgeToolTaskListUpdate(_) => gen.into_root_schema_for::<TaskListUpdate>(),
             Tools::ForgeToolTaskListList(_) => gen.into_root_schema_for::<TaskListList>(),
             Tools::ForgeToolTaskListClear(_) => gen.into_root_schema_for::<TaskListClear>(),
+            Tools::ForgeToolTaskListDone(_) => gen.into_root_schema_for::<TaskListDone>(),
         }
     }
 
