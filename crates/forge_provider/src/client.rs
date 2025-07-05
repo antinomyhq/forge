@@ -33,6 +33,7 @@ impl Client {
         retry_config: Arc<RetryConfig>,
         version: impl ToString,
         timeout_config: &HttpConfig,
+        secret: impl ToString,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(
@@ -52,6 +53,7 @@ impl Client {
                     .client(client)
                     .provider(provider.clone())
                     .version(version.to_string())
+                    .secret(secret.to_string())
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             ),
@@ -155,6 +157,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
+            "secret",
         )
         .unwrap();
 
@@ -174,6 +177,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
+            "secret",
         )
         .unwrap();
 

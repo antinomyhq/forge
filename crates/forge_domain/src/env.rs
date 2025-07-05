@@ -76,4 +76,7 @@ impl Environment {
     pub fn app_config(&self) -> PathBuf {
         self.base_path.join(".config.json")
     }
+    pub fn secret(&self) -> String {
+        obfstr::obfstr!(env!("FORGE_SECRET")).to_string()
+    }
 }
