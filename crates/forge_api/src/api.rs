@@ -97,4 +97,9 @@ pub trait API: Sync + Send {
     async fn logout(&self) -> anyhow::Result<()>;
     async fn provider(&self) -> anyhow::Result<Provider>;
     async fn app_config(&self) -> anyhow::Result<AppConfig>;
+
+    /// Allows modification of the ForgeConfig
+    async fn modify_config<Fn>(&self, f: Fn) -> Result<()>
+    where
+        Fn: FnOnce(&mut AppConfig) + Send + Sync;
 }

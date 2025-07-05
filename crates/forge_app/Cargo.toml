@@ -31,6 +31,7 @@ merge.workspace = true
 convert_case.workspace = true
 backon.workspace = true
 eserde.workspace = true
+strum_macros.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

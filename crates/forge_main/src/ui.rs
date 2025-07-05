@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event, InterruptionReason,
-    Model, ModelId, Workflow, API,
+    AgentId, ChatRequest, ChatResponse, ChoiceType, ConfigOption, Conversation, ConversationId,
+    Event, InterruptionReason, Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
@@ -20,6 +20,7 @@ use inquire::Select;
 use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
+use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
@@ -373,6 +374,9 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             Command::Model => {
                 self.on_model_selection().await?;
             }
+            Command::Config => {
+                self.on_config_selection().await?;
+            }
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
@@ -525,6 +529,120 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
             self.writeln(TitleFormat::action(format!("Switched to model: {model}")))?;
         }
+
+        Ok(())
+    }
+
+    /// Select a configuration option to modify
+    /// Returns Some(ConfigOption) if an option was selected, or None if
+    /// selection was canceled
+    async fn select_config_option(&mut self) -> Result<Option<ConfigOption>> {
+        let options = ConfigOption::iter().collect::<Vec<_>>();
+
+        // Create a custom render config with the specified icons
+        let render_config = RenderConfig::default()
+            .with_scroll_up_prefix(Styled::new("⇡"))
+            .with_scroll_down_prefix(Styled::new("⇣"))
+            .with_highlighted_option_prefix(Styled::new("➤"));
+
+        // Use inquire to select a config option
+        match Select::new("Select configuration to modify:", options)
+            .with_help_message("Use arrow keys to navigate and Enter to select")
+            .with_render_config(render_config)
+            .prompt()
+        {
+            Ok(option) => Ok(Some(option)),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                // Return None if selection was canceled
+                Ok(None)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// Select a shell command execution preference
+    async fn select_shell_execution_choice(
+        &mut self,
+        current: Option<ChoiceType>,
+    ) -> Result<Option<ChoiceType>> {
+        let choices = ChoiceType::iter().collect::<Vec<_>>();
+
+        // Create a custom render config with the specified icons
+        let render_config = RenderConfig::default()
+            .with_scroll_up_prefix(Styled::new("⇡"))
+            .with_scroll_down_prefix(Styled::new("⇣"))
+            .with_highlighted_option_prefix(Styled::new("➤"));
+
+        // Find the index of the current choice
+        let starting_cursor = current
+            .as_ref()
+            .and_then(|current| choices.iter().position(|c| c == current))
+            .unwrap_or(ChoiceType::AskEveryTime as usize);
+        // Use inquire to select a choice
+        match Select::new("Shell command execution preference:", choices)
+            .with_help_message("Choose how shell commands should be handled")
+            .with_render_config(render_config)
+            .with_starting_cursor(starting_cursor)
+            .prompt()
+        {
+            Ok(choice) => Ok(Some(choice)),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                // Return None if selection was canceled
+                Ok(None)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn on_config_selection(&mut self) -> Result<()> {
+        let config_option = match self.select_config_option().await? {
+            Some(option) => option,
+            None => return Ok(()),
+        };
+
+        match config_option {
+            ConfigOption::ShellCommandExecution => {
+                let current_choice = self.get_current_shell_execution_choice().await?;
+
+                let new_choice = match self.select_shell_execution_choice(current_choice).await? {
+                    Some(choice) => choice,
+                    None => return Ok(()),
+                };
+
+                self.save_shell_execution_choice(new_choice.clone()).await?;
+
+                self.writeln(TitleFormat::action(format!(
+                    "Shell command execution set to: {new_choice}"
+                )))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get the current shell execution choice from config
+    async fn get_current_shell_execution_choice(&self) -> Result<Option<ChoiceType>> {
+        if let Ok(config) = self.api.app_config().await {
+            if let Some(choices) = &config.choices {
+                return Ok(choices.execute_shell_commands.clone());
+            }
+        }
+
+        Ok(None)
+    }
+
+    async fn save_shell_execution_choice(&self, choice: ChoiceType) -> Result<()> {
+        self.api
+            .modify_config(|config| {
+                if config.choices.is_none() {
+                    config.choices = Some(Default::default());
+                }
+
+                if let Some(ref mut choices) = config.choices {
+                    choices.execute_shell_commands = Some(choice);
+                }
+            })
+            .await?;
 
         Ok(())
     }
@@ -989,5 +1107,27 @@ mod tests {
         let actual = strip_ansi_codes(&formatted);
         let expected = "edge-1001 [ 1k ]";
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_option_display() {
+        let fixture = ConfigOption::ShellCommandExecution;
+        let actual = format!("{}", fixture);
+        let expected = "Shell Command Execution";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_choice_type_display() {
+        let fixtures = vec![
+            (ChoiceType::Allow, "Allow"),
+            (ChoiceType::Reject, "Reject"),
+            (ChoiceType::AskEveryTime, "Ask every time"),
+        ];
+
+        for (fixture, expected) in fixtures {
+            let actual = format!("{}", fixture);
+            assert_eq!(actual, expected);
+        }
     }
 }

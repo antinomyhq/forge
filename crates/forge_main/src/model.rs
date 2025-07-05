@@ -181,6 +181,7 @@ impl ForgeCommandManager {
             "/plan" | "/muse" => Ok(Command::Muse),
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
+            "/config" => Ok(Command::Config),
             "/tools" => Ok(Command::Tools),
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
@@ -280,6 +281,10 @@ pub enum Command {
     #[strum(props(usage = "Logout of the current session"))]
     /// Logs out of the current session.
     Logout,
+
+    /// Configure application settings
+    #[strum(props(usage = "Configure application settings"))]
+    Config,
 }
 
 impl Command {
@@ -298,6 +303,7 @@ impl Command {
             Command::Model => "/model",
             Command::Tools => "/tools",
             Command::Custom(event) => &event.name,
+            Command::Config => "/config",
             Command::Shell(_) => "!shell",
             Command::Agent => "/agent",
             Command::Login => "/login",

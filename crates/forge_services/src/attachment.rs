@@ -69,6 +69,7 @@ impl<F: FileReaderInfra + EnvironmentInfra> AttachmentService for ForgeChatReque
 #[cfg(test)]
 pub mod tests {
     use std::collections::HashMap;
+    use std::fmt::Display;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
@@ -441,11 +442,11 @@ pub mod tests {
         }
 
         /// Prompts the user to select a single option from a list
-        async fn select_one(
+        async fn select_one<T: Display + Send + Clone>(
             &self,
             _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<String>> {
+            options: Vec<T>,
+        ) -> anyhow::Result<Option<T>> {
             // For testing, we can just return the first option
             if options.is_empty() {
                 return Err(anyhow::anyhow!("No options provided"));
@@ -454,11 +455,11 @@ pub mod tests {
         }
 
         /// Prompts the user to select multiple options from a list
-        async fn select_many(
+        async fn select_many<T: Display + Send + Clone>(
             &self,
             _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<Vec<String>>> {
+            options: Vec<T>,
+        ) -> anyhow::Result<Option<Vec<T>>> {
             // For testing, we can just return all options
             if options.is_empty() {
                 return Err(anyhow::anyhow!("No options provided"));
