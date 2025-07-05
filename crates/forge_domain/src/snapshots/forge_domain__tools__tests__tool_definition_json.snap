@@ -466,10 +466,10 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_task_list_attempt_completion",
+  "name": "forge_tool_task_list_done",
   "description": "Request to mark a task as completed. This tool is used when you have\n successfully completed a task and want to indicate that no further work is\n needed on it. The task will be removed from the task list.\n Use this tool to signal that a task is fully done and does not require any\n further action.",
   "input_schema": {
-    "title": "TaskListAttemptCompletion",
+    "title": "TaskListDone",
     "description": "Request to mark a task as completed. This tool is used when you have successfully completed a task and want to indicate that no further work is needed on it. The task will be removed from the task list. Use this tool to signal that a task is fully done and does not require any further action.",
     "type": "object",
     "required": [
