@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event, InterruptionReason,
-    Model, ModelId, Workflow, API,
+    AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    InterruptionReason, Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
@@ -426,6 +426,8 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
+                let config: AppConfig = self.api.app_config().await?;
+                tracing::info!(login=%config.key_info.and_then(|v| v.email).unwrap_or_default(),"Logon successful");
             }
             Command::Logout => {
                 self.spinner.start(Some("Logging out"))?;
@@ -606,6 +608,8 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             Err(_) => {
                 // If no key is available, start the login flow.
                 self.login().await?;
+                let config: AppConfig = self.api.app_config().await?;
+                tracing::info!(login=%config.key_info.and_then(|v| v.email).unwrap_or_default(),"Logon successful");
                 self.api.provider().await
             }
         }
