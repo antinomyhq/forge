@@ -39,8 +39,7 @@ impl FormatContent for Operation {
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
             Operation::TaskListAttemptCompletion { _input, before, after } => {
-                let mut md = crate::fmt::fmt_task::to_markdown(before, after);
-                md.push('\n');
+                let md = crate::fmt::fmt_task::to_markdown(before, after);
                 Some(ContentFormat::Markdown(md))
             }
         }

@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, NetFetch, TaskList,
-    TaskListAppend, TaskListAppendMultiple, TaskListAttemptCompletion, TaskListClear, TaskListList,
+    TaskListAppend, TaskListAppendMultiple, TaskListDone, TaskListClear, TaskListList,
     TaskListUpdate,
 };
 use forge_template::Element;
@@ -90,7 +90,7 @@ pub enum Operation {
         after: TaskList,
     },
     TaskListAttemptCompletion {
-        _input: TaskListAttemptCompletion,
+        _input: TaskListDone,
         before: TaskList,
         after: TaskList,
     },

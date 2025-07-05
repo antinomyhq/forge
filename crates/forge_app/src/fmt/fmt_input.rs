@@ -92,7 +92,7 @@ impl FormatContent for Tools {
             }
             Tools::ForgeToolTaskListList(_) => TitleFormat::debug("Task Read".to_string()).into(),
             Tools::ForgeToolTaskListClear(_) => TitleFormat::debug("Task Clear".to_string()).into(),
-            Tools::ForgeToolTaskListAttemptCompletion(_input) => {
+            Tools::ForgeToolTaskListDone(_input) => {
                 ContentFormat::Title(TitleFormat::info("Task Completion"))
             }
         };
