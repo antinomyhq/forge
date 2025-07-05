@@ -31,7 +31,7 @@ impl<S: SnapshotInfra> FileWriterInfra for ForgeFileWriteService<S> {
 
     async fn write_temp(&self, prefix: &str, ext: &str, content: &str) -> anyhow::Result<PathBuf> {
         let path = tempfile::Builder::new()
-            .keep(true)
+            .disable_cleanup(true)
             .prefix(prefix)
             .suffix(ext)
             .tempfile()?
