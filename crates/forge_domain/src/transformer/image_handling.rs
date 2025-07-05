@@ -1,5 +1,5 @@
 use super::Transformer;
-use crate::{Context, ContextMessage};
+use crate::{Context, ContextMessage, ToolValue};
 
 /// Transformer that handles image processing in tool results
 /// Converts image outputs from tool results into separate user messages with
@@ -23,6 +23,7 @@ impl Transformer for ImageHandling {
 
     fn transform(&mut self, mut value: Self::Value) -> Self::Value {
         let mut images = Vec::new();
+        let mut pdfs = Vec::new();
 
         // Step 1: Replace the image value with a text message
         value
@@ -45,6 +46,14 @@ impl Transformer for ImageHandling {
                     ));
                     images.push((id, image));
                 }
+                ToolValue::Pdf(pdf) => {
+                    let pdf = std::mem::take(pdf);
+                    let id = pdfs.len();
+                    *output_value = ToolValue::Text(format!(
+                        "[The pdf with ID {id} will be sent as an attachment in the next message]"
+                    ));
+                    pdfs.push((id, pdf));
+                }
                 crate::ToolValue::Text(_) => {}
                 crate::ToolValue::Empty => {}
             });
@@ -56,6 +65,14 @@ impl Transformer for ImageHandling {
                 None,
             ));
             value.messages.push(ContextMessage::Image(image));
+        });
+
+        pdfs.into_iter().for_each(|(id, pdf)| {
+            value.messages.push(ContextMessage::user(
+                format!("[Here is the pdf for ID {id}]"),
+                None,
+            ));
+            value.messages.push(ContextMessage::Pdf(pdf));
         });
 
         value

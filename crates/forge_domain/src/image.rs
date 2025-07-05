@@ -9,9 +9,9 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn new_bytes(content: Vec<u8>, mime_type: impl ToString) -> Self {
+    pub fn new_bytes(content: &[u8], mime_type: impl ToString) -> Self {
         let mime_type = mime_type.to_string();
-        let base64_encoded = base64::engine::general_purpose::STANDARD.encode(&content);
+        let base64_encoded = base64::engine::general_purpose::STANDARD.encode(content);
         Self::new_base64(base64_encoded, mime_type)
     }
 

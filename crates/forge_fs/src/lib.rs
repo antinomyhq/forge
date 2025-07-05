@@ -11,14 +11,15 @@
 mod error;
 mod file_info;
 mod file_size;
-mod is_binary;
 mod meta;
+mod mime_type;
 mod read;
 mod read_range;
 mod write;
 
 pub use crate::error::Error;
 pub use crate::file_info::FileInfo;
+pub use crate::mime_type::MimeType;
 
 /// ForgeFS provides a standardized interface for file system operations
 /// with consistent error handling.
