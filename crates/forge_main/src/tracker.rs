@@ -33,6 +33,6 @@ pub fn set_model(model: String) {
     std::mem::drop(tokio::spawn(async move { TRACKER.set_model(model).await }));
 }
 
-pub(crate) fn login(login: String) {
-    dispatch(EventKind::Login(login));
+pub fn login(login: String) {
+    std::mem::drop(tokio::spawn(TRACKER.set_login(login)));
 }

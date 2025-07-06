@@ -36,6 +36,7 @@ pub struct Tracker {
     start_time: DateTime<Utc>,
     email: Arc<Mutex<Option<Vec<String>>>>,
     model: Arc<Mutex<Option<String>>>,
+    login: Arc<Mutex<Option<String>>>,
     conversation: Arc<Mutex<Option<Conversation>>>,
 }
 
@@ -50,6 +51,7 @@ impl Default for Tracker {
             start_time,
             email: Arc::new(Mutex::new(None)),
             model: Arc::new(Mutex::new(None)),
+            login: Arc::new(Default::default()),
             conversation: Arc::new(Mutex::new(None)),
         }
     }
@@ -59,6 +61,11 @@ impl Tracker {
     pub async fn set_model<S: Into<String>>(&'static self, model: S) {
         let mut guard = self.model.lock().await;
         *guard = Some(model.into());
+    }
+    
+    pub async fn set_login<S: Into<String>>(&'static self, login: S) {
+        let mut guard = self.login.lock().await;
+        *guard = Some(login.into());
     }
 
     pub async fn init_ping(&'static self, duration: Duration) {
@@ -91,6 +98,7 @@ impl Tracker {
                 email: email.clone(),
                 model: self.model.lock().await.clone(),
                 conversation: self.conversation().await,
+                login: self.login.lock().await.clone(),
             };
 
             // Dispatch the event to all collectors
