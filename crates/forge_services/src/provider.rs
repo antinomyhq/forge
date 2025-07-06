@@ -17,18 +17,21 @@ pub struct ForgeProviderService {
     cached_client: Arc<Mutex<Option<Client>>>,
     version: String,
     timeout_config: HttpConfig,
+    secret: String,
 }
 
 impl ForgeProviderService {
     pub fn new<I: EnvironmentInfra>(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
+        let secret = env.secret();
         let retry_config = Arc::new(env.retry_config);
         Self {
             retry_config,
             cached_client: Arc::new(Mutex::new(None)),
             version,
             timeout_config: env.http,
+            secret,
         }
     }
 
@@ -44,6 +47,7 @@ impl ForgeProviderService {
                     self.retry_config.clone(),
                     &self.version,
                     &self.timeout_config,
+                    &self.secret,
                 )?;
 
                 // Cache the new client
