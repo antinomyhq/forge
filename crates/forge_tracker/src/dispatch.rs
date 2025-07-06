@@ -62,7 +62,7 @@ impl Tracker {
         let mut guard = self.model.lock().await;
         *guard = Some(model.into());
     }
-    
+
     pub async fn set_login<S: Into<String>>(&'static self, login: S) {
         let mut guard = self.login.lock().await;
         *guard = Some(login.into());
