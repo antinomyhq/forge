@@ -67,6 +67,7 @@ impl ToolCallPayload {
 pub enum EventKind {
     Start,
     Ping,
+    Login(String),
     ToolCall(ToolCallPayload),
     Prompt(String),
     Error(String),
@@ -82,6 +83,7 @@ impl EventKind {
             Self::Error(_) => Name::from("error".to_string()),
             Self::ToolCall(_) => Name::from("tool_call".to_string()),
             Self::Trace(_) => Name::from("trace".to_string()),
+            Self::Login(_) => Name::from("login".to_string()),
         }
     }
     pub fn value(&self) -> String {
@@ -92,6 +94,7 @@ impl EventKind {
             Self::Error(content) => content.to_string(),
             Self::ToolCall(payload) => serde_json::to_string(&payload).unwrap_or_default(),
             Self::Trace(trace) => String::from_utf8_lossy(trace).to_string(),
+            Self::Login(email) => email.to_string(),
         }
     }
 }
