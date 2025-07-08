@@ -25,4 +25,6 @@ pub struct LoginInfo {
     pub email: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_provider_id: Option<String>,
 }
