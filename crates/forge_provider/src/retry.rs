@@ -17,7 +17,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if is_api_transport_error(&error)
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
-        || is_empty_response(&error)
+        || is_empty_error(&error)
     {
         return DomainError::Retryable(error).into();
     }
@@ -86,7 +86,7 @@ fn is_api_transport_error(error: &anyhow::Error) -> bool {
         })
 }
 
-fn is_empty_response(error: &anyhow::Error) -> bool {
+fn is_empty_error(error: &anyhow::Error) -> bool {
     error.downcast_ref::<Error>().is_some_and(|e| match e {
         Error::Response(error) => {
             error.message.is_none() && error.code.is_none() && error.error.is_none()
@@ -321,7 +321,7 @@ mod tests {
         let fixture = anyhow::Error::from(Error::Response(ErrorResponse::default()));
 
         // Execute
-        let actual = is_empty_response(&fixture);
+        let actual = is_empty_error(&fixture);
 
         // Verify
         assert!(actual);
@@ -345,7 +345,7 @@ mod tests {
         }));
 
         // Execute
-        let actual = is_empty_response(&fixture);
+        let actual = is_empty_error(&fixture);
 
         // Verify
         assert!(actual);
