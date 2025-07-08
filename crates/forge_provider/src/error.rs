@@ -24,9 +24,6 @@ pub enum Error {
 
     #[error("Invalid Status Code: {0}")]
     InvalidStatusCode(u16),
-
-    #[error("Invalid JSON: {0}")]
-    InvalidJson(serde_json::Error),
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -52,7 +49,7 @@ impl ErrorCode {
     }
 }
 
-#[derive(Default, Debug, Deserialize, Serialize, Clone, Setters)]
+#[derive(Default, Debug, Deserialize, Serialize, Clone, Setters, PartialEq)]
 #[setters(strip_option)]
 pub struct ErrorResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -17,7 +17,6 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if is_api_transport_error(&error)
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
-        || is_json_parse_error(&error)
     {
         return DomainError::Retryable(error).into();
     }
@@ -58,6 +57,10 @@ fn get_event_req_status_code(error: &anyhow::Error) -> Option<u16> {
 }
 
 fn has_transport_error_code(error: &ErrorResponse) -> bool {
+    // We should retry if the error is empty.
+    if ErrorResponse::default() == *error {
+        return true;
+    }
     // Check if the current level has a transport error code
     let has_direct_code = error
         .code
@@ -96,15 +99,6 @@ fn is_event_transport_error(error: &anyhow::Error) -> bool {
     error
         .downcast_ref::<reqwest_eventsource::Error>()
         .is_some_and(|e| matches!(e, reqwest_eventsource::Error::Transport(_)))
-}
-
-fn is_json_parse_error(error: &anyhow::Error) -> bool {
-    // ToolCallMissingName is also a json parse error,
-    // This happens in case when the response is empty JSON.
-    error
-        .downcast_ref::<Error>()
-        .is_some_and(|e| matches!(e, Error::InvalidJson(_) | Error::ToolCallMissingName))
-        || error.downcast_ref::<serde_json::Error>().is_some()
 }
 
 #[cfg(test)]

@@ -124,7 +124,7 @@ impl From<ResponseUsage> for Usage {
 }
 
 impl TryFrom<Response> for ChatCompletionMessage {
-    type Error = crate::error::Error;
+    type Error = anyhow::Error;
 
     fn try_from(res: Response) -> Result<Self, Self::Error> {
         match res {
