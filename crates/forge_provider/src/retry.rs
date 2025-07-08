@@ -88,9 +88,7 @@ fn is_api_transport_error(error: &anyhow::Error) -> bool {
 
 fn is_empty_response(error: &anyhow::Error) -> bool {
     error.downcast_ref::<Error>().is_some_and(|e| match e {
-        Error::Response(error) => {
-            error.code.is_none() && error.message.is_none() && error.error.is_none()
-        }
+        Error::Response(error) => error.message.is_none() && error.code.is_none(),
         _ => false,
     })
 }
