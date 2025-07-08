@@ -210,6 +210,11 @@ pub fn handle_key_event(
         return Command::Exit;
     }
 
+    // Handle Ctrl+C interrupt (stop current LLM output stream)
+    if key_event.code == KeyCode::Char('c') && key_event.modifiers.contains(KeyModifiers::CONTROL) {
+        return Command::InterruptStream;
+    }
+
     if state.spotlight.is_visible {
         // When spotlight is visible, route events to spotlight editor
         let cmd = handle_spotlight_toggle(state, key_event, state.editor.mode);
@@ -446,6 +451,30 @@ mod tests {
     }
 
     #[test]
+    fn test_ctrl_c_interrupt_stops_stream_regardless_of_spotlight_state() {
+        let mut state = create_test_state_with_text();
+        state.spotlight.is_visible = true;
+        let key_event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::InterruptStream;
+
+        assert_eq!(actual_command, expected_command);
+    }
+
+    #[test]
+    fn test_ctrl_c_interrupt_stops_stream_when_spotlight_hidden() {
+        let mut state = create_test_state_with_text();
+        state.spotlight.is_visible = false;
+        let key_event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::InterruptStream;
+
+        assert_eq!(actual_command, expected_command);
+    }
+
+    #[test]
     fn test_spotlight_word_navigation() {
         let mut state = create_test_state_with_text();
         state.spotlight.is_visible = true;
@@ -611,7 +640,7 @@ mod tests {
         assert!(!state.spotlight.is_visible);
     }
 
-     #[test]
+    #[test]
     fn test_handle_prompt_submit_with_empty_input() {
         let mut fixture = State::default();
         fixture.editor.mode = EditorMode::Normal;

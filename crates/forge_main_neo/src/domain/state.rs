@@ -19,6 +19,7 @@ pub struct State {
     pub show_spinner: bool,
     pub spotlight: SpotlightState,
     pub conversation: ConversationState,
+    pub stream_cancellation_token: Option<CancellationToken>,
 }
 
 impl Default for State {
@@ -34,6 +35,7 @@ impl Default for State {
             show_spinner: Default::default(),
             spotlight: Default::default(),
             conversation: Default::default(),
+            stream_cancellation_token: None,
         }
     }
 }

@@ -16,4 +16,6 @@ pub enum Action {
     ChatResponse(ChatResponse),
     ConversationInitialized(ConversationId),
     IntervalTick(Timer),
+    InterruptStream,
+    StartStream(tokio_util::sync::CancellationToken),
 }

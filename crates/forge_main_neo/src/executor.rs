@@ -72,12 +72,29 @@ impl<T: API + 'static> Executor<T> {
         // Create chat request
         let chat_request = ChatRequest::new(event, conversation.id);
 
+        // Create cancellation token for this stream
+        let cancellation_token = CancellationToken::new();
+
+        // Send StartStream action with the cancellation token
+        tx.send(Ok(Action::StartStream(cancellation_token.clone())))
+            .await?;
+
         match self.api.chat(chat_request).await {
-            Ok(mut stream) => {
-                while let Some(response) = stream.next().await {
-                    tx.send(response.map(Action::ChatResponse)).await?;
+            Ok(mut stream) => loop {
+                tokio::select! {
+                    response = stream.next() => {
+                        match response {
+                            Some(response) => {
+                                tx.send(response.map(Action::ChatResponse)).await?;
+                            }
+                            None => break,
+                        }
+                    }
+                    _ = cancellation_token.cancelled() => {
+                        break;
+                    }
                 }
-            }
+            },
             Err(err) => return Err(err),
         }
         Ok(())
@@ -213,7 +230,6 @@ impl<T: API + 'static> Executor<T> {
         // Skip the first tick which fires immediately
         interval_timer.tick().await;
 
-        // Spawn a background task to handle the interval
         loop {
             tokio::select! {
                 _ = interval_timer.tick() => {
@@ -221,14 +237,11 @@ impl<T: API + 'static> Executor<T> {
                     let timer = Timer {start_time, current_time, duration, id: id.clone() };
                     let action = Action::IntervalTick(timer);
 
-                    // Send the action, if the receiver is dropped, break the loop
                     if tx.send(Ok(action)).await.is_err() {
-                        // Channel closed, exit the loop to prevent memory leaks
                         break;
                     }
                 }
                 _ = cancellation_token.cancelled() => {
-                    // Interval was cancelled, exit cleanly
                     break;
                 }
             }
@@ -265,6 +278,10 @@ impl<T: API + 'static> Executor<T> {
                 self.execute_clear_interval(id).await?;
             }
             Command::Spotlight(_) => todo!(),
+            Command::InterruptStream => {
+                // Send InterruptStream action to trigger state update
+                tx.send(Ok(Action::InterruptStream)).await?;
+            }
         }
         Ok(())
     }

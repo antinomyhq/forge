@@ -19,6 +19,7 @@ pub enum Command {
         conversation_id: Option<ConversationId>,
         is_first: bool,
     },
+    InterruptStream,
     Spotlight(SpotlightCommand),
     Interval {
         duration: Duration,
