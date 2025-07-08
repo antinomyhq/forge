@@ -10,7 +10,7 @@ use forge_api::{
     InterruptionReason, Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
+use forge_domain::{McpConfig, McpServerConfig, Provider, ProviderDetails, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -76,6 +76,23 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     async fn get_models(&mut self) -> Result<Vec<Model>> {
         self.spinner.start(Some("Loading"))?;
         let models = self.api.models().await?;
+        self.spinner.stop(None)?;
+        Ok(models)
+    }
+
+    async fn get_providers(&mut self) -> Vec<ProviderDetails> {
+        let _ = self.spinner.start(Some("Loading"));
+        let providers = self.api.providers();
+        let _ = self.spinner.stop(None);
+        providers
+    }
+
+    async fn get_models_for_provider(
+        &mut self,
+        provider: &Provider,
+    ) -> Result<Vec<Model>> {
+        self.spinner.start(Some("Loading models for provider"))?;
+        let models = self.api.models_for_provider(provider).await?;
         self.spinner.stop(None)?;
         Ok(models)
     }
@@ -373,6 +390,9 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             Command::Model => {
                 self.on_model_selection().await?;
             }
+            Command::Provider => {
+                self.on_provider_selection().await?;
+            }
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
@@ -531,6 +551,128 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    async fn select_provider(&mut self) -> Result<Option<Provider>> {
+        // Fetch available providers
+        let providers = self.get_providers().await;
+
+        // Create a custom render config with the specified icons
+        let render_config = RenderConfig::default()
+            .with_scroll_up_prefix(Styled::new("⇡"))
+            .with_scroll_down_prefix(Styled::new("⇣"))
+            .with_highlighted_option_prefix(Styled::new("➤"));
+
+        // Find the index of the current provider
+        let starting_cursor = self
+            .state
+            .provider
+            .as_ref()
+            .and_then(|current| providers.iter().position(|p| &p.id == current.id() ))
+            .unwrap_or(0);
+
+        // Use inquire to select a provider, with the current provider pre-selected
+        match Select::new("Select a provider:", providers)
+            .with_help_message(
+                "Type a provider name or use arrow keys to navigate and Enter to select",
+            )
+            .with_render_config(render_config)
+            .with_starting_cursor(starting_cursor)
+            .prompt()
+        {
+            Ok(provider) => Ok(Some(provider.provider()?)),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                // Return None if selection was canceled
+                Ok(None)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn select_model_from_provider(&mut self, provider: Provider) -> Result<Option<ModelId>> {
+        // Fetch available providers
+        let models = self
+            .get_models_for_provider(&provider)
+            .await?
+            .into_iter()
+            .map(CliModel)
+            .collect::<Vec<_>>();
+
+        // Create a custom render config with the specified icons
+        let render_config = RenderConfig::default()
+            .with_scroll_up_prefix(Styled::new("⇡"))
+            .with_scroll_down_prefix(Styled::new("⇣"))
+            .with_highlighted_option_prefix(Styled::new("➤"));
+
+        // Find the index of the current model if same model present for the provide
+        let starting_cursor = self
+            .state
+            .model
+            .as_ref()
+            .and_then(|current| models.iter().position(|m| &m.0.id == current))
+            .unwrap_or(0);
+
+        // Use inquire to select a model, with the current model pre-selected
+        match Select::new("Select a model:", models)
+            .with_help_message(
+                "Type a model name or use arrow keys to navigate and Enter to select",
+            )
+            .with_render_config(render_config)
+            .with_starting_cursor(starting_cursor)
+            .prompt()
+        {
+            Ok(model) => Ok(Some(model.0.id)),
+            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
+                // Return None if selection was canceled
+                Ok(None)
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    // Helper method to handle provider selection and update the conversation
+    async fn on_provider_selection(&mut self) -> Result<()> {
+        // Select a provider
+        let provider_option = self.select_provider().await?;
+        
+        // If no provider was selected (user canceled), return early
+        let provider = match provider_option {
+            Some(provider) => provider,
+            None => return Ok(()),
+        };
+
+        let model_option = self.select_model_from_provider(provider.clone()).await?;
+        let model = match model_option {
+            Some(model) => model,
+            None => return Ok(()),
+        };
+        
+        self.api
+            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
+                workflow.model = Some(model.clone());
+            })
+            .await?;
+        self.api.update_provider(provider.clone()).await;
+        
+
+        // Get the conversation to update
+        let conversation_id = self.init_conversation().await?;
+
+        if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
+            // Update the model in the conversation
+            conversation.set_model(&model)?;
+
+            // Upsert the updated conversation
+            self.api.upsert_conversation(conversation).await?;
+
+            // Update the UI state with the new model and provider
+            self.update_model(model.clone());
+            self.update_provider(provider.clone());
+
+            self.writeln(TitleFormat::action(format!("Switched to model: {model}")))?;
+        }
+
+        Ok(())
+    }
+
     // Handle dispatching events from the CLI
     async fn handle_dispatch(&mut self, json: String) -> Result<()> {
         // Initialize the conversation
@@ -627,7 +769,23 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        self.writeln(TitleFormat::info("Login completed".to_string().as_str()))?;
+        if let Ok(config) = self.api.app_config().await {
+            if let Some(login_info) = &config.key_info {
+                self.writeln(TitleFormat::completion("Login successful!"))?;
+                let provider = ProviderDetails::new(
+                    "forge".to_string(),
+                    "Forge".to_string(),
+                    "Forge API provider".to_string(),
+                    login_info.api_key.clone(),
+                    "openai".to_string(),
+                    "https://antinomy.ai/api/v1/".to_string(),
+                );
+                self.api.update_available_providers(provider.clone());
+                self.api.update_provider(provider.provider()?).await;
+                let user_info = Info::from(login_info);
+                self.writeln(user_info)?;
+            }
+        }
 
         Ok(())
     }
@@ -809,6 +967,10 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     fn update_model(&mut self, model: ModelId) {
         tracker::set_model(model.to_string());
         self.state.model = Some(model);
+    }
+
+    fn update_provider(&mut self, provider: Provider) {
+        self.state.provider = Some(provider);
     }
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {

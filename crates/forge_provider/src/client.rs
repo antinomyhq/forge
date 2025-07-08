@@ -5,9 +5,10 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use forge_domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig
 };
 use reqwest::redirect::Policy;
+use reqwest::Url;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
@@ -21,7 +22,7 @@ pub struct Client {
     inner: Arc<InnerClient>,
     models_cache: Arc<RwLock<HashMap<ModelId, Model>>>,
 }
-
+#[derive(Debug, Clone)]
 enum InnerClient {
     OpenAICompat(ForgeProvider),
     Anthropic(Anthropic),
@@ -47,24 +48,24 @@ impl Client {
             .build()?;
 
         let inner = match &provider {
-            Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
+            Provider::OpenAI(details) => InnerClient::OpenAICompat(
                 ForgeProvider::builder()
                     .client(client)
                     .provider(provider.clone())
                     .version(version.to_string())
                     .build()
-                    .with_context(|| format!("Failed to initialize: {url}"))?,
+                    .with_context(|| format!("Failed to initialize: {}", details.base_url))?,
             ),
 
-            Provider::Anthropic { url, key } => InnerClient::Anthropic(
+            Provider::Anthropic(details) => InnerClient::Anthropic(
                 Anthropic::builder()
                     .client(client)
-                    .api_key(key.to_string())
-                    .base_url(url.clone())
+                    .api_key(details.api_key.clone())
+                    .base_url(Url::parse(&details.base_url)?)
                     .anthropic_version("2023-06-01".to_string())
                     .build()
                     .with_context(|| {
-                        format!("Failed to initialize Anthropic client with URL: {url}")
+                        format!("Failed to initialize Anthropic client with URL: {}", details.base_url)
                     })?,
             ),
         };
@@ -74,6 +75,23 @@ impl Client {
             retry_config,
             models_cache: Arc::new(RwLock::new(HashMap::new())),
         })
+    }
+
+    pub async fn update_provider(
+        &mut self, provider: Provider,
+    ){
+        match self.inner.as_ref() {
+            InnerClient::OpenAICompat(inner) => {
+                let mut new_inner = inner.clone();
+                new_inner.update_provider(&provider);
+                self.inner = Arc::new(InnerClient::OpenAICompat(new_inner));
+            }
+            InnerClient::Anthropic(inner) => {
+                let mut new_inner = inner.clone();
+                new_inner.update_provider(provider.api_key().to_string(), Url::parse(&provider.base_url()).unwrap(), "2023-06-01".to_string());
+                self.inner = Arc::new(InnerClient::Anthropic(new_inner));
+            }
+        }
     }
 
     fn retry<A>(&self, result: anyhow::Result<A>) -> anyhow::Result<A> {
@@ -139,17 +157,19 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::Provider;
-    use reqwest::Url;
-
+    use forge_domain::{Provider, ProviderDetails};
     use super::*;
 
     #[tokio::test]
     async fn test_cache_initialization() {
-        let provider = Provider::OpenAI {
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
-            key: Some("test-key".to_string()),
-        };
+        let provider = Provider::OpenAI(ProviderDetails::new(
+            "test-openai".to_string(),
+            "Test OpenAI".to_string(),
+            "Test OpenAI provider".to_string(),
+            "test-key".to_string(),
+            "openai".to_string(),
+            "https://api.openai.com/v1/".to_string(),
+        ));
         let client = Client::new(
             provider,
             Arc::new(RetryConfig::default()),
@@ -165,10 +185,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_refresh_models_method_exists() {
-        let provider = Provider::OpenAI {
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
-            key: Some("test-key".to_string()),
-        };
+        let provider = Provider::OpenAI(ProviderDetails::new(
+            "test-openai".to_string(),
+            "Test OpenAI".to_string(),
+            "Test OpenAI provider".to_string(),
+            "test-key".to_string(),
+            "openai".to_string(),
+            "https://api.openai.com/v1/".to_string(),
+        ));
         let client = Client::new(
             provider,
             Arc::new(RetryConfig::default()),

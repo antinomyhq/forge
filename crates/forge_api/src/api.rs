@@ -19,6 +19,14 @@ pub trait API: Sync + Send {
     /// Provides a list of models available in the current environment
     async fn models(&self) -> Result<Vec<Model>>;
 
+    async fn models_for_provider(&self, provider: &Provider) -> Result<Vec<Model>>;
+
+    fn providers(&self) -> Vec<ProviderDetails>;
+
+    fn update_available_providers(&self, provider: ProviderDetails);
+
+    async fn update_provider(&self, provider: Provider);
+
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
 

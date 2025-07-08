@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_app::Services;
+use forge_app::{AppConfigService, Services};
 
 use crate::app_config::ForgeConfigService;
 use crate::attachment::ForgeChatRequest;
@@ -78,7 +78,15 @@ impl<
         let conversation_service = Arc::new(ForgeConversationService::new(mcp_service.clone()));
         let config_service = Arc::new(ForgeConfigService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
-        let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
+        
+        // Read app config synchronously
+        let app_config = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                config_service.read_app_config().await.unwrap_or_default()
+            })
+        });
+        
+        let chat_service = Arc::new(ForgeProviderService::new(infra.clone(), app_config));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));

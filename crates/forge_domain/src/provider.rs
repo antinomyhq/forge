@@ -1,257 +1,211 @@
+use derive_more::Display;
 use serde::{Deserialize, Serialize};
+use schemars::JsonSchema;
 use url::Url;
+use anyhow::{Result, anyhow};
 
 #[derive(Debug, Clone)]
-pub enum ProviderUrl {
-    OpenAI(String),
-    Anthropic(String),
-}
-impl ProviderUrl {
-    pub fn into_string(self) -> String {
-        match self {
-            ProviderUrl::OpenAI(url) => url,
-            ProviderUrl::Anthropic(url) => url,
-        }
-    }
+pub enum Provider {
+    OpenAI(ProviderDetails),
+    Anthropic(ProviderDetails),
 }
 
-/// Providers that can be used.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Provider {
-    OpenAI { url: Url, key: Option<String> },
-    Anthropic { url: Url, key: String },
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Display)]
+#[display("{} ({})", name, id)]
+pub struct ProviderDetails {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub api_key: String,
+    pub provider_type: String, // Type of provider (e.g., "openai", "anthropic")
+    pub base_url: String,
+}
+
+/// Configuration for multiple providers
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ProviderConfig {
+    pub provider_id: Option<String>,  // ID of the currently active provider
+    pub providers: Vec<ProviderDetails>,
+}
+
+impl ProviderConfig {
+    pub fn new(provider_id: Option<String>, providers: Vec<ProviderDetails>) -> Self {
+        Self {
+            provider_id,
+            providers,
+        }
+    }
+
+    pub fn get_provider(&self) -> Result<Provider> {
+        Provider::new(self)
+    }
+
+    pub fn get_providers(&self) -> &Vec<ProviderDetails> {
+        &self.providers
+    }
+
+    /// Set the active provider by ID
+    pub fn set_active_provider(&mut self, provider_id: String) {
+        self.provider_id = Some(provider_id);
+    }
+
+    /// Get the ID of a provider
+    pub fn get_provider_id(provider: &Provider) -> &str {
+        match provider {
+            Provider::OpenAI(details) => &details.id,
+            Provider::Anthropic(details) => &details.id,
+        }
+    }
+
+    /// Create a default provider configuration with common providers
+    pub fn default() -> Vec<ProviderDetails> {
+        vec![
+            ProviderDetails::new(
+                "openai".to_string(),
+                "OpenAI".to_string(),
+                "OpenAI API provider".to_string(),
+                "OPENAI_API_KEY".to_string(),
+                "openai".to_string(),
+                "https://api.openai.com/v1".to_string(),
+            ),
+            ProviderDetails::new(
+                "anthropic".to_string(),
+                "Anthropic".to_string(),
+                "Anthropic API provider".to_string(),
+                "ANTHROPIC_API_KEY".to_string(),
+                "anthropic".to_string(),
+                "https://api.anthropic.com/v1".to_string(),
+            ),
+            ProviderDetails::new(
+                "forge".to_string(),
+                "Forge".to_string(),
+                "Forge API provider".to_string(),
+                "FORGE_KEY".to_string(),
+                "openai".to_string(),
+                "https://antinomy.ai/api/v1".to_string(),
+            ),
+            ProviderDetails::new(
+                "openrouter".to_string(),
+                "OpenRouter".to_string(),
+                "OpenRouter API provider".to_string(),
+                "OPENROUTER_API_KEY".to_string(),
+                "openai".to_string(),
+                "https://openrouter.ai/api/v1".to_string(),
+            ),
+            ProviderDetails::new(
+                "requesty".to_string(),
+                "Requesty".to_string(),
+                "Requesty API provider".to_string(),
+                "REQUESTY_API_KEY".to_string(),
+                "openai".to_string(),
+                "https://requesty.ai/api/v1".to_string(),
+            ),
+        ]
+    }
 }
 
 impl Provider {
-    pub fn url(&mut self, url: ProviderUrl) {
-        match url {
-            ProviderUrl::OpenAI(url) => self.open_ai_url(url),
-            ProviderUrl::Anthropic(url) => self.anthropic_url(url),
-        }
+    pub fn new(provider_config: &ProviderConfig) -> Result<Self> {
+        let provider_id = provider_config.provider_id.as_ref()
+            .ok_or_else(|| anyhow!("No active provider ID set"))?;
+
+        let provider_details = provider_config.providers
+            .iter()
+            .find(|p| &p.id == provider_id)
+            .ok_or_else(|| anyhow!("Provider ID '{}' not found in providers list", provider_id))?;
+
+        let provider = provider_details.provider()?;
+        Ok(provider)
     }
-    /// Sets the OpenAI URL if the provider is an OpenAI compatible provider
-    fn open_ai_url(&mut self, url: String) {
+
+    pub fn to_base_url(&self) -> Url {
         match self {
-            Provider::OpenAI { url: set_url, .. } => {
-                if url.ends_with("/") {
-                    *set_url = Url::parse(&url).unwrap();
-                } else {
-                    *set_url = Url::parse(&format!("{url}/")).unwrap();
-                }
-            }
-            Provider::Anthropic { .. } => {}
-        }
-    }
-
-    /// Sets the Anthropic URL if the provider is Anthropic
-    fn anthropic_url(&mut self, url: String) {
-        match self {
-            Provider::Anthropic { url: set_url, .. } => {
-                if url.ends_with("/") {
-                    *set_url = Url::parse(&url).unwrap();
-                } else {
-                    *set_url = Url::parse(&format!("{url}/")).unwrap();
-                }
-            }
-            Provider::OpenAI { .. } => {}
-        }
-    }
-
-    pub fn antinomy(key: &str) -> Provider {
-        Provider::OpenAI {
-            url: Url::parse(Provider::ANTINOMY_URL).unwrap(),
-            key: Some(key.into()),
-        }
-    }
-
-    pub fn openai(key: &str) -> Provider {
-        Provider::OpenAI {
-            url: Url::parse(Provider::OPENAI_URL).unwrap(),
-            key: Some(key.into()),
-        }
-    }
-
-    pub fn open_router(key: &str) -> Provider {
-        Provider::OpenAI {
-            url: Url::parse(Provider::OPEN_ROUTER_URL).unwrap(),
-            key: Some(key.into()),
-        }
-    }
-
-    pub fn requesty(key: &str) -> Provider {
-        Provider::OpenAI {
-            url: Url::parse(Provider::REQUESTY_URL).unwrap(),
-            key: Some(key.into()),
-        }
-    }
-
-    pub fn anthropic(key: &str) -> Provider {
-        Provider::Anthropic {
-            url: Url::parse(Provider::ANTHROPIC_URL).unwrap(),
-            key: key.into(),
+            Provider::OpenAI(details) => Url::parse(&details.base_url).expect("Invalid OpenAI URL"),
+            Provider::Anthropic(details) => Url::parse(&details.base_url).expect("Invalid Anthropic URL"),
         }
     }
 
     pub fn key(&self) -> Option<&str> {
         match self {
-            Provider::OpenAI { key, .. } => key.as_deref(),
-            Provider::Anthropic { key, .. } => Some(key),
+            Provider::OpenAI(details) => Some(&details.api_key),
+            Provider::Anthropic(details) => Some(&details.api_key),
+        }
+    }
+
+    pub fn get_base_url(&self) -> &str {
+        match self {
+            Provider::OpenAI(details) => &details.base_url,
+            Provider::Anthropic(details) => &details.base_url,
+        }
+    }
+
+    pub fn id(&self) -> &str {
+        match self {
+            Provider::OpenAI(details) => &details.id,
+            Provider::Anthropic(details) => &details.id,
+        }
+    }
+
+    pub fn base_url(&self) -> &str {
+        match self {
+            Provider::OpenAI(details) => &details.base_url,
+            Provider::Anthropic(details) => &details.base_url,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            Provider::OpenAI(details) => &details.name,
+            Provider::Anthropic(details) => &details.name,
+        }
+    }
+
+    pub fn api_key(&self) -> &str {
+        match self {
+            Provider::OpenAI(details) => &details.api_key,
+            Provider::Anthropic(details) => &details.api_key,
         }
     }
 }
 
-impl Provider {
-    pub const OPEN_ROUTER_URL: &str = "https://openrouter.ai/api/v1/";
-    pub const REQUESTY_URL: &str = "https://router.requesty.ai/v1/";
-    pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
-    pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
-    pub const ANTINOMY_URL: &str = "https://www.antinomy.ai/api/v1/";
-
-    /// Converts the provider to it's base URL
-    pub fn to_base_url(&self) -> Url {
-        match self {
-            Provider::OpenAI { url, .. } => url.clone(),
-            Provider::Anthropic { url, .. } => url.clone(),
+impl ProviderDetails {
+    pub fn new (
+        id: String,
+        name: String,
+        description: String,
+        api_key: String,
+        provider_type: String,
+        base_url: String,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            description,
+            api_key,
+            provider_type,
+            base_url: if base_url.ends_with('/') { base_url } else { format!("{}/", base_url) },
         }
     }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
-    pub fn is_antinomy(&self) -> bool {
-        match self {
-            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::ANTINOMY_URL),
-            Provider::Anthropic { .. } => false,
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    pub fn api_key(&self) -> &str {
+        &self.api_key
+    }
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub fn provider(&self) -> Result<Provider> {
+        match self.provider_type.as_str() {
+            "openai" => Ok(Provider::OpenAI(self.clone())),
+            "anthropic" => Ok(Provider::Anthropic(self.clone())),
+            _ => Err(anyhow!("Unknown provider type: {}", self.provider_type)),
         }
-    }
-
-    pub fn is_open_router(&self) -> bool {
-        match self {
-            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPEN_ROUTER_URL),
-            Provider::Anthropic { .. } => false,
-        }
-    }
-
-    pub fn is_requesty(&self) -> bool {
-        match self {
-            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::REQUESTY_URL),
-            Provider::Anthropic { .. } => false,
-        }
-    }
-
-    pub fn is_open_ai(&self) -> bool {
-        match self {
-            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPENAI_URL),
-            Provider::Anthropic { .. } => false,
-        }
-    }
-
-    pub fn is_anthropic(&self) -> bool {
-        match self {
-            Provider::OpenAI { .. } => false,
-            Provider::Anthropic { url, .. } => url.as_str().starts_with(Self::ANTHROPIC_URL),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
-
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
-    #[test]
-    fn test_open_ai_url() {
-        let mut provider = Provider::OpenAI {
-            url: Url::from_str("https://example.com/").unwrap(),
-            key: None,
-        };
-
-        // Test URL without trailing slash
-        provider.open_ai_url("https://new-openai-url.com".to_string());
-        assert_eq!(
-            provider,
-            Provider::OpenAI {
-                url: Url::from_str("https://new-openai-url.com/").unwrap(),
-                key: None
-            }
-        );
-
-        // Test URL with trailing slash
-        provider.open_ai_url("https://another-openai-url.com/".to_string());
-        assert_eq!(
-            provider,
-            Provider::OpenAI {
-                url: Url::from_str("https://another-openai-url.com/").unwrap(),
-                key: None
-            }
-        );
-
-        // Test URL with subpath without trailing slash
-        provider.open_ai_url("https://new-openai-url.com/v1/api".to_string());
-        assert_eq!(
-            provider,
-            Provider::OpenAI {
-                url: Url::from_str("https://new-openai-url.com/v1/api/").unwrap(),
-                key: None
-            }
-        );
-
-        // Test URL with subpath with trailing slash
-        provider.open_ai_url("https://another-openai-url.com/v2/api/".to_string());
-        assert_eq!(
-            provider,
-            Provider::OpenAI {
-                url: Url::from_str("https://another-openai-url.com/v2/api/").unwrap(),
-                key: None
-            }
-        );
-    }
-
-    #[test]
-    fn test_anthropic_url() {
-        let mut provider = Provider::Anthropic {
-            url: Url::from_str("https://example.com/").unwrap(),
-            key: "key".to_string(),
-        };
-
-        // Test URL without trailing slash
-        provider.anthropic_url("https://new-anthropic-url.com".to_string());
-        assert_eq!(
-            provider,
-            Provider::Anthropic {
-                url: Url::from_str("https://new-anthropic-url.com/").unwrap(),
-                key: "key".to_string()
-            }
-        );
-
-        // Test URL with trailing slash
-        provider.anthropic_url("https://another-anthropic-url.com/".to_string());
-        assert_eq!(
-            provider,
-            Provider::Anthropic {
-                url: Url::from_str("https://another-anthropic-url.com/").unwrap(),
-                key: "key".to_string()
-            }
-        );
-
-        // Test URL with subpath without trailing slash
-        provider.anthropic_url("https://new-anthropic-url.com/v1/complete".to_string());
-        assert_eq!(
-            provider,
-            Provider::Anthropic {
-                url: Url::from_str("https://new-anthropic-url.com/v1/complete/").unwrap(),
-                key: "key".to_string()
-            }
-        );
-
-        // Test URL with subpath with trailing slash
-        provider.anthropic_url("https://another-anthropic-url.com/v2/complete/".to_string());
-        assert_eq!(
-            provider,
-            Provider::Anthropic {
-                url: Url::from_str("https://another-anthropic-url.com/v2/complete/").unwrap(),
-                key: "key".to_string()
-            }
-        );
     }
 }

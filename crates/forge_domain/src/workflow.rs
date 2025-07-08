@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::temperature::Temperature;
 use crate::update::Update;
-use crate::{Agent, AgentId, MaxTokens, ModelId, TopK, TopP};
+use crate::{Agent, AgentId, MaxTokens, ModelId, ProviderDetails, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -121,6 +121,21 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::option)]
     pub tool_supported: Option<bool>,
 
+    /// ID of the provider to use for this workflow
+    /// If not specified, the first provider in the
+    /// provider configuration will be used.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub provider_id: Option<String>,
+
+    /// Provider configuration for this workflow
+    /// Contains the provider settings and active provider selection
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[merge(strategy = crate::merge::vec::append)]
+    pub provider_config: Vec<ProviderDetails>,
+
     /// Maximum number of times a tool can fail before the orchestrator
     /// forces the completion.
     #[serde(default)]
@@ -173,6 +188,8 @@ impl Workflow {
             tool_supported: None,
             updates: None,
             templates: None,
+            provider_id: None,
+            provider_config: vec![],
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
         }

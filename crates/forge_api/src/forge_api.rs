@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{
-    AppConfig, AppConfigService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, InitAuth, McpConfigManager, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
+    AppConfig, AppConfigService, ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp,
+    InitAuth, McpConfigManager, ProviderRegistry, ProviderService, Services,
+    Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -51,6 +51,18 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             .services
             .models(self.provider().await.context("User is not logged in")?)
             .await?)
+    }
+
+    async fn models_for_provider(
+        &self,
+        provider: &Provider,
+    ) -> Result<Vec<Model>> {
+        Ok(
+            self.
+                services.
+                models(provider.clone()).await
+                .context("Failed to fetch models for provider")?
+        )
     }
 
     async fn chat(
@@ -162,5 +174,27 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
     async fn app_config(&self) -> anyhow::Result<AppConfig> {
         self.services.read_app_config().await
+    }
+
+    fn providers(&self) -> Vec<ProviderDetails> {
+        self.services.providers()
+    }
+
+    async fn update_provider(&self, provider: Provider) {
+        // Update the provider service
+        if let Ok(_) = self.services.provider_service().update_provider(provider.clone()).await {
+            // Also update the provider registry cache
+            if let Ok(_) = self.services.provider_registry().update_provider(provider).await {
+                tracing::info!("Provider updated successfully in both service and registry");
+            } else {
+                tracing::warn!("Failed to update provider registry cache");
+            }
+        } else {
+            tracing::error!("Failed to update provider service");
+        }
+    }
+
+    fn update_available_providers(&self, provider: ProviderDetails) {
+        self.services.update_available_providers(provider);
     }
 }

@@ -13,7 +13,7 @@ use crate::anthropic::transforms::ReasoningTransform;
 use crate::error::Error;
 use crate::utils::format_http_context;
 
-#[derive(Clone, Builder)]
+#[derive(Clone, Builder, Debug)]
 pub struct Anthropic {
     client: Client,
     api_key: String,
@@ -22,6 +22,18 @@ pub struct Anthropic {
 }
 
 impl Anthropic {
+
+    pub fn update_provider(
+        &mut self,
+        api_key: String,
+        base_url: Url,
+        anthropic_version: String,
+    ) -> &mut Self {
+        self.api_key = api_key;
+        self.base_url = base_url;
+        self.anthropic_version = anthropic_version;
+        self
+    }
     pub fn builder() -> AnthropicBuilder {
         AnthropicBuilder::default()
     }
