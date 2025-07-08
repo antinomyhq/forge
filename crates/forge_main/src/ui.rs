@@ -427,7 +427,12 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 self.login().await?;
                 self.spinner.stop(None)?;
                 let config: AppConfig = self.api.app_config().await?;
-                tracker::login(config.key_info.and_then(|v| v.email).unwrap_or_default());
+                tracker::login(
+                    config
+                        .key_info
+                        .and_then(|v| v.auth_provider_id)
+                        .unwrap_or_default(),
+                );
             }
             Command::Logout => {
                 self.spinner.start(Some("Logging out"))?;
@@ -610,7 +615,12 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 // If no key is available, start the login flow.
                 self.login().await?;
                 let config: AppConfig = self.api.app_config().await?;
-                tracker::login(config.key_info.and_then(|v| v.email).unwrap_or_default());
+                tracker::login(
+                    config
+                        .key_info
+                        .and_then(|v| v.auth_provider_id)
+                        .unwrap_or_default(),
+                );
                 self.api.provider().await
             }
         }

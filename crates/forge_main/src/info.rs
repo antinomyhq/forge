@@ -230,6 +230,7 @@ mod tests {
             api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
+            auth_provider_id: Some("provider-id".to_string()),
         };
 
         let actual = Info::from(&fixture);
@@ -250,6 +251,7 @@ mod tests {
             api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
             email: Some("test@example.com".to_string()),
             name: None,
+            auth_provider_id: Some("provider-id".to_string()),
         };
 
         let actual = Info::from(&fixture);
