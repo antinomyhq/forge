@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_empty_response_with_default_error_response() {
+    fn test_is_empty_error_with_default_error_response() {
         // Setup
         let fixture = anyhow::Error::from(Error::Response(ErrorResponse::default()));
 
@@ -328,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_empty_response_with_partially_empty_error_response() {
+    fn test_is_empty_error_with_partially_empty_error_response() {
         // Setup
         let fixture = anyhow::Error::from(Error::Response(ErrorResponse {
             message: None,
