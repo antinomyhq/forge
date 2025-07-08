@@ -88,7 +88,9 @@ fn is_api_transport_error(error: &anyhow::Error) -> bool {
 
 fn is_empty_response(error: &anyhow::Error) -> bool {
     error.downcast_ref::<Error>().is_some_and(|e| match e {
-        Error::Response(error) => ErrorResponse::default() == *error,
+        Error::Response(error) => {
+            error.code.is_none() && error.message.is_none() && error.error.is_none()
+        }
         _ => false,
     })
 }
@@ -311,5 +313,17 @@ mod tests {
         // Verify - should be retryable because ETIMEDOUT is a transport error found at
         // level 4
         assert!(is_retryable(actual));
+    }
+
+    #[test]
+    fn test_is_empty_response_with_default_error_response() {
+        // Setup
+        let fixture = anyhow::Error::from(Error::Response(ErrorResponse::default()));
+
+        // Execute
+        let actual = is_empty_response(&fixture);
+
+        // Verify
+        assert!(actual);
     }
 }

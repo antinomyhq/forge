@@ -49,7 +49,7 @@ impl ErrorCode {
     }
 }
 
-#[derive(Default, Debug, Deserialize, Serialize, Clone, Setters, PartialEq)]
+#[derive(Default, Debug, Deserialize, Serialize, Clone, Setters)]
 #[setters(strip_option)]
 pub struct ErrorResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
