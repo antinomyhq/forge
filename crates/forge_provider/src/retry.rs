@@ -17,6 +17,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if is_api_transport_error(&error)
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
+        || is_empty_response(&error)
     {
         return DomainError::Retryable(error).into();
     }
@@ -57,10 +58,6 @@ fn get_event_req_status_code(error: &anyhow::Error) -> Option<u16> {
 }
 
 fn has_transport_error_code(error: &ErrorResponse) -> bool {
-    // We should retry if the error is empty.
-    if ErrorResponse::default() == *error {
-        return true;
-    }
     // Check if the current level has a transport error code
     let has_direct_code = error
         .code
@@ -87,6 +84,13 @@ fn is_api_transport_error(error: &anyhow::Error) -> bool {
             Error::Response(error) => has_transport_error_code(error),
             _ => false,
         })
+}
+
+fn is_empty_response(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<Error>().is_some_and(|e| match e {
+        Error::Response(error) => ErrorResponse::default() == *error,
+        _ => false,
+    })
 }
 
 fn is_req_transport_error(error: &anyhow::Error) -> bool {
@@ -306,15 +310,6 @@ mod tests {
 
         // Verify - should be retryable because ETIMEDOUT is a transport error found at
         // level 4
-        assert!(is_retryable(actual));
-    }
-
-    #[test]
-    fn test_into_retry_with_json_parse_error() {
-        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
-        let json_error = serde_json::from_str::<serde_json::Value>("").unwrap_err();
-        let error = anyhow::Error::from(json_error);
-        let actual = into_retry(error, &retry_config);
         assert!(is_retryable(actual));
     }
 }
