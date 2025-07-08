@@ -229,7 +229,7 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     Ok(default_response)
                 }
             }
-            Response::Failure { error } => Err(Error::Response(error).into()),
+            Response::Failure { error } => Err(Error::Response(error)),
         }
     }
 }
