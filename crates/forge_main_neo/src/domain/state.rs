@@ -3,11 +3,18 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use edtui::EditorState;
 use forge_api::{ChatResponse, ConversationId};
+use ratatui::widgets::ScrollbarState;
 use throbber_widgets_tui::ThrobberState;
 use tokio_util::sync::CancellationToken;
 
 use crate::domain::spotlight::SpotlightState;
 use crate::domain::{EditorStateExt, Message, Workspace};
+
+#[derive(Clone, Debug, Default)]
+pub struct ChatScrollState {
+    pub vertical_scroll_state: ScrollbarState,
+    pub vertical_scroll: usize,
+}
 
 #[derive(Clone)]
 pub struct State {
@@ -19,6 +26,7 @@ pub struct State {
     pub show_spinner: bool,
     pub spotlight: SpotlightState,
     pub conversation: ConversationState,
+    pub chat_scroll: ChatScrollState,
 }
 
 impl Default for State {
@@ -34,6 +42,7 @@ impl Default for State {
             show_spinner: Default::default(),
             spotlight: Default::default(),
             conversation: Default::default(),
+            chat_scroll: ChatScrollState::default(),
         }
     }
 }
@@ -85,11 +94,17 @@ impl State {
     /// Add a user message to the chat
     pub fn add_user_message(&mut self, message: String) {
         self.messages.push(Message::User(message));
+        // Auto-scroll to bottom (latest messages) by setting to max value
+        // This will be clamped to the actual max in the render function
+        self.chat_scroll.vertical_scroll = usize::MAX;
     }
 
     /// Add an assistant message to the chat
     pub fn add_assistant_message(&mut self, message: ChatResponse) {
         self.messages.push(Message::Assistant(message));
+        // Auto-scroll to bottom (latest messages) by setting to max value
+        // This will be clamped to the actual max in the render function
+        self.chat_scroll.vertical_scroll = usize::MAX;
     }
 }
 

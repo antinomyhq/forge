@@ -201,6 +201,26 @@ fn handle_editor_default(
     Command::Empty
 }
 
+fn handle_chat_scroll(state: &mut State, key_event: ratatui::crossterm::event::KeyEvent) -> bool {
+    use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+
+    if state.spotlight.is_visible {
+        return false;
+    }
+
+    match (key_event.code, key_event.modifiers) {
+        // Plain arrow keys - scroll by 1 line
+        (KeyCode::Up, KeyModifiers::NONE) => {
+            state.chat_scroll.vertical_scroll = state.chat_scroll.vertical_scroll.saturating_sub(1);
+            true
+        }
+        (KeyCode::Down, KeyModifiers::NONE) => {
+            state.chat_scroll.vertical_scroll = state.chat_scroll.vertical_scroll.saturating_add(1);
+            true
+        }
+        _ => false,
+    }
+}
 pub fn handle_key_event(
     state: &mut State,
     key_event: ratatui::crossterm::event::KeyEvent,
@@ -243,6 +263,12 @@ pub fn handle_key_event(
         // When spotlight is not visible, route events to main editor
         // Capture original editor mode before any modifications
         let original_editor_mode = state.editor.mode;
+
+        // Check for chat scroll first
+        let scroll_handled = handle_chat_scroll(state, key_event);
+        if scroll_handled {
+            return Command::Empty;
+        }
 
         // Check if navigation was handled first
         let line_nav_handled = handle_line_navigation(&mut state.editor, key_event);
