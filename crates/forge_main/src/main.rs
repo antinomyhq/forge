@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
         };
 
         eprintln!("{}", TitleFormat::error(message.to_string()));
-        tracker::error(message);
+        tracker::error_blocking(message);
         std::process::exit(1);
     }));
 

@@ -20,6 +20,10 @@ fn dispatch_blocking(event: EventKind) {
 
 /// For error events with Debug formatting
 pub fn error<E: std::fmt::Debug>(error: E) {
+    dispatch(EventKind::Error(format!("{error:?}")));
+}
+
+pub fn error_blocking<E: std::fmt::Debug>(error: E) {
     dispatch_blocking(EventKind::Error(format!("{error:?}")));
 }
 
