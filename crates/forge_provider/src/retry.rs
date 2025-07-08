@@ -346,8 +346,60 @@ mod tests {
 
         // Execute
         let actual = is_empty_error(&fixture);
+    }
+
+    #[test]
+    fn test_is_empty_error_with_message_populated() {
+        // Setup
+        let fixture = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().message("Some error message".to_string()),
+        ));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
 
         // Verify
-        assert!(actual);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_empty_error_with_code_populated() {
+        // Setup
+        let fixture = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(500)),
+        ));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
+
+        // Verify
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_empty_error_with_nested_error_populated() {
+        // Setup
+        let nested_error = ErrorResponse::default().message("Nested error".to_string());
+        let fixture = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().error(Box::new(nested_error)),
+        ));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
+
+        // Verify
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_empty_error_with_non_response_error() {
+        // Setup
+        let fixture = anyhow::Error::from(Error::InvalidStatusCode(404));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
+
+        // Verify
+        assert!(!actual);
     }
 }
