@@ -50,7 +50,7 @@ impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
 
         let provider = self
             .get_provider(config)
-            .context("Failed to resolve provider, maybe user is not logged in?")?;
+            .context("Failed to detect upstream provider")?;
         self.cache.write().await.replace(provider.clone());
         Ok(provider)
     }
