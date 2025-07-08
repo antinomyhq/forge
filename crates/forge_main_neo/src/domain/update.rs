@@ -63,13 +63,14 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             Command::Empty
         }
         Action::InterruptStream => {
-            // Cancel the ongoing stream if one exists
-            if let Some(ref token) = state.stream_cancellation_token {
-                token.cancel();
-                state.stream_cancellation_token = None;
-            }
             // Stop showing spinner and clear any ongoing streaming
             state.show_spinner = false;
+            // Cancel the ongoing stream if one exists
+            if let Some(ref cancel) = state.chat_stream {
+                let cmd = Command::Cancel { id: *cancel };
+                state.chat_stream = None;
+                return cmd;
+            }
             if let Some(ref timer) = state.timer {
                 let cmd = Command::Cancel { id: timer.cancel };
                 state.timer = None;
@@ -77,9 +78,9 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             }
             Command::Empty
         }
-        Action::StartStream(cancellation_token) => {
+        Action::StartStream(cancel_id) => {
             // Store the cancellation token for this stream
-            state.stream_cancellation_token = Some(cancellation_token);
+            state.chat_stream = Some(cancel_id);
             Command::Empty
         }
         Action::Cancelled(_) => Command::Empty,
@@ -92,7 +93,7 @@ mod tests {
     use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
     use super::*;
-    use crate::domain::EditorStateExt;
+    use crate::domain::{CancelId, EditorStateExt};
 
     #[test]
     fn test_update_processes_key_press_events() {
@@ -247,33 +248,31 @@ mod tests {
     #[test]
     fn test_start_stream_action_stores_cancellation_token() {
         let mut fixture_state = State::default();
-        let cancellation_token = tokio_util::sync::CancellationToken::new();
+        let cancel_id = CancelId::new(1);
 
-        let fixture_action = Action::StartStream(cancellation_token.clone());
+        let fixture_action = Action::StartStream(cancel_id);
 
         let actual_command = update(&mut fixture_state, fixture_action);
         let expected_command = Command::Empty;
 
         assert_eq!(actual_command, expected_command);
-        assert!(fixture_state.stream_cancellation_token.is_some());
+        assert!(fixture_state.chat_stream.is_some());
     }
 
     #[test]
     fn test_interrupt_stream_action_cancels_stream_token() {
         let mut fixture_state = State::default();
-        let cancellation_token = tokio_util::sync::CancellationToken::new();
-        fixture_state.stream_cancellation_token = Some(cancellation_token.clone());
+        fixture_state.chat_stream = Some(CancelId::new(1));
         fixture_state.show_spinner = true;
 
         let fixture_action = Action::InterruptStream;
 
         let actual_command = update(&mut fixture_state, fixture_action);
-        let expected_command = Command::Empty;
+        let expected_command = Command::Cancel { id: CancelId::new(1) };
 
         assert_eq!(actual_command, expected_command);
         assert!(!fixture_state.show_spinner);
-        assert!(fixture_state.stream_cancellation_token.is_none());
-        assert!(cancellation_token.is_cancelled());
+        assert!(fixture_state.chat_stream.is_none());
     }
 
     #[test]

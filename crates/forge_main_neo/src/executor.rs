@@ -107,10 +107,14 @@ impl<T: API + 'static> Executor<T> {
 
         // Create cancellation token for this stream
         let cancellation_token = CancellationToken::new();
+        // Generate a CancelId for this interval
+        let cancel_id = CancelId::new(self.next_cancel_id().await);
+
+        self.register_cancellation_token(cancel_id, cancellation_token.clone())
+            .await;
 
         // Send StartStream action with the cancellation token
-        tx.send(Ok(Action::StartStream(cancellation_token.clone())))
-            .await?;
+        tx.send(Ok(Action::StartStream(cancel_id))).await?;
 
         match self.api.chat(chat_request).await {
             Ok(mut stream) => loop {

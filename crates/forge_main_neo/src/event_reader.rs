@@ -20,7 +20,7 @@ impl EventReader {
             while !tx.is_closed() {
                 if event::poll(timeout).unwrap() && !tx.is_closed() {
                     let e = event::read().unwrap();
-                    tx.send(Ok(e.into())).await.unwrap();
+                    tx.send(Ok(Action::CrossTerm(e))).await.unwrap();
                 }
             }
         });

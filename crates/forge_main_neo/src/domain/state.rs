@@ -4,7 +4,6 @@ use chrono::{DateTime, Utc};
 use edtui::EditorState;
 use forge_api::{ChatResponse, ConversationId};
 use throbber_widgets_tui::ThrobberState;
-use tokio_util::sync::CancellationToken;
 
 use crate::domain::spotlight::SpotlightState;
 use crate::domain::{CancelId, EditorStateExt, Message, Workspace};
@@ -19,7 +18,7 @@ pub struct State {
     pub show_spinner: bool,
     pub spotlight: SpotlightState,
     pub conversation: ConversationState,
-    pub stream_cancellation_token: Option<CancellationToken>,
+    pub chat_stream: Option<CancelId>,
 }
 
 impl Default for State {
@@ -35,7 +34,7 @@ impl Default for State {
             show_spinner: Default::default(),
             spotlight: Default::default(),
             conversation: Default::default(),
-            stream_cancellation_token: None,
+            chat_stream: None,
         }
     }
 }

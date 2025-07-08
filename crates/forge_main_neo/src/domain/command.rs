@@ -12,12 +12,12 @@ use crate::domain::CancelId;
 /// ```rust
 /// use forge_main_neo::domain::{Command, CancelId};
 ///
-/// // Cancel with a numeric ID
-/// let cancel_cmd = Command::cancel_number(42);
+/// // Cancel with a CancelId
+/// let cancel_id = CancelId::new(42);
+/// let cancel_cmd = Command::Cancel { id: cancel_id };
 ///
-/// // Cancel with a CancelId directly
-/// let cancel_id = CancelId::new(123);
-/// let cancel_cmd = Command::cancel(cancel_id);
+/// // Cancel with a numeric ID (using CancelId::new)
+/// let cancel_cmd = Command::Cancel { id: CancelId::new(123) };
 /// ```
 #[derive(Default, Clone, PartialEq, Eq, Debug)]
 pub enum Command {
