@@ -3,22 +3,12 @@ use std::time::Duration;
 use derive_more::From;
 use forge_api::{AgentId, ConversationId, ModelId};
 
-use crate::domain::CancelId;
-
 /// Unified application commands
 ///
-/// # Cancellation Examples
-///
-/// ```rust
-/// use forge_main_neo::domain::{Command, CancelId};
-///
-/// // Cancel with a CancelId
-/// let cancel_id = CancelId::new(42);
-/// let cancel_cmd = Command::Cancel { id: cancel_id };
-///
-/// // Cancel with a numeric ID (using CancelId::new)
-/// let cancel_cmd = Command::Cancel { id: CancelId::new(123) };
-/// ```
+/// Commands represent user intentions and system events that need to be
+/// processed. The cancellation system now works automatically through direct
+/// .cancel() calls on CancelId instances, eliminating the need for Cancel
+/// commands.
 #[derive(Default, Clone, PartialEq, Eq, Debug)]
 pub enum Command {
     // Application-level commands
@@ -36,9 +26,6 @@ pub enum Command {
     Spotlight(SpotlightCommand),
     Interval {
         duration: Duration,
-    },
-    Cancel {
-        id: CancelId,
     },
 }
 

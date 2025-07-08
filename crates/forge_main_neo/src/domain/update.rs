@@ -45,9 +45,8 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             if let Some(ref timer) = state.timer
                 && !state.show_spinner
             {
-                let cmd = Command::Cancel { id: timer.cancel };
+                timer.cancel.cancel();
                 state.timer = None;
-                return cmd;
             }
             Command::Empty
         }
@@ -67,14 +66,12 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             state.show_spinner = false;
             // Cancel the ongoing stream if one exists
             if let Some(ref cancel) = state.chat_stream {
-                let cmd = Command::Cancel { id: *cancel };
+                cancel.cancel();
                 state.chat_stream = None;
-                return cmd;
             }
             if let Some(ref timer) = state.timer {
-                let cmd = Command::Cancel { id: timer.cancel };
+                timer.cancel.cancel();
                 state.timer = None;
-                return cmd;
             }
             Command::Empty
         }
@@ -83,7 +80,6 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             state.chat_stream = Some(cancel_id);
             Command::Empty
         }
-        Action::Cancelled(_) => Command::Empty,
     }
 }
 
@@ -91,6 +87,7 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
 mod tests {
     use pretty_assertions::assert_eq;
     use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+    use tokio_util::sync::CancellationToken;
 
     use super::*;
     use crate::domain::{CancelId, EditorStateExt};
@@ -204,12 +201,12 @@ mod tests {
         let mut fixture_state = State::default();
         // Set up state as if streaming is active
         fixture_state.show_spinner = true;
-        let cancel_id = crate::domain::CancelId::new(1);
+        let cancel_id = crate::domain::CancelId::new(CancellationToken::new());
         let timer = crate::domain::state::Timer {
             start_time: chrono::Utc::now(),
             current_time: chrono::Utc::now(),
             duration: std::time::Duration::from_secs(1),
-            cancel: cancel_id,
+            cancel: cancel_id.clone(),
         };
         fixture_state.timer = Some(timer);
 
@@ -217,14 +214,9 @@ mod tests {
 
         let actual_command = update(&mut fixture_state, fixture_action);
 
-        // Check that a Cancel command was returned
-        match actual_command {
-            Command::Cancel { id } => {
-                assert_eq!(id, cancel_id);
-            }
-            _ => panic!("Expected Command::ClearInterval, got {:?}", actual_command),
-        }
-
+        // Check that cancellation happened automatically and command is Empty
+        assert_eq!(actual_command, Command::Empty);
+        assert!(cancel_id.is_cancelled());
         assert!(!fixture_state.show_spinner);
         assert!(fixture_state.timer.is_none());
     }
@@ -248,7 +240,7 @@ mod tests {
     #[test]
     fn test_start_stream_action_stores_cancellation_token() {
         let mut fixture_state = State::default();
-        let cancel_id = CancelId::new(1);
+        let cancel_id = CancelId::new(CancellationToken::new());
 
         let fixture_action = Action::StartStream(cancel_id);
 
@@ -262,15 +254,17 @@ mod tests {
     #[test]
     fn test_interrupt_stream_action_cancels_stream_token() {
         let mut fixture_state = State::default();
-        fixture_state.chat_stream = Some(CancelId::new(1));
+        let cancel_id = CancelId::new(CancellationToken::new());
+        fixture_state.chat_stream = Some(cancel_id.clone());
         fixture_state.show_spinner = true;
 
         let fixture_action = Action::InterruptStream;
 
         let actual_command = update(&mut fixture_state, fixture_action);
-        let expected_command = Command::Cancel { id: CancelId::new(1) };
 
-        assert_eq!(actual_command, expected_command);
+        // Check that cancellation happened automatically and command is Empty
+        assert_eq!(actual_command, Command::Empty);
+        assert!(cancel_id.is_cancelled());
         assert!(!fixture_state.show_spinner);
         assert!(fixture_state.chat_stream.is_none());
     }
@@ -278,7 +272,7 @@ mod tests {
     #[test]
     fn test_cancelled_action_with_number_id() {
         let mut fixture_state = State::default();
-        let cancel_id = crate::domain::CancelId::new(42);
+        let cancel_id = crate::domain::CancelId::new(CancellationToken::new());
 
         let fixture_action = Action::Cancelled(cancel_id);
 
@@ -326,12 +320,12 @@ mod tests {
     fn test_chat_response_stops_spinner_when_complete() {
         let mut fixture_state = State::default();
         fixture_state.show_spinner = true;
-        let cancel_id = crate::domain::CancelId::new(123);
+        let cancel_id = crate::domain::CancelId::new(CancellationToken::new());
         let timer = crate::domain::state::Timer {
             start_time: chrono::Utc::now(),
             current_time: chrono::Utc::now(),
             duration: std::time::Duration::from_secs(1),
-            cancel: cancel_id,
+            cancel: cancel_id.clone(),
         };
         fixture_state.timer = Some(timer);
 
@@ -341,9 +335,10 @@ mod tests {
             is_md: false,
         };
         let actual_command = update(&mut fixture_state, Action::ChatResponse(chat_response));
-        let expected_command = Command::Cancel { id: cancel_id };
 
-        assert_eq!(actual_command, expected_command);
+        // Check that cancellation happened automatically and command is Empty
+        assert_eq!(actual_command, Command::Empty);
+        assert!(cancel_id.is_cancelled());
         assert!(!fixture_state.show_spinner);
         assert_eq!(fixture_state.timer, None);
     }
@@ -352,12 +347,12 @@ mod tests {
     fn test_chat_response_continues_spinner_when_streaming() {
         let mut fixture_state = State::default();
         fixture_state.show_spinner = true;
-        let cancel_id = crate::domain::CancelId::new(456);
+        let cancel_id = crate::domain::CancelId::new(CancellationToken::new());
         let timer = crate::domain::state::Timer {
             start_time: chrono::Utc::now(),
             current_time: chrono::Utc::now(),
             duration: std::time::Duration::from_secs(1),
-            cancel: cancel_id,
+            cancel: cancel_id.clone(),
         };
         fixture_state.timer = Some(timer.clone());
 
@@ -396,12 +391,12 @@ mod tests {
     #[test]
     fn test_interval_tick_updates_spinner_and_timer() {
         let mut fixture_state = State::default();
-        let cancel_id = crate::domain::CancelId::new(789);
+        let cancel_id = crate::domain::CancelId::new(CancellationToken::new());
         let timer = crate::domain::state::Timer {
             start_time: chrono::Utc::now(),
             current_time: chrono::Utc::now(),
             duration: std::time::Duration::from_secs(1),
-            cancel: cancel_id,
+            cancel: cancel_id.clone(),
         };
         fixture_state.timer = Some(timer.clone());
 
@@ -416,7 +411,7 @@ mod tests {
     #[test]
     fn test_interval_tick_replaces_existing_timer() {
         let mut fixture_state = State::default();
-        let cancel_id_1 = crate::domain::CancelId::new(100);
+        let cancel_id_1 = crate::domain::CancelId::new(CancellationToken::new());
         let timer_1 = crate::domain::state::Timer {
             start_time: chrono::Utc::now(),
             current_time: chrono::Utc::now(),
@@ -426,7 +421,7 @@ mod tests {
         fixture_state.timer = Some(timer_1);
 
         // Create a different timer for the tick
-        let cancel_id_2 = crate::domain::CancelId::new(999);
+        let cancel_id_2 = crate::domain::CancelId::new(CancellationToken::new());
         let timer_2 = crate::domain::state::Timer {
             start_time: chrono::Utc::now(),
             current_time: chrono::Utc::now(),
