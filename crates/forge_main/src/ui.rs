@@ -576,6 +576,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
+        let provider = self.init_provider().await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(
@@ -595,7 +596,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(base_workflow).provider(self.init_provider().await?);
+        self.state = UIState::new(base_workflow).provider(provider);
 
         Ok(workflow)
     }
