@@ -61,7 +61,7 @@ impl<T: API + 'static> Executor<T> {
         id
     }
 
-    async fn handle_chat(
+    async fn execute_chat_message(
         &self,
         message: String,
         conversation_id: Option<ConversationId>,
@@ -149,17 +149,6 @@ impl<T: API + 'static> Executor<T> {
                 }
             }
         });
-    }
-
-    async fn execute_chat_message(
-        &self,
-        message: String,
-        conversation_id: Option<ConversationId>,
-        is_first: bool,
-        tx: &Sender<anyhow::Result<Action>>,
-    ) -> anyhow::Result<()> {
-        self.handle_chat(message, conversation_id, is_first, tx)
-            .await
     }
 
     async fn execute_read_workspace(
