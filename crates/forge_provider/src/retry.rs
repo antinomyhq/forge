@@ -346,6 +346,7 @@ mod tests {
 
         // Execute
         let actual = is_empty_error(&fixture);
+        assert!(actual);
     }
 
     #[test]
