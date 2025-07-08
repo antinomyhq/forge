@@ -99,7 +99,12 @@ fn is_event_transport_error(error: &anyhow::Error) -> bool {
 }
 
 fn is_json_parse_error(error: &anyhow::Error) -> bool {
-    error.downcast_ref::<serde_json::Error>().is_some()
+    // ToolCallMissingName is also a json parse error,
+    // This happens in case when the response is empty JSON.
+    error
+        .downcast_ref::<Error>()
+        .is_some_and(|e| matches!(e, Error::InvalidJson(_) | Error::ToolCallMissingName))
+        || error.downcast_ref::<serde_json::Error>().is_some()
 }
 
 #[cfg(test)]

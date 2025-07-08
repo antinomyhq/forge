@@ -24,6 +24,9 @@ pub enum Error {
 
     #[error("Invalid Status Code: {0}")]
     InvalidStatusCode(u16),
+
+    #[error("Invalid JSON: {0}")]
+    InvalidJson(serde_json::Error),
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
