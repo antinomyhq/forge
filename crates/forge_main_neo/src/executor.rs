@@ -1,13 +1,16 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use chrono::Utc;
 use forge_api::{API, AgentId, ChatRequest, ConversationId, Event};
 use serde_json::Value;
+use tokio::sync::RwLock;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-use crate::domain::{Action, Command, TimerId};
+use crate::domain::{Action, CancelId, Command, Timer};
 
 // Event type constants
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -15,17 +18,47 @@ pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
 
 pub struct Executor<T> {
     api: Arc<T>,
+    cancellation_tokens: Arc<RwLock<HashMap<CancelId, CancellationToken>>>,
+    cancel_id_counter: Arc<tokio::sync::Mutex<u64>>,
 }
 
 impl<T> Clone for Executor<T> {
     fn clone(&self) -> Self {
-        Self { api: self.api.clone() }
+        Self {
+            api: self.api.clone(),
+            cancellation_tokens: self.cancellation_tokens.clone(),
+            cancel_id_counter: self.cancel_id_counter.clone(),
+        }
     }
 }
 
 impl<T: API + 'static> Executor<T> {
     pub fn new(api: Arc<T>) -> Self {
-        Executor { api }
+        Executor {
+            api,
+            cancellation_tokens: Arc::new(RwLock::new(HashMap::new())),
+            cancel_id_counter: Arc::new(tokio::sync::Mutex::new(1)),
+        }
+    }
+
+    /// Register a cancellation token with a CancelId
+    pub async fn register_cancellation_token(&self, id: CancelId, token: CancellationToken) {
+        let mut tokens = self.cancellation_tokens.write().await;
+        tokens.insert(id, token);
+    }
+
+    /// Remove a cancellation token by CancelId
+    pub async fn remove_cancellation_token(&self, id: &CancelId) -> Option<CancellationToken> {
+        let mut tokens = self.cancellation_tokens.write().await;
+        tokens.remove(id)
+    }
+
+    /// Generate the next unique CancelId
+    async fn next_cancel_id(&self) -> u64 {
+        let mut counter = self.cancel_id_counter.lock().await;
+        let id = *counter;
+        *counter += 1;
+        id
     }
 
     async fn handle_chat(
@@ -192,8 +225,18 @@ impl<T: API + 'static> Executor<T> {
         Ok(())
     }
 
-    async fn execute_clear_interval(&self, id: TimerId) -> anyhow::Result<()> {
-        id.cancel();
+    async fn execute_cancel(
+        &self,
+        id: CancelId,
+        tx: &Sender<anyhow::Result<Action>>,
+    ) -> anyhow::Result<()> {
+        // Look up and cancel the operation if it exists
+        if let Some(token) = self.remove_cancellation_token(&id).await {
+            token.cancel();
+        }
+
+        // Send a Cancelled action to notify the application
+        tx.send(Ok(Action::Cancelled(id))).await?;
         Ok(())
     }
 
@@ -216,13 +259,15 @@ impl<T: API + 'static> Executor<T> {
         tx: Sender<anyhow::Result<Action>>,
         cancellation_token: CancellationToken,
     ) {
-        use chrono::Utc;
         use tokio::time::interval;
 
-        use crate::domain::Timer;
+        // Generate a CancelId for this interval
+        let cancel_id = CancelId::new(self.next_cancel_id().await);
 
         let start_time = Utc::now();
-        let id = TimerId::from(cancellation_token.clone());
+        // Register the cancellation token with the executor
+        self.register_cancellation_token(cancel_id, cancellation_token.clone())
+            .await;
 
         // Create a tokio interval timer
         let mut interval_timer = interval(duration);
@@ -234,7 +279,7 @@ impl<T: API + 'static> Executor<T> {
             tokio::select! {
                 _ = interval_timer.tick() => {
                     let current_time = Utc::now();
-                    let timer = Timer {start_time, current_time, duration, id: id.clone() };
+                    let timer = Timer {start_time, current_time, duration, cancel: cancel_id };
                     let action = Action::IntervalTick(timer);
 
                     if tx.send(Ok(action)).await.is_err() {
@@ -274,8 +319,8 @@ impl<T: API + 'static> Executor<T> {
             Command::Interval { duration } => {
                 self.execute_interval(duration, &tx).await?;
             }
-            Command::ClearInterval { id } => {
-                self.execute_clear_interval(id).await?;
+            Command::Cancel { id } => {
+                self.execute_cancel(id, &tx).await?;
             }
             Command::Spotlight(_) => todo!(),
             Command::InterruptStream => {

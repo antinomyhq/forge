@@ -3,10 +3,23 @@ use std::time::Duration;
 use derive_more::From;
 use forge_api::{AgentId, ConversationId, ModelId};
 
-use crate::domain::TimerId;
+use crate::domain::CancelId;
 
 /// Unified application commands
-#[derive(Default, Clone, From, PartialEq, Eq, Debug)]
+///
+/// # Cancellation Examples
+///
+/// ```rust
+/// use forge_main_neo::domain::{Command, CancelId};
+///
+/// // Cancel with a numeric ID
+/// let cancel_cmd = Command::cancel_number(42);
+///
+/// // Cancel with a CancelId directly
+/// let cancel_id = CancelId::new(123);
+/// let cancel_cmd = Command::cancel(cancel_id);
+/// ```
+#[derive(Default, Clone, PartialEq, Eq, Debug)]
 pub enum Command {
     // Application-level commands
     ReadWorkspace,
@@ -24,8 +37,8 @@ pub enum Command {
     Interval {
         duration: Duration,
     },
-    ClearInterval {
-        id: TimerId,
+    Cancel {
+        id: CancelId,
     },
 }
 

@@ -602,7 +602,7 @@ mod tests {
 
         // Test that spotlight shows all slash commands
         let filtered_commands = state.spotlight.filtered_commands();
-        assert_eq!(filtered_commands.len(), 15); // All 15 slash commands
+        assert_eq!(filtered_commands.len(), 12); // All 12 slash commands
 
         // Test that filtering works
         state
