@@ -17,6 +17,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if is_api_transport_error(&error)
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
+        || is_json_parse_error(&error)
     {
         return DomainError::Retryable(error).into();
     }
@@ -95,6 +96,10 @@ fn is_event_transport_error(error: &anyhow::Error) -> bool {
     error
         .downcast_ref::<reqwest_eventsource::Error>()
         .is_some_and(|e| matches!(e, reqwest_eventsource::Error::Transport(_)))
+}
+
+fn is_json_parse_error(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<serde_json::Error>().is_some()
 }
 
 #[cfg(test)]
@@ -302,6 +307,15 @@ mod tests {
 
         // Verify - should be retryable because ETIMEDOUT is a transport error found at
         // level 4
+        assert!(is_retryable(actual));
+    }
+
+    #[test]
+    fn test_into_retry_with_json_parse_error() {
+        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
+        let json_error = serde_json::from_str::<serde_json::Value>("").unwrap_err();
+        let error = anyhow::Error::from(json_error);
+        let actual = into_retry(error, &retry_config);
         assert!(is_retryable(actual));
     }
 }
