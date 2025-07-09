@@ -9,6 +9,7 @@ pub mod fmt;
 mod mcp_executor;
 mod operation;
 mod orch;
+mod provider;
 mod retry;
 mod services;
 mod tool_executor;

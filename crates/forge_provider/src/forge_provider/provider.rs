@@ -274,6 +274,7 @@ mod tests {
         let provider = Provider::OpenAI {
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
+            auth_provider_id: None,
         };
 
         Ok(ForgeProvider::builder()

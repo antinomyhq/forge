@@ -583,7 +583,9 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
+        self.spinner.start(Some("Initializing"))?;
         let provider = self.init_provider().await?;
+        self.spinner.stop(None).ok();
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(
@@ -610,7 +612,24 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     async fn init_provider(&mut self) -> Result<Provider> {
         match self.api.provider().await {
             // Use the forge key if available in the config.
-            Ok(provider) => Ok(provider),
+            Ok(provider) => {
+                self.api
+                    .modify_app_config(|config| {
+                        if !config.is_tracked {
+                            let auth_provider_id = config
+                                .key_info
+                                .as_ref()
+                                .and_then(|v| v.auth_provider_id.clone())
+                                .unwrap_or_default();
+                            tracker::login(auth_provider_id);
+                        }
+                        config.is_tracked = true;
+                    })
+                    .await
+                    .ok();
+
+                Ok(provider)
+            }
             Err(_) => {
                 // If no key is available, start the login flow.
                 self.login().await?;

@@ -27,11 +27,11 @@ impl ForgeHttpService {
             .send()
             .await?)
     }
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {
+    async fn post(&self, url: &str, body: Bytes, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
         Ok(self
             .client
             .post(url)
-            .headers(self.headers(None))
+            .headers(self.headers(headers))
             .body(body)
             .send()
             .await?)
@@ -91,8 +91,8 @@ impl HttpInfra for ForgeHttpService {
         self.get(url, headers).await
     }
 
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {
-        self.post(url, body).await
+    async fn post(&self, url: &str, body: Bytes, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+        self.post(url, body, headers).await
     }
 
     async fn delete(&self, url: &str) -> anyhow::Result<Response> {

@@ -4,8 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::{
     AppConfig, AppConfigService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, InitAuth, McpConfigManager, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
+    ForgeApp, InitAuth, McpConfigManager, ProviderService, Services, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -156,11 +155,19 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         forge_app.logout().await
     }
     async fn provider(&self) -> anyhow::Result<Provider> {
-        self.services
-            .get_provider(self.services.read_app_config().await.unwrap_or_default())
-            .await
+        let forge_app = ForgeApp::new(self.services.clone());
+        forge_app.get_provider().await
     }
     async fn app_config(&self) -> anyhow::Result<AppConfig> {
         self.services.read_app_config().await
+    }
+    async fn modify_app_config<Fn>(&self, f: Fn) -> anyhow::Result<()>
+    where
+        Fn: FnOnce(&mut AppConfig) + Send + Sync,
+    {
+        let mut config = self.app_config().await.unwrap_or_default();
+        f(&mut config);
+        self.services.write_app_config(&config).await?;
+        Ok(())
     }
 }

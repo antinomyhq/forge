@@ -8,6 +8,7 @@ use forge_stream::MpscStream;
 
 use crate::authenticator::Authenticator;
 use crate::orch::Orchestrator;
+use crate::provider::ProviderCoordinator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
 use crate::{
@@ -23,6 +24,7 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
+    provider_coordinator: ProviderCoordinator<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -31,6 +33,7 @@ impl<S: Services> ForgeApp<S> {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
+            provider_coordinator: ProviderCoordinator::new(services.clone()),
             services,
         }
     }
@@ -203,5 +206,8 @@ impl<S: Services> ForgeApp<S> {
     }
     pub async fn logout(&self) -> Result<()> {
         self.authenticator.logout().await
+    }
+    pub async fn get_provider(&self) -> Result<Provider> {
+        self.provider_coordinator.get_provider().await
     }
 }

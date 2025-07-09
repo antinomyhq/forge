@@ -26,7 +26,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
                 .get_env_var("FORGE_API_URL")
                 .unwrap_or(Provider::ANTINOMY_URL.to_string())
         );
-        let resp = self.infra.post(&init_url, Bytes::new()).await?;
+        let resp = self.infra.post(&init_url, Bytes::new(), None).await?;
         if !resp.status().is_success() {
             bail!("Failed to initialize auth")
         }
