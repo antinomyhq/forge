@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use chrono::NaiveDateTime;
 use http::header::{HeaderName, HeaderValue};
+use reqwest::Client;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -11,11 +13,21 @@ use crate::Event;
 
 pub struct Tracker {
     api_secret: &'static str,
+    client: Client,
 }
 
 impl Tracker {
     pub fn new(api_secret: &'static str) -> Self {
-        Self { api_secret }
+        // Configure HTTP client with connection pooling similar to forge_provider
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .read_timeout(Duration::from_secs(30))
+            .pool_idle_timeout(Duration::from_secs(90))
+            .pool_max_idle_per_host(5)
+            .build()
+            .expect("Failed to build HTTP client for PostHog tracker");
+
+        Self { api_secret, client }
     }
 }
 
@@ -84,8 +96,7 @@ impl Collect for Tracker {
     // TODO: move http request to a dispatch
     async fn collect(&self, event: Event) -> Result<()> {
         let request = self.create_request(event)?;
-        let client = reqwest::Client::new();
-        client.execute(request).await?;
+        self.client.execute(request).await?;
 
         Ok(())
     }
