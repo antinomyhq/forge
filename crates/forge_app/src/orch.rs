@@ -292,13 +292,6 @@ impl<S: AgentService> Orchestrator<S> {
         // Render the system prompts with the variables
         context = self.set_system_prompt(context, &agent, &variables).await?;
 
-        // Create a new compactor
-        let compactor = Compactor::new(self.services.clone());
-
-        // Perform an aggressive compaction before starting out
-        // TODO: Improve compaction by providing context of the user message
-        context = compactor.compact(&agent, context, true).await?;
-
         // Render user prompts
         context = self
             .set_user_prompt(context, &agent, &variables, event)
@@ -404,7 +397,10 @@ impl<S: AgentService> Orchestrator<S> {
                 .max(usage.estimated_tokens.max(usage.total_tokens));
             if agent.should_compact(&context, context_tokens) {
                 info!(agent_id = %agent.id, "Compaction needed, applying compaction");
-                context = compactor.compact(&agent, context, false).await?;
+                // Create a new compactor
+                context = Compactor::new(self.services.clone())
+                    .compact(&agent, context, false)
+                    .await?;
             } else {
                 debug!(agent_id = %agent.id, "Compaction not needed");
             }
