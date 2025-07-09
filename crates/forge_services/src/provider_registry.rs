@@ -125,8 +125,7 @@ async fn resolve_env_provider_with_tracking<F: EnvironmentInfra + HttpInfra>(
                     )
                     .await
                 {
-                    if let Ok(auth_response) = response.json::<AuthProviderResponse>().await
-                    {
+                    if let Ok(auth_response) = response.json::<AuthProviderResponse>().await {
                         provider.set_auth_provider_id(auth_response.auth_provider_id);
                     }
                 }
