@@ -17,8 +17,8 @@ impl<S: AppConfigService + ProviderRegistry> ProviderCoordinator<S> {
         let mut config = self.services.read_app_config().await.unwrap_or_default();
         let provider = self.services.get_provider(config.clone()).await?;
 
-        if !config.is_tracked {
-            if let Some(auth_provider_id) = provider.auth_provider_id() {
+        if !config.is_tracked
+            && let Some(auth_provider_id) = provider.auth_provider_id() {
                 // We only update auth_provider_id if it's not set
                 if config
                     .key_info
@@ -33,7 +33,6 @@ impl<S: AppConfigService + ProviderRegistry> ProviderCoordinator<S> {
                     self.services.write_app_config(&config).await.ok();
                 }
             }
-        }
 
         Ok(provider)
     }

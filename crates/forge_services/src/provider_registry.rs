@@ -50,7 +50,12 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRegistry<F> {
             let provider = Provider::antinomy(forge_key.as_str());
             return Some(override_url(provider, self.provider_url()));
         }
-        resolve_env_provider_with_tracking(self.provider_url(), self.infra.as_ref(), !forge_config.is_tracked).await
+        resolve_env_provider_with_tracking(
+            self.provider_url(),
+            self.infra.as_ref(),
+            !forge_config.is_tracked,
+        )
+        .await
     }
 }
 
@@ -120,7 +125,7 @@ async fn resolve_env_provider_with_tracking<F: EnvironmentInfra + HttpInfra>(
                     )
                     .await
                 {
-                    if let Some(auth_response) = response.json::<AuthProviderResponse>().await.ok()
+                    if let Ok(auth_response) = response.json::<AuthProviderResponse>().await
                     {
                         provider.set_auth_provider_id(auth_response.auth_provider_id);
                     }

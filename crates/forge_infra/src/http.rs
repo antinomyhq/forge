@@ -27,7 +27,12 @@ impl ForgeHttpService {
             .send()
             .await?)
     }
-    async fn post(&self, url: &str, body: Bytes, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+    async fn post(
+        &self,
+        url: &str,
+        body: Bytes,
+        headers: Option<HeaderMap>,
+    ) -> anyhow::Result<Response> {
         Ok(self
             .client
             .post(url)
@@ -91,7 +96,12 @@ impl HttpInfra for ForgeHttpService {
         self.get(url, headers).await
     }
 
-    async fn post(&self, url: &str, body: Bytes, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+    async fn post(
+        &self,
+        url: &str,
+        body: Bytes,
+        headers: Option<HeaderMap>,
+    ) -> anyhow::Result<Response> {
         self.post(url, body, headers).await
     }
 
