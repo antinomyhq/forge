@@ -262,6 +262,25 @@ impl<S: AgentService> Orchestrator<S> {
             .await?;
         response.into_full(!tool_supported).await
     }
+    /// Checks if compaction is needed and performs it if necessary
+    async fn check_and_compact(
+        &self,
+        agent: &Agent,
+        context: &Context,
+    ) -> anyhow::Result<Option<Context>> {
+        // Estimate token count for compaction decision
+        let estimated_tokens = context.token_count();
+        if agent.should_compact(context, estimated_tokens) {
+            info!(agent_id = %agent.id, "Compaction needed, applying compaction in parallel");
+            Compactor::new(self.services.clone())
+                .compact(agent, context.clone(), false)
+                .await
+                .map(Some)
+        } else {
+            debug!(agent_id = %agent.id, "Compaction not needed");
+            Ok(None)
+        }
+    }
 
     // Create a helper method with the core functionality
     async fn init_agent(&mut self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
@@ -379,36 +398,18 @@ impl<S: AgentService> Orchestrator<S> {
             );
 
             // Prepare compaction task that runs in parallel
-            let compaction_task = {
-                let agent_clone = agent.clone();
-                let context_clone = context.clone();
-                let services_clone = self.services.clone();
-                async move {
-                    // Estimate token count for compaction decision
-                    let estimated_tokens = context_clone.token_count();
-                    if agent_clone.should_compact(&context_clone, estimated_tokens) {
-                        info!(agent_id = %agent_clone.id, "Compaction needed, applying compaction in parallel");
-                        Compactor::new(services_clone)
-                            .compact(&agent_clone, context_clone.clone(), false)
-                            .await
-                            .map(Some)
-                    } else {
-                        debug!(agent_id = %agent_clone.id, "Compaction not needed");
-                        Ok(None)
-                    }
-                }
-            };
 
             // Execute both operations in parallel
-            let (chat_result, compaction_result) = tokio::join!(main_request, compaction_task);
-
-            let ChatCompletionMessageFull {
-                tool_calls,
-                content,
-                mut usage,
-                reasoning,
-                reasoning_details,
-            } = chat_result?;
+            let (
+                ChatCompletionMessageFull {
+                    tool_calls,
+                    content,
+                    mut usage,
+                    reasoning,
+                    reasoning_details,
+                },
+                compaction_result,
+            ) = tokio::try_join!(main_request, self.check_and_compact(&agent, &context))?;
 
             // Set estimated tokens
             usage.estimated_tokens = context.token_count();
@@ -424,15 +425,12 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Apply compaction result if it completed successfully
             match compaction_result {
-                Ok(Some(compacted_context)) => {
+                Some(compacted_context) => {
                     info!(agent_id = %agent.id, "Using compacted context from parallel execution");
                     context = compacted_context;
                 }
-                Ok(None) => {
+                None => {
                     debug!(agent_id = %agent.id, "No compaction was needed");
-                }
-                Err(e) => {
-                    warn!(agent_id = %agent.id, error = %e, "Compaction failed, continuing with original context");
                 }
             }
 
