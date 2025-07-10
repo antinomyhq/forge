@@ -716,6 +716,9 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 return Err(anyhow::anyhow!("Could not create dump"))
                     .context(format!("Conversation: {conversation_id} was not found"));
             }
+        } else {
+            return Err(anyhow::anyhow!("Could not create dump"))
+                .context("No conversation initiated yet");
         }
         Ok(())
     }
