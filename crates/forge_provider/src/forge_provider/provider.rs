@@ -16,7 +16,7 @@ use crate::error::Error;
 use crate::forge_provider::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
 
-#[derive(Clone, Builder)]
+#[derive(Clone, Builder, Debug)]
 pub struct ForgeProvider {
     client: Client,
     provider: Provider,
@@ -28,6 +28,11 @@ impl ForgeProvider {
         ForgeProviderBuilder::default()
     }
 
+    pub fn update_provider(&mut self, provider: &Provider) -> &mut Self {
+        self.provider = provider.clone();
+        self
+    }
+
     fn url(&self, path: &str) -> anyhow::Result<Url> {
         // Validate the path doesn't contain certain patterns
         if path.contains("://") || path.contains("..") {
@@ -37,13 +42,10 @@ impl ForgeProvider {
         // Remove leading slash to avoid double slashes
         let path = path.trim_start_matches('/');
 
-        self.provider.to_base_url().join(path).with_context(|| {
-            format!(
-                "Failed to append {} to base URL: {}",
-                path,
-                self.provider.to_base_url()
-            )
-        })
+        let base_url = self.provider.to_base_url();
+        base_url
+            .join(path)
+            .with_context(|| format!("Failed to append {path} to base URL: {base_url}"))
     }
 
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
@@ -265,16 +267,23 @@ impl From<Model> for forge_domain::Model {
 #[cfg(test)]
 mod tests {
     use anyhow::Context;
+    use forge_domain::ProviderDetails;
     use reqwest::Client;
 
     use super::*;
     use crate::mock_server::{normalize_ports, MockServer};
 
     fn create_provider(base_url: &str) -> anyhow::Result<ForgeProvider> {
-        let provider = Provider::OpenAI {
-            url: reqwest::Url::parse(base_url)?,
-            key: Some("test-api-key".to_string()),
-        };
+        let provider_details = ProviderDetails::new(
+            "test-openai".to_string(),
+            "Test OpenAI".to_string(),
+            "Test OpenAI provider".to_string(),
+            "test-api-key".to_string(),
+            "openai".to_string(),
+            base_url.to_string(),
+        );
+
+        let provider = Provider::OpenAI(provider_details);
 
         Ok(ForgeProvider::builder()
             .client(Client::new())

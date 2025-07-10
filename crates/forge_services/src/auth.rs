@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::bail;
 use bytes::Bytes;
 use forge_app::{AuthService, Error, InitAuth, LoginInfo};
-use forge_domain::Provider;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 
 use crate::{EnvironmentInfra, HttpInfra};
@@ -24,7 +23,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             "{}{AUTH_ROUTE}",
             self.infra
                 .get_env_var("FORGE_API_URL")
-                .unwrap_or(Provider::ANTINOMY_URL.to_string())
+                .unwrap_or("https://antinomy.ai/api/v1/".to_string())
         );
         let resp = self.infra.post(&init_url, Bytes::new()).await?;
         if !resp.status().is_success() {
@@ -39,7 +38,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             "{}{AUTH_ROUTE}{}",
             self.infra
                 .get_env_var("FORGE_API_URL")
-                .unwrap_or(Provider::ANTINOMY_URL.to_string()),
+                .unwrap_or("https://antinomy.ai/api/v1/".to_string()),
             auth.session_id
         );
         let mut headers = HeaderMap::new();

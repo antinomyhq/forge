@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json
+# yaml-language-server: $schema=./forge.schema.json
 agents:
 - id: forge
   tools:
@@ -27,7 +27,7 @@ commands:
       <lint>cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace</lint>
       <test>cargo insta test --accept --unreferenced=delete</test>
     - Fix every issue found in the process
-model: anthropic/claude-sonnet-4
+model: gpt-4-0613
 max_walker_depth: 1024
 custom_rules: |-
   Handling Errors:
@@ -79,3 +79,10 @@ custom_rules: |-
 
   Refactoring:
   - If asked to fix failing tests, always confirm whether to update the implementation or the tests.
+provider_config:
+- id: openrouter
+  name: OpenRouter
+  description: OpenRouter API provider
+  api_key: OPENROUTER_API_KEY
+  provider_type: openai
+  base_url: https://openrouter.ai/api/v1/

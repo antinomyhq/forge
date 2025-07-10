@@ -70,6 +70,20 @@
         "null"
       ]
     },
+    "provider_config": {
+      "description": "Provider configuration for this workflow Contains the provider settings and active provider selection",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ProviderDetails"
+      }
+    },
+    "provider_id": {
+      "description": "ID of the provider to use for this workflow If not specified, the first provider in the provider configuration will be used.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "temperature": {
       "description": "Temperature used for all agents\n\nTemperature controls the randomness in the model's output. - Lower values (e.g., 0.1) make responses more focused, deterministic, and coherent - Higher values (e.g., 0.8) make responses more creative, diverse, and exploratory - Valid range is 0.0 to 2.0 - If not specified, each agent's individual setting or the model provider's default will be used",
       "anyOf": [
@@ -413,6 +427,37 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
+    },
+    "ProviderDetails": {
+      "type": "object",
+      "required": [
+        "api_key",
+        "base_url",
+        "description",
+        "id",
+        "name",
+        "provider_type"
+      ],
+      "properties": {
+        "api_key": {
+          "type": "string"
+        },
+        "base_url": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "provider_type": {
+          "type": "string"
+        }
+      }
     },
     "ReasoningConfig": {
       "type": "object",
