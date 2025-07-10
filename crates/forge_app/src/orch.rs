@@ -359,25 +359,56 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            let ChatCompletionMessageFull { tool_calls, content, mut usage, reasoning, reasoning_details } =
-                crate::retry::retry_with_config(
-                    &self.environment.retry_config,
-                    || self.execute_chat_turn(&model_id, context.clone(), tool_supported, reasoning_supported),
-                    self.sender.as_ref().map(|sender| {
-                        let sender = sender.clone();
-                        let agent_id = agent.id.clone();
-                        let model_id = model_id.clone();
-                        move |error: &anyhow::Error, duration: Duration| {
-                            tracing::error!(agent_id = %agent_id, error = %error, model=%model_id, "Retry Attempt");
-                            let retry_event = ChatResponse::RetryAttempt {
-                                cause: error.into(),
-                                duration,
-                            };
-                            let _ = sender.try_send(Ok(retry_event));
-                        }
-                    }),
-                )
-                .await?;
+            // Run the main chat request and compaction check in parallel
+            let main_request = crate::retry::retry_with_config(
+                &self.environment.retry_config,
+                || self.execute_chat_turn(&model_id, context.clone(), tool_supported, reasoning_supported),
+                self.sender.as_ref().map(|sender| {
+                    let sender = sender.clone();
+                    let agent_id = agent.id.clone();
+                    let model_id = model_id.clone();
+                    move |error: &anyhow::Error, duration: Duration| {
+                        tracing::error!(agent_id = %agent_id, error = %error, model=%model_id, "Retry Attempt");
+                        let retry_event = ChatResponse::RetryAttempt {
+                            cause: error.into(),
+                            duration,
+                        };
+                        let _ = sender.try_send(Ok(retry_event));
+                    }
+                }),
+            );
+
+            // Prepare compaction task that runs in parallel
+            let compaction_task = {
+                let agent_clone = agent.clone();
+                let context_clone = context.clone();
+                let services_clone = self.services.clone();
+                async move {
+                    // Estimate token count for compaction decision
+                    let estimated_tokens = context_clone.token_count();
+                    if agent_clone.should_compact(&context_clone, estimated_tokens) {
+                        info!(agent_id = %agent_clone.id, "Compaction needed, applying compaction in parallel");
+                        Compactor::new(services_clone)
+                            .compact(&agent_clone, context_clone.clone(), false)
+                            .await
+                            .map(Some)
+                    } else {
+                        debug!(agent_id = %agent_clone.id, "Compaction not needed");
+                        Ok(None)
+                    }
+                }
+            };
+
+            // Execute both operations in parallel
+            let (chat_result, compaction_result) = tokio::join!(main_request, compaction_task);
+
+            let ChatCompletionMessageFull {
+                tool_calls,
+                content,
+                mut usage,
+                reasoning,
+                reasoning_details,
+            } = chat_result?;
 
             // Set estimated tokens
             usage.estimated_tokens = context.token_count();
@@ -391,18 +422,18 @@ impl<S: AgentService> Orchestrator<S> {
             // Send the usage information if available
             self.send(ChatResponse::Usage(usage.clone())).await?;
 
-            // Check if context requires compression and decide to compact
-            let context_tokens = usage
-                .prompt_tokens
-                .max(usage.estimated_tokens.max(usage.total_tokens));
-            if agent.should_compact(&context, context_tokens) {
-                info!(agent_id = %agent.id, "Compaction needed, applying compaction");
-                // Create a new compactor
-                context = Compactor::new(self.services.clone())
-                    .compact(&agent, context, false)
-                    .await?;
-            } else {
-                debug!(agent_id = %agent.id, "Compaction not needed");
+            // Apply compaction result if it completed successfully
+            match compaction_result {
+                Ok(Some(compacted_context)) => {
+                    info!(agent_id = %agent.id, "Using compacted context from parallel execution");
+                    context = compacted_context;
+                }
+                Ok(None) => {
+                    debug!(agent_id = %agent.id, "No compaction was needed");
+                }
+                Err(e) => {
+                    warn!(agent_id = %agent.id, error = %e, "Compaction failed, continuing with original context");
+                }
             }
 
             let has_no_tool_calls = tool_calls.is_empty();
