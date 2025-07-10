@@ -1,5 +1,24 @@
 [workspace]
-members = ["crates/*"]
+members = [
+    "crates/forge_api",
+    "crates/forge_app", 
+    "crates/forge_ci",
+    "crates/forge_display",
+    "crates/forge_domain",
+    "crates/forge_fs",
+    "crates/forge_infra",
+    "crates/forge_inte",
+    "crates/forge_main",
+    "crates/forge_provider",
+    "crates/forge_services",
+    "crates/forge_snaps",
+    "crates/forge_spinner",
+    "crates/forge_stream",
+    "crates/forge_template",
+    "crates/forge_tool_macros",
+    "crates/forge_tracker",
+    "crates/forge_walker"
+]
 resolver = "2"
 
 [profile.release]
@@ -86,6 +105,7 @@ tree-sitter-cpp = "0.23"
 tree-sitter-ruby = "0.23"
 url = { version = "2.5.4", features = ["serde"] }
 backon = "1.5.0"
+eserde = "0.1.7"
 uuid = { version = "1.11.0", features = [
     "v4",
     "fast-rng",
@@ -101,20 +121,24 @@ rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a9791
     "transport-child-process",
     "transport-sse-server",
 ] }
+open = "5.3.2"
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }
-forge_services = { path = "crates/forge_services" }
+forge_app = { path = "crates/forge_app" }
+forge_ci = { path = "crates/forge_ci" }
 forge_display = { path = "crates/forge_display" }
 forge_domain = { path = "crates/forge_domain" }
+forge_fs = { path = "crates/forge_fs" }
 forge_infra = { path = "crates/forge_infra" }
+forge_inte = { path = "crates/forge_inte" }
+forge_main = { path = "crates/forge_main" }
 forge_provider = { path = "crates/forge_provider" }
+forge_services = { path = "crates/forge_services" }
+forge_snaps = { path = "crates/forge_snaps" }
+forge_spinner = { path = "crates/forge_spinner" }
 forge_stream = { path = "crates/forge_stream" }
+forge_template = { path = "crates/forge_template" }
 forge_tool_macros = { path = "crates/forge_tool_macros" }
 forge_tracker = { path = "crates/forge_tracker" }
 forge_walker = { path = "crates/forge_walker" }
-forge_fs = { path = "crates/forge_fs" }
-forge_snaps = { path = "crates/forge_snaps" }
-forge_spinner = { path = "crates/forge_spinner" }
-forge_template = { path = "crates/forge_template" }
-forge_app = { path = "crates/forge_app" }

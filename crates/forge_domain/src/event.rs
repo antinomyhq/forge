@@ -13,7 +13,7 @@ use crate::{Attachment, NamedTool, ToolCallFull, ToolDefinition, ToolName};
 pub struct Event {
     pub id: String,
     pub name: String,
-    pub value: Value,
+    pub value: Option<Value>,
     pub timestamp: String,
     pub attachments: Vec<Attachment>,
 }
@@ -26,7 +26,7 @@ pub struct EventMessage {
 
 impl From<EventMessage> for Event {
     fn from(value: EventMessage) -> Self {
-        Self::new(value.name, value.value)
+        Self::new(value.name, Some(value.value))
     }
 }
 
@@ -76,14 +76,14 @@ impl Event {
         message.map(|message| message.into())
     }
 
-    pub fn new<V: Into<Value>>(name: impl ToString, value: V) -> Self {
+    pub fn new<V: Into<Value>>(name: impl ToString, value: Option<V>) -> Self {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
 
         Self {
             id,
             name: name.to_string(),
-            value: value.into(),
+            value: value.map(|v| v.into()),
             timestamp,
             attachments: Vec::new(),
         }

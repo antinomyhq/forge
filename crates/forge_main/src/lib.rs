@@ -8,6 +8,7 @@ mod model;
 mod prompt;
 mod state;
 mod tools_display;
+pub mod tracker;
 mod ui;
 mod update;
 

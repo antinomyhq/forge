@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
@@ -160,6 +161,26 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(tool_supported)
     }
 
+    fn is_reasoning_supported(&self, agent: &Agent) -> anyhow::Result<bool> {
+        let model_id = agent
+            .model
+            .as_ref()
+            .ok_or(Error::MissingModel(agent.id.clone()))?;
+
+        let model = self.models.iter().find(|model| &model.id == model_id);
+        let reasoning_supported = model
+            .and_then(|model| model.supports_reasoning)
+            .unwrap_or_default();
+
+        debug!(
+            agent_id = %agent.id,
+            model_id = %model_id,
+            reasoning_supported,
+            "Reasoning support check"
+        );
+        Ok(reasoning_supported)
+    }
+
     async fn set_system_prompt(
         &mut self,
         context: Context,
@@ -210,7 +231,7 @@ impl<S: AgentService> Orchestrator<S> {
             debug!(
                 conversation_id = %self.conversation.id.clone(),
                 event_name = %event.name,
-                event_value = %event.value,
+                event_value = %format!("{:?}", event.value),
                 "Dispatching event"
             );
             self.conversation.dispatch_event(event.clone())
@@ -229,10 +250,12 @@ impl<S: AgentService> Orchestrator<S> {
         model_id: &ModelId,
         context: Context,
         tool_supported: bool,
+        reasoning_supported: bool,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         let mut transformers = TransformToolCalls::new()
             .when(|_| !tool_supported)
-            .pipe(ImageHandling::new());
+            .pipe(ImageHandling::new())
+            .pipe(DropReasoningDetails.when(|_| !reasoning_supported));
         let response = self
             .services
             .chat_agent(model_id, transformers.transform(context))
@@ -242,6 +265,7 @@ impl<S: AgentService> Orchestrator<S> {
 
     // Create a helper method with the core functionality
     async fn init_agent(&mut self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
+        let mut tool_failure_attempts = HashMap::new();
         let variables = self.conversation.variables.clone();
         debug!(
             conversation_id = %self.conversation.id,
@@ -255,6 +279,7 @@ impl<S: AgentService> Orchestrator<S> {
             .clone()
             .ok_or(Error::MissingModel(agent.id.clone()))?;
         let tool_supported = self.is_tool_supported(&agent)?;
+        let reasoning_supported = self.is_reasoning_supported(&agent)?;
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
@@ -266,13 +291,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Render the system prompts with the variables
         context = self.set_system_prompt(context, &agent, &variables).await?;
-
-        // Create a new compactor
-        let compactor = Compactor::new(self.services.clone());
-
-        // Perform an aggressive compaction before starting out
-        // TODO: Improve compaction by providing context of the user message
-        context = compactor.compact(&agent, context, true).await?;
 
         // Render user prompts
         context = self
@@ -293,6 +311,14 @@ impl<S: AgentService> Orchestrator<S> {
 
         if let Some(max_tokens) = agent.max_tokens {
             context = context.max_tokens(max_tokens.value() as usize);
+        }
+
+        if reasoning_supported {
+            // Add reasoning specific params to context only if reasoning is supported
+            // by underlying model
+            if let Some(reasoning) = agent.reasoning.as_ref() {
+                context = context.reasoning(reasoning.clone());
+            }
         }
 
         // Process attachments from the event if they exist
@@ -323,23 +349,38 @@ impl<S: AgentService> Orchestrator<S> {
         let mut is_complete = false;
 
         let mut empty_tool_call_count = 0;
-        let is_tool_supported = self.is_tool_supported(&agent)?;
+        let mut request_count = 0;
+
+        // Retrieve the number of requests allowed per tick.
+        let max_requests_per_turn = self.conversation.max_requests_per_turn;
 
         while !is_complete {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            let ChatCompletionMessageFull { tool_calls, content, mut usage } =
-                crate::retry::retry_with_config(&self.environment.retry_config, || {
-                    self.execute_chat_turn(&model_id, context.clone(), is_tool_supported)
-                })
+            let ChatCompletionMessageFull { tool_calls, content, mut usage, reasoning, reasoning_details } =
+                crate::retry::retry_with_config(
+                    &self.environment.retry_config,
+                    || self.execute_chat_turn(&model_id, context.clone(), tool_supported, reasoning_supported),
+                    self.sender.as_ref().map(|sender| {
+                        let sender = sender.clone();
+                        let agent_id = agent.id.clone();
+                        let model_id = model_id.clone();
+                        move |error: &anyhow::Error, duration: Duration| {
+                            tracing::error!(agent_id = %agent_id, error = %error, model=%model_id, "Retry Attempt");
+                            let retry_event = ChatResponse::RetryAttempt {
+                                cause: error.into(),
+                                duration,
+                            };
+                            let _ = sender.try_send(Ok(retry_event));
+                        }
+                    }),
+                )
                 .await?;
 
             // Set estimated tokens
             usage.estimated_tokens = context.token_count();
-
-            // Send the usage information if available
 
             info!(
                 token_usage = usage.prompt_tokens,
@@ -347,6 +388,7 @@ impl<S: AgentService> Orchestrator<S> {
                 "Processing usage information"
             );
 
+            // Send the usage information if available
             self.send(ChatResponse::Usage(usage.clone())).await?;
 
             // Check if context requires compression and decide to compact
@@ -355,7 +397,10 @@ impl<S: AgentService> Orchestrator<S> {
                 .max(usage.estimated_tokens.max(usage.total_tokens));
             if agent.should_compact(&context, context_tokens) {
                 info!(agent_id = %agent.id, "Compaction needed, applying compaction");
-                context = compactor.compact(&agent, context, false).await?;
+                // Create a new compactor
+                context = Compactor::new(self.services.clone())
+                    .compact(&agent, context, false)
+                    .await?;
             } else {
                 debug!(agent_id = %agent.id, "Compaction not needed");
             }
@@ -376,22 +421,56 @@ impl<S: AgentService> Orchestrator<S> {
                         .to_string(),
                     is_complete: true,
                     is_md: true,
-                    is_summary: false,
                 })
                 .await?;
             }
+
+            if let Some(reasoning) = reasoning.as_ref()
+                && !is_complete
+            {
+                // If reasoning is present, send it as a separate message
+                self.send(ChatResponse::Reasoning { content: reasoning.to_string() })
+                    .await?;
+            }
+
             let mut tool_context =
                 ToolCallContext::new(self.conversation.tasks.clone()).sender(self.sender.clone());
 
-            // Process tool calls and update context
-            context = context.append_message(
-                content.clone(),
-                self.execute_tool_calls(&agent, &tool_calls, &mut tool_context)
-                    .await?,
-            );
-            self.conversation.tasks = tool_context.tasks;
+            // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
+            // configured
+            let allowed_limits_exceeded =
+                self.check_tool_call_failures(&tool_failure_attempts, &tool_calls);
 
-            context = SetModel::new(model_id.clone()).transform(context);
+            // Process tool calls and update context
+            let mut tool_call_records = self
+                .execute_tool_calls(&agent, &tool_calls, &mut tool_context)
+                .await?;
+
+            // Update the tool call attempts, if the tool call is an error
+            // we increment the attempts, otherwise we remove it from the attempts map
+            if let Some(allowed_max_attempts) = self.conversation.max_tool_failure_per_turn.as_ref()
+            {
+                tool_call_records.iter_mut().for_each(|(_, result)| {
+                    if result.is_error() {
+                        let current_attempts = tool_failure_attempts
+                            .entry(result.name.clone())
+                            .and_modify(|count| *count += 1)
+                            .or_insert(1);
+                        let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
+
+                        // Add attempt information to the error message so the agent can reflect on it.
+                        let message = Element::new("retry").text(format!(
+                            "This tool call failed. You have {attempts_left} attempt(s) remaining out of a maximum of {allowed_max_attempts}. Please reflect on the error, adjust your approach if needed, and try again."
+                        ));
+
+                        result.output.combine_mut(ToolOutput::text(message));
+                    } else {
+                        tool_failure_attempts.remove(&result.name);
+                    }
+                });
+            }
+
+            context = context.append_message(content.clone(), reasoning_details, tool_call_records);
 
             if has_no_tool_calls {
                 // No tool calls present, which doesn't mean task is complete so reprompt the
@@ -428,12 +507,74 @@ impl<S: AgentService> Orchestrator<S> {
                 empty_tool_call_count = 0;
             }
 
+            if allowed_limits_exceeded {
+                // Tool call retry limit exceeded, force completion
+                warn!(
+                    agent_id = %agent.id,
+                    model_id = %model_id,
+                    tools = %tool_failure_attempts.iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
+                    max_tool_failure_per_turn = ?self.conversation.max_tool_failure_per_turn,
+                    "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
+                );
+
+                if let Some(limit) = self.conversation.max_tool_failure_per_turn {
+                    self.send(ChatResponse::Interrupt {
+                        reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
+                            limit: limit as u64,
+                        },
+                    })
+                    .await?;
+                }
+
+                is_complete = true;
+            }
+
             // Update context in the conversation
+            context = SetModel::new(model_id.clone()).transform(context);
+            self.conversation.tasks = tool_context.tasks;
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
+            request_count += 1;
+
+            if !is_complete && let Some(max_request_allowed) = max_requests_per_turn {
+                // Check if agent has reached the maximum request per turn limit
+                if request_count >= max_request_allowed {
+                    warn!(
+                        agent_id = %agent.id,
+                        model_id = %model_id,
+                        request_count,
+                        max_request_allowed,
+                        "Agent has reached the maximum request per turn limit"
+                    );
+                    // raise an interrupt event to notify the UI
+                    self.send(ChatResponse::Interrupt {
+                        reason: InterruptionReason::MaxRequestPerTurnLimitReached {
+                            limit: max_request_allowed as u64,
+                        },
+                    })
+                    .await?;
+                    // force completion
+                    is_complete = true;
+                }
+            }
         }
 
         Ok(())
+    }
+
+    fn check_tool_call_failures(
+        &self,
+        tool_failure_attempts: &HashMap<ToolName, usize>,
+        tool_calls: &[ToolCallFull],
+    ) -> bool {
+        self.conversation
+            .max_tool_failure_per_turn
+            .is_some_and(|limit| {
+                tool_calls
+                    .iter()
+                    .map(|call| tool_failure_attempts.get(&call.name).unwrap_or(&0))
+                    .any(|count| *count >= limit)
+            })
     }
 
     async fn set_user_prompt(
@@ -443,7 +584,9 @@ impl<S: AgentService> Orchestrator<S> {
         variables: &HashMap<String, Value>,
         event: &Event,
     ) -> anyhow::Result<Context> {
-        let content = if let Some(user_prompt) = &agent.user_prompt {
+        let content = if let Some(user_prompt) = &agent.user_prompt
+            && event.value.is_some()
+        {
             let event_context = EventContext::new(event.clone())
                 .variables(variables.clone())
                 .current_time(
@@ -452,15 +595,17 @@ impl<S: AgentService> Orchestrator<S> {
                         .to_string(),
                 );
             debug!(event_context = ?event_context, "Event context");
-            self.services
-                .render(user_prompt.template.as_str(), &event_context)
-                .await?
+            Some(
+                self.services
+                    .render(user_prompt.template.as_str(), &event_context)
+                    .await?,
+            )
         } else {
             // Use the raw event value as content if no user_prompt is provided
-            event.value.to_string()
+            event.value.as_ref().map(|v| v.to_string())
         };
 
-        if !content.is_empty() {
+        if let Some(content) = content {
             context = context.add_message(ContextMessage::user(content, agent.model.clone()));
         }
 

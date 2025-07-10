@@ -32,6 +32,8 @@ fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
             Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
                 .with(("target", "${{ matrix.target }}")),
         )
+        // Explicitly add the target to ensure it's available
+        .add_step(Step::run("rustup target add ${{ matrix.target }}").name("Add Rust target"))
         // Build add link flags
         .add_step(
             Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)

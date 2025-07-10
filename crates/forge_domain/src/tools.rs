@@ -1,17 +1,20 @@
+#![allow(clippy::enum_variant_names)]
 use std::collections::HashSet;
 use std::path::PathBuf;
 
 use convert_case::{Case, Casing};
 use derive_more::From;
+use eserde::Deserialize;
 use forge_tool_macros::ToolDescription;
 use schemars::schema::RootSchema;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde::Serialize;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
 
-use crate::{Status, ToolCallFull, ToolDefinition, ToolDescription, ToolName};
+use crate::{
+    Status, ToolCallArgumentError, ToolCallFull, ToolDefinition, ToolDescription, ToolName,
+};
 
 /// Enum representing all possible tool input types.
 ///
@@ -186,8 +189,16 @@ pub enum PatchOperation {
     /// Append content after the matched text
     Append,
 
-    /// Replace the matched text with new content
+    /// Should be used only when you want to replace the first occurrence.
+    /// Use only for specific, targeted replacements where you need to modify
+    /// just the first match.
     Replace,
+
+    /// Should be used for renaming variables, functions, types, or any
+    /// widespread replacements across the file. This is the recommended
+    /// choice for consistent refactoring operations as it ensures all
+    /// occurrences are updated.
+    ReplaceAll,
 
     /// Swap the matched text with another text (search for the second text and
     /// swap them)
@@ -221,8 +232,8 @@ impl JsonSchema for PatchOperation {
 }
 
 /// Modifies files with targeted line operations on matched patterns. Supports
-/// prepend, append, replace, swap, delete operations on first pattern
-/// occurrence. Ideal for precise changes to configs, code, or docs while
+/// prepend, append, replace, replace_all, swap, delete
+/// operations. Ideal for precise changes to configs, code, or docs while
 /// preserving context. Not suitable for complex refactoring or modifying all
 /// pattern occurrences - use `forge_tool_fs_create` instead for complete
 /// rewrites and `forge_tool_fs_undo` for undoing the last operation. Fails if
@@ -239,13 +250,17 @@ pub struct FSPatch {
     /// search target, so without one, it makes no changes.
     pub search: Option<String>,
 
-    /// The operation to perform on the matched text. Possible options are only
-    /// 'prepend', 'append', 'replace', and 'swap'.
-    /// prepend allows you to prepend content before the matched text, append
-    /// allows you to append content after the matched text, replace allows
-    /// you to replace the matched text with new content, and swap allows
-    /// you to swap the matched text with another text (search for the
-    /// second text and swap them).
+    /// The operation to perform on the matched text. Possible options are:
+    /// - 'prepend': Add content before the matched text
+    /// - 'append': Add content after the matched text
+    /// - 'replace': Use only for specific, targeted replacements where you need
+    ///   to modify just the first match.
+    /// - 'replace_all': Should be used for renaming variables, functions,
+    ///   types, or any widespread replacements across the file. This is the
+    ///   recommended choice for consistent refactoring operations as it ensures
+    ///   all occurrences are updated.
+    /// - 'swap': Replace the matched text with another text (search for the
+    ///   second text and swap them)
     pub operation: PatchOperation,
 
     /// The content to use for the operation (replacement text, line to
@@ -646,15 +661,27 @@ impl ToolsDiscriminants {
 }
 
 impl TryFrom<ToolCallFull> for Tools {
-    type Error = serde_json::Error;
+    type Error = ToolCallArgumentError;
 
     fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
-        let object = json!({
-            "name": value.name.to_string(),
-            "arguments": value.arguments
-        });
+        let arg = if value.arguments.is_null() {
+            // Note: If the arguments are null, we use an empty object.
+            // This is a workaround for eserde, which doesn't provide
+            // detailed error messages when required fields are missing.
+            "{}".to_string()
+        } else {
+            value.arguments.to_string()
+        };
 
-        serde_json::from_value(object)
+        let json_str = format!(r#"{{"name": "{}", "arguments": {}}}"#, value.name, arg);
+        eserde::json::from_str(&json_str).map_err(ToolCallArgumentError::from)
+    }
+}
+
+impl TryFrom<&ToolCallFull> for AgentInput {
+    type Error = ToolCallArgumentError;
+    fn try_from(value: &ToolCallFull) -> Result<Self, Self::Error> {
+        eserde::json::from_str(&value.arguments.to_string()).map_err(ToolCallArgumentError::from)
     }
 }
 
@@ -710,5 +737,25 @@ mod tests {
             .join("\n");
 
         insta::assert_snapshot!(tools);
+    }
+
+    #[test]
+    fn test_tool_deser_failure() {
+        let tool_call = ToolCallFull::new("forge_tool_fs_create".into());
+        let result = Tools::try_from(tool_call);
+        insta::assert_snapshot!(result.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn test_correct_deser() {
+        let tool_call = ToolCallFull::new("forge_tool_fs_create".into()).arguments(json!({
+            "path": "/some/path/foo.txt",
+            "content": "Hello, World!",
+        }));
+        let result = Tools::try_from(tool_call);
+        assert!(result.is_ok());
+        assert!(
+            matches!(result.unwrap(), Tools::ForgeToolFsCreate(data) if data.path == "/some/path/foo.txt" && data.content == "Hello, World!")
+        );
     }
 }

@@ -2,12 +2,13 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use colored::Colorize;
-use forge_api::Environment;
+use forge_api::{Environment, LoginInfo};
 use forge_tracker::VERSION;
 
 use crate::model::ForgeCommandManager;
 use crate::state::UIState;
 
+#[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
     Items(String, Option<String>),
@@ -189,5 +190,77 @@ impl From<&ForgeCommandManager> for Info {
             .add_key_value("<OPT+ENTER>", "Insert new line (multiline input)");
 
         info
+    }
+}
+
+impl From<&LoginInfo> for Info {
+    fn from(login_info: &LoginInfo) -> Self {
+        let mut info = Info::new().add_title("User");
+
+        if let Some(email) = &login_info.email {
+            info = info.add_key_value("Login", email);
+        }
+
+        info = info.add_key_value("Key", truncate_key(&login_info.api_key_masked));
+
+        info
+    }
+}
+
+fn truncate_key(key: &str) -> String {
+    if key.len() <= 20 {
+        key.to_string()
+    } else {
+        format!("{}...{}", &key[..=12], &key[key.len() - 4..])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_api::LoginInfo;
+    use pretty_assertions::assert_eq;
+
+    use crate::info::Info;
+
+    #[test]
+    fn test_login_info_display() {
+        let fixture = LoginInfo {
+            api_key: "test-key".to_string(),
+            api_key_name: "Test Key".to_string(),
+            api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
+            email: Some("test@example.com".to_string()),
+            name: Some("Test User".to_string()),
+            auth_provider_id: Some("provider-id".to_string()),
+        };
+
+        let actual = Info::from(&fixture);
+
+        let expected = Info::new()
+            .add_title("User")
+            .add_key_value("Login", "test@example.com")
+            .add_key_value("Key", "sk-fg-v1-abcd...1234");
+
+        assert_eq!(actual.sections, expected.sections);
+    }
+
+    #[test]
+    fn test_login_info_display_no_name() {
+        let fixture = LoginInfo {
+            api_key: "test-key".to_string(),
+            api_key_name: "Test Key".to_string(),
+            api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
+            email: Some("test@example.com".to_string()),
+            name: None,
+            auth_provider_id: Some("provider-id".to_string()),
+        };
+
+        let actual = Info::from(&fixture);
+
+        let expected = Info::new()
+            .add_title("User")
+            .add_key_value("Login", "test@example.com")
+            .add_key_value("Key", "sk-fg-v1-abcd...1234");
+
+        assert_eq!(actual.sections, expected.sections);
     }
 }

@@ -8,7 +8,7 @@ use tokio::fs;
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{Command, ForgeCommandManager};
 use crate::prompt::ForgePrompt;
-use crate::TRACKER;
+use crate::tracker;
 
 /// Console implementation for handling user input via command line.
 #[derive(Debug)]
@@ -42,7 +42,7 @@ impl Console {
                 ReadResult::Exit => return Ok(Command::Exit),
                 ReadResult::Empty => continue,
                 ReadResult::Success(text) => {
-                    tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::Prompt(text.clone())));
+                    tracker::prompt(text.clone());
                     match self.command.parse(&text) {
                         Ok(command) => return Ok(command),
                         Err(error) => {

@@ -161,6 +161,45 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub max_tokens: Option<MaxTokens>,
+
+    /// Reasoning configuration for the agent.
+    /// Controls the reasoning capabilities of the agent
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub reasoning: Option<ReasoningConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema, PartialEq)]
+pub struct ReasoningConfig {
+    /// Controls the effort level of the agent's reasoning
+    /// supported by openrouter and forge provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<Effort>,
+
+    /// Controls how many tokens the model can spend thinking.
+    /// supported by openrouter, anthropic and forge provider
+    /// should be greater then 1024 but less than overall max_tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<usize>,
+
+    /// Model thinks deeply, but the reasoning is hidden from you.
+    /// supported by openrouter and forge provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude: Option<bool>,
+
+    /// Enables reasoning at the “medium” effort level with no exclusions.
+    /// supported by openrouter, anthropic and forge provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Effort {
+    High,
+    Medium,
+    Low,
 }
 
 fn merge_opt_vec<T>(base: &mut Option<Vec<T>>, other: Option<Vec<T>>) {
@@ -194,6 +233,7 @@ impl Agent {
             top_p: Default::default(),
             top_k: Default::default(),
             max_tokens: Default::default(),
+            reasoning: Default::default(),
         }
     }
 

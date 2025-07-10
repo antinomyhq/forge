@@ -1,6 +1,8 @@
 mod agent;
 mod agent_executor;
 mod app;
+mod app_config;
+mod authenticator;
 mod compact;
 mod error;
 pub mod fmt;
@@ -16,5 +18,7 @@ mod utils;
 mod walker;
 
 pub use app::*;
+pub use app_config::*;
+pub use error::*;
 pub use services::*;
 pub use walker::*;

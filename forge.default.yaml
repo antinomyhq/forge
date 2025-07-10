@@ -2,6 +2,8 @@
 variables:
   operating_agent: Forge
 
+max_requests_per_turn: 50
+max_tool_failure_per_turn: 3
 top_p: 0.8
 top_k: 30
 max_tokens: 20480
@@ -38,6 +40,8 @@ agents:
       {{else}}
       <task>{{event.value}}</task>
       {{/if}}
+    reasoning:
+      enabled: true
     tools:
       - forge_tool_fs_read
       - forge_tool_fs_create

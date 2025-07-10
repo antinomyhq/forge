@@ -192,26 +192,30 @@ fn create_all_subscriptions_section(conversation: &Conversation) -> Element {
 fn create_events_section(conversation: &Conversation) -> Element {
     let section = Element::new("div.section").append(Element::new("h2").text("Events"));
 
-    conversation.events.iter().fold(section, |section, event| {
-        let event_div = Element::new("div.event")
-            .append(
-                Element::new("div.event-header")
-                    .append(Element::new("h3").text(&event.name))
-                    .append(Element::new("span").text(format!("ID: {}", event.id))),
-            )
-            .append(
-                Element::new("div")
-                    .append(Element::new("strong").text("Value"))
-                    .append(Element::new("pre").text(&event.value)),
-            )
-            .append(
-                Element::new("div")
-                    .append(Element::new("strong").text("Timestamp"))
-                    .append(Element::new("pre").text(event.timestamp.to_string())),
-            );
+    conversation
+        .events
+        .iter()
+        .filter(|e| e.value.is_some())
+        .fold(section, |section, event| {
+            let event_div = Element::new("div.event")
+                .append(
+                    Element::new("div.event-header")
+                        .append(Element::new("h3").text(&event.name))
+                        .append(Element::new("span").text(format!("ID: {}", event.id))),
+                )
+                .append(
+                    Element::new("div")
+                        .append(Element::new("strong").text("Value"))
+                        .append(Element::new("pre").text(event.value.clone().unwrap_or_default())),
+                )
+                .append(
+                    Element::new("div")
+                        .append(Element::new("strong").text("Timestamp"))
+                        .append(Element::new("pre").text(event.timestamp.to_string())),
+                );
 
-        section.append(event_div)
-    })
+            section.append(event_div)
+        })
 }
 
 fn create_conversation_context_section(conversation: &Conversation) -> Element {

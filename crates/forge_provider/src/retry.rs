@@ -17,6 +17,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if is_api_transport_error(&error)
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
+        || is_empty_error(&error)
     {
         return DomainError::Retryable(error).into();
     }
@@ -83,6 +84,15 @@ fn is_api_transport_error(error: &anyhow::Error) -> bool {
             Error::Response(error) => has_transport_error_code(error),
             _ => false,
         })
+}
+
+fn is_empty_error(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<Error>().is_some_and(|e| match e {
+        Error::Response(error) => {
+            error.message.is_none() && error.code.is_none() && error.error.is_none()
+        }
+        _ => false,
+    })
 }
 
 fn is_req_transport_error(error: &anyhow::Error) -> bool {
@@ -303,5 +313,94 @@ mod tests {
         // Verify - should be retryable because ETIMEDOUT is a transport error found at
         // level 4
         assert!(is_retryable(actual));
+    }
+
+    #[test]
+    fn test_is_empty_error_with_default_error_response() {
+        // Setup
+        let fixture = anyhow::Error::from(Error::Response(ErrorResponse::default()));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
+
+        // Verify
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_is_empty_error_with_partially_empty_error_response() {
+        // Setup
+        let fixture = anyhow::Error::from(Error::Response(ErrorResponse {
+            message: None,
+            error: None,
+            code: None,
+
+            errno: Some(0),
+            metadata: vec![("Blah".to_string(), serde_json::Value::Null)]
+                .into_iter()
+                .collect(),
+            syscall: Some("test_syscall".to_string()),
+            type_of: Some(serde_json::Value::Null),
+            param: Some(serde_json::Value::Null),
+        }));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_is_empty_error_with_message_populated() {
+        // Setup
+        let fixture = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().message("Some error message".to_string()),
+        ));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
+
+        // Verify
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_empty_error_with_code_populated() {
+        // Setup
+        let fixture = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(500)),
+        ));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
+
+        // Verify
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_empty_error_with_nested_error_populated() {
+        // Setup
+        let nested_error = ErrorResponse::default().message("Nested error".to_string());
+        let fixture = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().error(Box::new(nested_error)),
+        ));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
+
+        // Verify
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_empty_error_with_non_response_error() {
+        // Setup
+        let fixture = anyhow::Error::from(Error::InvalidStatusCode(404));
+
+        // Execute
+        let actual = is_empty_error(&fixture);
+
+        // Verify
+        assert!(!actual);
     }
 }

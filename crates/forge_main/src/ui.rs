@@ -6,11 +6,11 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event, Model, ModelId,
-    Workflow, API,
+    AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    InterruptionReason, Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Scope};
+use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -28,7 +28,7 @@ use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::state::UIState;
 use crate::update::on_update;
-use crate::{banner, TRACKER};
+use crate::{banner, tracker, TRACKER};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -48,7 +48,7 @@ impl PartialEvent {
 
 impl From<PartialEvent> for Event {
     fn from(value: PartialEvent) -> Self {
-        Event::new(value.name, value.value)
+        Event::new(value.name, Some(value.value))
     }
 }
 
@@ -133,7 +133,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     fn create_task_event<V: Into<Value>>(
         &self,
-        content: V,
+        content: Option<V>,
         event_name: &str,
     ) -> anyhow::Result<Event> {
         let operating_agent = &self.state.operating_agent;
@@ -189,7 +189,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
-            self.on_message(prompt).await?;
+            self.on_message(Some(prompt)).await?;
             return Ok(());
         }
 
@@ -217,9 +217,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                                     TRACKER.set_conversation(conversation).await;
                                 }
                             }
-                            tokio::spawn(
-                                TRACKER.dispatch(forge_tracker::EventKind::Error(format!("{error:?}"))),
-                            );
+                            tracker::error(&error);
                             tracing::error!(error = ?error);
                             self.spinner.stop(None)?;
                             eprintln!("{}", TitleFormat::error(format!("{error:?}")));
@@ -328,12 +326,20 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                let info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+                let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+
+                // Add user information if available
+                if let Ok(config) = self.api.app_config().await {
+                    if let Some(login_info) = &config.key_info {
+                        info = info.extend(Info::from(login_info));
+                    }
+                }
+
                 self.writeln(info)?;
             }
             Command::Message(ref content) => {
                 self.spinner.start(None)?;
-                self.on_message(content.clone()).await?;
+                self.on_message(Some(content.clone())).await?;
             }
             Command::Forge => {
                 self.on_agent_change(AgentId::FORGE).await?;
@@ -423,6 +429,27 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 if let Ok(selected_agent) = select_prompt.prompt() {
                     self.on_agent_change(selected_agent.id).await?;
                 }
+            }
+            Command::Login => {
+                self.spinner.start(Some("Logging in"))?;
+                self.api.logout().await?;
+                self.login().await?;
+                self.spinner.stop(None)?;
+                let config: AppConfig = self.api.app_config().await?;
+                tracker::login(
+                    config
+                        .key_info
+                        .and_then(|v| v.auth_provider_id)
+                        .unwrap_or_default(),
+                );
+            }
+            Command::Logout => {
+                self.spinner.start(Some("Logging out"))?;
+                self.api.logout().await?;
+                self.spinner.stop(None)?;
+                self.writeln(TitleFormat::info("Logged out"))?;
+                // Exit the UI after logout
+                return Ok(true);
             }
         }
 
@@ -613,6 +640,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
+        let provider = self.init_provider().await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(
@@ -632,12 +660,46 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(base_workflow).provider(self.api.environment().provider);
+        self.state = UIState::new(base_workflow).provider(provider);
 
         Ok(workflow)
     }
+    async fn init_provider(&mut self) -> Result<Provider> {
+        match self.api.provider().await {
+            // Use the forge key if available in the config.
+            Ok(provider) => Ok(provider),
+            Err(_) => {
+                // If no key is available, start the login flow.
+                self.login().await?;
+                let config: AppConfig = self.api.app_config().await?;
+                tracker::login(
+                    config
+                        .key_info
+                        .and_then(|v| v.auth_provider_id)
+                        .unwrap_or_default(),
+                );
+                self.api.provider().await
+            }
+        }
+    }
+    async fn login(&mut self) -> Result<()> {
+        let auth = self.api.init_login().await?;
+        open::that(auth.auth_url.as_str()).ok();
+        self.writeln(TitleFormat::info(
+            format!("Login here: {}", auth.auth_url).as_str(),
+        ))?;
+        self.spinner.start(Some("Waiting for login to complete"))?;
 
-    async fn on_message(&mut self, content: String) -> Result<()> {
+        self.api.login(&auth).await?;
+
+        self.spinner.stop(None)?;
+
+        self.writeln(TitleFormat::info("Login completed".to_string().as_str()))?;
+
+        Ok(())
+    }
+
+    async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
@@ -659,7 +721,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
         while let Some(message) = stream.next().await {
             match message {
-                Ok(message) => self.handle_chat_response(message)?,
+                Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
                     self.spinner.stop(None)?;
                     return Err(err);
@@ -689,6 +751,9 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                             TitleFormat::action("Conversation HTML dump created".to_string())
                                 .sub_title(path.to_string()),
                         )?;
+
+                        open::that(path.as_str()).ok();
+
                         return Ok(());
                     }
                 } else {
@@ -701,7 +766,9 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                         TitleFormat::action("Conversation JSON dump created".to_string())
                             .sub_title(path.to_string()),
                     )?;
-                }
+
+                    open::that(path.as_str()).ok();
+                };
             } else {
                 return Err(anyhow::anyhow!("Could not create dump"))
                     .context(format!("Conversation: {conversation_id} was not found"));
@@ -710,16 +777,23 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
+    async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         match message {
-            ChatResponse::Text { mut text, is_complete, is_md, is_summary } => {
+            ChatResponse::Text { mut text, is_complete, is_md } => {
                 if is_complete && !text.trim().is_empty() {
-                    if is_md || is_summary {
+                    if is_md {
                         tracing::info!(message = %text, "Agent Response");
                         text = self.markdown.render(&text);
                     }
 
                     self.writeln(text)?;
+                }
+            }
+            ChatResponse::Summary { content } => {
+                if !content.trim().is_empty() {
+                    tracing::info!(message = %content, "Agent Completion Response");
+                    let rendered = self.markdown.render(&content);
+                    self.writeln(rendered)?;
                 }
             }
             ChatResponse::ToolCallStart(_) => {
@@ -736,7 +810,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 } else {
                     ToolCallPayload::new(toolcall_result.name.to_string())
                 };
-                tokio::spawn(TRACKER.dispatch(forge_tracker::EventKind::ToolCall(payload)));
+                tracker::tool_call(payload);
 
                 self.spinner.start(None)?;
                 if !self.cli.verbose {
@@ -750,12 +824,57 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                     .map(|cost| cost + self.state.usage.cost.as_ref().map_or(0.0, |c| *c));
                 self.state.usage = usage;
             }
+            ChatResponse::RetryAttempt { cause, duration: _ } => {
+                self.spinner.start(Some("Retrying"))?;
+                self.writeln(TitleFormat::error(cause.as_str()))?;
+                tracker::error_string(cause.into_string());
+            }
+            ChatResponse::Interrupt { reason } => {
+                self.spinner.stop(None)?;
+
+                let title = match reason {
+                    InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
+                        format!("Maximum request ({limit}) per turn achieved")
+                    }
+                    InterruptionReason::MaxToolFailurePerTurnLimitReached { limit } => {
+                        format!("Maximum tool failure limit ({limit}) reached for this turn")
+                    }
+                };
+
+                self.writeln(TitleFormat::action(title))?;
+                self.should_continue().await?;
+            }
+            ChatResponse::Reasoning { content } => {
+                if !content.trim().is_empty() {
+                    self.writeln(content.dimmed())?;
+                }
+            }
         }
         Ok(())
     }
 
+    async fn should_continue(&mut self) -> anyhow::Result<()> {
+        const YES: &str = "yes";
+        const NO: &str = "no";
+        let result = Select::new(
+            "Do you want to continue anyway?",
+            vec![YES, NO].into_iter().map(|s| s.to_string()).collect(),
+        )
+        .with_render_config(
+            RenderConfig::default().with_highlighted_option_prefix(Styled::new("➤")),
+        )
+        .with_starting_cursor(0)
+        .prompt()
+        .map_err(|e| anyhow::anyhow!(e))?;
+        let _: () = if result == YES {
+            self.spinner.start(None)?;
+            Box::pin(self.on_message(None)).await?;
+        };
+        Ok(())
+    }
+
     fn update_model(&mut self, model: ModelId) {
-        tokio::spawn(TRACKER.set_model(model.to_string()));
+        tracker::set_model(model.to_string());
         self.state.model = Some(model);
     }
 
@@ -841,6 +960,7 @@ mod tests {
             context_length,
             tools_supported,
             supports_parallel_tool_calls: None,
+            supports_reasoning: None,
         }
     }
 

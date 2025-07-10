@@ -9,7 +9,8 @@ expression: actual
     "description": "A test model",
     "context_length": 4096,
     "tools_supported": true,
-    "supports_parallel_tool_calls": true
+    "supports_parallel_tool_calls": true,
+    "supports_reasoning": false
   },
   {
     "id": "model-2",
@@ -17,6 +18,7 @@ expression: actual
     "description": "Another test model",
     "context_length": 8192,
     "tools_supported": true,
-    "supports_parallel_tool_calls": false
+    "supports_parallel_tool_calls": false,
+    "supports_reasoning": false
   }
 ]

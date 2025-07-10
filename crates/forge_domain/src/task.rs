@@ -4,7 +4,7 @@ use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, eserde::Deserialize, Default, JsonSchema)]
 pub enum Status {
     #[default]
     Pending,

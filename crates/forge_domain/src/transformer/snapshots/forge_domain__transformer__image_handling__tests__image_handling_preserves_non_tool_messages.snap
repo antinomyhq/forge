@@ -10,16 +10,19 @@ before:
         content: System message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - text:
         role: User
         content: User message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - text:
         role: Assistant
         content: Assistant message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - tool:
         name: image_tool
         call_id: call_preserve
@@ -36,16 +39,19 @@ after:
         content: System message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - text:
         role: User
         content: User message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - text:
         role: Assistant
         content: Assistant message
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - tool:
         name: image_tool
         call_id: call_preserve
@@ -58,6 +64,7 @@ after:
         content: "[Here is the image attachment for ID 0]"
         tool_calls: ~
         model: ~
+        reasoning_details: ~
     - image:
         url: "data:image/png;base64,test_image"
         mime_type: image/png

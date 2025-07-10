@@ -9,6 +9,7 @@ mod fs_read;
 mod fs_remove;
 mod fs_snap;
 mod fs_write;
+mod http;
 mod inquire;
 mod mcp_client;
 mod mcp_server;

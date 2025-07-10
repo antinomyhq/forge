@@ -28,6 +28,14 @@ pub struct Request {
     top_k: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<Thinking>,
+}
+
+#[derive(Serialize, Default)]
+pub struct Thinking {
+    r#type: String,
+    budget_tokens: u64,
 }
 
 impl TryFrom<forge_domain::Context> for Request {
@@ -72,6 +80,15 @@ impl TryFrom<forge_domain::Context> for Request {
             top_p: request.top_p.map(|t| t.value()),
             top_k: request.top_k.map(|t| t.value() as u64),
             tool_choice: request.tool_choice.map(ToolChoice::from),
+            thinking: request.reasoning.and_then(|reasoning| {
+                match (reasoning.enabled, reasoning.max_tokens) {
+                    (Some(true), Some(max_tokens)) => Some(Thinking {
+                        r#type: "enabled".to_string(),
+                        budget_tokens: max_tokens as u64,
+                    }),
+                    _ => None,
+                }
+            }),
             ..Default::default()
         })
     }
@@ -103,6 +120,18 @@ impl TryFrom<ContextMessage> for Message {
                         + 1,
                 );
 
+                if let Some(reasoning) = chat_message.reasoning_details {
+                    if let Some((sig, text)) = reasoning.into_iter().find_map(|reasoning| {
+                        match (reasoning.signature, reasoning.text) {
+                            (Some(sig), Some(text)) => Some((sig, text)),
+                            _ => None,
+                        }
+                    }) {
+                        content
+                            .push(Content::Thinking { signature: Some(sig), thinking: Some(text) });
+                    }
+                }
+
                 if !chat_message.content.is_empty() {
                     // note: Anthropic does not allow empty text content.
                     content.push(Content::Text { text: chat_message.content, cache_control: None });
@@ -112,6 +141,7 @@ impl TryFrom<ContextMessage> for Message {
                         content.push(tool_call.try_into()?);
                     }
                 }
+
                 match chat_message.role {
                     forge_domain::Role::User => Message { role: Role::User, content },
                     forge_domain::Role::Assistant => Message { role: Role::Assistant, content },
@@ -183,6 +213,12 @@ enum Content {
         is_error: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<CacheControl>,
+    },
+    Thinking {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        thinking: Option<String>,
     },
 }
 

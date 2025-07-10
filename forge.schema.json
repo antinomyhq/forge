@@ -25,6 +25,15 @@
         "null"
       ]
     },
+    "max_requests_per_turn": {
+      "description": "Maximum number of requests that can be made in a single turn",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 0.0
+    },
     "max_tokens": {
       "description": "Maximum number of tokens the model can generate for all agents\n\nControls the maximum length of the model's response. - Lower values (e.g., 100) limit response length for concise outputs - Higher values (e.g., 4000) allow for longer, more detailed responses - Valid range is 1 to 100,000 - If not specified, each agent's individual setting or the model provider's default will be used",
       "anyOf": [
@@ -35,6 +44,15 @@
           "type": "null"
         }
       ]
+    },
+    "max_tool_failure_per_turn": {
+      "description": "Maximum number of times a tool can fail before the orchestrator forces the completion.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 0.0
     },
     "max_walker_depth": {
       "description": "Maximum depth to which the file walker should traverse for all agents If not provided, each agent's individual setting will be used",
@@ -183,6 +201,17 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "reasoning": {
+          "description": "Reasoning configuration for the agent. Controls the reasoning capabilities of the agent",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReasoningConfig"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "subscribe": {
@@ -371,11 +400,58 @@
         }
       }
     },
+    "Effort": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
     "MaxTokens": {
       "description": "A newtype for max_tokens values with built-in validation\n\nMax tokens controls the maximum number of tokens the model can generate: - Lower values (e.g., 100) limit response length for concise outputs - Higher values (e.g., 4000) allow for longer, more detailed responses - Valid range is 1 to 100,000 (reasonable upper bound for most models) - If not specified, the model provider's default will be used",
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
+    },
+    "ReasoningConfig": {
+      "type": "object",
+      "properties": {
+        "effort": {
+          "description": "Controls the effort level of the agent's reasoning supported by openrouter and forge provider",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Effort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "description": "Enables reasoning at the “medium” effort level with no exclusions. supported by openrouter, anthropic and forge provider",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "exclude": {
+          "description": "Model thinks deeply, but the reasoning is hidden from you. supported by openrouter and forge provider",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "max_tokens": {
+          "description": "Controls how many tokens the model can spend thinking. supported by openrouter, anthropic and forge provider should be greater then 1024 but less than overall max_tokens",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        }
+      }
     },
     "String": {
       "type": "string"

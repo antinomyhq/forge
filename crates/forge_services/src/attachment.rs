@@ -76,8 +76,7 @@ pub mod tests {
     use bytes::Bytes;
     use forge_app::AttachmentService;
     use forge_domain::{
-        AttachmentContent, CommandOutput, Environment, Provider, ToolDefinition, ToolName,
-        ToolOutput,
+        AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_snaps::Snapshot;
     use serde_json::Value;
@@ -103,7 +102,6 @@ pub mod tests {
                 home: Some(PathBuf::from("/home/test")),
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/base"),
-                provider: Provider::open_router("test-key"),
                 retry_config: Default::default(),
                 max_search_lines: 25,
                 fetch_truncation_limit: 0,
@@ -113,6 +111,10 @@ pub mod tests {
                 http: Default::default(),
                 max_file_size: 10_000_000,
             }
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
         }
     }
 
@@ -511,6 +513,10 @@ pub mod tests {
     impl EnvironmentInfra for MockCompositeService {
         fn get_environment(&self) -> Environment {
             self.env_service.get_environment()
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
         }
     }
 

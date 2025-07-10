@@ -66,9 +66,30 @@ pub enum Choice {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseMessage {
     pub content: Option<String>,
+    pub reasoning: Option<String>,
     pub role: Option<String>,
     pub tool_calls: Option<Vec<ToolCall>>,
     pub refusal: Option<String>,
+    pub reasoning_details: Option<Vec<ReasoningDetail>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ReasoningDetail {
+    pub r#type: Option<String>,
+    pub text: Option<String>,
+    pub signature: Option<String>,
+}
+
+impl From<ReasoningDetail> for forge_domain::ReasoningFull {
+    fn from(detail: ReasoningDetail) -> Self {
+        forge_domain::ReasoningFull { text: detail.text, signature: detail.signature }
+    }
+}
+
+impl From<ReasoningDetail> for forge_domain::ReasoningPart {
+    fn from(detail: ReasoningDetail) -> Self {
+        forge_domain::ReasoningPart { text: detail.text, signature: detail.signature }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -126,6 +147,23 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                     .clone()
                                     .and_then(|s| FinishReason::from_str(&s).ok()),
                             );
+                            if let Some(reasoning) = &message.reasoning {
+                                resp = resp.reasoning(Content::full(reasoning.clone()));
+                            }
+
+                            if let Some(reasoning_details) = &message.reasoning_details {
+                                let converted_details: Vec<forge_domain::ReasoningFull> =
+                                    reasoning_details
+                                        .clone()
+                                        .into_iter()
+                                        .map(forge_domain::ReasoningFull::from)
+                                        .collect();
+
+                                resp = resp.add_reasoning_detail(forge_domain::Reasoning::Full(
+                                    converted_details,
+                                ));
+                            }
+
                             if let Some(tool_calls) = &message.tool_calls {
                                 for tool_call in tool_calls {
                                     resp = resp.add_tool_call(ToolCallFull {
@@ -152,6 +190,23 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                     .clone()
                                     .and_then(|s| FinishReason::from_str(&s).ok()),
                             );
+
+                            if let Some(reasoning) = &delta.reasoning {
+                                resp = resp.reasoning(Content::part(reasoning.clone()));
+                            }
+
+                            if let Some(reasoning_details) = &delta.reasoning_details {
+                                let converted_details: Vec<forge_domain::ReasoningPart> =
+                                    reasoning_details
+                                        .clone()
+                                        .into_iter()
+                                        .map(forge_domain::ReasoningPart::from)
+                                        .collect();
+                                resp = resp.add_reasoning_detail(forge_domain::Reasoning::Part(
+                                    converted_details,
+                                ));
+                            }
+
                             if let Some(tool_calls) = &delta.tool_calls {
                                 for tool_call in tool_calls {
                                     resp = resp.add_tool_call(ToolCallPart {
@@ -210,6 +265,12 @@ mod tests {
     #[test]
     fn test_antinomy_response_event() {
         let event = "{\"id\":\"gen-1739949430-JZMcABaj4fg8oFDtRNDZ\",\"provider\":\"OpenAI\",\"model\":\"openai/gpt-4o-mini\",\"object\":\"chat.completion.chunk\",\"created\":1739949430,\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"index\":0,\"id\":\"call_bhjvz9w48ov4DSRhM15qLMmh\",\"type\":\"function\",\"function\":{\"name\":\"forge_tool_process_shell\",\"arguments\":\"\"}}],\"refusal\":null},\"logprobs\":null,\"finish_reason\":null,\"native_finish_reason\":null}],\"system_fingerprint\":\"fp_00428b782a\"}";
+        assert!(Fixture::test_response_compatibility(event));
+    }
+
+    #[test]
+    fn test_reasoning_response_event() {
+        let event = "{\"id\":\"gen-1751626123-nYRpHzdA0thRXF0LoQi0\",\"provider\":\"Google\",\"model\":\"anthropic/claude-3.7-sonnet:thinking\",\"object\":\"chat.completion.chunk\",\"created\":1751626123,\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\",\"reasoning\":\"I need to check\",\"reasoning_details\":[{\"type\":\"reasoning.text\",\"text\":\"I need to check\"}]},\"finish_reason\":null,\"native_finish_reason\":null,\"logprobs\":null}]}";
         assert!(Fixture::test_response_compatibility(event));
     }
 

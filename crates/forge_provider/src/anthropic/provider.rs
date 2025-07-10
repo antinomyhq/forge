@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use derive_builder::Builder;
-use forge_domain::{ChatCompletionMessage, Context, Model, ModelId, ResultStream};
+use forge_domain::{ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
@@ -9,6 +9,7 @@ use tracing::debug;
 
 use super::request::Request;
 use super::response::{EventData, ListModelResponse};
+use crate::anthropic::transforms::ReasoningTransform;
 use crate::error::Error;
 use crate::utils::format_http_context;
 
@@ -64,6 +65,9 @@ impl Anthropic {
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let max_tokens = context.max_tokens.unwrap_or(4000);
+        // transform the context to match the request format
+        let context = ReasoningTransform.transform(context);
+
         let request = Request::try_from(context)?
             .model(model.as_str().to_string())
             .stream(true)
@@ -269,6 +273,7 @@ mod tests {
             ))
             .add_message(ContextMessage::assistant(
                 "here is the system call.",
+                None,
                 Some(vec![ToolCallFull {
                     name: ToolName::new("math"),
                     call_id: Some(ToolCallId::new("math-1")),

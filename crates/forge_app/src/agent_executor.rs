@@ -60,7 +60,7 @@ impl<S: Services> AgentExecutor<S> {
         let app = crate::ForgeApp::new(self.services.clone());
         let mut response_stream = app
             .chat(ChatRequest::new(
-                Event::new(format!("{agent_id}/user_task_init"), task),
+                Event::new(format!("{agent_id}/user_task_init"), Some(task)),
                 conversation.id,
             ))
             .await?;
@@ -69,8 +69,8 @@ impl<S: Services> AgentExecutor<S> {
         while let Some(message) = response_stream.next().await {
             let message = message?;
             match &message {
-                ChatResponse::Text { text, is_summary, .. } if *is_summary => {
-                    return Ok(ToolOutput::text(text));
+                ChatResponse::Summary { content } => {
+                    return Ok(ToolOutput::text(content));
                 }
                 _ => {
                     context.send(message).await?;

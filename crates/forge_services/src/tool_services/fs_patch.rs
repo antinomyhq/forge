@@ -59,6 +59,8 @@ enum Error {
     NoMatch(String),
     #[error("Could not find swap target text: {0}")]
     NoSwapTarget(String),
+    #[error("Multiple matches found for search text: '{0}'. Either provide a more specific search pattern or use replace_all to replace all occurrences.")]
+    MultipleMatches(String),
 }
 
 fn apply_replacement(
@@ -76,7 +78,7 @@ fn apply_replacement(
         }
     }) {
         // Find the exact match to operate on
-        let patch = Range::find_exact(&haystack, needle.as_str())
+        let patch: Range = Range::find_exact(&haystack, needle.as_str())
             .ok_or_else(|| Error::NoMatch(needle.to_string()))?;
 
         // Apply the operation based on its type
@@ -89,21 +91,37 @@ fn apply_replacement(
                 &haystack[patch.start..]
             )),
 
+            // Replace all occurrences of the matched text with new content
+            PatchOperation::ReplaceAll => Ok(haystack.replace(needle.as_str(), content)),
+
             // Append content after the matched text
             PatchOperation::Append => Ok(format!(
-                "{}{}{}",
+                "{}\n{}{}",
                 &haystack[..patch.end()],
                 content,
                 &haystack[patch.end()..]
             )),
 
             // Replace matched text with new content
-            PatchOperation::Replace => Ok(format!(
-                "{}{}{}",
-                &haystack[..patch.start],
-                content,
-                &haystack[patch.end()..]
-            )),
+            PatchOperation::Replace => {
+                // Check if there are multiple matches
+                let mut match_count = 0;
+                let mut search_start = 0;
+                while let Some(pos) = haystack[search_start..].find(needle.as_str()) {
+                    match_count += 1;
+                    if match_count > 1 {
+                        return Err(Error::MultipleMatches(needle.to_string()));
+                    }
+                    search_start += pos + needle.len();
+                }
+
+                Ok(format!(
+                    "{}{}{}",
+                    &haystack[..patch.start],
+                    content,
+                    &haystack[patch.end()..]
+                ))
+            }
 
             // Swap with another text in the source
             PatchOperation::Swap => {
@@ -151,11 +169,11 @@ fn apply_replacement(
     } else {
         match operation {
             // Append to the end of the file
-            PatchOperation::Append => Ok(format!("{haystack}{content}")),
+            PatchOperation::Append => Ok(format!("{haystack}\n{content}")),
             // Prepend to the beginning of the file
             PatchOperation::Prepend => Ok(format!("{content}{haystack}")),
             // Replace is equivalent to completely replacing the file
-            PatchOperation::Replace => Ok(content.to_string()),
+            PatchOperation::Replace | PatchOperation::ReplaceAll => Ok(content.to_string()),
             // Swap doesn't make sense with empty search - keep source unchanged
             PatchOperation::Swap => Ok(haystack),
         }
@@ -222,6 +240,32 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
+    fn test_apply_replacement_replace_multiple_matches_error() {
+        let source = "test test test";
+        let search = Some("test".to_string());
+        let operation = PatchOperation::Replace;
+        let content = "replaced";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Multiple matches found for search text: 'test'. Either provide a more specific search pattern or use replace_all to replace all occurrences."));
+    }
+
+    #[test]
+    fn test_apply_replacement_replace_single_match_success() {
+        let source = "hello world test";
+        let search = Some("world".to_string());
+        let operation = PatchOperation::Replace;
+        let content = "universe";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "hello universe test");
+    }
+
+    #[test]
     fn test_apply_replacement_prepend() {
         let source = "b\nc\nd";
         let search = Some("b".to_string());
@@ -262,7 +306,7 @@ mod tests {
         let content = " there";
 
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "hello there world");
+        assert_eq!(result.unwrap(), "hello\n there world");
     }
 
     #[test]
@@ -273,7 +317,7 @@ mod tests {
         let content = " suffix";
 
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "hello world suffix");
+        assert_eq!(result.unwrap(), "hello world\n suffix");
     }
 
     #[test]
@@ -383,7 +427,11 @@ mod tests {
         let content = "replaced";
 
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "replaced test test");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Multiple matches found for search text: 'test'"));
     }
 
     // Error cases
@@ -448,5 +496,53 @@ mod tests {
 
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
         assert_eq!(result.unwrap(), "héllo univérse 🌍");
+    }
+
+    #[test]
+    fn test_apply_replacement_replace_all_multiple_occurrences() {
+        let source = "test test test";
+        let search = Some("test".to_string());
+        let operation = PatchOperation::ReplaceAll;
+        let content = "replaced";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "replaced replaced replaced");
+    }
+
+    #[test]
+    fn test_apply_replacement_replace_all_no_search() {
+        let source = "hello world";
+        let search = None;
+        let operation = PatchOperation::ReplaceAll;
+        let content = "new content";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "new content");
+    }
+
+    #[test]
+    fn test_apply_replacement_replace_all_empty_search() {
+        let source = "hello world";
+        let search = Some("".to_string());
+        let operation = PatchOperation::ReplaceAll;
+        let content = "new content";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "new content");
+    }
+
+    #[test]
+    fn test_apply_replacement_replace_all_no_match() {
+        let source = "hello world";
+        let search = Some("missing".to_string());
+        let operation = PatchOperation::ReplaceAll;
+        let content = "replacement";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Could not find match for search text: missing"));
     }
 }

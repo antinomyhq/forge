@@ -30,6 +30,7 @@ forge_template.workspace = true
 merge.workspace = true
 convert_case.workspace = true
 backon.workspace = true
+eserde.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
