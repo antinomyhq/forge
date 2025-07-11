@@ -60,7 +60,6 @@ pub struct UI<A, F: Fn() -> A> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    models_cache: Option<Vec<CliModel>>,
     spinner: SpinnerManager,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
@@ -156,7 +155,6 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            models_cache: None,
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
@@ -463,20 +461,12 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     /// canceled
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
         // Fetch available models
-        let models = if let Some(cached) = self.models_cache.clone() {
-            cached
-        } else {
-            // If there's a cache hit miss. Fetch the list and cache the result
-            let models = self
-                .get_models()
-                .await?
-                .into_iter()
-                .map(CliModel)
-                .collect::<Vec<_>>();
-            self.models_cache = Some(models.clone());
-
-            models
-        };
+        let models = self
+            .get_models()
+            .await?
+            .into_iter()
+            .map(CliModel)
+            .collect::<Vec<_>>();
 
         // Create a custom render config with the specified icons
         let render_config = RenderConfig::default()
@@ -859,7 +849,6 @@ fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
         .collect()
 }
 
-#[derive(Clone)]
 struct CliModel(Model);
 
 impl Display for CliModel {
