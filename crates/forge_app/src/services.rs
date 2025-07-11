@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    Environment, File, Image, McpConfig, Model, ModelId, PatchOperation, Pdf, Provider,
+    ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 
@@ -25,6 +25,7 @@ pub struct PatchOutput {
 #[derive(Debug)]
 pub struct ReadOutput {
     pub content: Content,
+    // TODO: move it to file variant
     pub start_line: u64,
     pub end_line: u64,
     pub total_lines: u64,
@@ -33,6 +34,8 @@ pub struct ReadOutput {
 #[derive(Debug)]
 pub enum Content {
     File(String),
+    Image(Image),
+    Pdf(Pdf),
 }
 
 #[derive(Debug)]

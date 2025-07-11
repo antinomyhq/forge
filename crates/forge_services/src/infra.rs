@@ -4,7 +4,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use forge_app::{WalkedFile, Walker};
 use forge_domain::{
-    CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
+    CommandOutput, Environment, McpServerConfig, MimeType, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_snaps::Snapshot;
 use reqwest::header::HeaderMap;
@@ -85,6 +85,7 @@ pub trait FileInfoInfra: Send + Sync {
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool>;
     async fn exists(&self, path: &Path) -> anyhow::Result<bool>;
     async fn file_size(&self, path: &Path) -> anyhow::Result<u64>;
+    async fn mime_type(&self, path: &Path) -> anyhow::Result<MimeType>;
 }
 
 #[async_trait::async_trait]

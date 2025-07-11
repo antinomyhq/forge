@@ -147,6 +147,8 @@ impl Operation {
 
                     forge_domain::ToolOutput::text(elm)
                 }
+                Content::Image(image) => forge_domain::ToolOutput::image(image.clone()),
+                Content::Pdf(pdf) => forge_domain::ToolOutput::pdf(pdf.clone()),
             },
             Operation::FsCreate { input, output } => {
                 let mut elm = if let Some(before) = output.before {
@@ -469,6 +471,9 @@ mod tests {
             }
             ToolValue::Empty => {
                 writeln!(result, "Empty value").unwrap();
+            }
+            ToolValue::Pdf(pdf) => {
+                writeln!(result, "PDF with mime type: {}", pdf.mime_type()).unwrap();
             }
         });
 

@@ -2,7 +2,7 @@ use derive_setters::Setters;
 use forge_template::Element;
 use serde::{Deserialize, Serialize};
 
-use crate::{Image, ToolCallFull, ToolCallId, ToolName};
+use crate::{Image, Pdf, ToolCallFull, ToolCallId, ToolName};
 
 const REFLECTION_PROMPT: &str =
     include_str!("../../../templates/forge-partial-tool-error-reflection.hbs");
@@ -97,6 +97,9 @@ impl ToolOutput {
     pub fn image(img: Image) -> Self {
         ToolOutput { is_error: false, values: vec![ToolValue::Image(img)] }
     }
+    pub fn pdf(pdf: Pdf) -> Self {
+        ToolOutput { is_error: false, values: vec![ToolValue::Pdf(pdf)] }
+    }
 
     pub fn combine_mut(&mut self, value: ToolOutput) {
         self.values.extend(value.values);
@@ -130,6 +133,7 @@ where
 pub enum ToolValue {
     Text(String),
     Image(Image),
+    Pdf(Pdf),
     #[default]
     Empty,
 }
@@ -148,6 +152,7 @@ impl ToolValue {
             ToolValue::Text(text) => Some(text),
             ToolValue::Image(_) => None,
             ToolValue::Empty => None,
+            ToolValue::Pdf(_) => None,
         }
     }
 }

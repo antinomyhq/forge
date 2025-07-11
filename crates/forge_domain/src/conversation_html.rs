@@ -297,6 +297,9 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                     crate::ToolValue::Image(image) => {
                                         Some(Element::new("img").attr("src", image.url()))
                                     }
+                                    crate::ToolValue::Pdf(pdf) => {
+                                        Some(Element::new("pdf").attr("src", pdf.file_data()))
+                                    }
                                     crate::ToolValue::Empty => None,
                                 },
                             ))
@@ -307,6 +310,9 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                             .append(Element::new("strong").text("Image Attachment"))
                             .append(Element::new("img").attr("src", image.url()))
                     }
+                    ContextMessage::Pdf(pdf) => Element::new("div.message-card.message-user")
+                        .append(Element::new("strong").text("Image Attachment"))
+                        .append(Element::new("img").attr("src", pdf.file_data())),
                 }
             }));
 

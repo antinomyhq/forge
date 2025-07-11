@@ -3,7 +3,7 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Environment, McpServerConfig};
+use forge_domain::{CommandOutput, Environment, McpServerConfig, MimeType};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
@@ -135,6 +135,10 @@ impl FileInfoInfra for ForgeInfra {
 
     async fn file_size(&self, path: &Path) -> anyhow::Result<u64> {
         self.file_meta_service.file_size(path).await
+    }
+
+    async fn mime_type(&self, path: &Path) -> anyhow::Result<MimeType> {
+        self.file_meta_service.mime_type(path).await
     }
 }
 
