@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::sync::Arc;
@@ -36,7 +37,13 @@ pub struct ForgeInfra {
     file_meta_service: Arc<ForgeFileMetaService>,
     file_remove_service: Arc<ForgeFileRemoveService<ForgeFileSnapshotService>>,
     create_dirs_service: Arc<ForgeCreateDirsService>,
-    command_executor_service: Arc<ForgeCommandExecutorService>,
+    command_executor_service: Arc<
+        ForgeCommandExecutorService<
+            ForgeInquire,
+            ForgeFileWriteService<ForgeFileSnapshotService>,
+            ForgeFileReadService,
+        >,
+    >,
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
@@ -49,9 +56,13 @@ impl ForgeInfra {
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let http_service = Arc::new(ForgeHttpService::new());
+        let inquire_service = Arc::new(ForgeInquire::new());
+        let file_read_service = Arc::new(ForgeFileReadService::new());
+        let file_write_service =
+            Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone()));
         Self {
-            file_read_service: Arc::new(ForgeFileReadService::new()),
-            file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
+            file_read_service: file_read_service.clone(),
+            file_write_service: file_write_service.clone(),
             file_meta_service: Arc::new(ForgeFileMetaService),
             file_remove_service: Arc::new(ForgeFileRemoveService::new(
                 file_snapshot_service.clone(),
@@ -62,8 +73,11 @@ impl ForgeInfra {
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
                 restricted,
                 env.clone(),
+                inquire_service.clone(),
+                file_write_service.clone(),
+                file_read_service.clone(),
             )),
-            inquire_service: Arc::new(ForgeInquire::new()),
+            inquire_service,
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
             http_service,
@@ -188,19 +202,19 @@ impl UserInfra for ForgeInfra {
         self.inquire_service.prompt_question(question).await
     }
 
-    async fn select_one(
+    async fn select_one<T: Display + Send + Clone + 'static>(
         &self,
         message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<String>> {
+        options: Vec<T>,
+    ) -> anyhow::Result<Option<T>> {
         self.inquire_service.select_one(message, options).await
     }
 
-    async fn select_many(
+    async fn select_many<T: Display + Send + Clone + 'static>(
         &self,
         message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<Vec<String>>> {
+        options: Vec<T>,
+    ) -> anyhow::Result<Option<Vec<T>>> {
         self.inquire_service.select_many(message, options).await
     }
 }

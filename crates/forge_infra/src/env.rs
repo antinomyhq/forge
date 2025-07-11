@@ -1,3 +1,4 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use forge_domain::{Environment, RetryConfig};
@@ -110,6 +111,7 @@ impl ForgeEnvironmentInfra {
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
+            project_hash: project_hash(&cwd),
             cwd,
             shell: self.get_shell_path(),
             base_path: dirs::home_dir()
@@ -148,6 +150,14 @@ impl ForgeEnvironmentInfra {
 
         Some(())
     }
+}
+
+fn project_hash(cwd: &PathBuf) -> String {
+    let mut hasher = DefaultHasher::new();
+    cwd.hash(&mut hasher);
+    let project_hash = hasher.finish();
+
+    format!("{project_hash:x}")
 }
 
 impl EnvironmentInfra for ForgeEnvironmentInfra {

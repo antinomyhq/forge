@@ -1,5 +1,8 @@
-use derive_more::From;
+use std::collections::HashMap;
+
+use derive_more::{Display, From};
 use serde::{Deserialize, Serialize};
+use strum_macros::EnumIter;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,7 +15,10 @@ pub struct InitAuth {
 #[derive(Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key_info: Option<LoginInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub choices: Option<ChoicesConfig>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From)]
@@ -27,4 +33,25 @@ pub struct LoginInfo {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth_provider_id: Option<String>,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Display, PartialEq, EnumIter)]
+#[serde(rename_all = "camelCase")]
+pub enum ChoiceType {
+    Allow,
+    #[default]
+    #[display("Ask every time")]
+    AskEveryTime,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChoicesConfig {
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub execute_shell_commands: HashMap<String, ChoiceType>,
+}
+#[derive(Clone, Debug, Display, EnumIter)]
+pub enum ConfigOption {
+    #[display("Shell Command Execution")]
+    ShellCommandExecution,
 }
