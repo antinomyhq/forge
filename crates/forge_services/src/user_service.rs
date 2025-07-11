@@ -1,11 +1,13 @@
-use crate::HttpInfra;
+use std::sync::Arc;
+
 use bytes::Bytes;
 use forge_app::UserService;
 use forge_domain::{Provider, User};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use crate::HttpInfra;
 
 pub struct ForgeUserService<I> {
     infra: Arc<I>,

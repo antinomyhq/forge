@@ -12,9 +12,9 @@ mod provider;
 mod provider_registry;
 mod template;
 mod tool_services;
+mod user_service;
 mod utils;
 mod workflow;
-mod user_service;
 
 pub use clipper::*;
 pub use discovery::*;

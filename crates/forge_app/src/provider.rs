@@ -1,5 +1,7 @@
 use std::sync::Arc;
+
 use forge_domain::User;
+
 use crate::{AppConfigService, ProviderRegistry, UserService};
 
 pub struct ProviderCoordinator<S> {

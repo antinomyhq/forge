@@ -16,13 +16,13 @@ use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
     ForgeFsSearch, ForgeFsUndo, ForgeShell,
 };
+use crate::user_service::ForgeUserService;
 use crate::workflow::ForgeWorkflowService;
 use crate::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
     FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
     WalkerInfra,
 };
-use crate::user_service::ForgeUserService;
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
@@ -242,7 +242,7 @@ impl<
     fn provider_registry(&self) -> &Self::ProviderRegistry {
         &self.provider_service
     }
-    
+
     fn user_service(&self) -> &Self::UserService {
         &self.user_service
     }
