@@ -614,7 +614,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             // Use the forge key if available in the config.
             Ok(provider) => {
                 self.api
-                    .modify_app_config(|config| {
+                    .update_app_config(|config| {
                         if !config.is_tracked {
                             let auth_provider_id = config
                                 .key_info
