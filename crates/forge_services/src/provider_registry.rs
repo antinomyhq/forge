@@ -1,22 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use bytes::Bytes;
 use forge_app::{AppConfig, ProviderRegistry};
 use forge_domain::{Provider, ProviderUrl};
-use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
-use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-use crate::{EnvironmentInfra, HttpInfra};
+use crate::EnvironmentInfra;
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
-
-#[derive(Deserialize, Serialize)]
-#[serde(rename = "camelCase")]
-struct AuthProviderResponse {
-    auth_provider_id: String,
-}
 
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,
@@ -25,7 +16,7 @@ pub struct ForgeProviderRegistry<F> {
     cache: Arc<RwLock<Option<Provider>>>,
 }
 
-impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRegistry<F> {
+impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra, cache: Arc::new(Default::default()) }
     }
@@ -41,26 +32,17 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRegistry<F> {
         }
         None
     }
-    async fn get_provider(&self, forge_config: AppConfig) -> Option<Provider> {
-        if let Some(forge_key) = &forge_config
-            .key_info
-            .as_ref()
-            .and_then(|v| v.api_key.as_ref())
-        {
-            let provider = Provider::antinomy(forge_key.as_str());
+    fn get_provider(&self, forge_config: AppConfig) -> Option<Provider> {
+        if let Some(forge_key) = &forge_config.key_info {
+            let provider = Provider::antinomy(forge_key.api_key.as_str());
             return Some(override_url(provider, self.provider_url()));
         }
-        resolve_env_provider_with_tracking(
-            self.provider_url(),
-            self.infra.as_ref(),
-            !forge_config.is_tracked,
-        )
-        .await
+        resolve_env_provider(self.provider_url(), self.infra.as_ref())
     }
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + HttpInfra> ProviderRegistry for ForgeProviderRegistry<F> {
+impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
     async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
         if let Some(provider) = self.cache.read().await.as_ref() {
             return Ok(provider.clone());
@@ -68,7 +50,6 @@ impl<F: EnvironmentInfra + HttpInfra> ProviderRegistry for ForgeProviderRegistry
 
         let provider = self
             .get_provider(config)
-            .await
             .context("Failed to detect upstream provider")?;
         self.cache.write().await.replace(provider.clone());
         Ok(provider)
@@ -94,48 +75,6 @@ fn resolve_env_provider<F: EnvironmentInfra>(
             override_url(provider, url.clone())
         })
     })
-}
-
-async fn resolve_env_provider_with_tracking<F: EnvironmentInfra + HttpInfra>(
-    url: Option<ProviderUrl>,
-    infra: &F,
-    needs_track: bool,
-) -> Option<Provider> {
-    // Check for FORGE_KEY first to handle auth provider ID
-    if needs_track {
-        if let Some(forge_key) = infra.get_env_var("FORGE_KEY") {
-            let mut provider = Provider::antinomy(&forge_key);
-            provider = override_url(provider, url.clone());
-
-            // Fetch auth provider ID for FORGE_KEY
-            if let Some(key) = provider.key() {
-                let user_url = format!("{}user", provider.to_base_url());
-                let mut headers = HeaderMap::new();
-                headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-
-                if let Ok(response) = infra
-                    .post(
-                        &user_url,
-                        Bytes::from(
-                            serde_json::to_string(&serde_json::json!({
-                                "apiKey": key
-                            }))
-                            .unwrap_or_default(),
-                        ),
-                        Some(headers),
-                    )
-                    .await
-                {
-                    if let Ok(auth_response) = response.json::<AuthProviderResponse>().await {
-                        provider.set_auth_provider_id(auth_response.auth_provider_id);
-                    }
-                }
-            }
-
-            return Some(provider);
-        }
-    }
-    resolve_env_provider(url, infra)
 }
 
 fn override_url(mut provider: Provider, url: Option<ProviderUrl>) -> Provider {

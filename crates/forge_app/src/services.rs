@@ -1,10 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use forge_domain::{
-    Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
-};
+use forge_domain::{Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, User, Workflow};
 use merge::Merge;
 
 use crate::{AppConfig, InitAuth, LoginInfo, Walker};
@@ -291,6 +287,11 @@ pub trait ProviderRegistry: Send + Sync {
     async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider>;
 }
 
+#[async_trait::async_trait]
+pub trait UserService: Send + Sync {
+    async fn fetch_user(&self, provider: Provider) -> anyhow::Result<User>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -316,6 +317,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AuthService: AuthService;
     type AppConfigService: AppConfigService;
     type ProviderRegistry: ProviderRegistry;
+    type UserService: UserService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -338,6 +340,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn auth_service(&self) -> &Self::AuthService;
     fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
+    fn user_service(&self) -> &Self::UserService;
 }
 
 #[async_trait::async_trait]
@@ -593,5 +596,12 @@ impl<I: Services> AuthService for I {
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
         self.auth_service().login(auth).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> UserService for I {
+    async fn fetch_user(&self, provider: Provider) -> anyhow::Result<User> {
+        self.user_service().fetch_user(provider).await
     }
 }

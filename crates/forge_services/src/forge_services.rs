@@ -22,6 +22,7 @@ use crate::{
     FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
     WalkerInfra,
 };
+use crate::user_service::ForgeUserService;
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
@@ -55,6 +56,7 @@ pub struct ForgeServices<F: McpServerInfra + WalkerInfra> {
     config_service: Arc<ForgeConfigService<F>>,
     auth_service: Arc<AuthService<F>>,
     provider_service: Arc<ForgeProviderRegistry<F>>,
+    user_service: Arc<ForgeUserService<F>>,
 }
 
 impl<
@@ -89,7 +91,8 @@ impl<
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
-        let env_service = Arc::new(ForgeEnvironmentService::new(infra));
+        let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
+        let user_service = Arc::new(ForgeUserService::new(infra.clone()));
         Self {
             conversation_service,
             attachment_service,
@@ -112,6 +115,7 @@ impl<
             auth_service,
             chat_service,
             provider_service,
+            user_service,
         }
     }
 }
@@ -153,6 +157,7 @@ impl<
     type AppConfigService = ForgeConfigService<F>;
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
+    type UserService = ForgeUserService<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -236,5 +241,9 @@ impl<
 
     fn provider_registry(&self) -> &Self::ProviderRegistry {
         &self.provider_service
+    }
+    
+    fn user_service(&self) -> &Self::UserService {
+        &self.user_service
     }
 }

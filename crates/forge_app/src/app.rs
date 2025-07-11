@@ -11,11 +11,7 @@ use crate::orch::Orchestrator;
 use crate::provider::ProviderCoordinator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
-use crate::{
-    AppConfigService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
-};
+use crate::{AppConfigService, AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, InitAuth, ProviderRegistry, ProviderService, Services, Walker, WorkflowService};
 
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the
@@ -207,7 +203,7 @@ impl<S: Services> ForgeApp<S> {
     pub async fn logout(&self) -> Result<()> {
         self.authenticator.logout().await
     }
-    pub async fn get_provider(&self) -> Result<Provider> {
+    pub async fn get_provider(&self) -> Result<User> {
         self.provider_coordinator.get_provider().await
     }
 }

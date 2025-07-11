@@ -10,7 +10,7 @@ use forge_api::{
     InterruptionReason, Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
+use forge_domain::{McpConfig, McpServerConfig, Provider, Scope, User};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -612,23 +612,13 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     async fn init_provider(&mut self) -> Result<Provider> {
         match self.api.provider().await {
             // Use the forge key if available in the config.
-            Ok(provider) => {
-                self.api
-                    .update_app_config(|config| {
-                        if !config.is_tracked {
-                            let auth_provider_id = config
-                                .key_info
-                                .as_ref()
-                                .and_then(|v| v.auth_provider_id.clone())
-                                .unwrap_or_default();
-                            tracker::login(auth_provider_id);
-                        }
-                        config.is_tracked = true;
-                    })
-                    .await
-                    .ok();
-
-                Ok(provider)
+            Ok(user) => {
+                if !user.is_tracked {
+                    if let Some(auth_provider_id) = user.auth_provider_id {
+                        tracker::login(auth_provider_id);
+                    }
+                }
+                Ok(user.provider)
             }
             Err(_) => {
                 // If no key is available, start the login flow.
@@ -640,7 +630,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
-                self.api.provider().await
+                self.api.provider().await.map(User::into_provider)
             }
         }
     }

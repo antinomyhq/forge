@@ -43,8 +43,6 @@ impl<S: AppConfigService + AuthService> Authenticator<S> {
         let key = self.service.login(init_auth).await?;
 
         config.key_info.replace(key);
-        // User will be tracked immidiately after login.
-        config.is_tracked = true;
         self.service.write_app_config(&config).await?;
         Ok(())
     }

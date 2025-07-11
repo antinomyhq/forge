@@ -95,9 +95,6 @@ pub trait API: Sync + Send {
     async fn init_login(&self) -> Result<InitAuth>;
     async fn login(&self, auth: &InitAuth) -> Result<()>;
     async fn logout(&self) -> anyhow::Result<()>;
-    async fn provider(&self) -> anyhow::Result<Provider>;
+    async fn provider(&self) -> anyhow::Result<User>;
     async fn app_config(&self) -> anyhow::Result<AppConfig>;
-    async fn update_app_config<Fn>(&self, f: Fn) -> anyhow::Result<()>
-    where
-        Fn: FnOnce(&mut AppConfig) + Send + Sync;
 }

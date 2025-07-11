@@ -13,27 +13,18 @@ pub struct InitAuth {
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub is_tracked: bool,
 }
 
-#[derive(Default, Clone, Serialize, Deserialize, From)]
+#[derive(Clone, Serialize, Deserialize, From)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginInfo {
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub api_key: Option<String>,
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub api_key_name: Option<String>,
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub api_key_masked: Option<String>,
-    #[serde(default, skip_serializing_if = "is_default")]
+    pub api_key: String,
+    pub api_key_name: String,
+    pub api_key_masked: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth_provider_id: Option<String>,
-}
-
-fn is_default<T: Default + PartialEq>(t: &T) -> bool {
-    t == &T::default()
 }

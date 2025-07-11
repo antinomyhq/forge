@@ -201,9 +201,7 @@ impl From<&LoginInfo> for Info {
             info = info.add_key_value("Login", email);
         }
 
-        if let Some(api_key_masked) = &login_info.api_key_masked {
-            info = info.add_key_value("Key", truncate_key(api_key_masked));
-        }
+        info = info.add_key_value("Key", truncate_key(&login_info.api_key_masked));
 
         info
     }
@@ -227,9 +225,9 @@ mod tests {
     #[test]
     fn test_login_info_display() {
         let fixture = LoginInfo {
-            api_key: Some("test-key".to_string()),
-            api_key_name: Some("Test Key".to_string()),
-            api_key_masked: Some("sk-fg-v1-abcd...1234".to_string()),
+            api_key: "test-key".to_string(),
+            api_key_name: "Test Key".to_string(),
+            api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
             email: Some("test@example.com".to_string()),
             name: Some("Test User".to_string()),
             auth_provider_id: Some("provider-id".to_string()),
@@ -248,9 +246,9 @@ mod tests {
     #[test]
     fn test_login_info_display_no_name() {
         let fixture = LoginInfo {
-            api_key: Some("test-key".to_string()),
-            api_key_name: Some("Test Key".to_string()),
-            api_key_masked: Some("sk-fg-v1-abcd...1234".to_string()),
+            api_key: "test-key".to_string(),
+            api_key_name: "Test Key".to_string(),
+            api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
             email: Some("test@example.com".to_string()),
             name: None,
             auth_provider_id: Some("provider-id".to_string()),

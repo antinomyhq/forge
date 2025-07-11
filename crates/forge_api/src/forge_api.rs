@@ -48,7 +48,12 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn models(&self) -> Result<Vec<Model>> {
         Ok(self
             .services
-            .models(self.provider().await.context("User is not logged in")?)
+            .models(
+                self.provider()
+                    .await
+                    .map(User::into_provider)
+                    .context("User is not logged in")?,
+            )
             .await?)
     }
 
@@ -154,20 +159,11 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         let forge_app = ForgeApp::new(self.services.clone());
         forge_app.logout().await
     }
-    async fn provider(&self) -> anyhow::Result<Provider> {
+    async fn provider(&self) -> anyhow::Result<User> {
         let forge_app = ForgeApp::new(self.services.clone());
         forge_app.get_provider().await
     }
     async fn app_config(&self) -> anyhow::Result<AppConfig> {
         self.services.read_app_config().await
-    }
-    async fn update_app_config<Fn>(&self, f: Fn) -> anyhow::Result<()>
-    where
-        Fn: FnOnce(&mut AppConfig) + Send + Sync,
-    {
-        let mut config = self.app_config().await.unwrap_or_default();
-        f(&mut config);
-        self.services.write_app_config(&config).await?;
-        Ok(())
     }
 }

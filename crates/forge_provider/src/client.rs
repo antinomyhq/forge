@@ -149,7 +149,6 @@ mod tests {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
-            auth_provider_id: None,
         };
         let client = Client::new(
             provider,
@@ -169,7 +168,6 @@ mod tests {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
-            auth_provider_id: None,
         };
         let client = Client::new(
             provider,

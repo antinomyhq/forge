@@ -18,15 +18,8 @@ impl ProviderUrl {
 /// Providers that can be used.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Provider {
-    OpenAI {
-        url: Url,
-        key: Option<String>,
-        auth_provider_id: Option<String>,
-    },
-    Anthropic {
-        url: Url,
-        key: String,
-    },
+    OpenAI { url: Url, key: Option<String> },
+    Anthropic { url: Url, key: String },
 }
 
 impl Provider {
@@ -68,7 +61,6 @@ impl Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::ANTINOMY_URL).unwrap(),
             key: Some(key.into()),
-            auth_provider_id: None,
         }
     }
 
@@ -76,7 +68,6 @@ impl Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::OPENAI_URL).unwrap(),
             key: Some(key.into()),
-            auth_provider_id: None,
         }
     }
 
@@ -84,7 +75,6 @@ impl Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::OPEN_ROUTER_URL).unwrap(),
             key: Some(key.into()),
-            auth_provider_id: None,
         }
     }
 
@@ -92,7 +82,6 @@ impl Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::REQUESTY_URL).unwrap(),
             key: Some(key.into()),
-            auth_provider_id: None,
         }
     }
 
@@ -114,20 +103,6 @@ impl Provider {
         match self {
             Provider::OpenAI { key, .. } => key.as_deref(),
             Provider::Anthropic { key, .. } => Some(key),
-        }
-    }
-    pub fn set_auth_provider_id(&mut self, auth_provider_id: String) {
-        match self {
-            Provider::OpenAI { auth_provider_id: id, .. } => {
-                *id = Some(auth_provider_id);
-            }
-            Provider::Anthropic { .. } => {}
-        }
-    }
-    pub fn auth_provider_id(&self) -> Option<String> {
-        match self {
-            Provider::OpenAI { auth_provider_id, .. } => auth_provider_id.clone(),
-            Provider::Anthropic { .. } => None,
         }
     }
 }
@@ -204,7 +179,6 @@ mod tests {
         let mut provider = Provider::OpenAI {
             url: Url::from_str("https://example.com/").unwrap(),
             key: None,
-            auth_provider_id: None,
         };
 
         // Test URL without trailing slash
@@ -214,7 +188,6 @@ mod tests {
             Provider::OpenAI {
                 url: Url::from_str("https://new-openai-url.com/").unwrap(),
                 key: None,
-                auth_provider_id: None,
             }
         );
 
@@ -225,7 +198,6 @@ mod tests {
             Provider::OpenAI {
                 url: Url::from_str("https://another-openai-url.com/").unwrap(),
                 key: None,
-                auth_provider_id: None,
             }
         );
 
@@ -236,7 +208,6 @@ mod tests {
             Provider::OpenAI {
                 url: Url::from_str("https://new-openai-url.com/v1/api/").unwrap(),
                 key: None,
-                auth_provider_id: None,
             }
         );
 
@@ -247,7 +218,6 @@ mod tests {
             Provider::OpenAI {
                 url: Url::from_str("https://another-openai-url.com/v2/api/").unwrap(),
                 key: None,
-                auth_provider_id: None,
             }
         );
     }
