@@ -96,6 +96,13 @@ impl Provider {
         }
     }
 
+    pub fn xai(key: &str) -> Provider {
+        Provider::OpenAI {
+            url: Url::parse(Provider::XAI_URL).unwrap(),
+            key: Some(key.into()),
+        }
+    }
+
     pub fn anthropic(key: &str) -> Provider {
         Provider::Anthropic {
             url: Url::parse(Provider::ANTHROPIC_URL).unwrap(),
@@ -128,6 +135,7 @@ impl Provider {
 impl Provider {
     pub const OPEN_ROUTER_URL: &str = "https://openrouter.ai/api/v1/";
     pub const REQUESTY_URL: &str = "https://router.requesty.ai/v1/";
+    pub const XAI_URL: &str = "https://api.x.ai/v1/";
     pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
     pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
     pub const ANTINOMY_URL: &str = "https://www.antinomy.ai/api/v1/";
@@ -157,6 +165,13 @@ impl Provider {
     pub fn is_requesty(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::REQUESTY_URL),
+            Provider::Anthropic { .. } => false,
+        }
+    }
+
+    pub fn is_xai(&self) -> bool {
+        match self {
+            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::XAI_URL),
             Provider::Anthropic { .. } => false,
         }
     }
@@ -283,5 +298,25 @@ mod tests {
                 key: "key".to_string()
             }
         );
+    }
+
+    #[test]
+    fn test_xai() {
+        let fixture = "test_key";
+        let actual = Provider::xai(fixture);
+        let expected = Provider::OpenAI {
+            url: Url::from_str("https://api.x.ai/v1/").unwrap(),
+            key: Some(fixture.to_string()),
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_is_xai() {
+        let fixture_xai = Provider::xai("key");
+        assert!(fixture_xai.is_xai());
+
+        let fixture_other = Provider::openai("key");
+        assert!(!fixture_other.is_xai());
     }
 }

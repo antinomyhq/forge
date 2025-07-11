@@ -552,7 +552,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         match self.state.conversation_id {
-            Some(ref id) => Ok(id.clone()),
+            Some(ref id) => Ok(*id),
             None => {
                 self.spinner.start(Some("Initializing"))?;
 
@@ -564,14 +564,14 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                         serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
                             .context("Failed to parse Conversation")?;
 
-                    let conversation_id = conversation.id.clone();
-                    self.state.conversation_id = Some(conversation_id.clone());
+                    let conversation_id = conversation.id;
+                    self.state.conversation_id = Some(conversation_id);
                     self.update_model(conversation.main_model()?);
                     self.api.upsert_conversation(conversation).await?;
                     conversation_id
                 } else {
                     let conversation = self.api.init_conversation(workflow).await?;
-                    self.state.conversation_id = Some(conversation.id.clone());
+                    self.state.conversation_id = Some(conversation.id);
                     self.update_model(conversation.main_model()?);
                     conversation.id
                 };
@@ -698,7 +698,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     /// Modified version of handle_dump that supports HTML format
     async fn on_dump(&mut self, format: Option<String>) -> Result<()> {
-        if let Some(conversation_id) = self.state.conversation_id.clone() {
+        if let Some(conversation_id) = self.state.conversation_id {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
@@ -735,6 +735,9 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 return Err(anyhow::anyhow!("Could not create dump"))
                     .context(format!("Conversation: {conversation_id} was not found"));
             }
+        } else {
+            return Err(anyhow::anyhow!("No conversation initiated yet"))
+                .context("Could not create dump");
         }
         Ok(())
     }

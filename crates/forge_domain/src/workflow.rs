@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::temperature::Temperature;
 use crate::update::Update;
-use crate::{Agent, AgentId, MaxTokens, ModelId, TopK, TopP};
+use crate::{Agent, AgentId, Compact, MaxTokens, ModelId, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -133,6 +133,13 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub max_requests_per_turn: Option<usize>,
+    /// Configuration for automatic context compaction for all agents
+    /// If specified, this will be applied to all agents in the workflow
+    /// If not specified, each agent's individual setting will be used
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub compact: Option<Compact>,
 }
 
 impl Default for Workflow {
@@ -175,6 +182,7 @@ impl Workflow {
             templates: None,
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
+            compact: None,
         }
     }
 
@@ -213,6 +221,7 @@ mod tests {
         assert_eq!(actual.top_k, None);
         assert_eq!(actual.max_tokens, None);
         assert_eq!(actual.tool_supported, None);
+        assert_eq!(actual.compact, None);
     }
 
     #[test]
@@ -263,5 +272,40 @@ mod tests {
 
         // Assert
         assert_eq!(base.tool_supported, Some(true));
+    }
+    #[test]
+    fn test_workflow_merge_compact() {
+        // Fixture
+        let mut base = Workflow::new();
+
+        let compact = Compact::new(ModelId::new("test-model"))
+            .token_threshold(1000_usize)
+            .turn_threshold(5_usize);
+        let other = Workflow::new().compact(compact.clone());
+
+        // Act
+        base.merge(other);
+
+        // Assert
+        assert_eq!(base.compact, Some(compact));
+    }
+
+    #[test]
+    fn test_workflow_merge_compact_with_existing() {
+        // Fixture
+        let existing_compact =
+            Compact::new(ModelId::new("existing-model")).token_threshold(500_usize);
+        let mut base = Workflow::new().compact(existing_compact);
+
+        let new_compact = Compact::new(ModelId::new("new-model"))
+            .token_threshold(1000_usize)
+            .turn_threshold(5_usize);
+        let other = Workflow::new().compact(new_compact.clone());
+
+        // Act
+        base.merge(other);
+
+        // Assert
+        assert_eq!(base.compact, Some(new_compact));
     }
 }

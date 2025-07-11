@@ -58,6 +58,7 @@ mod tests {
         assert!(!supports_open_router_params(&Provider::requesty(
             "requesty"
         )));
+        assert!(!supports_open_router_params(&Provider::xai("xai")));
         assert!(!supports_open_router_params(&Provider::anthropic("claude")));
     }
 }

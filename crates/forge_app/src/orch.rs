@@ -262,6 +262,25 @@ impl<S: AgentService> Orchestrator<S> {
             .await?;
         response.into_full(!tool_supported).await
     }
+    /// Checks if compaction is needed and performs it if necessary
+    async fn check_and_compact(
+        &self,
+        agent: &Agent,
+        context: &Context,
+    ) -> anyhow::Result<Option<Context>> {
+        // Estimate token count for compaction decision
+        let estimated_tokens = context.token_count();
+        if agent.should_compact(context, estimated_tokens) {
+            info!(agent_id = %agent.id, "Compaction needed");
+            Compactor::new(self.services.clone())
+                .compact(agent, context.clone(), false)
+                .await
+                .map(Some)
+        } else {
+            debug!(agent_id = %agent.id, "Compaction not needed");
+            Ok(None)
+        }
+    }
 
     // Create a helper method with the core functionality
     async fn init_agent(&mut self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
@@ -284,20 +303,13 @@ impl<S: AgentService> Orchestrator<S> {
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
         // attach the conversation ID to the context
-        context = context.conversation_id(self.conversation.id.clone());
+        context = context.conversation_id(self.conversation.id);
 
         // Reset all the available tools
         context = context.tools(self.get_allowed_tools(&agent)?);
 
         // Render the system prompts with the variables
         context = self.set_system_prompt(context, &agent, &variables).await?;
-
-        // Create a new compactor
-        let compactor = Compactor::new(self.services.clone());
-
-        // Perform an aggressive compaction before starting out
-        // TODO: Improve compaction by providing context of the user message
-        context = compactor.compact(&agent, context, true).await?;
 
         // Render user prompts
         context = self
@@ -366,25 +378,49 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            let ChatCompletionMessageFull { tool_calls, content, mut usage, reasoning, reasoning_details } =
-                crate::retry::retry_with_config(
-                    &self.environment.retry_config,
-                    || self.execute_chat_turn(&model_id, context.clone(), tool_supported, reasoning_supported),
-                    self.sender.as_ref().map(|sender| {
-                        let sender = sender.clone();
-                        let agent_id = agent.id.clone();
-                        let model_id = model_id.clone();
-                        move |error: &anyhow::Error, duration: Duration| {
-                            tracing::error!(agent_id = %agent_id, error = %error, model=%model_id, "Retry Attempt");
-                            let retry_event = ChatResponse::RetryAttempt {
-                                cause: error.into(),
-                                duration,
-                            };
-                            let _ = sender.try_send(Ok(retry_event));
-                        }
-                    }),
-                )
-                .await?;
+            // Run the main chat request and compaction check in parallel
+            let main_request = crate::retry::retry_with_config(
+                &self.environment.retry_config,
+                || self.execute_chat_turn(&model_id, context.clone(), tool_supported, reasoning_supported),
+                self.sender.as_ref().map(|sender| {
+                    let sender = sender.clone();
+                    let agent_id = agent.id.clone();
+                    let model_id = model_id.clone();
+                    move |error: &anyhow::Error, duration: Duration| {
+                        tracing::error!(agent_id = %agent_id, error = %error, model=%model_id, "Retry Attempt");
+                        let retry_event = ChatResponse::RetryAttempt {
+                            cause: error.into(),
+                            duration,
+                        };
+                        let _ = sender.try_send(Ok(retry_event));
+                    }
+                }),
+            );
+
+            // Prepare compaction task that runs in parallel
+
+            // Execute both operations in parallel
+            let (
+                ChatCompletionMessageFull {
+                    tool_calls,
+                    content,
+                    mut usage,
+                    reasoning,
+                    reasoning_details,
+                },
+                compaction_result,
+            ) = tokio::try_join!(main_request, self.check_and_compact(&agent, &context))?;
+
+            // Apply compaction result if it completed successfully
+            match compaction_result {
+                Some(compacted_context) => {
+                    info!(agent_id = %agent.id, "Using compacted context from execution");
+                    context = compacted_context;
+                }
+                None => {
+                    debug!(agent_id = %agent.id, "No compaction was needed");
+                }
+            }
 
             // Set estimated tokens
             usage.estimated_tokens = context.token_count();
@@ -397,17 +433,6 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Send the usage information if available
             self.send(ChatResponse::Usage(usage.clone())).await?;
-
-            // Check if context requires compression and decide to compact
-            let context_tokens = usage
-                .prompt_tokens
-                .max(usage.estimated_tokens.max(usage.total_tokens));
-            if agent.should_compact(&context, context_tokens) {
-                info!(agent_id = %agent.id, "Compaction needed, applying compaction");
-                context = compactor.compact(&agent, context, false).await?;
-            } else {
-                debug!(agent_id = %agent.id, "Compaction not needed");
-            }
 
             let has_no_tool_calls = tool_calls.is_empty();
 
