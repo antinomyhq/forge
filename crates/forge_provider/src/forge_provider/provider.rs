@@ -1,9 +1,4 @@
-use aes_gcm::aead::rand_core::RngCore;
-use aes_gcm::aead::{Aead, KeyInit, OsRng};
-use aes_gcm::{Aes256Gcm, Nonce};
 use anyhow::{Context as _, Result};
-use base64::engine::general_purpose;
-use base64::Engine as _;
 use derive_builder::Builder;
 use forge_domain::{
     self, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
@@ -13,6 +8,7 @@ use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
+use totp_rs::{Algorithm, TOTP};
 use tracing::{debug, info};
 
 use super::model::{ListModelResponse, Model};
@@ -53,29 +49,25 @@ impl ForgeProvider {
         })
     }
 
-    fn encrypt_api_key(&self, api_key: &str) -> anyhow::Result<String> {
-        // Use SHA256 hash of the secret as the encryption key
+    fn generate_totp_token(&self) -> anyhow::Result<String> {
+        // Use SHA256 hash of the secret as the TOTP secret key
         let mut hasher = Sha256::new();
         hasher.update(self.secret.as_bytes());
-        let key_bytes = hasher.finalize();
+        let secret_bytes = hasher.finalize().to_vec();
 
-        let cipher = Aes256Gcm::new_from_slice(&key_bytes)?;
+        // Create TOTP with specified configuration:
+        // algorithm: SHA256, digits: 8, step: 30, skew: 1 (default)
+        let totp = TOTP::new(
+            Algorithm::SHA256,
+            8,            // 8 digits
+            1,            // skew (default)
+            30,           // 30-second step
+            secret_bytes, // SHA256 hash of secret as bytes
+        )?;
 
-        // Generate a random nonce
-        let mut nonce_bytes = [0u8; 12];
-        OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::from_slice(&nonce_bytes);
-
-        // Encrypt the API key
-        let ciphertext = cipher
-            .encrypt(nonce, api_key.as_bytes())
-            .map_err(|e| anyhow::anyhow!("Encryption failed: {}", e))?;
-
-        // Combine nonce and ciphertext, then base64 encode
-        let mut combined = nonce_bytes.to_vec();
-        combined.extend_from_slice(&ciphertext);
-
-        Ok(general_purpose::STANDARD.encode(combined))
+        // Generate current TOTP token
+        let token = totp.generate_current()?;
+        Ok(token)
     }
 
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
@@ -89,15 +81,15 @@ impl ForgeProvider {
                 HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
             );
 
-            // Add X-Forge-Auth header with encrypted API key
-            if let Ok(encrypted_key) = self.encrypt_api_key(api_key) {
-                if let Ok(header_value) = HeaderValue::from_str(&encrypted_key) {
-                    headers.insert("X-Forge-Auth", header_value);
+            // Add x-forge-signature header with TOTP token
+            if let Ok(totp_token) = self.generate_totp_token() {
+                if let Ok(header_value) = HeaderValue::from_str(&totp_token) {
+                    headers.insert("x-forge-signature", header_value);
                 } else {
-                    tracing::warn!("Failed to create header value for encrypted API key");
+                    tracing::warn!("Failed to create header value for TOTP token");
                 }
             } else {
-                tracing::warn!("Failed to encrypt API key for X-Forge-Auth header");
+                tracing::warn!("Failed to generate TOTP token for x-forge-signature header");
             }
         }
         headers.insert("X-Title", HeaderValue::from_static("forge"));
@@ -443,7 +435,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encrypt_api_key() -> Result<()> {
+    fn test_generate_totp_token() -> Result<()> {
         let provider = Provider::OpenAI {
             url: reqwest::Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-api-key".to_string()),
@@ -457,21 +449,17 @@ mod tests {
             .build()
             .unwrap();
 
-        let fixture = "test-api-key";
-        let actual = forge_provider.encrypt_api_key(fixture);
+        let actual = forge_provider.generate_totp_token();
 
-        // Should successfully encrypt
+        // Should successfully generate TOTP token
         assert!(actual.is_ok());
 
-        // Should return a base64 encoded string
-        let encrypted = actual.unwrap();
-        assert!(!encrypted.is_empty());
+        // Should return an 8-digit token (as configured)
+        let token = actual.unwrap();
+        assert_eq!(token.len(), 8);
 
-        // Should be different from the original
-        assert_ne!(encrypted, fixture);
-
-        // Should be valid base64
-        assert!(general_purpose::STANDARD.decode(&encrypted).is_ok());
+        // Should contain only digits
+        assert!(token.chars().all(|c| c.is_ascii_digit()));
 
         Ok(())
     }
@@ -499,9 +487,13 @@ mod tests {
         // Should have the Authorization header
         assert!(actual.contains_key("Authorization"));
 
-        // X-Forge-Auth should not be empty
+        // X-Forge-Auth should not be empty and should be an 8-digit token
         let x_forge_auth = actual.get("X-Forge-Auth").unwrap();
         assert!(!x_forge_auth.is_empty());
+
+        let token_str = x_forge_auth.to_str().unwrap();
+        assert_eq!(token_str.len(), 8);
+        assert!(token_str.chars().all(|c| c.is_ascii_digit()));
 
         Ok(())
     }
