@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_domain::{
@@ -6,6 +8,7 @@ use forge_domain::{
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
+use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
@@ -21,6 +24,8 @@ pub struct ForgeProvider {
     client: Client,
     provider: Provider,
     version: String,
+    #[builder(default = "Arc::new(RwLock::new(None))")]
+    models_cache: Arc<RwLock<Option<Vec<forge_domain::Model>>>>,
 }
 
 impl ForgeProvider {
@@ -171,6 +176,16 @@ impl ForgeProvider {
     }
 
     async fn inner_models(&self) -> Result<Vec<forge_domain::Model>> {
+        // Check cache first
+        {
+            let cache = self.models_cache.read().await;
+            if let Some(ref cached_models) = *cache {
+                debug!("Returning cached models, count: {}", cached_models.len());
+                return Ok(cached_models.clone());
+            }
+        }
+
+        // Cache miss - fetch from API
         let url = self.url("models")?;
         debug!(url = %url, "Fetching models");
         match self.fetch_models(url.clone()).await {
@@ -182,7 +197,18 @@ impl ForgeProvider {
                 let data: ListModelResponse = serde_json::from_str(&response)
                     .with_context(|| format_http_context(None, "GET", &url))
                     .with_context(|| "Failed to deserialize models response")?;
-                Ok(data.data.into_iter().map(Into::into).collect())
+
+                let models: Vec<forge_domain::Model> =
+                    data.data.into_iter().map(Into::into).collect();
+
+                // Update cache
+                {
+                    let mut cache = self.models_cache.write().await;
+                    *cache = Some(models.clone());
+                    debug!("Cached {} models", models.len());
+                }
+
+                Ok(models)
             }
         }
     }
@@ -378,6 +404,39 @@ mod tests {
 
         mock.assert_async().await;
         assert!(actual.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_models_cache_behavior_with_multiple_calls() -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+        let mock = fixture
+            .mock_models(create_mock_models_response(), 200)
+            .await;
+        let provider = create_provider(&fixture.url())?;
+
+        // First call should hit the API
+        let models1 = provider.models().await?;
+
+        // Multiple subsequent calls should use cache (mock should only be called once)
+        let models2 = provider.models().await?;
+        let models3 = provider.models().await?;
+
+        // Verify the mock was only called once
+        mock.assert_async().await;
+
+        // Verify all calls return the same data
+        assert_eq!(models1.len(), models2.len());
+        assert_eq!(models1.len(), models3.len());
+        assert_eq!(
+            models1.iter().map(|m| &m.id).collect::<Vec<_>>(),
+            models2.iter().map(|m| &m.id).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            models1.iter().map(|m| &m.id).collect::<Vec<_>>(),
+            models3.iter().map(|m| &m.id).collect::<Vec<_>>()
+        );
+
         Ok(())
     }
 
