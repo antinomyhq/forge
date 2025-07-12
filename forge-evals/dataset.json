@@ -1,0 +1,26 @@
+[
+  {
+    "id": "TC001_RustProjectSetup",
+    "conversation": [
+      { "role": "User", "content": "Hi, how do I start a new Rust project?" },
+      { "role": "Assistant", "content": "You can start a new project using Cargo, the Rust build tool and package manager. Just run `cargo new my_project` in your terminal." },
+      { "role": "User", "content": "Great. Now how do I add a dependency for JSON serialization?" },
+      { "role": "Assistant", "content": "For JSON serialization, the standard is the `serde` crate. You should also add `serde_json`. You can add them to your project's manifest file, which is `Cargo.toml`." },
+      { "role": "User", "content": "Okay, I've added them. Thanks!" }
+    ],
+    "retrieval_test_question": "What is the name of the project's manifest file?",
+    "expected_answer_keyword": "Cargo.toml"
+  },
+  {
+    "id": "TC002_SimpleWebServer",
+    "conversation": [
+      { "role": "User", "content": "I want to build a simple web server in Rust. What's a good crate to use?" },
+      { "role": "Assistant", "content": "A very popular and powerful choice for building web servers in Rust is `actix-web`. It's known for its speed and type-safety." },
+      { "role": "User", "content": "What about for handling asynchronous operations?" },
+      { "role": "Assistant", "content": "The standard asynchronous runtime for Rust is `tokio`. `actix-web` is built on top of it, so you'll be using it automatically." },
+      { "role": "User", "content": "Perfect, that's what I need to know." }
+    ],
+    "retrieval_test_question": "What is the recommended async runtime?",
+    "expected_answer_keyword": "tokio"
+  }
+]

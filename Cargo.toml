@@ -18,7 +18,7 @@ members = [
     "crates/forge_tool_macros",
     "crates/forge_tracker",
     "crates/forge_walker"
-]
+, "forge-evals"]
 resolver = "2"
 
 [profile.release]
