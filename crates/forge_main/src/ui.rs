@@ -65,7 +65,7 @@ pub struct UI<A, F: Fn() -> A> {
     _guard: forge_tracker::Guard,
 }
 
-impl<A: API, F: Fn() -> A> UI<A, F> {
+impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -84,7 +84,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
-        self.trace_user().await.ok();
+        self.trace_user();
         banner::display()?;
         Ok(())
     }
@@ -613,7 +613,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             // Use the forge key if available in the config.
             Ok(provider) => {
                 if first {
-                    self.trace_user().await.ok();
+                    self.trace_user();
                 }
                 Ok(provider)
             }
@@ -844,12 +844,15 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn trace_user(&self) -> Result<()> {
-        let user_info = self.api.user_info().await?;
-        if let Some(login) = user_info.auth_provider_id {
-            tracker::login(login);
-        }
-        Ok(())
+    fn trace_user(&self) {
+        let api = self.api.clone();
+        tokio::spawn(async move {
+            if let Ok(user_info) = api.user_info().await {
+                if let Some(login) = user_info.auth_provider_id {
+                    tracker::login(login);
+                }
+            }
+        });
     }
 }
 
