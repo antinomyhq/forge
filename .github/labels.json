@@ -1,0 +1,236 @@
+[
+  {
+    "name": "release: skip changelog",
+    "color": "d73a4a",
+    "description": "Skip this change from release notes.",
+    "aliases": ["skip"]
+  },
+  {
+    "name": "release: breaking",
+    "color": "d73a4a",
+    "description": "Introduces a breaking change.",
+    "aliases": ["breaking change", "breaking-change", "Type: Breaking Change", "type: breaking", "breaking"]
+  },
+  {
+    "name": "effort: 1",
+    "color": "91ca55"
+  },
+  {
+    "name": "effort: 2",
+    "color": "c2e2a2"
+  },
+  {
+    "name": "effort: 3",
+    "color": "e9f4dc"
+  },
+  {
+    "name": "effort: 5",
+    "color": "fef6d7"
+  },
+  {
+    "name": "effort: 8",
+    "color": "fef2c0"
+  },
+  {
+    "name": "effort: 13",
+    "color": "fbca04"
+  },
+  {
+    "name": "good first issue",
+    "color": "7057ff",
+    "description": "Good for newcomers.",
+    "aliases": [
+      "beginner-friendly",
+      "beginner",
+      "good for beginner",
+      "Good for beginners",
+      "good-starter-issue",
+      "starter-issue",
+      "starter",
+      "status: good starter issue"
+    ]
+  },
+  {
+    "name": "help",
+    "color": "0e8a16",
+    "aliases": ["help wanted", "Patch Welcome", "status: help wanted", "Status: PR Welcome", "Status: Ready for PR"]
+  },
+  {
+    "name": "priority: now",
+    "color": "b10e1e",
+    "aliases": ["priority: critical", "Priority: Critical"]
+  },
+  {
+    "name": "priority: soon",
+    "color": "d17a22",
+    "aliases": ["priority: medium", "Priority: Medium"]
+  },
+  {
+    "name": "priority: 2day",
+    "color": "f9d616",
+    "aliases": ["priority: high", "Priority: High"]
+  },
+  {
+    "name": "semantic-release",
+    "color": "e6e6e6"
+  },
+  {
+    "name": "state: approved",
+    "color": "C3F7F7",
+    "description": "Approved to proceed.",
+    "aliases": ["approved"]
+  },
+  {
+    "name": "state: blocked",
+    "color": "C3F7F7",
+    "description": "Something is blocking action.",
+    "aliases": ["blocked", "Status: Blocked", "status: blocked", "blocker"]
+  },
+  {
+    "name": "state: pending",
+    "color": "C3F7F7",
+    "description": "Action is underway but awaiting other tasks or data before completion.",
+    "aliases": ["in progress", "on hold", "pending", "Status: In Progress", "Status: Review Needed", "watchlist"]
+  },
+  {
+    "name": "state: inactive",
+    "color": "C3F7F7",
+    "description": "No current action needed/possible; issue fixed, out of scope, or superseded.",
+    "aliases": [
+      "duplicate",
+      "invalid",
+      "stale",
+      "Status: Abandoned",
+      "status: duplicate",
+      "status: wontfix",
+      "wont-fix",
+      "wontfix"
+    ]
+  },
+  {
+    "name": "type: bug",
+    "color": "FA1DD4",
+    "description": "Something isn't working.",
+    "aliases": ["bug", "Type: Bug"]
+  },
+  {
+    "name": "type: chore",
+    "color": "FA1DD4",
+    "description": "Routine tasks like conversions, reorganization, and maintenance work.",
+    "aliases": [
+      "chore",
+      "dependabot",
+      "dependencies",
+      "dependency",
+      "greenkeeper",
+      "legal",
+      "maintenance",
+      "Type: Maintenance",
+      "type: maintenance"
+    ]
+  },
+  {
+    "name": "type: discussion",
+    "color": "FA1DD4",
+    "description": "Questions, proposals and info that requires discussion.",
+    "aliases": [
+      "discussion",
+      "feedback",
+      "help wanted",
+      "idea",
+      "Idea",
+      "Proposal",
+      "proposal",
+      "question",
+      "type: design",
+      "Type: Question",
+      "type: question"
+    ]
+  },
+  {
+    "name": "type: docs",
+    "color": "FA1DD4",
+    "description": "Related to documentation and information.",
+    "aliases": [
+      "doc",
+      "docs",
+      "document",
+      "documentation",
+      "documents",
+      "Type: Documentation",
+      "type: documentation",
+      "specification"
+    ]
+  },
+  {
+    "name": "type: feature",
+    "color": "FA1DD4",
+    "description": "Brand new functionality, features, pages, workflows, endpoints, etc.",
+    "aliases": ["addition", "enhancement", "feature", "type: enhancement", "Type: Feature", "performance"]
+  },
+  {
+    "name": "type: fix",
+    "color": "FA1DD4",
+    "description": "Iterations on existing features or infrastructure.",
+    "aliases": ["fix", "improvement", "optimization", "refactor", "Type: Fix", "Type: Refactoring", "bug"]
+  },
+  {
+    "name": "type: security",
+    "color": "FA1DD4",
+    "description": "Something is vulnerable or not secure.",
+    "aliases": ["security"]
+  },
+  {
+    "name": "type: performance",
+    "color": "FA1DD4",
+    "description": "Improved performance."
+  },
+  {
+    "name": "type: testing",
+    "color": "FA1DD4",
+    "description": "Related to testing.",
+    "aliases": ["test", "testing"]
+  },
+  {
+    "name": "work: chaotic",
+    "color": "0288d1",
+    "description": "The situation is chaotic, novel practices used.",
+    "aliases": ["chaotic"]
+  },
+  {
+    "name": "work: complex",
+    "color": "4fc3f7",
+    "description": "The situation is complex, emergent practices used.",
+    "aliases": ["complex"]
+  },
+  {
+    "name": "work: complicated",
+    "color": "81d4fa",
+    "description": "The situation is complicated, good practices used.",
+    "aliases": ["complicated"]
+  },
+  {
+    "name": "work: obvious",
+    "color": "e1f5fe",
+    "description": "The situation is obvious, best practices used.",
+    "aliases": ["obvious"]
+  },
+  {
+    "name": "ci: lint",
+    "color": "F9D0C4",
+    "description": "Automatically fix the linters issues and make a commit",
+    "aliases": ["ci:lint"]
+  },
+  {
+    "name": "ci: benchmark",
+    "color": "F9D0C4",
+    "description": "Runs benchmarks",
+    "aliases": ["ci:benchmark"]
+  },
+  {
+    "name": "ci: test-jit",
+    "color": "F9D0C4",
+    "description": "Run all integration tests for the JIT optimized engine",
+    "aliases": ["ci:test-jit"]
+  }
+]

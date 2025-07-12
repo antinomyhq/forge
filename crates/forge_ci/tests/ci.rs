@@ -19,3 +19,7 @@ fn test_homebrew_workflow() {
 fn test_npm_workflow() {
     workflow::generate_npm_workflow();
 }
+#[test]
+fn test_labels_workflow() {
+    workflow::generate_labels_workflow();
+}
