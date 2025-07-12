@@ -63,3 +63,12 @@ pub fn generate_release_drafter_workflow() {
         .generate()
         .unwrap();
 }
+
+pub fn generate_labels_workflow() {
+    let labels_workflow = jobs::create_labels_workflow();
+
+    Generate::new(labels_workflow)
+        .name("labels.yml")
+        .generate()
+        .unwrap();
+}
