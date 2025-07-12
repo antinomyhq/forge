@@ -72,7 +72,11 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             HeaderValue::from_str(&format!("Bearer {api_key}"))?,
         );
 
-        let response = self.infra.get(&url, Some(headers)).await?.error_for_status()?;
+        let response = self
+            .infra
+            .get(&url, Some(headers))
+            .await?
+            .error_for_status()?;
 
         Ok(serde_json::from_slice(&response.bytes().await?)?)
     }
