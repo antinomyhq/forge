@@ -72,10 +72,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             HeaderValue::from_str(&format!("Bearer {api_key}"))?,
         );
 
-        let response = self.infra.get(&url, Some(headers)).await?;
-        if !response.status().is_success() {
-            bail!("Failed to get user info: HTTP {}", response.status());
-        }
+        let response = self.infra.get(&url, Some(headers)).await?.error_for_status()?;
 
         Ok(serde_json::from_slice(&response.bytes().await?)?)
     }
