@@ -1,13 +1,14 @@
 // --- File: src/main.rs ---
 // The main entry point for our evaluation runner.
-mod models;
-mod forge_api;
 mod evals;
+mod forge_api;
+mod models;
 
-use models::TestCase;
-use anyhow::Result;
 use std::fs;
-use std::path::PathBuf; // Import PathBuf
+use std::path::PathBuf;
+
+use anyhow::Result;
+use models::TestCase; // Import PathBuf
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -22,15 +23,17 @@ async fn main() -> Result<()> {
     // 1. Load the golden dataset from the JSON file using the robust path.
     let dataset_str = fs::read_to_string(&dataset_path).unwrap_or_else(|e| {
         panic!(
-            "Failed to read dataset.json. Looked for it at {:?}. Error: {}",
-            dataset_path, e
+            "Failed to read dataset.json. Looked for it at {dataset_path:?}. Error: {e}"
         )
     });
 
-    let test_cases: Vec<TestCase> = serde_json::from_str(&dataset_str)
-        .expect("Failed to parse dataset.json.");
+    let test_cases: Vec<TestCase> =
+        serde_json::from_str(&dataset_str).expect("Failed to parse dataset.json.");
 
-    println!("\nLoaded {} test cases from dataset.json.", test_cases.len());
+    println!(
+        "\nLoaded {} test cases from dataset.json.",
+        test_cases.len()
+    );
 
     // 2. Iterate through each test case and run the evaluations.
     for test_case in test_cases {

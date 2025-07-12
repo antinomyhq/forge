@@ -11,12 +11,12 @@ pub async fn compact_conversation(history: &[Message]) -> Vec<Message> {
     // A real implementation would call an LLM to summarize.
     // Our mock will just create a simple, hardcoded summary.
     let summary = "The user and assistant discussed setting up a Rust project, installing `serde`, and creating a `main.rs` file. The key file mentioned was `Cargo.toml`.";
-    
+
     // The compacted history often includes the summary and the last few turns.
     vec![
         Message {
             role: Role::Assistant,
-            content: format!("[Compacted Context]\n{}", summary),
+            content: format!("[Compacted Context]\n{summary}"),
         },
         // Keep the last message for context
         history.last().cloned().unwrap_or(Message {
