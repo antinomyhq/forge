@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use bytes::Bytes;
-use forge_app::{AuthService, Error, InitAuth, LoginInfo};
+use forge_app::{AuthService, Error, InitAuth, LoginInfo, User};
 use forge_domain::Provider;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 
 use crate::{EnvironmentInfra, HttpInfra};
 
 const AUTH_ROUTE: &str = "auth/sessions/";
+const USER_INFO_ROUTE: &str = "auth/user";
 
 #[derive(Default, Clone)]
 pub struct ForgeAuthService<I> {
@@ -57,6 +58,28 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             status => bail!("HTTP {}: Authentication failed", status),
         }
     }
+
+    async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
+        let url = format!(
+            "{}{USER_INFO_ROUTE}",
+            self.infra
+                .get_env_var("FORGE_API_URL")
+                .unwrap_or(Provider::ANTINOMY_URL.to_string())
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {api_key}"))?,
+        );
+
+        let response = self
+            .infra
+            .get(&url, Some(headers))
+            .await?
+            .error_for_status()?;
+
+        Ok(serde_json::from_slice(&response.bytes().await?)?)
+    }
 }
 
 #[async_trait::async_trait]
@@ -67,5 +90,9 @@ impl<I: HttpInfra + EnvironmentInfra> AuthService for ForgeAuthService<I> {
 
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
         self.login(auth).await
+    }
+
+    async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
+        self.user_info(api_key).await
     }
 }

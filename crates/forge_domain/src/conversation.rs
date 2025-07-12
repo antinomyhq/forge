@@ -14,6 +14,8 @@ use crate::{Agent, AgentId, Compact, Context, Error, Event, ModelId, Result, Too
 #[serde(transparent)]
 pub struct ConversationId(Uuid);
 
+impl Copy for ConversationId {}
+
 impl ConversationId {
     pub fn generate() -> Self {
         Self(Uuid::new_v4())
@@ -121,6 +123,20 @@ impl Conversation {
 
             if let Some(tool_supported) = workflow.tool_supported {
                 agent.tool_supported = Some(tool_supported);
+            }
+
+            // Apply workflow compact configuration to agents
+            if let Some(ref workflow_compact) = workflow.compact {
+                if let Some(ref mut agent_compact) = agent.compact {
+                    // If agent already has compact config, merge workflow config into agent config
+                    // Agent settings take priority over workflow settings
+                    let mut merged_compact = workflow_compact.clone();
+                    merged_compact.merge(agent_compact.clone());
+                    *agent_compact = merged_compact;
+                } else {
+                    // If agent doesn't have compact config, use workflow's compact config
+                    agent.compact = Some(workflow_compact.clone());
+                }
             }
 
             // Subscribe the main agent to all commands
@@ -465,6 +481,124 @@ mod tests {
                 .unwrap()
                 .contains(&"cmd2".to_string()));
         }
+    }
+    #[test]
+    fn test_conversation_new_applies_workflow_compact_to_agents() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let agent1 = Agent::new("agent1");
+        let agent2 = Agent::new("agent2");
+
+        let compact = Compact::new(ModelId::new("compact-model"))
+            .token_threshold(1500_usize)
+            .turn_threshold(3_usize);
+
+        let workflow = Workflow::new()
+            .agents(vec![agent1, agent2])
+            .compact(compact.clone());
+
+        // Act
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+
+        // Assert
+        assert_eq!(conversation.agents.len(), 2);
+
+        // Check that workflow compact settings were applied to all agents
+        for agent in &conversation.agents {
+            assert_eq!(agent.compact, Some(compact.clone()));
+        }
+    }
+
+    #[test]
+    fn test_conversation_new_merges_workflow_compact_with_agent_compact() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let mut agent1 = Agent::new("agent1");
+        let existing_compact =
+            Compact::new(ModelId::new("agent-model")).message_threshold(10_usize);
+        agent1.compact = Some(existing_compact);
+
+        let agent2 = Agent::new("agent2");
+
+        let workflow_compact = Compact::new(ModelId::new("workflow-model"))
+            .token_threshold(1500_usize)
+            .turn_threshold(3_usize);
+
+        let workflow = Workflow::new()
+            .agents(vec![agent1, agent2])
+            .compact(workflow_compact.clone());
+
+        // Act
+        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+
+        // Assert
+        assert_eq!(conversation.agents.len(), 2);
+
+        // Check that agent1's compact was merged with workflow compact
+        let agent1_result = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "agent1")
+            .unwrap();
+        let agent1_compact = agent1_result.compact.as_ref().unwrap();
+
+        // Model uses overwrite strategy, but agent takes priority over workflow
+        assert_eq!(agent1_compact.model, ModelId::new("agent-model"));
+
+        // Token threshold uses option strategy, agent had None so gets workflow value
+        assert_eq!(agent1_compact.token_threshold, Some(1500_usize));
+
+        // Turn threshold uses option strategy, agent had None so gets workflow value
+        assert_eq!(agent1_compact.turn_threshold, Some(3_usize));
+
+        // Message threshold was already set in agent, and agent config takes priority
+        assert_eq!(agent1_compact.message_threshold, Some(10_usize));
+
+        // Check that agent2 got the full workflow compact
+        let agent2_result = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "agent2")
+            .unwrap();
+        assert_eq!(agent2_result.compact, Some(workflow_compact));
+    }
+    #[test]
+    fn test_agent_compact_takes_priority_over_workflow_compact() {
+        use pretty_assertions::assert_eq;
+
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        // Agent has compact config with specific values
+        let mut agent = Agent::new("test-agent");
+        let agent_compact = Compact::new(ModelId::new("agent-priority-model"))
+            .token_threshold(1000_usize)
+            .message_threshold(5_usize)
+            .turn_threshold(2_usize);
+        agent.compact = Some(agent_compact);
+
+        // Workflow has different compact config for the same fields
+        let workflow_compact = Compact::new(ModelId::new("workflow-model"))
+            .token_threshold(2000_usize)
+            .message_threshold(20_usize)
+            .turn_threshold(10_usize);
+
+        let workflow = Workflow::new()
+            .agents(vec![agent])
+            .compact(workflow_compact);
+
+        // Act
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Assert
+        let result_agent = &conversation.agents[0];
+        let result_compact = result_agent.compact.as_ref().unwrap();
+
+        // All agent values should take priority over workflow values
+        assert_eq!(result_compact.model, ModelId::new("agent-priority-model"));
+        assert_eq!(result_compact.token_threshold, Some(1000_usize));
+        assert_eq!(result_compact.message_threshold, Some(5_usize));
+        assert_eq!(result_compact.turn_threshold, Some(2_usize));
     }
 
     #[test]

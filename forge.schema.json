@@ -18,6 +18,17 @@
         "$ref": "#/definitions/Command"
       }
     },
+    "compact": {
+      "description": "Configuration for automatic context compaction for all agents If specified, this will be applied to all agents in the workflow If not specified, each agent's individual setting will be used",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Compact"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "custom_rules": {
       "description": "A set of custom rules that all agents should follow These rules will be applied in addition to each agent's individual rules",
       "type": [
@@ -359,6 +370,13 @@
         "model": {
           "description": "Model ID to use for compaction, useful when compacting with a cheaper/faster model",
           "type": "string"
+        },
+        "on_turn_end": {
+          "description": "Whether to trigger compaction when the last message is from a user",
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "prompt": {
           "description": "Optional custom prompt template to use during compaction",

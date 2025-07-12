@@ -1,6 +1,8 @@
 # yaml-language-server: $schema=./forge.schema.json
 variables:
   operating_agent: Forge
+  # Define model anchors with simpler, purpose-based names
+  advanced_model: &advanced_model anthropic/claude-sonnet-4
 
 max_requests_per_turn: 50
 max_tool_failure_per_turn: 3
@@ -9,28 +11,26 @@ top_k: 30
 max_tokens: 20480
 max_walker_depth: 1
 
+# Global compact configuration applied to all agents
+compact:
+  max_tokens: 2000
+  token_threshold: 100000
+  model: *advanced_model
+  retention_window: 6
+  message_threshold: 200
+  eviction_window: 0.2
+  prompt: "{{> forge-system-prompt-context-summarizer.hbs }}"
+  on_turn_end: true
+
 updates:
   frequency: "daily"
   auto_update: false
-
-# Define model anchors with simpler, purpose-based names
-models:
-  # Role-based model definitions - easy to swap implementation
-  - &advanced_model anthropic/claude-sonnet-4
 
 agents:
   - id: forge
     title: "Implementation focussed"
     description: |-
       Hands-on implementation agent that executes software development tasks through a structured 4-phase approach: task analysis, solution strategy, implementation, and quality assurance. Makes actual changes to codebases, runs shell commands, creates/modifies files, installs dependencies, and performs concrete development work. Use for building features, fixing bugs, refactoring code, or any task requiring actual modifications. Do not use for analysis-only tasks or when you want to explore options without making changes. Always validates changes through compilation and testing.
-    compact:
-      max_tokens: 2000
-      token_threshold: 100000
-      model: *advanced_model
-      retention_window: 6
-      message_threshold: 200
-      eviction_window: 0.2
-      prompt: "{{> forge-system-prompt-context-summarizer.hbs }}"
     model: *advanced_model
     system_prompt: |-
       {{> forge-system-prompt-engineer-act.hbs }}
@@ -56,14 +56,6 @@ agents:
     title: "Analysis and planning focussed"
     description: |-
       Strategic planning agent that analyzes codebases and creates comprehensive implementation plans without making any actual changes. Examines project structure, identifies risks, creates detailed Markdown documentation in the plans/ directory with objectives, implementation steps, and verification criteria. Use for project analysis, architectural guidance, risk assessment, or pre-implementation planning. Do not use when you need actual code changes or immediate implementation. Provides advisory recommendations and strategic roadmaps only.
-    compact:
-      max_tokens: 2000
-      token_threshold: 120000
-      model: *advanced_model
-      retention_window: 6
-      message_threshold: 200
-      eviction_window: 0.2
-      prompt: "{{> forge-system-prompt-context-summarizer.hbs }}"
     model: *advanced_model
     system_prompt: |-
       {{> forge-system-prompt-engineer-plan.hbs }}

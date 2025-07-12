@@ -40,14 +40,14 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
         self.workflows
             .lock()
             .await
-            .insert(conversation.id.clone(), conversation);
+            .insert(conversation.id, conversation);
         Ok(())
     }
 
     async fn create_conversation(&self, workflow: Workflow) -> Result<Conversation> {
         let id = ConversationId::generate();
         let conversation = Conversation::new(
-            id.clone(),
+            id,
             workflow,
             self.mcp_service
                 .list()
@@ -56,10 +56,7 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
                 .map(|a| a.name)
                 .collect(),
         );
-        self.workflows
-            .lock()
-            .await
-            .insert(id.clone(), conversation.clone());
+        self.workflows.lock().await.insert(id, conversation.clone());
         Ok(conversation)
     }
 }

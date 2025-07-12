@@ -65,7 +65,7 @@ pub struct UI<A, F: Fn() -> A> {
     _guard: forge_tracker::Guard,
 }
 
-impl<A: API, F: Fn() -> A> UI<A, F> {
+impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -85,6 +85,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
         banner::display()?;
+        self.trace_user();
         Ok(())
     }
 
@@ -196,6 +197,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
         self.init_state(true).await?;
+        self.trace_user();
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -552,7 +554,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         match self.state.conversation_id {
-            Some(ref id) => Ok(id.clone()),
+            Some(ref id) => Ok(*id),
             None => {
                 self.spinner.start(Some("Initializing"))?;
 
@@ -564,14 +566,14 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                         serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
                             .context("Failed to parse Conversation")?;
 
-                    let conversation_id = conversation.id.clone();
-                    self.state.conversation_id = Some(conversation_id.clone());
+                    let conversation_id = conversation.id;
+                    self.state.conversation_id = Some(conversation_id);
                     self.update_model(conversation.main_model()?);
                     self.api.upsert_conversation(conversation).await?;
                     conversation_id
                 } else {
                     let conversation = self.api.init_conversation(workflow).await?;
-                    self.state.conversation_id = Some(conversation.id.clone());
+                    self.state.conversation_id = Some(conversation.id);
                     self.update_model(conversation.main_model()?);
                     conversation.id
                 };
@@ -679,7 +681,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     /// Modified version of handle_dump that supports HTML format
     async fn on_dump(&mut self, format: Option<String>) -> Result<()> {
-        if let Some(conversation_id) = self.state.conversation_id.clone() {
+        if let Some(conversation_id) = self.state.conversation_id {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
@@ -716,6 +718,9 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 return Err(anyhow::anyhow!("Could not create dump"))
                     .context(format!("Conversation: {conversation_id} was not found"));
             }
+        } else {
+            return Err(anyhow::anyhow!("No conversation initiated yet"))
+                .context("Could not create dump");
         }
         Ok(())
     }
@@ -833,6 +838,17 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         self.api.write_mcp_config(scope, &config).await?;
 
         Ok(())
+    }
+
+    fn trace_user(&self) {
+        let api = self.api.clone();
+        // NOTE: Spawning required so that we don't block the user while querying user
+        // info
+        tokio::spawn(async move {
+            if let Ok(Some(user_info)) = api.user_info().await {
+                tracker::login(user_info.auth_provider_id.into_string());
+            }
+        });
     }
 }
 

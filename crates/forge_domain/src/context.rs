@@ -30,19 +30,8 @@ impl ContextMessage {
                 if matches!(text_message.role, Role::User | Role::Assistant) =>
             {
                 text_message.content.chars().count()
-                    + text_message
-                        .tool_calls
-                        .as_ref()
-                        .map(|tool_calls| {
-                            tool_calls
-                                .iter()
-                                .map(|tc| {
-                                    tc.arguments.to_string().chars().count()
-                                        + tc.name.as_str().chars().count()
-                                })
-                                .sum()
-                        })
-                        .unwrap_or(0)
+                    + tool_call_content_char_count(text_message)
+                    + reasoning_content_char_count(text_message)
             }
             ContextMessage::Tool(tool_result) => tool_result
                 .output
@@ -71,6 +60,14 @@ impl ContextMessage {
                             "<forge_tool_call name=\"{}\"><![CDATA[{}]]></forge_tool_call>",
                             call.name,
                             serde_json::to_string(&call.arguments).unwrap()
+                        ));
+                    }
+                }
+                if let Some(reasoning_details) = &message.reasoning_details {
+                    for reasoning_detail in reasoning_details {
+                        lines.push_str(&format!(
+                            "<reasoning_detail>{}</reasoning_detail>",
+                            serde_json::to_string(reasoning_detail).unwrap()
                         ));
                     }
                 }
@@ -160,6 +157,41 @@ impl ContextMessage {
             ContextMessage::Image(_) => false,
         }
     }
+
+    pub fn has_reasoning_details(&self) -> bool {
+        match self {
+            ContextMessage::Text(message) => message.reasoning_details.is_some(),
+            ContextMessage::Tool(_) => false,
+            ContextMessage::Image(_) => false,
+        }
+    }
+}
+
+fn tool_call_content_char_count(text_message: &TextMessage) -> usize {
+    text_message
+        .tool_calls
+        .as_ref()
+        .map(|tool_calls| {
+            tool_calls
+                .iter()
+                .map(|tc| {
+                    tc.arguments.to_string().chars().count() + tc.name.as_str().chars().count()
+                })
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
+fn reasoning_content_char_count(text_message: &TextMessage) -> usize {
+    text_message
+        .reasoning_details
+        .as_ref()
+        .map_or(0, |details| {
+            details
+                .iter()
+                .map(|rd| rd.text.as_ref().map_or(0, |text| text.chars().count()))
+                .sum::<usize>()
+        })
 }
 
 //TODO: Rename to TextMessage

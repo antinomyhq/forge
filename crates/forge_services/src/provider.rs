@@ -15,6 +15,7 @@ use crate::EnvironmentInfra;
 pub struct ForgeProviderService {
     retry_config: Arc<RetryConfig>,
     cached_client: Arc<Mutex<Option<Client>>>,
+    cached_models: Arc<Mutex<Option<Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
 }
@@ -27,6 +28,7 @@ impl ForgeProviderService {
         Self {
             retry_config,
             cached_client: Arc::new(Mutex::new(None)),
+            cached_models: Arc::new(Mutex::new(None)),
             version,
             timeout_config: env.http,
         }
@@ -71,8 +73,24 @@ impl ProviderService for ForgeProviderService {
     }
 
     async fn models(&self, provider: Provider) -> Result<Vec<Model>> {
-        let client = self.client(provider).await?;
+        // Check cache first
+        {
+            let models_guard = self.cached_models.lock().await;
+            if let Some(cached_models) = models_guard.as_ref() {
+                return Ok(cached_models.clone());
+            }
+        }
 
-        client.models().await
+        // Models not in cache, fetch from client
+        let client = self.client(provider).await?;
+        let models = client.models().await?;
+
+        // Cache the models
+        {
+            let mut models_guard = self.cached_models.lock().await;
+            *models_guard = Some(models.clone());
+        }
+
+        Ok(models)
     }
 }
