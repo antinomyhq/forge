@@ -22,9 +22,7 @@ async fn main() -> Result<()> {
 
     // 1. Load the golden dataset from the JSON file using the robust path.
     let dataset_str = fs::read_to_string(&dataset_path).unwrap_or_else(|e| {
-        panic!(
-            "Failed to read dataset.json. Looked for it at {dataset_path:?}. Error: {e}"
-        )
+        panic!("Failed to read dataset.json. Looked for it at {dataset_path:?}. Error: {e}")
     });
 
     let test_cases: Vec<TestCase> =
