@@ -84,8 +84,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
-        self.trace_user();
         banner::display()?;
+        self.trace_user();
         Ok(())
     }
 
@@ -842,6 +842,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     fn trace_user(&self) {
         let api = self.api.clone();
+        // NOTE: Spawning required so that we don't block the user while querying user info
         tokio::spawn(async move {
             if let Ok(Some(user_info)) = api.user_info().await {
                 tracker::login(user_info.auth_provider_id.into_string());
