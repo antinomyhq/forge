@@ -1,0 +1,23 @@
+[workspace]
+# Enable proc-macro support
+procMacro.enable = true
+procMacro.ignored = {}
+
+# Improve macro expansion
+cargo.buildScripts.enable = true
+cargo.buildScripts.invocationStrategy = "per_workspace"
+cargo.buildScripts.invocationLocation = "workspace"
+
+# Better error handling for macros
+diagnostics.disabled = []
+diagnostics.warningsAsHint = []
+
+# Improve performance with large workspaces
+cargo.allTargets = false
+cargo.target = null
+
+# Enable all features for better analysis
+cargo.allFeatures = true
+
+# Improve macro expansion limits
+expand.limit = 512
