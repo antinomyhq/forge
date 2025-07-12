@@ -22,6 +22,8 @@ on:
     - main
     paths:
     - .github/labels.json
+permissions:
+  contents: write
 jobs:
   label-sync:
     name: label-sync

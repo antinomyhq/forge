@@ -2,14 +2,17 @@ use gh_workflow_tailcall::*;
 
 /// Create a GitHub Label Sync workflow
 pub fn create_labels_workflow() -> Workflow {
-    let mut labels_workflow = Workflow::default().name("Github Label Sync").on(Event {
-        push: Some(Push {
-            branches: vec!["main".to_string()],
-            paths: vec![".github/labels.json".to_string()],
-            ..Push::default()
-        }),
-        ..Event::default()
-    });
+    let mut labels_workflow = Workflow::default()
+        .name("Github Label Sync")
+        .on(Event {
+            push: Some(Push {
+                branches: vec!["main".to_string()],
+                paths: vec![".github/labels.json".to_string()],
+                ..Push::default()
+            }),
+            ..Event::default()
+        })
+        .permissions(Permissions::default().contents(Level::Write));
 
     labels_workflow = labels_workflow.add_job("label-sync", create_label_sync_job());
 
@@ -32,6 +35,6 @@ pub fn create_label_sync_job() -> Job {
             Step::run(
                 "github-label-sync \\\n  --access-token ${{ secrets.GITHUB_TOKEN }} \\\n  --labels \".github/labels.json\" \\\n  --allow-added-labels \\\n  ${{ github.repository }}"
             )
-            .name("Sync labels")
+                .name("Sync labels")
         )
 }
