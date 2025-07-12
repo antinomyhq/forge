@@ -402,6 +402,36 @@ temperature: 0.7 # Balanced creativity and focus
 ```
 
 </details>
+<details>
+<summary><strong>Tool Max Failure Limit</strong></summary>
+
+Control how many times a tool can fail before Forge forces completion to prevent infinite retry loops. This helps avoid situations where an agent gets stuck repeatedly trying the same failing operation.
+
+```yaml
+# forge.yaml
+tool_max_failure_limit: 3 # Allow up to 3 failures per tool before forcing completion
+```
+
+Set to a higher value if you want more retry attempts, or lower if you want faster failure detection.
+
+</details>
+
+<details>
+<summary><strong>Max Requests Per Turn</strong></summary>
+
+Limit the maximum number of requests an agent can make in a single conversation turn. This prevents runaway conversations and helps control API usage and costs.
+
+```yaml
+# forge.yaml
+max_requests_per_turn: 50 # Allow up to 50 requests per turn
+```
+
+When this limit is reached, Forge will:
+- Ask you if you wish to continue
+- If you respond with 'Yes', it will continue the conversation
+- If you respond with 'No', it will end the conversation
+
+</details>
 
 ---
 
