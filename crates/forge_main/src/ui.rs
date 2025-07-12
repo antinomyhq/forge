@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event, InterruptionReason,
-    Model, ModelId, Workflow, API,
+    AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    InterruptionReason, Model, ModelId, Workflow, API,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
@@ -426,6 +426,8 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
                 self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
+                let config: AppConfig = self.api.app_config().await?;
+                tracker::login(config.key_info.and_then(|v| v.email).unwrap_or_default());
             }
             Command::Logout => {
                 self.spinner.start(Some("Logging out"))?;
@@ -576,6 +578,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
+        let provider = self.init_provider().await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(
@@ -595,7 +598,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(base_workflow).provider(self.init_provider().await?);
+        self.state = UIState::new(base_workflow).provider(provider);
 
         Ok(workflow)
     }
@@ -606,6 +609,8 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
             Err(_) => {
                 // If no key is available, start the login flow.
                 self.login().await?;
+                let config: AppConfig = self.api.app_config().await?;
+                tracker::login(config.key_info.and_then(|v| v.email).unwrap_or_default());
                 self.api.provider().await
             }
         }

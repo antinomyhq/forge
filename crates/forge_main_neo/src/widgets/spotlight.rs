@@ -1,9 +1,12 @@
 use edtui::{EditorTheme, EditorView};
-use ratatui::layout::{Constraint, Flex, Layout};
+use ratatui::layout::{Constraint, Flex, Layout, Margin};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols::{border, line};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, StatefulWidget, Widget};
+use ratatui::widgets::{
+    Block, Borders, Clear, List, ListItem, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    StatefulWidget, Widget,
+};
 
 use crate::domain::State;
 
@@ -58,6 +61,12 @@ impl StatefulWidget for SpotlightWidget {
         // Get the current input text for filtering
         let filtered_commands = state.spotlight.filtered_commands();
 
+        // Update the list state to reflect current selection
+        state
+            .spotlight
+            .list_state
+            .select(Some(state.spotlight.selected_index));
+
         // Calculate the maximum width of filtered command names for consistent
         // alignment
         let max_name_width = filtered_commands
@@ -92,12 +101,34 @@ impl StatefulWidget for SpotlightWidget {
             })
             .collect();
 
-        let commands_list = List::new(items).block(
-            Block::bordered()
-                .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-                .border_style(Style::default().fg(Color::Blue)),
+        let commands_list = List::new(items)
+            .block(
+                Block::bordered()
+                    .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
+                    .border_style(Style::default().fg(Color::Blue)),
+            )
+            .highlight_style(Style::default().bg(Color::White).fg(Color::Black));
+
+        // Render the list with state for scrolling
+        StatefulWidget::render(
+            commands_list,
+            content_area,
+            buf,
+            &mut state.spotlight.list_state,
         );
 
-        Widget::render(commands_list, content_area, buf);
+        // Add scrollbar if there are more items than can fit in the area
+        let scrollbar_area = content_area.inner(Margin { horizontal: 0, vertical: 1 });
+        // TODO: not sure if this is best way to check if scrollbar is needed.
+        if filtered_commands.len() > scrollbar_area.height as usize {
+            let mut scrollbar_state = ScrollbarState::new(filtered_commands.len())
+                .position(state.spotlight.selected_index);
+
+            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                .style(Style::default().fg(Color::Blue))
+                .thumb_style(Style::default().fg(Color::White));
+
+            scrollbar.render(scrollbar_area, buf, &mut scrollbar_state);
+        }
     }
 }

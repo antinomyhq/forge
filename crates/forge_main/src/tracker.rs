@@ -32,3 +32,7 @@ pub fn prompt(text: String) {
 pub fn set_model(model: String) {
     std::mem::drop(tokio::spawn(async move { TRACKER.set_model(model).await }));
 }
+
+pub fn login(login: String) {
+    std::mem::drop(tokio::spawn(TRACKER.login(login)));
+}

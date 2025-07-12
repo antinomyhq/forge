@@ -3,10 +3,13 @@ use std::time::Duration;
 use derive_more::From;
 use forge_api::{AgentId, ConversationId, ModelId};
 
-use crate::domain::TimerId;
-
 /// Unified application commands
-#[derive(Default, Clone, From, PartialEq, Eq, Debug)]
+///
+/// Commands represent user intentions and system events that need to be
+/// processed. The cancellation system now works automatically through direct
+/// .cancel() calls on CancelId instances, eliminating the need for Cancel
+/// commands.
+#[derive(Default, Clone, PartialEq, Eq, Debug)]
 pub enum Command {
     // Application-level commands
     ReadWorkspace,
@@ -19,12 +22,10 @@ pub enum Command {
         conversation_id: Option<ConversationId>,
         is_first: bool,
     },
+    InterruptStream,
     Spotlight(SpotlightCommand),
     Interval {
         duration: Duration,
-    },
-    ClearInterval {
-        id: TimerId,
     },
 }
 

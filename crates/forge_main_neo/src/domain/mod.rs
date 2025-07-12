@@ -1,4 +1,5 @@
 mod action;
+mod cancel;
 mod command;
 mod editor_helpers;
 mod message;
@@ -10,6 +11,7 @@ mod update_key_event;
 mod workspace;
 
 pub use action::*;
+pub use cancel::*;
 pub use command::*;
 pub use editor_helpers::*;
 pub use message::*;

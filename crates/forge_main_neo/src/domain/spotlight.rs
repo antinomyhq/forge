@@ -1,4 +1,5 @@
 use edtui::{EditorMode, EditorState};
+use ratatui::widgets::ListState;
 use strum::IntoEnumIterator;
 
 use crate::domain::editor_helpers::EditorStateExt;
@@ -9,6 +10,7 @@ pub struct SpotlightState {
     pub is_visible: bool,
     pub editor: EditorState,
     pub selected_index: usize,
+    pub list_state: ListState,
 }
 
 impl Default for SpotlightState {
@@ -16,7 +18,12 @@ impl Default for SpotlightState {
         let mut editor = EditorState::default();
         editor.mode = EditorMode::Insert;
 
-        Self { is_visible: false, editor, selected_index: 0 }
+        Self {
+            is_visible: false,
+            editor,
+            selected_index: 0,
+            list_state: ListState::default(),
+        }
     }
 }
 

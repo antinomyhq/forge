@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 use tui_scrollview::ScrollViewState;
 
 use crate::domain::spotlight::SpotlightState;
-use crate::domain::{EditorStateExt, Message, Workspace};
+use crate::domain::{CancelId, EditorStateExt, Message, Workspace};
 
 #[derive(Clone)]
 pub struct State {
@@ -20,6 +20,7 @@ pub struct State {
     pub show_spinner: bool,
     pub spotlight: SpotlightState,
     pub conversation: ConversationState,
+    pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
 }
 
@@ -36,40 +37,18 @@ impl Default for State {
             show_spinner: Default::default(),
             spotlight: Default::default(),
             conversation: Default::default(),
+            chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Timer {
     pub start_time: DateTime<Utc>,
     pub current_time: DateTime<Utc>,
     pub duration: Duration,
-    pub id: TimerId,
-}
-
-#[derive(Clone, Debug)]
-pub struct TimerId(CancellationToken);
-
-impl TimerId {
-    pub fn cancel(&self) {
-        self.0.cancel()
-    }
-}
-
-impl PartialEq for TimerId {
-    fn eq(&self, _: &Self) -> bool {
-        unimplemented!()
-    }
-}
-
-impl Eq for TimerId {}
-
-impl From<CancellationToken> for TimerId {
-    fn from(value: CancellationToken) -> Self {
-        Self(value)
-    }
+    pub cancel: CancelId,
 }
 
 impl State {

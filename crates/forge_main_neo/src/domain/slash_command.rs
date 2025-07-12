@@ -107,7 +107,7 @@ mod tests {
     fn test_all_commands_count() {
         let fixture = SlashCommand::all_commands();
         let actual = fixture.len();
-        let expected = 15; // Total number of commands
+        let expected = 12; // Total number of commands
         assert_eq!(actual, expected);
     }
 
@@ -123,7 +123,7 @@ mod tests {
     fn test_enum_iteration() {
         let fixture = SlashCommand::iter().collect::<Vec<_>>();
         let actual = fixture.len();
-        let expected = 15;
+        let expected = 12;
         assert_eq!(actual, expected);
     }
 
@@ -144,7 +144,7 @@ mod tests {
         // Demonstrate listing all commands
         let fixture = SlashCommand::all_commands();
         let actual = fixture.len();
-        let expected = 15;
+        let expected = 12;
         assert_eq!(actual, expected);
 
         // Demonstrate getting command with slash

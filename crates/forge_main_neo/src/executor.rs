@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use chrono::Utc;
 use forge_api::{API, AgentId, ChatRequest, ConversationId, Event};
 use serde_json::Value;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -7,7 +8,7 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-use crate::domain::{Action, Command, TimerId};
+use crate::domain::{Action, CancelId, Command, Timer};
 
 // Event type constants
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -28,7 +29,7 @@ impl<T: API + 'static> Executor<T> {
         Executor { api }
     }
 
-    async fn handle_chat(
+    async fn execute_chat_message(
         &self,
         message: String,
         conversation_id: Option<ConversationId>,
@@ -72,12 +73,29 @@ impl<T: API + 'static> Executor<T> {
         // Create chat request
         let chat_request = ChatRequest::new(event, conversation.id);
 
+        // Create cancellation token for this stream
+        let cancellation_token = CancellationToken::new();
+        let cancel_id = CancelId::new(cancellation_token.clone());
+
+        // Send StartStream action with the cancel_id
+        tx.send(Ok(Action::StartStream(cancel_id.clone()))).await?;
+
         match self.api.chat(chat_request).await {
-            Ok(mut stream) => {
-                while let Some(response) = stream.next().await {
-                    tx.send(response.map(Action::ChatResponse)).await?;
+            Ok(mut stream) => loop {
+                tokio::select! {
+                    response = stream.next() => {
+                        match response {
+                            Some(response) => {
+                                tx.send(response.map(Action::ChatResponse)).await?;
+                            }
+                            None => break,
+                        }
+                    }
+                    _ = cancellation_token.cancelled() => {
+                        break;
+                    }
                 }
-            }
+            },
             Err(err) => return Err(err),
         }
         Ok(())
@@ -95,17 +113,6 @@ impl<T: API + 'static> Executor<T> {
                 }
             }
         });
-    }
-
-    async fn execute_chat_message(
-        &self,
-        message: String,
-        conversation_id: Option<ConversationId>,
-        is_first: bool,
-        tx: &Sender<anyhow::Result<Action>>,
-    ) -> anyhow::Result<()> {
-        self.handle_chat(message, conversation_id, is_first, tx)
-            .await
     }
 
     async fn execute_read_workspace(
@@ -175,11 +182,6 @@ impl<T: API + 'static> Executor<T> {
         Ok(())
     }
 
-    async fn execute_clear_interval(&self, id: TimerId) -> anyhow::Result<()> {
-        id.cancel();
-        Ok(())
-    }
-
     /// Execute an interval command that emits IntervalTick actions at regular
     /// intervals
     ///
@@ -192,20 +194,16 @@ impl<T: API + 'static> Executor<T> {
     /// * `duration` - The interval duration between ticks
     /// * `tx` - Channel sender for emitting actions
     /// * `cancellation_token` - Token to cancel the interval
-    /// * `id` - The unique ID assigned to this interval
     async fn execute_interval_internal(
         &self,
         duration: std::time::Duration,
         tx: Sender<anyhow::Result<Action>>,
         cancellation_token: CancellationToken,
     ) {
-        use chrono::Utc;
         use tokio::time::interval;
 
-        use crate::domain::Timer;
-
+        let cancel_id = CancelId::new(cancellation_token.clone());
         let start_time = Utc::now();
-        let id = TimerId::from(cancellation_token.clone());
 
         // Create a tokio interval timer
         let mut interval_timer = interval(duration);
@@ -213,22 +211,18 @@ impl<T: API + 'static> Executor<T> {
         // Skip the first tick which fires immediately
         interval_timer.tick().await;
 
-        // Spawn a background task to handle the interval
         loop {
             tokio::select! {
                 _ = interval_timer.tick() => {
                     let current_time = Utc::now();
-                    let timer = Timer {start_time, current_time, duration, id: id.clone() };
+                    let timer = Timer {start_time, current_time, duration, cancel: cancel_id.clone() };
                     let action = Action::IntervalTick(timer);
 
-                    // Send the action, if the receiver is dropped, break the loop
                     if tx.send(Ok(action)).await.is_err() {
-                        // Channel closed, exit the loop to prevent memory leaks
                         break;
                     }
                 }
                 _ = cancellation_token.cancelled() => {
-                    // Interval was cancelled, exit cleanly
                     break;
                 }
             }
@@ -261,10 +255,11 @@ impl<T: API + 'static> Executor<T> {
             Command::Interval { duration } => {
                 self.execute_interval(duration, &tx).await?;
             }
-            Command::ClearInterval { id } => {
-                self.execute_clear_interval(id).await?;
-            }
             Command::Spotlight(_) => todo!(),
+            Command::InterruptStream => {
+                // Send InterruptStream action to trigger state update
+                tx.send(Ok(Action::InterruptStream)).await?;
+            }
         }
         Ok(())
     }

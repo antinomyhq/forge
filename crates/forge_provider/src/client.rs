@@ -35,6 +35,9 @@ impl Client {
         timeout_config: &HttpConfig,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(
+                timeout_config.connect_timeout,
+            ))
             .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
             .pool_idle_timeout(std::time::Duration::from_secs(
                 timeout_config.pool_idle_timeout,
