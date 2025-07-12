@@ -847,10 +847,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     fn trace_user(&self) {
         let api = self.api.clone();
         tokio::spawn(async move {
-            if let Ok(user_info) = api.user_info().await {
-                if let Some(login) = user_info.auth_provider_id {
-                    tracker::login(login);
-                }
+            if let Ok(Some(user_info)) = api.user_info().await {
+                tracker::login(user_info.auth_provider_id.into_string());
             }
         });
     }

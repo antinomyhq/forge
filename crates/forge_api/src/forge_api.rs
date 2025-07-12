@@ -164,12 +164,12 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         self.services.read_app_config().await
     }
 
-    async fn user_info(&self) -> Result<User> {
+    async fn user_info(&self) -> Result<Option<User>> {
         let provider = self.provider().await?;
         if let Some(api_key) = provider.key() {
             let user_info = self.services.user_info(api_key).await?;
-            return Ok(user_info);
+            return Ok(Some(user_info));
         }
-        Ok(User { auth_provider_id: None })
+        Ok(None)
     }
 }
