@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::process::Output;
 use std::sync::Arc;
-
+use std::sync::atomic::{AtomicBool, Ordering};
 use chrono::{DateTime, Utc};
 use forge_domain::Conversation;
 use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
@@ -38,6 +38,7 @@ pub struct Tracker {
     email: Arc<Mutex<Option<Vec<String>>>>,
     model: Arc<Mutex<Option<String>>>,
     conversation: Arc<Mutex<Option<Conversation>>>,
+    is_logged_in: Arc<AtomicBool>,
 }
 
 impl Default for Tracker {
@@ -52,6 +53,7 @@ impl Default for Tracker {
             email: Arc::new(Mutex::new(None)),
             model: Arc::new(Mutex::new(None)),
             conversation: Arc::new(Mutex::new(None)),
+            is_logged_in: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -63,6 +65,11 @@ impl Tracker {
     }
 
     pub async fn login<S: Into<String>>(&'static self, login: S) {
+        let is_logged_in = self.is_logged_in.load(Ordering::SeqCst);
+        if is_logged_in {
+            return;
+        }
+        self.is_logged_in.store(true, Ordering::SeqCst);
         let login_value = login.into();
         let id = Identity { login: login_value };
         self.dispatch(EventKind::Login(id)).await.ok();
