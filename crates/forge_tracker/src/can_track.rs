@@ -10,7 +10,8 @@ pub const VERSION: &str = match option_env!("APP_VERSION") {
 
 /// Checks if tracking is enabled
 pub fn can_track() -> bool {
-    true
+    let env_value = env::var(LONG_ENV_FILTER_VAR_NAME).ok();
+    can_track_inner(Some(VERSION), env_value)
 }
 
 fn can_track_inner<V: AsRef<str>, E: AsRef<str>>(version: Option<V>, env_value: Option<E>) -> bool {
