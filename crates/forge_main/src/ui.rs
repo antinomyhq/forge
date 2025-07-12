@@ -197,6 +197,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Display the banner in dimmed colors since we're in interactive mode
         banner::display()?;
         self.init_state(true).await?;
+        self.trace_user();
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -584,7 +585,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        let provider = self.init_provider(first).await?;
+        let provider = self.init_provider().await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(
@@ -608,15 +609,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         Ok(workflow)
     }
-    async fn init_provider(&mut self, first: bool) -> Result<Provider> {
+    async fn init_provider(&mut self) -> Result<Provider> {
         match self.api.provider().await {
             // Use the forge key if available in the config.
-            Ok(provider) => {
-                if first {
-                    self.trace_user();
-                }
-                Ok(provider)
-            }
+            Ok(provider) => Ok(provider),
             Err(_) => {
                 // If no key is available, start the login flow.
                 self.login().await?;
