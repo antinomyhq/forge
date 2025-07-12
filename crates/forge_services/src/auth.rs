@@ -69,7 +69,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", api_key))?,
+            HeaderValue::from_str(&format!("Bearer {api_key}"))?,
         );
 
         let response = self.infra.get(&url, Some(headers)).await?;

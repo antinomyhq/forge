@@ -14,13 +14,13 @@ mod services;
 mod tool_executor;
 mod tool_registry;
 mod truncation;
+mod user;
 mod utils;
 mod walker;
-mod user;
 
 pub use app::*;
-pub use user::*;
 pub use app_config::*;
 pub use error::*;
 pub use services::*;
+pub use user::*;
 pub use walker::*;
