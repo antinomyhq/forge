@@ -84,6 +84,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
+        self.trace_user().await.ok();
         banner::display()?;
         Ok(())
     }
@@ -583,7 +584,7 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        let provider = self.init_provider().await?;
+        let provider = self.init_provider(first).await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(
@@ -607,10 +608,15 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
 
         Ok(workflow)
     }
-    async fn init_provider(&mut self) -> Result<Provider> {
+    async fn init_provider(&mut self, first: bool) -> Result<Provider> {
         match self.api.provider().await {
             // Use the forge key if available in the config.
-            Ok(provider) => Ok(provider),
+            Ok(provider) => {
+                if first {
+                    self.trace_user().await.ok();
+                }
+                Ok(provider)
+            }
             Err(_) => {
                 // If no key is available, start the login flow.
                 self.login().await?;
@@ -835,6 +841,14 @@ impl<A: API, F: Fn() -> A> UI<A, F> {
         f(&mut config);
         self.api.write_mcp_config(scope, &config).await?;
 
+        Ok(())
+    }
+
+    async fn trace_user(&self) -> Result<()> {
+        let user_info = self.api.user_info().await?;
+        if let Some(login) = user_info.auth_provider_id {
+            tracker::login(login);
+        }
         Ok(())
     }
 }

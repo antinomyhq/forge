@@ -16,8 +16,10 @@ mod tool_registry;
 mod truncation;
 mod utils;
 mod walker;
+mod user;
 
 pub use app::*;
+pub use user::*;
 pub use app_config::*;
 pub use error::*;
 pub use services::*;
