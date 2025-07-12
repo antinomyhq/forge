@@ -106,6 +106,7 @@ impl ForgeEnvironmentInfra {
     fn get(&self) -> Environment {
         let cwd = Self::cwd();
         let retry_config = self.resolve_retry_config();
+        let secret = include!(concat!(env!("OUT_DIR"), "/secret.rs")).to_string();
 
         Environment {
             os: std::env::consts::OS.to_string(),
@@ -124,6 +125,7 @@ impl ForgeEnvironmentInfra {
             stdout_max_suffix_length: 200,
             http: self.resolve_timeout_config(),
             max_file_size: 256 << 10, // 256 KiB
+            secret,
         }
     }
 

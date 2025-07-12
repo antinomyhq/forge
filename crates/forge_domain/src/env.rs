@@ -42,6 +42,8 @@ pub struct Environment {
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
     pub max_file_size: u64,
+    /// Secret key used to sign requests.
+    pub secret: String,
 }
 
 impl Environment {
