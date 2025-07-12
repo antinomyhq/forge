@@ -25,7 +25,7 @@ impl ForgeProviderService {
     pub fn new<I: EnvironmentInfra>(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
-        let secret = env.secret();
+        let secret = env.secret;
         let retry_config = Arc::new(env.retry_config);
         Self {
             retry_config,
