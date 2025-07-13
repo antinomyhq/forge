@@ -95,23 +95,6 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_auth_headers() {
-        let fixture = CryptoAuth::new().unwrap();
-        let actual = fixture.generate_auth_headers();
-
-        assert!(actual.is_ok());
-        let headers = actual.unwrap();
-
-        // Verify all required headers are present
-        assert!(headers.contains_key("X-Forge-Auth-Payload"));
-        assert!(headers.contains_key("X-Forge-Auth-Signature"));
-        assert!(headers.contains_key("X-Forge-Auth-Version"));
-
-        // Verify version is correct
-        assert_eq!(headers.get("X-Forge-Auth-Version").unwrap(), "1");
-    }
-
-    #[test]
     fn test_signature_verification_roundtrip() {
         let fixture = CryptoAuth::new().unwrap();
         let headers = fixture.generate_auth_headers().unwrap();
