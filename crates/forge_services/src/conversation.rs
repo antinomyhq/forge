@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as AnyhowContext, Result};
+use forge_app::domain::{Conversation, ConversationId, Workflow};
 use forge_app::{ConversationService, McpService};
-use forge_domain::{Conversation, ConversationId, Workflow};
 use tokio::sync::Mutex;
 
 /// Service for managing conversations, including creation, retrieval, and

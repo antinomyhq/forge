@@ -1,4 +1,4 @@
-use forge_domain::{
+use forge_app::domain::{
     ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, ToolCallId, ToolCallPart,
     ToolName,
 };
@@ -18,7 +18,7 @@ pub struct Model {
     display_name: String,
 }
 
-impl From<Model> for forge_domain::Model {
+impl From<Model> for forge_app::domain::Model {
     fn from(value: Model) -> Self {
         Self {
             id: ModelId::new(value.id),
@@ -53,9 +53,9 @@ pub struct Usage {
     pub cache_creation_input_tokens: Option<usize>,
 }
 
-impl From<Usage> for forge_domain::Usage {
+impl From<Usage> for forge_app::domain::Usage {
     fn from(usage: Usage) -> Self {
-        forge_domain::Usage {
+        forge_app::domain::Usage {
             prompt_tokens: usage.input_tokens.unwrap_or(0),
             completion_tokens: usage.output_tokens.unwrap_or(0),
             total_tokens: usage.input_tokens.unwrap_or(0) + usage.output_tokens.unwrap_or(0),
@@ -74,13 +74,13 @@ pub enum StopReason {
     ToolUse,
 }
 
-impl From<StopReason> for forge_domain::FinishReason {
+impl From<StopReason> for forge_app::domain::FinishReason {
     fn from(value: StopReason) -> Self {
         match value {
-            StopReason::EndTurn => forge_domain::FinishReason::Stop,
-            StopReason::MaxTokens => forge_domain::FinishReason::Length,
-            StopReason::StopSequence => forge_domain::FinishReason::Stop,
-            StopReason::ToolUse => forge_domain::FinishReason::ToolCalls,
+            StopReason::EndTurn => forge_app::domain::FinishReason::Stop,
+            StopReason::MaxTokens => forge_app::domain::FinishReason::Length,
+            StopReason::StopSequence => forge_app::domain::FinishReason::Stop,
+            StopReason::ToolUse => forge_app::domain::FinishReason::ToolCalls,
         }
     }
 }

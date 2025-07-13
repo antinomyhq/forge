@@ -1,4 +1,4 @@
-use forge_domain::{AttachmentContent, Image};
+use forge_app::domain::{AttachmentContent, Image};
 
 pub trait AttachmentExtension {
     fn contains(&self, needle: &str) -> bool;

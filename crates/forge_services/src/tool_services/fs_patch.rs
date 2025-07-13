@@ -2,8 +2,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use forge_app::domain::PatchOperation;
 use forge_app::{FsPatchService, PatchOutput};
-use forge_domain::PatchOperation;
 use thiserror::Error;
 use tokio::fs;
 
@@ -236,7 +236,7 @@ impl<F: FileWriterInfra> FsPatchService for ForgeFsPatch<F> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::PatchOperation;
+    use forge_app::domain::PatchOperation;
     use pretty_assertions::assert_eq;
 
     #[test]

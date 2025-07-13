@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::bail;
+use forge_app::domain::Environment;
 use forge_app::{ShellOutput, ShellService};
-use forge_domain::Environment;
 use strip_ansi_escapes::strip;
 
 use crate::{CommandInfra, EnvironmentInfra};

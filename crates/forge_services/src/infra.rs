@@ -2,10 +2,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_app::{WalkedFile, Walker};
-use forge_domain::{
+use forge_app::domain::{
     CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
+use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
 use reqwest::header::HeaderMap;
 use reqwest::Response;

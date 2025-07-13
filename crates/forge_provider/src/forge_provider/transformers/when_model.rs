@@ -29,7 +29,7 @@ pub fn when_model(pattern: &str) -> impl Fn(&Request) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{ModelId, Transformer};
+    use forge_app::domain::{ModelId, Transformer};
     use pretty_assertions::assert_eq;
 
     use super::*;

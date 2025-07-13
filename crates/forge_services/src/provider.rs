@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::ProviderService;
-use forge_domain::{
+use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
     ResultStream, RetryConfig,
 };
+use forge_app::ProviderService;
 use forge_provider::Client;
 use tokio::sync::Mutex;
 

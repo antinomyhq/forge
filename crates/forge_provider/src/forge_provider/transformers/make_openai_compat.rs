@@ -1,4 +1,4 @@
-use forge_domain::Transformer;
+use forge_app::domain::Transformer;
 
 use crate::forge_provider::request::Request;
 
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_reasoning_removed() {
-        let fixture = Request::default().reasoning(forge_domain::ReasoningConfig {
+        let fixture = Request::default().reasoning(forge_app::domain::ReasoningConfig {
             enabled: Some(true),
             effort: None,
             max_tokens: None,

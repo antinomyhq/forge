@@ -6,5 +6,5 @@ mod tool_choice;
 mod when_model;
 
 // Use the Transformer trait from forge_domain
-pub use forge_domain::Transformer;
+pub use forge_app::domain::Transformer;
 pub use pipeline::ProviderPipeline;
