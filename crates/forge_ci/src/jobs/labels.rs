@@ -29,7 +29,7 @@ pub fn create_label_sync_job() -> Job {
         )
         .add_step(
             Step::run(
-                "npx github-label-sync \\\n  --access-token ${{ secrets.GITHUB_TOKEN }} \\\n  --labels \".github/labels.json\" \\\n  --allow-added-labels \\\n  ${{ github.repository }}"
+                "npx github-label-sync \\\n  --access-token ${{ secrets.GITHUB_TOKEN }} \\\n  --labels \".github/labels.json\" \\\n  ${{ github.repository }}"
             )
                 .name("Sync labels")
         )
