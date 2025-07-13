@@ -58,7 +58,7 @@ impl ForgeHttpService {
         );
         headers.insert(
             "HTTP-Referer",
-            HeaderValue::from_static("https://github.com/antinomyhq/forge"),
+            HeaderValue::from_static("https://forgecode.dev"),
         );
         headers.insert(
             reqwest::header::CONNECTION,
