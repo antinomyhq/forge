@@ -127,6 +127,7 @@ open = "5.3.2"
 ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
 ring = "0.17.8"
 base64 = "0.22.1"
+obfstr = "0.4.4"
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }

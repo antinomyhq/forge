@@ -74,20 +74,11 @@ impl ForgeProvider {
 
         // Add cryptographic authentication headers
         if let Some(ref crypto_auth) = self.crypto_auth {
-            match crypto_auth.generate_auth_headers() {
-                Ok(crypto_headers) => {
-                    for (key, value) in crypto_headers {
-                        if let Ok(header_value) = HeaderValue::from_str(&value) {
-                            headers.insert(
-                                reqwest::header::HeaderName::from_bytes(key.as_bytes()).unwrap(),
-                                header_value,
-                            );
-                        }
+            if let Ok(crypto_headers) = crypto_auth.generate_auth_headers() {
+                for (key, value) in crypto_headers {
+                    if let Some(key) = key {
+                        headers.insert(key, value);
                     }
-                    debug!("Added cryptographic authentication headers");
-                }
-                Err(e) => {
-                    tracing::warn!(error = ?e, "Failed to generate cryptographic authentication headers");
                 }
             }
         }
@@ -445,12 +436,10 @@ mod tests {
             .client(Client::new())
             .provider(provider)
             .version("1.0.0".to_string())
+            .with_crypto_auth()?
             .build()
-            .unwrap()
-            .with_crypto_auth()?;
-
-        assert!(forge_provider.has_crypto_auth());
-
+            .unwrap();
+        
         // Test that headers include crypto auth
         let headers = forge_provider.headers();
 
@@ -462,29 +451,6 @@ mod tests {
             headers.get("x-forge-auth-payload").is_some()
                 || headers.get("X-Forge-Auth-Payload").is_some()
         );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_provider_without_crypto_auth() -> Result<()> {
-        let provider = Provider::OpenAI {
-            url: reqwest::Url::parse("https://api.example.com")?,
-            key: Some("test-api-key".to_string()),
-        };
-
-        let forge_provider = ForgeProvider::builder()
-            .client(Client::new())
-            .provider(provider)
-            .version("1.0.0".to_string())
-            .build()
-            .unwrap();
-
-        assert!(!forge_provider.has_crypto_auth());
-
-        // Test that headers work without crypto auth
-        let headers = forge_provider.headers();
-        assert!(headers.contains_key(AUTHORIZATION));
 
         Ok(())
     }

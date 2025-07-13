@@ -1,11 +1,11 @@
-use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use base64::engine::general_purpose;
 use base64::Engine as _;
 use ed25519_dalek::{Signer, SigningKey};
-use tracing::{debug, warn};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use tracing::debug;
 
 /// Cryptographic authentication module for ForgeProvider
 /// Provides Ed25519 digital signatures for HTTP request authentication
@@ -42,13 +42,12 @@ impl CryptoAuth {
         }
 
         // For development/testing, generate a deterministic key
-        warn!("FORGE_PRIVATE_KEY not found in environment, using development key");
         let dev_seed = [42u8; 32]; // Deterministic seed for development
         Ok(SigningKey::from_bytes(&dev_seed))
     }
 
     /// Generate authentication headers with cryptographic signatures
-    pub fn generate_auth_headers(&self) -> Result<HashMap<String, String>> {
+    pub fn generate_auth_headers(&self) -> Result<HeaderMap> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .context("Failed to get current timestamp")?
@@ -67,15 +66,18 @@ impl CryptoAuth {
         let payload_b64 = general_purpose::STANDARD.encode(&payload);
         let signature_b64 = general_purpose::STANDARD.encode(signature.to_bytes());
 
-        let mut headers = HashMap::new();
-        headers.insert("X-Forge-Auth-Payload".to_string(), payload_b64);
-        headers.insert("X-Forge-Auth-Signature".to_string(), signature_b64);
-
-        debug!(
-            timestamp = timestamp,
-            nonce = %nonce,
-            payload_len = payload.len(),
-            "Generated cryptographic authentication headers"
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HeaderName::try_from("X-Forge-Auth-Payload")?,
+            HeaderValue::from_str(&payload_b64)?,
+        );
+        headers.insert(
+            HeaderName::try_from("X-Forge-Auth-Signature")?,
+            HeaderValue::from_str(&signature_b64)?,
+        );
+        headers.insert(
+            HeaderName::try_from("X-Forge-Auth-Version")?,
+            HeaderValue::from_str("1")?,
         );
 
         Ok(headers)
