@@ -36,4 +36,5 @@ jobs:
         npx github-label-sync \
           --access-token ${{ secrets.GITHUB_TOKEN }} \
           --labels ".github/labels.json" \
+          --allow-added-labels \
           ${{ github.repository }}
