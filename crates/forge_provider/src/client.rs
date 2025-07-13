@@ -23,7 +23,7 @@ pub struct Client {
 }
 
 enum InnerClient {
-    OpenAICompat(ForgeProvider),
+    OpenAICompat(Box<ForgeProvider>),
     Anthropic(Anthropic),
 }
 
@@ -48,13 +48,13 @@ impl Client {
 
         let inner = match &provider {
             Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
-                ForgeProvider::builder()
+                Box::new(ForgeProvider::builder()
                     .client(client)
                     .provider(provider.clone())
                     .version(version.to_string())
                     .with_crypto_auth()?
                     .build()
-                    .with_context(|| format!("Failed to initialize: {url}"))?,
+                    .with_context(|| format!("Failed to initialize: {url}"))?),
             ),
 
             Provider::Anthropic { url, key } => InnerClient::Anthropic(
