@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_domain::{ToolName, ToolOutput};
+use forge_app::domain::{ToolName, ToolOutput};
 
 use crate::McpClientInfra;
 

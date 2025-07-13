@@ -40,13 +40,13 @@ impl<'de> Deserialize<'de> for FunctionType {
     }
 }
 
-impl From<forge_domain::ToolChoice> for ToolChoice {
-    fn from(value: forge_domain::ToolChoice) -> Self {
+impl From<forge_app::domain::ToolChoice> for ToolChoice {
+    fn from(value: forge_app::domain::ToolChoice) -> Self {
         match value {
-            forge_domain::ToolChoice::None => ToolChoice::None,
-            forge_domain::ToolChoice::Auto => ToolChoice::Auto,
-            forge_domain::ToolChoice::Required => ToolChoice::Required,
-            forge_domain::ToolChoice::Call(tool_name) => ToolChoice::Function {
+            forge_app::domain::ToolChoice::None => ToolChoice::None,
+            forge_app::domain::ToolChoice::Auto => ToolChoice::Auto,
+            forge_app::domain::ToolChoice::Required => ToolChoice::Required,
+            forge_app::domain::ToolChoice::Call(tool_name) => ToolChoice::Function {
                 function: FunctionName { name: tool_name.to_string() },
                 r#type: FunctionType,
             },

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use forge_app::domain::File;
 use forge_app::{FileDiscoveryService, Walker};
-use forge_domain::File;
 
 use crate::{EnvironmentInfra, WalkerInfra};
 

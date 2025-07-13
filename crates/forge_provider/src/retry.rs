@@ -1,4 +1,4 @@
-use forge_domain::{Error as DomainError, RetryConfig};
+use forge_app::domain::{Error as DomainError, RetryConfig};
 
 use crate::error::{Error, ErrorResponse};
 

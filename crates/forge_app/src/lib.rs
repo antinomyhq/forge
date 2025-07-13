@@ -24,3 +24,6 @@ pub use error::*;
 pub use services::*;
 pub use user::*;
 pub use walker::*;
+pub mod domain {
+    pub use forge_domain::*;
+}
