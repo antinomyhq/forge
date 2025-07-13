@@ -6,8 +6,6 @@ use base64::Engine as _;
 use ed25519_dalek::{Signer, SigningKey};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
-include!(concat!(env!("OUT_DIR"), "/secret.rs"));
-
 /// Cryptographic authentication module for ForgeProvider
 /// Provides Ed25519 digital signatures for HTTP request authentication
 #[derive(Clone)]
@@ -26,7 +24,7 @@ impl CryptoAuth {
     /// Load private key from environment variable or generate for development
     fn load_private_key() -> Result<SigningKey> {
         // Try to load from environment variable first
-        let key_b64 = obfstr::obfstr!(match FORGE_PRIVATE_KEY {
+        let key_b64 = obfstr::obfstr!(match option_env!("FORGE_PRIVATE_KEY") {
             Some(key) => key,
             None => "",
         })
