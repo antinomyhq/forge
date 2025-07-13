@@ -1,5 +1,6 @@
 mod anthropic;
 mod client;
+mod crypto;
 mod error;
 mod forge_provider;
 #[cfg(test)]

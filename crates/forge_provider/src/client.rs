@@ -52,6 +52,7 @@ impl Client {
                     .client(client)
                     .provider(provider.clone())
                     .version(version.to_string())
+                    .with_crypto_auth()?
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             ),

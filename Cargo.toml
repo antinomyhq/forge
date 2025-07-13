@@ -31,7 +31,7 @@ strip = true
 anyhow = "1.0.95"
 async-recursion = "1.1.1"
 async-trait = "0.1.86"
-base64 = "0.22.1"
+
 bytes = "1.10.0"
 chrono = { version = "0.4.39", features = ["serde"] }
 clap = { version = "4.5.23", features = ["derive"] }
@@ -51,6 +51,7 @@ glob = "0.3.2"
 grep-searcher = "0.1.14"
 grep-regex = "0.1.13"
 handlebars = { version = "6.2.0", features = ["rust-embed"] }
+hex = "0.4.3"
 html2md = "0.2.15"
 http = "1.2.0"
 ignore = "0.4.23"
@@ -67,6 +68,7 @@ posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0"
 quote = "1.0"
+rand = "0.8.5"
 reedline = "0.40.0"
 regex = "1.11.1"
 reqwest = { version = "0.12.12", features = [
@@ -122,6 +124,9 @@ rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a9791
     "transport-sse-server",
 ] }
 open = "5.3.2"
+ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
+ring = "0.17.8"
+base64 = "0.22.1"
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }

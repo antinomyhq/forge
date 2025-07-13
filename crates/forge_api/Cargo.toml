@@ -20,6 +20,8 @@ tracing.workspace = true
 tokio.workspace = true
 futures.workspace = true
 forge_app.workspace = true
+ed25519-dalek.workspace = true
+ring.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

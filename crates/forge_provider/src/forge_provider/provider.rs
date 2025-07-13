@@ -12,15 +12,27 @@ use tracing::{debug, info};
 use super::model::{ListModelResponse, Model};
 use super::request::Request;
 use super::response::Response;
+use crate::crypto::CryptoAuth;
 use crate::error::Error;
 use crate::forge_provider::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
 
 #[derive(Clone, Builder)]
+#[builder(setter(into))]
 pub struct ForgeProvider {
     client: Client,
     provider: Provider,
     version: String,
+    #[builder(default)]
+    crypto_auth: Option<CryptoAuth>,
+}
+
+impl ForgeProviderBuilder {
+    /// Enable cryptographic authentication for this provider
+    pub fn with_crypto_auth(&mut self) -> anyhow::Result<&mut Self> {
+        self.crypto_auth = Some(Some(CryptoAuth::new()?));
+        Ok(self)
+    }
 }
 
 impl ForgeProvider {
@@ -51,12 +63,36 @@ impl ForgeProvider {
     // - `X-Title`: Sets/modifies your app's title
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
+
+        // Add traditional Bearer token authentication
         if let Some(ref api_key) = self.provider.key() {
             headers.insert(
                 AUTHORIZATION,
                 HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
             );
         }
+
+        // Add cryptographic authentication headers
+        if let Some(ref crypto_auth) = self.crypto_auth {
+            match crypto_auth.generate_auth_headers() {
+                Ok(crypto_headers) => {
+                    for (key, value) in crypto_headers {
+                        if let Ok(header_value) = HeaderValue::from_str(&value) {
+                            headers.insert(
+                                reqwest::header::HeaderName::from_bytes(key.as_bytes()).unwrap(),
+                                header_value,
+                            );
+                        }
+                    }
+                    debug!("Added cryptographic authentication headers");
+                }
+                Err(e) => {
+                    tracing::warn!(error = ?e, "Failed to generate cryptographic authentication headers");
+                }
+            }
+        }
+
+        // Add standard application headers
         headers.insert("X-Title", HeaderValue::from_static("forge"));
         headers.insert(
             "x-app-version",
@@ -71,6 +107,7 @@ impl ForgeProvider {
             reqwest::header::CONNECTION,
             HeaderValue::from_static("keep-alive"),
         );
+
         debug!(headers = ?sanitize_headers(&headers), "Request Headers");
         headers
     }
@@ -395,6 +432,60 @@ mod tests {
         let message = ChatCompletionMessage::try_from(message.clone());
 
         assert!(message.is_err());
+        Ok(())
+    }
+    #[test]
+    fn test_crypto_auth_integration() -> Result<()> {
+        let provider = Provider::OpenAI {
+            url: reqwest::Url::parse("https://api.example.com")?,
+            key: Some("test-api-key".to_string()),
+        };
+
+        let forge_provider = ForgeProvider::builder()
+            .client(Client::new())
+            .provider(provider)
+            .version("1.0.0".to_string())
+            .build()
+            .unwrap()
+            .with_crypto_auth()?;
+
+        assert!(forge_provider.has_crypto_auth());
+
+        // Test that headers include crypto auth
+        let headers = forge_provider.headers();
+
+        // Should still have Bearer token
+        assert!(headers.contains_key(AUTHORIZATION));
+
+        // Should have crypto auth headers
+        assert!(
+            headers.get("x-forge-auth-payload").is_some()
+                || headers.get("X-Forge-Auth-Payload").is_some()
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_provider_without_crypto_auth() -> Result<()> {
+        let provider = Provider::OpenAI {
+            url: reqwest::Url::parse("https://api.example.com")?,
+            key: Some("test-api-key".to_string()),
+        };
+
+        let forge_provider = ForgeProvider::builder()
+            .client(Client::new())
+            .provider(provider)
+            .version("1.0.0".to_string())
+            .build()
+            .unwrap();
+
+        assert!(!forge_provider.has_crypto_auth());
+
+        // Test that headers work without crypto auth
+        let headers = forge_provider.headers();
+        assert!(headers.contains_key(AUTHORIZATION));
+
         Ok(())
     }
 }
