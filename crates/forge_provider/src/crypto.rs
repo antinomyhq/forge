@@ -26,7 +26,11 @@ impl CryptoAuth {
     /// Load private key from environment variable or generate for development
     fn load_private_key() -> Result<SigningKey> {
         // Try to load from environment variable first
-        let key_b64 = obfstr::obfstr!(FORGE_PRIVATE_KEY).to_string();
+        let key_b64 = obfstr::obfstr!(match FORGE_PRIVATE_KEY {
+            Some(key) => key,
+            None => "",
+        })
+        .to_string();
         let key_bytes = general_purpose::STANDARD
             .decode(key_b64)
             .context("Failed to decode base64 private key from environment")?;
