@@ -26,7 +26,7 @@ impl CryptoAuth {
         // Try to load from environment variable first
         let key_b64 = obfstr::obfstr!(match option_env!("FORGE_PRIVATE_KEY") {
             Some(key) => key,
-            None => "MC4CAQAwBQYDK2VwBCIEIOiSWsurBQJ5ek2hHF0cuRuesIjatJMTPcMzRToD7UWe",
+            None => "rMMSj0qvfi5O8S76CjgW2Q6K9NTx7Zrn0Swjryv0wgE=",
         })
         .to_string();
         let key_bytes = general_purpose::STANDARD
