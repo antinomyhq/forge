@@ -1,6 +1,5 @@
-use std::env;
-use std::fs;
 use std::path::Path;
+use std::{env, fs};
 
 fn main() {
     let secret = env::var("FORGE_PRIVATE_KEY");
