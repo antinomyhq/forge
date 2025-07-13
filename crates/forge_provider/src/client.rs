@@ -47,15 +47,15 @@ impl Client {
             .build()?;
 
         let inner = match &provider {
-            Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
-                Box::new(ForgeProvider::builder()
+            Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(Box::new(
+                ForgeProvider::builder()
                     .client(client)
                     .provider(provider.clone())
                     .version(version.to_string())
                     .with_crypto_auth()?
                     .build()
-                    .with_context(|| format!("Failed to initialize: {url}"))?),
-            ),
+                    .with_context(|| format!("Failed to initialize: {url}"))?,
+            )),
 
             Provider::Anthropic { url, key } => InnerClient::Anthropic(
                 Anthropic::builder()
