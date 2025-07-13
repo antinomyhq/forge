@@ -439,7 +439,7 @@ mod tests {
             .with_crypto_auth()?
             .build()
             .unwrap();
-        
+
         // Test that headers include crypto auth
         let headers = forge_provider.headers();
 
