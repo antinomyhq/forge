@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use forge_domain::{
+use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
 use reqwest::redirect::Policy;
@@ -139,7 +139,7 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::Provider;
+    use forge_app::domain::Provider;
     use reqwest::Url;
 
     use super::*;

@@ -1,4 +1,4 @@
-use forge_domain::Transformer;
+use forge_app::domain::Transformer;
 
 use crate::forge_provider::request::{Request, Role};
 
@@ -43,7 +43,7 @@ impl Transformer for SetCache {
 mod tests {
     use std::collections::HashSet;
 
-    use forge_domain::{Context, ContextMessage, ModelId, Role, TextMessage};
+    use forge_app::domain::{Context, ContextMessage, ModelId, Role, TextMessage};
     use pretty_assertions::assert_eq;
 
     use super::*;

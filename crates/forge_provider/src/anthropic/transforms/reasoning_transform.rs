@@ -1,4 +1,4 @@
-use forge_domain::{Context, Transformer};
+use forge_app::domain::{Context, Transformer};
 
 pub struct ReasoningTransform;
 
@@ -19,7 +19,7 @@ impl Transformer for ReasoningTransform {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Context, ReasoningConfig, TopK, TopP, Transformer};
+    use forge_app::domain::{Context, ReasoningConfig, TopK, TopP, Transformer};
     use pretty_assertions::assert_eq;
 
     use super::*;

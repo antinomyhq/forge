@@ -3,10 +3,10 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{McpConfigManager, McpService};
-use forge_domain::{
+use forge_app::domain::{
     McpConfig, McpServerConfig, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
 };
+use forge_app::{McpConfigManager, McpService};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;

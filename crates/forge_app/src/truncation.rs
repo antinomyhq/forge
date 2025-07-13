@@ -12,7 +12,7 @@ pub async fn create_temp_file<S: FsCreateService>(
     content: &str,
 ) -> anyhow::Result<PathBuf> {
     let path = tempfile::Builder::new()
-        .keep(true)
+        .disable_cleanup(true)
         .prefix(prefix)
         .suffix(ext)
         .tempfile()?

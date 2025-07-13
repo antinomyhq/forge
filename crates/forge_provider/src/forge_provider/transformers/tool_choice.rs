@@ -1,4 +1,4 @@
-use forge_domain::Transformer;
+use forge_app::domain::Transformer;
 
 use crate::forge_provider::request::Request;
 use crate::forge_provider::tool_choice::ToolChoice;
@@ -24,7 +24,7 @@ impl Transformer for SetToolChoice {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Context, ModelId};
+    use forge_app::domain::{Context, ModelId};
 
     use super::*;
 
