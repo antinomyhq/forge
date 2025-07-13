@@ -2862,9 +2862,9 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "obfstr"
-version = "0.4.4"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0d354e9a302760d07e025701d40534f17dd1fe4c4db955b4e3bd2907c63bdee"
+checksum = "7b2b2cbbfd8defa51ff24450a61d73b3ff3e158484ddd274a883e886e6fbaa78"
 
 [[package]]
 name = "object"
