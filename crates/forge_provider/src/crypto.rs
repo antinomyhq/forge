@@ -90,10 +90,10 @@ impl Default for CryptoAuth {
 
 #[cfg(test)]
 mod tests {
+    use ed25519_dalek::{Signature, Verifier};
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use ed25519_dalek::{Signature, Verifier};
 
     #[test]
     fn test_crypto_auth_initialization() {
@@ -136,7 +136,11 @@ mod tests {
         // Verify signature using the public key from the fixture
         let signature = Signature::from_slice(&signature_bytes).unwrap();
 
-        let actual = fixture.signing_key.verifying_key().verify(&payload, &signature).is_ok();
+        let actual = fixture
+            .signing_key
+            .verifying_key()
+            .verify(&payload, &signature)
+            .is_ok();
         let expected = true;
         assert_eq!(actual, expected);
     }
