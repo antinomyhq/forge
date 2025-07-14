@@ -106,7 +106,12 @@ impl ForgeEnvironmentInfra {
     fn get(&self) -> Environment {
         let cwd = Self::cwd();
         let retry_config = self.resolve_retry_config();
-
+        let private_key = obfstr::obfstr!(match option_env!("FORGE_PRIVATE_KEY") {
+            Some(key) => key,
+            None => "rMMSj0qvfi5O8S76CjgW2Q6K9NTx7Zrn0Swjryv0wgE=",
+        })
+            .to_string();
+        
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
@@ -124,6 +129,7 @@ impl ForgeEnvironmentInfra {
             stdout_max_suffix_length: 200,
             http: self.resolve_timeout_config(),
             max_file_size: 256 << 10, // 256 KiB
+            private_key,
         }
     }
 

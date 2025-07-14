@@ -22,12 +22,8 @@ anyhow.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
 ed25519-dalek.workspace = true
-ring.workspace = true
 base64.workspace = true
 rand.workspace = true
-hex.workspace = true
-obfstr.workspace = true
-muddy = "0.3.2"
 
 [dev-dependencies]
 insta.workspace = true

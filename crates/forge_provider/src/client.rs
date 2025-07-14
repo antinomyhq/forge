@@ -12,6 +12,7 @@ use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
 use crate::anthropic::Anthropic;
+use crate::crypto::CryptoAuth;
 use crate::forge_provider::ForgeProvider;
 use crate::retry::into_retry;
 
@@ -33,6 +34,7 @@ impl Client {
         retry_config: Arc<RetryConfig>,
         version: impl ToString,
         timeout_config: &HttpConfig,
+        private_key: impl ToString,
     ) -> Result<Self> {
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(
@@ -52,7 +54,7 @@ impl Client {
                     .client(client)
                     .provider(provider.clone())
                     .version(version.to_string())
-                    .with_crypto_auth()?
+                    .crypto_auth(CryptoAuth::new(private_key)?)
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             )),
@@ -156,6 +158,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
+            "test-private-key",
         )
         .unwrap();
 
@@ -175,6 +178,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
+            "test-private-key",
         )
         .unwrap();
 

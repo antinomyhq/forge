@@ -4,7 +4,11 @@ use anyhow::{Context, Result};
 use base64::engine::general_purpose;
 use base64::Engine as _;
 use ed25519_dalek::{Signer, SigningKey};
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+
+pub struct Payload {
+    pub payload: String,
+    pub signature: String,
+}
 
 /// Cryptographic authentication module for ForgeProvider
 /// Provides Ed25519 digital signatures for HTTP request authentication
@@ -15,22 +19,16 @@ pub struct CryptoAuth {
 
 impl CryptoAuth {
     /// Create a new CryptoAuth instance with key loading from environment
-    pub fn new() -> Result<Self> {
-        let signing_key = Self::load_private_key()?;
+    pub fn new(private_key: impl ToString) -> Result<Self> {
+        let signing_key = Self::load_private_key(private_key)?;
 
         Ok(Self { signing_key })
     }
 
     /// Load private key from environment variable or generate for development
-    fn load_private_key() -> Result<SigningKey> {
-        // Try to load from environment variable first
-        let key_b64 = obfstr::obfstr!(match option_env!("FORGE_PRIVATE_KEY") {
-            Some(key) => key,
-            None => "rMMSj0qvfi5O8S76CjgW2Q6K9NTx7Zrn0Swjryv0wgE=",
-        })
-        .to_string();
+    fn load_private_key(private_key: impl ToString) -> Result<SigningKey> {
         let key_bytes = general_purpose::STANDARD
-            .decode(key_b64)
+            .decode(private_key.to_string())
             .context("Failed to decode base64 private key from environment")?;
 
         let mut key_array = [0u8; 32];
@@ -40,7 +38,7 @@ impl CryptoAuth {
     }
 
     /// Generate authentication headers with cryptographic signatures
-    pub fn generate_auth_headers(&self) -> Result<HeaderMap> {
+    pub fn generate_payload(&self) -> Result<Payload> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .context("Failed to get current timestamp")?
@@ -59,23 +57,7 @@ impl CryptoAuth {
         let payload_b64 = general_purpose::STANDARD.encode(&payload);
         let signature_b64 = general_purpose::STANDARD.encode(signature.to_bytes());
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            HeaderName::try_from("X-Forge-Auth-Payload")?,
-            HeaderValue::from_str(&payload_b64)?,
-        );
-        headers.insert(
-            HeaderName::try_from("X-Forge-Auth-Signature")?,
-            HeaderValue::from_str(&signature_b64)?,
-        );
-
-        Ok(headers)
-    }
-}
-
-impl Default for CryptoAuth {
-    fn default() -> Self {
-        Self::new().expect("Failed to initialize cryptographic authentication")
+        Ok(Payload { payload: payload_b64, signature: signature_b64 })
     }
 }
 
@@ -86,9 +68,11 @@ mod tests {
 
     use super::*;
 
+    const TEST_PRIVATE_KEY: &str = "rMMSj0qvfi5O8S76CjgW2Q6K9NTx7Zrn0Swjryv0wgE=";
+
     #[test]
     fn test_crypto_auth_initialization() {
-        let fixture = CryptoAuth::new();
+        let fixture = CryptoAuth::new(TEST_PRIVATE_KEY);
         let actual = fixture.is_ok();
         let expected = true;
         assert_eq!(actual, expected);
@@ -96,8 +80,8 @@ mod tests {
 
     #[test]
     fn test_signature_verification_roundtrip() {
-        let fixture = CryptoAuth::new().unwrap();
-        let headers = fixture.generate_auth_headers().unwrap();
+        let fixture = CryptoAuth::new(TEST_PRIVATE_KEY).unwrap();
+        let headers = fixture.generate_payload().unwrap();
 
         // Extract components
         let payload_b64 = headers.get("X-Forge-Auth-Payload").unwrap();

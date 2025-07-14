@@ -18,6 +18,7 @@ pub struct ForgeProviderService {
     cached_models: Arc<Mutex<Option<Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
+    private_key: String,
 }
 
 impl ForgeProviderService {
@@ -31,6 +32,7 @@ impl ForgeProviderService {
             cached_models: Arc::new(Mutex::new(None)),
             version,
             timeout_config: env.http,
+            private_key: env.private_key,
         }
     }
 
@@ -46,6 +48,7 @@ impl ForgeProviderService {
                     self.retry_config.clone(),
                     &self.version,
                     &self.timeout_config,
+                    &self.private_key,
                 )?;
 
                 // Cache the new client

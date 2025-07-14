@@ -3,7 +3,7 @@ use derive_builder::Builder;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
@@ -12,7 +12,7 @@ use tracing::{debug, info};
 use super::model::{ListModelResponse, Model};
 use super::request::Request;
 use super::response::Response;
-use crate::crypto::CryptoAuth;
+use crate::crypto::{CryptoAuth, Payload};
 use crate::error::Error;
 use crate::forge_provider::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
@@ -25,14 +25,6 @@ pub struct ForgeProvider {
     version: String,
     #[builder(default)]
     crypto_auth: Option<CryptoAuth>,
-}
-
-impl ForgeProviderBuilder {
-    /// Enable cryptographic authentication for this provider
-    pub fn with_crypto_auth(&mut self) -> anyhow::Result<&mut Self> {
-        self.crypto_auth = Some(Some(CryptoAuth::new()?));
-        Ok(self)
-    }
 }
 
 impl ForgeProvider {
@@ -74,12 +66,19 @@ impl ForgeProvider {
 
         // Add cryptographic authentication headers
         if let Some(ref crypto_auth) = self.crypto_auth {
-            if let Ok(crypto_headers) = crypto_auth.generate_auth_headers() {
-                for (key, value) in crypto_headers {
-                    if let Some(key) = key {
-                        headers.insert(key, value);
-                    }
-                }
+            if let Some((payload, signature)) = crypto_auth
+                .generate_payload()
+                .ok()
+                .map(|Payload { payload, signature }| {
+                    Some((
+                        HeaderValue::from_str(&payload).ok()?,
+                        HeaderValue::from_str(&signature).ok()?,
+                    ))
+                })
+                .flatten()
+            {
+                headers.insert(HeaderName::from_static("X-Forge-Auth-Payload"), payload);
+                headers.insert(HeaderName::from_static("X-Forge-Auth-Signature"), signature);
             }
         }
 
@@ -436,7 +435,9 @@ mod tests {
             .client(Client::new())
             .provider(provider)
             .version("1.0.0".to_string())
-            .with_crypto_auth()?
+            .crypto_auth(CryptoAuth::new(
+                "rMMSj0qvfi5O8S76CjgW2Q6K9NTx7Zrn0Swjryv0wgE=",
+            )?)
             .build()
             .unwrap();
 
