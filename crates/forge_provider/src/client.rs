@@ -33,8 +33,9 @@ impl Client {
         retry_config: Arc<RetryConfig>,
         version: impl ToString,
         timeout_config: &HttpConfig,
+        cert: Option<&str>,
     ) -> Result<Self> {
-        let client = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(
                 timeout_config.connect_timeout,
             ))
@@ -43,8 +44,13 @@ impl Client {
                 timeout_config.pool_idle_timeout,
             ))
             .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
-            .redirect(Policy::limited(timeout_config.max_redirects))
-            .build()?;
+            .redirect(Policy::limited(timeout_config.max_redirects));
+
+        if let Some(cert) = cert {
+            builder = builder.identity(reqwest::Identity::from_pem(cert.as_bytes())?);
+        }
+
+        let client = builder.build()?;
 
         let inner = match &provider {
             Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
