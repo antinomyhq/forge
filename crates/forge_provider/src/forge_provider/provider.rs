@@ -77,8 +77,8 @@ impl ForgeProvider {
                         ))
                     })
             {
-                headers.insert(HeaderName::from_static("X-Forge-Auth-Payload"), payload);
-                headers.insert(HeaderName::from_static("X-Forge-Auth-Signature"), signature);
+                headers.insert(HeaderName::from_static("x-forge-auth-payload"), payload);
+                headers.insert(HeaderName::from_static("x-forge-auth-signature"), signature);
             }
         }
 
