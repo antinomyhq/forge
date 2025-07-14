@@ -8,6 +8,11 @@ pub struct SetCache;
 impl Transformer for SetCache {
     type Value = Request;
 
+    /// Caches the last 2 eligible messages to optimize API performance. System
+    /// messages are always eligible, User messages are eligible (but
+    /// consecutive User messages are consolidated to only the last one),
+    /// and Assistant messages are never cached but reset User message
+    /// sequences.
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         if let Some(messages) = request.messages.as_mut() {
             let mut last_was_user = false;
