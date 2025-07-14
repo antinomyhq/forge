@@ -16,7 +16,7 @@ impl ForgeInquire {
         Self
     }
 
-    fn render_config() -> RenderConfig {
+    fn render_config() -> RenderConfig<'static> {
         RenderConfig::default()
             .with_scroll_up_prefix(Styled::new("⇡"))
             .with_scroll_down_prefix(Styled::new("⇣"))

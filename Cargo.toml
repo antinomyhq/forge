@@ -37,7 +37,7 @@ chrono = { version = "0.4.39", features = ["serde"] }
 clap = { version = "4.5.23", features = ["derive"] }
 colored = "3.0.0"
 console = "0.15.7"
-inquire = "0.6.2"
+inquire = "0.7.5"
 convert_case = "0.7.1"
 derive_builder = "0.20.2"
 derive_more = { version = "2.0.1", features = ["full"] }
