@@ -146,6 +146,7 @@ mod tests {
     use reqwest::Url;
 
     use super::*;
+    const TEST_PRIVATE_KEY: &str = "rMMSj0qvfi5O8S76CjgW2Q6K9NTx7Zrn0Swjryv0wgE=";
 
     #[tokio::test]
     async fn test_cache_initialization() {
@@ -158,7 +159,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
-            "test-private-key",
+            TEST_PRIVATE_KEY,
         )
         .unwrap();
 
@@ -178,7 +179,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
-            "test-private-key",
+            TEST_PRIVATE_KEY,
         )
         .unwrap();
 
