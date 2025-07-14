@@ -109,6 +109,7 @@ mod tests {
             stdout_max_suffix_length: 10,
             http: Default::default(),
             max_file_size: 0,
+            private_key: "test_private_key".to_string(),
         }
     }
 

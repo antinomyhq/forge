@@ -84,8 +84,8 @@ mod tests {
         let headers = fixture.generate_payload().unwrap();
 
         // Extract components
-        let payload_b64 = headers.get("X-Forge-Auth-Payload").unwrap();
-        let signature_b64 = headers.get("X-Forge-Auth-Signature").unwrap();
+        let payload_b64 = &headers.payload;
+        let signature_b64 = &headers.signature;
 
         // Decode components
         let payload = general_purpose::STANDARD.decode(payload_b64).unwrap();
