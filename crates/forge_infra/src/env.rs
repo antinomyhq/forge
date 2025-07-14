@@ -110,8 +110,8 @@ impl ForgeEnvironmentInfra {
             Some(key) => key,
             None => "rMMSj0qvfi5O8S76CjgW2Q6K9NTx7Zrn0Swjryv0wgE=",
         })
-            .to_string();
-        
+        .to_string();
+
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),

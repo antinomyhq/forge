@@ -69,13 +69,12 @@ impl ForgeProvider {
             if let Some((payload, signature)) = crypto_auth
                 .generate_payload()
                 .ok()
-                .map(|Payload { payload, signature }| {
+                .and_then(|Payload { payload, signature }| {
                     Some((
                         HeaderValue::from_str(&payload).ok()?,
                         HeaderValue::from_str(&signature).ok()?,
                     ))
                 })
-                .flatten()
             {
                 headers.insert(HeaderName::from_static("X-Forge-Auth-Payload"), payload);
                 headers.insert(HeaderName::from_static("X-Forge-Auth-Signature"), signature);
