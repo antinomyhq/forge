@@ -1,9 +1,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use base64::engine;
 use forge_api::Environment;
 use forge_display::TitleFormat;
 use tokio::fs;
+use tokio::sync::Mutex;
+use tokio::task::spawn_blocking;
 
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{Command, ForgeCommandManager};
@@ -34,9 +37,21 @@ impl Console {
     }
 
     pub async fn prompt(&self, prompt: ForgePrompt) -> anyhow::Result<Command> {
-        let mut engine = ForgeEditor::new(self.env.clone(), self.command.clone());
+        let engine = Arc::new(std::sync::Mutex::new(ForgeEditor::new(
+            self.env.clone(),
+            self.command.clone(),
+        )));
+
+        let prompt = Arc::new(prompt);
+
         loop {
-            let result = engine.prompt(&prompt)?;
+            let engine = engine.clone();
+            let prompt = prompt.clone();
+            let result = spawn_blocking(move || {
+                //
+                engine.lock().unwrap().prompt(prompt.as_ref())
+            })
+            .await??;
             match result {
                 ReadResult::Continue => continue,
                 ReadResult::Exit => return Ok(Command::Exit),
