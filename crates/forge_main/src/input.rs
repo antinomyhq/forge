@@ -4,6 +4,8 @@ use std::sync::Arc;
 use forge_api::Environment;
 use forge_display::TitleFormat;
 use tokio::fs;
+use tokio::sync::Mutex;
+use tokio::task::block_in_place;
 
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{Command, ForgeCommandManager};
@@ -34,10 +36,12 @@ impl Console {
     }
 
     pub async fn prompt(&self, prompt: ForgePrompt) -> anyhow::Result<Command> {
-        let mut engine = ForgeEditor::new(self.env.clone(), self.command.clone());
+        let engine = Mutex::new(ForgeEditor::new(self.env.clone(), self.command.clone()));
+
         loop {
-            let result = engine.prompt(&prompt)?;
-            match result {
+            let user_input =
+                block_in_place(|| async { engine.lock().await.prompt(&prompt) }).await?;
+            match user_input {
                 ReadResult::Continue => continue,
                 ReadResult::Exit => return Ok(Command::Exit),
                 ReadResult::Empty => continue,
