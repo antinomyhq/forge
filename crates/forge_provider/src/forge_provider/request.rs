@@ -182,6 +182,8 @@ pub struct Request {
     pub stream_options: Option<StreamOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<forge_app::domain::ReasoningConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_completion_tokens: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -281,6 +283,7 @@ impl From<Context> for Request {
             stream_options: Some(StreamOptions { include_usage: Some(true) }),
             session_id: context.conversation_id.map(|id| id.to_string()),
             reasoning: context.reasoning,
+            max_completion_tokens: Default::default(),
         }
     }
 }
