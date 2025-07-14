@@ -12,19 +12,6 @@ use super::response::{FunctionCall, ToolCall};
 use super::tool_choice::{FunctionType, ToolChoice};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct TextContent {
-    // TODO: could be an enum
-    pub r#type: String,
-    pub text: String,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ImageContentPart {
-    pub r#type: String,
-    pub image_url: ImageUrl,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ImageUrl {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
