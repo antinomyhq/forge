@@ -66,15 +66,16 @@ impl ForgeProvider {
 
         // Add cryptographic authentication headers
         if let Some(ref crypto_auth) = self.crypto_auth {
-            if let Some((payload, signature)) = crypto_auth
-                .generate_payload()
-                .ok()
-                .and_then(|Payload { payload, signature }| {
-                    Some((
-                        HeaderValue::from_str(&payload).ok()?,
-                        HeaderValue::from_str(&signature).ok()?,
-                    ))
-                })
+            if let Some((payload, signature)) =
+                crypto_auth
+                    .generate_payload()
+                    .ok()
+                    .and_then(|Payload { payload, signature }| {
+                        Some((
+                            HeaderValue::from_str(&payload).ok()?,
+                            HeaderValue::from_str(&signature).ok()?,
+                        ))
+                    })
             {
                 headers.insert(HeaderName::from_static("X-Forge-Auth-Payload"), payload);
                 headers.insert(HeaderName::from_static("X-Forge-Auth-Signature"), signature);
