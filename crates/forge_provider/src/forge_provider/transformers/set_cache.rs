@@ -14,9 +14,10 @@ impl Transformer for SetCache {
             let mut cache_positions = Vec::new();
             for (i, message) in messages.iter().enumerate() {
                 if message.role == Role::User {
-                    if !last_was_user {
-                        cache_positions.push(i);
+                    if last_was_user {
+                        cache_positions.pop();
                     }
+                    cache_positions.push(i);
                     last_was_user = true;
                 } else if message.role == Role::Assistant {
                     last_was_user = false;
@@ -26,7 +27,7 @@ impl Transformer for SetCache {
                 }
             }
 
-            for pos in cache_positions.into_iter().rev().skip(2).take(2) {
+            for pos in cache_positions.into_iter().rev().take(2) {
                 if let Some(ref content) = messages[pos].content {
                     messages[pos].content = Some(content.clone().cached());
                 }
@@ -117,27 +118,31 @@ mod tests {
     #[test]
     fn test_transformation() {
         let actual = create_test_context("suu");
-        let expected = "suu";
+        let expected = "[su[u"; // FIXME
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suua");
-        let expected = "suua";
+        let expected = "[su[ua";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuau");
-        let expected = "[suuau";
+        let expected = "su[ua[u";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuauu");
-        let expected = "[suuauu";
+        let expected = "su[uau[u";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuauuaaau");
-        let expected = "[s[uuauuaaau";
+        let expected = "suuau[uaaa[u";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suuauuaaauauau");
-        let expected = "suua[uuaaa[uauau";
+        let expected = "suuauuaaaua[ua[u";
+        assert_eq!(actual, expected);
+
+        let actual = create_test_context("suuaaaaaaaaaaa");
+        let expected = "[su[uaaaaaaaaaaa";
         assert_eq!(actual, expected);
     }
 }
