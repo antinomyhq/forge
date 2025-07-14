@@ -8,14 +8,13 @@ fn main() {
     let dest_path = Path::new(&out_dir).join("secret_cert.rs");
     let file_path = Path::new("../../cert.pem");
 
-    let rhs = gen_cert(&file_path);
+    let rhs = gen_cert(file_path);
     let generated = format!(
         r#"
 lazy_static::lazy_static! {{
-    pub static ref CERT: Option<String> = {};
+    pub static ref CERT: Option<String> = {rhs};
 }}
-"#,
-        rhs
+"#
     );
 
     std::fs::write(dest_path, generated).unwrap();
