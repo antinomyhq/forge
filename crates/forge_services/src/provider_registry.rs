@@ -60,13 +60,14 @@ fn resolve_env_provider<F: EnvironmentInfra>(
     url: Option<ProviderUrl>,
     env: &F,
 ) -> Option<Provider> {
-    let keys: [ProviderSearch; 6] = [
+    let keys: [ProviderSearch; 7] = [
         ("FORGE_KEY", Box::new(Provider::antinomy)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
         ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
         ("XAI_API_KEY", Box::new(Provider::xai)),
         ("OPENAI_API_KEY", Box::new(Provider::openai)),
         ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
+        ("GITHUB_COPILOT_TOKEN", Box::new(Provider::copilot)),
     ];
 
     keys.into_iter().find_map(|(key, fun)| {
@@ -82,4 +83,34 @@ fn override_url(mut provider: Provider, url: Option<ProviderUrl>) -> Provider {
         provider.url(url);
     }
     provider
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::EnvironmentInfra;
+    use forge_app::domain::Provider;
+    use forge_app::AppConfig;
+    use crate::attachment::tests::MockEnvironmentInfra;
+
+    #[test]
+    fn detects_copilot_provider_from_env() {
+        struct EnvWithCopilot;
+        impl EnvironmentInfra for EnvWithCopilot {
+            fn get_environment(&self) -> forge_app::domain::Environment {
+                MockEnvironmentInfra {}.get_environment()
+            }
+            fn get_env_var(&self, key: &str) -> Option<String> {
+                if key == "GITHUB_COPILOT_TOKEN" {
+                    Some("copilot_test_token".to_string())
+                } else {
+                    None
+                }
+            }
+        }
+        let infra = std::sync::Arc::new(EnvWithCopilot);
+        let registry = ForgeProviderRegistry::new(infra);
+        let provider = registry.get_provider(AppConfig::default());
+        assert!(matches!(provider, Some(Provider::Copilot { key, .. }) if key == "copilot_test_token"));
+    }
 }
