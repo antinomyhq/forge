@@ -42,9 +42,7 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
-    - name: Create mTLS certificate file
-      if: env.MTLS_CERT != ''
-      run: echo "$MTLS_CERT" > cert.pem
+
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
@@ -61,9 +59,7 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
-    - name: Create mTLS certificate file
-      if: env.MTLS_CERT != ''
-      run: echo "$MTLS_CERT" > cert.pem
+
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
@@ -154,9 +150,7 @@ jobs:
           target: aarch64-pc-windows-msvc
     steps:
     - uses: actions/checkout@v4
-    - name: Create mTLS certificate file
-      if: env.MTLS_CERT != ''
-      run: echo "$MTLS_CERT" > cert.pem
+
     - uses: taiki-e/setup-cross-toolchain-action@v1
       with:
         target: ${{ matrix.target }}
@@ -244,9 +238,7 @@ jobs:
           target: aarch64-pc-windows-msvc
     steps:
     - uses: actions/checkout@v4
-    - name: Create mTLS certificate file
-      if: env.MTLS_CERT != ''
-      run: echo "$MTLS_CERT" > cert.pem
+
     - uses: taiki-e/setup-cross-toolchain-action@v1
       with:
         target: ${{ matrix.target }}

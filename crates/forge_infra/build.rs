@@ -1,14 +1,11 @@
 use std::path::Path;
-
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=../../cert.pem");
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("secret_cert.rs");
-    let file_path = Path::new("../../cert.pem");
 
-    let rhs = gen_cert(file_path);
+    let rhs = gen_cert();
     let generated = format!(
         r#"
 lazy_static::lazy_static! {{
@@ -20,10 +17,12 @@ lazy_static::lazy_static! {{
     std::fs::write(dest_path, generated).unwrap();
 }
 
-fn gen_cert(file_path: &Path) -> String {
-    if file_path.exists() {
-        let contents = std::fs::read_to_string(file_path).unwrap();
-        format!("Some(obfstr::obfstr!({:?}).to_string())", contents.trim())
+fn gen_cert() -> String {
+    if let Ok(cert_content) = std::env::var("MTLS_CERT") {
+        format!(
+            "Some(obfstr::obfstr!({:?}).to_string())",
+            cert_content.trim()
+        )
     } else {
         "None".to_string()
     }

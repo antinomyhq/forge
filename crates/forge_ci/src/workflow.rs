@@ -3,25 +3,6 @@ use gh_workflow_tailcall::*;
 
 use crate::jobs;
 
-/// Helper function to add certificate creation step to a job
-fn add_certificate_step_to_job(mut job: Job) -> Job {
-    if let Some(steps) = &mut job.steps {
-        // Find the checkout step and add certificate step after it
-        for (i, step) in steps.iter().enumerate() {
-            if let Some(uses) = &step.uses {
-                if uses.contains("checkout") {
-                    let cert_step = Step::run("echo \"$MTLS_CERT\" > cert.pem")
-                        .name("Create mTLS certificate file")
-                        .if_condition(Expression::new("env.MTLS_CERT != ''"));
-                    steps.insert(i + 1, cert_step.into());
-                    break;
-                }
-            }
-        }
-    }
-    job
-}
-
 /// Generate the main CI workflow
 pub fn generate_ci_workflow() {
     let workflow = StandardWorkflow::default()
@@ -35,31 +16,22 @@ pub fn generate_ci_workflow() {
         .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
         .add_env(("MTLS_CERT", "${{secrets.MTLS_CERT}}"));
 
-    // Get the jobs and add certificate creation step to build and lint jobs
+    // Get the original jobs without modification
     let build_job = if let Some(jobs) = &workflow.jobs {
-        if let Some(original_build_job) = jobs.get("build") {
-            add_certificate_step_to_job(original_build_job.clone())
-        } else {
-            jobs.get("build").unwrap().clone()
-        }
+        jobs.get("build").unwrap().clone()
     } else {
         panic!("No jobs found in workflow")
     };
 
     let lint_job = if let Some(jobs) = &workflow.jobs {
-        if let Some(original_lint_job) = jobs.get("lint") {
-            add_certificate_step_to_job(original_lint_job.clone())
-        } else {
-            jobs.get("lint").unwrap().clone()
-        }
+        jobs.get("lint").unwrap().clone()
     } else {
         panic!("No jobs found in workflow")
     };
 
     let draft_release_job = jobs::create_draft_release_job(&build_job);
 
-    // Add jobs to the workflow (this will override the original build and lint
-    // jobs)
+    // Add jobs to the workflow
     workflow
         .add_job("build", build_job)
         .add_job("lint", lint_job)
