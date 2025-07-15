@@ -13,6 +13,7 @@ use forge_api::{AgentId, ConversationId, ModelId};
 pub enum Command {
     // Application-level commands
     ReadWorkspace,
+    ReadWorkflow,
     #[default]
     Empty,
     Exit,
@@ -24,6 +25,8 @@ pub enum Command {
     },
     InterruptStream,
     Spotlight(SpotlightCommand),
+    SelectModel(ModelId),
+    UpdateModel(ModelId),
     Interval {
         duration: Duration,
     },
@@ -332,5 +335,38 @@ mod tests {
             },
         ]);
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_select_model_command_structure() {
+        let model_id = forge_api::ModelId::new("test-model");
+        let fixture = Command::SelectModel(model_id.clone());
+
+        match fixture {
+            Command::SelectModel(actual_model_id) => {
+                assert_eq!(actual_model_id, model_id);
+            }
+            _ => panic!("Expected Command::SelectModel"),
+        }
+    }
+
+    #[test]
+    fn test_update_model_command_structure() {
+        let model_id = forge_api::ModelId::new("test-model");
+        let fixture = Command::UpdateModel(model_id.clone());
+
+        match fixture {
+            Command::UpdateModel(actual_model_id) => {
+                assert_eq!(actual_model_id, model_id);
+            }
+            _ => panic!("Expected Command::UpdateModel"),
+        }
+    }
+
+    #[test]
+    fn test_read_workflow_command_structure() {
+        let fixture = Command::ReadWorkflow;
+        let expected = Command::ReadWorkflow;
+        assert_eq!(fixture, expected);
     }
 }

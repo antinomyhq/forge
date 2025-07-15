@@ -8,7 +8,13 @@ use crate::domain::{Action, Command, State};
 pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
     let action = action.into();
     match action {
-        Action::Initialize => Command::ReadWorkspace,
+        Action::Initialize => Command::ReadWorkspace.and(Command::ReadWorkflow),
+        Action::WorkflowLoaded(model_id) => {
+            // Set the current model from the workflow
+            state.current_model = Some(model_id.clone());
+            tracing::info!("Loaded model from workflow: {}", model_id.as_str());
+            Command::Empty
+        }
         Action::Workspace { current_dir, current_branch } => {
             // TODO: can simply get workspace object from the action
             state.workspace.current_dir = current_dir;
@@ -79,6 +85,30 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             // Store the cancellation token for this stream
             state.chat_stream = Some(cancel_id);
             Command::Empty
+        }
+        Action::ShowModelSelection => {
+            // Show model selection modal immediately
+            tracing::info!("Showing model selection modal");
+            state.model_selection.show();
+            state.spotlight.is_visible = false;
+            Command::Empty
+        }
+        Action::ModelsLoaded(models) => {
+            // Update model selection state with loaded models
+            tracing::info!("Models loaded action received: {} models", models.len());
+            state.model_selection.set_models(models);
+            // Modal should already be visible from ShowModelSelection action
+            Command::Empty
+        }
+        Action::ModelSelected(model_id) => {
+            // Handle model selection
+            state.model_selection.hide();
+            // Set the current model
+            state.current_model = Some(model_id.clone());
+            tracing::info!("Model selected: {}", model_id.as_str());
+
+            // Return command to update workflow and conversation with the selected model
+            Command::UpdateModel(model_id)
         }
     }
 }
@@ -270,26 +300,25 @@ mod tests {
     }
 
     #[test]
-    fn test_cancelled_action_with_number_id() {
+    fn test_initialize_action_returns_read_workspace_command() {
         let mut fixture_state = State::default();
-        let cancel_id = crate::domain::CancelId::new(CancellationToken::new());
 
-        let fixture_action = Action::Cancelled(cancel_id);
-
-        let actual_command = update(&mut fixture_state, fixture_action);
-        let expected_command = Command::Empty;
+        let actual_command = update(&mut fixture_state, Action::Initialize);
+        let expected_command = Command::ReadWorkspace.and(Command::ReadWorkflow);
 
         assert_eq!(actual_command, expected_command);
     }
 
     #[test]
-    fn test_initialize_action_returns_read_workspace_command() {
+    fn test_workflow_loaded_action_sets_current_model() {
         let mut fixture_state = State::default();
+        let model_id = forge_api::ModelId::new("test-model");
 
-        let actual_command = update(&mut fixture_state, Action::Initialize);
-        let expected_command = Command::ReadWorkspace;
+        let actual_command = update(&mut fixture_state, Action::WorkflowLoaded(model_id.clone()));
+        let expected_command = Command::Empty;
 
         assert_eq!(actual_command, expected_command);
+        assert_eq!(fixture_state.current_model, Some(model_id));
     }
 
     #[test]
@@ -435,5 +464,45 @@ mod tests {
         assert_eq!(actual_command, expected_command);
         // Timer should be replaced with the new timer from the action
         assert_eq!(fixture_state.timer, Some(timer_2));
+    }
+
+    #[test]
+    fn test_show_model_selection_action_shows_modal() {
+        let mut fixture_state = State::default();
+
+        let actual_command = update(&mut fixture_state, Action::ShowModelSelection);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+        assert!(fixture_state.model_selection.is_visible);
+        assert!(!fixture_state.spotlight.is_visible);
+    }
+
+    #[test]
+    fn test_models_loaded_action_updates_models() {
+        let mut fixture_state = State::default();
+        let models = vec![];
+
+        let actual_command = update(&mut fixture_state, Action::ModelsLoaded(models));
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+        // Modal visibility should not change - it should already be visible from
+        // ShowModelSelection
+        assert!(!fixture_state.model_selection.loading);
+    }
+
+    #[test]
+    fn test_model_selected_action_hides_modal() {
+        let mut fixture_state = State::default();
+        fixture_state.model_selection.show();
+
+        let model_id = forge_api::ModelId::new("test-model");
+        let actual_command = update(&mut fixture_state, Action::ModelSelected(model_id.clone()));
+        let expected_command = Command::UpdateModel(model_id.clone());
+
+        assert_eq!(actual_command, expected_command);
+        assert!(!fixture_state.model_selection.is_visible);
+        assert_eq!(fixture_state.current_model, Some(model_id));
     }
 }

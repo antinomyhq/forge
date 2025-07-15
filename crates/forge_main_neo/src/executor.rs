@@ -8,7 +8,7 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-use crate::domain::{Action, CancelId, Command, Timer};
+use crate::domain::{Action, CancelId, Command, SpotlightCommand, Timer};
 
 // Event type constants
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -147,6 +147,41 @@ impl<T: API + 'static> Executor<T> {
         Ok(())
     }
 
+    async fn execute_update_model(
+        &self,
+        model_id: forge_api::ModelId,
+        _tx: &Sender<anyhow::Result<Action>>,
+    ) -> anyhow::Result<()> {
+        // Update the workflow with the selected model
+        self.api
+            .update_workflow(None, |workflow| {
+                workflow.model = Some(model_id.clone());
+            })
+            .await?;
+
+        // Try to get an existing conversation to update
+        // Note: In the neo version, we might not have a conversation yet
+        // This is a simplified implementation that focuses on workflow update
+        tracing::info!("Updated workflow with model: {}", model_id.as_str());
+
+        Ok(())
+    }
+
+    async fn execute_read_workflow(
+        &self,
+        tx: &Sender<anyhow::Result<Action>>,
+    ) -> anyhow::Result<()> {
+        // Read the workflow to get the current model
+        let workflow = self.api.read_merged(None).await?;
+
+        if let Some(model_id) = workflow.model {
+            let action = Action::WorkflowLoaded(model_id);
+            tx.send(Ok(action)).await.unwrap();
+        }
+
+        Ok(())
+    }
+
     async fn execute_empty(&self) -> anyhow::Result<()> {
         // Empty command doesn't send any action
         Ok(())
@@ -241,6 +276,9 @@ impl<T: API + 'static> Executor<T> {
             Command::ReadWorkspace => {
                 self.execute_read_workspace(&tx).await?;
             }
+            Command::ReadWorkflow => {
+                self.execute_read_workflow(&tx).await?;
+            }
             Command::Empty => {
                 self.execute_empty().await?;
             }
@@ -253,10 +291,77 @@ impl<T: API + 'static> Executor<T> {
             Command::Interval { duration } => {
                 self.execute_interval(duration, &tx).await?;
             }
-            Command::Spotlight(_) => todo!(),
+            Command::Spotlight(spotlight_cmd) => {
+                match spotlight_cmd {
+                    SpotlightCommand::Model(_) => {
+                        // Show model selection modal immediately
+                        tracing::info!("Sending ShowModelSelection action");
+                        tx.send(Ok(Action::ShowModelSelection)).await?;
+
+                        // Start loading models in the background
+                        let api = self.api.clone();
+                        let tx_clone = tx.clone();
+                        tokio::spawn(async move {
+                            tracing::info!("Starting model loading with timeout");
+                            // Add timeout to prevent hanging indefinitely - wrap the entire call
+                            let timeout_duration = std::time::Duration::from_secs(10);
+
+                            match tokio::time::timeout(timeout_duration, async {
+                                api.models().await
+                            })
+                            .await
+                            {
+                                Ok(Ok(models)) => {
+                                    tracing::info!(
+                                        "Models loaded successfully: {} models",
+                                        models.len()
+                                    );
+                                    if let Err(e) =
+                                        tx_clone.send(Ok(Action::ModelsLoaded(models))).await
+                                    {
+                                        error!("Failed to send ModelsLoaded action: {}", e);
+                                    }
+                                }
+                                Ok(Err(e)) => {
+                                    error!("Failed to load models: {}", e);
+                                    // Send empty list on error
+                                    if let Err(e) =
+                                        tx_clone.send(Ok(Action::ModelsLoaded(vec![]))).await
+                                    {
+                                        error!("Failed to send empty ModelsLoaded action: {}", e);
+                                    }
+                                }
+                                Err(_) => {
+                                    error!("Model loading timed out after 10 seconds");
+                                    // Send empty list on timeout
+                                    if let Err(e) =
+                                        tx_clone.send(Ok(Action::ModelsLoaded(vec![]))).await
+                                    {
+                                        error!(
+                                            "Failed to send empty ModelsLoaded action after timeout: {}",
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    SpotlightCommand::Agent(_) => {
+                        // TODO: Implement agent selection
+                    }
+                }
+            }
             Command::InterruptStream => {
                 // Send InterruptStream action to trigger state update
                 tx.send(Ok(Action::InterruptStream)).await?;
+            }
+            Command::SelectModel(model_id) => {
+                // Send ModelSelected action
+                tx.send(Ok(Action::ModelSelected(model_id))).await?;
+            }
+            Command::UpdateModel(model_id) => {
+                // Update workflow and conversation with the selected model
+                self.execute_update_model(model_id, &tx).await?;
             }
         }
         Ok(())

@@ -2,6 +2,7 @@ mod app;
 mod bordered_panel;
 mod chat;
 mod message_list;
+mod model_selection;
 mod spinner;
 mod spotlight;
 mod status_bar;

@@ -4,10 +4,11 @@ use edtui::actions::{
     Execute, MoveToEndOfLine, MoveToStartOfLine, MoveWordBackward, MoveWordForward,
 };
 use edtui::{EditorEventHandler, EditorMode};
+use forge_api::ModelId;
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::domain::spotlight::SpotlightState;
-use crate::domain::{Command, EditorStateExt, State};
+use crate::domain::{Command, EditorStateExt, SpotlightCommand, State};
 
 fn handle_spotlight_input_change(state: &mut State) {
     // Reset selection index when input changes to ensure it's within bounds
@@ -17,6 +18,17 @@ fn handle_spotlight_input_change(state: &mut State) {
     // Reset selection to 0 if current selection is out of bounds
     if state.spotlight.selected_index >= filtered_count {
         state.spotlight.selected_index = 0;
+    }
+}
+
+fn handle_model_selection_input_change(state: &mut State) {
+    // Reset selection index when input changes to ensure it's within bounds
+    // of the filtered results
+    let filtered_count = state.model_selection.filtered_models().len();
+
+    // Reset selection to 0 if current selection is out of bounds
+    if state.model_selection.selected_index >= filtered_count {
+        state.model_selection.selected_index = 0;
     }
 }
 
@@ -68,8 +80,8 @@ fn handle_spotlight_navigation(
                         Command::Empty
                     }
                     crate::domain::slash_command::SlashCommand::Model => {
-                        // For now, just hide spotlight - proper model selection would need more UI
-                        Command::Empty
+                        // Show model selection modal
+                        Command::Spotlight(SpotlightCommand::Model(ModelId::new("placeholder")))
                     }
                     _ => {
                         // For other commands, just hide spotlight for now
@@ -80,6 +92,55 @@ fn handle_spotlight_navigation(
                 // Hide spotlight and return the command
                 state.spotlight = SpotlightState::default();
                 return Some(command);
+            }
+            Some(Command::Empty)
+        }
+        _ => None,
+    }
+}
+
+fn handle_model_selection_navigation(
+    state: &mut State,
+    key_event: ratatui::crossterm::event::KeyEvent,
+) -> Option<Command> {
+    use ratatui::crossterm::event::KeyCode;
+
+    if !state.model_selection.is_visible {
+        return None;
+    }
+
+    let filtered_models = state.model_selection.filtered_models();
+
+    match key_event.code {
+        KeyCode::Up => {
+            state.model_selection.select_previous();
+            Some(Command::Empty)
+        }
+        KeyCode::Down => {
+            state.model_selection.select_next();
+            Some(Command::Empty)
+        }
+        KeyCode::Tab => {
+            // Auto-complete with the first matching model
+            if !filtered_models.is_empty() {
+                let first_match = filtered_models[0].id.as_str();
+                // Clear current input and set to the first match
+                state
+                    .model_selection
+                    .editor
+                    .set_text_insert_mode(first_match.to_string());
+                state.model_selection.selected_index = 0;
+            }
+            Some(Command::Empty)
+        }
+        KeyCode::Enter => {
+            // Select the current model
+            if let Some(selected_model) = state.model_selection.selected_model() {
+                let model_id = selected_model.id.clone();
+                // Hide model selection modal
+                state.model_selection.hide();
+                // Send SelectModel command which will trigger ModelSelected action
+                return Some(Command::SelectModel(model_id));
             }
             Some(Command::Empty)
         }
@@ -193,6 +254,22 @@ fn handle_spotlight_toggle(
     }
 }
 
+fn handle_model_selection_toggle(
+    state: &mut State,
+    key_event: ratatui::crossterm::event::KeyEvent,
+    _original_editor_mode: EditorMode,
+) -> Command {
+    use ratatui::crossterm::event::KeyCode;
+
+    if key_event.code == KeyCode::Esc {
+        // Hide model selection modal
+        state.model_selection.hide();
+        Command::Empty
+    } else {
+        Command::Empty
+    }
+}
+
 fn handle_message_scroll(
     state: &mut State,
     key_event: ratatui::crossterm::event::KeyEvent,
@@ -266,6 +343,38 @@ pub fn handle_key_event(
         } else {
             // Spotlight navigation handled, return the command from navigation
             cmd.and(spotlight_nav_cmd.unwrap_or(Command::Empty))
+        }
+    } else if state.model_selection.is_visible {
+        // When model selection is visible, route events to model selection editor
+        let cmd = handle_model_selection_toggle(state, key_event, state.editor.mode);
+
+        // Check model selection navigation first
+        let model_nav_cmd = handle_model_selection_navigation(state, key_event);
+
+        if model_nav_cmd.is_none() {
+            // Check if navigation was handled
+            let line_nav_handled =
+                handle_line_navigation(&mut state.model_selection.editor, key_event);
+            let word_nav_handled =
+                handle_word_navigation(&mut state.model_selection.editor, key_event);
+
+            // Only call editor default if no navigation was handled
+            let result_cmd = if !line_nav_handled && !word_nav_handled {
+                let editor_cmd =
+                    handle_editor_default(&mut state.model_selection.editor, key_event);
+                // Reset selection index when input changes
+                handle_model_selection_input_change(state);
+                cmd.and(editor_cmd)
+            } else {
+                cmd
+            };
+
+            // Always keep model selection in "insert" mode
+            state.model_selection.editor.mode = EditorMode::Insert;
+            result_cmd
+        } else {
+            // Model selection navigation handled, return the command from navigation
+            cmd.and(model_nav_cmd.unwrap_or(Command::Empty))
         }
     } else {
         // When spotlight is not visible, route events to main editor

@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use edtui::EditorState;
-use forge_api::{ChatResponse, ConversationId};
+use forge_api::{ChatResponse, ConversationId, ModelId};
 use throbber_widgets_tui::ThrobberState;
 use tui_scrollview::ScrollViewState;
 
 use crate::domain::spotlight::SpotlightState;
-use crate::domain::{CancelId, EditorStateExt, Message, Workspace};
+use crate::domain::{CancelId, EditorStateExt, Message, ModelSelectionState, Workspace};
 
 #[derive(Clone)]
 pub struct State {
@@ -18,9 +18,11 @@ pub struct State {
     pub timer: Option<Timer>,
     pub show_spinner: bool,
     pub spotlight: SpotlightState,
+    pub model_selection: ModelSelectionState,
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
+    pub current_model: Option<ModelId>,
 }
 
 impl Default for State {
@@ -35,9 +37,11 @@ impl Default for State {
             timer: Default::default(),
             show_spinner: Default::default(),
             spotlight: Default::default(),
+            model_selection: Default::default(),
             conversation: Default::default(),
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
+            current_model: None,
         }
     }
 }

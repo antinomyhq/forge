@@ -1409,6 +1409,7 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "chrono",
+ "clap",
  "color-eyre",
  "derive_more",
  "derive_setters",
