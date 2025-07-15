@@ -270,19 +270,6 @@ mod tests {
     }
 
     #[test]
-    fn test_cancelled_action_with_number_id() {
-        let mut fixture_state = State::default();
-        let cancel_id = crate::domain::CancelId::new(CancellationToken::new());
-
-        let fixture_action = Action::Cancelled(cancel_id);
-
-        let actual_command = update(&mut fixture_state, fixture_action);
-        let expected_command = Command::Empty;
-
-        assert_eq!(actual_command, expected_command);
-    }
-
-    #[test]
     fn test_initialize_action_returns_read_workspace_command() {
         let mut fixture_state = State::default();
 

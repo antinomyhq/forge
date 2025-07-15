@@ -28,6 +28,8 @@ forge_tracker.workspace = true
 lazy_static.workspace = true
 tracing.workspace = true
 futures.workspace = true
+fd-lock = "4.0.4"
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+tempfile = "3.0"
