@@ -6,20 +6,13 @@ pub enum ProviderUrl {
     OpenAI(String),
     Anthropic(String),
 }
-impl ProviderUrl {
-    pub fn into_string(self) -> String {
-        match self {
-            ProviderUrl::OpenAI(url) => url,
-            ProviderUrl::Anthropic(url) => url,
-        }
-    }
-}
 
 /// Providers that can be used.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Provider {
     OpenAI { url: Url, key: Option<String> },
     Anthropic { url: Url, key: String },
+    Copilot { url: Url, key: String },
 }
 
 impl Provider {
@@ -40,6 +33,7 @@ impl Provider {
                 }
             }
             Provider::Anthropic { .. } => {}
+            Provider::Copilot { .. } => {}
         }
     }
 
@@ -54,6 +48,7 @@ impl Provider {
                 }
             }
             Provider::OpenAI { .. } => {}
+            Provider::Copilot { .. } => {}
         }
     }
 
@@ -63,6 +58,14 @@ impl Provider {
             key: Some(key.into()),
         }
     }
+
+    pub fn copilot(key: &str) -> Provider {
+        Provider::Copilot {
+            url: Url::parse(Provider::COPILOT_URL).unwrap(),
+            key: key.into(),
+        }
+    }
+
 
     pub fn openai(key: &str) -> Provider {
         Provider::OpenAI {
@@ -103,6 +106,7 @@ impl Provider {
         match self {
             Provider::OpenAI { key, .. } => key.as_deref(),
             Provider::Anthropic { key, .. } => Some(key),
+            Provider::Copilot { key, .. } => Some(key),
         }
     }
 }
@@ -114,12 +118,14 @@ impl Provider {
     pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
     pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
     pub const FORGE_URL: &str = "https://api.forgecode.dev/api/v1/";
+    pub const COPILOT_URL: &str = "https://api.githubcopilot.com/";
 
     /// Converts the provider to it's base URL
     pub fn to_base_url(&self) -> Url {
         match self {
             Provider::OpenAI { url, .. } => url.clone(),
             Provider::Anthropic { url, .. } => url.clone(),
+            Provider::Copilot { url, .. } => url.clone(),
         }
     }
 
@@ -127,13 +133,19 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::FORGE_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Copilot { .. } => false,
         }
+    }
+
+    pub fn is_copilot(&self) -> bool {
+        matches!(self, Provider::Copilot { .. })
     }
 
     pub fn is_open_router(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPEN_ROUTER_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Copilot { .. } => false,
         }
     }
 
@@ -141,6 +153,7 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::REQUESTY_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Copilot { .. } => false,
         }
     }
 
@@ -148,6 +161,7 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::XAI_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Copilot { .. } => false,
         }
     }
 
@@ -155,6 +169,7 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPENAI_URL),
             Provider::Anthropic { .. } => false,
+            Provider::Copilot { .. } => false,
         }
     }
 
@@ -162,6 +177,7 @@ impl Provider {
         match self {
             Provider::OpenAI { .. } => false,
             Provider::Anthropic { url, .. } => url.as_str().starts_with(Self::ANTHROPIC_URL),
+            Provider::Copilot { .. } => false,
         }
     }
 }
