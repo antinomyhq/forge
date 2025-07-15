@@ -4,7 +4,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use forge_app::domain::{Cert, ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig};
+use forge_app::domain::{
+    Cert, ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream,
+    RetryConfig,
+};
 use reqwest::redirect::Policy;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
