@@ -15,12 +15,14 @@ pub enum Response {
     Success {
         id: String,
         provider: Option<String>,
-        model: String,
+        model: Option<String>,
         choices: Vec<Choice>,
         created: u64,
-        object: String,
+        object: Option<String>,
         system_fingerprint: Option<String>,
         usage: Option<ResponseUsage>,
+        // GitHub Copilot specific fields
+        prompt_filter_results: Option<Vec<PromptFilterResult>>,
     },
     Failure {
         error: ErrorResponse,
@@ -39,6 +41,26 @@ pub struct ResponseUsage {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PromptTokenDetails {
     pub cached_tokens: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PromptFilterResult {
+    pub content_filter_results: Option<ContentFilterResults>,
+    pub prompt_index: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ContentFilterResults {
+    pub hate: Option<FilterResult>,
+    pub self_harm: Option<FilterResult>,
+    pub sexual: Option<FilterResult>,
+    pub violence: Option<FilterResult>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FilterResult {
+    pub filtered: bool,
+    pub severity: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -128,7 +150,29 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
     fn try_from(res: Response) -> Result<Self, Self::Error> {
         match res {
-            Response::Success { choices, usage, .. } => {
+            Response::Success { choices, usage, prompt_filter_results, .. } => {
+                // Handle case where choices is empty (e.g., content filtered by Copilot)
+                if choices.is_empty() {
+                    // Check if this is due to content filtering
+                    if let Some(filter_results) = prompt_filter_results {
+                        if filter_results.iter().any(|result| {
+                            result.content_filter_results.as_ref()
+                                .map(|cfr| {
+                                    [&cfr.hate, &cfr.self_harm, &cfr.sexual, &cfr.violence]
+                                        .iter()
+                                        .any(|filter| filter.as_ref().map_or(false, |f| f.filtered))
+                                })
+                                .unwrap_or(false)
+                        }) {
+                            return Ok(ChatCompletionMessage::assistant(
+                                Content::full("I cannot respond to this request due to content policy restrictions.")
+                            ));
+                        }
+                    }
+                    // Return empty response for other cases
+                    return Ok(ChatCompletionMessage::assistant(Content::full("")));
+                }
+
                 if let Some(choice) = choices.first() {
                     let mut response = match choice {
                         Choice::NonChat { text, finish_reason, .. } => {
@@ -225,8 +269,8 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     }
                     Ok(response)
                 } else {
-                    let default_response = ChatCompletionMessage::assistant(Content::full(""));
-                    Ok(default_response)
+                    // This should not happen anymore due to the empty check above
+                    Ok(ChatCompletionMessage::assistant(Content::full("")))
                 }
             }
             Response::Failure { error } => Err(Error::Response(error).into()),
@@ -277,6 +321,18 @@ mod tests {
     #[test]
     fn test_fireworks_response_event_missing_arguments() {
         let event = "{\"id\":\"gen-1749331907-SttL6PXleVHnrdLMABfU\",\"provider\":\"Fireworks\",\"model\":\"qwen/qwen3-235b-a22b\",\"object\":\"chat.completion.chunk\",\"created\":1749331907,\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"index\":0,\"id\":\"call_Wl2L8rrzHwrXSeiciIvU65IS\",\"type\":\"function\",\"function\":{\"name\":\"forge_tool_attempt_completion\"}}]},\"finish_reason\":null,\"native_finish_reason\":null,\"logprobs\":null}]}";
+        assert!(Fixture::test_response_compatibility(event));
+    }
+
+    #[test]
+    fn test_github_copilot_empty_choices_with_filter() {
+        let event = "{\"choices\":[],\"created\":0,\"id\":\"\",\"model\":\"gpt-4o\",\"object\":\"chat.completion\",\"prompt_filter_results\":[{\"content_filter_results\":{\"hate\":{\"filtered\":false,\"severity\":\"safe\"},\"self_harm\":{\"filtered\":false,\"severity\":\"safe\"},\"sexual\":{\"filtered\":false,\"severity\":\"safe\"},\"violence\":{\"filtered\":false,\"severity\":\"safe\"}},\"prompt_index\":0}]}";
+        assert!(Fixture::test_response_compatibility(event));
+    }
+
+    #[test]
+    fn test_github_copilot_filtered_content() {
+        let event = "{\"choices\":[],\"created\":0,\"id\":\"\",\"model\":\"gpt-4o\",\"object\":\"chat.completion\",\"prompt_filter_results\":[{\"content_filter_results\":{\"hate\":{\"filtered\":true,\"severity\":\"high\"},\"self_harm\":{\"filtered\":false,\"severity\":\"safe\"},\"sexual\":{\"filtered\":false,\"severity\":\"safe\"},\"violence\":{\"filtered\":false,\"severity\":\"safe\"}},\"prompt_index\":0}]}";
         assert!(Fixture::test_response_compatibility(event));
     }
 
