@@ -42,7 +42,6 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
-
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
@@ -59,7 +58,6 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
-
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
@@ -150,7 +148,6 @@ jobs:
           target: aarch64-pc-windows-msvc
     steps:
     - uses: actions/checkout@v4
-
     - uses: taiki-e/setup-cross-toolchain-action@v1
       with:
         target: ${{ matrix.target }}
@@ -238,7 +235,6 @@ jobs:
           target: aarch64-pc-windows-msvc
     steps:
     - uses: actions/checkout@v4
-
     - uses: taiki-e/setup-cross-toolchain-action@v1
       with:
         target: ${{ matrix.target }}

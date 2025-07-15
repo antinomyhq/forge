@@ -16,25 +16,12 @@ pub fn generate_ci_workflow() {
         .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
         .add_env(("MTLS_CERT", "${{secrets.MTLS_CERT}}"));
 
-    // Get the original jobs without modification
-    let build_job = if let Some(jobs) = &workflow.jobs {
-        jobs.get("build").unwrap().clone()
-    } else {
-        panic!("No jobs found in workflow")
-    };
-
-    let lint_job = if let Some(jobs) = &workflow.jobs {
-        jobs.get("lint").unwrap().clone()
-    } else {
-        panic!("No jobs found in workflow")
-    };
-
+    // Get the jobs
+    let build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();
     let draft_release_job = jobs::create_draft_release_job(&build_job);
 
     // Add jobs to the workflow
     workflow
-        .add_job("build", build_job)
-        .add_job("lint", lint_job)
         .add_job("draft_release", draft_release_job.clone())
         .add_job(
             "build_release",
