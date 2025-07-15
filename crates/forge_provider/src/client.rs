@@ -4,9 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
-};
+use forge_app::domain::{Cert, ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig};
 use reqwest::redirect::Policy;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
@@ -33,7 +31,7 @@ impl Client {
         retry_config: Arc<RetryConfig>,
         version: impl ToString,
         timeout_config: &HttpConfig,
-        cert: Option<&str>,
+        cert: Option<&Cert>,
     ) -> Result<Self> {
         let mut builder = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(
@@ -47,7 +45,7 @@ impl Client {
             .redirect(Policy::limited(timeout_config.max_redirects));
 
         if let Some(cert) = cert {
-            builder = builder.identity(reqwest::Identity::from_pem(cert.as_bytes())?);
+            builder = builder.identity(reqwest::Identity::from_pem(cert.as_str().as_bytes())?);
         }
 
         let client = builder.build()?;

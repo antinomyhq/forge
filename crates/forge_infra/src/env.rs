@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use forge_domain::{Environment, RetryConfig};
+use forge_domain::{Cert, Environment, RetryConfig};
 use forge_services::EnvironmentInfra;
 
 #[derive(Clone)]
@@ -129,7 +129,7 @@ impl ForgeEnvironmentInfra {
             stdout_max_suffix_length: 200,
             http: self.resolve_timeout_config(),
             max_file_size: 256 << 10, // 256 KiB
-            cert: (!cert.is_empty()).then_some(cert),
+            cert: (!cert.is_empty()).then_some(Cert::new(cert)),
         }
     }
 
