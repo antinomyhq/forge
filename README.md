@@ -215,6 +215,57 @@ _No changes in `forge.yaml` required_
 </details>
 
 <details>
+<summary><strong>GitHub Copilot</strong></summary>
+
+```bash
+# .env
+GITHUB_COPILOT_TOKEN=<your_github_copilot_token>
+```
+
+### How to obtain a GitHub Copilot token
+
+**Option 1: Neovim copilot.lua (Recommended - Most capable token)**
+
+The most reliable method is to use the Neovim **copilot.lua** plugin. After authentication, a file appears:
+
+```
+~/.config/github-copilot/hosts.json
+```
+
+Copy the `oauth_token` value – that string is your `GITHUB_COPILOT_TOKEN`.
+
+**Option 2: JetBrains IDE (Alternative)**
+
+Sign in to Copilot from any JetBrains IDE (PyCharm, GoLand, IntelliJ IDEA, etc). After authentication, a file appears:
+
+```
+~/.config/github-copilot/apps.json
+```
+
+On Windows the config can be found in:
+```
+~\AppData\Local\github-copilot\apps.json
+```
+
+Copy the `oauth_token` value – that string is your `GITHUB_COPILOT_TOKEN`.
+
+**Option 3: GitHub CLI (Not recommended - Limited model access)**
+
+You can obtain a token using the GitHub CLI, though this token has limited access to available models:
+
+```bash
+gh auth token
+```
+
+*Note: Ensure you have an active GitHub Copilot subscription.*
+
+_Token acquisition instructions adapted from [Aider documentation](https://aider.chat/docs/llms/github.html) (Apache-2.0 license)_
+
+_No changes in `forge.yaml` required_
+
+</details>
+
+<details>
 <summary><strong>x-ai</strong></summary>
 
 ```bash
