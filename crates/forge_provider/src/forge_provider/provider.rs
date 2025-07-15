@@ -49,6 +49,8 @@ impl ForgeProvider {
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
     // - `HTTP-Referer`: Identifies your app on openrouter.ai
     // - `X-Title`: Sets/modifies your app's title
+    // GitHub Copilot specific headers ref: https://github.com/orgs/community/discussions/112339#discussioncomment-11904642
+    // - `Copilot-Integration-Id`: Required for GitHub Copilot API requests
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         if let Some(ref api_key) = self.provider.key() {
@@ -57,6 +59,15 @@ impl ForgeProvider {
                 HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
             );
         }
+
+        // Add GitHub Copilot specific header if using Copilot provider
+        if self.provider.is_copilot() {
+            headers.insert(
+                "Copilot-Integration-Id",
+                HeaderValue::from_static("forge-cli"),
+            );
+        }
+
         headers.insert("X-Title", HeaderValue::from_static("forge"));
         headers.insert(
             "x-app-version",
@@ -378,6 +389,72 @@ mod tests {
 
         mock.assert_async().await;
         assert!(actual.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_copilot_headers_include_integration_id() -> anyhow::Result<()> {
+        let provider = Provider::Copilot {
+            url: reqwest::Url::parse("https://api.githubcopilot.com/")?,
+            key: "test-copilot-key".to_string(),
+        };
+
+        let forge_provider = ForgeProvider::builder()
+            .client(Client::new())
+            .provider(provider)
+            .version("1.0.0".to_string())
+            .build()
+            .unwrap();
+
+        let headers = forge_provider.headers();
+
+        // Verify Copilot-Integration-Id header is present
+        assert!(headers.contains_key("Copilot-Integration-Id"));
+        assert_eq!(
+            headers
+                .get("Copilot-Integration-Id")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "forge-cli"
+        );
+
+        // Verify Authorization header is still present
+        assert!(headers.contains_key("Authorization"));
+        assert_eq!(
+            headers.get("Authorization").unwrap().to_str().unwrap(),
+            "Bearer test-copilot-key"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_non_copilot_headers_do_not_include_integration_id() -> anyhow::Result<()> {
+        let provider = Provider::OpenAI {
+            url: reqwest::Url::parse("https://api.openai.com/v1/")?,
+            key: Some("test-openai-key".to_string()),
+        };
+
+        let forge_provider = ForgeProvider::builder()
+            .client(Client::new())
+            .provider(provider)
+            .version("1.0.0".to_string())
+            .build()
+            .unwrap();
+
+        let headers = forge_provider.headers();
+
+        // Verify Copilot-Integration-Id header is NOT present for non-Copilot providers
+        assert!(!headers.contains_key("Copilot-Integration-Id"));
+
+        // Verify Authorization header is still present
+        assert!(headers.contains_key("Authorization"));
+        assert_eq!(
+            headers.get("Authorization").unwrap().to_str().unwrap(),
+            "Bearer test-openai-key"
+        );
+
         Ok(())
     }
 
