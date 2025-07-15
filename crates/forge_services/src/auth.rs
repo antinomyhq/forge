@@ -25,7 +25,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             "{}{AUTH_ROUTE}",
             self.infra
                 .get_env_var("FORGE_API_URL")
-                .unwrap_or(Provider::ANTINOMY_URL.to_string())
+                .unwrap_or(Provider::FORGE_URL.to_string())
         );
         let resp = self.infra.post(&init_url, Bytes::new()).await?;
         if !resp.status().is_success() {
@@ -40,7 +40,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             "{}{AUTH_ROUTE}{}",
             self.infra
                 .get_env_var("FORGE_API_URL")
-                .unwrap_or(Provider::ANTINOMY_URL.to_string()),
+                .unwrap_or(Provider::FORGE_URL.to_string()),
             auth.session_id
         );
         let mut headers = HeaderMap::new();
@@ -64,7 +64,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             "{}{USER_INFO_ROUTE}",
             self.infra
                 .get_env_var("FORGE_API_URL")
-                .unwrap_or(Provider::ANTINOMY_URL.to_string())
+                .unwrap_or(Provider::FORGE_URL.to_string())
         );
         let mut headers = HeaderMap::new();
         headers.insert(

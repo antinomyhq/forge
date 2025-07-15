@@ -59,7 +59,7 @@ impl Provider {
 
     pub fn antinomy(key: &str) -> Provider {
         Provider::OpenAI {
-            url: Url::parse(Provider::ANTINOMY_URL).unwrap(),
+            url: Url::parse(Provider::FORGE_URL).unwrap(),
             key: Some(key.into()),
         }
     }
@@ -113,7 +113,7 @@ impl Provider {
     pub const XAI_URL: &str = "https://api.x.ai/v1/";
     pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
     pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
-    pub const ANTINOMY_URL: &str = "https://www.antinomy.ai/api/v1/";
+    pub const FORGE_URL: &str = "https://api.forgecode.dev/api/v1/";
 
     /// Converts the provider to it's base URL
     pub fn to_base_url(&self) -> Url {
@@ -125,7 +125,7 @@ impl Provider {
 
     pub fn is_antinomy(&self) -> bool {
         match self {
-            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::ANTINOMY_URL),
+            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::FORGE_URL),
             Provider::Anthropic { .. } => false,
         }
     }
