@@ -110,6 +110,7 @@ pub mod tests {
                 max_read_size: 0,
                 http: Default::default(),
                 max_file_size: 10_000_000,
+                cert: None,
             }
         }
 

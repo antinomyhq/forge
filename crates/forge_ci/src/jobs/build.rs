@@ -27,6 +27,12 @@ fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
                 .pull_requests(Level::Write),
         )
         .add_step(Step::uses("actions", "checkout", "v4"))
+        // Create certificate file from environment variable
+        .add_step(
+            Step::run("echo \"$MTLS_CERT\" > cert.pem")
+                .name("Create mTLS certificate file")
+                .if_condition(Expression::new("env.MTLS_CERT != ''")),
+        )
         // Install Rust with cross-compilation target
         .add_step(
             Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
@@ -62,6 +68,7 @@ fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
                 .add_with(("cross-version", "0.2.4"))
                 .add_env(("RUSTFLAGS", "${{ env.RUSTFLAGS }}"))
                 .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
+                .add_env(("MTLS_CERT", "${{secrets.MTLS_CERT}}"))
                 .add_env((
                     "APP_VERSION",
                     "${{ needs.draft_release.outputs.crate_release_name }}",

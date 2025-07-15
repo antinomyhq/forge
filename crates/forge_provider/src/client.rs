@@ -161,6 +161,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
+            None,
         )
         .unwrap();
 
@@ -180,6 +181,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
+            None,
         )
         .unwrap();
 

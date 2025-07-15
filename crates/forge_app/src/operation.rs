@@ -454,6 +454,7 @@ mod tests {
             stdout_max_suffix_length: 10,
             http: Default::default(),
             max_file_size: 256 << 10, // 256 KiB
+            cert: None,
         }
     }
 
