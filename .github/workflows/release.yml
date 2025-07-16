@@ -15,7 +15,7 @@
 # ----------------------------- END WARNING -------------------------
 # -------------------------------------------------------------------
 
-name: NPM Release
+name: Multi Channel Release
 on:
   release:
     types:
@@ -24,7 +24,7 @@ permissions:
   contents: write
   pull-requests: write
 jobs:
-  build-release:
+  build_release:
     name: build-release
     runs-on: ${{ matrix.os }}
     permissions:
@@ -109,7 +109,7 @@ jobs:
         overwrite: 'true'
   npm_release:
     needs:
-    - build-release
+    - build_release
     name: npm_release
     runs-on: ubuntu-latest
     strategy:
@@ -128,3 +128,15 @@ jobs:
         AUTO_PUSH: 'true'
         CI: 'true'
         NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+  homebrew_release:
+    needs:
+    - build_release
+    name: homebrew_release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: antinomyhq/homebrew-code-forge
+        ref: main
+        token: ${{ secrets.HOMEBREW_ACCESS }}
+    - run: GITHUB_TOKEN="${{ secrets.HOMEBREW_ACCESS }}" ./update-formula.sh ${{ github.event.release.tag_name }}
