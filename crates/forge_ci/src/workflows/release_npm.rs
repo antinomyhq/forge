@@ -1,11 +1,12 @@
 use gh_workflow_tailcall::generate::Generate;
 use gh_workflow_tailcall::*;
 
-use crate::jobs::{create_build_release_job_for_publishing, release_npm_job};
+use crate::jobs::{release_npm_job, ReleaseBuilderJob};
 
 /// Generate npm release workflow
 pub fn generate_npm_workflow() {
-    let build_job = create_build_release_job_for_publishing();
+    let build_job = ReleaseBuilderJob::new("${{ github.event.release.tag_name }}")
+        .release_id("${{ github.event.release.id }}");
     let npm_release_job = release_npm_job().add_needs(build_job.clone());
 
     let npm_workflow = Workflow::default()

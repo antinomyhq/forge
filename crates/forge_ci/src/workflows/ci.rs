@@ -1,6 +1,6 @@
 use gh_workflow_tailcall::*;
 
-use crate::jobs;
+use crate::jobs::{self, ReleaseBuilderJob};
 
 /// Generate the main CI workflow
 pub fn generate_ci_workflow() {
@@ -23,11 +23,30 @@ pub fn generate_ci_workflow() {
         .add_job("draft_release", draft_release_job.clone())
         .add_job(
             "build_release",
-            jobs::create_build_release_main_job(&draft_release_job),
+            ReleaseBuilderJob::new("${{ needs.draft_release.outputs.crate_release_name }}")
+                .release_id("${{ needs.draft_release.outputs.crate_release_id }}")
+                .into_job()
+                .add_needs(draft_release_job.clone())
+                .cond(Expression::new(
+                    [
+                        "github.event_name == 'push'",
+                        "github.ref == 'refs/heads/main'",
+                    ]
+                    .join(" && "),
+                )),
         )
         .add_job(
             "build_release_pr",
-            jobs::create_build_release_pr_job(&draft_release_job),
+            ReleaseBuilderJob::new("${{ needs.draft_release.outputs.crate_release_name }}")
+                .into_job()
+                .add_needs(draft_release_job)
+                .cond(Expression::new(
+                    [
+                        "github.event_name == 'pull_request'",
+                        "contains(github.event.pull_request.labels.*.name, 'build-all-targets')",
+                    ]
+                    .join(" && "),
+                )),
         )
         .generate()
         .unwrap();

@@ -1088,6 +1088,7 @@ dependencies = [
 name = "forge_ci"
 version = "0.1.0"
 dependencies = [
+ "derive_setters",
  "gh-workflow-tailcall",
  "indexmap",
  "pretty_assertions",

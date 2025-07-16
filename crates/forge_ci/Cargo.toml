@@ -8,6 +8,7 @@ serde.workspace = true
 serde_json.workspace = true
 gh-workflow-tailcall.workspace = true
 indexmap.workspace = true
+derive_setters.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

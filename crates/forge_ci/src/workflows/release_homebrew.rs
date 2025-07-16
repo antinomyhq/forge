@@ -1,11 +1,12 @@
 use gh_workflow_tailcall::generate::Generate;
 use gh_workflow_tailcall::*;
 
-use crate::jobs::{create_build_release_job_for_publishing, release_homebrew_job};
+use crate::jobs::{release_homebrew_job, ReleaseBuilderJob};
 
 /// Generate homebrew release workflow
 pub fn generate_homebrew_workflow() {
-    let build_job = create_build_release_job_for_publishing();
+    let build_job = ReleaseBuilderJob::new("${{ github.event.release.tag_name }}")
+        .release_id("${{ github.event.release.id }}");
     let homebrew_release_job = release_homebrew_job().add_needs(build_job.clone());
     let homebrew_workflow = Workflow::default()
         .name("Homebrew Release")
