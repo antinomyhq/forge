@@ -15,10 +15,8 @@ pub fn apt_get_install(packages: &[&str]) -> String {
     )
 }
 
-/// Create a base build job that can be customized
-fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
+pub fn create_base_build_release_job(matrix: Value) -> Job {
     Job::new("build-release")
-        .add_needs(draft_release_job.clone())
         .strategy(Strategy { fail_fast: None, max_parallel: None, matrix: Some(matrix) })
         .runs_on("${{ matrix.os }}")
         .permissions(
@@ -53,7 +51,39 @@ fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
                 "contains(matrix.target, '-unknown-linux-musl')",
             )),
         )
+}
+
+/// Create a build job for drafts
+pub fn create_build_release_job_for_publishing(matrix: Value) -> Job {
+    create_base_build_release_job(matrix)
         // Build release binary
+        .add_step(
+            Step::uses("ClementTsang", "cargo-action", "v0.0.6")
+                .add_with(("command", "build --release"))
+                .add_with(("args", "--target ${{ matrix.target }}"))
+                .add_with(("use-cross", "${{ matrix.cross }}"))
+                .add_with(("cross-version", "0.2.4"))
+                .add_env(("RUSTFLAGS", "${{ env.RUSTFLAGS }}"))
+                .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
+                .add_env(("APP_VERSION", "${{ github.event.release.tag_name }}")),
+        )
+        // Rename binary to target name
+        .add_step(Step::run(
+            "cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}",
+        ))
+        // Upload directly to release
+        .add_step(
+            Step::uses("xresloader", "upload-to-github-release", "v1")
+                .add_with(("release_id", "${{ github.event.release.id }}"))
+                .add_with(("file", "${{ matrix.binary_name }}"))
+                .add_with(("overwrite", "true")),
+        )
+}
+
+/// Create a build job for PRs
+fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
+    create_base_build_release_job(matrix)
+        .add_needs(draft_release_job.clone())
         .add_step(
             Step::uses("ClementTsang", "cargo-action", "v0.0.6")
                 .add_with(("command", "build --release"))
