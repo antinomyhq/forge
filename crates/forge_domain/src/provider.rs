@@ -10,9 +10,8 @@ pub enum ProviderUrl {
 /// Providers that can be used.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Provider {
-    OpenAI { url: Url, key: Option<String> },
+    OpenAI { url: Url, key: Option<String>, extra_headers: Option<std::collections::HashMap<String, String>> },
     Anthropic { url: Url, key: String },
-    Copilot { url: Url, key: String },
 }
 
 impl Provider {
@@ -33,7 +32,6 @@ impl Provider {
                 }
             }
             Provider::Anthropic { .. } => {}
-            Provider::Copilot { .. } => {}
         }
     }
 
@@ -48,7 +46,6 @@ impl Provider {
                 }
             }
             Provider::OpenAI { .. } => {}
-            Provider::Copilot { .. } => {}
         }
     }
 
@@ -56,13 +53,17 @@ impl Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::FORGE_URL).unwrap(),
             key: Some(key.into()),
+            extra_headers: None,
         }
     }
 
     pub fn copilot(key: &str) -> Provider {
-        Provider::Copilot {
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("Copilot-Integration-Id".to_string(), "forge".to_string());
+        Provider::OpenAI {
             url: Url::parse(Provider::COPILOT_URL).unwrap(),
-            key: key.into(),
+            key: Some(key.into()),
+            extra_headers: Some(headers),
         }
     }
 
@@ -71,6 +72,7 @@ impl Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::OPENAI_URL).unwrap(),
             key: Some(key.into()),
+            extra_headers: None,
         }
     }
 
@@ -78,6 +80,7 @@ impl Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::OPEN_ROUTER_URL).unwrap(),
             key: Some(key.into()),
+            extra_headers: None,
         }
     }
 
@@ -85,6 +88,7 @@ impl Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::REQUESTY_URL).unwrap(),
             key: Some(key.into()),
+            extra_headers: None,
         }
     }
 
@@ -92,6 +96,7 @@ impl Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::XAI_URL).unwrap(),
             key: Some(key.into()),
+            extra_headers: None,
         }
     }
 
@@ -106,7 +111,6 @@ impl Provider {
         match self {
             Provider::OpenAI { key, .. } => key.as_deref(),
             Provider::Anthropic { key, .. } => Some(key),
-            Provider::Copilot { key, .. } => Some(key),
         }
     }
 }
@@ -125,7 +129,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.clone(),
             Provider::Anthropic { url, .. } => url.clone(),
-            Provider::Copilot { url, .. } => url.clone(),
         }
     }
 
@@ -133,19 +136,20 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::FORGE_URL),
             Provider::Anthropic { .. } => false,
-            Provider::Copilot { .. } => false,
         }
     }
 
     pub fn is_copilot(&self) -> bool {
-        matches!(self, Provider::Copilot { .. })
+        match self {
+            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::COPILOT_URL),
+            _ => false,
+        }
     }
 
     pub fn is_open_router(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPEN_ROUTER_URL),
             Provider::Anthropic { .. } => false,
-            Provider::Copilot { .. } => false,
         }
     }
 
@@ -153,7 +157,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::REQUESTY_URL),
             Provider::Anthropic { .. } => false,
-            Provider::Copilot { .. } => false,
         }
     }
 
@@ -161,7 +164,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::XAI_URL),
             Provider::Anthropic { .. } => false,
-            Provider::Copilot { .. } => false,
         }
     }
 
@@ -169,7 +171,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPENAI_URL),
             Provider::Anthropic { .. } => false,
-            Provider::Copilot { .. } => false,
         }
     }
 
@@ -177,7 +178,6 @@ impl Provider {
         match self {
             Provider::OpenAI { .. } => false,
             Provider::Anthropic { url, .. } => url.as_str().starts_with(Self::ANTHROPIC_URL),
-            Provider::Copilot { .. } => false,
         }
     }
 }
@@ -195,6 +195,7 @@ mod tests {
         let mut provider = Provider::OpenAI {
             url: Url::from_str("https://example.com/").unwrap(),
             key: None,
+            extra_headers: None,
         };
 
         // Test URL without trailing slash
@@ -203,7 +204,8 @@ mod tests {
             provider,
             Provider::OpenAI {
                 url: Url::from_str("https://new-openai-url.com/").unwrap(),
-                key: None
+                key: None,
+                extra_headers: None
             }
         );
 
@@ -213,7 +215,8 @@ mod tests {
             provider,
             Provider::OpenAI {
                 url: Url::from_str("https://another-openai-url.com/").unwrap(),
-                key: None
+                key: None,
+                extra_headers: None
             }
         );
 
@@ -223,7 +226,8 @@ mod tests {
             provider,
             Provider::OpenAI {
                 url: Url::from_str("https://new-openai-url.com/v1/api/").unwrap(),
-                key: None
+                key: None,
+                extra_headers: None
             }
         );
 
@@ -233,7 +237,8 @@ mod tests {
             provider,
             Provider::OpenAI {
                 url: Url::from_str("https://another-openai-url.com/v2/api/").unwrap(),
-                key: None
+                key: None,
+                extra_headers: None
             }
         );
     }
@@ -293,6 +298,7 @@ mod tests {
         let expected = Provider::OpenAI {
             url: Url::from_str("https://api.x.ai/v1/").unwrap(),
             key: Some(fixture.to_string()),
+            extra_headers: None,
         };
         assert_eq!(actual, expected);
     }

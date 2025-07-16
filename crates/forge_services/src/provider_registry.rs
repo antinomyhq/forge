@@ -111,6 +111,6 @@ mod tests {
         let infra = std::sync::Arc::new(EnvWithCopilot);
         let registry = ForgeProviderRegistry::new(infra);
         let provider = registry.get_provider(AppConfig::default());
-        assert!(matches!(provider, Some(Provider::Copilot { key, .. }) if key == "copilot_test_token"));
+        assert!(matches!(provider, Some(Provider::OpenAI { url, key: Some(ref k), extra_headers: Some(ref headers) }) if url.as_str().starts_with("https://api.githubcopilot.com/") && k == "copilot_test_token" && headers.contains_key("Copilot-Integration-Id")));
     }
 }

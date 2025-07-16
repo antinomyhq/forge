@@ -62,14 +62,6 @@ impl Client {
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             ),
-            Provider::Copilot { url, .. } => InnerClient::OpenAICompat(
-                ForgeProvider::builder()
-                    .client(client)
-                    .provider(provider.clone())
-                    .version(version.to_string())
-                    .build()
-                    .with_context(|| format!("Failed to initialize: {url}"))?,
-            ),
             Provider::Anthropic { url, key } => InnerClient::Anthropic(
                 Anthropic::builder()
                     .client(client)
@@ -157,10 +149,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_copilot_client_instantiation() {
-        let provider = Provider::Copilot {
-            url: Url::parse("https://api.githubcopilot.com/").unwrap(),
-            key: "copilot-key".to_string(),
-        };
+        let provider = Provider::copilot("copilot-key");
         let client = Client::new(
             provider,
             Arc::new(RetryConfig::default()),
@@ -171,7 +160,7 @@ mod tests {
         // Should instantiate as OpenAICompat
         match client.inner.as_ref() {
             InnerClient::OpenAICompat(_) => {},
-            _ => panic!("Copilot should be OpenAICompat"),
+            _ => panic!("Copilot should be OpenAICompat (via OpenAI variant)"),
         }
     }
 
@@ -185,6 +174,7 @@ mod tests {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
+            extra_headers: None,
         };
         let client = Client::new(
             provider,
@@ -205,6 +195,7 @@ mod tests {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
+            extra_headers: None,
         };
         let client = Client::new(
             provider,

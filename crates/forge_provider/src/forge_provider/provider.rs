@@ -285,6 +285,7 @@ mod tests {
         let provider = Provider::OpenAI {
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
+            extra_headers: None,
         };
 
         Ok(ForgeProvider::builder()
@@ -394,10 +395,13 @@ mod tests {
 
     #[test]
     fn test_copilot_headers_include_integration_id() -> anyhow::Result<()> {
-        let provider = Provider::Copilot {
-            url: reqwest::Url::parse("https://api.githubcopilot.com/")?,
-            key: "test-copilot-key".to_string(),
-        };
+        let mut headers = std::collections::HashMap::new();
+headers.insert("Copilot-Integration-Id".to_string(), "forge-cli".to_string());
+let provider = Provider::OpenAI {
+    url: reqwest::Url::parse("https://api.githubcopilot.com/")?,
+    key: Some("test-copilot-key".to_string()),
+    extra_headers: Some(headers),
+};
 
         let forge_provider = ForgeProvider::builder()
             .client(Client::new())
@@ -434,6 +438,7 @@ mod tests {
         let provider = Provider::OpenAI {
             url: reqwest::Url::parse("https://api.openai.com/v1/")?,
             key: Some("test-openai-key".to_string()),
+            extra_headers: None,
         };
 
         let forge_provider = ForgeProvider::builder()
