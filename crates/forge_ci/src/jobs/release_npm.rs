@@ -1,32 +1,6 @@
 use gh_workflow_tailcall::*;
 use serde_json::Value;
 
-use crate::jobs::create_build_release_job_for_publishing;
-use crate::matrix;
-
-/// Create a workflow for NPM releases
-pub fn create_npm_workflow() -> Workflow {
-    let mut npm_workflow = Workflow::default()
-        .name("NPM Release")
-        .on(Event {
-            release: Some(Release { types: vec![ReleaseType::Published] }),
-            ..Event::default()
-        })
-        .permissions(
-            Permissions::default()
-                .contents(Level::Write)
-                .pull_requests(Level::Write),
-        );
-
-    let build_job = create_build_release_job_for_publishing(matrix::create_matrix());
-    let npm_release_job = create_npm_release_job().add_needs(build_job.clone());
-
-    npm_workflow = npm_workflow
-        .add_job("build-release", build_job)
-        .add_job("npm_release", npm_release_job);
-
-    npm_workflow
-}
 
 /// Create an NPM release job using matrix strategy for multiple repositories
 pub fn create_npm_release_job() -> Job {
