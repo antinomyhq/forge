@@ -2,11 +2,12 @@ use gh_workflow_tailcall::generate::Generate;
 use gh_workflow_tailcall::*;
 
 use crate::jobs::{create_build_release_job_for_publishing, create_npm_release_job};
+use crate::release_matrix::ReleaseMatrix;
 use crate::*;
 
 /// Generate npm release workflow
 pub fn generate_npm_workflow() {
-    let build_job = create_build_release_job_for_publishing(matrix::create_matrix());
+    let build_job = create_build_release_job_for_publishing(ReleaseMatrix::default());
     let npm_release_job = create_npm_release_job().add_needs(build_job.clone());
 
     let npm_workflow = Workflow::default()

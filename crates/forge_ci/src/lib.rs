@@ -1,3 +1,3 @@
 mod jobs;
-mod matrix;
+mod release_matrix;
 pub mod workflows;
