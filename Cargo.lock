@@ -1081,6 +1081,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -1333,6 +1334,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-scala",
  "tree-sitter-typescript",
+ "url",
  "uuid",
 ]
 

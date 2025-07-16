@@ -20,7 +20,7 @@ compact:
   message_threshold: 200
   eviction_window: 0.2
   prompt: "{{> forge-system-prompt-context-summarizer.hbs }}"
-  on_turn_end: true
+  on_turn_end: false
 
 updates:
   frequency: "daily"
