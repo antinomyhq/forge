@@ -111,7 +111,6 @@ pub mod tests {
                 max_read_size: 0,
                 http: Default::default(),
                 max_file_size: 10_000_000,
-                cert: None,
                 forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
             }
         }

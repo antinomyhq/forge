@@ -13,8 +13,7 @@ pub fn generate_ci_workflow() {
             cancel_in_progress: None,
             limit: None,
         })
-        .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
-        .add_env(("MTLS_CERT", "${{secrets.MTLS_CERT}}"));
+        .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"));
 
     // Get the jobs
     let build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();

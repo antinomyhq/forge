@@ -62,7 +62,6 @@ fn create_build_release_job(matrix: Value, draft_release_job: &Job) -> Job {
                 .add_with(("cross-version", "0.2.4"))
                 .add_env(("RUSTFLAGS", "${{ env.RUSTFLAGS }}"))
                 .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
-                .add_env(("MTLS_CERT", "${{secrets.MTLS_CERT}}"))
                 .add_env((
                     "APP_VERSION",
                     "${{ needs.draft_release.outputs.crate_release_name }}",
