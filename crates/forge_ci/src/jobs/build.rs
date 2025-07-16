@@ -1,7 +1,6 @@
 use gh_workflow_tailcall::*;
-use serde_json::Value;
 
-use crate::release_matrix::{self, ReleaseMatrix};
+use crate::release_matrix::ReleaseMatrix;
 
 /// Helper function to generate an apt-get install command for multiple packages
 fn apt_get_install(packages: &[&str]) -> String {

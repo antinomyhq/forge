@@ -2,7 +2,7 @@ use gh_workflow_tailcall::generate::Generate;
 use gh_workflow_tailcall::*;
 
 use crate::jobs::{create_build_release_job_for_publishing, create_homebrew_release_job};
-use crate::release_matrix::{self, ReleaseMatrix};
+use crate::release_matrix::ReleaseMatrix;
 
 /// Generate homebrew release workflow
 pub fn generate_homebrew_workflow() {

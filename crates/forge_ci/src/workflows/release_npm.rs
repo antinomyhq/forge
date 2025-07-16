@@ -3,7 +3,6 @@ use gh_workflow_tailcall::*;
 
 use crate::jobs::{create_build_release_job_for_publishing, create_npm_release_job};
 use crate::release_matrix::ReleaseMatrix;
-use crate::*;
 
 /// Generate npm release workflow
 pub fn generate_npm_workflow() {
