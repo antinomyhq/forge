@@ -28,6 +28,7 @@ forge_tracker.workspace = true
 lazy_static.workspace = true
 tracing.workspace = true
 futures.workspace = true
+ansi-to-tui.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

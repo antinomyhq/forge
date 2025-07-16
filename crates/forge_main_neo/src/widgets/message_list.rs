@@ -1,9 +1,10 @@
+use ansi_to_tui::IntoText;
 use color_eyre::owo_colors::OwoColorize;
 use forge_api::ChatResponse;
 use ratatui::layout::Size;
 use ratatui::prelude::Widget;
 use ratatui::style::{Style, Stylize};
-use ratatui::text::{Line, Span, Text};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, StatefulWidget, Wrap};
 use tui_scrollview::ScrollView;
 
@@ -26,12 +27,16 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                 ChatResponse::Text { text, is_complete, is_md } => {
                     if *is_complete {
                         if *is_md {
-                            // Use Text::from() which handles newlines automatically and more
-                            // efficiently
                             let rendered_text = forge_display::MarkdownFormat::new().render(text);
-                            Text::from(rendered_text).lines.into_iter()
+                            match rendered_text.into_text() {
+                                Ok(text) => text.lines.into_iter(),
+                                Err(_) => vec![Line::raw(rendered_text)].into_iter(),
+                            }
                         } else {
-                            vec![Line::raw(text.clone())].into_iter()
+                            match text.clone().into_text() {
+                                Ok(text) => text.lines.into_iter(),
+                                Err(_) => vec![Line::raw(text.clone())].into_iter(),
+                            }
                         }
                     } else {
                         vec![].into_iter()
@@ -45,7 +50,11 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                 }
                 ChatResponse::Reasoning { content } => {
                     if !content.trim().is_empty() {
-                        Text::from(content.dimmed().to_string()).lines.into_iter()
+                        let dimmed_content = content.dimmed().to_string();
+                        match dimmed_content.into_text() {
+                            Ok(text) => text.lines.into_iter(),
+                            Err(_) => vec![Line::raw(dimmed_content)].into_iter(),
+                        }
                     } else {
                         vec![].into_iter()
                     }
@@ -53,7 +62,10 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                 ChatResponse::Summary { content } => {
                     if !content.trim().is_empty() {
                         let rendered_text = forge_display::MarkdownFormat::new().render(content);
-                        Text::from(rendered_text).lines.into_iter()
+                        match rendered_text.into_text() {
+                            Ok(text) => text.lines.into_iter(),
+                            Err(_) => vec![Line::raw(rendered_text)].into_iter(),
+                        }
                     } else {
                         vec![].into_iter()
                     }
