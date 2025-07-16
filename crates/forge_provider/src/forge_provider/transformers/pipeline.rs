@@ -49,7 +49,9 @@ mod tests {
 
     #[test]
     fn test_supports_open_router_params() {
-        assert!(supports_open_router_params(&Provider::antinomy("antinomy")));
+        assert!(supports_open_router_params(&Provider::antinomy(
+            "antinomy", None
+        )));
         assert!(supports_open_router_params(&Provider::open_router(
             "open-router"
         )));

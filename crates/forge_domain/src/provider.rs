@@ -57,9 +57,9 @@ impl Provider {
         }
     }
 
-    pub fn antinomy(key: &str) -> Provider {
+    pub fn antinomy(key: &str, url: Option<Url>) -> Provider {
         Provider::OpenAI {
-            url: Url::parse(Provider::FORGE_URL).unwrap(),
+            url: url.unwrap_or_else(|| Url::parse(Provider::FORGE_URL).unwrap()),
             key: Some(key.into()),
         }
     }
