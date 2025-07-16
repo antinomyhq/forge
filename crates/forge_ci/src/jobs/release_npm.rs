@@ -1,7 +1,8 @@
 use gh_workflow_tailcall::*;
 use serde_json::Value;
 
-use crate::{jobs::create_build_release_job_for_publishing, matrix};
+use crate::jobs::create_build_release_job_for_publishing;
+use crate::matrix;
 
 /// Create a workflow for NPM releases
 pub fn create_npm_workflow() -> Workflow {
