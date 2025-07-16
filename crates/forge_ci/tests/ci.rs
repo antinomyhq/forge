@@ -1,4 +1,4 @@
-use forge_ci::workflow;
+use forge_ci::workflows as workflow;
 
 #[test]
 fn generate() {
