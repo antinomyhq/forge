@@ -57,9 +57,9 @@ impl Provider {
         }
     }
 
-    pub fn forge(key: &str, url: Option<Url>) -> Provider {
+    pub fn forge(key: &str) -> Provider {
         Provider::OpenAI {
-            url: url.unwrap_or_else(|| Url::parse(Provider::FORGE_URL).unwrap()),
+            url: Url::parse(Provider::FORGE_URL).unwrap(),
             key: Some(key.into()),
         }
     }

@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_app::domain::{Provider, ProviderUrl};
 use forge_app::{AppConfig, ProviderRegistry};
-use reqwest::Url;
 use tokio::sync::RwLock;
 
 use crate::EnvironmentInfra;
@@ -35,8 +34,7 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
     }
     fn get_provider(&self, forge_config: AppConfig) -> Option<Provider> {
         if let Some(forge_key) = &forge_config.key_info {
-            let url = self.infra.get_environment().forge_api_url;
-            let provider = Provider::forge(forge_key.api_key.as_str(), url);
+            let provider = Provider::forge(forge_key.api_key.as_str());
             return Some(override_url(provider, self.provider_url()));
         }
         resolve_env_provider(self.provider_url(), self.infra.as_ref())
@@ -63,7 +61,7 @@ fn resolve_env_provider<F: EnvironmentInfra>(
     env: &F,
 ) -> Option<Provider> {
     let keys: [ProviderSearch; 6] = [
-        ("FORGE_KEY", Box::new(|key| Provider::forge(key, None))),
+        ("FORGE_KEY", Box::new(|key| Provider::forge(key))),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
         ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
         ("XAI_API_KEY", Box::new(Provider::xai)),

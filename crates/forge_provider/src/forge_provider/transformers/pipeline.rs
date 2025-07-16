@@ -49,9 +49,7 @@ mod tests {
 
     #[test]
     fn test_supports_open_router_params() {
-        assert!(supports_open_router_params(&Provider::forge(
-            "forge", None
-        )));
+        assert!(supports_open_router_params(&Provider::forge("forge")));
         assert!(supports_open_router_params(&Provider::open_router(
             "open-router"
         )));
