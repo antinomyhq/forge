@@ -61,7 +61,7 @@ fn resolve_env_provider<F: EnvironmentInfra>(
     env: &F,
 ) -> Option<Provider> {
     let keys: [ProviderSearch; 6] = [
-        ("FORGE_KEY", Box::new(|key| Provider::forge(key))),
+        ("FORGE_KEY", Box::new(Provider::forge)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
         ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
         ("XAI_API_KEY", Box::new(Provider::xai)),
