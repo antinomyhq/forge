@@ -87,11 +87,12 @@ fn override_url(mut provider: Provider, url: Option<ProviderUrl>) -> Provider {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::EnvironmentInfra;
     use forge_app::domain::Provider;
     use forge_app::AppConfig;
+
+    use super::*;
     use crate::attachment::tests::MockEnvironmentInfra;
+    use crate::EnvironmentInfra;
 
     #[test]
     fn detects_copilot_provider_from_env() {
@@ -111,6 +112,8 @@ mod tests {
         let infra = std::sync::Arc::new(EnvWithCopilot);
         let registry = ForgeProviderRegistry::new(infra);
         let provider = registry.get_provider(AppConfig::default());
-        assert!(matches!(provider, Some(Provider::OpenAI { url, key: Some(ref k), extra_headers: Some(ref headers) }) if url.as_str().starts_with("https://api.githubcopilot.com/") && k == "copilot_test_token" && headers.contains_key("Copilot-Integration-Id")));
+        assert!(
+            matches!(provider, Some(Provider::OpenAI { url, key: Some(ref k), extra_headers: Some(ref headers) }) if url.as_str().starts_with("https://api.githubcopilot.com/") && k == "copilot_test_token" && headers.contains_key("Copilot-Integration-Id"))
+        );
     }
 }

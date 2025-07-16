@@ -156,10 +156,11 @@ mod tests {
             "dev",
             &HttpConfig::default(),
             None,
-        ).unwrap();
+        )
+        .unwrap();
         // Should instantiate as OpenAICompat
         match client.inner.as_ref() {
-            InnerClient::OpenAICompat(_) => {},
+            InnerClient::OpenAICompat(_) => {}
             _ => panic!("Copilot should be OpenAICompat (via OpenAI variant)"),
         }
     }

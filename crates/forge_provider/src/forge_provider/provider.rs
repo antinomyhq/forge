@@ -396,12 +396,15 @@ mod tests {
     #[test]
     fn test_copilot_headers_include_integration_id() -> anyhow::Result<()> {
         let mut headers = std::collections::HashMap::new();
-headers.insert("Copilot-Integration-Id".to_string(), "forge-cli".to_string());
-let provider = Provider::OpenAI {
-    url: reqwest::Url::parse("https://api.githubcopilot.com/")?,
-    key: Some("test-copilot-key".to_string()),
-    extra_headers: Some(headers),
-};
+        headers.insert(
+            "Copilot-Integration-Id".to_string(),
+            "forge-cli".to_string(),
+        );
+        let provider = Provider::OpenAI {
+            url: reqwest::Url::parse("https://api.githubcopilot.com/")?,
+            key: Some("test-copilot-key".to_string()),
+            extra_headers: Some(headers),
+        };
 
         let forge_provider = ForgeProvider::builder()
             .client(Client::new())

@@ -10,8 +10,15 @@ pub enum ProviderUrl {
 /// Providers that can be used.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Provider {
-    OpenAI { url: Url, key: Option<String>, extra_headers: Option<std::collections::HashMap<String, String>> },
-    Anthropic { url: Url, key: String },
+    OpenAI {
+        url: Url,
+        key: Option<String>,
+        extra_headers: Option<std::collections::HashMap<String, String>>,
+    },
+    Anthropic {
+        url: Url,
+        key: String,
+    },
 }
 
 impl Provider {
@@ -66,7 +73,6 @@ impl Provider {
             extra_headers: Some(headers),
         }
     }
-
 
     pub fn openai(key: &str) -> Provider {
         Provider::OpenAI {

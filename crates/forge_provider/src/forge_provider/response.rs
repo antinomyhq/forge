@@ -156,11 +156,13 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     // Check if this is due to content filtering
                     if let Some(filter_results) = prompt_filter_results {
                         if filter_results.iter().any(|result| {
-                            result.content_filter_results.as_ref()
+                            result
+                                .content_filter_results
+                                .as_ref()
                                 .map(|cfr| {
                                     [&cfr.hate, &cfr.self_harm, &cfr.sexual, &cfr.violence]
                                         .iter()
-                                        .any(|filter| filter.as_ref().map_or(false, |f| f.filtered))
+                                        .any(|filter| filter.as_ref().is_some_and(|f| f.filtered))
                                 })
                                 .unwrap_or(false)
                         }) {
