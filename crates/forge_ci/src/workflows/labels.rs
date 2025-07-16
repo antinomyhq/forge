@@ -1,6 +1,7 @@
-use gh_workflow_tailcall::{generate::Generate, *};
+use gh_workflow_tailcall::generate::Generate;
+use gh_workflow_tailcall::*;
 
-use crate::jobs::{self, create_label_sync_job};
+use crate::jobs::label_sync_job;
 
 /// Generate labels workflow
 pub fn generate_labels_workflow() {
@@ -11,7 +12,7 @@ pub fn generate_labels_workflow() {
             ..Event::default()
         })
         .permissions(Permissions::default().contents(Level::Write))
-        .add_job("label-sync", create_label_sync_job());
+        .add_job("label-sync", label_sync_job());
 
     Generate::new(labels_workflow)
         .name("labels.yml")

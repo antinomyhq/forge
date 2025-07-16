@@ -1,7 +1,7 @@
 use gh_workflow_tailcall::*;
 
 /// Create a job to update the release draft
-pub fn create_update_release_draft_job() -> Job {
+pub fn draft_release_update_job() -> Job {
     Job::new("update_release_draft")
         .runs_on("ubuntu-latest")
         .add_step(

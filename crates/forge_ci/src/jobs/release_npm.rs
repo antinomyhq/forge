@@ -2,7 +2,7 @@ use gh_workflow_tailcall::*;
 use serde_json::Value;
 
 /// Create an NPM release job using matrix strategy for multiple repositories
-pub fn create_npm_release_job() -> Job {
+pub fn release_npm_job() -> Job {
     let matrix = create_npm_matrix();
 
     Job::new("npm_release")

@@ -1,7 +1,7 @@
 use gh_workflow_tailcall::*;
 
 /// Create a job to sync GitHub labels
-pub fn create_label_sync_job() -> Job {
+pub fn label_sync_job() -> Job {
     Job::new("label-sync")
         .runs_on("ubuntu-latest")
         .permissions(

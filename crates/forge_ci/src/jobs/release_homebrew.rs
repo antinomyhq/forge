@@ -1,7 +1,7 @@
 use gh_workflow_tailcall::*;
 
 /// Create a homebrew release job
-pub fn create_homebrew_release_job() -> Job {
+pub fn release_homebrew_job() -> Job {
     Job::new("homebrew_release")
         .runs_on("ubuntu-latest")
         .add_step(
