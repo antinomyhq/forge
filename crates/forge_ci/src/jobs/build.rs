@@ -4,7 +4,7 @@ use serde_json::Value;
 use crate::matrix;
 
 /// Helper function to generate an apt-get install command for multiple packages
-fn apt_get_install(packages: &[&str]) -> String {
+pub fn apt_get_install(packages: &[&str]) -> String {
     format!(
         "sudo apt-get update && \\\nsudo apt-get install -y \\\n{}",
         packages
