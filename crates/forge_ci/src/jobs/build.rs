@@ -15,7 +15,7 @@ fn apt_get_install(packages: &[&str]) -> String {
     )
 }
 
-pub fn create_base_build_release_job(matrix: Value) -> Job {
+fn create_base_build_release_job(matrix: Value) -> Job {
     Job::new("build-release")
         .strategy(Strategy { fail_fast: None, max_parallel: None, matrix: Some(matrix) })
         .runs_on("${{ matrix.os }}")
