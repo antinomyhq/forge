@@ -427,6 +427,7 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_domain::{FSRead, ToolValue};
+    use url::Url;
 
     use super::*;
     use crate::{Match, MatchResult};
@@ -455,6 +456,7 @@ mod tests {
             http: Default::default(),
             max_file_size: 256 << 10, // 256 KiB
             cert: None,
+            forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
         }
     }
 

@@ -105,6 +105,7 @@ mod tests {
     use console::strip_ansi_codes;
     use forge_domain::{Environment, FSRead, FSWrite, Shell, Tools};
     use pretty_assertions::assert_eq;
+    use url::Url;
 
     use super::{ContentFormat, FormatContent};
 
@@ -142,6 +143,7 @@ mod tests {
             http: Default::default(),
             max_file_size: 0,
             cert: None,
+            forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
         }
     }
 

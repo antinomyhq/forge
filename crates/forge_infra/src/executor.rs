@@ -163,6 +163,7 @@ impl CommandInfra for ForgeCommandExecutorService {
 mod tests {
 
     use pretty_assertions::assert_eq;
+    use reqwest::Url;
 
     use super::*;
 
@@ -188,6 +189,7 @@ mod tests {
             http: Default::default(),
             max_file_size: 10_000_000,
             cert: None,
+            forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
         }
     }
 

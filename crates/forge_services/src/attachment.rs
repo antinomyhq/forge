@@ -80,6 +80,7 @@ pub mod tests {
     use forge_app::AttachmentService;
     use forge_snaps::Snapshot;
     use serde_json::Value;
+    use url::Url;
 
     use crate::attachment::ForgeChatRequest;
     use crate::utils::AttachmentExtension;
@@ -111,6 +112,7 @@ pub mod tests {
                 http: Default::default(),
                 max_file_size: 10_000_000,
                 cert: None,
+                forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
             }
         }
 

@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use forge_domain::{Cert, Environment, RetryConfig};
+use forge_domain::{Cert, Environment, Provider, RetryConfig};
 use forge_services::EnvironmentInfra;
+use reqwest::Url;
 
 #[derive(Clone)]
 pub struct ForgeEnvironmentInfra {
@@ -112,6 +113,12 @@ impl ForgeEnvironmentInfra {
         })
         .to_string();
 
+        let forge_api_url = self
+            .get_env_var("FORGE_API_URL")
+            .as_ref()
+            .and_then(|url| Url::parse(url.as_str()).ok())
+            .unwrap_or_else(|| Url::parse(Provider::FORGE_URL).unwrap());
+
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
@@ -130,6 +137,7 @@ impl ForgeEnvironmentInfra {
             http: self.resolve_timeout_config(),
             max_file_size: 256 << 10, // 256 KiB
             cert: (!cert.is_empty()).then_some(Cert::new(cert)),
+            forge_api_url,
         }
     }
 
