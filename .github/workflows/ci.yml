@@ -96,7 +96,7 @@ jobs:
   build_release:
     needs:
     - draft_release
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     name: build-release
     runs-on: ${{ matrix.os }}
     permissions:
