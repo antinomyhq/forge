@@ -14,12 +14,12 @@ fn apt_get_install(packages: &[&str]) -> String {
     )
 }
 
-fn create_base_build_release_job(matrix: ReleaseMatrix) -> Job {
+fn create_base_build_release_job() -> Job {
     Job::new("build-release")
         .strategy(Strategy {
             fail_fast: None,
             max_parallel: None,
-            matrix: Some(matrix.into()),
+            matrix: Some(ReleaseMatrix::default().into()),
         })
         .runs_on("${{ matrix.os }}")
         .permissions(
@@ -57,8 +57,8 @@ fn create_base_build_release_job(matrix: ReleaseMatrix) -> Job {
 }
 
 /// Create a build job for drafts
-pub fn create_build_release_job_for_publishing(matrix: ReleaseMatrix) -> Job {
-    create_base_build_release_job(matrix)
+pub fn create_build_release_job_for_publishing() -> Job {
+    create_base_build_release_job()
         // Build release binary
         .add_step(
             Step::uses("ClementTsang", "cargo-action", "v0.0.6")
@@ -84,8 +84,8 @@ pub fn create_build_release_job_for_publishing(matrix: ReleaseMatrix) -> Job {
 }
 
 /// Create a build job for PRs
-fn create_build_release_job(matrix: ReleaseMatrix, draft_release_job: &Job) -> Job {
-    create_base_build_release_job(matrix)
+fn create_build_release_job(draft_release_job: &Job) -> Job {
+    create_base_build_release_job()
         .add_needs(draft_release_job.clone())
         .add_step(
             Step::uses("ClementTsang", "cargo-action", "v0.0.6")
@@ -104,16 +104,14 @@ fn create_build_release_job(matrix: ReleaseMatrix, draft_release_job: &Job) -> J
 
 /// Create a build job for PRs with the 'build-all-targets' label
 pub fn create_build_release_pr_job(draft_release_job: &Job) -> Job {
-    let matrix = ReleaseMatrix::default();
-    create_build_release_job(matrix.clone(), draft_release_job).cond(Expression::new(
+    create_build_release_job( draft_release_job).cond(Expression::new(
         "github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'build-all-targets')",
     ))
 }
 
 /// Create a build job for main branch that adds binaries to release
 pub fn create_build_release_main_job(draft_release_job: &Job) -> Job {
-    let matrix = ReleaseMatrix::default();
-    create_build_release_job(matrix.clone(), draft_release_job)
+    create_build_release_job(draft_release_job)
         .cond(Expression::new(
             "(github.event_name == 'push' && github.ref == 'refs/heads/main')",
         ))
