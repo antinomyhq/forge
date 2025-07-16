@@ -1,64 +1,13 @@
 use gh_workflow_tailcall::*;
 
-use crate::release_matrix::ReleaseMatrix;
+use crate::{jobs::release_build_job::release_build_job, release_matrix::ReleaseMatrix};
 
-/// Helper function to generate an apt-get install command for multiple packages
-fn apt_get_install(packages: &[&str]) -> String {
-    format!(
-        "sudo apt-get update && \\\nsudo apt-get install -y \\\n{}",
-        packages
-            .iter()
-            .map(|pkg| format!("  {pkg}"))
-            .collect::<Vec<_>>()
-            .join(" \\\n")
-    )
-}
 
-fn create_base_build_release_job() -> Job {
-    Job::new("build-release")
-        .strategy(Strategy {
-            fail_fast: None,
-            max_parallel: None,
-            matrix: Some(ReleaseMatrix::default().into()),
-        })
-        .runs_on("${{ matrix.os }}")
-        .permissions(
-            Permissions::default()
-                .contents(Level::Write)
-                .pull_requests(Level::Write),
-        )
-        .add_step(Step::uses("actions", "checkout", "v4"))
-        // Install Rust with cross-compilation target
-        .add_step(
-            Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
-                .with(("target", "${{ matrix.target }}")),
-        )
-        // Explicitly add the target to ensure it's available
-        .add_step(Step::run("rustup target add ${{ matrix.target }}").name("Add Rust target"))
-        // Build add link flags
-        .add_step(
-            Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
-                .if_condition(Expression::new(
-                    "!contains(matrix.target, '-unknown-linux-gnu')",
-                )),
-        )
-        .add_step(
-            Step::run(apt_get_install(&[
-                "gcc-aarch64-linux-gnu",
-                "musl-tools",
-                "musl-dev",
-                "pkg-config",
-                "libssl-dev",
-            ]))
-            .if_condition(Expression::new(
-                "contains(matrix.target, '-unknown-linux-musl')",
-            )),
-        )
-}
+
 
 /// Create a build job for drafts
 pub fn create_build_release_job_for_publishing() -> Job {
-    create_base_build_release_job()
+    release_build_job()
         // Build release binary
         .add_step(
             Step::uses("ClementTsang", "cargo-action", "v0.0.6")
@@ -85,7 +34,7 @@ pub fn create_build_release_job_for_publishing() -> Job {
 
 /// Create a build job for PRs
 fn create_build_release_job(draft_release_job: &Job) -> Job {
-    create_base_build_release_job()
+    release_build_job()
         .add_needs(draft_release_job.clone())
         .add_step(
             Step::uses("ClementTsang", "cargo-action", "v0.0.6")
@@ -133,7 +82,7 @@ pub fn create_build_release_main_job(draft_release_job: &Job) -> Job {
 
 #[cfg(test)]
 mod test {
-    use crate::jobs::build::apt_get_install;
+    use crate::jobs::apt_get_install;
 
     #[test]
     fn test_apt_get_install() {
