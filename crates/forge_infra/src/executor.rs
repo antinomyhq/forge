@@ -188,7 +188,6 @@ mod tests {
             stdout_max_suffix_length: 0,
             http: Default::default(),
             max_file_size: 10_000_000,
-            cert: None,
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
         }
     }

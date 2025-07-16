@@ -19,7 +19,6 @@ name: ci
 env:
   RUSTFLAGS: -Dwarnings
   OPENROUTER_API_KEY: ${{secrets.OPENROUTER_API_KEY}}
-  MTLS_CERT: ${{secrets.MTLS_CERT}}
 on:
   pull_request:
     types:
@@ -173,7 +172,6 @@ jobs:
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
-        MTLS_CERT: ${{secrets.MTLS_CERT}}
         APP_VERSION: ${{ needs.draft_release.outputs.crate_release_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
     - uses: xresloader/upload-to-github-release@v1
@@ -260,7 +258,6 @@ jobs:
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
-        MTLS_CERT: ${{secrets.MTLS_CERT}}
         APP_VERSION: ${{ needs.draft_release.outputs.crate_release_name }}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

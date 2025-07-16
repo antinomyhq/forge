@@ -26,5 +26,4 @@ backon.workspace = true
 thiserror.workspace = true
 forge_app.workspace = true
 forge_walker.workspace = true
-obfstr.workspace = true
 lazy_static.workspace = true

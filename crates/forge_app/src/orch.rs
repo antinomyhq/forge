@@ -457,6 +457,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             if let Some(reasoning) = reasoning.as_ref()
                 && !is_complete
+                && reasoning_supported
             {
                 // If reasoning is present, send it as a separate message
                 self.send(ChatResponse::Reasoning { content: reasoning.to_string() })

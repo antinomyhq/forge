@@ -1178,7 +1178,6 @@ dependencies = [
  "forge_walker",
  "inquire",
  "lazy_static",
- "obfstr",
  "pretty_assertions",
  "reqwest 0.12.22",
  "rmcp",
@@ -2743,12 +2742,6 @@ name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
-
-[[package]]
-name = "obfstr"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b2b2cbbfd8defa51ff24450a61d73b3ff3e158484ddd274a883e886e6fbaa78"
 
 [[package]]
 name = "object"

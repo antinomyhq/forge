@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use forge_domain::{Cert, Environment, Provider, RetryConfig};
+use forge_domain::{Environment, Provider, RetryConfig};
 use forge_services::EnvironmentInfra;
 use reqwest::Url;
 
@@ -107,11 +107,6 @@ impl ForgeEnvironmentInfra {
     fn get(&self) -> Environment {
         let cwd = Self::cwd();
         let retry_config = self.resolve_retry_config();
-        let cert = obfstr::obfstr!(match option_env!("MTLS_CERT") {
-            Some(cert) => cert,
-            None => "",
-        })
-        .to_string();
 
         let forge_api_url = self
             .get_env_var("FORGE_API_URL")
@@ -136,7 +131,6 @@ impl ForgeEnvironmentInfra {
             stdout_max_suffix_length: 200,
             http: self.resolve_timeout_config(),
             max_file_size: 256 << 10, // 256 KiB
-            cert: (!cert.is_empty()).then_some(Cert::new(cert)),
             forge_api_url,
         }
     }

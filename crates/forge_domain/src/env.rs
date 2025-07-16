@@ -11,19 +11,6 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct Cert(String);
-
-impl Cert {
-    pub fn new(cert: impl ToString) -> Self {
-        Self(cert.to_string())
-    }
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
 #[derive(Debug, Setters, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[setters(strip_option)]
@@ -58,8 +45,6 @@ pub struct Environment {
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
     pub max_file_size: u64,
-    /// Cert for mTLS
-    pub cert: Option<Cert>,
 }
 
 impl Environment {
