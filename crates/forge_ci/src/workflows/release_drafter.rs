@@ -1,12 +1,32 @@
 use gh_workflow_tailcall::generate::Generate;
+use gh_workflow_tailcall::*;
 
-use crate::jobs;
+use crate::jobs::create_update_release_draft_job;
 
 /// Generate release drafter workflow
 pub fn generate_release_drafter_workflow() {
-    let release_drafter_workflow = jobs::create_release_drafter_workflow();
+    let release_drafter = Workflow::default()
+        .name("Release Drafter")
+        .on(Event {
+            push: Some(Push { branches: vec!["main".to_string()], ..Push::default() }),
+            pull_request_target: Some(PullRequestTarget {
+                types: vec![
+                    PullRequestType::Opened,
+                    PullRequestType::Reopened,
+                    PullRequestType::Synchronize,
+                ],
+                branches: vec!["main".to_string()],
+            }),
+            ..Event::default()
+        })
+        .permissions(
+            Permissions::default()
+                .contents(Level::Write)
+                .pull_requests(Level::Write),
+        )
+        .add_job("update_release_draft", create_update_release_draft_job());
 
-    Generate::new(release_drafter_workflow)
+    Generate::new(release_drafter)
         .name("release-drafter.yml")
         .generate()
         .unwrap();
