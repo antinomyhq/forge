@@ -57,7 +57,7 @@ impl Provider {
         }
     }
 
-    pub fn antinomy(key: &str, url: Option<Url>) -> Provider {
+    pub fn forge(key: &str, url: Option<Url>) -> Provider {
         Provider::OpenAI {
             url: url.unwrap_or_else(|| Url::parse(Provider::FORGE_URL).unwrap()),
             key: Some(key.into()),
@@ -123,7 +123,7 @@ impl Provider {
         }
     }
 
-    pub fn is_antinomy(&self) -> bool {
+    pub fn is_forge(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::FORGE_URL),
             Provider::Anthropic { .. } => false,

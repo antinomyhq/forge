@@ -40,7 +40,7 @@ impl Transformer for ProviderPipeline<'_> {
 
 /// function checks if provider supports open-router parameters.
 fn supports_open_router_params(provider: &Provider) -> bool {
-    provider.is_open_router() || provider.is_antinomy()
+    provider.is_open_router() || provider.is_forge()
 }
 
 #[cfg(test)]
@@ -49,8 +49,8 @@ mod tests {
 
     #[test]
     fn test_supports_open_router_params() {
-        assert!(supports_open_router_params(&Provider::antinomy(
-            "antinomy", None
+        assert!(supports_open_router_params(&Provider::forge(
+            "forge", None
         )));
         assert!(supports_open_router_params(&Provider::open_router(
             "open-router"

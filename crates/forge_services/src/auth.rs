@@ -21,12 +21,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
         Self { infra }
     }
     async fn init(&self) -> anyhow::Result<InitAuth> {
-        let init_url = format!(
-            "{}{AUTH_ROUTE}",
-            self.infra
-                .get_env_var("FORGE_API_URL")
-                .unwrap_or(Provider::FORGE_URL.to_string())
-        );
+        let init_url = format!("{}{AUTH_ROUTE}", self.infra.get_environment().forge_api_url);
         let resp = self.infra.post(&init_url, Bytes::new()).await?;
         if !resp.status().is_success() {
             bail!("Failed to initialize auth")
@@ -38,9 +33,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
         let url = format!(
             "{}{AUTH_ROUTE}{}",
-            self.infra
-                .get_env_var("FORGE_API_URL")
-                .unwrap_or(Provider::FORGE_URL.to_string()),
+            self.infra.get_environment().forge_api_url,
             auth.session_id
         );
         let mut headers = HeaderMap::new();
@@ -62,9 +55,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
         let url = format!(
             "{}{USER_INFO_ROUTE}",
-            self.infra
-                .get_env_var("FORGE_API_URL")
-                .unwrap_or(Provider::FORGE_URL.to_string())
+            self.infra.get_environment().forge_api_url
         );
         let mut headers = HeaderMap::new();
         headers.insert(
