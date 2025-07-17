@@ -99,7 +99,9 @@ impl ToolCallFull {
                         arguments: if arguments.is_empty() {
                             Value::default()
                         } else {
-                            serde_json::from_str(&arguments).map_err(Error::ToolCallArgument)?
+                            serde_json::from_str(&arguments).map_err(|error| {
+                                Error::ToolCallArgument { error, args: arguments.clone() }
+                            })?
                         },
                     });
                     arguments.clear();
@@ -121,7 +123,11 @@ impl ToolCallFull {
                 arguments: if arguments.is_empty() {
                     Value::default()
                 } else {
-                    serde_json::from_str(&arguments).map_err(Error::ToolCallArgument)?
+                    let arguments = arguments.to_string();
+                    serde_json::from_str(&arguments).map_err(|error| Error::ToolCallArgument {
+                        error,
+                        args: arguments.clone(),
+                    })?
                 },
             });
         }
@@ -135,7 +141,10 @@ impl ToolCallFull {
             None => Ok(Default::default()),
             Some(content) => {
                 let mut tool_call: ToolCallFull =
-                    serde_json::from_str(content).map_err(Error::ToolCallArgument)?;
+                    serde_json::from_str(content).map_err(|error| Error::ToolCallArgument {
+                        error,
+                        args: content.to_string(),
+                    })?;
 
                 // User might switch the model from a tool unsupported to tool supported model
                 // leaving a lot of messages without tool calls

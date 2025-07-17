@@ -117,7 +117,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
         // Convert parse failures to retryable errors so they can be retried by asking
         // LLM to try again
         let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts)
-            .with_context(|| format!("Failed to parse tool call: {tool_call_parts:?}"))
+            .with_context(|| "Failed to parse tool call".to_string())
             .map_err(crate::Error::Retryable)?;
 
         // Combine all sources of tool calls

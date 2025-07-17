@@ -17,8 +17,12 @@ pub enum Error {
     #[error("{0}")]
     EToolCallArgument(ToolCallArgumentError),
 
-    #[error("JSON serialization/deserialization error: {0}")]
-    ToolCallArgument(serde_json::Error),
+    #[error("JSON serialization/deserialization error: {error}. Arguments: {args}")]
+    #[from(skip)]
+    ToolCallArgument {
+        error: serde_json::Error,
+        args: String,
+    },
 
     #[error("Invalid tool call XML: {0}")]
     #[from(skip)]
