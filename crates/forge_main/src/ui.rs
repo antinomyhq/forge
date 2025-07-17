@@ -775,7 +775,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 self.spinner.start(Some("Retrying"))?;
                 self.writeln(TitleFormat::error(cause.as_str()))?;
-                tracing::error!(error = ?cause);
             }
             ChatResponse::Interrupt { reason } => {
                 self.spinner.stop(None)?;

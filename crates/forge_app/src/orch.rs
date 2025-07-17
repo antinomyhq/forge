@@ -388,7 +388,8 @@ impl<S: AgentService> Orchestrator<S> {
                     let agent_id = agent.id.clone();
                     let model_id = model_id.clone();
                     move |error: &anyhow::Error, duration: Duration| {
-                        tracing::error!(agent_id = %agent_id, error = %error, model=%model_id, "Retry Attempt");
+                        let root_cause = error.root_cause();
+                        tracing::error!(agent_id = %agent_id, error = ?root_cause, model=%model_id, "Retry Attempt");
                         let retry_event = ChatResponse::RetryAttempt {
                             cause: error.into(),
                             duration,
