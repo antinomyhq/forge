@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, NetFetch, TaskList,
-    TaskListAppend, TaskListAppendMultiple, TaskListClear, TaskListList, TaskListUpdate, ToolName, Tools,
+    TaskListAppend, TaskListAppendMultiple, TaskListClear, TaskListList, TaskListUpdate, ToolName,
 };
 use forge_template::Element;
 
@@ -141,6 +141,7 @@ fn create_stream_element<T: StreamElement>(
 impl Operation {
     pub fn into_tool_output(
         self,
+        tool_name: ToolName,
         content_files: TempContentFiles,
         env: &Environment,
     ) -> forge_domain::ToolOutput {
@@ -166,7 +167,7 @@ impl Operation {
                     // Log file change stats
                     file_change_stats(FileOperationStats {
                         path: input.path.clone(),
-                        tool_name: Tools::ForgeToolFsCreate(input.clone()).into(),
+                        tool_name,
                         lines_added: diff_result.lines_added(),
                         lines_removed: diff_result.lines_removed(),
                     });
@@ -244,7 +245,7 @@ impl Operation {
 
                 file_change_stats(FileOperationStats {
                     path: input.path,
-                    tool_name: Tools::ForgeToolFsPatch(input.clone()).into(),
+                    tool_name,
                     lines_added: diff_result.lines_added(),
                     lines_removed: diff_result.lines_removed(),
                 });
@@ -279,7 +280,7 @@ impl Operation {
                         let diff = DiffFormat::format(before, after);
                         file_change_stats(FileOperationStats {
                             path: input.path.clone(),
-                            tool_name: Tools::ForgeToolFsUndo(input.clone()).into(),
+                            tool_name,
                             lines_added: diff.lines_added(),
                             lines_removed: diff.lines_removed(),
                         });
@@ -525,7 +526,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_read"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -549,7 +554,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_read"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -573,7 +582,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_read"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -599,7 +612,8 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/truncated_content.txt"));
 
-        let actual = fixture.into_tool_output(truncation_path, &env);
+        let actual =
+            fixture.into_tool_output(ToolName::new("forge_tool_fs_read"), truncation_path, &env);
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -622,7 +636,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_create"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -644,7 +662,11 @@ mod tests {
         };
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_create"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -664,7 +686,11 @@ mod tests {
         };
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_create"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -693,7 +719,11 @@ mod tests {
         let env = fixture_environment();
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/stdout_content.txt"));
-        let actual = fixture.into_tool_output(truncation_path, &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            truncation_path,
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -722,7 +752,11 @@ mod tests {
         let env = fixture_environment();
         let truncation_path =
             TempContentFiles::default().stderr(PathBuf::from("/tmp/stderr_content.txt"));
-        let actual = fixture.into_tool_output(truncation_path, &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            truncation_path,
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -758,7 +792,11 @@ mod tests {
         let truncation_path = TempContentFiles::default()
             .stdout(PathBuf::from("/tmp/stdout_content.txt"))
             .stderr(PathBuf::from("/tmp/stderr_content.txt"));
-        let actual = fixture.into_tool_output(truncation_path, &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            truncation_path,
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -785,7 +823,11 @@ mod tests {
         };
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -805,7 +847,11 @@ mod tests {
         };
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -825,7 +871,11 @@ mod tests {
         };
 
         let env = fixture_environment();
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -861,7 +911,11 @@ mod tests {
         let truncation_path = TempContentFiles::default()
             .stdout(PathBuf::from("/tmp/stdout_content.txt"))
             .stderr(PathBuf::from("/tmp/stderr_content.txt"));
-        let actual = fixture.into_tool_output(truncation_path, &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            truncation_path,
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -895,7 +949,11 @@ mod tests {
 
         let env = fixture_environment(); // max_search_lines is 25
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_search"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -931,7 +989,11 @@ mod tests {
         // Total lines found are 50, but we limit to 10 for this test
         env.max_search_lines = 10;
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_search"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -952,7 +1014,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_search"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -968,7 +1034,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_task_list_list"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -988,7 +1058,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_task_list_list"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1016,7 +1090,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_task_list_list"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1047,7 +1125,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_task_list_list"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1071,7 +1153,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_task_list_append"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1097,7 +1183,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_task_list_update"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1128,7 +1218,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_task_list_list"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1151,7 +1245,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_create"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1167,7 +1265,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_remove"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1205,7 +1307,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_search"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1226,7 +1332,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_search"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1250,7 +1360,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_patch"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1274,7 +1388,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_patch"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1291,7 +1409,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_undo"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1311,7 +1433,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_undo"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1333,7 +1459,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_undo"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1353,7 +1483,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_undo"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1373,7 +1507,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_undo"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1396,7 +1534,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_net_fetch"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1427,7 +1569,8 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/forge_fetch_abc123.txt"));
 
-        let actual = fixture.into_tool_output(truncation_path, &env);
+        let actual =
+            fixture.into_tool_output(ToolName::new("forge_tool_net_fetch"), truncation_path, &env);
 
         // make sure that the content is truncated
         assert!(
@@ -1458,7 +1601,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1469,7 +1616,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_attempt_completion"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1482,7 +1633,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_followup"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1493,7 +1648,11 @@ mod tests {
 
         let env = fixture_environment();
 
-        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_followup"),
+            TempContentFiles::default(),
+            &env,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
