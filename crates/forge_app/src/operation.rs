@@ -20,6 +20,17 @@ use crate::{
     PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
+struct OperationStats {
+    path: String,
+    r#type: String,
+    lines_added: u64,
+    lines_removed: u64,
+}
+
+fn file_change_stats(operation: OperationStats) {
+    tracing::info!(path = %operation.path, type = %operation.r#type, lines_added = %operation.lines_added, lines_removed = %operation.lines_removed, "File change stats");
+}
+
 #[derive(Debug, Default, Setters)]
 #[setters(into, strip_option)]
 pub struct TempContentFiles {
@@ -149,10 +160,17 @@ impl Operation {
                 }
             },
             Operation::FsCreate { input, output } => {
-                let mut elm = if let Some(before) = output.before {
-                    let diff =
-                        console::strip_ansi_codes(&DiffFormat::format(&before, &input.content))
-                            .to_string();
+                let mut elm = if let Some(before) = output.before.as_ref() {
+                    let diff_result = DiffFormat::format(&before, &input.content);
+                    let diff = console::strip_ansi_codes(&diff_result.result).to_string();
+                    // Log file change stats
+                    file_change_stats(OperationStats {
+                        path: input.path.clone(),
+                        r#type: "fs_create".into(),
+                        lines_added: diff_result.lines_added,
+                        lines_removed: diff_result.lines_removed,
+                    });
+
                     Element::new("file_overwritten").append(Element::new("file_diff").cdata(diff))
                 } else {
                     Element::new("file_created")
@@ -173,7 +191,6 @@ impl Operation {
                 let elem = Element::new("file_removed")
                     .attr("path", display_path)
                     .attr("status", "completed");
-
                 forge_domain::ToolOutput::text(elem)
             }
             Operation::FsSearch { input, output } => match output {
@@ -214,10 +231,10 @@ impl Operation {
                 }
             },
             Operation::FsPatch { input, output } => {
+                let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff =
-                    console::strip_ansi_codes(&DiffFormat::format(&output.before, &output.after))
+                    console::strip_ansi_codes(&diff_result.result)
                         .to_string();
-
                 let mut elm = Element::new("file_diff")
                     .attr("path", &input.path)
                     .attr("total_lines", output.after.lines().count())
@@ -226,6 +243,13 @@ impl Operation {
                 if let Some(warning) = &output.warning {
                     elm = elm.append(Element::new("warning").text(warning));
                 }
+
+                file_change_stats(OperationStats {
+                    path: input.path,
+                    r#type: "fs_patch".into(),
+                    lines_added: diff_result.lines_added,
+                    lines_removed: diff_result.lines_removed,
+                });
 
                 forge_domain::ToolOutput::text(elm)
             }
@@ -258,7 +282,7 @@ impl Operation {
                         let elm = Element::new("file_undo")
                             .attr("path", input.path)
                             .attr("status", "restored")
-                            .cdata(strip_ansi_codes(&diff));
+                            .cdata(strip_ansi_codes(&diff.result));
 
                         forge_domain::ToolOutput::text(elm)
                     }

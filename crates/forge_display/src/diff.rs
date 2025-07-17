@@ -14,17 +14,31 @@ impl fmt::Display for Line {
     }
 }
 
+pub struct DiffResult {
+    pub result: String,
+    pub lines_added: u64,
+    pub lines_removed: u64,
+}
+
 pub struct DiffFormat;
 
 impl DiffFormat {
-    pub fn format(old: &str, new: &str) -> String {
+    pub fn format(old: &str, new: &str) -> DiffResult {
         let diff = TextDiff::from_lines(old, new);
         let ops = diff.grouped_ops(3);
         let mut output = String::new();
 
+        let mut lines_added = 0;
+        let mut lines_removed = 0;
+
         if ops.is_empty() {
             output.push_str(&format!("{}\n", style("No changes applied").dim()));
-            return output;
+
+            return  DiffResult {
+                result: output,
+                lines_added,
+                lines_removed,
+            };
         }
 
         for (idx, group) in ops.iter().enumerate() {
@@ -34,8 +48,14 @@ impl DiffFormat {
             for op in group {
                 for change in diff.iter_inline_changes(op) {
                     let (sign, s) = match change.tag() {
-                        ChangeTag::Delete => ("-", Style::new().blue()),
-                        ChangeTag::Insert => ("+", Style::new().yellow()),
+                        ChangeTag::Delete => {
+                            lines_removed += 1;
+                            ("-", Style::new().red())
+                        },
+                        ChangeTag::Insert => {  
+                            lines_added += 1;
+                            ("+", Style::new().yellow())
+                        },
                         ChangeTag::Equal => (" ", Style::new().dim()),
                     };
 
@@ -55,7 +75,12 @@ impl DiffFormat {
                 }
             }
         }
-        output
+
+        DiffResult {
+            result: output,
+            lines_added,
+            lines_removed,
+        }
     }
 }
 
