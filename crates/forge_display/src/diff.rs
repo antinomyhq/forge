@@ -87,7 +87,7 @@ mod tests {
     fn test_color_output() {
         let old = "Hello World\nThis is a test\nThird line\nFourth line";
         let new = "Hello World\nThis is a modified test\nNew line\nFourth line";
-        let diff = DiffFormat::format(old, new);
+        let diff = DiffFormat::format(old, new).result;
         eprintln!("\nColor Output Test:\n{diff}");
     }
 
@@ -95,14 +95,16 @@ mod tests {
     fn test_diff_printer_no_differences() {
         let content = "line 1\nline 2\nline 3";
         let diff = DiffFormat::format(content, content);
-        assert!(diff.contains("No changes applied"));
+        assert_eq!(diff.lines_added, 0);
+        assert_eq!(diff.lines_removed, 0);
+        assert!(diff.result.contains("No changes applied"));
     }
 
     #[test]
     fn test_file_source() {
         let old = "line 1\nline 2\nline 3\nline 4\nline 5";
         let new = "line 1\nline 2\nline 3";
-        let diff = DiffFormat::format(old, new);
+        let diff = DiffFormat::format(old, new).result;
         let clean_diff = strip_ansi_codes(&diff);
         assert_snapshot!(clean_diff);
     }
@@ -111,7 +113,7 @@ mod tests {
     fn test_diff_printer_simple_diff() {
         let old = "line 1\nline 2\nline 3\nline 5\nline 6\nline 7\nline 8\nline 9";
         let new = "line 1\nmodified line\nline 3\nline 5\nline 6\nline 7\nline 8\nline 9";
-        let diff = DiffFormat::format(old, new);
+        let diff = DiffFormat::format(old, new).result;
         let clean_diff = strip_ansi_codes(&diff);
         assert_snapshot!(clean_diff);
     }
