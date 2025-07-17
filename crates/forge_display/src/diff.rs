@@ -34,11 +34,7 @@ impl DiffFormat {
         if ops.is_empty() {
             output.push_str(&format!("{}\n", style("No changes applied").dim()));
 
-            return  DiffResult {
-                result: output,
-                lines_added,
-                lines_removed,
-            };
+            return DiffResult { result: output, lines_added, lines_removed };
         }
 
         for (idx, group) in ops.iter().enumerate() {
@@ -51,11 +47,11 @@ impl DiffFormat {
                         ChangeTag::Delete => {
                             lines_removed += 1;
                             ("-", Style::new().red())
-                        },
-                        ChangeTag::Insert => {  
+                        }
+                        ChangeTag::Insert => {
                             lines_added += 1;
                             ("+", Style::new().yellow())
-                        },
+                        }
                         ChangeTag::Equal => (" ", Style::new().dim()),
                     };
 
@@ -76,11 +72,7 @@ impl DiffFormat {
             }
         }
 
-        DiffResult {
-            result: output,
-            lines_added,
-            lines_removed,
-        }
+        DiffResult { result: output, lines_added, lines_removed }
     }
 }
 

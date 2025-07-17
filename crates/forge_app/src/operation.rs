@@ -161,7 +161,7 @@ impl Operation {
             },
             Operation::FsCreate { input, output } => {
                 let mut elm = if let Some(before) = output.before.as_ref() {
-                    let diff_result = DiffFormat::format(&before, &input.content);
+                    let diff_result = DiffFormat::format(before, &input.content);
                     let diff = console::strip_ansi_codes(&diff_result.result).to_string();
                     // Log file change stats
                     file_change_stats(OperationStats {
@@ -232,9 +232,7 @@ impl Operation {
             },
             Operation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
-                let diff =
-                    console::strip_ansi_codes(&diff_result.result)
-                        .to_string();
+                let diff = console::strip_ansi_codes(&diff_result.result).to_string();
                 let mut elm = Element::new("file_diff")
                     .attr("path", &input.path)
                     .attr("total_lines", output.after.lines().count())
