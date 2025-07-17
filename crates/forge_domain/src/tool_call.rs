@@ -2,6 +2,7 @@ use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use crate::utils::sanitize_for_json;
 
 use crate::xml::extract_tag_content;
 use crate::{Error, Result, ToolName};
@@ -99,7 +100,7 @@ impl ToolCallFull {
                         arguments: if arguments.is_empty() {
                             Value::default()
                         } else {
-                            serde_json::from_str(&arguments).map_err(Error::ToolCallArgument)?
+                            serde_json::from_str(&sanitize_for_json(&arguments)).map_err(Error::ToolCallArgument)?
                         },
                     });
                     arguments.clear();
@@ -121,7 +122,7 @@ impl ToolCallFull {
                 arguments: if arguments.is_empty() {
                     Value::default()
                 } else {
-                    serde_json::from_str(&arguments).map_err(Error::ToolCallArgument)?
+                    serde_json::from_str(&sanitize_for_json(&arguments)).map_err(Error::ToolCallArgument)?
                 },
             });
         }
@@ -135,7 +136,7 @@ impl ToolCallFull {
             None => Ok(Default::default()),
             Some(content) => {
                 let mut tool_call: ToolCallFull =
-                    serde_json::from_str(content).map_err(Error::ToolCallArgument)?;
+                    serde_json::from_str(&sanitize_for_json(&content)).map_err(Error::ToolCallArgument)?;
 
                 // User might switch the model from a tool unsupported to tool supported model
                 // leaving a lot of messages without tool calls
