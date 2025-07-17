@@ -277,6 +277,13 @@ impl Operation {
                     }
                     (Some(after), Some(before)) => {
                         let diff = DiffFormat::format(before, after);
+                        file_change_stats(OperationStats {
+                            path: input.path.clone(),
+                            r#type: "fs_undo".into(),
+                            lines_added: diff.lines_added,
+                            lines_removed: diff.lines_removed,
+                        });
+
                         let elm = Element::new("file_undo")
                             .attr("path", input.path)
                             .attr("status", "restored")
