@@ -16,9 +16,23 @@ impl fmt::Display for Line {
 
 #[derive(Debug, Clone)]
 pub struct DiffResult {
-    pub result: String,
-    pub lines_added: u64,
-    pub lines_removed: u64,
+    result: String,
+    lines_added: u64,
+    lines_removed: u64,
+}
+
+impl DiffResult {
+    pub fn diff(&self) -> &str {
+        &self.result
+    }
+
+    pub fn lines_added(&self) -> u64 {
+        self.lines_added
+    }
+
+    pub fn lines_removed(&self) -> u64 {
+        self.lines_removed
+    }
 }
 
 pub struct DiffFormat;
@@ -89,9 +103,9 @@ mod tests {
         let old = "Hello World\nThis is a test\nThird line\nFourth line";
         let new = "Hello World\nThis is a modified test\nNew line\nFourth line";
         let diff = DiffFormat::format(old, new);
-        let diff_str = diff.result;
-        assert_eq!(diff.lines_added, 2);
-        assert_eq!(diff.lines_removed, 2);
+        let diff_str = diff.diff();
+        assert_eq!(diff.lines_added(), 2);
+        assert_eq!(diff.lines_removed(), 2);
         eprintln!("\nColor Output Test:\n{diff_str}");
     }
 
@@ -99,9 +113,9 @@ mod tests {
     fn test_diff_printer_no_differences() {
         let content = "line 1\nline 2\nline 3";
         let diff = DiffFormat::format(content, content);
-        assert_eq!(diff.lines_added, 0);
-        assert_eq!(diff.lines_removed, 0);
-        assert!(diff.result.contains("No changes applied"));
+        assert_eq!(diff.lines_added(), 0);
+        assert_eq!(diff.lines_removed(), 0);
+        assert!(diff.diff().contains("No changes applied"));
     }
 
     #[test]
@@ -109,9 +123,9 @@ mod tests {
         let old = "line 1\nline 2\nline 3\nline 4\nline 5";
         let new = "line 1\nline 2\nline 3";
         let diff = DiffFormat::format(old, new);
-        let clean_diff = strip_ansi_codes(&diff.result);
-        assert_eq!(diff.lines_added, 1);
-        assert_eq!(diff.lines_removed, 3);
+        let clean_diff = strip_ansi_codes(&diff.diff());
+        assert_eq!(diff.lines_added(), 1);
+        assert_eq!(diff.lines_removed(), 3);
         assert_snapshot!(clean_diff);
     }
 
@@ -120,9 +134,9 @@ mod tests {
         let old = "line 1\nline 2\nline 3\nline 5\nline 6\nline 7\nline 8\nline 9";
         let new = "line 1\nmodified line\nline 3\nline 5\nline 6\nline 7\nline 8\nline 9";
         let diff = DiffFormat::format(old, new);
-        let clean_diff = strip_ansi_codes(&diff.result);
-        assert_eq!(diff.lines_added, 1);
-        assert_eq!(diff.lines_removed, 1);
+        let clean_diff = strip_ansi_codes(&diff.diff());
+        assert_eq!(diff.lines_added(), 1);
+        assert_eq!(diff.lines_removed(), 1);
         assert_snapshot!(clean_diff);
     }
 }

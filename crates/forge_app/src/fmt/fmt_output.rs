@@ -24,7 +24,9 @@ impl FormatContent for Operation {
                 )
             }),
             Operation::FsPatch { input: _, output } => Some(ContentFormat::PlainText(
-                DiffFormat::format(&output.before, &output.after).result,
+                DiffFormat::format(&output.before, &output.after)
+                    .diff()
+                    .to_string(),
             )),
             Operation::FsUndo { input: _, output: _ } => None,
             Operation::NetFetch { input: _, output: _ } => None,
