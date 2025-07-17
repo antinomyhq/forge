@@ -1,17 +1,20 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::sync::Arc;
+use std::pin::Pin;
 
 use bytes::Bytes;
 use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra,
     WalkerInfra,
 };
+use forge_domain::{HttpInfra, ServerSentEvent};
 use reqwest::header::HeaderMap;
 use reqwest::Response;
+use tokio_stream::Stream;
 
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -233,5 +236,14 @@ impl HttpInfra for ForgeInfra {
 
     async fn delete(&self, url: &str) -> anyhow::Result<Response> {
         self.http_service.delete(url).await
+    }
+
+    async fn post_stream(
+        &self,
+        url: &str,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+        self.http_service.post_stream(url, headers, body).await
     }
 }

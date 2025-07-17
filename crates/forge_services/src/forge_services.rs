@@ -19,9 +19,10 @@ use crate::tool_services::{
 use crate::workflow::ForgeWorkflowService;
 use crate::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra,
     WalkerInfra,
 };
+use forge_domain::HttpInfra;
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;

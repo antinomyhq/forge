@@ -5,7 +5,8 @@ use bytes::Bytes;
 use forge_app::{AuthService, Error, InitAuth, LoginInfo};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 
-use crate::{EnvironmentInfra, HttpInfra};
+use crate::EnvironmentInfra;
+use forge_domain::HttpInfra;
 
 const AUTH_ROUTE: &str = "auth/sessions/";
 

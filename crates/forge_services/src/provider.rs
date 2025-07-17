@@ -3,7 +3,7 @@ use std::{sync::Arc, vec};
 use anyhow::{Context, Result};
 use forge_app::{AppConfig, ProviderService};
 use forge_domain::{
-    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider, ProviderConfig, ProviderDetails, ResultStream, RetryConfig, Workflow
+    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider, ProviderConfig, ProviderDetails, ResultStream, RetryConfig, Workflow, HttpInfra
 };
 use forge_provider::Client;
 use tokio::sync::RwLock;
@@ -17,10 +17,11 @@ pub struct ForgeProviderService {
     version: String,
     timeout_config: HttpConfig,
     providers: Arc<RwLock<Vec<ProviderDetails>>>,
+    http_infra: Arc<dyn HttpInfra>,
 }
 
 impl ForgeProviderService {
-    pub fn new<I: EnvironmentInfra>(infra: Arc<I>, app_config: AppConfig) -> Self {
+    pub fn new<I: EnvironmentInfra + HttpInfra + 'static>(infra: Arc<I>, app_config: AppConfig) -> Self {
         let env = infra.get_environment();
         let version = env.version();
         let retry_config = Arc::new(env.retry_config);
@@ -63,6 +64,7 @@ impl ForgeProviderService {
             version,
             timeout_config: env.http,
             providers: Arc::new(RwLock::new(resolved_providers)),
+            http_infra: infra as Arc<dyn HttpInfra>,
         }
     }
 
@@ -99,6 +101,7 @@ impl ForgeProviderService {
             self.retry_config.clone(),
             &self.version,
             &self.timeout_config,
+            self.http_infra.clone(),
         )?;
 
         // Cache the new client
@@ -117,6 +120,7 @@ impl ForgeProviderService {
             self.retry_config.clone(),
             &self.version,
             &self.timeout_config,
+            self.http_infra.clone(),
         )?;
 
         // Cache the new client

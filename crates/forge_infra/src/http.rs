@@ -1,8 +1,11 @@
 use bytes::Bytes;
-use forge_services::HttpInfra;
+use forge_domain::{HttpInfra, ServerSentEvent};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Response};
+use reqwest_eventsource::{Event, RequestBuilderExt};
+use tokio_stream::{Stream, StreamExt};
 use tracing::debug;
+use std::pin::Pin;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
@@ -43,6 +46,45 @@ impl ForgeHttpService {
             .headers(self.headers(None))
             .send()
             .await?)
+    }
+
+    async fn post_stream(
+        &self,
+        url: &str,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+        let mut request_headers = self.headers(headers);
+        request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+        
+        let es = self
+            .client
+            .post(url)
+            .headers(request_headers)
+            .body(body)
+            .eventsource()?;
+
+        let stream = es
+            .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
+            .map(|event| {
+                match event {
+                    Ok(event) => match event {
+                        Event::Open => Ok(ServerSentEvent {
+                            event_type: Some("open".to_string()),
+                            data: "".to_string(),
+                            id: None,
+                        }),
+                        Event::Message(msg) => Ok(ServerSentEvent {
+                            event_type: None,
+                            data: msg.data,
+                            id: Some(msg.id),
+                        }),
+                    },
+                    Err(err) => Err(err.into()),
+                }
+            });
+
+        Ok(Box::pin(stream))
     }
 
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
@@ -97,5 +139,14 @@ impl HttpInfra for ForgeHttpService {
 
     async fn delete(&self, url: &str) -> anyhow::Result<Response> {
         self.delete(url).await
+    }
+
+    async fn post_stream(
+        &self,
+        url: &str,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+        self.post_stream(url, headers, body).await
     }
 }

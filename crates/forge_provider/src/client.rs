@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use forge_domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
+    HttpInfra,
 };
-use reqwest::redirect::Policy;
 use reqwest::Url;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
@@ -22,7 +22,7 @@ pub struct Client {
     inner: Arc<InnerClient>,
     models_cache: Arc<RwLock<HashMap<ModelId, Model>>>,
 }
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 enum InnerClient {
     OpenAICompat(ForgeProvider),
     Anthropic(Anthropic),
@@ -33,24 +33,13 @@ impl Client {
         provider: Provider,
         retry_config: Arc<RetryConfig>,
         version: impl ToString,
-        timeout_config: &HttpConfig,
+        _timeout_config: &HttpConfig,
+        http_infra: Arc<dyn HttpInfra>,
     ) -> Result<Self> {
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(
-                timeout_config.connect_timeout,
-            ))
-            .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
-            .pool_idle_timeout(std::time::Duration::from_secs(
-                timeout_config.pool_idle_timeout,
-            ))
-            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
-            .redirect(Policy::limited(timeout_config.max_redirects))
-            .build()?;
-
         let inner = match &provider {
             Provider::OpenAI(details) => InnerClient::OpenAICompat(
                 ForgeProvider::builder()
-                    .client(client)
+                    .http(http_infra.clone())
                     .provider(provider.clone())
                     .version(version.to_string())
                     .build()
@@ -59,7 +48,7 @@ impl Client {
 
             Provider::Anthropic(details) => InnerClient::Anthropic(
                 Anthropic::builder()
-                    .client(client)
+                    .http(http_infra.clone())
                     .api_key(details.api_key.clone())
                     .base_url(Url::parse(&details.base_url)?)
                     .anthropic_version("2023-06-01".to_string())
@@ -158,6 +147,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use forge_domain::{Provider, ProviderDetails};
+    use forge_infra::ForgeInfra;
     use super::*;
 
     #[tokio::test]
@@ -175,6 +165,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
+            Arc::new(ForgeInfra::new(false)),
         )
         .unwrap();
 
@@ -198,6 +189,7 @@ mod tests {
             Arc::new(RetryConfig::default()),
             "dev",
             &HttpConfig::default(),
+            Arc::new(ForgeInfra::new(false)),
         )
         .unwrap();
 

@@ -26,3 +26,4 @@ derive_builder.workspace = true
 insta.workspace = true
 pretty_assertions.workspace = true
 mockito.workspace = true
+forge_infra.workspace = true
