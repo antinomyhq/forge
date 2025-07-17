@@ -1,7 +1,6 @@
-use forge_main_neo::run;
+use crate::run;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+pub async fn main_neo() -> anyhow::Result<()> {
     color_eyre::install().unwrap();
     let terminal = ratatui::init();
     let result = run(terminal).await;

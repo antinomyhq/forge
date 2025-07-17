@@ -1422,6 +1422,7 @@ dependencies = [
  "forge_display",
  "forge_domain",
  "forge_fs",
+ "forge_main_neo",
  "forge_snaps",
  "forge_spinner",
  "forge_tracker",
