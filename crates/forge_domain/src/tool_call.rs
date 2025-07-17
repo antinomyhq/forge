@@ -137,9 +137,8 @@ impl ToolCallFull {
         match extract_tag_content(input, "forge_tool_call") {
             None => Ok(Default::default()),
             Some(content) => {
-                let mut tool_call: ToolCallFull =
-                    serde_json::from_str(&sanitize_for_json(content))
-                        .map_err(Error::ToolCallArgument)?;
+                let mut tool_call: ToolCallFull = serde_json::from_str(&sanitize_for_json(content))
+                    .map_err(Error::ToolCallArgument)?;
 
                 // User might switch the model from a tool unsupported to tool supported model
                 // leaving a lot of messages without tool calls
