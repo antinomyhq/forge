@@ -14,9 +14,6 @@ use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
-use inquire::Select;
-use inquire::error::InquireError;
-use inquire::ui::{RenderConfig, Styled};
 use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
@@ -26,6 +23,7 @@ use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
+use crate::select::ForgeSelect;
 use crate::state::UIState;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
@@ -414,11 +412,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     })
                     .collect::<Vec<_>>();
 
-                let select_prompt = inquire::Select::new(
+                if let Some(selected_agent) = ForgeSelect::select(
                     "select the agent from following list",
                     display_agents.clone(),
-                );
-                if let Ok(selected_agent) = select_prompt.prompt() {
+                )
+                .prompt()?
+                {
                     self.on_agent_change(selected_agent.id).await?;
                 }
             }
@@ -471,12 +470,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .map(CliModel)
             .collect::<Vec<_>>();
 
-        // Create a custom render config with the specified icons
-        let render_config = RenderConfig::default()
-            .with_scroll_up_prefix(Styled::new("⇡"))
-            .with_scroll_down_prefix(Styled::new("⇣"))
-            .with_highlighted_option_prefix(Styled::new("➤"));
-
         // Find the index of the current model
         let starting_cursor = self
             .state
@@ -485,21 +478,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .and_then(|current| models.iter().position(|m| &m.0.id == current))
             .unwrap_or(0);
 
-        // Use inquire to select a model, with the current model pre-selected
-        match Select::new("Select a model:", models)
-            .with_help_message(
-                "Type a model name or use arrow keys to navigate and Enter to select",
-            )
-            .with_render_config(render_config)
+        // Use the centralized select module
+        match ForgeSelect::select("Select a model:", models)
             .with_starting_cursor(starting_cursor)
-            .prompt()
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .prompt()?
         {
-            Ok(model) => Ok(Some(model.0.id)),
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                // Return None if selection was canceled
-                Ok(None)
-            }
-            Err(err) => Err(err.into()),
+            Some(model) => Ok(Some(model.0.id)),
+            None => Ok(None),
         }
     }
 
@@ -802,22 +788,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn should_continue(&mut self) -> anyhow::Result<()> {
-        const YES: &str = "yes";
-        const NO: &str = "no";
-        let result = Select::new(
-            "Do you want to continue anyway?",
-            vec![YES, NO].into_iter().map(|s| s.to_string()).collect(),
-        )
-        .with_render_config(
-            RenderConfig::default().with_highlighted_option_prefix(Styled::new("➤")),
-        )
-        .with_starting_cursor(0)
-        .prompt()
-        .map_err(|e| anyhow::anyhow!(e))?;
-        let _: () = if result == YES {
+        let should_continue = ForgeSelect::confirm("Do you want to continue anyway?")
+            .with_default(false)
+            .prompt()?;
+
+        if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
             Box::pin(self.on_message(None)).await?;
-        };
+        }
+
         Ok(())
     }
 
