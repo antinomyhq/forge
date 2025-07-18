@@ -6,8 +6,8 @@ use convert_case::{Case, Casing};
 use derive_more::From;
 use eserde::Deserialize;
 use forge_tool_macros::ToolDescription;
-use schemars::schema::RootSchema;
 use schemars::JsonSchema;
+use schemars::schema::RootSchema;
 use serde::Serialize;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
@@ -215,7 +215,7 @@ impl JsonSchema for PatchOperation {
             .to_string()
     }
 
-    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn json_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
         use schemars::schema::{InstanceType, Schema, SchemaObject};
         let variants: Vec<serde_json::Value> = Self::iter()
             .map(|variant| variant.as_ref().to_case(Case::Snake).into())
@@ -595,8 +595,8 @@ lazy_static::lazy_static! {
 
 impl Tools {
     pub fn schema(&self) -> RootSchema {
-        use schemars::gen::SchemaSettings;
-        let gen = SchemaSettings::default()
+        use schemars::r#gen::SchemaSettings;
+        let r#gen = SchemaSettings::default()
             .with(|s| {
                 // incase of null, add nullable property.
                 s.option_nullable = true;
@@ -607,23 +607,25 @@ impl Tools {
             })
             .into_generator();
         match self {
-            Tools::ForgeToolFsPatch(_) => gen.into_root_schema_for::<FSPatch>(),
-            Tools::ForgeToolProcessShell(_) => gen.into_root_schema_for::<Shell>(),
-            Tools::ForgeToolFollowup(_) => gen.into_root_schema_for::<Followup>(),
-            Tools::ForgeToolNetFetch(_) => gen.into_root_schema_for::<NetFetch>(),
-            Tools::ForgeToolAttemptCompletion(_) => gen.into_root_schema_for::<AttemptCompletion>(),
-            Tools::ForgeToolFsSearch(_) => gen.into_root_schema_for::<FSSearch>(),
-            Tools::ForgeToolFsRead(_) => gen.into_root_schema_for::<FSRead>(),
-            Tools::ForgeToolFsRemove(_) => gen.into_root_schema_for::<FSRemove>(),
-            Tools::ForgeToolFsUndo(_) => gen.into_root_schema_for::<FSUndo>(),
-            Tools::ForgeToolFsCreate(_) => gen.into_root_schema_for::<FSWrite>(),
-            Tools::ForgeToolTaskListAppend(_) => gen.into_root_schema_for::<TaskListAppend>(),
-            Tools::ForgeToolTaskListAppendMultiple(_) => {
-                gen.into_root_schema_for::<TaskListAppendMultiple>()
+            Tools::ForgeToolFsPatch(_) => r#gen.into_root_schema_for::<FSPatch>(),
+            Tools::ForgeToolProcessShell(_) => r#gen.into_root_schema_for::<Shell>(),
+            Tools::ForgeToolFollowup(_) => r#gen.into_root_schema_for::<Followup>(),
+            Tools::ForgeToolNetFetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
+            Tools::ForgeToolAttemptCompletion(_) => {
+                r#gen.into_root_schema_for::<AttemptCompletion>()
             }
-            Tools::ForgeToolTaskListUpdate(_) => gen.into_root_schema_for::<TaskListUpdate>(),
-            Tools::ForgeToolTaskListList(_) => gen.into_root_schema_for::<TaskListList>(),
-            Tools::ForgeToolTaskListClear(_) => gen.into_root_schema_for::<TaskListClear>(),
+            Tools::ForgeToolFsSearch(_) => r#gen.into_root_schema_for::<FSSearch>(),
+            Tools::ForgeToolFsRead(_) => r#gen.into_root_schema_for::<FSRead>(),
+            Tools::ForgeToolFsRemove(_) => r#gen.into_root_schema_for::<FSRemove>(),
+            Tools::ForgeToolFsUndo(_) => r#gen.into_root_schema_for::<FSUndo>(),
+            Tools::ForgeToolFsCreate(_) => r#gen.into_root_schema_for::<FSWrite>(),
+            Tools::ForgeToolTaskListAppend(_) => r#gen.into_root_schema_for::<TaskListAppend>(),
+            Tools::ForgeToolTaskListAppendMultiple(_) => {
+                r#gen.into_root_schema_for::<TaskListAppendMultiple>()
+            }
+            Tools::ForgeToolTaskListUpdate(_) => r#gen.into_root_schema_for::<TaskListUpdate>(),
+            Tools::ForgeToolTaskListList(_) => r#gen.into_root_schema_for::<TaskListList>(),
+            Tools::ForgeToolTaskListClear(_) => r#gen.into_root_schema_for::<TaskListClear>(),
         }
     }
 

@@ -56,10 +56,10 @@ impl Prompt for ForgePrompt {
         .unwrap();
 
         // Only append branch info if present
-        if let Some(branch) = branch_opt {
-            if branch != current_dir {
-                write!(result, " {} ", branch_style.paint(branch)).unwrap();
-            }
+        if let Some(branch) = branch_opt
+            && branch != current_dir
+        {
+            write!(result, " {} ", branch_style.paint(branch)).unwrap();
         }
 
         write!(result, "\n{} ", branch_style.paint(RIGHT_CHEVRON)).unwrap();
@@ -201,13 +201,17 @@ mod tests {
     #[test]
     fn test_render_prompt_left_with_custom_prompt() {
         // Set $PROMPT environment variable temporarily for this test
-        env::set_var("PROMPT", "CUSTOM_TEST_PROMPT");
+        unsafe {
+            env::set_var("PROMPT", "CUSTOM_TEST_PROMPT");
+        }
 
         let prompt = ForgePrompt::default();
         let actual = prompt.render_prompt_left();
 
         // Clean up after test
-        env::remove_var("PROMPT");
+        unsafe {
+            env::remove_var("PROMPT");
+        }
 
         // Verify the prompt contains expected elements regardless of $PROMPT var
         assert!(actual.contains("FORGE"));

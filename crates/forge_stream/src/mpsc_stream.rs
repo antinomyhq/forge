@@ -41,8 +41,8 @@ impl<T> Drop for MpscStream<T> {
 
 #[cfg(test)]
 mod test {
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
 
     use futures::StreamExt;

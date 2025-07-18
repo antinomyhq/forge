@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
+use nom::Parser;
 use nom::bytes::complete::{tag, take_until};
 use nom::combinator::value;
-use nom::Parser;
 
 use crate::Image;
 

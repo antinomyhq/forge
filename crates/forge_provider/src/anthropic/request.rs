@@ -120,16 +120,15 @@ impl TryFrom<ContextMessage> for Message {
                         + 1,
                 );
 
-                if let Some(reasoning) = chat_message.reasoning_details {
-                    if let Some((sig, text)) = reasoning.into_iter().find_map(|reasoning| {
+                if let Some(reasoning) = chat_message.reasoning_details
+                    && let Some((sig, text)) = reasoning.into_iter().find_map(|reasoning| {
                         match (reasoning.signature, reasoning.text) {
                             (Some(sig), Some(text)) => Some((sig, text)),
                             _ => None,
                         }
-                    }) {
-                        content
-                            .push(Content::Thinking { signature: Some(sig), thinking: Some(text) });
-                    }
+                    })
+                {
+                    content.push(Content::Thinking { signature: Some(sig), thinking: Some(text) });
                 }
 
                 if !chat_message.content.is_empty() {

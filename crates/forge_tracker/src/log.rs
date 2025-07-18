@@ -4,8 +4,8 @@ use tracing::debug;
 use tracing_appender::non_blocking::{self, WorkerGuard};
 use tracing_subscriber::{self};
 
-use crate::can_track::can_track;
 use crate::Tracker;
+use crate::can_track::can_track;
 
 pub fn init_tracing(log_path: PathBuf, tracker: Tracker) -> anyhow::Result<Guard> {
     debug!(path = %log_path.display(), "Initializing logging system in JSON format");

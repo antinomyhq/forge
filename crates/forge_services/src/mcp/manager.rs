@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::domain::{McpConfig, Scope};
 use forge_app::McpConfigManager;
+use forge_app::domain::{McpConfig, Scope};
 use merge::Merge;
 
 use crate::{EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpServerInfra};

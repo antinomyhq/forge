@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::bail;
 use bytes::Bytes;
 use forge_app::{AuthService, Error, InitAuth, LoginInfo, User};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use crate::{EnvironmentInfra, HttpInfra};
 

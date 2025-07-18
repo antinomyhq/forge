@@ -198,7 +198,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::mock_server::{normalize_ports, MockServer};
+    use crate::mock_server::{MockServer, normalize_ports};
 
     fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic> {
         Ok(Anthropic::builder()

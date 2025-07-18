@@ -1,7 +1,7 @@
 use gh_workflow_tailcall::generate::Generate;
 use gh_workflow_tailcall::*;
 
-use crate::jobs::{release_homebrew_job, release_npm_job, ReleaseBuilderJob};
+use crate::jobs::{ReleaseBuilderJob, release_homebrew_job, release_npm_job};
 
 /// Generate npm release workflow
 pub fn release_publish() {

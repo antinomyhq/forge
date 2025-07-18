@@ -4,8 +4,8 @@ use std::sync::Arc;
 use forge_walker::Walker;
 use reedline::{Completer, Suggestion};
 
-use crate::completer::search_term::SearchTerm;
 use crate::completer::CommandCompleter;
+use crate::completer::search_term::SearchTerm;
 use crate::model::ForgeCommandManager;
 
 #[derive(Clone)]

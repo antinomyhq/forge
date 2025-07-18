@@ -70,7 +70,9 @@ impl Snapshot {
                 if path.is_absolute() {
                     path
                 } else {
-                    anyhow::bail!("Path must be absolute. Please provide an absolute path starting with '/' (Unix) or 'C:\\' (Windows)");
+                    anyhow::bail!(
+                        "Path must be absolute. Please provide an absolute path starting with '/' (Unix) or 'C:\\' (Windows)"
+                    );
                 }
             }
         };

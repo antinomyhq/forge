@@ -9,7 +9,7 @@ use tokio::fs;
 
 // No longer using dissimilar for fuzzy matching
 use crate::utils::assert_absolute_path;
-use crate::{tool_services, FileWriterInfra};
+use crate::{FileWriterInfra, tool_services};
 
 /// A match found in the source text. Represents a range in the source text that
 /// can be used for extraction or replacement operations. Stores the position
@@ -59,7 +59,9 @@ enum Error {
     NoMatch(String),
     #[error("Could not find swap target text: {0}")]
     NoSwapTarget(String),
-    #[error("Multiple matches found for search text: '{0}'. Either provide a more specific search pattern or use replace_all to replace all occurrences.")]
+    #[error(
+        "Multiple matches found for search text: '{0}'. Either provide a more specific search pattern or use replace_all to replace all occurrences."
+    )]
     MultipleMatches(String),
 }
 
@@ -428,10 +430,12 @@ mod tests {
 
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Multiple matches found for search text: 'test'"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Multiple matches found for search text: 'test'")
+        );
     }
 
     // Error cases
@@ -444,10 +448,12 @@ mod tests {
 
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Could not find match for search text: missing"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Could not find match for search text: missing")
+        );
     }
 
     #[test]
@@ -459,10 +465,12 @@ mod tests {
 
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Could not find swap target text: missing"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Could not find swap target text: missing")
+        );
     }
 
     #[test]
@@ -540,9 +548,11 @@ mod tests {
 
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Could not find match for search text: missing"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Could not find match for search text: missing")
+        );
     }
 }

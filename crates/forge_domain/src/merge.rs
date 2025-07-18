@@ -9,8 +9,8 @@ pub mod std {
 
 pub mod vec {
 
-    pub use merge::vec::*;
     use merge::Merge;
+    pub use merge::vec::*;
 
     use super::Key;
 

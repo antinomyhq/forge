@@ -181,6 +181,6 @@ mod tests {
         // but that's expected)
         let result = client.refresh_models().await;
         assert!(result.is_err()); // Expected to fail since we're not hitting a
-                                  // real API
+        // real API
     }
 }

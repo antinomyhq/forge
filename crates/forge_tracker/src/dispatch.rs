@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::process::Output;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use forge_domain::Conversation;
@@ -13,7 +13,7 @@ use tokio::time::Duration;
 
 use super::Result;
 use crate::can_track::can_track;
-use crate::collect::{posthog, Collect};
+use crate::collect::{Collect, posthog};
 use crate::event::Identity;
 use crate::{Event, EventKind};
 

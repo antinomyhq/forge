@@ -58,14 +58,14 @@ pub struct ForgeServices<F: McpServerInfra + WalkerInfra> {
 }
 
 impl<
-        F: McpServerInfra
-            + EnvironmentInfra
-            + FileWriterInfra
-            + FileInfoInfra
-            + FileReaderInfra
-            + HttpInfra
-            + WalkerInfra,
-    > ForgeServices<F>
+    F: McpServerInfra
+        + EnvironmentInfra
+        + FileWriterInfra
+        + FileInfoInfra
+        + FileReaderInfra
+        + HttpInfra
+        + WalkerInfra,
+> ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
         let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
@@ -117,20 +117,20 @@ impl<
 }
 
 impl<
-        F: FileReaderInfra
-            + FileWriterInfra
-            + CommandInfra
-            + UserInfra
-            + SnapshotInfra
-            + McpServerInfra
-            + FileRemoverInfra
-            + FileInfoInfra
-            + FileDirectoryInfra
-            + EnvironmentInfra
-            + HttpInfra
-            + WalkerInfra
-            + Clone,
-    > Services for ForgeServices<F>
+    F: FileReaderInfra
+        + FileWriterInfra
+        + CommandInfra
+        + UserInfra
+        + SnapshotInfra
+        + McpServerInfra
+        + FileRemoverInfra
+        + FileInfoInfra
+        + FileDirectoryInfra
+        + EnvironmentInfra
+        + HttpInfra
+        + WalkerInfra
+        + Clone,
+> Services for ForgeServices<F>
 {
     type ProviderService = ForgeProviderService;
     type ConversationService = ForgeConversationService<McpService<F>>;

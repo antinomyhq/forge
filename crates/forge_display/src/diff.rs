@@ -1,6 +1,6 @@
 use std::fmt;
 
-use console::{style, Style};
+use console::{Style, style};
 use similar::{ChangeTag, TextDiff};
 
 struct Line(Option<usize>);

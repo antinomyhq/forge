@@ -207,13 +207,13 @@ mod tests {
     use std::fs::{self};
 
     use pretty_assertions::assert_eq;
-    use tempfile::{tempdir, TempDir};
+    use tempfile::{TempDir, tempdir};
 
     use super::*;
 
     /// Test Fixtures
     mod fixtures {
-        use std::fs::{create_dir_all, File};
+        use std::fs::{File, create_dir_all};
         use std::io::Write;
 
         use super::*;

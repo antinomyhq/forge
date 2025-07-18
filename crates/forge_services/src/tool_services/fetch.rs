@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use forge_app::{HttpResponse, NetFetchService, ResponseContext};
 use reqwest::{Client, Url};
 
@@ -32,29 +32,29 @@ impl ForgeFetch {
         let robots_url = format!("{}://{}/robots.txt", url.scheme(), url.authority());
         let robots_response = self.client.get(&robots_url).send().await;
 
-        if let Ok(robots) = robots_response {
-            if robots.status().is_success() {
-                let robots_content = robots.text().await.unwrap_or_default();
-                let path = url.path();
-                for line in robots_content.lines() {
-                    if let Some(disallowed) = line.strip_prefix("Disallow: ") {
-                        let disallowed = disallowed.trim();
-                        let disallowed = if !disallowed.starts_with('/') {
-                            format!("/{disallowed}")
-                        } else {
-                            disallowed.to_string()
-                        };
-                        let path = if !path.starts_with('/') {
-                            format!("/{path}")
-                        } else {
-                            path.to_string()
-                        };
-                        if path.starts_with(&disallowed) {
-                            return Err(anyhow!(
-                                "URL {} cannot be fetched due to robots.txt restrictions",
-                                url
-                            ));
-                        }
+        if let Ok(robots) = robots_response
+            && robots.status().is_success()
+        {
+            let robots_content = robots.text().await.unwrap_or_default();
+            let path = url.path();
+            for line in robots_content.lines() {
+                if let Some(disallowed) = line.strip_prefix("Disallow: ") {
+                    let disallowed = disallowed.trim();
+                    let disallowed = if !disallowed.starts_with('/') {
+                        format!("/{disallowed}")
+                    } else {
+                        disallowed.to_string()
+                    };
+                    let path = if !path.starts_with('/') {
+                        format!("/{path}")
+                    } else {
+                        path.to_string()
+                    };
+                    if path.starts_with(&disallowed) {
+                        return Err(anyhow!(
+                            "URL {} cannot be fetched due to robots.txt restrictions",
+                            url
+                        ));
                     }
                 }
             }
