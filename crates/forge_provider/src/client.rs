@@ -189,7 +189,6 @@ mod tests {
         }
     }
 
-
     #[tokio::test]
     async fn test_cache_initialization() {
         let provider = Provider::OpenAI {
