@@ -83,6 +83,8 @@ impl ProviderService for ForgeProviderService {
 
         // Models not in cache, fetch from client
         let client = self.client(provider).await?;
+
+        // TODO: we should retry if error is transient
         let models = client.models().await?;
 
         // Cache the models
