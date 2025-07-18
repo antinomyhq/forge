@@ -42,7 +42,7 @@ impl ClientConfig {
 /// Specifies the DNS resolver to use for the client.
 /// If `None`, the default system resolver will be used.
 #[derive(Debug, Clone, Default)]
-pub enum DnsResolver {
+enum DnsResolver {
     #[default]
     Gai,
     Hickory,
