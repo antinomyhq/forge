@@ -2,12 +2,12 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::infra::WalkerInfra;
+use crate::utils::assert_absolute_path;
+use crate::{FileInfoInfra, FileReaderInfra};
 use anyhow::Context;
 use forge_app::{FsSearchService, Match, MatchResult, SearchResult, Walker};
 use grep_searcher::sinks::UTF8;
-
-use crate::infra::WalkerInfra;
-use crate::utils::assert_absolute_path;
 
 // Using FSSearchInput from forge_domain
 
@@ -37,9 +37,9 @@ impl FSSearchHelper<'_> {
         })
     }
 
-    async fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
+    async fn match_file_path(&self, path: &Path, meta_infra: &impl FileInfoInfra) -> anyhow::Result<bool> {
         // Don't process directories
-        if tokio::fs::metadata(path).await?.is_dir() {
+        if !meta_infra.is_file(path).await? {
             return Ok(false);
         }
 
@@ -66,18 +66,18 @@ impl FSSearchHelper<'_> {
 /// patterns across projects. For large pages, returns the first 200
 /// lines and stores the complete content in a temporary file for
 /// subsequent access.
-pub struct ForgeFsSearch<W: WalkerInfra> {
-    walker: Arc<W>,
+pub struct ForgeFsSearch<W> {
+    infra: Arc<W>,
 }
 
-impl<W: WalkerInfra> ForgeFsSearch<W> {
-    pub fn new(walker: Arc<W>) -> Self {
-        Self { walker }
+impl<W> ForgeFsSearch<W> {
+    pub fn new(infra: Arc<W>) -> Self {
+        Self { infra }
     }
 }
 
 #[async_trait::async_trait]
-impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
+impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for ForgeFsSearch<W> {
     async fn search(
         &self,
         input_path: String,
@@ -108,7 +108,7 @@ impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
         let mut matches = Vec::new();
 
         for path in paths {
-            if !helper.match_file_path(path.as_path()).await? {
+            if !helper.match_file_path(path.as_path(), self.infra.as_ref()).await? {
                 continue;
             }
 
@@ -123,7 +123,9 @@ impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
                 let mut searcher = grep_searcher::Searcher::new();
                 let path_string = path.to_string_lossy().to_string();
 
-                let content = tokio::fs::read(&path)
+                let content = self
+                    .infra
+                    .read(&path)
                     .await
                     .map(|v| String::from_utf8_lossy(&v).to_string())?;
                 let mut found_match = false;
@@ -161,14 +163,13 @@ impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
     }
 }
 
-impl<W: WalkerInfra> ForgeFsSearch<W> {
+impl<W: WalkerInfra + FileInfoInfra> ForgeFsSearch<W> {
     async fn retrieve_file_paths(&self, dir: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
-        let metadata = tokio::fs::metadata(dir).await?;
-        if metadata.is_dir() {
+        if !self.infra.is_file(dir).await? {
             // note: Paths needs mutable to avoid flaky tests.
             #[allow(unused_mut)]
             let mut paths = self
-                .walker
+                .infra
                 .walk(Walker::unlimited().cwd(dir.to_path_buf()))
                 .await
                 .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?
@@ -193,14 +194,55 @@ mod test {
     use std::collections::HashSet;
     use std::sync::Arc;
 
-    use forge_app::{WalkedFile, Walker};
-    use tokio::fs;
-
     use super::*;
     use crate::utils::TempDir;
+    use forge_app::{WalkedFile, Walker};
+    use forge_fs::FileInfo;
+    use tokio::fs;
 
     // Mock WalkerInfra for testing
     struct MockInfra;
+
+    #[async_trait::async_trait]
+    impl FileReaderInfra for MockInfra {
+        async fn read_utf8(&self, _path: &Path) -> anyhow::Result<String> {
+            unimplemented!()
+        }
+
+        async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
+            fs::read(path)
+                .await
+                .with_context(|| format!("Failed to read file '{}'", path.display()))
+        }
+
+        async fn range_read_utf8(
+            &self,
+            _path: &Path,
+            _start_line: u64,
+            _end_line: u64,
+        ) -> anyhow::Result<(String, FileInfo)> {
+            unimplemented!()
+        }
+    }
+    
+    #[async_trait::async_trait]
+    impl FileInfoInfra for MockInfra {
+        async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
+            let metadata = tokio::fs::metadata(path).await;
+            match metadata {
+                Ok(meta) => Ok(meta.is_file()),
+                Err(_) => Ok(false), // If the file doesn't exist, return false
+            }
+        }
+
+        async fn exists(&self, _path: &Path) -> anyhow::Result<bool> {
+            unreachable!()
+        }
+
+        async fn file_size(&self, _path: &Path) -> anyhow::Result<u64> {
+            unreachable!()
+        }
+    }
 
     #[async_trait::async_trait]
     impl WalkerInfra for MockInfra {
