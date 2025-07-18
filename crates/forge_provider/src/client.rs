@@ -44,6 +44,7 @@ impl Client {
             ))
             .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
             .redirect(Policy::limited(timeout_config.max_redirects))
+            .hickory_dns(true) // Enable hickory DNS
             .build()?;
 
         let inner = match &provider {
