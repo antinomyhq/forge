@@ -42,13 +42,9 @@ pub enum DnsResolver {
     Hickory,
 }
 
-/// Configure the appropriate DNS resolver for the client.
-impl From<DnsResolver> for reqwest::ClientBuilder {
-    fn from(dns_resolver: DnsResolver) -> Self {
-        match dns_resolver {
-            DnsResolver::Gai => reqwest::ClientBuilder::new().no_hickory_dns(),
-            DnsResolver::Hickory => reqwest::ClientBuilder::new().hickory_dns(true),
-        }
+impl DnsResolver {
+    pub fn is_hickory(&self) -> bool {
+        matches!(self, DnsResolver::Hickory)
     }
 }
 
@@ -69,7 +65,7 @@ impl Client {
         let timeout_config = config.timeout_config;
         let retry_config = config.retry_config;
 
-        let client = reqwest::ClientBuilder::from(config.dns_resolver)
+        let client = reqwest::ClientBuilder::new()
             .connect_timeout(std::time::Duration::from_secs(
                 timeout_config.connect_timeout,
             ))
@@ -79,6 +75,7 @@ impl Client {
             ))
             .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
             .redirect(Policy::limited(timeout_config.max_redirects))
+            .hickory_dns(config.dns_resolver.is_hickory())
             .build()?;
 
         let inner = match &provider {
