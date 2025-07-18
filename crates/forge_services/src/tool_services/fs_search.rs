@@ -2,12 +2,13 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::infra::WalkerInfra;
-use crate::utils::assert_absolute_path;
-use crate::{FileInfoInfra, FileReaderInfra};
 use anyhow::Context;
 use forge_app::{FsSearchService, Match, MatchResult, SearchResult, Walker};
 use grep_searcher::sinks::UTF8;
+
+use crate::infra::WalkerInfra;
+use crate::utils::assert_absolute_path;
+use crate::{FileInfoInfra, FileReaderInfra};
 
 // Using FSSearchInput from forge_domain
 
@@ -37,7 +38,11 @@ impl FSSearchHelper<'_> {
         })
     }
 
-    async fn match_file_path(&self, path: &Path, meta_infra: &impl FileInfoInfra) -> anyhow::Result<bool> {
+    async fn match_file_path(
+        &self,
+        path: &Path,
+        meta_infra: &impl FileInfoInfra,
+    ) -> anyhow::Result<bool> {
         // Don't process directories
         if !meta_infra.is_file(path).await? {
             return Ok(false);
@@ -108,7 +113,10 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
         let mut matches = Vec::new();
 
         for path in paths {
-            if !helper.match_file_path(path.as_path(), self.infra.as_ref()).await? {
+            if !helper
+                .match_file_path(path.as_path(), self.infra.as_ref())
+                .await?
+            {
                 continue;
             }
 
@@ -194,11 +202,12 @@ mod test {
     use std::collections::HashSet;
     use std::sync::Arc;
 
-    use super::*;
-    use crate::utils::TempDir;
     use forge_app::{WalkedFile, Walker};
     use forge_fs::FileInfo;
     use tokio::fs;
+
+    use super::*;
+    use crate::utils::TempDir;
 
     // Mock WalkerInfra for testing
     struct MockInfra;
@@ -224,7 +233,7 @@ mod test {
             unimplemented!()
         }
     }
-    
+
     #[async_trait::async_trait]
     impl FileInfoInfra for MockInfra {
         async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
