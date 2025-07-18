@@ -94,26 +94,27 @@ impl ToolCallFull {
             // finalize the previous tool call
             if let Some(new_call_id) = &part.call_id {
                 if let Some(ref existing_call_id) = current_call_id
-                    && existing_call_id.as_str() != new_call_id.as_str() {
-                        // Finalize the previous tool call
-                        if let Some(tool_name) = current_tool_name.take() {
-                            tool_calls.push(ToolCallFull {
-                                name: tool_name,
-                                call_id: Some(existing_call_id.clone()),
-                                arguments: if current_arguments.is_empty() {
-                                    Value::default()
-                                } else {
-                                    serde_json::from_str(&current_arguments).map_err(|error| {
-                                        Error::ToolCallArgument {
-                                            error,
-                                            args: current_arguments.clone(),
-                                        }
-                                    })?
-                                },
-                            });
-                        }
-                        current_arguments.clear();
+                    && existing_call_id.as_str() != new_call_id.as_str()
+                {
+                    // Finalize the previous tool call
+                    if let Some(tool_name) = current_tool_name.take() {
+                        tool_calls.push(ToolCallFull {
+                            name: tool_name,
+                            call_id: Some(existing_call_id.clone()),
+                            arguments: if current_arguments.is_empty() {
+                                Value::default()
+                            } else {
+                                serde_json::from_str(&current_arguments).map_err(|error| {
+                                    Error::ToolCallArgument {
+                                        error,
+                                        args: current_arguments.clone(),
+                                    }
+                                })?
+                            },
+                        });
                     }
+                    current_arguments.clear();
+                }
                 current_call_id = Some(new_call_id.clone());
             }
 
