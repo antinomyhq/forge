@@ -93,8 +93,8 @@ impl ToolCallFull {
             // If we encounter a new call_id that's different from the current one,
             // finalize the previous tool call
             if let Some(new_call_id) = &part.call_id {
-                if let Some(ref existing_call_id) = current_call_id {
-                    if existing_call_id.as_str() != new_call_id.as_str() {
+                if let Some(ref existing_call_id) = current_call_id
+                    && existing_call_id.as_str() != new_call_id.as_str() {
                         // Finalize the previous tool call
                         if let Some(tool_name) = current_tool_name.take() {
                             tool_calls.push(ToolCallFull {
@@ -114,7 +114,6 @@ impl ToolCallFull {
                         }
                         current_arguments.clear();
                     }
-                }
                 current_call_id = Some(new_call_id.clone());
             }
 
