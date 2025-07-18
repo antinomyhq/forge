@@ -6,7 +6,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
     ResultStream, RetryConfig,
 };
-use forge_provider::Client;
+use forge_provider::{Client, ClientConfig, DnsResolver};
 use tokio::sync::Mutex;
 
 use crate::EnvironmentInfra;
@@ -41,12 +41,10 @@ impl ForgeProviderService {
             Some(client) => Ok(client.clone()),
             None => {
                 // Client doesn't exist, create new one
-                let client = Client::new(
-                    provider,
-                    self.retry_config.clone(),
-                    &self.version,
-                    &self.timeout_config,
-                )?;
+                let config =
+                    ClientConfig::new(self.retry_config.clone(), self.timeout_config.clone())
+                        .dns_resolver(DnsResolver::Hickory);
+                let client = Client::new(provider, config, &self.version)?;
 
                 // Cache the new client
                 *client_guard = Some(client.clone());

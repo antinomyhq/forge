@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
+use derive_setters::Setters;
 use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
@@ -14,6 +15,42 @@ use tokio_stream::StreamExt;
 use crate::anthropic::Anthropic;
 use crate::forge_provider::ForgeProvider;
 use crate::retry::into_retry;
+
+#[derive(Setters)]
+pub struct ClientConfig {
+    pub retry_config: Arc<RetryConfig>,
+    pub timeout_config: HttpConfig,
+    pub dns_resolver: DnsResolver,
+}
+
+impl ClientConfig {
+    pub fn new(retry_config: Arc<RetryConfig>, timeout_config: HttpConfig) -> Self {
+        Self {
+            retry_config,
+            timeout_config,
+            dns_resolver: DnsResolver::default(),
+        }
+    }
+}
+
+/// Specifies the DNS resolver to use for the client.
+/// If `None`, the default system resolver will be used.
+#[derive(Debug, Clone, Default)]
+pub enum DnsResolver {
+    #[default]
+    Gai,
+    Hickory,
+}
+
+/// Configure the appropriate DNS resolver for the client.
+impl From<DnsResolver> for reqwest::ClientBuilder {
+    fn from(dns_resolver: DnsResolver) -> Self {
+        match dns_resolver {
+            DnsResolver::Gai => reqwest::ClientBuilder::new().no_hickory_dns(),
+            DnsResolver::Hickory => reqwest::ClientBuilder::new().hickory_dns(true),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Client {
@@ -28,13 +65,11 @@ enum InnerClient {
 }
 
 impl Client {
-    pub fn new(
-        provider: Provider,
-        retry_config: Arc<RetryConfig>,
-        version: impl ToString,
-        timeout_config: &HttpConfig,
-    ) -> Result<Self> {
-        let client = reqwest::Client::builder()
+    pub fn new(provider: Provider, config: ClientConfig, version: impl ToString) -> Result<Self> {
+        let timeout_config = config.timeout_config;
+        let retry_config = config.retry_config;
+
+        let client = reqwest::ClientBuilder::from(config.dns_resolver)
             .connect_timeout(std::time::Duration::from_secs(
                 timeout_config.connect_timeout,
             ))
@@ -44,7 +79,6 @@ impl Client {
             ))
             .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
             .redirect(Policy::limited(timeout_config.max_redirects))
-            .hickory_dns(true) // Enable hickory DNS
             .build()?;
 
         let inner = match &provider {
@@ -145,19 +179,25 @@ mod tests {
 
     use super::*;
 
+    impl Default for ClientConfig {
+        fn default() -> Self {
+            Self {
+                retry_config: Arc::new(RetryConfig::default()),
+                timeout_config: HttpConfig::default(),
+                dns_resolver: DnsResolver::default(),
+            }
+        }
+    }
+
+
     #[tokio::test]
     async fn test_cache_initialization() {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(
-            provider,
-            Arc::new(RetryConfig::default()),
-            "dev",
-            &HttpConfig::default(),
-        )
-        .unwrap();
+        let config = ClientConfig::default();
+        let client = Client::new(provider, config, "dev").unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -170,13 +210,8 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(
-            provider,
-            Arc::new(RetryConfig::default()),
-            "dev",
-            &HttpConfig::default(),
-        )
-        .unwrap();
+        let config = ClientConfig::default();
+        let client = Client::new(provider, config, "dev").unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)
