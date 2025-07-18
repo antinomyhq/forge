@@ -66,7 +66,7 @@ mod tests {
                 ContextMessage::Tool(tool_result),
             ],
             tools: vec![
-                forge_app::domain::ToolDefinition::new("test_tool").description("A test tool")
+                forge_app::domain::ToolDefinition::new("test_tool").description("A test tool"),
             ],
             tool_choice: None,
             max_tokens: None,

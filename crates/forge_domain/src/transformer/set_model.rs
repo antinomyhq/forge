@@ -18,10 +18,11 @@ impl Transformer for SetModel {
     fn transform(&mut self, mut value: Self::Value) -> Self::Value {
         // Set the model for all user messages that don't already have a model set
         for message in value.messages.iter_mut() {
-            if let crate::ContextMessage::Text(ref mut text_msg) = message {
-                if text_msg.role == crate::Role::User && text_msg.model.is_none() {
-                    text_msg.model = Some(self.model.clone());
-                }
+            if let crate::ContextMessage::Text(text_msg) = message
+                && text_msg.role == crate::Role::User
+                && text_msg.model.is_none()
+            {
+                text_msg.model = Some(self.model.clone());
             }
         }
         value

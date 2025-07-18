@@ -17,8 +17,12 @@ pub enum Error {
     #[error("{0}")]
     EToolCallArgument(ToolCallArgumentError),
 
-    #[error("JSON serialization/deserialization error: {0}")]
-    ToolCallArgument(serde_json::Error),
+    #[error("JSON deserialization error: {error}")]
+    #[from(skip)]
+    ToolCallArgument {
+        error: serde_json::Error,
+        args: String,
+    },
 
     #[error("Invalid tool call XML: {0}")]
     #[from(skip)]
@@ -77,5 +81,21 @@ impl std::fmt::Display for ToolCallArgumentError {
             writeln!(f, "- {error}")?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use serde_json::Value;
+
+    use crate::Error;
+
+    #[test]
+    fn test_debug_serde_error() {
+        let args = "{a: 1}";
+        let serde_error = serde_json::from_str::<Value>(&args).unwrap_err();
+        let a = Error::ToolCallArgument { error: serde_error, args: args.to_string() };
+        let a = anyhow::anyhow!(a);
+        eprintln!("{:?}", a.root_cause());
     }
 }

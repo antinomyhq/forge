@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_app::TemplateService;
 use futures::future;
-use handlebars::{no_escape, Handlebars};
+use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
 use tokio::sync::RwLock;
 
@@ -100,7 +100,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> TemplateService for ForgeTemplateSer
                     .and_then(|name| name.to_str())
                     .map(|name| guard.get_template(name).is_none())
                     .unwrap_or(true) // Keep files with invalid names for error
-                                     // handling
+                // handling
             })
             .collect();
         drop(guard);

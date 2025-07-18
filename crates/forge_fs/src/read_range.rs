@@ -141,15 +141,21 @@ mod test {
         assert_eq!(info.total_lines, 10);
 
         // Test invalid ranges
-        assert!(crate::ForgeFS::read_range_utf8(file.path(), 8, 5)
-            .await
-            .is_err());
-        assert!(crate::ForgeFS::read_range_utf8(file.path(), 15, 10)
-            .await
-            .is_err());
-        assert!(crate::ForgeFS::read_range_utf8(file.path(), 0, 5)
-            .await
-            .is_err());
+        assert!(
+            crate::ForgeFS::read_range_utf8(file.path(), 8, 5)
+                .await
+                .is_err()
+        );
+        assert!(
+            crate::ForgeFS::read_range_utf8(file.path(), 15, 10)
+                .await
+                .is_err()
+        );
+        assert!(
+            crate::ForgeFS::read_range_utf8(file.path(), 0, 5)
+                .await
+                .is_err()
+        );
 
         Ok(())
     }

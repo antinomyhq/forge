@@ -250,11 +250,7 @@ impl From<Context> for Request {
                     .into_iter()
                     .map(Tool::from)
                     .collect::<Vec<_>>();
-                if tools.is_empty() {
-                    None
-                } else {
-                    Some(tools)
-                }
+                if tools.is_empty() { None } else { Some(tools) }
             },
             model: None,
             prompt: Default::default(),
@@ -357,10 +353,10 @@ impl From<ContextMessage> for Message {
 
 impl From<ToolResult> for MessageContent {
     fn from(result: ToolResult) -> Self {
-        if result.output.values.len() == 1 {
-            if let Some(text) = result.output.as_str() {
-                return MessageContent::Text(text.to_string());
-            }
+        if result.output.values.len() == 1
+            && let Some(text) = result.output.as_str()
+        {
+            return MessageContent::Text(text.to_string());
         }
         let mut parts = Vec::new();
         for value in result.output.values.into_iter() {

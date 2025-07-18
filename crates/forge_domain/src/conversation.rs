@@ -413,7 +413,7 @@ mod tests {
         assert_eq!(agent2.temperature, Some(Temperature::new(0.7).unwrap()));
         assert_eq!(agent2.max_tokens, Some(MaxTokens::new(4000).unwrap()));
         assert_eq!(agent2.tool_supported, Some(true)); // Workflow setting is
-                                                       // applied
+        // applied
     }
 
     #[test]
@@ -470,16 +470,20 @@ mod tests {
             .unwrap();
 
         if other_agent.subscribe.is_some() {
-            assert!(!other_agent
-                .subscribe
-                .as_ref()
-                .unwrap()
-                .contains(&"cmd1".to_string()));
-            assert!(!other_agent
-                .subscribe
-                .as_ref()
-                .unwrap()
-                .contains(&"cmd2".to_string()));
+            assert!(
+                !other_agent
+                    .subscribe
+                    .as_ref()
+                    .unwrap()
+                    .contains(&"cmd1".to_string())
+            );
+            assert!(
+                !other_agent
+                    .subscribe
+                    .as_ref()
+                    .unwrap()
+                    .contains(&"cmd2".to_string())
+            );
         }
     }
     #[test]
@@ -901,11 +905,13 @@ mod tests {
         // Assert
         assert_eq!(actual.len(), 1);
         assert_eq!(actual[0].id, AgentId::new("agent1"));
-        assert!(actual[0]
-            .subscribe
-            .as_ref()
-            .unwrap()
-            .contains(&"event1".to_string()));
+        assert!(
+            actual[0]
+                .subscribe
+                .as_ref()
+                .unwrap()
+                .contains(&"event1".to_string())
+        );
     }
 
     #[test]

@@ -102,19 +102,18 @@ fn create_agents_section(conversation: &Conversation) -> Element {
         }
 
         // Add subscriptions if available
-        if let Some(subscriptions) = &agent.subscribe {
-            if !subscriptions.is_empty() {
-                let subscriptions_list =
-                    subscriptions.iter().fold(Element::new("ul"), |ul, sub| {
-                        ul.append(Element::new("li").text(sub))
-                    });
+        if let Some(subscriptions) = &agent.subscribe
+            && !subscriptions.is_empty()
+        {
+            let subscriptions_list = subscriptions.iter().fold(Element::new("ul"), |ul, sub| {
+                ul.append(Element::new("li").text(sub))
+            });
 
-                agent_div = agent_div.append(
-                    Element::new("div")
-                        .append(Element::new("strong").text("Subscriptions"))
-                        .append(subscriptions_list),
-                );
-            }
+            agent_div = agent_div.append(
+                Element::new("div")
+                    .append(Element::new("strong").text("Subscriptions"))
+                    .append(subscriptions_list),
+            );
         }
 
         // Add temperature if available

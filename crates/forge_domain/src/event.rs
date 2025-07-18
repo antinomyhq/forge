@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use derive_setters::Setters;
-use schemars::{schema_for, JsonSchema};
+use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

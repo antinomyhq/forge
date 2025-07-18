@@ -6,17 +6,17 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Workflow, API,
+    API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    InterruptionReason, Model, ModelId, Workflow,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
+use inquire::Select;
 use inquire::error::InquireError;
 use inquire::ui::{RenderConfig, Styled};
-use inquire::Select;
 use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
@@ -28,7 +28,7 @@ use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::state::UIState;
 use crate::update::on_update;
-use crate::{banner, tracker, TRACKER};
+use crate::{TRACKER, banner, tracker};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -214,11 +214,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     match result {
                         Ok(exit) => if exit {return Ok(())},
                         Err(error) => {
-                            if let Some(conversation_id) = self.state.conversation_id.as_ref() {
-                                if let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten() {
+                            if let Some(conversation_id) = self.state.conversation_id.as_ref()
+                                && let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten() {
                                     TRACKER.set_conversation(conversation).await;
                                 }
-                            }
                             tracker::error(&error);
                             tracing::error!(error = ?error);
                             self.spinner.stop(None)?;
@@ -331,10 +330,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
 
                 // Add user information if available
-                if let Ok(config) = self.api.app_config().await {
-                    if let Some(login_info) = &config.key_info {
-                        info = info.extend(Info::from(login_info));
-                    }
+                if let Ok(config) = self.api.app_config().await
+                    && let Some(login_info) = &config.key_info
+                {
+                    info = info.extend(Info::from(login_info));
                 }
 
                 self.writeln(info)?;
@@ -453,7 +452,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let compaction_result = self.api.compact_conversation(&conversation_id).await?;
         let token_reduction = compaction_result.token_reduction_percentage();
         let message_reduction = compaction_result.message_reduction_percentage();
-        let content = TitleFormat::action(format!("Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"));
+        let content = TitleFormat::action(format!(
+            "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
+        ));
         self.writeln(content)?;
         Ok(())
     }
@@ -775,7 +776,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 self.spinner.start(Some("Retrying"))?;
                 self.writeln(TitleFormat::error(cause.as_str()))?;
-                tracing::error!(error = ?cause);
             }
             ChatResponse::Interrupt { reason } => {
                 self.spinner.stop(None)?;

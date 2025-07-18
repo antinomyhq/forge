@@ -42,22 +42,22 @@ impl ForgeEnvironmentInfra {
         let mut config = RetryConfig::default();
 
         // Override with environment variables if available
-        if let Ok(val) = std::env::var("FORGE_RETRY_INITIAL_BACKOFF_MS") {
-            if let Ok(parsed) = val.parse::<u64>() {
-                config.initial_backoff_ms = parsed;
-            }
+        if let Ok(val) = std::env::var("FORGE_RETRY_INITIAL_BACKOFF_MS")
+            && let Ok(parsed) = val.parse::<u64>()
+        {
+            config.initial_backoff_ms = parsed;
         }
 
-        if let Ok(val) = std::env::var("FORGE_RETRY_BACKOFF_FACTOR") {
-            if let Ok(parsed) = val.parse::<u64>() {
-                config.backoff_factor = parsed;
-            }
+        if let Ok(val) = std::env::var("FORGE_RETRY_BACKOFF_FACTOR")
+            && let Ok(parsed) = val.parse::<u64>()
+        {
+            config.backoff_factor = parsed;
         }
 
-        if let Ok(val) = std::env::var("FORGE_RETRY_MAX_ATTEMPTS") {
-            if let Ok(parsed) = val.parse::<usize>() {
-                config.max_retry_attempts = parsed;
-            }
+        if let Ok(val) = std::env::var("FORGE_RETRY_MAX_ATTEMPTS")
+            && let Ok(parsed) = val.parse::<usize>()
+        {
+            config.max_retry_attempts = parsed;
         }
 
         if let Ok(val) = std::env::var("FORGE_RETRY_STATUS_CODES") {
@@ -75,30 +75,30 @@ impl ForgeEnvironmentInfra {
 
     fn resolve_timeout_config(&self) -> forge_domain::HttpConfig {
         let mut config = forge_domain::HttpConfig::default();
-        if let Ok(val) = std::env::var("FORGE_HTTP_CONNECT_TIMEOUT") {
-            if let Ok(parsed) = val.parse::<u64>() {
-                config.connect_timeout = parsed;
-            }
+        if let Ok(val) = std::env::var("FORGE_HTTP_CONNECT_TIMEOUT")
+            && let Ok(parsed) = val.parse::<u64>()
+        {
+            config.connect_timeout = parsed;
         }
-        if let Ok(val) = std::env::var("FORGE_HTTP_READ_TIMEOUT") {
-            if let Ok(parsed) = val.parse::<u64>() {
-                config.read_timeout = parsed;
-            }
+        if let Ok(val) = std::env::var("FORGE_HTTP_READ_TIMEOUT")
+            && let Ok(parsed) = val.parse::<u64>()
+        {
+            config.read_timeout = parsed;
         }
-        if let Ok(val) = std::env::var("FORGE_HTTP_POOL_IDLE_TIMEOUT") {
-            if let Ok(parsed) = val.parse::<u64>() {
-                config.pool_idle_timeout = parsed;
-            }
+        if let Ok(val) = std::env::var("FORGE_HTTP_POOL_IDLE_TIMEOUT")
+            && let Ok(parsed) = val.parse::<u64>()
+        {
+            config.pool_idle_timeout = parsed;
         }
-        if let Ok(val) = std::env::var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST") {
-            if let Ok(parsed) = val.parse::<usize>() {
-                config.pool_max_idle_per_host = parsed;
-            }
+        if let Ok(val) = std::env::var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST")
+            && let Ok(parsed) = val.parse::<usize>()
+        {
+            config.pool_max_idle_per_host = parsed;
         }
-        if let Ok(val) = std::env::var("FORGE_HTTP_MAX_REDIRECTS") {
-            if let Ok(parsed) = val.parse::<usize>() {
-                config.max_redirects = parsed;
-            }
+        if let Ok(val) = std::env::var("FORGE_HTTP_MAX_REDIRECTS")
+            && let Ok(parsed) = val.parse::<usize>()
+        {
+            config.max_redirects = parsed;
         }
 
         config
@@ -173,7 +173,7 @@ mod tests {
     use std::path::PathBuf;
     use std::{env, fs};
 
-    use tempfile::{tempdir, TempDir};
+    use tempfile::{TempDir, tempdir};
 
     use super::*;
 
@@ -230,7 +230,9 @@ mod tests {
             ("a", "TEST_KEY4=ROOT_VAL"),
         ]);
 
-        env::set_var("TEST_KEY4", "STD_ENV_VAL");
+        unsafe {
+            env::set_var("TEST_KEY4", "STD_ENV_VAL");
+        }
 
         ForgeEnvironmentInfra::dot_env(&cwd);
 
@@ -252,7 +254,9 @@ mod tests {
     fn test_custom_scenario_with_std_env_precedence() {
         let (_root, cwd) = setup_envs(vec![("a/b", "A2=1"), ("a", "A2=2")]);
 
-        env::set_var("A2", "STD_ENV");
+        unsafe {
+            env::set_var("A2", "STD_ENV");
+        }
 
         ForgeEnvironmentInfra::dot_env(&cwd);
 
@@ -264,10 +268,12 @@ mod tests {
         // Test 1: Default consistency
         {
             // Clean up any existing environment variables first
-            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
-            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
-            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
-            env::remove_var("FORGE_RETRY_STATUS_CODES");
+            unsafe {
+                env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+                env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+                env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+                env::remove_var("FORGE_RETRY_STATUS_CODES");
+            }
 
             // Verify that the environment service uses the same default as RetryConfig
             let env_service = ForgeEnvironmentInfra::new(false);
@@ -275,14 +281,12 @@ mod tests {
             let default_retry_config = RetryConfig::default();
 
             assert_eq!(
-                retry_config_from_env.max_retry_attempts,
-                default_retry_config.max_retry_attempts,
+                retry_config_from_env.max_retry_attempts, default_retry_config.max_retry_attempts,
                 "Environment service and RetryConfig should have consistent default max_retry_attempts"
             );
 
             assert_eq!(
-                retry_config_from_env.initial_backoff_ms,
-                default_retry_config.initial_backoff_ms,
+                retry_config_from_env.initial_backoff_ms, default_retry_config.initial_backoff_ms,
                 "Environment service and RetryConfig should have consistent default initial_backoff_ms"
             );
 
@@ -292,8 +296,7 @@ mod tests {
             );
 
             assert_eq!(
-                retry_config_from_env.retry_status_codes,
-                default_retry_config.retry_status_codes,
+                retry_config_from_env.retry_status_codes, default_retry_config.retry_status_codes,
                 "Environment service and RetryConfig should have consistent default retry_status_codes"
             );
         }
@@ -301,16 +304,20 @@ mod tests {
         // Test 2: Environment variable override
         {
             // Clean up any existing environment variables first
-            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
-            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
-            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
-            env::remove_var("FORGE_RETRY_STATUS_CODES");
+            unsafe {
+                env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+                env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+                env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+                env::remove_var("FORGE_RETRY_STATUS_CODES");
+            }
 
             // Set environment variables to override defaults
-            env::set_var("FORGE_RETRY_INITIAL_BACKOFF_MS", "500");
-            env::set_var("FORGE_RETRY_BACKOFF_FACTOR", "3");
-            env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "5");
-            env::set_var("FORGE_RETRY_STATUS_CODES", "429,500,502");
+            unsafe {
+                env::set_var("FORGE_RETRY_INITIAL_BACKOFF_MS", "500");
+                env::set_var("FORGE_RETRY_BACKOFF_FACTOR", "3");
+                env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "5");
+                env::set_var("FORGE_RETRY_STATUS_CODES", "429,500,502");
+            }
 
             let env_service = ForgeEnvironmentInfra::new(false);
             let config = env_service.resolve_retry_config();
@@ -321,23 +328,29 @@ mod tests {
             assert_eq!(config.retry_status_codes, vec![429, 500, 502]);
 
             // Clean up environment variables
-            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
-            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
-            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
-            env::remove_var("FORGE_RETRY_STATUS_CODES");
+            unsafe {
+                env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+                env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+                env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+                env::remove_var("FORGE_RETRY_STATUS_CODES");
+            }
         }
 
         // Test 3: Partial environment variable override
         {
             // Clean up any existing environment variables first
-            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
-            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
-            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
-            env::remove_var("FORGE_RETRY_STATUS_CODES");
+            unsafe {
+                env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+                env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+                env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+                env::remove_var("FORGE_RETRY_STATUS_CODES");
+            }
 
             // Set only some environment variables
-            env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "10");
-            env::set_var("FORGE_RETRY_STATUS_CODES", "503,504");
+            unsafe {
+                env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "10");
+                env::set_var("FORGE_RETRY_STATUS_CODES", "503,504");
+            }
 
             let env_service = ForgeEnvironmentInfra::new(false);
             let config = env_service.resolve_retry_config();
@@ -352,23 +365,29 @@ mod tests {
             assert_eq!(config.backoff_factor, default_config.backoff_factor);
 
             // Clean up environment variables
-            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
-            env::remove_var("FORGE_RETRY_STATUS_CODES");
+            unsafe {
+                env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+                env::remove_var("FORGE_RETRY_STATUS_CODES");
+            }
         }
 
         // Test 4: Invalid environment variable values
         {
             // Clean up any existing environment variables first
-            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
-            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
-            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
-            env::remove_var("FORGE_RETRY_STATUS_CODES");
+            unsafe {
+                env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+                env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+                env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+                env::remove_var("FORGE_RETRY_STATUS_CODES");
+            }
 
             // Set invalid environment variables
-            env::set_var("FORGE_RETRY_INITIAL_BACKOFF_MS", "invalid");
-            env::set_var("FORGE_RETRY_BACKOFF_FACTOR", "not_a_number");
-            env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "abc");
-            env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes,here");
+            unsafe {
+                env::set_var("FORGE_RETRY_INITIAL_BACKOFF_MS", "invalid");
+                env::set_var("FORGE_RETRY_BACKOFF_FACTOR", "not_a_number");
+                env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "abc");
+                env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes,here");
+            }
 
             let env_service = ForgeEnvironmentInfra::new(false);
             let config = env_service.resolve_retry_config();
@@ -381,21 +400,25 @@ mod tests {
             assert_eq!(config.retry_status_codes, default_config.retry_status_codes);
 
             // Clean up environment variables
-            env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
-            env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
-            env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
-            env::remove_var("FORGE_RETRY_STATUS_CODES");
+            unsafe {
+                env::remove_var("FORGE_RETRY_INITIAL_BACKOFF_MS");
+                env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
+                env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
+                env::remove_var("FORGE_RETRY_STATUS_CODES");
+            }
         }
     }
 
     #[test]
     fn test_http_config_environment_variables() {
         // Clean up any existing environment variables first
-        env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
-        env::remove_var("FORGE_HTTP_READ_TIMEOUT");
-        env::remove_var("FORGE_HTTP_POOL_IDLE_TIMEOUT");
-        env::remove_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST");
-        env::remove_var("FORGE_HTTP_MAX_REDIRECTS");
+        unsafe {
+            env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
+            env::remove_var("FORGE_HTTP_READ_TIMEOUT");
+            env::remove_var("FORGE_HTTP_POOL_IDLE_TIMEOUT");
+            env::remove_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST");
+            env::remove_var("FORGE_HTTP_MAX_REDIRECTS");
+        }
 
         // Test default values
         {
@@ -415,11 +438,13 @@ mod tests {
 
         // Test environment variable overrides
         {
-            env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "30");
-            env::set_var("FORGE_HTTP_READ_TIMEOUT", "120");
-            env::set_var("FORGE_HTTP_POOL_IDLE_TIMEOUT", "180");
-            env::set_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST", "10");
-            env::set_var("FORGE_HTTP_MAX_REDIRECTS", "20");
+            unsafe {
+                env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "30");
+                env::set_var("FORGE_HTTP_READ_TIMEOUT", "120");
+                env::set_var("FORGE_HTTP_POOL_IDLE_TIMEOUT", "180");
+                env::set_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST", "10");
+                env::set_var("FORGE_HTTP_MAX_REDIRECTS", "20");
+            }
 
             let env_service = ForgeEnvironmentInfra::new(false);
             let config = env_service.resolve_timeout_config();
@@ -431,16 +456,20 @@ mod tests {
             assert_eq!(config.max_redirects, 20);
 
             // Clean up environment variables
-            env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
-            env::remove_var("FORGE_HTTP_READ_TIMEOUT");
-            env::remove_var("FORGE_HTTP_POOL_IDLE_TIMEOUT");
-            env::remove_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST");
-            env::remove_var("FORGE_HTTP_MAX_REDIRECTS");
+            unsafe {
+                env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
+                env::remove_var("FORGE_HTTP_READ_TIMEOUT");
+                env::remove_var("FORGE_HTTP_POOL_IDLE_TIMEOUT");
+                env::remove_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST");
+                env::remove_var("FORGE_HTTP_MAX_REDIRECTS");
+            }
         }
 
         // Test partial environment variable override (specifically connect_timeout)
         {
-            env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "15");
+            unsafe {
+                env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "15");
+            }
 
             let env_service = ForgeEnvironmentInfra::new(false);
             let config = env_service.resolve_timeout_config();
@@ -459,12 +488,16 @@ mod tests {
             assert_eq!(config.max_redirects, default_config.max_redirects);
 
             // Clean up environment variables
-            env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
+            unsafe {
+                env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
+            }
         }
 
         // Test invalid environment variable values
         {
-            env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "invalid");
+            unsafe {
+                env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "invalid");
+            }
 
             let env_service = ForgeEnvironmentInfra::new(false);
             let config = env_service.resolve_timeout_config();
@@ -474,7 +507,9 @@ mod tests {
             assert_eq!(config.connect_timeout, default_config.connect_timeout);
 
             // Clean up environment variables
-            env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
+            unsafe {
+                env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
+            }
         }
     }
 }

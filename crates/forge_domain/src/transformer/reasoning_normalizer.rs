@@ -26,10 +26,10 @@ impl Transformer for ReasoningNormalizer {
         if !first_assistant_has_reasoning {
             // Remove reasoning details from all assistant messages
             for message in context.messages.iter_mut() {
-                if message.has_role(crate::Role::Assistant) {
-                    if let crate::ContextMessage::Text(ref mut text_msg) = message {
-                        text_msg.reasoning_details = None;
-                    }
+                if message.has_role(crate::Role::Assistant)
+                    && let crate::ContextMessage::Text(text_msg) = message
+                {
+                    text_msg.reasoning_details = None;
                 }
             }
         }

@@ -49,10 +49,10 @@ impl Payload {
         let distinct_id = input.client_id.to_string();
         let event = input.event_name.to_string();
         let mut set = None;
-        if let Some(identity) = input.identity.take() {
-            if let Ok(value) = serde_json::to_value(identity) {
-                set = Some(value);
-            }
+        if let Some(identity) = input.identity.take()
+            && let Ok(value) = serde_json::to_value(identity)
+        {
+            set = Some(value);
         }
 
         if let Ok(Value::Object(map)) = serde_json::to_value(input) {

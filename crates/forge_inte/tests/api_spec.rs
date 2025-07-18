@@ -3,7 +3,7 @@ use std::env;
 use std::path::PathBuf;
 
 use anyhow::Context;
-use forge_api::{ForgeAPI, API};
+use forge_api::{API, ForgeAPI};
 use forge_domain::{ChatRequest, ChatResponse, Event, ModelId};
 use forge_tracker::Tracker;
 use tokio_stream::StreamExt;

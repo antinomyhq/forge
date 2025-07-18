@@ -138,10 +138,10 @@ impl fmt::Display for Info {
 }
 /// Formats a path in zsh style, replacing home directory with ~
 fn format_path_zsh_style(home: &Option<PathBuf>, path: &Path) -> String {
-    if let Some(home) = home {
-        if let Ok(rel_path) = path.strip_prefix(home) {
-            return format!("~/{}", rel_path.display());
-        }
+    if let Some(home) = home
+        && let Ok(rel_path) = path.strip_prefix(home)
+    {
+        return format!("~/{}", rel_path.display());
     }
     path.display().to_string()
 }

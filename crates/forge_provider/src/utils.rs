@@ -1,5 +1,5 @@
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::StatusCode;
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 /// Helper function to format HTTP request/response context for logging and
 /// error reporting

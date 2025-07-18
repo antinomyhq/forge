@@ -16,10 +16,10 @@ impl<S> ForgeFileWriteService<S> {
     // To ensure the path is valid, create parent directories for the given file
     // if the file did not exist.
     async fn create_parent_dirs(&self, path: &Path) -> anyhow::Result<()> {
-        if !forge_fs::ForgeFS::exists(path) {
-            if let Some(parent) = path.parent() {
-                forge_fs::ForgeFS::create_dir_all(parent).await?;
-            }
+        if !forge_fs::ForgeFS::exists(path)
+            && let Some(parent) = path.parent()
+        {
+            forge_fs::ForgeFS::create_dir_all(parent).await?;
         }
         Ok(())
     }

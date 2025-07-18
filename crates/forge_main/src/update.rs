@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use colored::Colorize;
-use forge_api::{Update, API};
+use forge_api::{API, Update};
 use forge_tracker::VERSION;
-use update_informer::{registry, Check, Version};
+use update_informer::{Check, Version, registry};
 
 /// Package name for forge on npm.
 const FORGE_NPM_PACKAGE: &str = "forgecode";
@@ -73,10 +73,10 @@ pub async fn on_update(api: Arc<impl API>, update: Option<&Update>) {
     let informer =
         update_informer::new(registry::Npm, FORGE_NPM_PACKAGE, VERSION).interval(frequency.into());
 
-    if let Some(version) = informer.check_version().ok().flatten() {
-        if auto_update || confirm_update(version).await {
-            execute_update_command(api).await;
-        }
+    if let Some(version) = informer.check_version().ok().flatten()
+        && (auto_update || confirm_update(version).await)
+    {
+        execute_update_command(api).await;
     }
 }
 

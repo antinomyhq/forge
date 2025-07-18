@@ -7,8 +7,8 @@ use forge_app::domain::{
 };
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
-use reqwest::header::HeaderMap;
 use reqwest::Response;
+use reqwest::header::HeaderMap;
 
 pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;

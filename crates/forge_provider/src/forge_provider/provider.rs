@@ -3,7 +3,7 @@ use derive_builder::Builder;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::StreamExt;
@@ -268,7 +268,7 @@ mod tests {
     use reqwest::Client;
 
     use super::*;
-    use crate::mock_server::{normalize_ports, MockServer};
+    use crate::mock_server::{MockServer, normalize_ports};
 
     fn create_provider(base_url: &str) -> anyhow::Result<ForgeProvider> {
         let provider = Provider::OpenAI {
