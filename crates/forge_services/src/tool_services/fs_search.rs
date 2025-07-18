@@ -17,7 +17,7 @@ struct FSSearchHelper<'a, T> {
     path: &'a str,
     regex: Option<&'a String>,
     file_pattern: Option<&'a String>,
-    infra:  &'a T,
+    infra: &'a T,
 }
 
 impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
@@ -39,10 +39,7 @@ impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
         })
     }
 
-    async fn match_file_path(
-        &self,
-        path: &Path,
-    ) -> anyhow::Result<bool> {
+    async fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
         // Don't process directories
         if !self.infra.is_file(path).await? {
             return Ok(false);
@@ -114,10 +111,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
         let mut matches = Vec::new();
 
         for path in paths {
-            if !helper
-                .match_file_path(path.as_path())
-                .await?
-            {
+            if !helper.match_file_path(path.as_path()).await? {
                 continue;
             }
 
