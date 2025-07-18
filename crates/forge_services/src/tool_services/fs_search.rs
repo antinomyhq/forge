@@ -123,7 +123,9 @@ impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
                 let mut searcher = grep_searcher::Searcher::new();
                 let path_string = path.to_string_lossy().to_string();
 
-                let content = tokio::fs::read_to_string(path).await?;
+                let content = tokio::fs::read(&path)
+                    .await
+                    .map(|v| String::from_utf8_lossy(&v).to_string())?;
                 let mut found_match = false;
                 searcher.search_slice(
                     regex,
@@ -188,6 +190,7 @@ impl<W: WalkerInfra> ForgeFsSearch<W> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
     use std::sync::Arc;
 
     use forge_app::{WalkedFile, Walker};
@@ -350,5 +353,39 @@ mod test {
             .await;
 
         assert!(result.is_err());
+    }
+    #[tokio::test]
+    async fn test_search_converts_binary_files_in_directory() {
+        let fixture = TempDir::new().unwrap();
+
+        // Create a valid UTF-8 file
+        tokio::fs::write(fixture.path().join("valid.txt"), "Hello World")
+            .await
+            .unwrap();
+
+        // Create a binary file with invalid UTF-8 sequence
+        let mut data = b"Hello ".to_vec();
+        data.extend_from_slice(&[0xC0, 0x80]); // Invalid UTF-8 sequence
+        data.extend_from_slice(b" World");
+        tokio::fs::write(fixture.path().join("binary.bin"), &data)
+            .await
+            .unwrap();
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                Some("Hello".to_string()),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Should find matches in both files now (binary file converted with lossy)
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert_eq!(result.matches.len(), 2);
+        let paths: HashSet<_> = result.matches.iter().map(|m| &m.path).collect();
+        assert!(paths.iter().any(|p| p.ends_with("valid.txt")));
+        assert!(paths.iter().any(|p| p.ends_with("binary.bin")));
     }
 }
