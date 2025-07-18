@@ -9,4 +9,4 @@ mod retry;
 mod utils;
 
 // Re-export from builder.rs
-pub use client::{Client, ClientConfig, DnsResolver};
+pub use client::{Client, ClientConfig};

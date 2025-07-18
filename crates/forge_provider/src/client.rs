@@ -20,7 +20,7 @@ use crate::retry::into_retry;
 pub struct ClientConfig {
     pub retry_config: Arc<RetryConfig>,
     pub timeout_config: HttpConfig,
-    pub dns_resolver: DnsResolver,
+    dns_resolver: DnsResolver,
 }
 
 impl ClientConfig {
@@ -30,6 +30,12 @@ impl ClientConfig {
             timeout_config,
             dns_resolver: DnsResolver::default(),
         }
+    }
+
+    /// Configure the client to use Hickory DNS resolver.
+    pub fn use_hickory(mut self) -> Self {
+        self.dns_resolver = DnsResolver::Hickory;
+        self
     }
 }
 
