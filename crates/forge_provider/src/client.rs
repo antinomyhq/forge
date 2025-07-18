@@ -65,7 +65,7 @@ impl Client {
         let timeout_config = config.timeout_config;
         let retry_config = config.retry_config;
 
-        let client = reqwest::ClientBuilder::new()
+        let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(
                 timeout_config.connect_timeout,
             ))
