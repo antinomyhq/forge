@@ -13,13 +13,14 @@ use crate::{FileInfoInfra, FileReaderInfra};
 // Using FSSearchInput from forge_domain
 
 // Helper to handle FSSearchInput functionality
-struct FSSearchHelper<'a> {
+struct FSSearchHelper<'a, T> {
     path: &'a str,
     regex: Option<&'a String>,
     file_pattern: Option<&'a String>,
+    infra:  &'a T,
 }
 
-impl FSSearchHelper<'_> {
+impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
     fn path(&self) -> &str {
         self.path
     }
@@ -41,10 +42,9 @@ impl FSSearchHelper<'_> {
     async fn match_file_path(
         &self,
         path: &Path,
-        meta_infra: &impl FileInfoInfra,
     ) -> anyhow::Result<bool> {
         // Don't process directories
-        if !meta_infra.is_file(path).await? {
+        if !self.infra.is_file(path).await? {
             return Ok(false);
         }
 
@@ -93,6 +93,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
             path: &input_path,
             regex: input_regex.as_ref(),
             file_pattern: file_pattern.as_ref(),
+            infra: self.infra.as_ref(),
         };
 
         let path = Path::new(helper.path());
@@ -114,7 +115,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
 
         for path in paths {
             if !helper
-                .match_file_path(path.as_path(), self.infra.as_ref())
+                .match_file_path(path.as_path())
                 .await?
             {
                 continue;
