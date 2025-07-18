@@ -18,6 +18,7 @@
 - [Quickstart](#quickstart)
 - [Usage Examples](#usage-examples)
 - [Why Forge?](#why-forge)
+- [Project Structure](#project-structure)
 - [Command-Line Options](#command-line-options)
 - [Advanced Configuration](#advanced-configuration)
   - [Provider Configuration](#provider-configuration)
@@ -149,6 +150,66 @@ Forge is designed for developers who want to enhance their workflow with AI assi
 - **Open-source** - Transparent, extensible, and community-driven
 
 Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
+
+## Project Structure
+
+Forge is built using a modular Rust workspace architecture with clearly separated concerns. Here's an overview of the key components:
+
+### Core Architecture
+
+```
+forge/
+├── crates/          # Rust workspace crates
+├── docs/           # Documentation
+├── templates/      # Handlebars templates
+├── plans/          # Development plans
+├── Cargo.toml      # Workspace configuration
+├── forge.yaml      # Main configuration file
+└── README.md       # Project documentation
+```
+
+### Key Crates
+
+#### 🎯 **Entry Point & UI**
+- **`forge_main/`** - CLI entry point, user interface, command parsing
+- **`forge_display/`** - Output formatting, markdown rendering, diff display
+
+#### 🧠 **Core Application**
+- **`forge_app/`** - Main application logic, agent execution, orchestration
+- **`forge_domain/`** - Domain models, type definitions, business logic
+
+#### 🔧 **Service Layer**
+- **`forge_services/`** - Service layer, tool services, business operations
+- **`forge_api/`** - API layer, external interfaces
+
+#### 🤖 **AI Providers**
+- **`forge_provider/`** - AI provider integrations (OpenAI, Anthropic, etc.)
+
+#### 🛠 **Infrastructure**
+- **`forge_infra/`** - Infrastructure concerns (HTTP, filesystem, execution)
+- **`forge_fs/`** - Filesystem utilities and operations
+
+#### 📊 **Monitoring & Utilities**
+- **`forge_tracker/`** - Analytics and tracking
+- **`forge_spinner/`** - Loading spinners
+- **`forge_stream/`** - Stream processing
+- **`forge_walker/`** - Directory traversal
+
+#### 🔨 **Development Tools**
+- **`forge_ci/`** - CI/CD utilities and workflows
+- **`forge_inte/`** - Integration tests
+- **`forge_snaps/`** - Snapshot testing
+- **`forge_template/`** - Template processing
+- **`forge_tool_macros/`** - Tool-related macros
+
+### Configuration Files
+
+- **`forge.yaml`** - Main configuration with agents, tools, and custom rules
+- **`Cargo.toml`** - Workspace definition and dependency management
+- **`.mcp.json`** - Model Context Protocol configuration
+- **`CLAUDE.md`** - Development guidelines for AI assistants
+
+This modular architecture ensures **separation of concerns**, making the codebase maintainable, testable, and extensible.
 
 ## Command-Line Options
 
