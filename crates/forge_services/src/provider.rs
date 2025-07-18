@@ -43,7 +43,7 @@ impl ForgeProviderService {
                 // Client doesn't exist, create new one
                 let config =
                     ClientConfig::new(self.retry_config.clone(), self.timeout_config.clone())
-                        .dns_resolver(DnsResolver::Hickory);
+                        .dns_resolver(DnsResolver::Hickory); // TODO: ideally should be configurable either via env or config
                 let client = Client::new(provider, config, &self.version)?;
 
                 // Cache the new client
