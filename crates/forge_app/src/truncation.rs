@@ -290,8 +290,8 @@ pub struct TruncatedSearchOutput {
     pub end_line: u64,
 }
 
-
-/// Truncates search output based on line limit, using search directory for relative paths
+/// Truncates search output based on line limit, using search directory for
+/// relative paths
 pub fn truncate_search_output(
     output: &[Match],
     start_line: u64,
