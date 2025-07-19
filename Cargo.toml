@@ -69,9 +69,10 @@ proc-macro2 = "1.0"
 quote = "1.0"
 reedline = "0.40.0"
 regex = "1.11.1"
-reqwest = { version = "0.12.12", features = [
+reqwest = { version = "0.12.22", features = [
     "json",
     "rustls-tls",
+    "hickory-dns",
 ], default-features = false }
 reqwest-eventsource = "0.6.0"
 rust-embed = "8.5.0"

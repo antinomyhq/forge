@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
+use derive_setters::Setters;
 use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
@@ -14,6 +15,44 @@ use tokio_stream::StreamExt;
 use crate::anthropic::Anthropic;
 use crate::forge_provider::ForgeProvider;
 use crate::retry::into_retry;
+
+#[derive(Setters)]
+pub struct ClientConfig {
+    pub retry_config: Arc<RetryConfig>,
+    pub timeout_config: HttpConfig,
+    dns_resolver: DnsResolver,
+}
+
+impl ClientConfig {
+    pub fn new(retry_config: Arc<RetryConfig>, timeout_config: HttpConfig) -> Self {
+        Self {
+            retry_config,
+            timeout_config,
+            dns_resolver: DnsResolver::default(),
+        }
+    }
+
+    /// Configure the client to use Hickory DNS resolver.
+    pub fn use_hickory(mut self) -> Self {
+        self.dns_resolver = DnsResolver::Hickory;
+        self
+    }
+}
+
+/// Specifies the DNS resolver to use for the client.
+/// If `None`, the default system resolver will be used.
+#[derive(Debug, Clone, Default)]
+enum DnsResolver {
+    #[default]
+    Gai,
+    Hickory,
+}
+
+impl DnsResolver {
+    pub fn is_hickory(&self) -> bool {
+        matches!(self, DnsResolver::Hickory)
+    }
+}
 
 #[derive(Clone)]
 pub struct Client {
@@ -28,12 +67,10 @@ enum InnerClient {
 }
 
 impl Client {
-    pub fn new(
-        provider: Provider,
-        retry_config: Arc<RetryConfig>,
-        version: impl ToString,
-        timeout_config: &HttpConfig,
-    ) -> Result<Self> {
+    pub fn new(provider: Provider, config: ClientConfig, version: impl ToString) -> Result<Self> {
+        let timeout_config = config.timeout_config;
+        let retry_config = config.retry_config;
+
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(
                 timeout_config.connect_timeout,
@@ -44,6 +81,7 @@ impl Client {
             ))
             .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
             .redirect(Policy::limited(timeout_config.max_redirects))
+            .hickory_dns(config.dns_resolver.is_hickory())
             .build()?;
 
         let inner = match &provider {
@@ -144,19 +182,24 @@ mod tests {
 
     use super::*;
 
+    impl Default for ClientConfig {
+        fn default() -> Self {
+            Self {
+                retry_config: Arc::new(RetryConfig::default()),
+                timeout_config: HttpConfig::default(),
+                dns_resolver: DnsResolver::default(),
+            }
+        }
+    }
+
     #[tokio::test]
     async fn test_cache_initialization() {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(
-            provider,
-            Arc::new(RetryConfig::default()),
-            "dev",
-            &HttpConfig::default(),
-        )
-        .unwrap();
+        let config = ClientConfig::default();
+        let client = Client::new(provider, config, "dev").unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -169,13 +212,8 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = Client::new(
-            provider,
-            Arc::new(RetryConfig::default()),
-            "dev",
-            &HttpConfig::default(),
-        )
-        .unwrap();
+        let config = ClientConfig::default();
+        let client = Client::new(provider, config, "dev").unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)

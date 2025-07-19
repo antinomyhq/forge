@@ -13,8 +13,9 @@ pub struct HttpConfig {
 impl Default for HttpConfig {
     fn default() -> Self {
         Self {
-            connect_timeout: 10,
-            read_timeout: 60 * 5, // 5 minutes
+            connect_timeout: 30, // 30 seconds
+            read_timeout: 900,   /* 15 minutes; this should be in sync with the server function
+                                  * execution timeout */
             pool_idle_timeout: 90,
             pool_max_idle_per_host: 5,
             max_redirects: 10,
