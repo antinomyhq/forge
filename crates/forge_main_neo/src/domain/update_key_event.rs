@@ -7,7 +7,7 @@ use edtui::{EditorEventHandler, EditorMode};
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::domain::spotlight::SpotlightState;
-use crate::domain::{Command, EditorStateExt, State};
+use crate::domain::{Command, ConversationState, EditorStateExt, State};
 
 fn handle_spotlight_input_change(state: &mut State) {
     // Reset selection index when input changes to ensure it's within bounds
@@ -63,6 +63,21 @@ fn handle_spotlight_navigation(
                 // Convert SlashCommand to appropriate Command
                 let command = match selected_cmd {
                     crate::domain::slash_command::SlashCommand::Exit => Command::Exit,
+                    crate::domain::slash_command::SlashCommand::New => {
+                        state.conversation = ConversationState::default();
+                        state.messages.clear();
+                        state.editor.clear();
+                        state.show_spinner = false;
+                        if let Some(ref cancel) = state.chat_stream {
+                            cancel.cancel();
+                            state.chat_stream = None;
+                        };
+                        if let Some(ref timer) = state.timer {
+                            timer.cancel.cancel();
+                            state.timer = None;
+                        }
+                        Command::Empty
+                    }
                     crate::domain::slash_command::SlashCommand::Agent => {
                         // For now, just hide spotlight - proper agent selection would need more UI
                         Command::Empty
