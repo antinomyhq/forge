@@ -470,7 +470,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
-            let allowed_limits_exceeded =
+            let mut allowed_limits_exceeded =
                 self.check_tool_call_failures(&tool_failure_attempts, &tool_calls);
 
             // Process tool calls and update context
@@ -534,6 +534,7 @@ impl<S: AgentService> Orchestrator<S> {
                         empty_tool_call_count,
                         "Forced completion due to repeated empty tool calls"
                     );
+                    allowed_limits_exceeded = true;
                 }
             } else {
                 empty_tool_call_count = 0;
