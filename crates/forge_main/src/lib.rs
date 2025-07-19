@@ -6,6 +6,7 @@ mod info;
 mod input;
 mod model;
 mod prompt;
+mod select;
 mod state;
 mod tools_display;
 pub mod tracker;

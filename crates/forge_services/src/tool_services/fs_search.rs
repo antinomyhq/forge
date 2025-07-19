@@ -8,17 +8,19 @@ use grep_searcher::sinks::UTF8;
 
 use crate::infra::WalkerInfra;
 use crate::utils::assert_absolute_path;
+use crate::{FileInfoInfra, FileReaderInfra};
 
 // Using FSSearchInput from forge_domain
 
 // Helper to handle FSSearchInput functionality
-struct FSSearchHelper<'a> {
+struct FSSearchHelper<'a, T> {
     path: &'a str,
     regex: Option<&'a String>,
     file_pattern: Option<&'a String>,
+    infra: &'a T,
 }
 
-impl FSSearchHelper<'_> {
+impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
     fn path(&self) -> &str {
         self.path
     }
@@ -39,7 +41,7 @@ impl FSSearchHelper<'_> {
 
     async fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
         // Don't process directories
-        if tokio::fs::metadata(path).await?.is_dir() {
+        if !self.infra.is_file(path).await? {
             return Ok(false);
         }
 
@@ -66,18 +68,18 @@ impl FSSearchHelper<'_> {
 /// patterns across projects. For large pages, returns the first 200
 /// lines and stores the complete content in a temporary file for
 /// subsequent access.
-pub struct ForgeFsSearch<W: WalkerInfra> {
-    walker: Arc<W>,
+pub struct ForgeFsSearch<W> {
+    infra: Arc<W>,
 }
 
-impl<W: WalkerInfra> ForgeFsSearch<W> {
-    pub fn new(walker: Arc<W>) -> Self {
-        Self { walker }
+impl<W> ForgeFsSearch<W> {
+    pub fn new(infra: Arc<W>) -> Self {
+        Self { infra }
     }
 }
 
 #[async_trait::async_trait]
-impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
+impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for ForgeFsSearch<W> {
     async fn search(
         &self,
         input_path: String,
@@ -88,6 +90,7 @@ impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
             path: &input_path,
             regex: input_regex.as_ref(),
             file_pattern: file_pattern.as_ref(),
+            infra: self.infra.as_ref(),
         };
 
         let path = Path::new(helper.path());
@@ -123,7 +126,11 @@ impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
                 let mut searcher = grep_searcher::Searcher::new();
                 let path_string = path.to_string_lossy().to_string();
 
-                let content = tokio::fs::read_to_string(path).await?;
+                let content = self
+                    .infra
+                    .read(&path)
+                    .await
+                    .map(|v| String::from_utf8_lossy(&v).to_string())?;
                 let mut found_match = false;
                 searcher.search_slice(
                     regex,
@@ -159,14 +166,13 @@ impl<W: WalkerInfra> FsSearchService for ForgeFsSearch<W> {
     }
 }
 
-impl<W: WalkerInfra> ForgeFsSearch<W> {
+impl<W: WalkerInfra + FileInfoInfra> ForgeFsSearch<W> {
     async fn retrieve_file_paths(&self, dir: &Path) -> anyhow::Result<Vec<std::path::PathBuf>> {
-        let metadata = tokio::fs::metadata(dir).await?;
-        if metadata.is_dir() {
+        if !self.infra.is_file(dir).await? {
             // note: Paths needs mutable to avoid flaky tests.
             #[allow(unused_mut)]
             let mut paths = self
-                .walker
+                .infra
                 .walk(Walker::unlimited().cwd(dir.to_path_buf()))
                 .await
                 .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?
@@ -188,9 +194,11 @@ impl<W: WalkerInfra> ForgeFsSearch<W> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
     use std::sync::Arc;
 
     use forge_app::{WalkedFile, Walker};
+    use forge_fs::FileInfo;
     use tokio::fs;
 
     use super::*;
@@ -198,6 +206,47 @@ mod test {
 
     // Mock WalkerInfra for testing
     struct MockInfra;
+
+    #[async_trait::async_trait]
+    impl FileReaderInfra for MockInfra {
+        async fn read_utf8(&self, _path: &Path) -> anyhow::Result<String> {
+            unimplemented!()
+        }
+
+        async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
+            fs::read(path)
+                .await
+                .with_context(|| format!("Failed to read file '{}'", path.display()))
+        }
+
+        async fn range_read_utf8(
+            &self,
+            _path: &Path,
+            _start_line: u64,
+            _end_line: u64,
+        ) -> anyhow::Result<(String, FileInfo)> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileInfoInfra for MockInfra {
+        async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
+            let metadata = tokio::fs::metadata(path).await;
+            match metadata {
+                Ok(meta) => Ok(meta.is_file()),
+                Err(_) => Ok(false), // If the file doesn't exist, return false
+            }
+        }
+
+        async fn exists(&self, _path: &Path) -> anyhow::Result<bool> {
+            unreachable!()
+        }
+
+        async fn file_size(&self, _path: &Path) -> anyhow::Result<u64> {
+            unreachable!()
+        }
+    }
 
     #[async_trait::async_trait]
     impl WalkerInfra for MockInfra {
@@ -350,5 +399,39 @@ mod test {
             .await;
 
         assert!(result.is_err());
+    }
+    #[tokio::test]
+    async fn test_search_converts_binary_files_in_directory() {
+        let fixture = TempDir::new().unwrap();
+
+        // Create a valid UTF-8 file
+        tokio::fs::write(fixture.path().join("valid.txt"), "Hello World")
+            .await
+            .unwrap();
+
+        // Create a binary file with invalid UTF-8 sequence
+        let mut data = b"Hello ".to_vec();
+        data.extend_from_slice(&[0xC0, 0x80]); // Invalid UTF-8 sequence
+        data.extend_from_slice(b" World");
+        tokio::fs::write(fixture.path().join("binary.bin"), &data)
+            .await
+            .unwrap();
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                Some("Hello".to_string()),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Should find matches in both files now (binary file converted with lossy)
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert_eq!(result.matches.len(), 2);
+        let paths: HashSet<_> = result.matches.iter().map(|m| &m.path).collect();
+        assert!(paths.iter().any(|p| p.ends_with("valid.txt")));
+        assert!(paths.iter().any(|p| p.ends_with("binary.bin")));
     }
 }
