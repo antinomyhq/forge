@@ -18,6 +18,8 @@ pub async fn run(mut terminal: DefaultTerminal) -> anyhow::Result<()> {
 
     let mut state = State::default();
     let api = ForgeAPI::init(false);
+    let workflow = api.read_merged(None).await?;
+    state.agent_selection.available_agents = workflow.agents;
 
     // Initialize forge_tracker using the API instance
     let env = api.environment();

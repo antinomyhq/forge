@@ -1,3 +1,4 @@
+mod agent_selection;
 mod app;
 // mod bordered_panel;
 mod chat;
@@ -8,3 +9,5 @@ mod status_bar;
 mod welcome;
 
 pub use app::App;
+
+mod popup;

@@ -49,7 +49,7 @@ impl StatefulWidget for ChatWidget {
             .padding(Padding::new(0, 0, 0, 1))
             .border_style(Style::default().dark_gray())
             .title_bottom(StatusBar::new(
-                "FORGE",
+                state.current_agent.as_str(),
                 state.editor.mode.name(),
                 state.workspace.clone(),
             ));

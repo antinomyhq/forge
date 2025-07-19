@@ -80,6 +80,15 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             state.chat_stream = Some(cancel_id);
             Command::Empty
         }
+        Action::AgentSelected(agent_id) => {
+            // Update the current agent in both the main state and agent selection state
+            state.current_agent = agent_id.clone();
+            state.agent_selection.current_agent = agent_id;
+            // Hide agent selection
+            state.agent_selection.is_visible = false;
+            state.agent_selection.selected_index = 0;
+            Command::Empty
+        }
     }
 }
 
@@ -422,5 +431,30 @@ mod tests {
         assert_eq!(actual_command, expected_command);
         // Timer should be replaced with the new timer from the action
         assert_eq!(fixture_state.timer, Some(timer_2));
+    }
+
+    #[test]
+    fn test_agent_selected_action_updates_current_agent() {
+        let mut fixture_state = State::default();
+        assert_eq!(fixture_state.current_agent, forge_api::AgentId::FORGE);
+        assert_eq!(
+            fixture_state.agent_selection.current_agent,
+            forge_api::AgentId::FORGE
+        );
+
+        let actual_command = update(
+            &mut fixture_state,
+            Action::AgentSelected(forge_api::AgentId::MUSE),
+        );
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+        assert_eq!(fixture_state.current_agent, forge_api::AgentId::MUSE);
+        assert_eq!(
+            fixture_state.agent_selection.current_agent,
+            forge_api::AgentId::MUSE
+        );
+        assert!(!fixture_state.agent_selection.is_visible);
+        assert_eq!(fixture_state.agent_selection.selected_index, 0);
     }
 }

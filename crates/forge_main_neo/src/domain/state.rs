@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use edtui::EditorState;
-use forge_api::{ChatResponse, ConversationId};
+use forge_api::{AgentId, ChatResponse, ConversationId};
+use forge_domain::Agent;
 use throbber_widgets_tui::ThrobberState;
 use tui_scrollview::ScrollViewState;
 
@@ -21,6 +22,59 @@ pub struct State {
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
+    pub current_agent: AgentId,
+    pub agent_selection: AgentSelectionState,
+}
+
+#[derive(Clone, Default, derive_setters::Setters)]
+#[setters(strip_option, into)]
+pub struct AgentSelectionState {
+    pub is_visible: bool,
+    pub available_agents: Vec<Agent>,
+    pub selected_index: usize,
+    pub editor: EditorState,
+    pub current_agent: AgentId,
+}
+
+impl std::fmt::Debug for AgentSelectionState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AgentSelectionState")
+            .field("is_visible", &self.is_visible)
+            .field("available_agents", &self.available_agents)
+            .field("selected_index", &self.selected_index)
+            .field("editor", &"<EditorState>")
+            .field("current_agent", &self.current_agent)
+            .finish()
+    }
+}
+
+impl AgentSelectionState {
+    /// Get all agents that match the current search filter
+    pub fn filtered_agents(&self) -> Vec<&Agent> {
+        let search_text = self.editor.get_text().to_lowercase();
+
+        if search_text.is_empty() {
+            self.available_agents.iter().collect()
+        } else {
+            self.available_agents
+                .iter()
+                .filter(|agent| {
+                    // Search in agent ID
+                    agent.id.as_str().to_lowercase().contains(&search_text) ||
+                    // Search in agent title
+                    agent.title.as_ref()
+                        .map(|title| title.to_lowercase().contains(&search_text))
+                        .unwrap_or(false)
+                })
+                .collect()
+        }
+    }
+
+    /// Get the currently selected agent from filtered results
+    pub fn selected_agent(&self) -> Option<&Agent> {
+        let filtered = self.filtered_agents();
+        filtered.get(self.selected_index).copied()
+    }
 }
 
 impl Default for State {
@@ -38,6 +92,11 @@ impl Default for State {
             conversation: Default::default(),
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
+            current_agent: AgentId::FORGE,
+            agent_selection: AgentSelectionState {
+                current_agent: AgentId::FORGE,
+                ..Default::default()
+            },
         }
     }
 }

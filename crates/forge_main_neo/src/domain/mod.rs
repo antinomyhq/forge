@@ -15,6 +15,7 @@ pub use cancel::*;
 pub use command::*;
 pub use editor_helpers::*;
 pub use message::*;
+pub use slash_command::*;
 pub use state::*;
 pub use update::*;
 pub use workspace::*;
