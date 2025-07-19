@@ -22,8 +22,7 @@ stdout line 6
 stdout line 7
 stdout line 8
 stdout line 9
-stdout line 10
-]]>
+stdout line 10]]>
 </head>
 <tail
   display_lines="16-25"
@@ -36,8 +35,7 @@ stdout line 21
 stdout line 22
 stdout line 23
 stdout line 24
-stdout line 25
-]]>
+stdout line 25]]>
 </tail>
 </stdout>
 </shell_output>

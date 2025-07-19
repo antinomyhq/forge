@@ -95,8 +95,16 @@ impl ForgeCommandExecutorService {
         // Stream the output of the command to stdout and stderr concurrently
         let (status, stdout_buffer, stderr_buffer) = tokio::try_join!(
             child.wait(),
-            stream(&mut stdout_pipe, io::stdout()),
-            stream(&mut stderr_pipe, io::stderr())
+            stream(
+                &mut stdout_pipe,
+                io::stdout(),
+                self.env.suppress_shell_output
+            ),
+            stream(
+                &mut stderr_pipe,
+                io::stderr(),
+                self.env.suppress_shell_output
+            )
         )?;
 
         // Drop happens after `try_join` due to <https://github.com/tokio-rs/tokio/issues/4309>
@@ -117,6 +125,7 @@ impl ForgeCommandExecutorService {
 async fn stream<A: AsyncReadExt + Unpin, W: Write>(
     io: &mut Option<A>,
     mut writer: W,
+    suppress_output: bool,
 ) -> io::Result<Vec<u8>> {
     let mut output = Vec::new();
     if let Some(io) = io.as_mut() {
@@ -126,9 +135,11 @@ async fn stream<A: AsyncReadExt + Unpin, W: Write>(
             if n == 0 {
                 break;
             }
-            writer.write_all(&buff[..n])?;
-            // note: flush is necessary else we get the cursor could not be found error.
-            writer.flush()?;
+            if !suppress_output {
+                writer.write_all(&buff[..n])?;
+                // note: flush is necessary else we get the cursor could not be found error.
+                writer.flush()?;
+            }
             output.extend_from_slice(&buff[..n]);
         }
     }
@@ -186,6 +197,7 @@ mod tests {
             max_search_lines: 0,
             max_read_size: 0,
             stdout_max_suffix_length: 0,
+            suppress_shell_output: false, // Allow output in tests
             http: Default::default(),
             max_file_size: 10_000_000,
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
@@ -217,5 +229,25 @@ mod tests {
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
         assert_eq!(actual.stderr, expected.stderr);
         assert_eq!(actual.success(), expected.success());
+    }
+
+    #[tokio::test]
+    async fn test_command_executor_suppressed_output() {
+        let mut env = test_env();
+        env.suppress_shell_output = true; // Enable output suppression
+
+        let fixture = ForgeCommandExecutorService::new(false, env);
+        let cmd = "echo 'this should not be printed'";
+        let dir = ".";
+
+        let actual = fixture
+            .execute_command(cmd.to_string(), PathBuf::new().join(dir))
+            .await
+            .unwrap();
+
+        // The command should still capture the output internally
+        assert!(actual.stdout.contains("this should not be printed"));
+        assert_eq!(actual.stderr, "");
+        assert_eq!(actual.success(), true);
     }
 }
