@@ -5,11 +5,11 @@ use forge_display::TitleFormat;
 use forge_domain::{Environment, Tools};
 
 use crate::fmt::content::{ContentFormat, FormatContent};
-use crate::utils::display_path;
+use crate::utils::format_display_path;
 
 impl FormatContent for Tools {
     fn to_content(&self, env: &Environment) -> Option<ContentFormat> {
-        let display_path_for = |path: &str| display_path(env, Path::new(path));
+        let display_path_for = |path: &str| format_display_path(Path::new(path), env.cwd.as_path());
 
         let output = match self {
             Tools::ForgeToolFsRead(input) => {
