@@ -8,7 +8,7 @@ use crate::domain::{Action, Command, State};
 pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
     let action = action.into();
     match action {
-        Action::Initialize => Command::ReadWorkspace,
+        Action::Initialize => Command::ReadWorkspace.and(Command::LoadForgeConfig),
         Action::Workspace { current_dir, current_branch } => {
             // TODO: can simply get workspace object from the action
             state.workspace.current_dir = current_dir;
@@ -78,6 +78,11 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
         Action::StartStream(cancel_id) => {
             // Store the cancellation token for this stream
             state.chat_stream = Some(cancel_id);
+            Command::Empty
+        }
+        Action::ForgeConfigLoaded(config) => {
+            // Update spotlight state with custom commands
+            state.spotlight.set_custom_commands(config.commands.clone());
             Command::Empty
         }
     }
@@ -270,11 +275,24 @@ mod tests {
     }
 
     #[test]
+    fn test_start_stream_action_with_number_id() {
+        let mut fixture_state = State::default();
+        let cancel_id = crate::domain::CancelId::new(CancellationToken::new());
+
+        let fixture_action = Action::StartStream(cancel_id);
+
+        let actual_command = update(&mut fixture_state, fixture_action);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+    }
+
+    #[test]
     fn test_initialize_action_returns_read_workspace_command() {
         let mut fixture_state = State::default();
 
         let actual_command = update(&mut fixture_state, Action::Initialize);
-        let expected_command = Command::ReadWorkspace;
+        let expected_command = Command::ReadWorkspace.and(Command::LoadForgeConfig);
 
         assert_eq!(actual_command, expected_command);
     }

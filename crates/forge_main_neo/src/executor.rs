@@ -146,6 +146,17 @@ impl<T: API + 'static> Executor<T> {
         tx.send(Ok(action)).await.unwrap();
         Ok(())
     }
+    async fn execute_load_forge_config(
+        &self,
+        tx: &Sender<anyhow::Result<Action>>,
+    ) -> anyhow::Result<()> {
+        use crate::domain::ForgeConfigService;
+
+        let config = ForgeConfigService::load_config().await?;
+        let action = Action::ForgeConfigLoaded(config);
+        tx.send(Ok(action)).await?;
+        Ok(())
+    }
 
     async fn execute_empty(&self) -> anyhow::Result<()> {
         // Empty command doesn't send any action
@@ -254,6 +265,9 @@ impl<T: API + 'static> Executor<T> {
                 self.execute_interval(duration, &tx).await?;
             }
             Command::Spotlight(_) => todo!(),
+            Command::LoadForgeConfig => {
+                self.execute_load_forge_config(&tx).await?;
+            }
             Command::InterruptStream => {
                 // Send InterruptStream action to trigger state update
                 tx.send(Ok(Action::InterruptStream)).await?;

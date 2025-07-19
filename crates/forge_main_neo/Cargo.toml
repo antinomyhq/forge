@@ -22,6 +22,8 @@ strum.workspace = true
 strum_macros.workspace = true
 merge.workspace = true
 serde_json.workspace = true
+serde_yml.workspace = true
+serde.workspace = true
 async-recursion.workspace = true
 throbber-widgets-tui = "0.8.0"
 forge_tracker.workspace = true
@@ -32,3 +34,4 @@ ansi-to-tui.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+tempfile.workspace = true

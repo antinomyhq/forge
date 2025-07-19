@@ -3,6 +3,8 @@ use std::time::Duration;
 use derive_more::From;
 use forge_api::{AgentId, ConversationId, ModelId};
 
+use crate::domain::forge_config::CustomCommand;
+
 /// Unified application commands
 ///
 /// Commands represent user intentions and system events that need to be
@@ -13,6 +15,7 @@ use forge_api::{AgentId, ConversationId, ModelId};
 pub enum Command {
     // Application-level commands
     ReadWorkspace,
+    LoadForgeConfig,
     #[default]
     Empty,
     Exit,
@@ -23,7 +26,7 @@ pub enum Command {
         is_first: bool,
     },
     InterruptStream,
-    #[allow(unused)]
+    #[allow(dead_code)]
     Spotlight(SpotlightCommand),
     Interval {
         duration: Duration,
@@ -34,6 +37,7 @@ pub enum Command {
 pub enum SpotlightCommand {
     Model(ModelId),
     Agent(AgentId),
+    Custom(CustomCommand),
 }
 
 impl Command {
