@@ -1,0 +1,5 @@
+---
+source: crates/forge_app/src/tool_result_transformer.rs
+expression: error_message
+---
+Tool missing_tool not found

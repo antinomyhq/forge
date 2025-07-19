@@ -1,0 +1,5 @@
+---
+source: crates/forge_app/src/tool_result_transformer.rs
+expression: "format!(\"{:?}\", operation)"
+---
+FsCreate { input: FSWrite { path: "/test/path.txt", content: "test content", overwrite: false, explanation: None }, output: FsCreateOutput { path: "/test/path.txt", before: None, warning: None } }

@@ -161,31 +161,58 @@ impl Operation {
                 }
             },
             Operation::FsCreate { input, output } => {
-                let mut elm = if let Some(before) = output.before.as_ref() {
-                    let diff_result = DiffFormat::format(before, &input.content);
-                    let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                    // Log file change stats
-                    file_change_stats(FileOperationStats {
-                        path: input.path.clone(),
-                        tool_name,
-                        lines_added: diff_result.lines_added(),
-                        lines_removed: diff_result.lines_removed(),
-                    });
+                match output {
+                    FsCreateOutput::Success { path: _, before, warning } => {
+                        let mut elm = if let Some(before) = before.as_ref() {
+                            let diff_result = DiffFormat::format(before, &input.content);
+                            let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+                            // Log file change stats
+                            file_change_stats(FileOperationStats {
+                                path: input.path.clone(),
+                                tool_name,
+                                lines_added: diff_result.lines_added(),
+                                lines_removed: diff_result.lines_removed(),
+                            });
 
-                    Element::new("file_overwritten").append(Element::new("file_diff").cdata(diff))
-                } else {
-                    Element::new("file_created")
-                };
+                            Element::new("file_overwritten")
+                                .append(Element::new("file_diff").cdata(diff))
+                        } else {
+                            Element::new("file_created")
+                        };
 
-                elm = elm
-                    .attr("path", input.path)
-                    .attr("total_lines", input.content.lines().count());
+                        elm = elm
+                            .attr("path", input.path)
+                            .attr("total_lines", input.content.lines().count());
 
-                if let Some(warning) = output.warning {
-                    elm = elm.append(Element::new("warning").text(warning));
+                        if let Some(warning) = warning {
+                            elm = elm.append(Element::new("warning").text(warning));
+                        }
+
+                        forge_domain::ToolOutput::text(elm)
+                    }
+                    FsCreateOutput::AttemptToEditWithoutOverwrite => {
+                        let element = Element::new("error")
+                            .attr("type", "file_exists_overwrite_required")
+                            .attr("original_path", &input.path)
+                            .attr_if_some("temp_file_path", content_files.stdout.and_then(|v| v.to_str().map(|v| v.to_string())))
+                            .append(
+                                Element::new("message").text(format!(
+                                    "File already exists at '{}'. A temporary file has been created with the newly modified content.",
+                                    input.path,
+                                ))
+                            )
+                            .append(
+                                Element::new("solution").text(format!(
+                                    "To overwrite: Use shell tool to move contents of the temporary file to the file at: '{}'",
+                                    input.path,
+                                ))
+                            )
+                            .append(
+                                Element::new("alternative").text("Re-run the create operation with overwrite=true.")
+                            );
+                        forge_domain::ToolOutput::text(element).is_error(true)
+                    }
                 }
-
-                forge_domain::ToolOutput::text(elm)
             }
             Operation::FsRemove { input } => {
                 let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
@@ -451,6 +478,15 @@ impl Operation {
 
                 Ok(files)
             }
+            Operation::FsCreate {
+                input,
+                output: FsCreateOutput::AttemptToEditWithoutOverwrite,
+            } => {
+                // Create a temporary file path
+                let tmp_path_str =
+                    create_temp_file(services, "forge_fs_create_", ".tmp", &input.content).await?;
+                Ok(TempContentFiles::default().stdout(tmp_path_str))
+            }
             _ => Ok(TempContentFiles::default()),
         }
     }
@@ -632,7 +668,7 @@ mod tests {
                 overwrite: false,
                 explanation: Some("Creating a new file".to_string()),
             },
-            output: FsCreateOutput {
+            output: FsCreateOutput::Success {
                 path: "/home/user/new_file.txt".to_string(),
                 before: None,
                 warning: None,
@@ -659,7 +695,7 @@ mod tests {
                 overwrite: true,
                 explanation: Some("Overwriting existing file".to_string()),
             },
-            output: FsCreateOutput {
+            output: FsCreateOutput::Success {
                 path: "/home/user/existing_file.txt".to_string(),
                 before: Some("Old content".to_string()),
                 warning: None,
@@ -1241,7 +1277,7 @@ mod tests {
                 overwrite: false,
                 explanation: Some("Creating file with warning".to_string()),
             },
-            output: FsCreateOutput {
+            output: FsCreateOutput::Success {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 before: None,
                 warning: Some("File created in non-standard location".to_string()),
@@ -1655,6 +1691,51 @@ mod tests {
 
         let actual = fixture.into_tool_output(
             ToolName::new("forge_tool_followup"),
+            TempContentFiles::default(),
+            &env,
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_create_attempt_to_edit_without_overwrite() {
+        let fixture = Operation::FsCreate {
+            input: forge_domain::FSWrite {
+                path: "/home/user/existing_file.txt".to_string(),
+                content: "New content that cannot be written".to_string(),
+                overwrite: false,
+                explanation: Some("Attempting to edit without overwrite".to_string()),
+            },
+            output: FsCreateOutput::AttemptToEditWithoutOverwrite,
+        };
+
+        let env = fixture_environment();
+        let temp_files =
+            TempContentFiles::default().stdout(PathBuf::from("/tmp/forge_temp_abc123.tmp"));
+
+        let actual =
+            fixture.into_tool_output(ToolName::new("forge_tool_fs_create"), temp_files, &env);
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_create_attempt_to_edit_without_overwrite_no_temp_file() {
+        let fixture = Operation::FsCreate {
+            input: forge_domain::FSWrite {
+                path: "/home/user/existing_file.txt".to_string(),
+                content: "New content that cannot be written".to_string(),
+                overwrite: false,
+                explanation: Some("Attempting to edit without overwrite".to_string()),
+            },
+            output: FsCreateOutput::AttemptToEditWithoutOverwrite,
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_create"),
             TempContentFiles::default(),
             &env,
         );

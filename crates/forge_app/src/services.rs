@@ -68,11 +68,14 @@ pub enum ResponseContext {
 }
 
 #[derive(Debug)]
-pub struct FsCreateOutput {
-    pub path: String,
-    // Set when the file already exists
-    pub before: Option<String>,
-    pub warning: Option<String>,
+pub enum FsCreateOutput {
+    Success {
+        path: String,
+        // Set when the file already exists
+        before: Option<String>,
+        warning: Option<String>,
+    },
+    AttemptToEditWithoutOverwrite,
 }
 
 #[derive(Debug)]
