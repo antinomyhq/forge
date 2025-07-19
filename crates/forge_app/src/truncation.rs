@@ -98,15 +98,20 @@ fn tag_output(
             let mut tail = String::new();
 
             // Add prefix lines
-            for line in lines.iter().take(prefix_count) {
+            for (i, line) in lines.iter().take(prefix_count).enumerate() {
                 head.push_str(line);
-                head.push('\n');
+                if i < prefix_count - 1 {
+                    head.push('\n');
+                }
             }
 
             // Add suffix lines
-            for line in lines.iter().skip(prefix_count) {
+            let suffix_lines = lines.iter().skip(prefix_count).collect::<Vec<_>>();
+            for (i, line) in suffix_lines.iter().enumerate() {
                 tail.push_str(line);
-                tail.push('\n');
+                if i < suffix_lines.len() - 1 {
+                    tail.push('\n');
+                }
             }
 
             FormattedOutput {

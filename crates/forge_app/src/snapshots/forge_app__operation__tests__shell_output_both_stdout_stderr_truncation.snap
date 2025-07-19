@@ -22,8 +22,7 @@ stdout line 6
 stdout line 7
 stdout line 8
 stdout line 9
-stdout line 10
-]]>
+stdout line 10]]>
 </head>
 <tail
   display_lines="16-25"
@@ -36,8 +35,7 @@ stdout line 21
 stdout line 22
 stdout line 23
 stdout line 24
-stdout line 25
-]]>
+stdout line 25]]>
 </tail>
 </stdout>
 <stderr
@@ -55,8 +53,7 @@ stderr line 6
 stderr line 7
 stderr line 8
 stderr line 9
-stderr line 10
-]]>
+stderr line 10]]>
 </head>
 <tail
   display_lines="21-30"
@@ -69,8 +66,7 @@ stderr line 26
 stderr line 27
 stderr line 28
 stderr line 29
-stderr line 30
-]]>
+stderr line 30]]>
 </tail>
 </stderr>
 </shell_output>
