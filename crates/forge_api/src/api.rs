@@ -97,5 +97,7 @@ pub trait API: Sync + Send {
     async fn logout(&self) -> anyhow::Result<()>;
     async fn provider(&self) -> anyhow::Result<Provider>;
     async fn app_config(&self) -> anyhow::Result<AppConfig>;
+    /// Lists all tasks from a specific conversation
+    async fn tasks(&self, conversation_id: &ConversationId) -> Result<Vec<Task>>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
 }

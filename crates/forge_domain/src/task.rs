@@ -1,28 +1,53 @@
 use std::collections::VecDeque;
 
 use derive_setters::Setters;
+use eserde::Deserialize;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, eserde::Deserialize, Default, JsonSchema)]
+use crate::TaskInput;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, JsonSchema)]
 pub enum Status {
     #[default]
     Pending,
     InProgress,
     Done,
+    Delete,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Setters)]
-#[setters(strip_option, into)]
+#[setters(into, strip_option)]
 pub struct Task {
+    /// A monotonously increasing ID
     pub id: i32,
+
+    /// The task instructions to be followed
     pub task: String,
+
+    /// Status of the task
     pub status: Status,
+    /// Optional category to group related tasks
+    pub category: Option<String>,
+
+    /// Detailed description of changes needed, with examples and optional file
+    /// references
+    pub note: Option<String>,
+
+    /// List of files to refer
+    pub files: Vec<String>,
 }
 
 impl Task {
     pub fn new(id: i32, task: impl Into<String>) -> Self {
-        Self { id, task: task.into(), status: Status::default() }
+        Self {
+            id,
+            task: task.into(),
+            status: Status::default(),
+            category: None,
+            note: None,
+            files: Vec::new(),
+        }
     }
 
     pub fn mark_in_progress(&mut self) -> &mut Self {
@@ -98,20 +123,30 @@ impl TaskList {
         Self { tasks: VecDeque::new(), next_id: 1 }
     }
 
-    pub fn append(&mut self, task: impl Into<String>) -> Task {
-        let task = Task::new(self.next_id, task);
+    pub fn append(&mut self, task: impl Into<TaskInput>) -> Task {
+        let task: TaskInput = task.into();
+        let mut new_task = Task::new(self.next_id, task.task);
+
+        if let Some(category) = task.category {
+            new_task = new_task.category(category);
+        }
+
+        if let Some(description) = task.note {
+            new_task = new_task.note(description);
+        }
+
+        new_task = new_task.files(task.files.clone().unwrap_or_default());
+
         self.next_id += 1;
-        self.tasks.push_back(task.clone());
-        task
+        self.tasks.push_back(new_task.clone());
+        new_task
     }
 
-    pub fn append_multiple(&mut self, tasks: Vec<String>) -> Vec<Task> {
-        let mut created_tasks = Vec::new();
-        for task_text in tasks {
-            let task = self.append(task_text);
-            created_tasks.push(task);
+    pub fn append_multiple(&mut self, tasks: Vec<TaskInput>) -> Vec<Task> {
+        for task in tasks {
+            self.append(task);
         }
-        created_tasks
+        self.tasks.iter().cloned().collect::<Vec<_>>()
     }
 
     pub fn mark_done(&mut self, task_id: i32) -> Option<Task> {
@@ -121,6 +156,9 @@ impl TaskList {
     }
 
     pub fn update_status(&mut self, task_id: i32, status: Status) -> Option<Task> {
+        if status == Status::Delete {
+            return self.delete(task_id);
+        }
         let task_index = self.tasks.iter().position(|t| t.id == task_id)?;
         self.tasks[task_index].status = status;
         Some(self.tasks[task_index].clone())
@@ -130,6 +168,19 @@ impl TaskList {
         self.tasks.clear();
         self.next_id = 1;
     }
+    pub fn delete(&mut self, task_id: i32) -> Option<Task> {
+        let task_index = self.tasks.iter().position(|t| t.id == task_id)?;
+        self.tasks.remove(task_index)
+    }
+    /// Check if all tasks are completed (either Done or no tasks exist)
+    pub fn all_tasks_done(&self) -> bool {
+        self.tasks.is_empty() || self.tasks.iter().all(|task| task.is_done())
+    }
+
+    /// Find the next pending task (first task that is not Done)
+    pub fn next_pending_task(&self) -> Option<&Task> {
+        self.tasks.iter().find(|task| !task.is_done())
+    }
 }
 
 impl Status {
@@ -138,6 +189,7 @@ impl Status {
             Status::Pending => "PENDING",
             Status::InProgress => "IN_PROGRESS",
             Status::Done => "DONE",
+            Status::Delete => "DELETE",
         }
     }
 }
@@ -230,7 +282,8 @@ mod tests {
             "Task 3".to_string(),
         ];
 
-        let created_tasks = task_list.append_multiple(task_texts);
+        let task_inputs: Vec<TaskInput> = task_texts.into_iter().map(|t| t.into()).collect();
+        let created_tasks = task_list.append_multiple(task_inputs);
 
         assert_eq!(created_tasks.len(), 3);
         assert_eq!(created_tasks[0].id, 1);
@@ -326,4 +379,219 @@ mod tests {
 
         assert!(result.is_none());
     }
+
+    #[test]
+    fn test_task_list_all_tasks_done_empty() {
+        let task_list = TaskList::new();
+        assert!(task_list.all_tasks_done());
+    }
+
+    #[test]
+    fn test_task_list_all_tasks_done_with_completed_tasks() {
+        let mut task_list = TaskList::new();
+        let task1 = task_list.append("Task 1");
+        let task2 = task_list.append("Task 2");
+
+        task_list.mark_done(task1.id);
+        task_list.mark_done(task2.id);
+
+        assert!(task_list.all_tasks_done());
+    }
+
+    #[test]
+    fn test_task_list_all_tasks_done_with_pending_tasks() {
+        let mut task_list = TaskList::new();
+        let task1 = task_list.append("Task 1");
+        task_list.append("Task 2");
+
+        task_list.mark_done(task1.id);
+
+        assert!(!task_list.all_tasks_done());
+    }
+
+    #[test]
+    fn test_task_list_next_pending_task_empty() {
+        let task_list = TaskList::new();
+        assert!(task_list.next_pending_task().is_none());
+    }
+
+    #[test]
+    fn test_task_list_next_pending_task_with_pending() {
+        let mut task_list = TaskList::new();
+        let task1 = task_list.append("Task 1");
+        let task2 = task_list.append("Task 2");
+
+        task_list.mark_done(task1.id);
+
+        let next_task = task_list.next_pending_task();
+        assert!(next_task.is_some());
+        assert_eq!(next_task.unwrap().id, task2.id);
+        assert_eq!(next_task.unwrap().task, "Task 2");
+    }
+
+    #[test]
+    fn test_task_list_next_pending_task_all_done() {
+        let mut task_list = TaskList::new();
+        let task1 = task_list.append("Task 1");
+        let task2 = task_list.append("Task 2");
+
+        task_list.mark_done(task1.id);
+        task_list.mark_done(task2.id);
+
+        assert!(task_list.next_pending_task().is_none());
+    }
+    #[test]
+    fn test_task_list_delete() {
+        let mut task_list = TaskList::new();
+        let task1 = task_list.append("Task 1");
+        let task2 = task_list.append("Task 2");
+        let task3 = task_list.append("Task 3");
+
+        // Delete the middle task
+        let result = task_list.delete(task2.id);
+
+        assert!(result.is_some());
+        let deleted_task = result.unwrap();
+        assert_eq!(deleted_task.id, task2.id);
+        assert_eq!(deleted_task.task, "Task 2");
+        assert_eq!(task_list.tasks().len(), 2);
+
+        // Verify remaining tasks
+        let remaining_ids: Vec<i32> = task_list.tasks().iter().map(|t| t.id).collect();
+        assert_eq!(remaining_ids, vec![task1.id, task3.id]);
+    }
+
+    #[test]
+    fn test_task_list_delete_nonexistent() {
+        let mut task_list = TaskList::new();
+        task_list.append("Task 1");
+
+        let result = task_list.delete(999);
+
+        assert!(result.is_none());
+        assert_eq!(task_list.tasks().len(), 1);
+    }
+
+    #[test]
+    fn test_update_status_with_delete() {
+        let mut task_list = TaskList::new();
+        let task1 = task_list.append("Task 1");
+        let task2 = task_list.append("Task 2");
+        let task3 = task_list.append("Task 3");
+
+        // Update status to Delete should remove the task
+        let deleted_task = task_list.update_status(task2.id, Status::Delete);
+
+        assert!(deleted_task.is_some());
+        let deleted_task = deleted_task.unwrap();
+        assert_eq!(deleted_task.id, task2.id);
+        assert_eq!(deleted_task.task, "Task 2");
+        assert_eq!(task_list.tasks().len(), 2);
+
+        // Verify remaining tasks
+        let remaining_ids: Vec<i32> = task_list.tasks().iter().map(|t| t.id).collect();
+        assert_eq!(remaining_ids, vec![task1.id, task3.id]);
+    }
+
+    #[test]
+    fn test_status_name_delete() {
+        let status = Status::Delete;
+        assert_eq!(status.status_name(), "DELETE");
+    }
+}
+#[test]
+fn test_task_creation_with_category_and_description() {
+    let mut task = Task::new(1, "Test task");
+    task.category = Some("Development".to_string());
+    task.note = Some("Implement user authentication with OAuth2. Example: Add login/logout endpoints in auth.rs, update user model in models/user.rs".to_string());
+
+    assert_eq!(task.id, 1);
+    assert_eq!(task.task, "Test task");
+    assert_eq!(task.status, Status::Pending);
+    assert_eq!(task.category, Some("Development".to_string()));
+    assert_eq!(task.note, Some("Implement user authentication with OAuth2. Example: Add login/logout endpoints in auth.rs, update user model in models/user.rs".to_string()));
+    assert!(task.is_pending());
+}
+
+#[test]
+fn test_task_creation_with_setters() {
+    let task = Task::new(1, "Test task").category("Bug Fix").note(
+        "Fix memory leak in connection pool. Files: src/db/pool.rs, tests/integration/db_test.rs",
+    );
+
+    assert_eq!(task.id, 1);
+    assert_eq!(task.task, "Test task");
+    assert_eq!(task.category, Some("Bug Fix".to_string()));
+    assert_eq!(task.note, Some("Fix memory leak in connection pool. Files: src/db/pool.rs, tests/integration/db_test.rs".to_string()));
+}
+
+#[test]
+fn test_task_list_append_with_details() {
+    let mut task_list = TaskList::new();
+
+    let task = task_list.append(TaskInput {
+        task: "Implement feature X".to_string(),
+        category: Some("Feature".to_string()),
+        note: Some("Add new API endpoint for user preferences. Example: POST /api/v1/users/{id}/preferences. Files: src/handlers/user.rs, src/models/preference.rs".to_string()),
+        files: None,
+    });
+
+    assert_eq!(task.id, 1);
+    assert_eq!(task.task, "Implement feature X");
+    assert_eq!(task.category, Some("Feature".to_string()));
+    assert_eq!(task.note, Some("Add new API endpoint for user preferences. Example: POST /api/v1/users/{id}/preferences. Files: src/handlers/user.rs, src/models/preference.rs".to_string()));
+    assert_eq!(task_list.tasks().len(), 1);
+}
+
+#[test]
+fn test_task_list_append_multiple_with_details() {
+    let mut task_list = TaskList::new();
+    let task_inputs = vec![
+        TaskInput {
+            task: "Task 1".to_string(),
+            category: Some("Development".to_string()),
+            note: Some("Implement login functionality. Files: src/auth/login.rs".to_string()),
+            files: None,
+        },
+        TaskInput {
+            task: "Task 2".to_string(),
+            category: Some("Testing".to_string()),
+            note: Some(
+                "Write unit tests for user service. Files: tests/user_service_test.rs".to_string(),
+            ),
+            files: None,
+        },
+        TaskInput {
+            task: "Task 3".to_string(),
+            category: None,
+            note: None,
+            files: None,
+        },
+    ];
+
+    let created_tasks = task_list.append_multiple(task_inputs);
+
+    assert_eq!(created_tasks.len(), 3);
+    assert_eq!(created_tasks[0].id, 1);
+    assert_eq!(created_tasks[0].task, "Task 1");
+    assert_eq!(created_tasks[0].category, Some("Development".to_string()));
+    assert_eq!(
+        created_tasks[0].note,
+        Some("Implement login functionality. Files: src/auth/login.rs".to_string())
+    );
+
+    assert_eq!(created_tasks[1].id, 2);
+    assert_eq!(created_tasks[1].task, "Task 2");
+    assert_eq!(created_tasks[1].category, Some("Testing".to_string()));
+    assert_eq!(
+        created_tasks[1].note,
+        Some("Write unit tests for user service. Files: tests/user_service_test.rs".to_string())
+    );
+
+    assert_eq!(created_tasks[2].id, 3);
+    assert_eq!(created_tasks[2].task, "Task 3");
+    assert_eq!(created_tasks[2].category, None);
+    assert_eq!(created_tasks[2].note, None);
+
+    assert_eq!(task_list.tasks().len(), 3);
 }

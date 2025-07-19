@@ -1040,6 +1040,7 @@ dependencies = [
  "futures",
  "insta",
  "merge",
+ "pretty_assertions",
  "serde",
  "serde_json",
  "serde_yml",

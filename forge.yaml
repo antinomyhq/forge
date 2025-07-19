@@ -1,14 +1,46 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json
+# yaml-language-server: $schema=./forge.schema.json
 agents:
-- id: forge
+- id: forge-alpha
+  title: An alpha version of the forge that will eventually be shipped to the users
+  description: 'Hands-on implementation agent that executes software development tasks through a structured 4-phase approach: task analysis, solution strategy, implementation, and quality assurance. Makes actual changes to codebases, runs shell commands, creates/modifies files, installs dependencies, and performs concrete development work. Use for building features, fixing bugs, refactoring code, or any task requiring actual modifications. Do not use for analysis-only tasks or when you want to explore options without making changes. Always validates changes through compilation and testing.'
+  system_prompt: '{{> forge-system-prompt-engineer-act.hbs }}'
+  user_prompt: |-
+    {{#if (eq event.name 'forge/user_task_update')}}
+    <feedback>{{event.value}}</feedback>
+    {{else}}
+    <task>{{event.value}}</task>
+    {{/if}}
   tools:
-  - forge_tool_task_list_append
-  - forge_tool_task_list_append_multiple
-  - forge_tool_task_list_mark_done
-  - forge_tool_task_list_list
-  - forge_tool_task_list_clear
+  - forge_tool_fs_create
+  - forge_tool_fs_patch
+  - forge_tool_fs_read
+  - forge_tool_fs_remove
+  - forge_tool_fs_search
+  - forge_tool_fs_undo
+  - forge_tool_net_fetch
+  - forge_tool_process_shell
+  - forge_tool_task_append
+  - forge_tool_task_append_multiple
+  - forge_tool_task_clear
+  - forge_tool_task_list
+  - forge_tool_task_update
+  reasoning:
+    enabled: true
+- id: scribe
+  title: Creates detailed task lists
+  description: Strategic planning agent that analyzes codebases and creates comprehensive implementation plans without making any actual changes. Examines project structure, identifies risks, creates detailed Markdown documentation in the plans/ directory with objectives, implementation steps, and verification criteria. Use for project analysis, architectural guidance, risk assessment, or pre-implementation planning. Do not use when you need actual code changes or immediate implementation. Provides advisory recommendations and strategic roadmaps only.
+  system_prompt: '{{> forge-system-prompt-engineer-scribe.hbs }}'
+  user_prompt: "{{#if (eq event.name 'scribe/user_task_update')}}\n<feedback>{{event.value}}</feedback>\n{{else}}\n<task>{{event.value}}</task>\n{{/if}}    "
+  tools:
+  - forge_tool_fs_read
+  - forge_tool_net_fetch
+  - forge_tool_fs_search
+  - forge_tool_task_append
+  - forge_tool_task_append_multiple
+  - forge_tool_task_list
+  - forge_tool_task_clear
 variables:
-  operating_agent: forge
+  operating_agent: forge-alpha
 commands:
 - name: fixme
   description: Looks for all the fixme comments in the code and attempts to fix them
@@ -64,7 +96,7 @@ custom_rules: |-
   Running Tests:
   - We use `insta` to run tests:
   ```
-  cargo insta test --accept --unreferenced=delete
+  cargo insta test --accept --unreferenced=delete --force-update-snapshots
   ```
 
   Verification:

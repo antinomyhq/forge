@@ -163,6 +163,13 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn app_config(&self) -> anyhow::Result<AppConfig> {
         self.services.read_app_config().await
     }
+    async fn tasks(&self, conversation_id: &ConversationId) -> Result<Vec<Task>> {
+        if let Some(conversation) = self.services.find(conversation_id).await? {
+            Ok(conversation.tasks.tasks().iter().cloned().collect())
+        } else {
+            Ok(vec![])
+        }
+    }
 
     async fn user_info(&self) -> Result<Option<User>> {
         let provider = self.provider().await?;

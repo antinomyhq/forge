@@ -12,7 +12,7 @@ use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
     Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
-    ToolName, TopK, TopP,
+    ToolName, Tools, TopK, TopP,
 };
 
 // Unique identifier for an agent
@@ -261,6 +261,10 @@ impl Agent {
         if !subscribe_list.contains(&event_string) {
             subscribe_list.push(event_string);
         }
+    }
+
+    pub fn task_supported(&self) -> bool {
+        self.tools.iter().flatten().any(Tools::is_task_update)
     }
 }
 

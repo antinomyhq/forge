@@ -182,6 +182,7 @@ impl ForgeCommandManager {
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
+            "/tasks" => Ok(Command::Tasks),
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
@@ -260,6 +261,10 @@ pub enum Command {
     /// This can be triggered with the '/tools' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
     Tools,
+    /// List tasks from conversations
+    /// This can be triggered with the '/tasks' command.
+    #[strum(props(usage = "List all tasks from conversations"))]
+    Tasks,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
     /// Executes a native shell command.
@@ -297,6 +302,7 @@ impl Command {
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
             Command::Tools => "/tools",
+            Command::Tasks => "/tasks",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
             Command::Agent => "/agent",

@@ -22,6 +22,7 @@ pub fn to_markdown(before: &TaskList, after: &TaskList) -> String {
             Status::Pending => "☐",
             Status::InProgress => "▣",
             Status::Done => "◼",
+            Status::Delete => "✗",
         };
 
         let mut text = task.task.clone();
@@ -34,6 +35,7 @@ pub fn to_markdown(before: &TaskList, after: &TaskList) -> String {
             Status::Pending => text,
             Status::InProgress => format!("__{text}__"),
             Status::Done => format!("~~{text}~~"),
+            Status::Delete => format!("~~{text}~~ (deleted)"),
         };
 
         text = format!("{glyph} {text}");
