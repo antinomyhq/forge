@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::bail;
 use bytes::Bytes;
 use forge_app::{AuthService, Error, InitAuth, LoginInfo, User};
+use forge_domain::Error as DomainError;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use crate::{EnvironmentInfra, HttpInfra};
@@ -38,8 +39,10 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", auth.token))?,
+            HeaderValue::from_str(&format!("Bearer {}XX", auth.token))?,
         );
+
+        dbg!(&url);
 
         let response = self.infra.get(&url, Some(headers)).await?;
         match response.status().as_u16() {
@@ -47,6 +50,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
                 &response.bytes().await?,
             )?),
             202 => Err(Error::AuthInProgress.into()),
+            401 => Err(DomainError::AuthenticationError(url).into()),
             status => bail!("HTTP {}: Authentication failed", status),
         }
     }

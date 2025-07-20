@@ -61,6 +61,9 @@ pub enum Error {
 
     #[error(transparent)]
     Retryable(anyhow::Error),
+
+    #[error("Authentication failed for {0}")]
+    AuthenticationError(String),
 }
 
 pub type Result<A> = std::result::Result<A, Error>;

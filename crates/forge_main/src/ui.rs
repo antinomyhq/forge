@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
+use forge_domain::Error as DomainError;
+
 use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
@@ -170,7 +172,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                eprintln!("{}", TitleFormat::error(format!("{error:?}")));
+                match error.downcast_ref::<DomainError>() {
+                    Some(DomainError::AuthenticationError(url)) => {
+                        todo!()
+                    }
+                    None | Some(_) => {
+                        eprintln!("{}", TitleFormat::error(format!("{error:?}")));
+                    }
+                }
             }
         }
     }
