@@ -293,7 +293,8 @@ mod tests {
     }
     #[test]
     fn test_try_from_parts_handles_empty_tool_names() {
-        // Fixture: Tool call parts where empty names in subsequent parts should not override valid names
+        // Fixture: Tool call parts where empty names in subsequent parts should not
+        // override valid names
         let input = [
             ToolCallPart {
                 call_id: Some(ToolCallId("0".to_string())),
