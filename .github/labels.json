@@ -224,5 +224,11 @@
     "color": "F9D0C4",
     "description": "Run all integration tests for the JIT optimized engine",
     "aliases": ["ci:test-jit"]
+  },
+  {
+    "name": "ratatui",
+    "color": "FF6D00",
+    "description": "Related to ratatui terminal user interface library",
+    "aliases": ["ratatui"]
   }
 ]

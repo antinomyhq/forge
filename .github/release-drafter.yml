@@ -22,6 +22,7 @@ categories:
     labels:
       - "type: chore"
       - "type: testing"
+      - "ratatui"
 
   - title: "💥 Breaking Changes"
     labels:
@@ -102,3 +103,10 @@ autolabeler:
       - /perf/i
     files:
       - "/benches/"
+
+  - label: "ratatui"
+    title:
+      - /ratatui/i
+      - /tui/i
+    files:
+      - "**/forge_main_neo/**"
