@@ -119,9 +119,10 @@ impl ToolCallFull {
             }
 
             if let Some(name) = &part.name
-                && !name.as_str().is_empty() {
-                    current_tool_name = Some(name.clone());
-                }
+                && !name.as_str().is_empty()
+            {
+                current_tool_name = Some(name.clone());
+            }
 
             current_arguments.push_str(&part.arguments_part);
         }
