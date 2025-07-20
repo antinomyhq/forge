@@ -293,19 +293,27 @@ mod tests {
     }
     #[test]
     fn test_try_from_parts_handles_empty_tool_names() {
-        // Fixture: Load JSON data that reproduces the empty tool names issue
-        let json_data = include_str!("fixtures/tool_call_parts_empty_names.json");
+        // Fixture: Tool call parts where empty names in subsequent parts should not override valid names
+        let input = [
+            ToolCallPart {
+                call_id: Some(ToolCallId("0".to_string())),
+                name: Some(ToolName::new("forge_tool_fs_read")),
+                arguments_part: "".to_string(),
+            },
+            ToolCallPart {
+                call_id: Some(ToolCallId("0".to_string())),
+                name: Some(ToolName::new("")), // Empty name should not override valid name
+                arguments_part: "{\"path\"".to_string(),
+            },
+            ToolCallPart {
+                call_id: Some(ToolCallId("0".to_string())),
+                name: Some(ToolName::new("")), // Empty name should not override valid name
+                arguments_part: ": \"/test/file.md\"}".to_string(),
+            },
+        ];
 
-        // Actual: Parse the JSON and extract tool calls
-        let tool_calls: Vec<ToolCall> = serde_json::from_str(json_data).unwrap();
-        let tool_call_parts: Vec<ToolCallPart> = tool_calls
-            .iter()
-            .filter_map(|tc| tc.as_partial().cloned())
-            .collect();
+        let actual = ToolCallFull::try_from_parts(&input).unwrap();
 
-        let actual = ToolCallFull::try_from_parts(&tool_call_parts).unwrap();
-
-        // Expected: Single tool call with correct name (not overridden by empty names)
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId("0".to_string())),
