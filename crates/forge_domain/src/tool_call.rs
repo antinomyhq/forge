@@ -118,9 +118,10 @@ impl ToolCallFull {
                 current_call_id = Some(new_call_id.clone());
             }
 
-            if let Some(name) = &part.name {
-                current_tool_name = Some(name.clone());
-            }
+            if let Some(name) = &part.name
+                && !name.as_str().is_empty() {
+                    current_tool_name = Some(name.clone());
+                }
 
             current_arguments.push_str(&part.arguments_part);
         }
@@ -288,5 +289,28 @@ mod tests {
         let tool_call = ToolCallFull::try_from_xml(message).unwrap();
         let actual = tool_call.first().unwrap().call_id.as_ref().unwrap();
         assert!(actual.as_str().starts_with("forge_call_id_"));
+    }
+    #[test]
+    fn test_try_from_parts_handles_empty_tool_names() {
+        // Fixture: Load JSON data that reproduces the empty tool names issue
+        let json_data = include_str!("fixtures/tool_call_parts_empty_names.json");
+
+        // Actual: Parse the JSON and extract tool calls
+        let tool_calls: Vec<ToolCall> = serde_json::from_str(json_data).unwrap();
+        let tool_call_parts: Vec<ToolCallPart> = tool_calls
+            .iter()
+            .filter_map(|tc| tc.as_partial().cloned())
+            .collect();
+
+        let actual = ToolCallFull::try_from_parts(&tool_call_parts).unwrap();
+
+        // Expected: Single tool call with correct name (not overridden by empty names)
+        let expected = vec![ToolCallFull {
+            name: ToolName::new("forge_tool_fs_read"),
+            call_id: Some(ToolCallId("0".to_string())),
+            arguments: serde_json::json!({"path": "/test/file.md"}),
+        }];
+
+        assert_eq!(actual, expected);
     }
 }

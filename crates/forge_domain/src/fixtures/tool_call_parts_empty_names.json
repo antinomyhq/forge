@@ -1,0 +1,23 @@
+[
+  {
+    "Part": {
+      "call_id": "0",
+      "name": "forge_tool_fs_read",
+      "arguments_part": ""
+    }
+  },
+  {
+    "Part": {
+      "call_id": "0",
+      "name": "",
+      "arguments_part": "{\"path\""
+    }
+  },
+  {
+    "Part": {
+      "call_id": "0",
+      "name": "",
+      "arguments_part": ": \"/test/file.md\"}"
+    }
+  }
+]
