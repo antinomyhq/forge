@@ -67,13 +67,12 @@ impl ContextMessage {
                     for reasoning_detail in reasoning_details {
                         if let Some(text) = &reasoning_detail.text {
                             lines.push_str(&format!(
-                                "<reasoning_detail>{}</reasoning_detail>",
-                                text
+                                "<reasoning_detail>{text}</reasoning_detail>"
                             ));
                         }
                     }
                 }
-                
+
                 lines.push_str("</message>");
             }
             ContextMessage::Tool(result) => {
