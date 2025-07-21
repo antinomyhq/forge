@@ -173,7 +173,7 @@ impl<W: WalkerInfra + FileInfoInfra> ForgeFsSearch<W> {
             #[allow(unused_mut)]
             let mut paths = self
                 .infra
-                .walk(Walker::unlimited().cwd(dir.to_path_buf()))
+                .walk(Walker::unlimited().cwd(dir.to_path_buf()).skip_binary(true))
                 .await
                 .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?
                 .into_iter()

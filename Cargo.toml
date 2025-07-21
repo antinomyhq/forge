@@ -1,23 +1,6 @@
 [workspace]
 members = [
-    "crates/forge_api",
-    "crates/forge_app", 
-    "crates/forge_ci",
-    "crates/forge_display",
-    "crates/forge_domain",
-    "crates/forge_fs",
-    "crates/forge_infra",
-    "crates/forge_inte",
-    "crates/forge_main",
-    "crates/forge_provider",
-    "crates/forge_services",
-    "crates/forge_snaps",
-    "crates/forge_spinner",
-    "crates/forge_stream",
-    "crates/forge_template",
-    "crates/forge_tool_macros",
-    "crates/forge_tracker",
-    "crates/forge_walker"
+    "crates/*",
 ]
 resolver = "2"
 
@@ -123,6 +106,7 @@ rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a9791
     "transport-sse-server",
 ] }
 open = "5.3.2"
+ansi-to-tui = "7.0.0"
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }
@@ -134,6 +118,7 @@ forge_fs = { path = "crates/forge_fs" }
 forge_infra = { path = "crates/forge_infra" }
 forge_inte = { path = "crates/forge_inte" }
 forge_main = { path = "crates/forge_main" }
+forge_main_neo = { path = "crates/forge_main_neo" }
 forge_provider = { path = "crates/forge_provider" }
 forge_services = { path = "crates/forge_services" }
 forge_snaps = { path = "crates/forge_snaps" }

@@ -5,7 +5,7 @@ expression: to_value(actual)
 <search_results
   path="/home/user/project"
   total_lines="2"
-  display_lines="0-2"
+  display_lines="1-2"
   regex="Hello"
   file_pattern="*.txt"
 ><![CDATA[file1.txt:1:Hello world

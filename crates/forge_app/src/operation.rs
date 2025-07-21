@@ -14,7 +14,7 @@ use crate::truncation::{
     StreamElement, create_temp_file, truncate_fetch_content, truncate_search_output,
     truncate_shell_output,
 };
-use crate::utils::display_path;
+use crate::utils::format_display_path;
 use crate::{
     Content, EnvironmentService, FsCreateOutput, FsCreateService, FsUndoOutput, HttpResponse,
     PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
@@ -188,7 +188,7 @@ impl Operation {
                 forge_domain::ToolOutput::text(elm)
             }
             Operation::FsRemove { input } => {
-                let display_path = display_path(env, Path::new(&input.path));
+                let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
                 let elem = Element::new("file_removed")
                     .attr("path", display_path)
                     .attr("status", "completed");
@@ -202,8 +202,13 @@ impl Operation {
                     );
                     let start_index = input.start_index.unwrap_or(1);
                     let start_index = if start_index > 0 { start_index - 1 } else { 0 };
-                    let truncated_output =
-                        truncate_search_output(&out.matches, start_index as u64, max_lines, env);
+                    let search_dir = Path::new(&input.path);
+                    let truncated_output = truncate_search_output(
+                        &out.matches,
+                        start_index as u64,
+                        max_lines,
+                        search_dir,
+                    );
 
                     let mut elm = Element::new("search_results")
                         .attr("path", &input.path)

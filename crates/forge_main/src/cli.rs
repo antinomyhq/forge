@@ -58,6 +58,11 @@ pub struct Cli {
     /// Top-level subcommands
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
+
+    /// Enable Neo UI mode.
+    /// This mode provides a modern user interface for the application.
+    #[arg(long, default_value_t = false, short = 'n')]
+    pub neo_ui: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]

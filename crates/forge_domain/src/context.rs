@@ -65,10 +65,9 @@ impl ContextMessage {
                 }
                 if let Some(reasoning_details) = &message.reasoning_details {
                     for reasoning_detail in reasoning_details {
-                        lines.push_str(&format!(
-                            "<reasoning_detail>{}</reasoning_detail>",
-                            serde_json::to_string(reasoning_detail).unwrap()
-                        ));
+                        if let Some(text) = &reasoning_detail.text {
+                            lines.push_str(&format!("<reasoning_detail>{text}</reasoning_detail>"));
+                        }
                     }
                 }
 

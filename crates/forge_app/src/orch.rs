@@ -363,8 +363,6 @@ impl<S: AgentService> Orchestrator<S> {
                 })
             });
 
-        self.conversation.context = Some(context.clone());
-
         // Indicates whether the tool execution has been completed
         let mut is_complete = false;
 

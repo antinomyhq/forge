@@ -227,7 +227,7 @@ mod tests {
             ..Default::default()
         };
         let mut prompt = ForgePrompt::default();
-        prompt.usage(usage);
+        let _ = prompt.usage(usage);
 
         let actual = prompt.render_prompt_right();
         assert!(actual.contains(&VERSION.to_string()));
@@ -304,8 +304,8 @@ mod tests {
             ..Default::default()
         };
         let mut prompt = ForgePrompt::default();
-        prompt.usage(usage);
-        prompt.model(ModelId::new("anthropic/claude-3"));
+        let _ = prompt.usage(usage);
+        let _ = prompt.model(ModelId::new("anthropic/claude-3"));
 
         let actual = prompt.render_prompt_right();
         assert!(actual.contains("claude-3")); // Only the last part after splitting by '/'

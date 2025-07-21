@@ -17,7 +17,7 @@ impl FormatContent for Operation {
                         result
                             .matches
                             .iter()
-                            .map(|match_| format_match(match_, env))
+                            .map(|matched| format_match(matched, env.cwd.as_path()))
                             .collect::<Vec<_>>(),
                     )
                     .format(),

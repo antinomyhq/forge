@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-
-use forge_domain::Environment;
+use std::path::{Path, PathBuf};
 
 use crate::utils::format_match;
 use crate::{FsCreateService, Match};
@@ -292,18 +290,19 @@ pub struct TruncatedSearchOutput {
     pub end_line: u64,
 }
 
-/// Truncates search output based on line limit
+/// Truncates search output based on line limit, using search directory for
+/// relative paths
 pub fn truncate_search_output(
     output: &[Match],
     start_line: u64,
     count: u64,
-    env: &Environment,
+    search_dir: &Path,
 ) -> TruncatedSearchOutput {
     let total_outputs = output.len() as u64;
     let is_truncated = total_outputs > count;
     let output = output
         .iter()
-        .map(|v| format_match(v, env))
+        .map(|v| format_match(v, search_dir))
         .collect::<Vec<_>>();
 
     let truncated_output = if is_truncated {
@@ -313,15 +312,14 @@ pub fn truncate_search_output(
             .take(count as usize)
             .map(String::from)
             .collect::<Vec<_>>()
-            .join("\n")
     } else {
-        output.join("\n")
+        output
     };
 
     TruncatedSearchOutput {
-        output: truncated_output,
+        output: truncated_output.join("\n"),
         total_lines: total_outputs,
-        start_line,
+        start_line: start_line + 1,
         end_line: if is_truncated {
             start_line + count
         } else {
