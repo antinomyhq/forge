@@ -350,12 +350,17 @@ impl<S: AgentService> Orchestrator<S> {
             .fold(context.clone(), |ctx, attachment| {
                 ctx.add_message(match attachment.content {
                     AttachmentContent::Image(image) => ContextMessage::Image(image),
-                    AttachmentContent::FileContent(content) => {
+                    AttachmentContent::FileContent {
+                        content,
+                        start_line,
+                        end_line,
+                        total_lines,
+                    } => {
                         let elm = Element::new("file_content")
                             .attr("path", attachment.path)
-                            .attr("start_line", 1)
-                            .attr("end_line", content.lines().count())
-                            .attr("total_lines", content.lines().count())
+                            .attr("start_line", start_line)
+                            .attr("end_line", end_line)
+                            .attr("total_lines", total_lines)
                             .cdata(content);
 
                         ContextMessage::user(elm, model_id.clone().into())

@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn test_transformation() {
         let actual = create_test_context("suu");
-        let expected = "[su[u"; // FIXME
+        let expected = "[su[u";
         assert_eq!(actual, expected);
 
         let actual = create_test_context("suua");

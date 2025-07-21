@@ -15,7 +15,44 @@ pub struct Attachment {
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub enum AttachmentContent {
     Image(Image),
-    FileContent(String),
+    FileContent {
+        content: String,
+        start_line: u64,
+        end_line: u64,
+        total_lines: u64,
+    },
+}
+
+impl AttachmentContent {
+    pub fn as_image(&self) -> Option<&Image> {
+        match self {
+            AttachmentContent::Image(image) => Some(image),
+            _ => None,
+        }
+    }
+
+    pub fn contains(&self, text: &str) -> bool {
+        match self {
+            AttachmentContent::Image(_) => false,
+            AttachmentContent::FileContent { content, .. } => content.contains(text),
+        }
+    }
+
+    pub fn file_content(&self) -> Option<&str> {
+        match self {
+            AttachmentContent::FileContent { content, .. } => Some(content),
+            _ => None,
+        }
+    }
+
+    pub fn range_info(&self) -> Option<(u64, u64, u64)> {
+        match self {
+            AttachmentContent::FileContent { start_line, end_line, total_lines, .. } => {
+                Some((*start_line, *end_line, *total_lines))
+            }
+            _ => None,
+        }
+    }
 }
 
 impl Attachment {

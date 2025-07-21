@@ -5,6 +5,7 @@ use std::sync::Arc;
 use forge_app::AttachmentService;
 use forge_app::domain::{Attachment, AttachmentContent, Image};
 
+use crate::range::resolve_range;
 use crate::{EnvironmentInfra, FileReaderInfra};
 
 #[derive(Clone)]
@@ -47,12 +48,27 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
             _ => None,
         });
 
-        //NOTE: Attachments should not be truncated since they are provided by the user
+        //NOTE: Apply the same slicing as file reads for text content
         let content = match mime_type {
             Some(mime_type) => {
                 AttachmentContent::Image(Image::new_bytes(self.infra.read(&path).await?, mime_type))
             }
-            None => AttachmentContent::FileContent(self.infra.read_utf8(&path).await?),
+            None => {
+                let env = self.infra.get_environment();
+                let (start_line, end_line) = resolve_range(None, None, env.max_read_size);
+
+                let (file_content, file_info) = self
+                    .infra
+                    .range_read_utf8(&path, start_line, end_line)
+                    .await?;
+
+                AttachmentContent::FileContent {
+                    content: file_content,
+                    start_line: file_info.start_line,
+                    end_line: file_info.end_line,
+                    total_lines: file_info.total_lines,
+                }
+            }
         };
 
         Ok(Attachment { content, path: path.to_string_lossy().to_string() })
@@ -83,7 +99,6 @@ pub mod tests {
     use url::Url;
 
     use crate::attachment::ForgeChatRequest;
-    use crate::utils::AttachmentExtension;
     use crate::{
         CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
         FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, SnapshotInfra,
@@ -108,7 +123,7 @@ pub mod tests {
                 fetch_truncation_limit: 0,
                 stdout_max_prefix_length: 0,
                 stdout_max_suffix_length: 0,
-                max_read_size: 0,
+                max_read_size: 2000,
                 http: Default::default(),
                 max_file_size: 10_000_000,
                 forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
@@ -189,7 +204,7 @@ pub mod tests {
             // Return the entire content for simplicity in tests
             Ok((
                 content,
-                forge_fs::FileInfo::new(0, total_lines, total_lines),
+                forge_fs::FileInfo::new(1, total_lines, total_lines),
             ))
         }
     }
@@ -625,10 +640,12 @@ pub mod tests {
 
         // Verify that each expected file is in the attachments
         let has_file1 = attachments.iter().any(|a| {
-            a.path == "/test/file1.txt" && matches!(a.content, AttachmentContent::FileContent(_))
+            a.path == "/test/file1.txt"
+                && matches!(a.content, AttachmentContent::FileContent { .. })
         });
         let has_file2 = attachments.iter().any(|a| {
-            a.path == "/test/file2.txt" && matches!(a.content, AttachmentContent::FileContent(_))
+            a.path == "/test/file2.txt"
+                && matches!(a.content, AttachmentContent::FileContent { .. })
         });
         let has_image = attachments.iter().any(|a| {
             a.path == "/test/image.png" && matches!(a.content, AttachmentContent::Image(_))
@@ -698,5 +715,47 @@ pub mod tests {
 
         // Check that the content contains our original text and has range information
         assert!(attachment.content.contains("Some content"));
+    }
+
+    #[tokio::test]
+    async fn test_attachment_range_information() {
+        // Setup
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add a multi-line file to test range information
+        infra.add_file(
+            PathBuf::from("/test/multiline.txt"),
+            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+        let url = "@[/test/multiline.txt]".to_string();
+
+        // Execute
+        let attachments = chat_request.attachments(&url).await.unwrap();
+
+        // Assert
+        assert_eq!(attachments.len(), 1);
+        let attachment = attachments.first().unwrap();
+
+        // Verify range information is populated
+        let range_info = attachment.content.range_info();
+        assert!(
+            range_info.is_some(),
+            "Range information should be present for file content"
+        );
+
+        let (start_line, end_line, total_lines) = range_info.unwrap();
+        assert_eq!(start_line, 1, "Start line should be 1");
+        assert!(end_line >= start_line, "End line should be >= start line");
+        assert!(total_lines >= end_line, "Total lines should be >= end line");
+
+        // Verify content is accessible through helper method
+        let file_content = attachment.content.file_content();
+        assert!(file_content.is_some(), "File content should be accessible");
+        assert!(
+            file_content.unwrap().contains("Line 1"),
+            "Should contain file content"
+        );
     }
 }
