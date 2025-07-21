@@ -47,12 +47,6 @@ impl StatefulWidget for ChatWidget {
             MenuWidget::new(MenuItems::new().to_vec()).render(messages_area, buf, state);
         }
 
-        // Render spotlight when visible
-        if state.spotlight.is_visible {
-            use crate::widgets::spotlight::SpotlightWidget;
-            SpotlightWidget.render(messages_area, buf, state);
-        }
-
         // Render slash command menu when visible
         if state.slash_menu_visible {
             // Get the current search term (everything after "/")
