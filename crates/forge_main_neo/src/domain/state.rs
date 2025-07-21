@@ -51,7 +51,7 @@ pub struct Timer {
 
 impl State {
     /// Determine if the slash menu should be visible based on editor content
-    pub fn slash_menu_visible(&self) -> bool {
+    pub fn slash_menu_vicasible(&self) -> bool {
         self.editor.get_text().starts_with('/')
     }
 
