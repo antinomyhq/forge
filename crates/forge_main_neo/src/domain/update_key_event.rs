@@ -984,6 +984,8 @@ mod tests {
     #[test]
     fn test_menu_navigation_works_with_messages() {
         let mut state = State::default();
+
+        // Test navigation disabled when spotlight is visible
         state.editor.mode = EditorMode::Normal;
         state.spotlight.is_visible = false;
         state.add_user_message("Test message".to_string()); // Add messages to state
@@ -1114,6 +1116,7 @@ mod tests {
         state.editor.set_text_insert_mode("/ag".to_string()); // Should only match "agent"
         state.slash_menu_visible = true;
         state.menu.list.select(Some(0));
+        state.add_user_message("Test message".to_string()); // Add messages to state
 
         // Test down arrow should not move since there's only one match
         let key_event = KeyEvent::new(KeyCode::Down, KeyModifiers::NONE);
