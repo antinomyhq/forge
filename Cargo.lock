@@ -1275,7 +1275,7 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
- "strum 0.27.1",
+ "strum 0.27.2",
  "tempfile",
  "thiserror 2.0.12",
  "tokio",
@@ -1337,8 +1337,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yml",
- "strum 0.27.1",
- "strum_macros 0.27.1",
+ "strum 0.27.2",
+ "strum_macros 0.27.2",
  "thiserror 2.0.12",
  "tokio",
  "tokio-stream",
@@ -1438,8 +1438,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yml",
- "strum 0.27.1",
- "strum_macros 0.27.1",
+ "strum 0.27.2",
+ "strum_macros 0.27.2",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -1469,8 +1469,8 @@ dependencies = [
  "pretty_assertions",
  "ratatui",
  "serde_json",
- "strum 0.27.1",
- "strum_macros 0.27.1",
+ "strum 0.27.2",
+ "strum_macros 0.27.2",
  "throbber-widgets-tui",
  "tokio",
  "tokio-stream",
@@ -1497,8 +1497,8 @@ dependencies = [
  "reqwest-eventsource",
  "serde",
  "serde_json",
- "strum 0.27.1",
- "strum_macros 0.27.1",
+ "strum 0.27.2",
+ "strum_macros 0.27.2",
  "thiserror 2.0.12",
  "tokio",
  "tokio-stream",
@@ -1547,8 +1547,8 @@ dependencies = [
  "serde_json",
  "serde_yml",
  "strip-ansi-escapes",
- "strum 0.27.1",
- "strum_macros 0.27.1",
+ "strum 0.27.2",
+ "strum_macros 0.27.2",
  "syn 2.0.104",
  "tempfile",
  "thiserror 2.0.12",
@@ -1642,7 +1642,7 @@ dependencies = [
  "reqwest 0.12.22",
  "serde",
  "serde_json",
- "strum 0.27.1",
+ "strum 0.27.2",
  "sysinfo 0.33.1",
  "tokio",
  "tracing",
@@ -1858,7 +1858,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "strum_macros 0.27.1",
+ "strum_macros 0.27.2",
 ]
 
 [[package]]
@@ -4460,9 +4460,9 @@ dependencies = [
 
 [[package]]
 name = "strum"
-version = "0.27.1"
+version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f64def088c51c9510a8579e3c5d67c65349dcf755e5479ad3d010aa6454e2c32"
+checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
 
 [[package]]
 name = "strum_macros"
@@ -4479,14 +4479,13 @@ dependencies = [
 
 [[package]]
 name = "strum_macros"
-version = "0.27.1"
+version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c77a8c5abcaf0f9ce05d62342b7d298c346515365c36b673df4ebe3ced01fde8"
+checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
 dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "rustversion",
  "syn 2.0.104",
 ]
 
