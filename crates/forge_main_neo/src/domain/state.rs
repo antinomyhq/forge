@@ -20,7 +20,6 @@ pub struct State {
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
     pub menu: MenuState,
-    pub slash_menu_visible: bool,
 }
 
 impl Default for State {
@@ -38,7 +37,6 @@ impl Default for State {
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
             menu: MenuState::default(),
-            slash_menu_visible: false,
         }
     }
 }
@@ -52,6 +50,11 @@ pub struct Timer {
 }
 
 impl State {
+    /// Determine if the slash menu should be visible based on editor content
+    pub fn slash_menu_visible(&self) -> bool {
+        self.editor.get_text().starts_with('/')
+    }
+
     /// Get editor lines as strings
     pub fn editor_lines(&self) -> Vec<String> {
         self.editor.get_lines()

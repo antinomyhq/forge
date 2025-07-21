@@ -48,7 +48,7 @@ impl StatefulWidget for ChatWidget {
         }
 
         // Render slash command menu when visible
-        if state.slash_menu_visible {
+        if state.slash_menu_visible() {
             // Get the current search term (everything after "/")
             let text = state.editor.get_text();
             let search_term = text.strip_prefix('/').unwrap_or("");

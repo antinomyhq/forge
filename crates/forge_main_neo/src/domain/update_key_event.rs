@@ -14,7 +14,7 @@ fn handle_slash_menu_navigation(
 ) -> Option<Command> {
     use ratatui::crossterm::event::KeyCode;
 
-    if !state.slash_menu_visible {
+    if !state.slash_menu_visible() {
         return None;
     }
 
@@ -50,9 +50,6 @@ fn handle_slash_menu_navigation(
                     .editor
                     .set_text_insert_mode(format!("/{selected_cmd}"));
 
-                // Hide the menu
-                state.slash_menu_visible = false;
-
                 // Convert SlashCommand to appropriate Command for execution
                 let command = match selected_cmd {
                     crate::domain::SlashCommand::Exit => Command::Exit,
@@ -77,18 +74,13 @@ fn handle_slash_menu_navigation(
             Some(Command::Empty)
         }
         KeyCode::Esc => {
-            // Hide menu and clear the "/" from editor
-            state.slash_menu_visible = false;
+            // Clear the "/" from editor
             state.editor.clear();
             Some(Command::Empty)
         }
         KeyCode::Backspace => {
-            // If we backspace the "/", hide the menu
-            let text = state.editor.get_text();
-            if text.is_empty() || !text.starts_with('/') {
-                state.slash_menu_visible = false;
-            } else {
-                // Reset selection when search term changes
+            // Reset selection when search term changes if menu is still visible
+            if state.slash_menu_visible() {
                 state.menu.list.select(Some(0));
             }
             None // Let the editor handle the backspace
@@ -124,16 +116,8 @@ fn handle_word_navigation(
     }
 }
 
-fn handle_slash_menu_visibility(state: &mut State) {
-    // Hide slash menu if text doesn't start with "/" or is empty
-    let text = state.editor.get_text();
-    if state.slash_menu_visible && (!text.starts_with('/') || text.is_empty()) {
-        state.slash_menu_visible = false;
-    }
-}
-
 fn handle_slash_menu_search_update(state: &mut State) {
-    if state.slash_menu_visible {
+    if state.slash_menu_visible() {
         // Reset selection to first item when search term changes
         state.menu.list.select(Some(0));
     }
@@ -191,12 +175,11 @@ fn handle_slash_show(state: &mut State, key_event: ratatui::crossterm::event::Ke
     use ratatui::crossterm::event::KeyCode;
 
     if key_event.code == KeyCode::Char('/') && state.editor.mode == EditorMode::Insert {
-        // Check if we just typed "/" to show the slash command menu
+        // Check if we just typed "/" to potentially reset menu selection
         let text = state.editor.get_text();
 
-        // Only auto-show if the text is exactly "/" (just typed)
-        if text == "/" && !state.slash_menu_visible {
-            state.slash_menu_visible = true;
+        // If text is exactly "/" and menu is now visible, reset selection
+        if text == "/" && state.slash_menu_visible() {
             // Reset menu selection to the first item
             state.menu.list.select(Some(0));
         }
@@ -326,16 +309,11 @@ pub fn handle_key_event(
             .and(handle_slash_show(state, key_event))
             .and(handle_prompt_submit(state, key_event));
 
-        // Check slash menu visibility after editor changes
-        handle_slash_menu_visibility(state);
-
         // Update slash menu search if menu is visible
         handle_slash_menu_search_update(state);
 
         result
     } else {
-        // Check slash menu visibility even for navigation keys
-        handle_slash_menu_visibility(state);
         Command::Empty
     }
 }
@@ -487,7 +465,6 @@ mod tests {
     fn test_slash_auto_detection_shows_slash_menu() {
         let mut state = State::default();
         state.editor.mode = EditorMode::Insert;
-        state.slash_menu_visible = false;
 
         // Simulate typing "/" in insert mode
         let key_event = KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE);
@@ -497,7 +474,7 @@ mod tests {
 
         assert_eq!(actual_command, expected_command);
         // Slash menu should be visible after typing "/"
-        assert!(state.slash_menu_visible);
+        assert!(state.slash_menu_visible());
         // Main editor should have the "/" character
         assert_eq!(state.editor.get_text(), "/");
         // Menu should be selected to first item
@@ -508,7 +485,6 @@ mod tests {
     fn test_slash_auto_detection_only_triggers_on_exact_slash() {
         let mut state = State::default();
         state.editor.mode = EditorMode::Insert;
-        state.slash_menu_visible = false;
 
         // Set text to something that starts with "/" but is not exactly "/"
         state.editor.set_text_insert_mode("/test".to_string());
@@ -518,8 +494,8 @@ mod tests {
         let expected_command = Command::Empty;
 
         assert_eq!(actual_command, expected_command);
-        // Slash menu should NOT be visible since we didn't type "/"
-        assert!(!state.slash_menu_visible);
+        // Slash menu should still be visible since text starts with "/"
+        assert!(state.slash_menu_visible());
         // Main editor should have the new character added
         assert_eq!(state.editor.get_text(), "/testx");
     }
@@ -601,7 +577,6 @@ mod tests {
         let mut state = State::default();
         state.editor.mode = EditorMode::Insert;
         state.editor.set_text_insert_mode("/".to_string());
-        state.slash_menu_visible = true;
         state.menu.list.select(Some(2));
 
         // Test down navigation
@@ -626,7 +601,6 @@ mod tests {
         let mut state = State::default();
         state.editor.mode = EditorMode::Insert;
         state.editor.set_text_insert_mode("/exit".to_string());
-        state.slash_menu_visible = true;
         state.menu.list.select(Some(0)); // Select first item which should be "exit"
 
         let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
@@ -634,7 +608,7 @@ mod tests {
         let expected_command = Command::Exit;
 
         assert_eq!(actual_command, expected_command);
-        assert!(!state.slash_menu_visible); // Menu should be hidden
+        assert!(state.slash_menu_visible()); // Menu should still be visible since text is "/exit"
         assert_eq!(state.editor.get_text(), "/exit"); // Text should be updated
     }
 
@@ -643,14 +617,13 @@ mod tests {
         let mut state = State::default();
         state.editor.mode = EditorMode::Insert;
         state.editor.set_text_insert_mode("/test".to_string());
-        state.slash_menu_visible = true;
 
         let key_event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
         let actual_command = handle_key_event(&mut state, key_event);
         let expected_command = Command::Empty;
 
         assert_eq!(actual_command, expected_command);
-        assert!(!state.slash_menu_visible); // Menu should be hidden
+        assert!(!state.slash_menu_visible()); // Menu should not be visible after clearing text
         assert_eq!(state.editor.get_text(), ""); // Text should be cleared
     }
 
@@ -659,7 +632,6 @@ mod tests {
         let mut state = State::default();
         state.editor.mode = EditorMode::Insert;
         state.editor.set_text_insert_mode("/test".to_string());
-        state.slash_menu_visible = true;
 
         // Position cursor at end for backspace
         state.editor.cursor = Index2::new(0, 5);
@@ -669,7 +641,7 @@ mod tests {
 
         // Command should let editor handle the backspace
         // The slash menu should remain visible since text still starts with "/"
-        assert!(state.slash_menu_visible);
+        assert!(state.slash_menu_visible());
         assert_eq!(state.editor.get_text(), "/tes");
     }
 
@@ -678,7 +650,6 @@ mod tests {
         let mut state = State::default();
         state.editor.mode = EditorMode::Insert;
         state.editor.set_text_insert_mode("/".to_string());
-        state.slash_menu_visible = true;
 
         // Position cursor at end for backspace
         state.editor.cursor = Index2::new(0, 1);
@@ -687,7 +658,7 @@ mod tests {
         handle_key_event(&mut state, key_event);
 
         // After backspacing the "/", menu should be hidden
-        assert!(!state.slash_menu_visible);
+        assert!(!state.slash_menu_visible());
         assert_eq!(state.editor.get_text(), "");
     }
 }
