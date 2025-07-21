@@ -22,6 +22,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::errors::Error;
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
@@ -173,10 +174,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Err(error) => {
                 tracing::error!(error = ?error);
                 match error.downcast_ref::<DomainError>() {
-                    Some(DomainError::AuthenticationError(url)) => {
-                        todo!()
+                    Some(domain_error) => {
+                        Error::from(domain_error).print();
                     }
-                    None | Some(_) => {
+                    None => {
                         eprintln!("{}", TitleFormat::error(format!("{error:?}")));
                     }
                 }
