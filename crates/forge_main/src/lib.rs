@@ -2,6 +2,7 @@ mod banner;
 mod cli;
 mod completer;
 mod editor;
+mod errors;
 mod info;
 mod input;
 mod model;
