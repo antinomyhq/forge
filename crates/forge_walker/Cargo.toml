@@ -8,6 +8,8 @@ ignore.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
 derive_setters.workspace = true
+tracing.workspace = true
+dashmap = "6.1.0"
 
 [dev-dependencies]
 pretty_assertions.workspace = true

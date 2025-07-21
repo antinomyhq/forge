@@ -1,10 +1,13 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use dashmap::DashMap;
 use derive_setters::Setters;
-use ignore::WalkBuilder;
+use ignore::{WalkBuilder, WalkState};
 use tokio::task::spawn_blocking;
+use tracing::info;
 
 #[derive(Clone, Debug)]
 pub struct File {
@@ -107,19 +110,64 @@ impl Walker {
     /// Blocking function to scan filesystem. Use this when you already have
     /// a runtime or want to avoid spawning a new one.
     pub fn get_blocking(&self) -> Result<Vec<File>> {
+        self.find_files::<fn(&Path) -> bool>(None)
+    }
+
+    pub fn find_files<P>(&self, filter: Option<P>) -> Result<Vec<File>>
+    where
+        P: Fn(&Path) -> bool + Send + Sync + 'static,
+    {
         let mut files = Vec::new();
         let mut total_size = 0u64;
         let mut dir_entries: HashMap<String, usize> = HashMap::new();
         let mut file_count = 0;
 
         // TODO: Convert to async and return a stream
-        let walk = WalkBuilder::new(&self.cwd)
+        let num_threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1); // fallback to 1 if detection fails
+        info!("Using {} threads for walking", num_threads);
+
+        let mut walk_builder = WalkBuilder::new(&self.cwd);
+        walk_builder
             .standard_filters(true) // use standard ignore filters.
             .max_depth(Some(self.max_depth))
-            // TODO: use build_parallel() for better performance
-            .build();
+            .threads(num_threads);
 
-        'walk_loop: for entry in walk.flatten() {
+        if let Some(filter) = filter {
+            walk_builder.filter_entry(move |entry| filter(entry.path()));
+        }
+
+        let walk = walk_builder.build_parallel();
+
+        // use thread-local to avoid thread contention with mutex
+        let file_map: Arc<DashMap<std::thread::ThreadId, Vec<ignore::DirEntry>>> =
+            Arc::new(DashMap::with_capacity(num_threads));
+        walk.run(|| {
+            let map = file_map.clone();
+            let max_files = self.max_files;
+            Box::new(move |entry| {
+                let task_id = std::thread::current().id();
+                let processed_files = map.iter().map(|x| x.value().len()).sum::<usize>();
+                if processed_files > max_files {
+                    return WalkState::Quit;
+                }
+                match entry {
+                    Ok(entry) => {
+                        map.entry(task_id).or_default().push(entry);
+                        WalkState::Continue
+                    }
+                    Err(_) => WalkState::Continue,
+                }
+            })
+        });
+
+        let paths = file_map
+            .iter()
+            .flat_map(|x| x.value().clone())
+            .collect::<Vec<_>>();
+
+        'walk_loop: for entry in paths.iter() {
             let path = entry.path();
 
             // Calculate depth relative to base directory
