@@ -6,7 +6,6 @@ mod menu;
 mod menu_items;
 mod message;
 mod slash_command;
-mod spotlight;
 mod state;
 mod update;
 mod update_key_event;

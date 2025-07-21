@@ -6,7 +6,6 @@ use forge_api::{ChatResponse, ConversationId};
 use throbber_widgets_tui::ThrobberState;
 use tui_scrollview::ScrollViewState;
 
-use crate::domain::spotlight::SpotlightState;
 use crate::domain::{CancelId, EditorStateExt, MenuState, Message, Workspace};
 
 #[derive(Clone)]
@@ -17,7 +16,6 @@ pub struct State {
     pub spinner: ThrobberState,
     pub timer: Option<Timer>,
     pub show_spinner: bool,
-    pub spotlight: SpotlightState,
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
@@ -36,7 +34,6 @@ impl Default for State {
             spinner: Default::default(),
             timer: Default::default(),
             show_spinner: Default::default(),
-            spotlight: Default::default(),
             conversation: Default::default(),
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
