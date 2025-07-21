@@ -4,7 +4,7 @@ use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols::{border, line};
 use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
 
-use crate::domain::{MenuItems, State};
+use crate::domain::{EditorStateExt, MenuItems, State};
 use crate::widgets::menu::MenuWidget;
 use crate::widgets::message_list::MessageList;
 use crate::widgets::status_bar::StatusBar;
@@ -44,9 +44,24 @@ impl StatefulWidget for ChatWidget {
         }
 
         if is_normal_mode {
-            // SpotlightWidget.render(messages_area, buf, state)
-
             MenuWidget::new(MenuItems::new().to_vec()).render(messages_area, buf, state);
+        }
+
+        // Render spotlight when visible
+        if state.spotlight.is_visible {
+            use crate::widgets::spotlight::SpotlightWidget;
+            SpotlightWidget.render(messages_area, buf, state);
+        }
+
+        // Render slash command menu when visible
+        if state.slash_menu_visible {
+            // Get the current search term (everything after "/")
+            let text = state.editor.get_text();
+            let search_term = text.strip_prefix('/').unwrap_or("");
+
+            // Get filtered commands using fuzzy search
+            let filtered_commands = crate::domain::SlashCommand::fuzzy_filter(search_term);
+            MenuWidget::new(filtered_commands).render(messages_area, buf, state);
         }
 
         // User input area block with status bar (now at bottom)

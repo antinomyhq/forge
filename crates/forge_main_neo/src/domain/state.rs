@@ -22,6 +22,7 @@ pub struct State {
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
     pub menu: MenuState,
+    pub slash_menu_visible: bool,
 }
 
 impl Default for State {
@@ -40,6 +41,7 @@ impl Default for State {
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
             menu: MenuState::default(),
+            slash_menu_visible: false,
         }
     }
 }

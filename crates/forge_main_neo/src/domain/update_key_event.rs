@@ -10,6 +10,17 @@ use crate::domain::spotlight::SpotlightState;
 use crate::domain::{Command, EditorStateExt, MenuItems, State};
 
 fn handle_spotlight_input_change(state: &mut State) {
+    // Check if the spotlight should be hidden (text doesn't start with '/')
+    let text = state.spotlight.editor.get_text();
+    if !text.starts_with('/') || text.is_empty() {
+        // Move any remaining text back to main editor
+        if !text.is_empty() && !text.starts_with('/') {
+            state.editor.set_text_insert_mode(text);
+        }
+        state.spotlight = SpotlightState::default();
+        return;
+    }
+
     // Reset selection index when input changes to ensure it's within bounds
     // of the filtered results
     let filtered_count = state.spotlight.filtered_commands().len();
@@ -62,12 +73,12 @@ fn handle_spotlight_navigation(
             if let Some(selected_cmd) = state.spotlight.selected_command() {
                 // Convert SlashCommand to appropriate Command
                 let command = match selected_cmd {
-                    crate::domain::slash_command::SlashCommand::Exit => Command::Exit,
-                    crate::domain::slash_command::SlashCommand::Agent => {
+                    crate::domain::SlashCommand::Exit => Command::Exit,
+                    crate::domain::SlashCommand::Agent => {
                         // For now, just hide spotlight - proper agent selection would need more UI
                         Command::Empty
                     }
-                    crate::domain::slash_command::SlashCommand::Model => {
+                    crate::domain::SlashCommand::Model => {
                         // For now, just hide spotlight - proper model selection would need more UI
                         Command::Empty
                     }
@@ -84,6 +95,98 @@ fn handle_spotlight_navigation(
             Some(Command::Empty)
         }
         _ => None,
+    }
+}
+fn handle_slash_menu_navigation(
+    state: &mut State,
+    key_event: ratatui::crossterm::event::KeyEvent,
+) -> Option<Command> {
+    use ratatui::crossterm::event::KeyCode;
+
+    if !state.slash_menu_visible {
+        return None;
+    }
+
+    // Get the current search term (everything after "/")
+    let text = state.editor.get_text();
+    let search_term = text.strip_prefix('/').unwrap_or("");
+
+    // Get filtered commands using fuzzy search
+    let filtered_commands = crate::domain::SlashCommand::fuzzy_filter(search_term);
+
+    match key_event.code {
+        KeyCode::Up => {
+            let current = state.menu.list.selected().unwrap_or(0);
+            if current > 0 {
+                state.menu.list.select(Some(current - 1));
+            }
+            Some(Command::Empty)
+        }
+        KeyCode::Down => {
+            let current = state.menu.list.selected().unwrap_or(0);
+            if !filtered_commands.is_empty() && current < filtered_commands.len() - 1 {
+                state.menu.list.select(Some(current + 1));
+            }
+            Some(Command::Empty)
+        }
+        KeyCode::Enter => {
+            // Execute the selected command from filtered results
+            if let Some(selected_index) = state.menu.list.selected()
+                && let Some(selected_cmd) = filtered_commands.get(selected_index)
+            {
+                // Replace the current text with the selected command
+                state
+                    .editor
+                    .set_text_insert_mode(format!("/{selected_cmd}"));
+
+                // Hide the menu
+                state.slash_menu_visible = false;
+
+                // Convert SlashCommand to appropriate Command for execution
+                let command = match selected_cmd {
+                    crate::domain::SlashCommand::Exit => Command::Exit,
+                    crate::domain::SlashCommand::Agent => {
+                        // For now, just return empty - proper agent selection would need more
+                        // UI
+                        Command::Empty
+                    }
+                    crate::domain::SlashCommand::Model => {
+                        // For now, just return empty - proper model selection would need more
+                        // UI
+                        Command::Empty
+                    }
+                    _ => {
+                        // For other commands, just return empty for now
+                        Command::Empty
+                    }
+                };
+
+                return Some(command);
+            }
+            Some(Command::Empty)
+        }
+        KeyCode::Esc => {
+            // Hide menu and clear the "/" from editor
+            state.slash_menu_visible = false;
+            state.editor.clear();
+            Some(Command::Empty)
+        }
+        KeyCode::Backspace => {
+            // If we backspace the "/", hide the menu
+            let text = state.editor.get_text();
+            if text.is_empty() || !text.starts_with('/') {
+                state.slash_menu_visible = false;
+            } else {
+                // Reset selection when search term changes
+                state.menu.list.select(Some(0));
+            }
+            None // Let the editor handle the backspace
+        }
+        _ => {
+            // For any other character input, reset selection to first item
+            // This will be handled after the editor processes the key
+            None
+        }
     }
 }
 
@@ -107,6 +210,20 @@ fn handle_word_navigation(
         }
     } else {
         false
+    }
+}
+
+fn handle_slash_menu_visibility(state: &mut State) {
+    // Hide slash menu if text doesn't start with "/" or is empty
+    let text = state.editor.get_text();
+    if state.slash_menu_visible && (!text.starts_with('/') || text.is_empty()) {
+        state.slash_menu_visible = false;
+    }
+}
+fn handle_slash_menu_search_update(state: &mut State) {
+    if state.slash_menu_visible {
+        // Reset selection to first item when search term changes
+        state.menu.list.select(Some(0));
     }
 }
 
@@ -166,6 +283,17 @@ fn handle_spotlight_show(
 
     if key_event.code == KeyCode::Char(':') && state.editor.mode == EditorMode::Normal {
         state.spotlight.is_visible = true;
+        Command::Empty
+    } else if key_event.code == KeyCode::Char('/') && state.editor.mode == EditorMode::Insert {
+        // Check if we just typed "/" to show the slash command menu
+        let text = state.editor.get_text();
+
+        // Only auto-show if the text is exactly "/" (just typed)
+        if text == "/" && !state.slash_menu_visible {
+            state.slash_menu_visible = true;
+            // Reset menu selection to the first item
+            state.menu.list.select(Some(0));
+        }
         Command::Empty
     } else {
         Command::Empty
@@ -325,6 +453,11 @@ pub fn handle_key_event(
         // Capture original editor mode before any modifications
         let original_editor_mode = state.editor.mode;
 
+        // Handle slash menu navigation first if visible
+        if let Some(slash_cmd) = handle_slash_menu_navigation(state, key_event) {
+            return slash_cmd;
+        }
+
         // Handle menu navigation first (only in normal mode when no messages or menu
         // takes precedence)
         let menu_nav_handled = handle_menu_navigation(state, key_event);
@@ -345,15 +478,25 @@ pub fn handle_key_event(
 
         // Only call editor default and spotlight show if no navigation was handled
         if !line_nav_handled && !word_nav_handled {
-            handle_editor_default(&mut state.editor, key_event)
+            let result = handle_editor_default(&mut state.editor, key_event)
                 .and(handle_spotlight_show(state, key_event))
                 .and(handle_spotlight_toggle(
                     state,
                     key_event,
                     original_editor_mode,
                 ))
-                .and(handle_prompt_submit(state, key_event))
+                .and(handle_prompt_submit(state, key_event));
+
+            // Check slash menu visibility after editor changes
+            handle_slash_menu_visibility(state);
+
+            // Update slash menu search if menu is visible
+            handle_slash_menu_search_update(state);
+
+            result
         } else {
+            // Check slash menu visibility even for navigation keys
+            handle_slash_menu_visibility(state);
             Command::Empty
         }
     }
@@ -366,8 +509,7 @@ mod tests {
     use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::*;
-    use crate::domain::State;
-    use crate::domain::slash_command::SlashCommand;
+    use crate::domain::{SlashCommand, State};
 
     fn create_test_state_with_text() -> State {
         let mut state = State::default();
@@ -622,6 +764,47 @@ mod tests {
     }
 
     #[test]
+    fn test_slash_auto_detection_shows_slash_menu() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.slash_menu_visible = false;
+
+        // Simulate typing "/" in insert mode
+        let key_event = KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE);
+
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+        // Slash menu should be visible after typing "/"
+        assert!(state.slash_menu_visible);
+        // Main editor should have the "/" character
+        assert_eq!(state.editor.get_text(), "/");
+        // Menu should be selected to first item
+        assert_eq!(state.menu.list.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_slash_auto_detection_only_triggers_on_exact_slash() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.slash_menu_visible = false;
+
+        // Set text to something that starts with "/" but is not exactly "/"
+        state.editor.set_text_insert_mode("/test".to_string());
+
+        let key_event = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+        // Slash menu should NOT be visible since we didn't type "/"
+        assert!(!state.slash_menu_visible);
+        // Main editor should have the new character added
+        assert_eq!(state.editor.get_text(), "/testx");
+    }
+
+    #[test]
     fn test_spotlight_navigation_up_down() {
         let mut state = create_test_state_with_text();
         state.spotlight.is_visible = true;
@@ -810,5 +993,142 @@ mod tests {
         let actual_command = handle_key_event(&mut state, key_event);
         assert_eq!(actual_command, Command::Empty);
         assert_eq!(state.menu.list.selected(), Some(1));
+    }
+
+    #[test]
+    fn test_slash_menu_navigation() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/".to_string());
+        state.slash_menu_visible = true;
+        state.menu.list.select(Some(0));
+
+        // Test down arrow moves to next item
+        let key_event = KeyEvent::new(KeyCode::Down, KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+        assert_eq!(state.menu.list.selected(), Some(1));
+
+        // Test up arrow moves back to previous item
+        let key_event = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+        assert_eq!(state.menu.list.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_slash_menu_enter_selection() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/".to_string());
+        state.slash_menu_visible = true;
+        state.menu.list.select(Some(0)); // First command is "agent"
+
+        // Test enter selects the command
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let _actual_command = handle_key_event(&mut state, key_event);
+
+        // Menu should be hidden after selection
+        assert!(!state.slash_menu_visible);
+        // Editor should now have the selected command
+        assert_eq!(state.editor.get_text(), "/agent");
+    }
+
+    #[test]
+    fn test_slash_menu_fuzzy_search_filtering() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/ag".to_string());
+        state.slash_menu_visible = true;
+        state.menu.list.select(Some(0));
+
+        // Verify that fuzzy filtering works
+        let text = state.editor.get_text();
+        let search_term = text.strip_prefix('/').unwrap_or("");
+        let filtered_commands = crate::domain::SlashCommand::fuzzy_filter(search_term);
+
+        // Should only match "agent"
+        assert_eq!(filtered_commands.len(), 1);
+        assert_eq!(filtered_commands[0], SlashCommand::Agent);
+    }
+
+    #[test]
+    fn test_slash_menu_fuzzy_search_multiple_matches() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/e".to_string());
+        state.slash_menu_visible = true;
+        state.menu.list.select(Some(0));
+
+        // Verify that fuzzy filtering works with multiple matches
+        let text = state.editor.get_text();
+        let search_term = text.strip_prefix('/').unwrap_or("");
+        let filtered_commands = crate::domain::SlashCommand::fuzzy_filter(search_term);
+
+        // Should match multiple commands containing 'e'
+        assert!(filtered_commands.len() > 1);
+        assert!(filtered_commands.contains(&SlashCommand::Help));
+        assert!(filtered_commands.contains(&SlashCommand::Exit));
+    }
+
+    #[test]
+    fn test_slash_menu_fuzzy_search_no_matches() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/xyz".to_string());
+        state.slash_menu_visible = true;
+        state.menu.list.select(Some(0));
+
+        // Verify that fuzzy filtering works with no matches
+        let text = state.editor.get_text();
+        let search_term = text.strip_prefix('/').unwrap_or("");
+        let filtered_commands = crate::domain::SlashCommand::fuzzy_filter(search_term);
+
+        // Should have no matches
+        assert_eq!(filtered_commands.len(), 0);
+    }
+
+    #[test]
+    fn test_slash_menu_selection_reset_on_text_change() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/".to_string());
+        state.slash_menu_visible = true;
+        state.menu.list.select(Some(5)); // Set to some non-zero selection
+
+        // Simulate typing 'a' - this would call handle_slash_menu_search_update
+        handle_slash_menu_search_update(&mut state);
+
+        // Selection should reset to 0
+        assert_eq!(state.menu.list.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_slash_menu_navigation_with_filtered_results() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/ag".to_string()); // Should only match "agent"
+        state.slash_menu_visible = true;
+        state.menu.list.select(Some(0));
+
+        // Test down arrow should not move since there's only one match
+        let key_event = KeyEvent::new(KeyCode::Down, KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+        assert_eq!(state.menu.list.selected(), Some(0)); // Should stay at 0
+
+        // Test that Enter selects the filtered command
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let _actual_command = handle_key_event(&mut state, key_event);
+
+        // Should set text to "/agent" and hide menu
+        assert_eq!(state.editor.get_text(), "/agent");
+        assert!(!state.slash_menu_visible);
     }
 }

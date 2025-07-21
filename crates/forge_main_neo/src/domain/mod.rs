@@ -19,6 +19,7 @@ pub use editor_helpers::*;
 pub use menu::*;
 pub use menu_items::*;
 pub use message::*;
+pub use slash_command::*;
 pub use state::*;
 pub use update::*;
 pub use workspace::*;

@@ -31,10 +31,12 @@ impl SpotlightState {
     /// Get the currently selected command as a SlashCommand enum
     pub fn selected_command(&self) -> Option<SlashCommand> {
         let input_text = self.editor.get_text().to_lowercase();
+        // Strip leading "/" for command filtering
+        let filter_text = input_text.strip_prefix('/').unwrap_or(&input_text);
 
-        // Filter commands that start with the input text
+        // Filter commands that start with the input text (without the "/")
         let filtered_commands: Vec<SlashCommand> = SlashCommand::iter()
-            .filter(|cmd| cmd.to_string().to_lowercase().starts_with(&input_text))
+            .filter(|cmd| cmd.to_string().to_lowercase().starts_with(filter_text))
             .collect();
 
         filtered_commands.get(self.selected_index).cloned()
@@ -43,9 +45,11 @@ impl SpotlightState {
     /// Get all commands that match the current input filter
     pub fn filtered_commands(&self) -> Vec<SlashCommand> {
         let input_text = self.editor.get_text().to_lowercase();
+        // Strip leading "/" for command filtering
+        let filter_text = input_text.strip_prefix('/').unwrap_or(&input_text);
 
         SlashCommand::iter()
-            .filter(|cmd| cmd.to_string().to_lowercase().starts_with(&input_text))
+            .filter(|cmd| cmd.to_string().to_lowercase().starts_with(filter_text))
             .collect()
     }
 }
