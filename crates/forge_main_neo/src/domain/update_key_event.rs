@@ -250,6 +250,12 @@ fn handle_message_scroll(
         return false;
     }
 
+    // Check if there are no messages to scroll (menu should be visible and take
+    // precedence)
+    if state.messages.is_empty() {
+        return false;
+    }
+
     match key_event.code {
         KeyCode::Up => {
             state.message_scroll_state.scroll_up();
