@@ -4,7 +4,7 @@ use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols::{border, line};
 use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
 
-use crate::domain::{MenuItems, State};
+use crate::domain::{EditorStateExt, MenuItems, State};
 use crate::widgets::menu::MenuWidget;
 use crate::widgets::message_list::MessageList;
 use crate::widgets::status_bar::StatusBar;
