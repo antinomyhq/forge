@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use derive_setters::Setters;
 use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
@@ -16,26 +15,110 @@ use crate::anthropic::Anthropic;
 use crate::forge_provider::ForgeProvider;
 use crate::retry::into_retry;
 
-#[derive(Setters)]
-pub struct ClientConfig {
+pub struct ClientBuilder {
     pub retry_config: Arc<RetryConfig>,
     pub timeout_config: HttpConfig,
     dns_resolver: DnsResolver,
+    provider: Option<Provider>,
+    version: Option<String>,
 }
 
-impl ClientConfig {
-    pub fn new(retry_config: Arc<RetryConfig>, timeout_config: HttpConfig) -> Self {
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ClientBuilder {
+    pub fn new() -> Self {
         Self {
-            retry_config,
-            timeout_config,
+            retry_config: Arc::new(RetryConfig::default()),
+            timeout_config: HttpConfig::default(),
             dns_resolver: DnsResolver::default(),
+            provider: None,
+            version: None,
         }
+    }
+
+    pub fn retry_config(mut self, retry_config: Arc<RetryConfig>) -> Self {
+        self.retry_config = retry_config;
+        self
+    }
+
+    pub fn timeout_config(mut self, timeout_config: HttpConfig) -> Self {
+        self.timeout_config = timeout_config;
+        self
+    }
+
+    pub fn provider(mut self, provider: Provider) -> Self {
+        self.provider = Some(provider);
+        self
+    }
+
+    pub fn version(mut self, version: impl ToString) -> Self {
+        self.version = Some(version.to_string());
+        self
     }
 
     /// Configure the client to use Hickory DNS resolver.
     pub fn use_hickory(mut self) -> Self {
         self.dns_resolver = DnsResolver::Hickory;
         self
+    }
+
+    /// Build the client with the configured settings.
+    pub fn build(self) -> Result<Client> {
+        let provider = self
+            .provider
+            .ok_or_else(|| anyhow::anyhow!("Provider must be set"))?;
+        let version = self
+            .version
+            .ok_or_else(|| anyhow::anyhow!("Version must be set"))?;
+
+        let timeout_config = self.timeout_config;
+        let retry_config = self.retry_config;
+
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(
+                timeout_config.connect_timeout,
+            ))
+            .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
+            .pool_idle_timeout(std::time::Duration::from_secs(
+                timeout_config.pool_idle_timeout,
+            ))
+            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
+            .redirect(Policy::limited(timeout_config.max_redirects))
+            .hickory_dns(self.dns_resolver.is_hickory())
+            .build()?;
+
+        let inner = match &provider {
+            Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
+                ForgeProvider::builder()
+                    .client(client)
+                    .provider(provider.clone())
+                    .version(version.clone())
+                    .build()
+                    .with_context(|| format!("Failed to initialize: {url}"))?,
+            ),
+
+            Provider::Anthropic { url, key } => InnerClient::Anthropic(
+                Anthropic::builder()
+                    .client(client)
+                    .api_key(key.to_string())
+                    .base_url(url.clone())
+                    .anthropic_version("2023-06-01".to_string())
+                    .build()
+                    .with_context(|| {
+                        format!("Failed to initialize Anthropic client with URL: {url}")
+                    })?,
+            ),
+        };
+
+        Ok(Client {
+            inner: Arc::new(inner),
+            retry_config,
+            models_cache: Arc::new(RwLock::new(HashMap::new())),
+        })
     }
 }
 
@@ -67,53 +150,6 @@ enum InnerClient {
 }
 
 impl Client {
-    pub fn new(provider: Provider, config: ClientConfig, version: impl ToString) -> Result<Self> {
-        let timeout_config = config.timeout_config;
-        let retry_config = config.retry_config;
-
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(
-                timeout_config.connect_timeout,
-            ))
-            .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
-            .pool_idle_timeout(std::time::Duration::from_secs(
-                timeout_config.pool_idle_timeout,
-            ))
-            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
-            .redirect(Policy::limited(timeout_config.max_redirects))
-            .hickory_dns(config.dns_resolver.is_hickory())
-            .build()?;
-
-        let inner = match &provider {
-            Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
-                ForgeProvider::builder()
-                    .client(client)
-                    .provider(provider.clone())
-                    .version(version.to_string())
-                    .build()
-                    .with_context(|| format!("Failed to initialize: {url}"))?,
-            ),
-
-            Provider::Anthropic { url, key } => InnerClient::Anthropic(
-                Anthropic::builder()
-                    .client(client)
-                    .api_key(key.to_string())
-                    .base_url(url.clone())
-                    .anthropic_version("2023-06-01".to_string())
-                    .build()
-                    .with_context(|| {
-                        format!("Failed to initialize Anthropic client with URL: {url}")
-                    })?,
-            ),
-        };
-
-        Ok(Self {
-            inner: Arc::new(inner),
-            retry_config,
-            models_cache: Arc::new(RwLock::new(HashMap::new())),
-        })
-    }
-
     fn retry<A>(&self, result: anyhow::Result<A>) -> anyhow::Result<A> {
         let retry_config = &self.retry_config;
         result.map_err(move |e| into_retry(e, retry_config))
@@ -182,24 +218,17 @@ mod tests {
 
     use super::*;
 
-    impl Default for ClientConfig {
-        fn default() -> Self {
-            Self {
-                retry_config: Arc::new(RetryConfig::default()),
-                timeout_config: HttpConfig::default(),
-                dns_resolver: DnsResolver::default(),
-            }
-        }
-    }
-
     #[tokio::test]
     async fn test_cache_initialization() {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let config = ClientConfig::default();
-        let client = Client::new(provider, config, "dev").unwrap();
+        let client = ClientBuilder::default()
+            .provider(provider)
+            .version("dev")
+            .build()
+            .unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -212,13 +241,65 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let config = ClientConfig::default();
-        let client = Client::new(provider, config, "dev").unwrap();
+        let client = ClientBuilder::default()
+            .provider(provider)
+            .version("dev")
+            .build()
+            .unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)
         let result = client.refresh_models().await;
         assert!(result.is_err()); // Expected to fail since we're not hitting a
         // real API
+    }
+
+    #[tokio::test]
+    async fn test_builder_pattern_api() {
+        let provider = Provider::OpenAI {
+            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            key: Some("test-key".to_string()),
+        };
+
+        // Test the builder pattern API
+        let client = ClientBuilder::new()
+            .retry_config(Arc::new(RetryConfig::default()))
+            .timeout_config(HttpConfig::default())
+            .provider(provider)
+            .version("dev")
+            .use_hickory()
+            .build()
+            .unwrap();
+
+        // Verify cache is initialized as empty
+        let cache = client.models_cache.read().await;
+        assert!(cache.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_builder_validation_missing_provider() {
+        let result = ClientBuilder::new()
+            .version("dev")
+            .build();
+        
+        assert!(result.is_err());
+        let error = result.err().unwrap();
+        assert!(error.to_string().contains("Provider must be set"));
+    }
+
+    #[tokio::test]
+    async fn test_builder_validation_missing_version() {
+        let provider = Provider::OpenAI {
+            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            key: Some("test-key".to_string()),
+        };
+        
+        let result = ClientBuilder::new()
+            .provider(provider)
+            .build();
+        
+        assert!(result.is_err());
+        let error = result.err().unwrap();
+        assert!(error.to_string().contains("Version must be set"));
     }
 }
