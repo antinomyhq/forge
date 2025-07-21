@@ -66,9 +66,7 @@ impl ContextMessage {
                 if let Some(reasoning_details) = &message.reasoning_details {
                     for reasoning_detail in reasoning_details {
                         if let Some(text) = &reasoning_detail.text {
-                            lines.push_str(&format!(
-                                "<reasoning_detail>{text}</reasoning_detail>"
-                            ));
+                            lines.push_str(&format!("<reasoning_detail>{text}</reasoning_detail>"));
                         }
                     }
                 }
