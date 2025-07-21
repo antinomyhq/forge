@@ -409,7 +409,7 @@ Control how many times a tool can fail before Forge forces completion to prevent
 
 ```yaml
 # forge.yaml
-tool_max_failure_limit: 3 # Allow up to 3 failures per tool before forcing completion
+max_tool_failure_per_turn: 3 # Allow up to 3 failures per tool before forcing completion
 ```
 
 Set to a higher value if you want more retry attempts, or lower if you want faster failure detection.
