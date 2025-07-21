@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
+use derive_setters::Setters;
 use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
@@ -15,57 +16,17 @@ use crate::anthropic::Anthropic;
 use crate::forge_provider::ForgeProvider;
 use crate::retry::into_retry;
 
+#[derive(Default, Setters)]
+#[setters(strip_option, into)]
 pub struct ClientBuilder {
     pub retry_config: Arc<RetryConfig>,
     pub timeout_config: HttpConfig,
-    dns_resolver: DnsResolver,
-    provider: Option<Provider>,
-    version: Option<String>,
-}
-
-impl Default for ClientBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    pub use_hickory: bool,
+    pub provider: Option<Provider>,
+    pub version: Option<String>,
 }
 
 impl ClientBuilder {
-    pub fn new() -> Self {
-        Self {
-            retry_config: Arc::new(RetryConfig::default()),
-            timeout_config: HttpConfig::default(),
-            dns_resolver: DnsResolver::default(),
-            provider: None,
-            version: None,
-        }
-    }
-
-    pub fn retry_config(mut self, retry_config: Arc<RetryConfig>) -> Self {
-        self.retry_config = retry_config;
-        self
-    }
-
-    pub fn timeout_config(mut self, timeout_config: HttpConfig) -> Self {
-        self.timeout_config = timeout_config;
-        self
-    }
-
-    pub fn provider(mut self, provider: Provider) -> Self {
-        self.provider = Some(provider);
-        self
-    }
-
-    pub fn version(mut self, version: impl ToString) -> Self {
-        self.version = Some(version.to_string());
-        self
-    }
-
-    /// Configure the client to use Hickory DNS resolver.
-    pub fn use_hickory(mut self) -> Self {
-        self.dns_resolver = DnsResolver::Hickory;
-        self
-    }
-
     /// Build the client with the configured settings.
     pub fn build(self) -> Result<Client> {
         let provider = self
@@ -88,7 +49,7 @@ impl ClientBuilder {
             ))
             .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
             .redirect(Policy::limited(timeout_config.max_redirects))
-            .hickory_dns(self.dns_resolver.is_hickory())
+            .hickory_dns(self.use_hickory)
             .build()?;
 
         let inner = match &provider {
@@ -122,21 +83,6 @@ impl ClientBuilder {
     }
 }
 
-/// Specifies the DNS resolver to use for the client.
-/// If `None`, the default system resolver will be used.
-#[derive(Debug, Clone, Default)]
-enum DnsResolver {
-    #[default]
-    Gai,
-    Hickory,
-}
-
-impl DnsResolver {
-    pub fn is_hickory(&self) -> bool {
-        matches!(self, DnsResolver::Hickory)
-    }
-}
-
 #[derive(Clone)]
 pub struct Client {
     retry_config: Arc<RetryConfig>,
@@ -150,6 +96,9 @@ enum InnerClient {
 }
 
 impl Client {
+    pub fn builder() -> ClientBuilder {
+        ClientBuilder::default()
+    }
     fn retry<A>(&self, result: anyhow::Result<A>) -> anyhow::Result<A> {
         let retry_config = &self.retry_config;
         result.map_err(move |e| into_retry(e, retry_config))
@@ -262,12 +211,12 @@ mod tests {
         };
 
         // Test the builder pattern API
-        let client = ClientBuilder::new()
+        let client = ClientBuilder::default()
             .retry_config(Arc::new(RetryConfig::default()))
             .timeout_config(HttpConfig::default())
             .provider(provider)
             .version("dev")
-            .use_hickory()
+            .use_hickory(true)
             .build()
             .unwrap();
 
@@ -278,10 +227,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_validation_missing_provider() {
-        let result = ClientBuilder::new()
-            .version("dev")
-            .build();
-        
+        let result = ClientBuilder::default().version("dev").build();
+
         assert!(result.is_err());
         let error = result.err().unwrap();
         assert!(error.to_string().contains("Provider must be set"));
@@ -293,11 +240,9 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        
-        let result = ClientBuilder::new()
-            .provider(provider)
-            .build();
-        
+
+        let result = ClientBuilder::default().provider(provider).build();
+
         assert!(result.is_err());
         let error = result.err().unwrap();
         assert!(error.to_string().contains("Version must be set"));
