@@ -6,7 +6,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
     ResultStream, RetryConfig,
 };
-use forge_provider::Client;
+use forge_provider::{Client, ClientBuilder};
 use tokio::sync::Mutex;
 
 use crate::EnvironmentInfra;
@@ -40,11 +40,9 @@ impl ForgeProviderService {
         match client_guard.as_ref() {
             Some(client) => Ok(client.clone()),
             None => {
-                let client = Client::builder()
+                let client = ClientBuilder::new(provider, &self.version)
                     .retry_config(self.retry_config.clone())
                     .timeout_config(self.timeout_config.clone())
-                    .provider(provider)
-                    .version(&self.version)
                     .use_hickory(true) // Configure to use Hickory DNS resolver
                     .build()?;
 

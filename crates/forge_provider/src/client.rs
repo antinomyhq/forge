@@ -16,25 +16,33 @@ use crate::anthropic::Anthropic;
 use crate::forge_provider::ForgeProvider;
 use crate::retry::into_retry;
 
-#[derive(Default, Setters)]
+#[derive(Setters)]
 #[setters(strip_option, into)]
 pub struct ClientBuilder {
     pub retry_config: Arc<RetryConfig>,
     pub timeout_config: HttpConfig,
     pub use_hickory: bool,
-    pub provider: Option<Provider>,
-    pub version: Option<String>,
+    pub provider: Provider,
+    pub version: String,
 }
 
 impl ClientBuilder {
+    /// Create a new ClientBuilder with required provider and version
+    /// parameters.
+    pub fn new(provider: Provider, version: impl Into<String>) -> Self {
+        Self {
+            retry_config: Arc::new(RetryConfig::default()),
+            timeout_config: HttpConfig::default(),
+            use_hickory: false,
+            provider,
+            version: version.into(),
+        }
+    }
+
     /// Build the client with the configured settings.
     pub fn build(self) -> Result<Client> {
-        let provider = self
-            .provider
-            .ok_or_else(|| anyhow::anyhow!("Provider must be set"))?;
-        let version = self
-            .version
-            .ok_or_else(|| anyhow::anyhow!("Version must be set"))?;
+        let provider = self.provider;
+        let version = self.version;
 
         let timeout_config = self.timeout_config;
         let retry_config = self.retry_config;
@@ -96,9 +104,6 @@ enum InnerClient {
 }
 
 impl Client {
-    pub fn builder() -> ClientBuilder {
-        ClientBuilder::default()
-    }
     fn retry<A>(&self, result: anyhow::Result<A>) -> anyhow::Result<A> {
         let retry_config = &self.retry_config;
         result.map_err(move |e| into_retry(e, retry_config))
@@ -173,11 +178,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::default()
-            .provider(provider)
-            .version("dev")
-            .build()
-            .unwrap();
+        let client = ClientBuilder::new(provider, "dev").build().unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -190,11 +191,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::default()
-            .provider(provider)
-            .version("dev")
-            .build()
-            .unwrap();
+        let client = ClientBuilder::new(provider, "dev").build().unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)
@@ -211,11 +208,9 @@ mod tests {
         };
 
         // Test the builder pattern API
-        let client = ClientBuilder::default()
+        let client = ClientBuilder::new(provider, "dev")
             .retry_config(Arc::new(RetryConfig::default()))
             .timeout_config(HttpConfig::default())
-            .provider(provider)
-            .version("dev")
             .use_hickory(true)
             .build()
             .unwrap();
@@ -226,25 +221,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_builder_validation_missing_provider() {
-        let result = ClientBuilder::default().version("dev").build();
-
-        assert!(result.is_err());
-        let error = result.err().unwrap();
-        assert!(error.to_string().contains("Provider must be set"));
-    }
-
-    #[tokio::test]
-    async fn test_builder_validation_missing_version() {
+    async fn test_builder_with_defaults() {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
 
-        let result = ClientBuilder::default().provider(provider).build();
+        // Test that ClientBuilder::new works with minimal parameters
+        let client = ClientBuilder::new(provider, "dev").build().unwrap();
 
-        assert!(result.is_err());
-        let error = result.err().unwrap();
-        assert!(error.to_string().contains("Version must be set"));
+        // Verify cache is initialized as empty
+        let cache = client.models_cache.read().await;
+        assert!(cache.is_empty());
     }
 }
