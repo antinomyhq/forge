@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use bytes::Bytes;
+use forge_app::domain::Error as DomainError;
 use forge_app::{AuthService, Error, InitAuth, LoginInfo, User};
-use forge_domain::Error as DomainError;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use crate::{EnvironmentInfra, HttpInfra};
