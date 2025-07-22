@@ -130,7 +130,8 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
             }
 
             if self.infra.is_binary(&path).await? {
-                // Skip searching binary files but if binary file matches the asked pattern then include it in result.
+                // Skip searching binary files but if binary file matches the asked pattern then
+                // include it in result.
                 if helper.matches_file_pattern(path.as_path()).await? {
                     matches.push(Match { path: path.to_string_lossy().to_string(), result: None });
                 }
@@ -442,7 +443,7 @@ mod test {
 
         assert!(result.is_err());
     }
-    
+
     #[tokio::test]
     async fn test_search_skips_binary_files_in_directory() {
         let fixture = TempDir::new().unwrap();
@@ -473,7 +474,7 @@ mod test {
         assert!(result.matches[0].path.ends_with("valid.txt"));
     }
 
-     #[tokio::test]
+    #[tokio::test]
     async fn test_search_skips_all_binary_files() {
         let fixture = TempDir::new().unwrap();
 
