@@ -15,7 +15,7 @@ use crate::{FileInfoInfra, FileReaderInfra};
 // Helper to handle FSSearchInput functionality
 struct FSSearchHelper<'a, T> {
     path: &'a str,
-    regex: Option<&'a String>,
+    content_pattern_regex: Option<&'a String>,
     file_pattern: Option<&'a String>,
     infra: &'a T,
 }
@@ -26,7 +26,7 @@ impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
     }
 
     fn regex(&self) -> Option<&String> {
-        self.regex
+        self.content_pattern_regex
     }
 
     fn get_file_pattern(&self) -> anyhow::Result<Option<glob::Pattern>> {
@@ -37,20 +37,6 @@ impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
             ),
             None => None,
         })
-    }
-
-    /// Strictly checks if the path matches the file pattern.
-    async fn matches_file_pattern(&self, path: &Path) -> anyhow::Result<bool> {
-        let pattern = self.get_file_pattern()?;
-        if pattern.is_none() {
-            return Ok(false);
-        }
-
-        // Otherwise, check if the file matches the pattern
-        Ok(path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| !name.is_empty() && pattern.unwrap().matches(name)))
     }
 
     async fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
@@ -102,7 +88,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
     ) -> anyhow::Result<Option<SearchResult>> {
         let helper = FSSearchHelper {
             path: &input_path,
-            regex: input_regex.as_ref(),
+            content_pattern_regex: input_regex.as_ref(),
             file_pattern: file_pattern.as_ref(),
             infra: self.infra.as_ref(),
         };
@@ -110,7 +96,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
         let path = Path::new(helper.path());
         assert_absolute_path(path)?;
 
-        let regex = match helper.regex() {
+        let content_pattern = match helper.regex() {
             Some(regex) => {
                 let pattern = format!("(?i){regex}"); // Case-insensitive by default
                 Some(
@@ -129,23 +115,19 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
                 continue;
             }
 
-            if self.infra.is_binary(&path).await? {
-                // Skip searching binary files but if binary file matches the asked pattern then
-                // include it in result.
-                if helper.matches_file_pattern(path.as_path()).await? {
-                    matches.push(Match { path: path.to_string_lossy().to_string(), result: None });
-                }
-                continue;
-            }
-
             // File name only search mode
-            if regex.is_none() {
+            if content_pattern.is_none() {
                 matches.push(Match { path: path.to_string_lossy().to_string(), result: None });
                 continue;
             }
 
+            // Skip binary files
+            if self.infra.is_binary(&path).await? {
+                continue;
+            }
+
             // Process the file line by line to find content matches
-            if let Some(regex) = &regex {
+            if let Some(regex) = &content_pattern {
                 let mut searcher = grep_searcher::Searcher::new();
                 let path_string = path.to_string_lossy().to_string();
 
