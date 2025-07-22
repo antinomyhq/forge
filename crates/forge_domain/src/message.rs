@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use strum_macros::EnumString;
 
 use super::{ToolCall, ToolCallFull};
-use crate::{reasoning::{Reasoning, ReasoningFull}, TokenCount};
+use crate::TokenCount;
+use crate::reasoning::{Reasoning, ReasoningFull};
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Usage {

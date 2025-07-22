@@ -161,7 +161,7 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::{BoxStream, Content, ToolCall, ToolCallId, ToolName, TokenCount};
+    use crate::{BoxStream, Content, TokenCount, ToolCall, ToolCallId, ToolName};
 
     #[tokio::test]
     async fn test_into_full_basic() {

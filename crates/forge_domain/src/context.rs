@@ -379,8 +379,8 @@ pub enum TokenCount {
 impl Display for TokenCount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenCount::Actual(count) => write!(f, "{}", count),
-            TokenCount::Approx(count) => write!(f, "~{}", count),
+            TokenCount::Actual(count) => write!(f, "{count}"),
+            TokenCount::Approx(count) => write!(f, "~{count}"),
         }
     }
 }

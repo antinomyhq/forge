@@ -1,7 +1,8 @@
 use std::str::FromStr;
 
 use forge_app::domain::{
-    ChatCompletionMessage, Content, FinishReason, TokenCount, ToolCallFull, ToolCallId, ToolCallPart, ToolName, Usage
+    ChatCompletionMessage, Content, FinishReason, TokenCount, ToolCallFull, ToolCallId,
+    ToolCallPart, ToolName, Usage,
 };
 use serde::{Deserialize, Serialize};
 

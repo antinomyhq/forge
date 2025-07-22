@@ -94,7 +94,8 @@ impl From<&UIState> for Info {
 
         let usage = &value.usage;
 
-        info = info.add_title("Usage".to_string())
+        info = info
+            .add_title("Usage".to_string())
             .add_key_value("Prompt", &usage.prompt_tokens)
             .add_key_value("Completion", &usage.completion_tokens)
             .add_key_value("Total", &usage.total_tokens)

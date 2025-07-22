@@ -57,15 +57,15 @@ impl From<Usage> for forge_app::domain::Usage {
     fn from(usage: Usage) -> Self {
         let prompt_tokens = usage
             .input_tokens
-            .map(|input_token| TokenCount::Actual(input_token))
+            .map(TokenCount::Actual)
             .unwrap_or_default();
         let completion_tokens = usage
             .output_tokens
-            .map(|output_token| TokenCount::Actual(output_token))
+            .map(TokenCount::Actual)
             .unwrap_or_default();
         let cached_tokens = usage
             .cache_creation_input_tokens
-            .map(|cached_token| TokenCount::Actual(cached_token))
+            .map(TokenCount::Actual)
             .unwrap_or_default();
         let total_tokens = prompt_tokens.clone() + completion_tokens.clone();
 
