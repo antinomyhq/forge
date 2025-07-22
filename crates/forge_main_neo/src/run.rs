@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -17,7 +18,10 @@ pub async fn run(mut terminal: DefaultTerminal) -> anyhow::Result<()> {
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel::<Command>(1024);
 
     let mut state = State::default();
-    let api = ForgeAPI::init(false);
+    let api = ForgeAPI::init(
+        false,
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    );
 
     // Initialize forge_tracker using the API instance
     let env = api.environment();
