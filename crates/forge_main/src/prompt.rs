@@ -89,11 +89,11 @@ impl Prompt for ForgePrompt {
             .usage
             .as_ref()
             .unwrap_or(&Usage::default())
-            .prompt_tokens;
+            .total_tokens;
 
         let estimated = self.usage.as_ref().map_or(0, |u| u.estimated_tokens);
 
-        if estimated > reported {
+        if reported == 0 && estimated > 0 {
             write!(result, "/~{estimated}").unwrap();
         } else {
             write!(result, "/{reported}").unwrap();
