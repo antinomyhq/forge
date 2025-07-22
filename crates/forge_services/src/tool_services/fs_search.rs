@@ -41,7 +41,7 @@ impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
 
     async fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
         // Don't process directories or binary files
-        if !self.infra.is_file(path).await? || forge_walker::Walker::is_likely_binary(path) {
+        if !self.infra.is_file(path).await? {
             return Ok(false);
         }
 
@@ -111,7 +111,9 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
         let mut matches = Vec::new();
 
         for path in paths {
-            if !helper.match_file_path(path.as_path()).await? {
+            if !helper.match_file_path(path.as_path()).await?
+                || self.infra.is_binary(path.as_path()).await?
+            {
                 continue;
             }
 
@@ -204,7 +206,23 @@ mod test {
     use crate::utils::TempDir;
 
     // Mock WalkerInfra for testing
-    struct MockInfra;
+    struct MockInfra {
+        binary_exts: HashSet<String>,
+    }
+
+    impl Default for MockInfra {
+        fn default() -> Self {
+            let binary_exts = [
+                "exe", "dll", "so", "dylib", "bin", "obj", "o", "class", "pyc", "jar", "war",
+                "ear", "zip", "tar", "gz", "rar", "7z", "iso", "img", "pdf", "doc", "docx", "xls",
+                "xlsx", "ppt", "pptx", "bmp", "ico", "mp3", "mp4", "avi", "mov", "sqlite", "db",
+                "bin",
+            ];
+            Self {
+                binary_exts: HashSet::from_iter(binary_exts.into_iter().map(|ext| ext.to_string())),
+            }
+        }
+    }
 
     #[async_trait::async_trait]
     impl FileReaderInfra for MockInfra {
@@ -236,6 +254,11 @@ mod test {
                 Ok(meta) => Ok(meta.is_file()),
                 Err(_) => Ok(false), // If the file doesn't exist, return false
             }
+        }
+
+        async fn is_binary(&self, _path: &Path) -> anyhow::Result<bool> {
+            let ext = _path.extension().and_then(|s| s.to_str());
+            Ok(self.binary_exts.contains(ext.unwrap_or("")))
         }
 
         async fn exists(&self, _path: &Path) -> anyhow::Result<bool> {
@@ -284,7 +307,7 @@ mod test {
     #[tokio::test]
     async fn test_search_content_with_regex() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("test".to_string()),
@@ -299,7 +322,7 @@ mod test {
     #[tokio::test]
     async fn test_search_file_pattern_only() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 None,
@@ -317,7 +340,7 @@ mod test {
     #[tokio::test]
     async fn test_search_combined_pattern_and_content() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("test".to_string()),
@@ -336,7 +359,7 @@ mod test {
     async fn test_search_single_file() {
         let fixture = create_simple_test_directory().await.unwrap();
         let file_path = fixture.path().join("test.txt");
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 file_path.to_string_lossy().to_string(),
                 Some("hello".to_string()),
@@ -351,7 +374,7 @@ mod test {
     #[tokio::test]
     async fn test_search_no_matches() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("nonexistent".to_string()),
@@ -366,7 +389,7 @@ mod test {
     #[tokio::test]
     async fn test_search_pattern_no_matches() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 None,
@@ -380,7 +403,7 @@ mod test {
 
     #[tokio::test]
     async fn test_search_nonexistent_path() {
-        let result = ForgeFsSearch::new(Arc::new(MockInfra))
+        let result = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 "/nonexistent/path".to_string(),
                 Some("test".to_string()),
@@ -393,7 +416,7 @@ mod test {
 
     #[tokio::test]
     async fn test_search_relative_path_error() {
-        let result = ForgeFsSearch::new(Arc::new(MockInfra))
+        let result = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search("relative/path".to_string(), Some("test".to_string()), None)
             .await;
 
@@ -413,7 +436,7 @@ mod test {
             .await
             .unwrap();
 
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("Hello".to_string()),

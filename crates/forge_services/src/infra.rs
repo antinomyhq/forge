@@ -82,6 +82,7 @@ pub trait FileRemoverInfra: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FileInfoInfra: Send + Sync {
+    async fn is_binary(&self, path: &Path) -> Result<bool>;
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool>;
     async fn exists(&self, path: &Path) -> anyhow::Result<bool>;
     async fn file_size(&self, path: &Path) -> anyhow::Result<u64>;
