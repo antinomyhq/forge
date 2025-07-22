@@ -194,7 +194,6 @@ impl<W: WalkerInfra + FileInfoInfra> ForgeFsSearch<W> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashSet;
     use std::sync::Arc;
 
     use forge_app::{WalkedFile, Walker};
