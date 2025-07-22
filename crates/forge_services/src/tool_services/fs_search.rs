@@ -40,7 +40,7 @@ impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
     }
 
     async fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
-        // Don't process directories or binary files
+        // Don't process directories
         if !self.infra.is_file(path).await? {
             return Ok(false);
         }
