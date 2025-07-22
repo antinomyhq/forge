@@ -118,7 +118,6 @@ impl From<ResponseUsage> for Usage {
                 .map(|token_details| TokenCount::Actual(token_details.cached_tokens))
                 .unwrap_or_default(),
             cost: usage.cost,
-            ..Default::default()
         }
     }
 }
