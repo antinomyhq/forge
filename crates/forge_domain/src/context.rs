@@ -607,7 +607,8 @@ mod tests {
         let fixture = Context::default().usage(usage);
         assert_eq!(fixture.token_count(), 80);
 
-        // case 4: context with messages - since total_tokens are not present return estimate
+        // case 4: context with messages - since total_tokens are not present return
+        // estimate
         let mut usage = Usage::default();
         usage.estimated_tokens = 12;
         let fixture = Context::default()
