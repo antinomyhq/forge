@@ -93,20 +93,13 @@ impl From<&UIState> for Info {
         }
 
         let usage = &value.usage;
-        let estimated = usage.estimated_tokens;
-
-        info = info.add_title("Usage".to_string());
-
-        if estimated > usage.prompt_tokens {
-            info = info.add_key_value("Prompt", format!("~{estimated}"));
-        } else {
-            info = info.add_key_value("Prompt", usage.prompt_tokens)
-        }
 
         info = info
-            .add_key_value("Completion", usage.completion_tokens)
-            .add_key_value("Total", usage.total_tokens)
-            .add_key_value("Cached Tokens", usage.cached_tokens);
+            .add_title("Usage".to_string())
+            .add_key_value("Prompt", &usage.prompt_tokens)
+            .add_key_value("Completion", &usage.completion_tokens)
+            .add_key_value("Total", &usage.total_tokens)
+            .add_key_value("Cached Tokens", &usage.cached_tokens);
 
         if let Some(cost) = usage.cost {
             info = info.add_key_value("Cost", format!("${cost:.4}"));

@@ -1,6 +1,6 @@
 use forge_app::domain::{
-    ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, ToolCallId, ToolCallPart,
-    ToolName,
+    ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, TokenCount, ToolCallId,
+    ToolCallPart, ToolName,
 };
 use serde::Deserialize;
 
@@ -55,11 +55,25 @@ pub struct Usage {
 
 impl From<Usage> for forge_app::domain::Usage {
     fn from(usage: Usage) -> Self {
+        let prompt_tokens = usage
+            .input_tokens
+            .map(TokenCount::Actual)
+            .unwrap_or_default();
+        let completion_tokens = usage
+            .output_tokens
+            .map(TokenCount::Actual)
+            .unwrap_or_default();
+        let cached_tokens = usage
+            .cache_creation_input_tokens
+            .map(TokenCount::Actual)
+            .unwrap_or_default();
+        let total_tokens = prompt_tokens.clone() + completion_tokens.clone();
+
         forge_app::domain::Usage {
-            prompt_tokens: usage.input_tokens.unwrap_or(0),
-            completion_tokens: usage.output_tokens.unwrap_or(0),
-            total_tokens: usage.input_tokens.unwrap_or(0) + usage.output_tokens.unwrap_or(0),
-            cached_tokens: usage.cache_read_input_tokens.unwrap_or_default(),
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            cached_tokens,
             ..Default::default()
         }
     }

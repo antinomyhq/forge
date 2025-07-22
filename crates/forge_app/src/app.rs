@@ -185,8 +185,8 @@ impl<S: Services> ForgeApp<S> {
 
         // Return the compaction metrics
         Ok(CompactionResult::new(
-            original_tokens,
-            compacted_tokens,
+            *original_tokens,
+            *compacted_tokens,
             original_messages,
             compacted_messages,
         ))

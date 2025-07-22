@@ -114,7 +114,11 @@ pub trait CommandInfra: Send + Sync {
     ) -> anyhow::Result<CommandOutput>;
 
     /// execute the shell command on present stdio.
-    async fn execute_command_raw(&self, command: &str) -> anyhow::Result<std::process::ExitStatus>;
+    async fn execute_command_raw(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<std::process::ExitStatus>;
 }
 
 #[async_trait::async_trait]

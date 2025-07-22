@@ -44,8 +44,8 @@ pub struct ForgeInfra {
 }
 
 impl ForgeInfra {
-    pub fn new(restricted: bool) -> Self {
-        let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted));
+    pub fn new(restricted: bool, cwd: PathBuf) -> Self {
+        let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let http_service = Arc::new(ForgeHttpService::new());
@@ -179,9 +179,13 @@ impl CommandInfra for ForgeInfra {
             .await
     }
 
-    async fn execute_command_raw(&self, command: &str) -> anyhow::Result<ExitStatus> {
+    async fn execute_command_raw(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<ExitStatus> {
         self.command_executor_service
-            .execute_command_raw(command)
+            .execute_command_raw(command, working_dir)
             .await
     }
 }

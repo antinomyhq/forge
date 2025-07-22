@@ -592,7 +592,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(base_workflow).provider(provider);
+        self.state = UIState::new(self.api.environment(), base_workflow).provider(provider);
 
         Ok(workflow)
     }
