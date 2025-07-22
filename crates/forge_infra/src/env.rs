@@ -275,10 +275,7 @@ mod tests {
             }
 
             // Verify that the environment service uses the same default as RetryConfig
-            let env_service = ForgeEnvironmentInfra::new(
-                false,
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            );
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let retry_config_from_env = env_service.resolve_retry_config();
             let default_retry_config = RetryConfig::default();
 
@@ -321,10 +318,7 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "429,500,502");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(
-                false,
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            );
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_retry_config();
 
             assert_eq!(config.initial_backoff_ms, 500);
@@ -357,10 +351,7 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "503,504");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(
-                false,
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            );
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_retry_config();
             let default_config = RetryConfig::default();
 
@@ -397,10 +388,7 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes,here");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(
-                false,
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            );
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_retry_config();
             let default_config = RetryConfig::default();
 
@@ -433,10 +421,7 @@ mod tests {
 
         // Test default values
         {
-            let env_service = ForgeEnvironmentInfra::new(
-                false,
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            );
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_timeout_config();
             let default_config = forge_domain::HttpConfig::default();
 
@@ -460,10 +445,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_MAX_REDIRECTS", "20");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(
-                false,
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            );
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_timeout_config();
 
             assert_eq!(config.connect_timeout, 30);
@@ -488,10 +470,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "15");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(
-                false,
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            );
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_timeout_config();
             let default_config = forge_domain::HttpConfig::default();
 
@@ -519,10 +498,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "invalid");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(
-                false,
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            );
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_timeout_config();
             let default_config = forge_domain::HttpConfig::default();
 

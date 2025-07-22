@@ -29,18 +29,21 @@ async fn main() -> Result<()> {
 
     // Resolve directory if specified (for relative path support)
 
-    let dir = cli
-        .directory
-        .clone()
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let cwd = match cli.directory {
+        Some(ref dir) => match dir.canonicalize() {
+            Ok(cwd) => cwd,
+            Err(_) => panic!("Invalid path: {}", dir.display()),
+        },
+        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    };
 
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;
     let neo_ui = cli.neo_ui;
     if neo_ui {
-        return forge_main_neo::main_neo().await;
+        return forge_main_neo::main_neo(cwd).await;
     }
-    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, dir.clone()))?;
+    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
     ui.run().await;
 
     Ok(())

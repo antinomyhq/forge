@@ -1,7 +1,6 @@
-use std::borrow::Cow;
-use std::env;
 use std::fmt::Write;
 use std::process::Command;
+use std::{borrow::Cow, path::PathBuf};
 
 use convert_case::{Case, Casing};
 use derive_setters::Setters;
@@ -18,6 +17,7 @@ const RIGHT_CHEVRON: &str = "❯";
 #[derive(Clone, Setters)]
 #[setters(strip_option, borrow_self)]
 pub struct ForgePrompt {
+    pub cwd: PathBuf,
     pub usage: Option<Usage>,
     pub agent_id: AgentId,
     pub model: Option<ModelId>,
@@ -31,13 +31,11 @@ impl Prompt for ForgePrompt {
         let branch_style = Style::new().fg(Color::LightGreen);
 
         // Get current directory
-        let current_dir = env::current_dir()
-            .ok()
-            .and_then(|path| {
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .map(String::from)
-            })
+        let current_dir = self
+            .cwd
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(String::from)
             .unwrap_or_else(|| "unknown".to_string());
 
         // Get git branch (only if we're in a git repo)
@@ -176,6 +174,8 @@ fn get_git_branch() -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use nu_ansi_term::Style;
     use pretty_assertions::assert_eq;
 
@@ -183,7 +183,12 @@ mod tests {
 
     impl Default for ForgePrompt {
         fn default() -> Self {
-            ForgePrompt { usage: None, agent_id: AgentId::default(), model: None }
+            ForgePrompt {
+                cwd: PathBuf::from("."),
+                usage: None,
+                agent_id: AgentId::default(),
+                model: None,
+            }
         }
     }
 
