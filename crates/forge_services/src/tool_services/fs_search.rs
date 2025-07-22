@@ -485,4 +485,36 @@ mod test {
         assert_eq!(result.matches.len(), 1);
         assert!(result.matches[0].path.ends_with("binary.exe"));
     }
+
+    #[tokio::test]
+    async fn test_search_content_in_bin() {
+        let fixture = TempDir::new().unwrap();
+
+        // Create a valid UTF-8 file
+        tokio::fs::write(fixture.path().join("valid.txt"), "Hello World")
+            .await
+            .unwrap();
+
+        // Create a binary file with .exe extension (detected by extension)
+        tokio::fs::write(fixture.path().join("binary.exe"), "Hello World")
+            .await
+            .unwrap();
+
+        // Create a binary file with .exe extension (detected by extension)
+        tokio::fs::write(fixture.path().join("binary.dll"), "Hello World")
+            .await
+            .unwrap();
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                Some("Hello".to_string()),
+                Some("*.exe".to_string()),
+            )
+            .await
+            .unwrap();
+
+        // Should be an empty file
+        assert!(actual.is_none());
+    }
 }
