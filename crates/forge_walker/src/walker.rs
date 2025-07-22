@@ -455,4 +455,91 @@ mod tests {
             "Walker should exclude files listed in .ignore file"
         );
     }
+
+    #[test]
+    fn test_is_likely_binary_detects_binary_files() {
+        use std::path::Path;
+
+        // Test known binary extensions
+        let binary_files = [
+            "program.exe",
+            "library.dll",
+            "archive.zip",
+            "document.pdf",
+            "music.mp3",
+            "video.mp4",
+            "image.bmp",
+            "database.sqlite",
+            "archive.tar",
+            "compressed.gz",
+        ];
+
+        for file in &binary_files {
+            let path = Path::new(file);
+            let actual = Walker::is_likely_binary(path);
+            assert!(actual, "File {} should be detected as binary", file);
+        }
+    }
+
+    #[test]
+    fn test_is_likely_binary_allows_text_files() {
+        use std::path::Path;
+
+        // Test known text extensions
+        let text_files = [
+            "source.rs",
+            "script.js",
+            "style.css",
+            "markup.html",
+            "data.json",
+            "config.yaml",
+            "readme.md",
+            "code.py",
+            "program.c",
+            "header.h",
+        ];
+
+        for file in &text_files {
+            let path = Path::new(file);
+            let actual = Walker::is_likely_binary(path);
+            assert!(!actual, "File {} should not be detected as binary", file);
+        }
+    }
+
+    #[test]
+    fn test_is_likely_binary_handles_edge_cases() {
+        use std::path::Path;
+
+        // Test files without extensions
+        let no_extension_files = ["README", "Makefile", "Dockerfile", "LICENSE"];
+
+        for file in &no_extension_files {
+            let path = Path::new(file);
+            let actual = Walker::is_likely_binary(path);
+            assert!(
+                !actual,
+                "File without extension {} should not be detected as binary",
+                file
+            );
+        }
+
+        // Test case sensitivity
+        let case_test_files = [
+            ("program.EXE", true),
+            ("DOCUMENT.PDF", true),
+            ("Archive.ZIP", true),
+            ("Source.RS", false),
+            ("Script.JS", false),
+        ];
+
+        for (file, expected) in &case_test_files {
+            let path = Path::new(file);
+            let actual = Walker::is_likely_binary(path);
+            assert_eq!(
+                actual, *expected,
+                "File {} case sensitivity test failed",
+                file
+            );
+        }
+    }
 }
