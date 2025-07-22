@@ -474,7 +474,7 @@ mod test {
         assert!(result.matches[0].path.ends_with("valid.txt"));
     }
 
-     #[tokio::test]
+    #[tokio::test]
     async fn test_search_all_binary_files() {
         let fixture = TempDir::new().unwrap();
 
