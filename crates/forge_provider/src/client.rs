@@ -69,7 +69,6 @@ impl ClientBuilder {
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             ),
-
             Provider::Anthropic { url, key } => InnerClient::Anthropic(
                 Anthropic::builder()
                     .client(client)
@@ -167,6 +166,26 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_copilot_client_instantiation() {
+        let provider = Provider::copilot("copilot-key");
+        let client = Client::new(
+            provider,
+            Arc::new(RetryConfig::default()),
+            "dev",
+            &HttpConfig::default(),
+            None,
+        )
+        .unwrap();
+        // Should instantiate as OpenAICompat
+        match client.inner.as_ref() {
+            InnerClient::OpenAICompat(_) => {}
+            _ => panic!("Copilot should be OpenAICompat (via OpenAI variant)"),
+        }
+    }
+
     use forge_app::domain::Provider;
     use reqwest::Url;
 
@@ -177,6 +196,7 @@ mod tests {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
+            extra_headers: None,
         };
         let client = ClientBuilder::new(provider, "dev").build().unwrap();
 
@@ -190,6 +210,7 @@ mod tests {
         let provider = Provider::OpenAI {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
+            extra_headers: None,
         };
         let client = ClientBuilder::new(provider, "dev").build().unwrap();
 

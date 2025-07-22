@@ -60,13 +60,14 @@ fn resolve_env_provider<F: EnvironmentInfra>(
     url: Option<ProviderUrl>,
     env: &F,
 ) -> Option<Provider> {
-    let keys: [ProviderSearch; 6] = [
+    let keys: [ProviderSearch; 7] = [
         ("FORGE_KEY", Box::new(Provider::forge)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
         ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
         ("XAI_API_KEY", Box::new(Provider::xai)),
         ("OPENAI_API_KEY", Box::new(Provider::openai)),
         ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
+        ("GITHUB_COPILOT_TOKEN", Box::new(Provider::copilot)),
     ];
 
     keys.into_iter().find_map(|(key, fun)| {
@@ -82,4 +83,37 @@ fn override_url(mut provider: Provider, url: Option<ProviderUrl>) -> Provider {
         provider.url(url);
     }
     provider
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_app::domain::Provider;
+    use forge_app::AppConfig;
+
+    use super::*;
+    use crate::attachment::tests::MockEnvironmentInfra;
+    use crate::EnvironmentInfra;
+
+    #[test]
+    fn detects_copilot_provider_from_env() {
+        struct EnvWithCopilot;
+        impl EnvironmentInfra for EnvWithCopilot {
+            fn get_environment(&self) -> forge_app::domain::Environment {
+                MockEnvironmentInfra {}.get_environment()
+            }
+            fn get_env_var(&self, key: &str) -> Option<String> {
+                if key == "GITHUB_COPILOT_TOKEN" {
+                    Some("copilot_test_token".to_string())
+                } else {
+                    None
+                }
+            }
+        }
+        let infra = std::sync::Arc::new(EnvWithCopilot);
+        let registry = ForgeProviderRegistry::new(infra);
+        let provider = registry.get_provider(AppConfig::default());
+        assert!(
+            matches!(provider, Some(Provider::OpenAI { url, key: Some(ref k), extra_headers: Some(ref headers) }) if url.as_str().starts_with("https://api.githubcopilot.com/") && k == "copilot_test_token" && headers.contains_key("Copilot-Integration-Id"))
+        );
+    }
 }
