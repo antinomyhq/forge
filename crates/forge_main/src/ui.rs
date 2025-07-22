@@ -573,7 +573,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         let provider = self.init_provider().await?;
-        let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+        let mut workflow = self.api.read_merged(self.cli.workflow.as_deref()).await?;
         if workflow.model.is_none() {
             workflow.model = Some(
                 self.select_model()
@@ -581,18 +581,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
             );
         }
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow.clone());
         if first {
             // only call on_update if this is the first initialization
-            on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+            on_update(self.api.clone(), workflow.updates.as_ref()).await;
         }
         self.api
             .write_workflow(self.cli.workflow.as_deref(), &workflow)
             .await?;
 
-        self.command.register_all(&base_workflow);
-        self.state = UIState::new(base_workflow).provider(provider);
+        self.command.register_all(&workflow);
+        self.state = UIState::new(workflow.clone()).provider(provider);
 
         Ok(workflow)
     }
