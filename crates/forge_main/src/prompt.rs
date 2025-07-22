@@ -93,10 +93,10 @@ impl Prompt for ForgePrompt {
 
         let estimated = self.usage.as_ref().map_or(0, |u| u.estimated_tokens);
 
-        if reported == 0 && estimated > 0 {
-            write!(result, "/~{estimated}").unwrap();
-        } else {
+        if reported > 0  {
             write!(result, "/{reported}").unwrap();
+        } else {
+            write!(result, "/~{estimated}").unwrap();
         }
 
         write!(result, "]").unwrap();
