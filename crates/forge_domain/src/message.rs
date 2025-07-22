@@ -4,15 +4,14 @@ use serde::{Deserialize, Serialize};
 use strum_macros::EnumString;
 
 use super::{ToolCall, ToolCallFull};
-use crate::reasoning::{Reasoning, ReasoningFull};
+use crate::{reasoning::{Reasoning, ReasoningFull}, TokenCount};
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Usage {
-    pub prompt_tokens: usize,
-    pub completion_tokens: usize,
-    pub total_tokens: usize,
-    pub estimated_tokens: usize,
-    pub cached_tokens: usize,
+    pub prompt_tokens: TokenCount,
+    pub completion_tokens: TokenCount,
+    pub total_tokens: TokenCount,
+    pub cached_tokens: TokenCount,
     pub cost: Option<f64>,
 }
 

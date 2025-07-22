@@ -439,7 +439,6 @@ impl<S: AgentService> Orchestrator<S> {
             // Send the usage information if available
             self.send(ChatResponse::Usage(usage.clone())).await?;
 
-            // FIXME: Add unit tests
             context = context.usage(usage);
 
             let has_no_tool_calls = tool_calls.is_empty();

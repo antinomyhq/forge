@@ -52,7 +52,7 @@ impl CompactionStrategy {
                     // Skip system message
                     .filter(|m| !m.1.has_role(Role::System))
                     .find(|(_, m)| {
-                        eviction_budget = eviction_budget.saturating_sub(m.token_count());
+                        eviction_budget = eviction_budget.saturating_sub(m.token_count_approx());
                         eviction_budget == 0
                     });
 

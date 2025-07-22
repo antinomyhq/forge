@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use derive_more::derive::{Display, From};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -26,7 +28,7 @@ impl ContextMessage {
     /// Estimates the number of tokens in a message using character-based
     /// approximation.
     /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
-    pub fn token_count(&self) -> usize {
+    pub fn token_count_approx(&self) -> usize {
         let char_count = match self {
             ContextMessage::Text(text_message)
                 if matches!(text_message.role, Role::User | Role::Assistant) =>
@@ -348,16 +350,44 @@ impl Context {
     }
 
     /// Returns the token count for context
-    pub fn token_count(&self) -> usize {
+    pub fn token_count(&self) -> TokenCount {
         let actual = self
             .usage
             .as_ref()
             .map(|u| u.total_tokens)
             .unwrap_or_default();
         if actual > 0 {
-            actual
+            TokenCount::Actual(actual)
         } else {
-            self.messages.iter().map(|m| m.token_count()).sum::<usize>()
+            TokenCount::Approx(
+                self.messages
+                    .iter()
+                    .map(|m| m.token_count_approx())
+                    .sum::<usize>(),
+            )
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TokenCount {
+    Actual(usize),
+    Approx(usize),
+}
+
+impl Default for TokenCount {
+    fn default() -> Self {
+        TokenCount::Approx(0)
+    }
+}
+
+impl Deref for TokenCount {
+    type Target = usize;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            TokenCount::Actual(i) => i,
+            TokenCount::Approx(i) => i,
         }
     }
 }
