@@ -38,30 +38,30 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
         while let Some(message) = self.next().await {
             let message =
                 anyhow::Ok(message?).with_context(|| "Failed to process message stream")?;
-            messages.push(message.clone());
-
             // Process usage information
-            usage = message.usage.unwrap_or_default();
+            if let Some(current_usage) = message.usage.as_ref() {
+                usage = current_usage.clone();
+            }
 
-            // Process content
-            if let Some(content_part) = message.content.as_ref() {
-                content.push_str(content_part.as_str());
+            if !tool_interrupted {
+                messages.push(message.clone());
 
-                // Check for XML tool calls in the content, but only interrupt if flag is set
-                if should_interrupt_for_xml {
-                    // Use match instead of ? to avoid propagating errors
-                    if let Some(tool_call) = ToolCallFull::try_from_xml(&content)
-                        .ok()
-                        .into_iter()
-                        .flatten()
-                        .next()
-                    {
-                        xml_tool_calls = Some(tool_call);
-                        tool_interrupted = true;
+                // Process content
+                if let Some(content_part) = message.content.as_ref() {
+                    content.push_str(content_part.as_str());
 
-                        // Break the loop since we found an XML tool call and interruption is
-                        // enabled
-                        break;
+                    // Check for XML tool calls in the content, but only interrupt if flag is set
+                    if should_interrupt_for_xml {
+                        // Use match instead of ? to avoid propagating errors
+                        if let Some(tool_call) = ToolCallFull::try_from_xml(&content)
+                            .ok()
+                            .into_iter()
+                            .flatten()
+                            .next()
+                        {
+                            xml_tool_calls = Some(tool_call);
+                            tool_interrupted = true;
+                        }
                     }
                 }
             }
