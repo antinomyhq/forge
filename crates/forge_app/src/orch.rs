@@ -432,6 +432,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             info!(
                 token_usage = usage.prompt_tokens,
+                cache_token_usage = usage.cached_tokens,
                 estimated_token_usage = usage.estimated_tokens,
                 "Processing usage information"
             );
