@@ -7,7 +7,9 @@ use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
-use crate::{ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolValue};
+use crate::{
+    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolValue, Usage,
+};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -252,6 +254,8 @@ pub struct Context {
     pub top_k: Option<TopK>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<crate::agent::ReasoningConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<Usage>,
 }
 
 impl Context {
@@ -343,8 +347,12 @@ impl Context {
         )
     }
 
+    // FIXME: Add unit tests
     pub fn token_count(&self) -> usize {
-        self.messages.iter().map(|m| m.token_count()).sum()
+        self.usage
+            .as_ref()
+            .map(|usage| usage.total_tokens)
+            .unwrap_or(self.messages.iter().map(|m| m.token_count()).sum())
     }
 }
 

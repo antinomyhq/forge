@@ -6,7 +6,7 @@ use strum_macros::EnumString;
 use super::{ToolCall, ToolCallFull};
 use crate::reasoning::{Reasoning, ReasoningFull};
 
-#[derive(Default, Clone, Debug, Serialize, PartialEq)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Usage {
     pub prompt_tokens: usize,
     pub completion_tokens: usize,
