@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
-use console::{Color, Style, style};
+use console::style;
 use forge_domain::{
     Agent, AgentInput, ChatResponse, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
     ToolOutput, ToolResult, Tools, ToolsDiscriminants,
@@ -81,7 +81,7 @@ impl<S: Services> ToolRegistry<S> {
                 .iter()
                 .filter_map(|output| output.as_str())
                 .fold(String::new(), |mut a, b| {
-                    a.push_str("\n");
+                    a.push('\n');
                     a.push_str(b);
                     a
                 });
