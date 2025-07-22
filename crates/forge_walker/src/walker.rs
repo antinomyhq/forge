@@ -88,7 +88,7 @@ impl Walker {
             .context("Failed to spawn blocking task")?
     }
 
-    fn is_likely_binary(path: &std::path::Path) -> bool {
+    pub fn is_likely_binary(path: &std::path::Path) -> bool {
         if let Some(extension) = path.extension() {
             let ext = extension.to_string_lossy().to_lowercase();
             // List of common binary file extensions
