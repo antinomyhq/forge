@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::forge_provider::request::Request;
+use crate::openai::request::Request;
 
 /// Creates a condition function that matches requests when the model name
 /// matches the given regex pattern.
@@ -33,7 +33,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::forge_provider::request::Request;
+    use crate::openai::request::Request;
 
     // A simple test transformer that adds a prefix to the model name
     struct TestTransformer {

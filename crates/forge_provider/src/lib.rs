@@ -1,7 +1,7 @@
 mod anthropic;
 mod client;
 mod error;
-mod forge_provider;
+mod openai;
 #[cfg(test)]
 mod mock_server;
 mod retry;

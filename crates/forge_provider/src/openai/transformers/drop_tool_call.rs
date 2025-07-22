@@ -1,6 +1,6 @@
 use forge_app::domain::Transformer;
 
-use crate::forge_provider::request::{Request, Role};
+use crate::openai::request::{Request, Role};
 
 /// Drops all tool call messages and converts them to user/assistant messages
 pub struct DropToolCalls;
