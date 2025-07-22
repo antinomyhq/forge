@@ -474,8 +474,8 @@ mod test {
         assert!(result.matches[0].path.ends_with("valid.txt"));
     }
 
-    #[tokio::test]
-    async fn test_search_skips_all_binary_files() {
+     #[tokio::test]
+    async fn test_search_all_binary_files() {
         let fixture = TempDir::new().unwrap();
 
         // Create a valid UTF-8 file
