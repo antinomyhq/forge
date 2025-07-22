@@ -447,7 +447,11 @@ pub mod tests {
             })
         }
 
-        async fn execute_command_raw(&self, _: &str) -> anyhow::Result<std::process::ExitStatus> {
+        async fn execute_command_raw(
+            &self,
+            _: &str,
+            _: PathBuf,
+        ) -> anyhow::Result<std::process::ExitStatus> {
             unimplemented!()
         }
     }

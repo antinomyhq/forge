@@ -175,9 +175,13 @@ impl CommandInfra for ForgeInfra {
             .await
     }
 
-    async fn execute_command_raw(&self, command: &str) -> anyhow::Result<ExitStatus> {
+    async fn execute_command_raw(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<ExitStatus> {
         self.command_executor_service
-            .execute_command_raw(command)
+            .execute_command_raw(command, working_dir)
             .await
     }
 }

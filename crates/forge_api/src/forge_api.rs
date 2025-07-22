@@ -138,7 +138,8 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         &self,
         command: &str,
     ) -> anyhow::Result<std::process::ExitStatus> {
-        self.infra.execute_command_raw(command).await
+        let cwd = self.environment().cwd;
+        self.infra.execute_command_raw(command, cwd).await
     }
 
     async fn init_login(&self) -> Result<InitAuth> {

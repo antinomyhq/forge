@@ -23,7 +23,7 @@ impl ForgeCommandExecutorService {
         Self { restricted, env, ready: Arc::new(Mutex::new(())) }
     }
 
-    fn prepare_command(&self, command_str: &str, working_dir: Option<&Path>) -> Command {
+    fn prepare_command(&self, command_str: &str, working_dir: &Path) -> Command {
         // Create a basic command
         let is_windows = cfg!(target_os = "windows");
         let shell = if self.restricted && !is_windows {
@@ -63,9 +63,7 @@ impl ForgeCommandExecutorService {
         command.kill_on_drop(true);
 
         // Set the working directory
-        if let Some(working_dir) = working_dir {
-            command.current_dir(working_dir);
-        }
+        command.current_dir(working_dir);
 
         // Configure the command for output
         command
@@ -84,7 +82,7 @@ impl ForgeCommandExecutorService {
     ) -> anyhow::Result<CommandOutput> {
         let ready = self.ready.lock().await;
 
-        let mut prepared_command = self.prepare_command(&command, Some(working_dir));
+        let mut prepared_command = self.prepare_command(&command, working_dir);
 
         // Spawn the command
         let mut child = prepared_command.spawn()?;
@@ -146,8 +144,12 @@ impl CommandInfra for ForgeCommandExecutorService {
         self.execute_command_internal(command, &working_dir).await
     }
 
-    async fn execute_command_raw(&self, command: &str) -> anyhow::Result<std::process::ExitStatus> {
-        let mut prepared_command = self.prepare_command(command, None);
+    async fn execute_command_raw(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<std::process::ExitStatus> {
+        let mut prepared_command = self.prepare_command(command, &working_dir);
 
         // overwrite the stdin, stdout and stderr to inherit
         prepared_command
