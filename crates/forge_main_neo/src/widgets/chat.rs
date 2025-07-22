@@ -3,8 +3,9 @@ use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols::{border, line};
 use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
+use strum::IntoEnumIterator;
 
-use crate::domain::{EditorStateExt, MenuItems, State};
+use crate::domain::{EditorStateExt, SlashCommand, State};
 use crate::widgets::menu::MenuWidget;
 use crate::widgets::message_list::MessageList;
 use crate::widgets::status_bar::StatusBar;
@@ -44,7 +45,7 @@ impl StatefulWidget for ChatWidget {
         }
 
         if is_normal_mode {
-            MenuWidget::new(MenuItems::new().to_vec()).render(messages_area, buf, state);
+            MenuWidget::new(SlashCommand::iter().collect()).render(messages_area, buf, state);
         }
 
         // Render slash command menu when visible
@@ -59,23 +60,32 @@ impl StatefulWidget for ChatWidget {
         }
 
         // User input area block with status bar (now at bottom)
-        let user_block = Block::bordered()
-            .padding(Padding::new(0, 0, 0, 1))
-            .border_style(Style::default().dark_gray())
-            .border_set(if is_normal_mode {
-                border::Set {
+        let user_block = if state.slash_menu_visible() {
+            // When menu is visible, use connecting border characters
+            Block::bordered()
+                .padding(Padding::new(0, 0, 0, 1))
+                .border_style(Style::default().dark_gray())
+                .border_set(border::Set {
                     top_left: line::VERTICAL_RIGHT,
                     top_right: line::VERTICAL_LEFT,
                     ..border::PLAIN
-                }
-            } else {
-                border::PLAIN
-            })
-            .title_bottom(StatusBar::new(
-                "FORGE",
-                state.editor.mode.name(),
-                state.workspace.clone(),
-            ));
+                })
+                .title_bottom(StatusBar::new(
+                    "FORGE",
+                    state.editor.mode.name(),
+                    state.workspace.clone(),
+                ))
+        } else {
+            // When menu is not visible, use normal border
+            Block::bordered()
+                .padding(Padding::new(0, 0, 0, 1))
+                .border_style(Style::default().dark_gray())
+                .title_bottom(StatusBar::new(
+                    "FORGE",
+                    state.editor.mode.name(),
+                    state.workspace.clone(),
+                ))
+        };
 
         EditorView::new(&mut state.editor)
             .theme(

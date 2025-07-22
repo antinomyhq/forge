@@ -5,8 +5,9 @@ use edtui::actions::{
 };
 use edtui::{EditorEventHandler, EditorMode};
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
+use strum::IntoEnumIterator;
 
-use crate::domain::{Command, EditorStateExt, MenuItems, State};
+use crate::domain::{Command, EditorStateExt, SlashCommand, State};
 
 fn handle_slash_menu_navigation(
     state: &mut State,
@@ -201,7 +202,7 @@ fn handle_menu_navigation(
     }
 
     // Get menu items count dynamically to ensure consistency
-    let menu_items_count = MenuItems::new().count();
+    let menu_items_count = SlashCommand::iter().count();
 
     match key_event.code {
         KeyCode::Up => {
@@ -537,7 +538,7 @@ mod tests {
         let key_event = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
         let actual_command = handle_key_event(&mut state, key_event);
         assert_eq!(actual_command, Command::Empty);
-        assert_eq!(state.menu.list.selected(), Some(13)); // Last item (14 total, 0-indexed)
+        assert_eq!(state.menu.list.selected(), Some(11)); // Last item (12 total, 0-indexed)
 
         // Test wrapping from bottom to top (down from last index)
         let key_event = KeyEvent::new(KeyCode::Down, KeyModifiers::NONE);
