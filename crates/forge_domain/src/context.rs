@@ -1,3 +1,6 @@
+use std::fmt::Display;
+use std::ops::Deref;
+
 use derive_more::derive::{Display, From};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -7,7 +10,9 @@ use super::{ToolCallFull, ToolResult};
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
-use crate::{ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolValue};
+use crate::{
+    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolValue, Usage,
+};
 
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
@@ -24,7 +29,7 @@ impl ContextMessage {
     /// Estimates the number of tokens in a message using character-based
     /// approximation.
     /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
-    pub fn token_count(&self) -> usize {
+    pub fn token_count_approx(&self) -> usize {
         let char_count = match self {
             ContextMessage::Text(text_message)
                 if matches!(text_message.role, Role::User | Role::Assistant) =>
@@ -252,6 +257,8 @@ pub struct Context {
     pub top_k: Option<TopK>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<crate::agent::ReasoningConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<Usage>,
 }
 
 impl Context {
@@ -343,8 +350,68 @@ impl Context {
         )
     }
 
-    pub fn token_count(&self) -> usize {
-        self.messages.iter().map(|m| m.token_count()).sum()
+    /// Returns the token count for context
+    pub fn token_count(&self) -> TokenCount {
+        let actual = self
+            .usage
+            .as_ref()
+            .map(|u| u.total_tokens.clone())
+            .unwrap_or_default();
+
+        match actual {
+            TokenCount::Actual(actual) if actual > 0 => TokenCount::Actual(actual),
+            _ => TokenCount::Approx(
+                self.messages
+                    .iter()
+                    .map(|m| m.token_count_approx())
+                    .sum::<usize>(),
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TokenCount {
+    Actual(usize),
+    Approx(usize),
+}
+
+impl Display for TokenCount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenCount::Actual(count) => write!(f, "{count}"),
+            TokenCount::Approx(count) => write!(f, "~{count}"),
+        }
+    }
+}
+
+impl std::ops::Add for TokenCount {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        match (self, other) {
+            (TokenCount::Actual(a), TokenCount::Actual(b)) => TokenCount::Actual(a + b),
+            (TokenCount::Approx(a), TokenCount::Approx(b)) => TokenCount::Approx(a + b),
+            (TokenCount::Actual(a), TokenCount::Approx(b)) => TokenCount::Approx(a + b),
+            (TokenCount::Approx(a), TokenCount::Actual(b)) => TokenCount::Approx(a + b),
+        }
+    }
+}
+
+impl Default for TokenCount {
+    fn default() -> Self {
+        TokenCount::Approx(0)
+    }
+}
+
+impl Deref for TokenCount {
+    type Target = usize;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            TokenCount::Actual(i) => i,
+            TokenCount::Approx(i) => i,
+        }
     }
 }
 
@@ -570,5 +637,36 @@ mod tests {
         let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_context_should_return_max_token_count() {
+        let fixture = Context::default();
+        let actual = fixture.token_count();
+        let expected = TokenCount::Approx(0); // Empty context has no tokens
+        assert_eq!(actual, expected);
+
+        // case 2: context with usage - since total_tokens present return that.
+        let mut usage = Usage::default();
+        usage.total_tokens = TokenCount::Actual(100);
+        let fixture = Context::default().usage(usage);
+        assert_eq!(fixture.token_count(), TokenCount::Actual(100));
+
+        // case 3: context with usage - since total_tokens present return that.
+        let mut usage = Usage::default();
+        usage.total_tokens = TokenCount::Actual(80);
+        let fixture = Context::default().usage(usage);
+        assert_eq!(fixture.token_count(), TokenCount::Actual(80));
+
+        // case 4: context with messages - since total_tokens are not present return
+        // estimate
+        let usage = Usage::default();
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .add_message(ContextMessage::assistant("Hi there!", None, None))
+            .add_message(ContextMessage::assistant("How can I help you?", None, None))
+            .add_message(ContextMessage::user("I'm looking for a restaurant.", None))
+            .usage(usage);
+        assert_eq!(fixture.token_count(), TokenCount::Approx(18));
     }
 }

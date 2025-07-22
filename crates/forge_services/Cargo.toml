@@ -14,7 +14,6 @@ async-recursion.workspace = true
 forge_provider.workspace = true
 forge_tool_macros.workspace = true
 forge_display.workspace = true
-forge_walker.workspace = true
 forge_snaps.workspace = true
 serde.workspace = true
 serde_json.workspace = true

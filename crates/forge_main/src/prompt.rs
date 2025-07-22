@@ -83,19 +83,8 @@ impl Prompt for ForgePrompt {
             write!(result, "/{formatted_model}").unwrap();
         }
 
-        // Append usage info
-        let reported = self
-            .usage
-            .as_ref()
-            .unwrap_or(&Usage::default())
-            .total_tokens;
-
-        let estimated = self.usage.as_ref().map_or(0, |u| u.estimated_tokens);
-
-        if reported > 0 {
-            write!(result, "/{reported}").unwrap();
-        } else {
-            write!(result, "/~{estimated}").unwrap();
+        if let Some(usage) = self.usage.as_ref().map(|usage| &usage.total_tokens) {
+            write!(result, "/{usage}").unwrap();
         }
 
         write!(result, "]").unwrap();
@@ -227,9 +216,9 @@ mod tests {
     #[test]
     fn test_render_prompt_right_with_usage() {
         let usage = Usage {
-            prompt_tokens: 10,
-            completion_tokens: 20,
-            total_tokens: 30,
+            prompt_tokens: forge_api::TokenCount::Actual(10),
+            completion_tokens: forge_api::TokenCount::Actual(20),
+            total_tokens: forge_api::TokenCount::Approx(30),
             ..Default::default()
         };
         let mut prompt = ForgePrompt::default();
@@ -237,7 +226,7 @@ mod tests {
 
         let actual = prompt.render_prompt_right();
         assert!(actual.contains(&VERSION.to_string()));
-        assert!(actual.contains("30"));
+        assert!(actual.contains("~30"));
     }
 
     #[test]
@@ -304,9 +293,9 @@ mod tests {
     #[test]
     fn test_render_prompt_right_with_model() {
         let usage = Usage {
-            prompt_tokens: 10,
-            completion_tokens: 20,
-            total_tokens: 30,
+            prompt_tokens: forge_api::TokenCount::Actual(10),
+            completion_tokens: forge_api::TokenCount::Actual(20),
+            total_tokens: forge_api::TokenCount::Actual(30),
             ..Default::default()
         };
         let mut prompt = ForgePrompt::default();

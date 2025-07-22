@@ -270,8 +270,8 @@ impl<S: AgentService> Orchestrator<S> {
         context: &Context,
     ) -> anyhow::Result<Option<Context>> {
         // Estimate token count for compaction decision
-        let estimated_tokens = context.token_count();
-        if agent.should_compact(context, estimated_tokens) {
+        let token_count = context.token_count();
+        if agent.should_compact(context, *token_count) {
             info!(agent_id = %agent.id, "Compaction needed");
             Compactor::new(self.services.clone())
                 .compact(agent, context.clone(), false)
@@ -409,7 +409,7 @@ impl<S: AgentService> Orchestrator<S> {
                 ChatCompletionMessageFull {
                     tool_calls,
                     content,
-                    mut usage,
+                    usage,
                     reasoning,
                     reasoning_details,
                 },
@@ -427,17 +427,16 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            // Set estimated tokens
-            usage.estimated_tokens = context.token_count();
-
             info!(
-                token_usage = usage.prompt_tokens,
-                estimated_token_usage = usage.estimated_tokens,
+                token_usage = format!("{}", usage.prompt_tokens),
+                total_tokens = format!("{}", usage.total_tokens),
                 "Processing usage information"
             );
 
             // Send the usage information if available
             self.send(ChatResponse::Usage(usage.clone())).await?;
+
+            context = context.usage(usage);
 
             let has_no_tool_calls = tool_calls.is_empty();
 

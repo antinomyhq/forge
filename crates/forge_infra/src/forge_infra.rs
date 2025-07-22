@@ -125,6 +125,10 @@ impl FileWriterInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl FileInfoInfra for ForgeInfra {
+    async fn is_binary(&self, path: &Path) -> anyhow::Result<bool> {
+        self.file_meta_service.is_binary(path).await
+    }
+
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
         self.file_meta_service.is_file(path).await
     }
