@@ -1543,7 +1543,6 @@ dependencies = [
  "forge_provider",
  "forge_snaps",
  "forge_tool_macros",
- "forge_walker",
  "futures",
  "glob",
  "grep-regex",
