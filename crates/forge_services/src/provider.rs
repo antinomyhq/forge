@@ -43,7 +43,7 @@ impl ForgeProviderService {
                 let client = ClientBuilder::new(provider, &self.version)
                     .retry_config(self.retry_config.clone())
                     .timeout_config(self.timeout_config.clone())
-                    .use_hickory(true) // Configure to use Hickory DNS resolver
+                    .use_hickory(false) // use native DNS resolver(GAI)
                     .build()?;
 
                 // Cache the new client
