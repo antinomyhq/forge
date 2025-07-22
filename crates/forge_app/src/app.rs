@@ -152,7 +152,7 @@ impl<S: Services> ForgeApp<S> {
             Some(context) => context.clone(),
             None => {
                 // No context to compact, return zero metrics
-                return Ok(CompactionResult::new(Default::default(), Default::default(), 0, 0));
+                return Ok(CompactionResult::new(0, 0, 0, 0));
             }
         };
 
