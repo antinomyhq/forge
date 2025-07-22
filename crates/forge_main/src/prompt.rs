@@ -231,7 +231,7 @@ mod tests {
 
         let actual = prompt.render_prompt_right();
         assert!(actual.contains(&VERSION.to_string()));
-        assert!(actual.contains("10"));
+        assert!(actual.contains("30"));
     }
 
     #[test]
@@ -311,6 +311,6 @@ mod tests {
         assert!(actual.contains("claude-3")); // Only the last part after splitting by '/'
         assert!(!actual.contains("anthropic/claude-3")); // Should not contain the full model ID
         assert!(actual.contains(&VERSION.to_string()));
-        assert!(actual.contains("10"));
+        assert!(actual.contains("30"));
     }
 }
