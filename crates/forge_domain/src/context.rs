@@ -347,11 +347,18 @@ impl Context {
         )
     }
 
-    /// Returns the max token count for the context
+    /// Returns the token count for context
     pub fn token_count(&self) -> usize {
-        let estimated = self.messages.iter().map(|m| m.token_count()).sum::<usize>();
-        let actual = self.usage.as_ref().map(|u| u.max_token_count());
-        estimated.max(actual.unwrap_or(0))
+        let actual = self
+            .usage
+            .as_ref()
+            .map(|u| u.total_tokens)
+            .unwrap_or_default();
+        if actual > 0 {
+            actual
+        } else {
+            self.messages.iter().map(|m| m.token_count()).sum::<usize>()
+        }
     }
 }
 
@@ -586,21 +593,21 @@ mod tests {
         let expected = 0; // Empty context has no tokens
         assert_eq!(actual, expected);
 
-        // case 2: context with usage (total_tokens)
+        // case 2: context with usage - since total_tokens present return that.
         let mut usage = Usage::default();
         usage.total_tokens = 100;
         usage.estimated_tokens = 80;
         let fixture = Context::default().usage(usage);
         assert_eq!(fixture.token_count(), 100);
 
-        // case 3: context with usage (estimated_tokens)
+        // case 3: context with usage - since total_tokens present return that.
         let mut usage = Usage::default();
         usage.total_tokens = 80;
         usage.estimated_tokens = 110;
         let fixture = Context::default().usage(usage);
-        assert_eq!(fixture.token_count(), 110);
+        assert_eq!(fixture.token_count(), 80);
 
-        // case 4: context with messages and usage
+        // case 4: context with messages - since total_tokens are not present return estimate
         let mut usage = Usage::default();
         usage.estimated_tokens = 12;
         let fixture = Context::default()

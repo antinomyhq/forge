@@ -16,12 +16,6 @@ pub struct Usage {
     pub cost: Option<f64>,
 }
 
-impl Usage {
-    pub fn max_token_count(&self) -> usize {
-        self.total_tokens.max(self.estimated_tokens)
-    }
-}
-
 /// Represents a message that was received from the LLM provider
 /// NOTE: Tool call messages are part of the larger Response object and not part
 /// of the message.
