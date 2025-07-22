@@ -381,4 +381,174 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+    #[tokio::test]
+    async fn test_into_full_xml_tool_call_interruption_captures_final_usage() {
+        let xml_content = r#"<forge_tool_call>
+{"name": "test_tool", "arguments": {"arg": "value"}}
+</forge_tool_call>"#;
+
+        let messages = vec![
+            Ok(ChatCompletionMessage::default().content(Content::part(&xml_content[0..30]))),
+            Ok(ChatCompletionMessage::default().content(Content::part(&xml_content[30..]))),
+            // These messages come after tool interruption but contain usage updates
+            Ok(ChatCompletionMessage::default().content(Content::part(" ignored content"))),
+            // Final message with the actual usage - this is always sent last
+            Ok(ChatCompletionMessage::default().usage(Usage {
+                prompt_tokens: 5,
+                completion_tokens: 15,
+                total_tokens: 20,
+                estimated_tokens: 0,
+                cached_tokens: 0,
+                cost: None,
+            })),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message with XML interruption enabled
+        let actual = result_stream.into_full(true).await.unwrap();
+
+        // Expected: Should contain the XML tool call and final usage from last message
+        let expected_final_usage = Usage {
+            prompt_tokens: 5,
+            completion_tokens: 15,
+            total_tokens: 20,
+            estimated_tokens: 0,
+            cached_tokens: 0,
+            cost: None,
+        };
+        assert_eq!(actual.usage, expected_final_usage);
+        assert_eq!(actual.tool_calls.len(), 1);
+        assert_eq!(actual.tool_calls[0].name.as_str(), "test_tool");
+        assert_eq!(actual.content, xml_content);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_xml_tool_call_no_interruption_when_disabled() {
+        // Fixture: Create a stream with XML tool call content but interruption disabled
+        let xml_content = r#"<forge_tool_call>
+{"name": "test_tool", "arguments": {"arg": "value"}}
+</forge_tool_call>"#;
+
+        let messages = vec![
+            Ok(ChatCompletionMessage::default().content(Content::part(xml_content))),
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part(" and more content"))
+                .usage(Usage {
+                    prompt_tokens: 5,
+                    completion_tokens: 15,
+                    total_tokens: 20,
+                    estimated_tokens: 0,
+                    cached_tokens: 0,
+                    cost: None,
+                })),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message with XML interruption disabled
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Should process all content without interruption
+        let expected = ChatCompletionMessageFull {
+            content: format!("{} and more content", xml_content),
+            tool_calls: vec![], /* No XML tool calls should be extracted when interruption is
+                                 * disabled */
+            usage: Usage {
+                prompt_tokens: 5,
+                completion_tokens: 15,
+                total_tokens: 20,
+                estimated_tokens: 0,
+                cached_tokens: 0,
+                cost: None,
+            },
+            reasoning: None,
+            reasoning_details: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_usage_always_from_last_message_even_without_interruption() {
+        // Fixture: Create a stream where usage progresses through multiple messages
+        let messages = vec![
+            Ok(ChatCompletionMessage::default().content(Content::part("Starting"))),
+            Ok(ChatCompletionMessage::default().content(Content::part(" processing"))),
+            Ok(ChatCompletionMessage::default().content(Content::part(" complete"))),
+            Ok(ChatCompletionMessage::default().usage(Usage {
+                prompt_tokens: 5,
+                completion_tokens: 15,
+                total_tokens: 20,
+                estimated_tokens: 0,
+                cached_tokens: 0,
+                cost: None,
+            })),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Usage should be from the last message (even if it has no content)
+        let expected = ChatCompletionMessageFull {
+            content: "Starting processing complete".to_string(),
+            tool_calls: vec![],
+            usage: Usage {
+                prompt_tokens: 5,
+                completion_tokens: 15,
+                total_tokens: 20,
+                estimated_tokens: 0,
+                cached_tokens: 0,
+                cost: None,
+            },
+            reasoning: None,
+            reasoning_details: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_stream_continues_after_xml_interruption_for_usage_only() {
+        let xml_content = r#"<forge_tool_call>
+{"name": "test_tool", "arguments": {"arg": "value"}}
+</forge_tool_call>"#;
+
+        let messages = vec![
+            Ok(ChatCompletionMessage::default().content(Content::part(xml_content))),
+            // After interruption - content should be ignored but usage should be captured
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("This content should be ignored"))),
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("This too should be ignored"))),
+            Ok(ChatCompletionMessage::default().usage(Usage {
+                prompt_tokens: 5,
+                completion_tokens: 20,
+                total_tokens: 25,
+                estimated_tokens: 0,
+                cached_tokens: 0,
+                cost: None,
+            })),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message with XML interruption enabled
+        let actual = result_stream.into_full(true).await.unwrap();
+
+        // Expected: Should have XML tool call, content only from before interruption,
+        // but final usage
+        assert_eq!(actual.content, xml_content);
+        assert_eq!(actual.tool_calls.len(), 1);
+        assert_eq!(actual.tool_calls[0].name.as_str(), "test_tool");
+        assert_eq!(actual.usage.total_tokens, 25);
+        assert_eq!(actual.usage.completion_tokens, 20);
+    }
 }
