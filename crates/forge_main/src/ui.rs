@@ -789,7 +789,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn should_continue(&mut self) -> anyhow::Result<()> {
         let should_continue = ForgeSelect::confirm("Do you want to continue anyway?")
-            .with_default(false)
+            .with_default(true)
             .prompt()?;
 
         if should_continue.unwrap_or(false) {
