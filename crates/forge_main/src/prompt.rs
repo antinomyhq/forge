@@ -84,19 +84,8 @@ impl Prompt for ForgePrompt {
             write!(result, "/{formatted_model}").unwrap();
         }
 
-        // Append usage info
-        let reported = self
-            .usage
-            .as_ref()
-            .unwrap_or(&Usage::default())
-            .prompt_tokens;
-
-        let estimated = self.usage.as_ref().map_or(0, |u| u.estimated_tokens);
-
-        if estimated > reported {
-            write!(result, "/~{estimated}").unwrap();
-        } else {
-            write!(result, "/{reported}").unwrap();
+        if let Some(usage) = self.usage.as_ref().map(|usage| &usage.total_tokens) {
+            write!(result, "/{usage}").unwrap();
         }
 
         write!(result, "]").unwrap();
@@ -221,9 +210,9 @@ mod tests {
     #[test]
     fn test_render_prompt_right_with_usage() {
         let usage = Usage {
-            prompt_tokens: 10,
-            completion_tokens: 20,
-            total_tokens: 30,
+            prompt_tokens: forge_api::TokenCount::Actual(10),
+            completion_tokens: forge_api::TokenCount::Actual(20),
+            total_tokens: forge_api::TokenCount::Approx(30),
             ..Default::default()
         };
         let mut prompt = ForgePrompt::default();
@@ -231,7 +220,7 @@ mod tests {
 
         let actual = prompt.render_prompt_right();
         assert!(actual.contains(&VERSION.to_string()));
-        assert!(actual.contains("10"));
+        assert!(actual.contains("~30"));
     }
 
     #[test]
@@ -298,9 +287,9 @@ mod tests {
     #[test]
     fn test_render_prompt_right_with_model() {
         let usage = Usage {
-            prompt_tokens: 10,
-            completion_tokens: 20,
-            total_tokens: 30,
+            prompt_tokens: forge_api::TokenCount::Actual(10),
+            completion_tokens: forge_api::TokenCount::Actual(20),
+            total_tokens: forge_api::TokenCount::Actual(30),
             ..Default::default()
         };
         let mut prompt = ForgePrompt::default();
@@ -311,6 +300,6 @@ mod tests {
         assert!(actual.contains("claude-3")); // Only the last part after splitting by '/'
         assert!(!actual.contains("anthropic/claude-3")); // Should not contain the full model ID
         assert!(actual.contains(&VERSION.to_string()));
-        assert!(actual.contains("10"));
+        assert!(actual.contains("30"));
     }
 }

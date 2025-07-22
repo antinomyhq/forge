@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::ops::Deref;
 
 use derive_more::derive::{Display, From};
@@ -354,25 +355,47 @@ impl Context {
         let actual = self
             .usage
             .as_ref()
-            .map(|u| u.total_tokens)
+            .map(|u| u.total_tokens.clone())
             .unwrap_or_default();
-        if actual > 0 {
-            TokenCount::Actual(actual)
-        } else {
-            TokenCount::Approx(
+
+        match actual {
+            TokenCount::Actual(actual) if actual > 0 => TokenCount::Actual(actual),
+            _ => TokenCount::Approx(
                 self.messages
                     .iter()
                     .map(|m| m.token_count_approx())
                     .sum::<usize>(),
-            )
+            ),
         }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TokenCount {
     Actual(usize),
     Approx(usize),
+}
+
+impl Display for TokenCount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenCount::Actual(count) => write!(f, "{}", count),
+            TokenCount::Approx(count) => write!(f, "~{}", count),
+        }
+    }
+}
+
+impl std::ops::Add for TokenCount {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        match (self, other) {
+            (TokenCount::Actual(a), TokenCount::Actual(b)) => TokenCount::Actual(a + b),
+            (TokenCount::Approx(a), TokenCount::Approx(b)) => TokenCount::Approx(a + b),
+            (TokenCount::Actual(a), TokenCount::Approx(b)) => TokenCount::Approx(a + b),
+            (TokenCount::Approx(a), TokenCount::Actual(b)) => TokenCount::Approx(a + b),
+        }
+    }
 }
 
 impl Default for TokenCount {
@@ -620,33 +643,30 @@ mod tests {
     fn test_context_should_return_max_token_count() {
         let fixture = Context::default();
         let actual = fixture.token_count();
-        let expected = 0; // Empty context has no tokens
+        let expected = TokenCount::Approx(0); // Empty context has no tokens
         assert_eq!(actual, expected);
 
         // case 2: context with usage - since total_tokens present return that.
         let mut usage = Usage::default();
-        usage.total_tokens = 100;
-        usage.estimated_tokens = 80;
+        usage.total_tokens = TokenCount::Actual(100);
         let fixture = Context::default().usage(usage);
-        assert_eq!(fixture.token_count(), 100);
+        assert_eq!(fixture.token_count(), TokenCount::Actual(100));
 
         // case 3: context with usage - since total_tokens present return that.
         let mut usage = Usage::default();
-        usage.total_tokens = 80;
-        usage.estimated_tokens = 110;
+        usage.total_tokens = TokenCount::Actual(80);
         let fixture = Context::default().usage(usage);
-        assert_eq!(fixture.token_count(), 80);
+        assert_eq!(fixture.token_count(), TokenCount::Actual(80));
 
         // case 4: context with messages - since total_tokens are not present return
         // estimate
-        let mut usage = Usage::default();
-        usage.estimated_tokens = 12;
+        let usage = Usage::default();
         let fixture = Context::default()
             .add_message(ContextMessage::user("Hello", None))
             .add_message(ContextMessage::assistant("Hi there!", None, None))
             .add_message(ContextMessage::assistant("How can I help you?", None, None))
             .add_message(ContextMessage::user("I'm looking for a restaurant.", None))
             .usage(usage);
-        assert_eq!(fixture.token_count(), 18);
+        assert_eq!(fixture.token_count(), TokenCount::Approx(18));
     }
 }

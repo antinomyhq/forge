@@ -43,7 +43,7 @@ impl CompactionStrategy {
             CompactionStrategy::Evict(percentage) => {
                 let percentage = percentage.min(1.0);
                 let total_tokens = context.token_count();
-                let mut eviction_budget: usize = (percentage * total_tokens as f64).ceil() as usize;
+                let mut eviction_budget: usize = (percentage * (*total_tokens) as f64).ceil() as usize;
 
                 let range = context
                     .messages

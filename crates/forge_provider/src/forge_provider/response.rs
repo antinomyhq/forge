@@ -1,8 +1,7 @@
 use std::str::FromStr;
 
 use forge_app::domain::{
-    ChatCompletionMessage, Content, FinishReason, ToolCallFull, ToolCallId, ToolCallPart, ToolName,
-    Usage,
+    ChatCompletionMessage, Content, FinishReason, TokenCount, ToolCallFull, ToolCallId, ToolCallPart, ToolName, Usage
 };
 use serde::{Deserialize, Serialize};
 
@@ -110,12 +109,12 @@ pub struct FunctionCall {
 impl From<ResponseUsage> for Usage {
     fn from(usage: ResponseUsage) -> Self {
         Usage {
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
-            total_tokens: usage.total_tokens,
+            prompt_tokens: TokenCount::Actual(usage.prompt_tokens),
+            completion_tokens: TokenCount::Actual(usage.completion_tokens),
+            total_tokens: TokenCount::Actual(usage.total_tokens),
             cached_tokens: usage
                 .prompt_tokens_details
-                .map(|token_details| token_details.cached_tokens)
+                .map(|token_details| TokenCount::Actual(token_details.cached_tokens))
                 .unwrap_or_default(),
             cost: usage.cost,
             ..Default::default()

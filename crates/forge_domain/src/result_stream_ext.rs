@@ -161,7 +161,7 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::{BoxStream, Content, ToolCall, ToolCallId, ToolName};
+    use crate::{BoxStream, Content, ToolCall, ToolCallId, ToolName, TokenCount};
 
     #[tokio::test]
     async fn test_into_full_basic() {
@@ -170,21 +170,19 @@ mod tests {
             Ok(ChatCompletionMessage::default()
                 .content(Content::part("Hello "))
                 .usage(Usage {
-                    prompt_tokens: 10,
-                    completion_tokens: 5,
-                    total_tokens: 15,
-                    estimated_tokens: 15,
-                    cached_tokens: 0,
+                    prompt_tokens: TokenCount::Actual(10),
+                    completion_tokens: TokenCount::Actual(5),
+                    total_tokens: TokenCount::Actual(15),
+                    cached_tokens: TokenCount::Actual(0),
                     cost: None,
                 })),
             Ok(ChatCompletionMessage::default()
                 .content(Content::part("world!"))
                 .usage(Usage {
-                    prompt_tokens: 10,
-                    completion_tokens: 10,
-                    total_tokens: 20,
-                    estimated_tokens: 20,
-                    cached_tokens: 0,
+                    prompt_tokens: TokenCount::Actual(10),
+                    completion_tokens: TokenCount::Actual(10),
+                    total_tokens: TokenCount::Actual(20),
+                    cached_tokens: TokenCount::Actual(0),
                     cost: None,
                 })),
         ];
@@ -200,11 +198,10 @@ mod tests {
             content: "Hello world!".to_string(),
             tool_calls: vec![],
             usage: Usage {
-                prompt_tokens: 10,
-                completion_tokens: 10,
-                total_tokens: 20,
-                estimated_tokens: 20,
-                cached_tokens: 0,
+                prompt_tokens: TokenCount::Actual(10),
+                completion_tokens: TokenCount::Actual(10),
+                total_tokens: TokenCount::Actual(20),
+                cached_tokens: TokenCount::Actual(0),
                 cost: None,
             },
             reasoning: None,
@@ -395,11 +392,10 @@ mod tests {
             Ok(ChatCompletionMessage::default().content(Content::part(" ignored content"))),
             // Final message with the actual usage - this is always sent last
             Ok(ChatCompletionMessage::default().usage(Usage {
-                prompt_tokens: 5,
-                completion_tokens: 15,
-                total_tokens: 20,
-                estimated_tokens: 0,
-                cached_tokens: 0,
+                prompt_tokens: TokenCount::Actual(5),
+                completion_tokens: TokenCount::Actual(15),
+                total_tokens: TokenCount::Actual(20),
+                cached_tokens: TokenCount::Actual(0),
                 cost: None,
             })),
         ];
@@ -412,11 +408,10 @@ mod tests {
 
         // Expected: Should contain the XML tool call and final usage from last message
         let expected_final_usage = Usage {
-            prompt_tokens: 5,
-            completion_tokens: 15,
-            total_tokens: 20,
-            estimated_tokens: 0,
-            cached_tokens: 0,
+            prompt_tokens: TokenCount::Actual(5),
+            completion_tokens: TokenCount::Actual(15),
+            total_tokens: TokenCount::Actual(20),
+            cached_tokens: TokenCount::Actual(0),
             cost: None,
         };
         assert_eq!(actual.usage, expected_final_usage);
@@ -437,11 +432,10 @@ mod tests {
             Ok(ChatCompletionMessage::default()
                 .content(Content::part(" and more content"))
                 .usage(Usage {
-                    prompt_tokens: 5,
-                    completion_tokens: 15,
-                    total_tokens: 20,
-                    estimated_tokens: 0,
-                    cached_tokens: 0,
+                    prompt_tokens: TokenCount::Actual(5),
+                    completion_tokens: TokenCount::Actual(15),
+                    total_tokens: TokenCount::Actual(20),
+                    cached_tokens: TokenCount::Actual(0),
                     cost: None,
                 })),
         ];
@@ -458,11 +452,10 @@ mod tests {
             tool_calls: vec![], /* No XML tool calls should be extracted when interruption is
                                  * disabled */
             usage: Usage {
-                prompt_tokens: 5,
-                completion_tokens: 15,
-                total_tokens: 20,
-                estimated_tokens: 0,
-                cached_tokens: 0,
+                prompt_tokens: TokenCount::Actual(5),
+                completion_tokens: TokenCount::Actual(15),
+                total_tokens: TokenCount::Actual(20),
+                cached_tokens: TokenCount::Actual(0),
                 cost: None,
             },
             reasoning: None,
@@ -480,11 +473,10 @@ mod tests {
             Ok(ChatCompletionMessage::default().content(Content::part(" processing"))),
             Ok(ChatCompletionMessage::default().content(Content::part(" complete"))),
             Ok(ChatCompletionMessage::default().usage(Usage {
-                prompt_tokens: 5,
-                completion_tokens: 15,
-                total_tokens: 20,
-                estimated_tokens: 0,
-                cached_tokens: 0,
+                prompt_tokens: TokenCount::Actual(5),
+                completion_tokens: TokenCount::Actual(15),
+                total_tokens: TokenCount::Actual(20),
+                cached_tokens: TokenCount::Actual(0),
                 cost: None,
             })),
         ];
@@ -500,11 +492,10 @@ mod tests {
             content: "Starting processing complete".to_string(),
             tool_calls: vec![],
             usage: Usage {
-                prompt_tokens: 5,
-                completion_tokens: 15,
-                total_tokens: 20,
-                estimated_tokens: 0,
-                cached_tokens: 0,
+                prompt_tokens: TokenCount::Actual(5),
+                completion_tokens: TokenCount::Actual(15),
+                total_tokens: TokenCount::Actual(20),
+                cached_tokens: TokenCount::Actual(0),
                 cost: None,
             },
             reasoning: None,
@@ -528,11 +519,10 @@ mod tests {
             Ok(ChatCompletionMessage::default()
                 .content(Content::part("This too should be ignored"))),
             Ok(ChatCompletionMessage::default().usage(Usage {
-                prompt_tokens: 5,
-                completion_tokens: 20,
-                total_tokens: 25,
-                estimated_tokens: 0,
-                cached_tokens: 0,
+                prompt_tokens: TokenCount::Actual(5),
+                completion_tokens: TokenCount::Actual(20),
+                total_tokens: TokenCount::Actual(25),
+                cached_tokens: TokenCount::Actual(0),
                 cost: None,
             })),
         ];
@@ -548,7 +538,7 @@ mod tests {
         assert_eq!(actual.content, xml_content);
         assert_eq!(actual.tool_calls.len(), 1);
         assert_eq!(actual.tool_calls[0].name.as_str(), "test_tool");
-        assert_eq!(actual.usage.total_tokens, 25);
-        assert_eq!(actual.usage.completion_tokens, 20);
+        assert_eq!(actual.usage.total_tokens, TokenCount::Actual(25));
+        assert_eq!(actual.usage.completion_tokens, TokenCount::Actual(20));
     }
 }
