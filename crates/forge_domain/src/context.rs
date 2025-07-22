@@ -347,12 +347,11 @@ impl Context {
         )
     }
 
-    // FIXME: Add unit tests
+    /// Returns the max token count for the context
     pub fn token_count(&self) -> usize {
-        self.usage
-            .as_ref()
-            .map(|usage| usage.total_tokens)
-            .unwrap_or(self.messages.iter().map(|m| m.token_count()).sum())
+        let estimated = self.messages.iter().map(|m| m.token_count()).sum::<usize>();
+        let actual = self.usage.as_ref().map(|u| u.max_token_count());
+        estimated.max(actual.unwrap_or(0))
     }
 }
 
@@ -578,5 +577,38 @@ mod tests {
         let actual = transformer.transform(fixture);
 
         assert_yaml_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_context_should_return_max_token_count() {
+        let fixture = Context::default();
+        let actual = fixture.token_count();
+        let expected = 0; // Empty context has no tokens
+        assert_eq!(actual, expected);
+
+        // case 2: context with usage (total_tokens)
+        let mut usage = Usage::default();
+        usage.total_tokens = 100;
+        usage.estimated_tokens = 80;
+        let fixture = Context::default().usage(usage);
+        assert_eq!(fixture.token_count(), 100);
+
+        // case 3: context with usage (estimated_tokens)
+        let mut usage = Usage::default();
+        usage.total_tokens = 80;
+        usage.estimated_tokens = 110;
+        let fixture = Context::default().usage(usage);
+        assert_eq!(fixture.token_count(), 110);
+
+        // case 4: context with messages and usage
+        let mut usage = Usage::default();
+        usage.estimated_tokens = 12;
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .add_message(ContextMessage::assistant("Hi there!", None, None))
+            .add_message(ContextMessage::assistant("How can I help you?", None, None))
+            .add_message(ContextMessage::user("I'm looking for a restaurant.", None))
+            .usage(usage);
+        assert_eq!(fixture.token_count(), 18);
     }
 }
