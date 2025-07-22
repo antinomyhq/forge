@@ -32,7 +32,11 @@ impl Transformer for ReasoningNormalizer {
                     text_msg.reasoning_details = None;
                 }
             }
+
+            // Ensure global reasoning config is reset
+            context.reasoning = None;
         }
+
         // If first_assistant_has_reasoning is true, we keep all reasoning details as-is
 
         context
@@ -45,7 +49,7 @@ mod tests {
     use serde::Serialize;
 
     use super::*;
-    use crate::{ContextMessage, ReasoningFull, Role, TextMessage};
+    use crate::{ContextMessage, ReasoningConfig, ReasoningFull, Role, TextMessage};
 
     #[derive(Serialize)]
     struct TransformationSnapshot {
@@ -67,6 +71,7 @@ mod tests {
         }];
 
         Context::default()
+            .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::user("User question", None))
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
@@ -99,6 +104,7 @@ mod tests {
         }];
 
         Context::default()
+            .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::user("User message", None))
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
@@ -137,14 +143,14 @@ mod tests {
 
     #[test]
     fn test_reasoning_normalizer_removes_all_when_first_assistant_message_has_no_reasoning() {
-        let fixture = create_context_first_assistant_no_reasoning();
+        let context = create_context_first_assistant_no_reasoning();
         let mut transformer = ReasoningNormalizer::default();
-        let actual = transformer.transform(fixture.clone());
+        let actual = transformer.transform(context.clone());
 
         // All reasoning details should be removed since first assistant has no
         // reasoning
         let snapshot =
-            TransformationSnapshot::new("ReasoningNormalizer_first_no_reasoning", fixture, actual);
+            TransformationSnapshot::new("ReasoningNormalizer_first_no_reasoning", context, actual);
         assert_yaml_snapshot!(snapshot);
     }
 }
