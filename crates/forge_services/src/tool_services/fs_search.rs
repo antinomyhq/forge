@@ -39,6 +39,20 @@ impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
         })
     }
 
+    /// Strictly checks if the path matches the file pattern.
+    async fn matches_file_pattern(&self, path: &Path) -> anyhow::Result<bool> {
+        let pattern = self.get_file_pattern()?;
+        if pattern.is_none() {
+            return Ok(false);
+        }
+
+        // Otherwise, check if the file matches the pattern
+        Ok(path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| !name.is_empty() && pattern.unwrap().matches(name)))
+    }
+
     async fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
         // Don't process directories
         if !self.infra.is_file(path).await? {
@@ -111,9 +125,15 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
         let mut matches = Vec::new();
 
         for path in paths {
-            if !helper.match_file_path(path.as_path()).await?
-                || self.infra.is_binary(path.as_path()).await?
-            {
+            if !helper.match_file_path(path.as_path()).await? {
+                continue;
+            }
+
+            if self.infra.is_binary(&path).await? {
+                // Skip searching binary files but if binary file matches the asked pattern then include it in result.
+                if helper.matches_file_pattern(path.as_path()).await? {
+                    matches.push(Match { path: path.to_string_lossy().to_string(), result: None });
+                }
                 continue;
             }
 
@@ -422,6 +442,7 @@ mod test {
 
         assert!(result.is_err());
     }
+    
     #[tokio::test]
     async fn test_search_skips_binary_files_in_directory() {
         let fixture = TempDir::new().unwrap();
@@ -450,5 +471,35 @@ mod test {
         let result = actual.unwrap();
         assert_eq!(result.matches.len(), 1);
         assert!(result.matches[0].path.ends_with("valid.txt"));
+    }
+
+     #[tokio::test]
+    async fn test_search_skips_all_binary_files() {
+        let fixture = TempDir::new().unwrap();
+
+        // Create a valid UTF-8 file
+        tokio::fs::write(fixture.path().join("valid.txt"), "Hello World")
+            .await
+            .unwrap();
+
+        // Create a binary file with .exe extension (detected by extension)
+        tokio::fs::write(fixture.path().join("binary.exe"), "Hello World")
+            .await
+            .unwrap();
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                None,
+                Some("*.exe".to_string()),
+            )
+            .await
+            .unwrap();
+
+        // Should only find matches in the text file (binary file skipped)
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert_eq!(result.matches.len(), 1);
+        assert!(result.matches[0].path.ends_with("binary.exe"));
     }
 }
