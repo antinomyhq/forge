@@ -91,13 +91,13 @@ impl Walker {
     fn is_likely_binary(path: &std::path::Path) -> bool {
         if let Some(extension) = path.extension() {
             let ext = extension.to_string_lossy().to_lowercase();
-            // List of common binary file extensions
-            let binary_extensions = [
-                "exe", "dll", "so", "dylib", "bin", "obj", "o", "class", "pyc", "jar", "war",
-                "ear", "zip", "tar", "gz", "rar", "7z", "iso", "img", "pdf", "doc", "docx", "xls",
-                "xlsx", "ppt", "pptx", "bmp", "ico", "mp3", "mp4", "avi", "mov", "sqlite", "db",
-                "bin",
-            ];
+            // List of common binary file extensions loaded from file
+            let binary_extensions_str = include_str!("binary_extensions.txt");
+            let binary_extensions: Vec<&str> = binary_extensions_str
+                .lines()
+                .map(|line| line.trim())
+                .filter(|line| !line.is_empty())
+                .collect();
             binary_extensions.contains(&ext.as_ref())
         } else {
             false
