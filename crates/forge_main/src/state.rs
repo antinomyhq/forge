@@ -14,6 +14,7 @@ pub struct UIState {
     pub is_first: bool,
     pub model: Option<ModelId>,
     pub provider: Option<Provider>,
+    pub context_length: Option<u64>,
 }
 
 impl UIState {
@@ -41,6 +42,7 @@ impl UIState {
             model: workflow.model,
             operating_agent,
             provider: Default::default(),
+            context_length: Default::default(),
         }
     }
 }

@@ -442,6 +442,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Exit the UI after logout
                 return Ok(true);
             }
+            Command::Usage => {
+                self.display_usage_info().await?;
+            }
         }
 
         Ok(false)
@@ -484,7 +487,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
         {
-            Some(model) => Ok(Some(model.0.id)),
+            Some(model) => {
+                // Cache context_length when model is selected
+                self.state.context_length = model.0.context_length;
+                Ok(Some(model.0.id))
+            }
             None => Ok(None),
         }
     }
@@ -757,7 +764,25 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 usage.cost = usage
                     .cost
                     .map(|cost| cost + self.state.usage.cost.as_ref().map_or(0.0, |c| *c));
-                self.state.usage = usage;
+                self.state.usage = usage.clone();
+
+                // Display usage information in a format similar to prompt right side
+                let mut usage_display = String::with_capacity(32);
+                usage_display.push_str("[ ");
+
+                // Show total tokens
+                usage_display.push_str(&usage.total_tokens.to_string());
+                usage_display.push_str(" tokens");
+
+                // Add cost if available
+                if let Some(cost) = usage.cost {
+                    usage_display.push_str(&format!(" (${cost:.4})"));
+                }
+
+                usage_display.push(']');
+
+                let title = TitleFormat::debug(format!("Model Response Complete {usage_display}"));
+                self.writeln(title)?;
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 self.spinner.start(Some("Retrying"))?;
@@ -828,6 +853,303 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 tracker::login(user_info.auth_provider_id.into_string());
             }
         });
+    }
+
+    async fn display_usage_info(&mut self) -> anyhow::Result<()> {
+        use forge_display::title::TitleFormat;
+
+        self.writeln("")?;
+        self.writeln(TitleFormat::info("📊 Token Usage Analysis"))?;
+        self.writeln("")?;
+
+        // Get real usage data from current state
+        let usage = self.state.usage.clone();
+
+        // Get current model and its context length
+        let context_length = if let Some(cached_context_length) = self.state.context_length {
+            cached_context_length
+        } else if let Some(model_id) = self.state.model.clone() {
+            // Fallback: Get the model details to find context length if not cached
+            let models = self.get_models().await?;
+            let context_length = models
+                .iter()
+                .find(|m| m.id == model_id)
+                .and_then(|m| m.context_length)
+                .unwrap_or(200_000);
+
+            // Cache the context_length for future use
+            self.state.context_length = Some(context_length);
+            context_length
+        } else {
+            200_000 // Default context length if no model is set
+        };
+
+        let (files_tokens, prompts_tokens, assistant_tokens, tools_tokens, total_calculated) =
+            if let Some(conversation_id) = &self.state.conversation_id {
+                // Pass the actual usage data to the calculation method
+                self.calculate_conversation_tokens(conversation_id, &usage)
+                    .await
+                    .unwrap_or_else(|_| {
+                        // Fallback: use actual usage data if conversation analysis fails
+                        let total = usage.total_tokens;
+                        (total / 4, total / 4, total / 4, total / 4, total)
+                    })
+            } else {
+                // No conversation available, use actual usage data
+                let total = usage.total_tokens;
+                (total / 4, total / 4, total / 4, total / 4, total)
+            };
+
+        // Use the calculated total from conversation analysis, not the API usage total
+        let total_used = total_calculated;
+
+        // Calculate total percentage for overflow detection
+        let total_percentage = (total_used as f64 / context_length as f64) * 100.0;
+        let is_overflow = total_percentage > 100.0;
+
+        // Display header with context window info
+        self.writeln(format!(
+            "Current context window ({} of {}k tokens used)",
+            total_used,
+            context_length / 1000
+        ))?;
+        self.writeln("")?;
+
+        // Display progress bar
+        self.display_progress_bar(
+            files_tokens,
+            tools_tokens,
+            assistant_tokens,
+            prompts_tokens,
+            context_length as usize,
+            is_overflow,
+        )?;
+        self.writeln("")?;
+
+        // Show overflow warning if needed
+        if is_overflow {
+            self.writeln(
+                "⚠️  Context window overflow! Consider compacting or starting a new conversation.",
+            )?;
+            self.writeln("")?;
+        }
+
+        // Display breakdown
+        self.writeln(TitleFormat::info("📈 Token Breakdown"))?;
+        self.writeln("")?;
+
+        self.display_usage_line("Files", files_tokens, context_length as usize, "cyan")?;
+        self.display_usage_line("Tools", tools_tokens, context_length as usize, "red")?;
+        self.display_usage_line(
+            "Assistant",
+            assistant_tokens,
+            context_length as usize,
+            "blue",
+        )?;
+        self.display_usage_line(
+            "Prompts",
+            prompts_tokens,
+            context_length as usize,
+            "magenta",
+        )?;
+        self.writeln("")?;
+
+        // Total summary
+        self.writeln(format!(
+            "📊 Total Used: {total_used:>6} tokens / {context_length:>6} available"
+        ))?;
+
+        if let Some(cost) = usage.cost {
+            self.writeln(format!("💰 Cost: ${cost:.4}"))?;
+        }
+
+        self.writeln("")?;
+        self.writeln(TitleFormat::info("💡 Pro Tips"))?;
+        self.writeln("  • Run /compact to replace conversation history with summary")?;
+        self.writeln("  • Run /new to start a fresh conversation")?;
+
+        if is_overflow {
+            self.writeln("  • Consider reducing file context or using shorter prompts")?;
+        }
+
+        // Show context length info
+        if let Some(model_id) = &self.state.model {
+            let context_display = if context_length >= 1_000_000 {
+                format!("{}M", context_length / 1_000_000)
+            } else if context_length >= 1000 {
+                format!("{}k", context_length / 1000)
+            } else {
+                format!("{context_length}")
+            };
+            self.writeln(format!(
+                "  • Current model: {model_id} [ {context_display} ]"
+            ))?;
+        }
+        self.writeln("")?;
+
+        Ok(())
+    }
+
+    fn display_progress_bar(
+        &mut self,
+        files_tokens: usize,
+        tools_tokens: usize,
+        assistant_tokens: usize,
+        prompts_tokens: usize,
+        context_length: usize,
+        is_overflow: bool,
+    ) -> anyhow::Result<()> {
+        let progress_bar_width = 60;
+
+        if is_overflow {
+            // Show red overflow bar
+            let bar = format!(
+                "[{}] {:.1}%",
+                "█".repeat(progress_bar_width).red(),
+                (files_tokens + tools_tokens + assistant_tokens + prompts_tokens) as f64
+                    / context_length as f64
+                    * 100.0
+            );
+            self.writeln(bar)?;
+        } else {
+            // Calculate widths for each segment
+            let files_width = ((files_tokens as f64 / context_length as f64)
+                * progress_bar_width as f64) as usize;
+            let tools_width = ((tools_tokens as f64 / context_length as f64)
+                * progress_bar_width as f64) as usize;
+            let assistant_width = ((assistant_tokens as f64 / context_length as f64)
+                * progress_bar_width as f64) as usize;
+            let prompts_width = ((prompts_tokens as f64 / context_length as f64)
+                * progress_bar_width as f64) as usize;
+
+            let used_width = files_width + tools_width + assistant_width + prompts_width;
+            let remaining_width = progress_bar_width.saturating_sub(used_width);
+
+            // Build progress bar with colored segments
+            let mut bar_parts = Vec::new();
+
+            // Files (cyan color, show at least 1 char if tokens > 0)
+            if files_width > 0 || (files_width == 0 && files_tokens > 0) {
+                let width = if files_width == 0 { 1 } else { files_width };
+                bar_parts.push("█".repeat(width).cyan().to_string());
+            }
+
+            // Tools (red color, show at least 1 char if tokens > 0)
+            if tools_width > 0 || (tools_width == 0 && tools_tokens > 0) {
+                let width = if tools_width == 0 { 1 } else { tools_width };
+                bar_parts.push("█".repeat(width).red().to_string());
+            }
+
+            // Assistant (blue color, show at least 1 char if tokens > 0)
+            if assistant_width > 0 || (assistant_width == 0 && assistant_tokens > 0) {
+                let width = if assistant_width == 0 {
+                    1
+                } else {
+                    assistant_width
+                };
+                bar_parts.push("█".repeat(width).blue().to_string());
+            }
+
+            // Prompts (magenta color, show at least 1 char if tokens > 0)
+            if prompts_width > 0 || (prompts_width == 0 && prompts_tokens > 0) {
+                let width = if prompts_width == 0 { 1 } else { prompts_width };
+                bar_parts.push("█".repeat(width).magenta().to_string());
+            }
+
+            // Remaining space (default color)
+            if remaining_width > 0 {
+                bar_parts.push("░".repeat(remaining_width));
+            }
+
+            let total_percentage = (files_tokens + tools_tokens + assistant_tokens + prompts_tokens)
+                as f64
+                / context_length as f64
+                * 100.0;
+            let bar = format!("[{}] {:.1}%", bar_parts.join(""), total_percentage);
+            self.writeln(bar)?;
+        }
+
+        Ok(())
+    }
+
+    fn display_usage_line(
+        &mut self,
+        label: &str,
+        used: usize,
+        total: usize,
+        color: &str,
+    ) -> anyhow::Result<()> {
+        let percentage = (used as f64 / total as f64) * 100.0;
+
+        let colored_line = match color {
+            "cyan" => format!("█ {label:10} ({percentage:>5.1}%)")
+                .cyan()
+                .to_string(),
+            "red" => format!("█ {label:10} ({percentage:>5.1}%)")
+                .red()
+                .to_string(),
+            "blue" => format!("█ {label:10} ({percentage:>5.1}%)")
+                .blue()
+                .to_string(),
+            "magenta" => format!("█ {label:10} ({percentage:>5.1}%)")
+                .magenta()
+                .to_string(),
+            _ => format!("█ {label:10} ({percentage:>5.1}%)"), // Default no color
+        };
+
+        self.writeln(colored_line)?;
+
+        Ok(())
+    }
+
+    async fn calculate_conversation_tokens(
+        &self,
+        conversation_id: &ConversationId,
+        usage: &forge_api::Usage,
+    ) -> anyhow::Result<(usize, usize, usize, usize, usize)> {
+        // Get the conversation from the API
+        let conversation = match self.api.conversation(conversation_id).await? {
+            Some(conv) => conv,
+            None => {
+                // If no conversation found, use API total_tokens and distribute proportionally
+                let total = usage.total_tokens;
+                return Ok((total / 4, total / 4, total / 4, total / 4, total));
+            }
+        };
+
+        // Calculate detailed breakdown from conversation content
+        let (files_from_content, user_from_content, assistant_from_content, tools_from_content, _) =
+            forge_api::ConversationAnalyzer::calculate_detailed_breakdown(&conversation);
+
+        // Calculate total from content analysis
+        let content_total =
+            files_from_content + user_from_content + assistant_from_content + tools_from_content;
+
+        if content_total == 0 {
+            // If content analysis returns 0, use API total and distribute evenly
+            let total = usage.total_tokens;
+            return Ok((total / 4, total / 4, total / 4, total / 4, total));
+        }
+
+        // Use API's actual total_tokens as the authoritative source
+        let api_total = usage.total_tokens;
+
+        // Calculate proportional scaling factor
+        let scale_factor = api_total as f64 / content_total as f64;
+
+        // Apply scaling to maintain proportions but use API total
+        let files_tokens = (files_from_content as f64 * scale_factor) as usize;
+        let user_tokens = (user_from_content as f64 * scale_factor) as usize;
+        let assistant_tokens = (assistant_from_content as f64 * scale_factor) as usize;
+        let tools_tokens = api_total.saturating_sub(files_tokens + user_tokens + assistant_tokens);
+
+        Ok((
+            files_tokens,
+            user_tokens,
+            assistant_tokens,
+            tools_tokens,
+            api_total,
+        ))
     }
 }
 
