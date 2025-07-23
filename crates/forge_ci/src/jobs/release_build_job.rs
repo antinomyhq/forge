@@ -1,7 +1,6 @@
 use derive_setters::Setters;
 use gh_workflow_tailcall::*;
 
-use crate::jobs::apt_get_install;
 use crate::release_matrix::ReleaseMatrix;
 
 #[derive(Clone, Default, Setters)]
