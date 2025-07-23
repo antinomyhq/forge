@@ -126,7 +126,7 @@ mod tests {
     fn test_slash_command_description() {
         let fixture = SlashCommand::Agent;
         let actual = fixture.description();
-        let expected = "Switch between different AI agents. Use this command to change which agent handles your requests and see available options.";
+        let expected = "Switch between different AI agents.";
         assert_eq!(actual, expected);
     }
 
@@ -134,7 +134,7 @@ mod tests {
     fn test_enum_iteration() {
         let fixture = SlashCommand::iter().collect::<Vec<_>>();
         let actual = fixture.len();
-        let expected = 12;
+        let expected = 14;
         assert_eq!(actual, expected);
     }
 
@@ -149,7 +149,7 @@ mod tests {
         // Demonstrate getting description
         let fixture = SlashCommand::Agent;
         let actual = fixture.description();
-        let expected = "Switch between different AI agents. Use this command to change which agent handles your requests and see available options.";
+        let expected = "Switch between different AI agents.";
         assert_eq!(actual, expected);
     }
     #[test]
