@@ -62,18 +62,6 @@ impl From<ReleaseBuilderJob> for Job {
                     )),
             )
             .add_step(
-                Step::run(apt_get_install(&[
-                    "gcc-aarch64-linux-gnu",
-                    "musl-tools",
-                    "musl-dev",
-                    "pkg-config",
-                    "libssl-dev",
-                ]))
-                .if_condition(Expression::new(
-                    "contains(matrix.target, '-unknown-linux-musl')",
-                )),
-            ) // Build release binary
-            .add_step(
                 Step::uses("ClementTsang", "cargo-action", "v0.0.6")
                     .add_with(("command", "build --release"))
                     .add_with(("args", "--target ${{ matrix.target }}"))
