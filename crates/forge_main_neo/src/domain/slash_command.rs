@@ -6,41 +6,47 @@ use strum_macros::{Display, EnumIter, EnumMessage as EnumMessageDerive, EnumStri
 #[strum(serialize_all = "lowercase")]
 pub enum SlashCommand {
     #[strum(
-        message = "Switch between different AI agents. Use this command to change which agent handles your requests and see available options."
+        message = "Switch between different AI agents."
     )]
     Agent,
 
-    #[strum(message = "Compact the conversation context")]
+    #[strum(message = "Start new conversation with summarized context")]
     Compact,
 
-    #[strum(message = "Save conversation as JSON or HTML (use /dump html for HTML format)")]
+    #[strum(message = "Export conversation as JSON or HTML")]
     Dump,
 
-    #[strum(message = "Exit the application")]
+    #[strum(message = "Close the application")]
     Exit,
 
-    #[strum(message = "Enable implementation mode with code changes")]
+    #[strum(message = "Switch to agent Forge")]
     Forge,
 
-    #[strum(message = "Enable help mode for tool questions")]
+    #[strum(message = "Access help documentation and instructions")]
     Help,
 
-    #[strum(message = "Display system information")]
+    #[strum(message = "Display system and environment information")]
     Info,
 
-    #[strum(message = "Switch to a different model")]
+    #[strum(message = "Authenticate with Forge account")]
+    Login,
+
+    #[strum(message = "Sign out from current session")]
+    Logout,
+
+    #[strum(message = "Switch to different AI model")]
     Model,
 
-    #[strum(message = "Enable planning mode without code changes")]
+    #[strum(message = "Switch to agent Muse")]
     Muse,
 
-    #[strum(message = "Start a new conversation")]
+    #[strum(message = "Start new conversation")]
     New,
 
-    #[strum(message = "List all available tools with their descriptions and schema")]
+    #[strum(message = "View available tools")]
     Tools,
 
-    #[strum(message = "Updates to the latest compatible version of forge")]
+    #[strum(message = "Upgrade to latest Forge version")]
     Update,
 }
 
