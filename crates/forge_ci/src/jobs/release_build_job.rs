@@ -59,7 +59,7 @@ impl From<ReleaseBuilderJob> for Job {
                     .if_condition(Expression::new(
                         "!contains(matrix.target, '-unknown-linux-')",
                     )),
-            ) 
+            )
             // Build release binary
             .add_step(
                 Step::uses("ClementTsang", "cargo-action", "v0.0.6")
