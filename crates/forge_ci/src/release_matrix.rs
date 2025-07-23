@@ -48,17 +48,17 @@ impl Default for ReleaseMatrix {
             },
             MatrixEntry {
                 os: "macos-latest",
-                target: "x86_64-apple-darwin-cross",
+                target: "x86_64-apple-darwin",
                 binary_name: "forge-x86_64-apple-darwin",
                 binary_path: "target/x86_64-apple-darwin/release/forge",
-                cross: "true",
+                cross: "false",
             },
             MatrixEntry {
                 os: "macos-latest",
-                target: "aarch64-apple-darwin-cross",
+                target: "aarch64-apple-darwin",
                 binary_name: "forge-aarch64-apple-darwin",
                 binary_path: "target/aarch64-apple-darwin/release/forge",
-                cross: "true",
+                cross: "false",
             },
             MatrixEntry {
                 os: "windows-latest",
