@@ -147,7 +147,8 @@ jobs:
           target: aarch64-pc-windows-msvc
     steps:
     - uses: actions/checkout@v4
-    - uses: taiki-e/setup-cross-toolchain-action@v1
+    - if: ${{ matrix.cross == 'false' }}
+      uses: taiki-e/setup-cross-toolchain-action@v1
       with:
         target: ${{ matrix.target }}
     - name: Add Rust target
@@ -234,7 +235,8 @@ jobs:
           target: aarch64-pc-windows-msvc
     steps:
     - uses: actions/checkout@v4
-    - uses: taiki-e/setup-cross-toolchain-action@v1
+    - if: ${{ matrix.cross == 'false' }}
+      uses: taiki-e/setup-cross-toolchain-action@v1
       with:
         target: ${{ matrix.target }}
     - name: Add Rust target

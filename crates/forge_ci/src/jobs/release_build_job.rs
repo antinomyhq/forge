@@ -49,7 +49,8 @@ impl From<ReleaseBuilderJob> for Job {
             // Install Rust with cross-compilation target
             .add_step(
                 Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
-                    .with(("target", "${{ matrix.target }}")),
+                    .with(("target", "${{ matrix.target }}"))
+                    .if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
             )
             // Explicitly add the target to ensure it's available
             .add_step(Step::run("rustup target add ${{ matrix.target }}").name("Add Rust target"))
