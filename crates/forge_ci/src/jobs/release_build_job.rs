@@ -45,7 +45,7 @@ impl From<ReleaseBuilderJob> for Job {
                     .pull_requests(Level::Write),
             )
             .add_step(Step::uses("actions", "checkout", "v4"))
-            // Install Rust with cross-compilation target
+/*            // Install Rust with cross-compilation target
             .add_step(
                 Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
                     .with(("target", "${{ matrix.target }}"))
@@ -59,7 +59,7 @@ impl From<ReleaseBuilderJob> for Job {
                     .if_condition(Expression::new(
                         "!contains(matrix.target, '-unknown-linux-')",
                     )),
-            )
+            )*/
             // Build release binary
             .add_step(
                 Step::uses("ClementTsang", "cargo-action", "v0.0.6")
