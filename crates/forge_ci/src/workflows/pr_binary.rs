@@ -1,6 +1,6 @@
-use crate::release_matrix::MatrixEntry;
 use gh_workflow_tailcall::generate::Generate;
 use gh_workflow_tailcall::*;
+
 
 /// Generate a workflow that builds binaries for PRs that can be downloaded and
 /// tested locally
