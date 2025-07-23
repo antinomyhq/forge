@@ -90,13 +90,13 @@ impl From<ReleaseBuilderJob> for Job {
                     "cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}",
                 ))
                 // Upload to the generated github release id
-                .add_step(
+/*                .add_step(
                     Step::uses("xresloader", "upload-to-github-release", "v1")
                         .add_with(("release_id", release_id))
                         .add_with(("file", "${{ matrix.binary_name }}"))
                         .add_with(("overwrite", "true")),
-                );
-        } else if value.upload_artifacts.unwrap_or(false) {
+                )*/;
+        } else if value.upload_artifacts.unwrap_or(true) {
             job = job
                 // Rename binary to target name
                 .add_step(Step::run(
