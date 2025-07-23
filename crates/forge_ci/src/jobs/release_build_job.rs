@@ -45,15 +45,6 @@ impl From<ReleaseBuilderJob> for Job {
                     .pull_requests(Level::Write),
             )
             .add_step(Step::uses("actions", "checkout", "v4"))
-            // Explicitly add the target to ensure it's available
-            .add_step(Step::run("rustup target add ${{ matrix.target }}").name("Add Rust target"))
-            // Build add link flags
-            .add_step(
-                Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
-                    .if_condition(Expression::new(
-                        "!contains(matrix.target, '-unknown-linux-')",
-                    )),
-            )
             .add_step(
                 Step::uses("ClementTsang", "cargo-action", "v0.0.6")
                     .add_with(("command", "build --release"))

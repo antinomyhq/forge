@@ -80,10 +80,6 @@ jobs:
           target: aarch64-pc-windows-msvc
     steps:
     - uses: actions/checkout@v4
-    - name: Add Rust target
-      run: rustup target add ${{ matrix.target }}
-    - if: '!contains(matrix.target, ''-unknown-linux-'')'
-      run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - uses: ClementTsang/cargo-action@v0.0.6
       with:
         command: build --release
@@ -153,10 +149,6 @@ jobs:
           target: aarch64-pc-windows-msvc
     steps:
     - uses: actions/checkout@v4
-    - name: Add Rust target
-      run: rustup target add ${{ matrix.target }}
-    - if: '!contains(matrix.target, ''-unknown-linux-'')'
-      run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - uses: ClementTsang/cargo-action@v0.0.6
       with:
         command: build --release
@@ -224,10 +216,6 @@ jobs:
           target: aarch64-pc-windows-msvc
     steps:
     - uses: actions/checkout@v4
-    - name: Add Rust target
-      run: rustup target add ${{ matrix.target }}
-    - if: '!contains(matrix.target, ''-unknown-linux-'')'
-      run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - uses: ClementTsang/cargo-action@v0.0.6
       with:
         command: build --release
