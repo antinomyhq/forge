@@ -57,7 +57,8 @@ impl CharCounter for &str {
     }
 }
 
-/// Reflects a detailed accounting of the context window utilization for a given conversation.
+/// Reflects a detailed accounting of the context window utilization for a given
+/// conversation.
 #[derive(Debug, Clone, Copy)]
 pub struct ConversationSize {
     pub system_messages: CharCount,
@@ -135,7 +136,8 @@ impl ConversationAnalyzer {
     }
 
     /// Calculate detailed token breakdown for usage display
-    /// Returns (system_tokens, user_tokens, assistant_tokens, tools_tokens, total_tokens)
+    /// Returns (system_tokens, user_tokens, assistant_tokens, tools_tokens,
+    /// total_tokens)
     pub fn calculate_detailed_breakdown(
         conversation: &Conversation,
     ) -> (usize, usize, usize, usize, usize) {
