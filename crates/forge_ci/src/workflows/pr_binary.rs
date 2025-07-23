@@ -82,9 +82,9 @@ pub fn generate_pr_binary_workflow() {
         )
         // Explicitly add the target to ensure it's available
         .add_step(Step::run("rustup target add ${{ matrix.target }}").name("Add Rust target"))
-        // Build add link flags for static linking
+        // Build add link flags for static linking with traditional static model (not static-PIE)
         .add_step(
-            Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
+            Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static -C relocation-model=static" >> $GITHUB_ENV"#)
                 .if_condition(Expression::new(
                     "!contains(matrix.target, '-unknown-linux-gnu')",
                 )),
