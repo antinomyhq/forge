@@ -19,3 +19,8 @@ fn test_release_workflow() {
 fn test_labels_workflow() {
     workflow::generate_labels_workflow();
 }
+
+#[test]
+fn test_pr_binary_workflow() {
+    workflow::generate_pr_binary_workflow();
+}
