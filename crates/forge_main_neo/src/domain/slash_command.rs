@@ -5,9 +5,7 @@ use strum_macros::{Display, EnumIter, EnumMessage as EnumMessageDerive, EnumStri
 #[derive(Debug, Clone, PartialEq, Eq, Display, EnumString, EnumIter, EnumMessageDerive)]
 #[strum(serialize_all = "lowercase")]
 pub enum SlashCommand {
-    #[strum(
-        message = "Switch between different AI agents."
-    )]
+    #[strum(message = "Switch between different AI agents.")]
     Agent,
 
     #[strum(message = "Start new conversation with summarized context")]
