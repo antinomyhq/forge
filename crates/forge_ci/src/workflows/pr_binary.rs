@@ -76,10 +76,10 @@ pub fn generate_pr_binary_workflow() {
         )
         .add_step(Step::uses("actions", "checkout", "v4"))
         // Install Rust with cross-compilation target
-        .add_step(
-            Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
-                .with(("target", "${{ matrix.target }}")),
-        )
+        // .add_step(
+        //     Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
+        //         .with(("target", "${{ matrix.target }}")),
+        // )
         // Explicitly add the target to ensure it's available
         .add_step(Step::run("rustup target add ${{ matrix.target }}").name("Add Rust target"))
         // Build add link flags for static linking with traditional static model (not static-PIE)

@@ -36,9 +36,6 @@ jobs:
       fail-fast: false
     steps:
     - uses: actions/checkout@v4
-    - uses: taiki-e/setup-cross-toolchain-action@v1
-      with:
-        target: ${{ matrix.target }}
     - name: Add Rust target
       run: rustup target add ${{ matrix.target }}
     - if: 'false'
