@@ -1,3 +1,4 @@
+use convert_case::{Case, Casing};
 use ratatui::widgets::ListState;
 
 #[derive(Clone, Debug)]
@@ -27,7 +28,7 @@ impl MenuItem {
         trigger_letter: char,
     ) -> Self {
         Self {
-            title: title.into(),
+            title: title.into().to_case(Case::Title),
             description: description.into(),
             shortcut: trigger_letter,
         }
