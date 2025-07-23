@@ -27,6 +27,7 @@ use crate::select::ForgeSelect;
 use crate::state::UIState;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
+use forge_snaps::service::SnapshotService;
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -232,84 +233,96 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
-        match subcommand {
-            TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
-                McpCommand::Add(add) => {
-                    let name = add.name;
-                    let scope: Scope = add.scope.into();
-                    // Create the appropriate server type based on transport
-                    let server = match add.transport {
-                        Transport::Stdio => McpServerConfig::new_stdio(
-                            add.command_or_url.clone(),
-                            add.args.clone(),
-                            Some(parse_env(add.env.clone())),
-                        ),
-                        Transport::Sse => McpServerConfig::new_sse(add.command_or_url.clone()),
-                    };
-                    // Command/URL already set in the constructor
 
-                    self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.insert(name.to_string(), server);
-                    })
-                    .await?;
+async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
+    match subcommand {
+        TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
+            McpCommand::Add(add) => {
+                let name = add.name;
+                let scope: Scope = add.scope.into();
+                // Create the appropriate server type based on transport
+                let server = match add.transport {
+                    Transport::Stdio => McpServerConfig::new_stdio(
+                        add.command_or_url.clone(),
+                        add.args.clone(),
+                        Some(parse_env(add.env.clone())),
+                    ),
+                    Transport::Sse => McpServerConfig::new_sse(add.command_or_url.clone()),
+                };
 
-                    self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))?;
+                self.update_mcp_config(&scope, |config| {
+                    config.mcp_servers.insert(name.to_string(), server);
+                })
+                .await?;
+
+                self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))?;
+            }
+            McpCommand::List => {
+                let mcp_servers = self.api.read_mcp_config().await?;
+                if mcp_servers.is_empty() {
+                    self.writeln(TitleFormat::error("No MCP servers found"))?;
                 }
-                McpCommand::List => {
-                    let mcp_servers = self.api.read_mcp_config().await?;
-                    if mcp_servers.is_empty() {
-                        self.writeln(TitleFormat::error("No MCP servers found"))?;
-                    }
 
-                    let mut output = String::new();
-                    for (name, server) in mcp_servers.mcp_servers {
-                        output.push_str(&format!("{name}: {server}"));
-                    }
-                    self.writeln(output)?;
-                }
-                McpCommand::Remove(rm) => {
-                    let name = rm.name.clone();
-                    let scope: Scope = rm.scope.into();
-
-                    self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.remove(name.as_str());
-                    })
-                    .await?;
-
-                    self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
-                }
-                McpCommand::Get(val) => {
-                    let name = val.name.clone();
-                    let config = self.api.read_mcp_config().await?;
-                    let server = config
-                        .mcp_servers
-                        .get(name.as_str())
-                        .ok_or(anyhow::anyhow!("Server not found"))?;
-
-                    let mut output = String::new();
+                let mut output = String::new();
+                for (name, server) in mcp_servers.mcp_servers {
                     output.push_str(&format!("{name}: {server}"));
-                    self.writeln(TitleFormat::info(output))?;
                 }
-                McpCommand::AddJson(add_json) => {
-                    let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
-                        .context("Failed to parse JSON")?;
-                    let scope: Scope = add_json.scope.into();
-                    let name = add_json.name.clone();
-                    self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.insert(name.clone(), server);
-                    })
-                    .await?;
+                self.writeln(output)?;
+            }
+            McpCommand::Remove(rm) => {
+                let name = rm.name.clone();
+                let scope: Scope = rm.scope.into();
 
-                    self.writeln(TitleFormat::info(format!(
-                        "Added server: {}",
-                        add_json.name
-                    )))?;
-                }
-            },
+                self.update_mcp_config(&scope, |config| {
+                    config.mcp_servers.remove(name.as_str());
+                })
+                .await?;
+
+                self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
+            }
+            McpCommand::Get(val) => {
+                let name = val.name.clone();
+                let config = self.api.read_mcp_config().await?;
+                let server = config
+                    .mcp_servers
+                    .get(name.as_str())
+                    .ok_or(anyhow::anyhow!("Server not found"))?;
+
+                let mut output = String::new();
+                output.push_str(&format!("{name}: {server}"));
+                self.writeln(TitleFormat::info(output))?;
+            }
+            McpCommand::AddJson(add_json) => {
+                let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
+                    .context("Failed to parse JSON")?;
+                let scope: Scope = add_json.scope.into();
+                let name = add_json.name.clone();
+                self.update_mcp_config(&scope, |config| {
+                    config.mcp_servers.insert(name.clone(), server);
+                })
+                .await?;
+
+                self.writeln(TitleFormat::info(format!(
+                    "Added server: {}",
+                    add_json.name
+                )))?;
+            }
+        },
+        TopLevelCommand::Undo(args) => {
+            // let snapshots_dir = TRACKER.home_dir().join("snapshots");
+            let snapshots_dir = std::env::current_dir()?.join("snapshots");
+            let service = SnapshotService::new(snapshots_dir);
+
+            if let Err(e) = service.undo_snapshot(args.path.clone()).await {
+                eprintln!("Failed to undo {:?}: {}", args.path, e);
+            } else {
+                println!("Successfully restored {:?}", args.path);
+            }
         }
-        Ok(())
     }
+    Ok(())
+}
+
 
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
