@@ -283,6 +283,8 @@ pub fn handle_key_event(
 
     // Handle slash menu navigation first if visible
     if let Some(slash_cmd) = handle_slash_menu_navigation(state, key_event) {
+        // Update menu visibility after handling slash menu navigation
+        state.update_menu_visibility();
         return slash_cmd;
     }
 
@@ -312,6 +314,9 @@ pub fn handle_key_event(
 
         // Update slash menu search if menu is visible
         handle_slash_menu_search_update(state);
+
+        // Update menu visibility after any editor changes
+        state.update_menu_visibility();
 
         result
     } else {
