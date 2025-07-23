@@ -156,11 +156,11 @@ mod tests {
         let fixture_context = Context::default();
         let actual_size = ConversationAnalyzer::calculate_conversation_size(&fixture_context);
         let expected_size = ConversationSize {
-            context_messages: CharCount::from(0),
+            system_messages: CharCount::from(0),
             user_messages: CharCount::from(0),
             assistant_messages: CharCount::from(0),
         };
-        assert_eq!(actual_size.context_messages, expected_size.context_messages);
+        assert_eq!(actual_size.system_messages, expected_size.system_messages);
         assert_eq!(actual_size.user_messages, expected_size.user_messages);
         assert_eq!(
             actual_size.assistant_messages,
@@ -178,7 +178,7 @@ mod tests {
         let actual_size = ConversationAnalyzer::calculate_conversation_size(&fixture_context);
 
         // System message should be counted as context
-        assert!(actual_size.context_messages.value() > 0);
+        assert!(actual_size.system_messages.value() > 0);
         // User message should be counted as user
         assert!(actual_size.user_messages.value() > 0);
         // Assistant message should be counted as assistant
