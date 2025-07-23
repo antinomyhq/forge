@@ -58,7 +58,7 @@ impl From<ReleaseBuilderJob> for Job {
             .add_step(
                 Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
                     .if_condition(Expression::new(
-                        "!contains(matrix.target, '-unknown-linux-gnu')",
+                        "!contains(matrix.target, '-unknown-linux-')",
                     )),
             )
             .add_step(
