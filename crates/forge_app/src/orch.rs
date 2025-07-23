@@ -66,7 +66,8 @@ impl<S: AgentService> Orchestrator<S> {
             let is_shell = tool_call.name.as_str() == "forge_tool_process_shell";
             if !is_shell {
                 // Send the start notification for non-shell tools
-                self.send(ChatResponse::ToolCallStart(tool_call.clone())).await?;
+                self.send(ChatResponse::ToolCallStart(tool_call.clone()))
+                    .await?;
             }
 
             // Execute the tool
@@ -87,7 +88,8 @@ impl<S: AgentService> Orchestrator<S> {
 
             if !is_shell {
                 // Send the end notification for non-shell tools
-                self.send(ChatResponse::ToolCallEnd(tool_result.clone())).await?;
+                self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
+                    .await?;
             }
 
             // Ensure all tool calls and results are recorded
