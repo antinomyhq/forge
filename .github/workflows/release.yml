@@ -56,7 +56,7 @@ jobs:
         target: ${{ matrix.target }}
     - name: Add Rust target
       run: rustup target add ${{ matrix.target }}
-    - if: '!contains(matrix.target, ''-unknown-linux-gnu'')'
+    - if: '!contains(matrix.target, ''-unknown-linux-'')'
       run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - if: contains(matrix.target, '-unknown-linux-musl')
       run: |-
@@ -112,7 +112,7 @@ jobs:
         target: ${{ matrix.target }}
     - name: Add Rust target
       run: rustup target add ${{ matrix.target }}
-    - if: '!contains(matrix.target, ''-unknown-linux-gnu'')'
+    - if: '!contains(matrix.target, ''-unknown-linux-'')'
       run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - if: contains(matrix.target, '-unknown-linux-musl')
       run: |-
@@ -166,7 +166,7 @@ jobs:
         target: ${{ matrix.target }}
     - name: Add Rust target
       run: rustup target add ${{ matrix.target }}
-    - if: '!contains(matrix.target, ''-unknown-linux-gnu'')'
+    - if: '!contains(matrix.target, ''-unknown-linux-'')'
       run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - if: contains(matrix.target, '-unknown-linux-musl')
       run: |-
