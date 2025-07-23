@@ -26,7 +26,7 @@ impl ConversationAnalyzer {
     pub fn calculate_conversation_size(context: &Context) -> ConversationSize {
         let mut user_chars = 0;
         let mut assistant_chars = 0;
-        let mut context_chars = 0;
+        let mut system_chars = 0;
 
         for message in &context.messages {
             match message {
@@ -35,12 +35,12 @@ impl ConversationAnalyzer {
                     match text_message.role {
                         Role::User => user_chars += char_count.value(),
                         Role::Assistant => assistant_chars += char_count.value(),
-                        Role::System => context_chars += char_count.value(),
+                        Role::System => system_chars += char_count.value(),
                     }
                 }
                 ContextMessage::Tool(tool_result) => {
                     // Tool results are considered part of context
-                    context_chars += tool_result.char_count().value();
+                    system_chars += tool_result.char_count().value();
                 }
                 ContextMessage::Image(_) => {
                     // Images are considered user content
@@ -50,19 +50,19 @@ impl ConversationAnalyzer {
         }
 
         ConversationSize {
-            context_messages: context_chars.into(),
+            system_messages: system_chars.into(),
             user_messages: user_chars.into(),
             assistant_messages: assistant_chars.into(),
         }
     }
 
     /// Calculate detailed token breakdown for usage display
-    /// Returns (context_tokens, user_tokens, assistant_tokens, tools_tokens,
+    /// Returns (system_tokens, user_tokens, assistant_tokens, tools_tokens,
     /// total_tokens)
     pub fn calculate_detailed_breakdown(
         conversation: &Conversation,
     ) -> (usize, usize, usize, usize, usize) {
-        let mut context_tokens = 0;
+        let mut system_tokens = 0;
         let mut user_tokens = 0;
         let mut assistant_tokens = 0;
         let mut tools_tokens = 0;
@@ -70,7 +70,7 @@ impl ConversationAnalyzer {
         // Calculate from conversation context if available
         if let Some(ref context) = conversation.context {
             let size = Self::calculate_conversation_size(context);
-            context_tokens = TokenCount::from(size.context_messages).value();
+            system_tokens = TokenCount::from(size.system_messages).value();
             user_tokens = TokenCount::from(size.user_messages).value();
             assistant_tokens = TokenCount::from(size.assistant_messages).value();
 
@@ -85,9 +85,9 @@ impl ConversationAnalyzer {
                 .sum();
         }
 
-        let total_tokens = context_tokens + user_tokens + assistant_tokens + tools_tokens;
+        let total_tokens = system_tokens + user_tokens + assistant_tokens + tools_tokens;
         (
-            context_tokens,
+            system_tokens,
             user_tokens,
             assistant_tokens,
             tools_tokens,

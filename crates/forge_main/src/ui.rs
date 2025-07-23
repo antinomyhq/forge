@@ -764,25 +764,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 usage.cost = usage
                     .cost
                     .map(|cost| cost + self.state.usage.cost.as_ref().map_or(0.0, |c| *c));
-                self.state.usage = usage.clone();
-
-                // Display usage information in a format similar to prompt right side
-                let mut usage_display = String::with_capacity(32);
-                usage_display.push_str("[ ");
-
-                // Show total tokens
-                usage_display.push_str(&usage.total_tokens.to_string());
-                usage_display.push_str(" tokens");
-
-                // Add cost if available
-                if let Some(cost) = usage.cost {
-                    usage_display.push_str(&format!(" (${cost:.4})"));
-                }
-
-                usage_display.push(']');
-
-                let title = TitleFormat::debug(format!("Model Response Complete {usage_display}"));
-                self.writeln(title)?;
+                self.state.usage = usage;
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 self.spinner.start(Some("Retrying"))?;
@@ -859,7 +841,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use forge_display::title::TitleFormat;
 
         self.writeln("")?;
-        self.writeln(TitleFormat::info("📊 Token Usage Analysis"))?;
+        self.writeln(TitleFormat::info("Token Usage Analysis"))?;
         self.writeln("")?;
 
         // Get real usage data from current state
@@ -884,7 +866,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             200_000 // Default context length if no model is set
         };
 
-        let (files_tokens, prompts_tokens, assistant_tokens, tools_tokens, total_calculated) =
+        let (system_tokens, prompts_tokens, assistant_tokens, tools_tokens, total_calculated) =
             if let Some(conversation_id) = &self.state.conversation_id {
                 // Pass the actual usage data to the calculation method
                 self.calculate_conversation_tokens(conversation_id, &usage)
@@ -908,16 +890,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let is_overflow = total_percentage > 100.0;
 
         // Display header with context window info
+        let context_display = if context_length >= 1_000_000 {
+            format!("{}M", context_length / 1_000_000)
+        } else if context_length >= 1000 {
+            format!("{}k", context_length / 1000)
+        } else {
+            context_length.to_string()
+        };
+
         self.writeln(format!(
-            "Current context window ({} of {}k tokens used)",
-            total_used,
-            context_length / 1000
+            "Current context window ({total_used} of {context_display} tokens used)"
         ))?;
         self.writeln("")?;
 
         // Display progress bar
         self.display_progress_bar(
-            files_tokens,
+            system_tokens,
             tools_tokens,
             assistant_tokens,
             prompts_tokens,
@@ -929,16 +917,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Show overflow warning if needed
         if is_overflow {
             self.writeln(
-                "⚠️  Context window overflow! Consider compacting or starting a new conversation.",
+                "Context window overflow! Consider compacting or starting a new conversation.",
             )?;
             self.writeln("")?;
         }
 
         // Display breakdown
-        self.writeln(TitleFormat::info("📈 Token Breakdown"))?;
+        self.writeln(TitleFormat::info("Token Breakdown"))?;
         self.writeln("")?;
 
-        self.display_usage_line("Files", files_tokens, context_length as usize, "cyan")?;
+        self.display_usage_line("System", system_tokens, context_length as usize, "cyan")?;
         self.display_usage_line("Tools", tools_tokens, context_length as usize, "red")?;
         self.display_usage_line(
             "Assistant",
@@ -954,19 +942,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )?;
         self.writeln("")?;
 
-        // Total summary
-        self.writeln(format!(
-            "📊 Total Used: {total_used:>6} tokens / {context_length:>6} available"
-        ))?;
-
         if let Some(cost) = usage.cost {
-            self.writeln(format!("💰 Cost: ${cost:.4}"))?;
+            self.writeln(format!("Cost: ${cost:.4}"))?;
+            self.writeln("")?;
         }
-
-        self.writeln("")?;
-        self.writeln(TitleFormat::info("💡 Pro Tips"))?;
-        self.writeln("  • Run /compact to replace conversation history with summary")?;
-        self.writeln("  • Run /new to start a fresh conversation")?;
 
         if is_overflow {
             self.writeln("  • Consider reducing file context or using shorter prompts")?;
@@ -992,7 +971,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     fn display_progress_bar(
         &mut self,
-        files_tokens: usize,
+        system_tokens: usize,
         tools_tokens: usize,
         assistant_tokens: usize,
         prompts_tokens: usize,
@@ -1006,14 +985,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let bar = format!(
                 "[{}] {:.1}%",
                 "█".repeat(progress_bar_width).red(),
-                (files_tokens + tools_tokens + assistant_tokens + prompts_tokens) as f64
+                (system_tokens + tools_tokens + assistant_tokens + prompts_tokens) as f64
                     / context_length as f64
                     * 100.0
             );
             self.writeln(bar)?;
         } else {
             // Calculate widths for each segment
-            let files_width = ((files_tokens as f64 / context_length as f64)
+            let system_width = ((system_tokens as f64 / context_length as f64)
                 * progress_bar_width as f64) as usize;
             let tools_width = ((tools_tokens as f64 / context_length as f64)
                 * progress_bar_width as f64) as usize;
@@ -1022,15 +1001,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let prompts_width = ((prompts_tokens as f64 / context_length as f64)
                 * progress_bar_width as f64) as usize;
 
-            let used_width = files_width + tools_width + assistant_width + prompts_width;
+            let used_width = system_width + tools_width + assistant_width + prompts_width;
             let remaining_width = progress_bar_width.saturating_sub(used_width);
 
             // Build progress bar with colored segments
             let mut bar_parts = Vec::new();
 
-            // Files (cyan color, show at least 1 char if tokens > 0)
-            if files_width > 0 || (files_width == 0 && files_tokens > 0) {
-                let width = if files_width == 0 { 1 } else { files_width };
+            // System (cyan color, show at least 1 char if tokens > 0)
+            if system_width > 0 || (system_width == 0 && system_tokens > 0) {
+                let width = if system_width == 0 { 1 } else { system_width };
                 bar_parts.push("█".repeat(width).cyan().to_string());
             }
 
@@ -1061,11 +1040,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 bar_parts.push("░".repeat(remaining_width));
             }
 
-            let total_percentage = (files_tokens + tools_tokens + assistant_tokens + prompts_tokens)
-                as f64
-                / context_length as f64
-                * 100.0;
-            let bar = format!("[{}] {:.1}%", bar_parts.join(""), total_percentage);
+            let total_percentage =
+                (system_tokens + tools_tokens + assistant_tokens + prompts_tokens) as f64
+                    / context_length as f64
+                    * 100.0;
+            let bar = format!("[{}] {:.2}%", bar_parts.join(""), total_percentage);
             self.writeln(bar)?;
         }
 
@@ -1081,20 +1060,29 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> anyhow::Result<()> {
         let percentage = (used as f64 / total as f64) * 100.0;
 
+        // Handle special cases for very small percentages
+        let percentage_display = if used == 0 {
+            "0.00".to_string()
+        } else if percentage > 0.0 && percentage < 0.01 {
+            ">0.01".to_string()
+        } else {
+            format!("{percentage:.2}")
+        };
+
         let colored_line = match color {
-            "cyan" => format!("█ {label:10} ({percentage:>5.1}%)")
+            "cyan" => format!("█ {label:10} [{percentage_display:>5}%]")
                 .cyan()
                 .to_string(),
-            "red" => format!("█ {label:10} ({percentage:>5.1}%)")
+            "red" => format!("█ {label:10} [{percentage_display:>5}%]")
                 .red()
                 .to_string(),
-            "blue" => format!("█ {label:10} ({percentage:>5.1}%)")
+            "blue" => format!("█ {label:10} [{percentage_display:>5}%]")
                 .blue()
                 .to_string(),
-            "magenta" => format!("█ {label:10} ({percentage:>5.1}%)")
+            "magenta" => format!("█ {label:10} [{percentage_display:>5}%]")
                 .magenta()
                 .to_string(),
-            _ => format!("█ {label:10} ({percentage:>5.1}%)"), // Default no color
+            _ => format!("█ {label:10} [{percentage_display:>5}%]"), // Default no color
         };
 
         self.writeln(colored_line)?;
@@ -1118,12 +1106,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         // Calculate detailed breakdown from conversation content
-        let (files_from_content, user_from_content, assistant_from_content, tools_from_content, _) =
+        let (system_from_content, user_from_content, assistant_from_content, tools_from_content, _) =
             forge_api::ConversationAnalyzer::calculate_detailed_breakdown(&conversation);
 
         // Calculate total from content analysis
         let content_total =
-            files_from_content + user_from_content + assistant_from_content + tools_from_content;
+            system_from_content + user_from_content + assistant_from_content + tools_from_content;
 
         if content_total == 0 {
             // If content analysis returns 0, use API total and distribute evenly
@@ -1138,13 +1126,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let scale_factor = api_total as f64 / content_total as f64;
 
         // Apply scaling to maintain proportions but use API total
-        let files_tokens = (files_from_content as f64 * scale_factor) as usize;
+        let system_tokens = (system_from_content as f64 * scale_factor) as usize;
         let user_tokens = (user_from_content as f64 * scale_factor) as usize;
         let assistant_tokens = (assistant_from_content as f64 * scale_factor) as usize;
-        let tools_tokens = api_total.saturating_sub(files_tokens + user_tokens + assistant_tokens);
+        let tools_tokens = api_total.saturating_sub(system_tokens + user_tokens + assistant_tokens);
 
         Ok((
-            files_tokens,
+            system_tokens,
             user_tokens,
             assistant_tokens,
             tools_tokens,
@@ -1321,5 +1309,77 @@ mod tests {
         let actual = strip_ansi_codes(&formatted);
         let expected = "edge-1001 [ 1k ]";
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_percentage_display_zero() {
+        // Test case: used = 0, should display "0.00%"
+        let used = 0;
+        let total = 100000;
+        let percentage = (used as f64 / total as f64) * 100.0;
+
+        let percentage_display = if used == 0 {
+            "0.00".to_string()
+        } else if percentage > 0.0 && percentage < 0.01 {
+            ">0.01".to_string()
+        } else {
+            format!("{percentage:.2}")
+        };
+
+        assert_eq!(percentage_display, "0.00");
+    }
+
+    #[test]
+    fn test_percentage_display_very_small() {
+        // Test case: very small percentage, should display ">0.01%"
+        let used = 1;
+        let total = 100000; // 0.001%
+        let percentage = (used as f64 / total as f64) * 100.0;
+
+        let percentage_display = if used == 0 {
+            "0.00".to_string()
+        } else if percentage > 0.0 && percentage < 0.01 {
+            ">0.01".to_string()
+        } else {
+            format!("{percentage:.2}")
+        };
+
+        assert_eq!(percentage_display, ">0.01");
+    }
+
+    #[test]
+    fn test_percentage_display_normal() {
+        // Test case: normal percentage, should display with 2 decimal places
+        let used = 1500;
+        let total = 100000; // 1.50%
+        let percentage = (used as f64 / total as f64) * 100.0;
+
+        let percentage_display = if used == 0 {
+            "0.00".to_string()
+        } else if percentage > 0.0 && percentage < 0.01 {
+            ">0.01".to_string()
+        } else {
+            format!("{percentage:.2}")
+        };
+
+        assert_eq!(percentage_display, "1.50");
+    }
+
+    #[test]
+    fn test_percentage_display_edge_case_exactly_001() {
+        // Test case: exactly 0.01%, should display "0.01"
+        let used = 10;
+        let total = 100000; // 0.01%
+        let percentage = (used as f64 / total as f64) * 100.0;
+
+        let percentage_display = if used == 0 {
+            "0.00".to_string()
+        } else if percentage > 0.0 && percentage < 0.01 {
+            ">0.01".to_string()
+        } else {
+            format!("{percentage:.2}")
+        };
+
+        assert_eq!(percentage_display, "0.01");
     }
 }

@@ -150,14 +150,14 @@ impl CharCounter for ChatCompletionMessage {
 /// conversation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ConversationSize {
-    pub context_messages: CharCount,
+    pub system_messages: CharCount,
     pub user_messages: CharCount,
     pub assistant_messages: CharCount,
 }
 
 impl CharCounter for ConversationSize {
     fn char_count(&self) -> CharCount {
-        self.user_messages + self.assistant_messages + self.context_messages
+        self.user_messages + self.assistant_messages + self.system_messages
     }
 }
 
