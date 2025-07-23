@@ -41,7 +41,7 @@ jobs:
         target: ${{ matrix.target }}
     - name: Add Rust target
       run: rustup target add ${{ matrix.target }}
-    - if: '!contains(matrix.target, ''-unknown-linux-gnu'')'
+    - if: 'false'
       run: echo "RUSTFLAGS=-C target-feature=+crt-static -C relocation-model=static" >> $GITHUB_ENV
     - if: contains(matrix.target, 'aarch64-unknown-linux-gnu')
       run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu

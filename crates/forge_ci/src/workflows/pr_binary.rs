@@ -86,7 +86,7 @@ pub fn generate_pr_binary_workflow() {
         .add_step(
             Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static -C relocation-model=static" >> $GITHUB_ENV"#)
                 .if_condition(Expression::new(
-                    "!contains(matrix.target, '-unknown-linux-gnu')",
+                    "false",
                 )),
         )
         // Install dependencies for cross-compilation on Linux
