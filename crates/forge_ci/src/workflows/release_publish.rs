@@ -33,9 +33,7 @@ pub fn release_publish() {
         // Build job for releases (runs only on release events)
         .add_job(
             "build_release",
-            release_build_job
-                .into_job()
-                .cond(Expression::new("false")),
+            release_build_job.into_job().cond(Expression::new("false")),
         )
         // Build job for PRs (runs only on pull request events, uploads artifacts)
         .add_job(
