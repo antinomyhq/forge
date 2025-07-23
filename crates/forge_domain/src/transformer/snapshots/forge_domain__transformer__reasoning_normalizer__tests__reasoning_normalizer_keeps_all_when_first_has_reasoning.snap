@@ -39,6 +39,8 @@ before:
         tool_calls: ~
         model: ~
         reasoning_details: ~
+  reasoning:
+    enabled: true
 after:
   messages:
     - text:
@@ -75,3 +77,5 @@ after:
         tool_calls: ~
         model: ~
         reasoning_details: ~
+  reasoning:
+    enabled: true

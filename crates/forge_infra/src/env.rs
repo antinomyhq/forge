@@ -7,20 +7,19 @@ use reqwest::Url;
 #[derive(Clone)]
 pub struct ForgeEnvironmentInfra {
     restricted: bool,
+    cwd: PathBuf,
 }
 
 impl ForgeEnvironmentInfra {
-    /// Creates a new EnvironmentFactory with current working directory
+    /// Creates a new EnvironmentFactory with specified working directory
     ///
     /// # Arguments
-    /// * `unrestricted` - If true, use unrestricted shell mode (sh/bash) If
-    ///   false, use restricted shell mode (rbash)
-    pub fn new(restricted: bool) -> Self {
-        Self::dot_env(&Self::cwd());
-        Self { restricted }
-    }
-    fn cwd() -> PathBuf {
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    /// * `restricted` - If true, use restricted shell mode (rbash) If false,
+    ///   use unrestricted shell mode (sh/bash)
+    /// * `cwd` - Required working directory path
+    pub fn new(restricted: bool, cwd: PathBuf) -> Self {
+        Self::dot_env(&cwd);
+        Self { restricted, cwd }
     }
 
     /// Get path to appropriate shell based on platform and mode
@@ -105,7 +104,7 @@ impl ForgeEnvironmentInfra {
     }
 
     fn get(&self) -> Environment {
-        let cwd = Self::cwd();
+        let cwd = self.cwd.clone();
         let retry_config = self.resolve_retry_config();
 
         let forge_api_url = self
@@ -276,7 +275,7 @@ mod tests {
             }
 
             // Verify that the environment service uses the same default as RetryConfig
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let retry_config_from_env = env_service.resolve_retry_config();
             let default_retry_config = RetryConfig::default();
 
@@ -319,7 +318,7 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "429,500,502");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_retry_config();
 
             assert_eq!(config.initial_backoff_ms, 500);
@@ -352,7 +351,7 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "503,504");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_retry_config();
             let default_config = RetryConfig::default();
 
@@ -389,7 +388,7 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes,here");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_retry_config();
             let default_config = RetryConfig::default();
 
@@ -422,7 +421,7 @@ mod tests {
 
         // Test default values
         {
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_timeout_config();
             let default_config = forge_domain::HttpConfig::default();
 
@@ -446,7 +445,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_MAX_REDIRECTS", "20");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_timeout_config();
 
             assert_eq!(config.connect_timeout, 30);
@@ -471,7 +470,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "15");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_timeout_config();
             let default_config = forge_domain::HttpConfig::default();
 
@@ -499,7 +498,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "invalid");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false);
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = env_service.resolve_timeout_config();
             let default_config = forge_domain::HttpConfig::default();
 

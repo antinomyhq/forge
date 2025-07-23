@@ -82,6 +82,7 @@ pub trait FileRemoverInfra: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FileInfoInfra: Send + Sync {
+    async fn is_binary(&self, path: &Path) -> Result<bool>;
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool>;
     async fn exists(&self, path: &Path) -> anyhow::Result<bool>;
     async fn file_size(&self, path: &Path) -> anyhow::Result<u64>;
@@ -113,7 +114,11 @@ pub trait CommandInfra: Send + Sync {
     ) -> anyhow::Result<CommandOutput>;
 
     /// execute the shell command on present stdio.
-    async fn execute_command_raw(&self, command: &str) -> anyhow::Result<std::process::ExitStatus>;
+    async fn execute_command_raw(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<std::process::ExitStatus>;
 }
 
 #[async_trait::async_trait]

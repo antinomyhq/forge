@@ -23,6 +23,8 @@ before:
           is_error: false
           values:
             - text: Tool output
+  reasoning:
+    enabled: true
 after:
   messages:
     - text:

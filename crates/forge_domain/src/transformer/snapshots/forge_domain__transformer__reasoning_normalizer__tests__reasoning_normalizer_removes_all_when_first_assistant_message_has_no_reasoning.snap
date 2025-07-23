@@ -33,6 +33,8 @@ before:
         reasoning_details:
           - text: Complex reasoning process
             signature: ~
+  reasoning:
+    enabled: true
 after:
   messages:
     - text:

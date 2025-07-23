@@ -1,6 +1,7 @@
 ---
-source: crates/forge_provider/src/forge_provider/provider.rs
+source: crates/forge_provider/src/openai/provider.rs
 expression: actual
+snapshot_kind: text
 ---
 [
   {

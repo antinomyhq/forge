@@ -1,6 +1,6 @@
 use forge_app::domain::Transformer;
 
-use crate::forge_provider::request::{Request, Role};
+use crate::openai::request::{Request, Role};
 
 /// Transformer that caches the last user/system message for supported models
 pub struct SetCache;
@@ -94,6 +94,7 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
+            usage: None,
         };
 
         let request = Request::from(context);

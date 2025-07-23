@@ -84,7 +84,7 @@ impl<F: FileReaderInfra + EnvironmentInfra> AttachmentService for ForgeChatReque
 
 #[cfg(test)]
 pub mod tests {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
@@ -152,6 +152,14 @@ pub mod tests {
                 "mock-jpeg-content".to_string(),
             );
 
+            let binary_exts = [
+                "exe", "dll", "so", "dylib", "bin", "obj", "o", "class", "pyc", "jar", "war",
+                "ear", "zip", "tar", "gz", "rar", "7z", "iso", "img", "pdf", "doc", "docx", "xls",
+                "xlsx", "ppt", "pptx", "bmp", "ico", "mp3", "mp4", "avi", "mov", "sqlite", "db",
+                "bin",
+            ];
+            let binary_exts = binary_exts.into_iter().map(|s| s.to_string()).collect();
+
             Self {
                 files: Mutex::new(
                     files
@@ -159,6 +167,7 @@ pub mod tests {
                         .map(|(a, b)| (a, Bytes::from(b)))
                         .collect::<Vec<_>>(),
                 ),
+                binary_exts,
             }
         }
 
@@ -212,6 +221,7 @@ pub mod tests {
     #[derive(Debug)]
     pub struct MockFileService {
         files: Mutex<Vec<(PathBuf, Bytes)>>,
+        binary_exts: HashSet<String>,
     }
 
     #[async_trait::async_trait]
@@ -289,6 +299,14 @@ pub mod tests {
                 .iter()
                 .filter(|v| v.0.extension().is_some())
                 .any(|(p, _)| p == path))
+        }
+
+        async fn is_binary(&self, _path: &Path) -> anyhow::Result<bool> {
+            let ext = _path
+                .extension()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_lowercase());
+            Ok(ext.map(|e| self.binary_exts.contains(&e)).unwrap_or(false))
         }
 
         async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
@@ -447,7 +465,11 @@ pub mod tests {
             })
         }
 
-        async fn execute_command_raw(&self, _: &str) -> anyhow::Result<std::process::ExitStatus> {
+        async fn execute_command_raw(
+            &self,
+            _: &str,
+            _: PathBuf,
+        ) -> anyhow::Result<std::process::ExitStatus> {
             unimplemented!()
         }
     }
