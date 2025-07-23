@@ -1,8 +1,6 @@
-use crate::token_counter::{CharCount, CharCounter, ConversationSize, TokenCount};
 use crate::{Context, ContextMessage, Conversation, Role};
 
 /// Calculate character count for JSON values (used for tool arguments)
-/// This is a public version of the function from token_counter
 pub fn calculate_value_char_count(document: &serde_json::Value) -> usize {
     match document {
         serde_json::Value::Null => 1,
@@ -15,6 +13,86 @@ pub fn calculate_value_char_count(document: &serde_json::Value) -> usize {
         serde_json::Value::Object(map) => map
             .values()
             .fold(0, |acc, v| acc + calculate_value_char_count(v)),
+    }
+}
+
+/// Represents a count of characters in text content
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CharCount(usize);
+
+impl CharCount {
+    pub fn value(&self) -> usize {
+        self.0
+    }
+}
+
+impl From<usize> for CharCount {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
+impl std::ops::Add for CharCount {
+    type Output = CharCount;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.value() + rhs.value())
+    }
+}
+
+/// A trait for types that represent some number of characters (aka bytes).
+pub trait CharCounter {
+    fn char_count(&self) -> CharCount;
+}
+
+impl CharCounter for String {
+    fn char_count(&self) -> CharCount {
+        self.len().into()
+    }
+}
+
+impl CharCounter for &str {
+    fn char_count(&self) -> CharCount {
+        self.len().into()
+    }
+}
+
+/// Reflects a detailed accounting of the context window utilization for a given conversation.
+#[derive(Debug, Clone, Copy)]
+pub struct ConversationSize {
+    pub system_messages: CharCount,
+    pub user_messages: CharCount,
+    pub assistant_messages: CharCount,
+}
+
+impl CharCounter for ConversationSize {
+    fn char_count(&self) -> CharCount {
+        self.user_messages + self.assistant_messages + self.system_messages
+    }
+}
+
+/// Utility for counting tokens in text content
+pub struct TokenCounter;
+
+impl TokenCounter {
+    /// The ratio of characters to tokens (4 characters = 1 token approximately)
+    pub const TOKEN_TO_CHAR_RATIO: usize = 4;
+
+    /// Estimates the number of tokens in the input content.
+    /// Currently uses a simple heuristic: content length / TOKEN_TO_CHAR_RATIO
+    ///
+    /// Rounds up to the nearest multiple of 10 to avoid giving users a false
+    /// sense of precision.
+    pub fn count_tokens(content: &str) -> usize {
+        Self::count_tokens_char_count(content.len())
+    }
+
+    fn count_tokens_char_count(count: usize) -> usize {
+        (count / Self::TOKEN_TO_CHAR_RATIO + 5) / 10 * 10
+    }
+
+    pub const fn token_to_chars(token: usize) -> usize {
+        token * Self::TOKEN_TO_CHAR_RATIO
     }
 }
 
@@ -57,8 +135,7 @@ impl ConversationAnalyzer {
     }
 
     /// Calculate detailed token breakdown for usage display
-    /// Returns (system_tokens, user_tokens, assistant_tokens, tools_tokens,
-    /// total_tokens)
+    /// Returns (system_tokens, user_tokens, assistant_tokens, tools_tokens, total_tokens)
     pub fn calculate_detailed_breakdown(
         conversation: &Conversation,
     ) -> (usize, usize, usize, usize, usize) {
@@ -70,9 +147,11 @@ impl ConversationAnalyzer {
         // Calculate from conversation context if available
         if let Some(ref context) = conversation.context {
             let size = Self::calculate_conversation_size(context);
-            system_tokens = TokenCount::from(size.system_messages).value();
-            user_tokens = TokenCount::from(size.user_messages).value();
-            assistant_tokens = TokenCount::from(size.assistant_messages).value();
+            // Convert characters to tokens using TokenCounter
+            system_tokens = TokenCounter::count_tokens_char_count(size.system_messages.value());
+            user_tokens = TokenCounter::count_tokens_char_count(size.user_messages.value());
+            assistant_tokens =
+                TokenCounter::count_tokens_char_count(size.assistant_messages.value());
 
             // Calculate tools tokens from tool definitions
             tools_tokens = context
@@ -80,7 +159,7 @@ impl ConversationAnalyzer {
                 .iter()
                 .map(|tool| {
                     let tool_json = serde_json::to_string(tool).unwrap_or_default();
-                    tool_json.char_count().value() / 4 // Convert to approximate tokens
+                    TokenCounter::count_tokens(&tool_json)
                 })
                 .sum();
         }

@@ -873,12 +873,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .await
                     .unwrap_or_else(|_| {
                         // Fallback: use actual usage data if conversation analysis fails
-                        let total = usage.total_tokens;
+                        let total = *usage.total_tokens;
                         (total / 4, total / 4, total / 4, total / 4, total)
                     })
             } else {
                 // No conversation available, use actual usage data
-                let total = usage.total_tokens;
+                let total = *usage.total_tokens;
                 (total / 4, total / 4, total / 4, total / 4, total)
             };
 
@@ -1100,7 +1100,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(conv) => conv,
             None => {
                 // If no conversation found, use API total_tokens and distribute proportionally
-                let total = usage.total_tokens;
+                let total = *usage.total_tokens;
                 return Ok((total / 4, total / 4, total / 4, total / 4, total));
             }
         };
@@ -1115,12 +1115,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if content_total == 0 {
             // If content analysis returns 0, use API total and distribute evenly
-            let total = usage.total_tokens;
+            let total = *usage.total_tokens;
             return Ok((total / 4, total / 4, total / 4, total / 4, total));
         }
 
         // Use API's actual total_tokens as the authoritative source
-        let api_total = usage.total_tokens;
+        let api_total = *usage.total_tokens;
 
         // Calculate proportional scaling factor
         let scale_factor = api_total as f64 / content_total as f64;
