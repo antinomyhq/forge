@@ -6,7 +6,7 @@ use forge_api::{ChatResponse, ConversationId};
 use throbber_widgets_tui::ThrobberState;
 use tui_scrollview::ScrollViewState;
 
-use crate::domain::{CancelId, EditorStateExt, MenuState, Message, Workspace};
+use crate::domain::{CancelId, EditorStateExt, MenuState, Message, SlashCommand, Workspace};
 
 #[derive(Clone)]
 pub struct State {
@@ -63,8 +63,18 @@ impl State {
 
         // Menu is visible when:
         // 1. Editor is in normal mode, OR
-        // 2. Text starts with "/" (slash command mode)
-        self.menu_visible = self.editor.mode == EditorMode::Normal || self.slash_menu_visible();
+        // 2. Text starts with "/" (slash command mode) AND there are matching commands
+        if self.editor.mode == EditorMode::Normal {
+            self.menu_visible = true;
+        } else if self.slash_menu_visible() {
+            // Check if there are any matching commands for the current search term
+            let text = self.editor.get_text();
+            let search_term = text.strip_prefix('/').unwrap_or("");
+            let filtered_commands = SlashCommand::fuzzy_filter(search_term);
+            self.menu_visible = !filtered_commands.is_empty();
+        } else {
+            self.menu_visible = false;
+        }
     }
 
     /// Get editor lines as strings
@@ -155,5 +165,16 @@ mod tests {
         state.update_menu_visibility();
 
         assert_eq!(state.menu_visible, true);
+    }
+
+    #[test]
+    fn test_menu_visibility_insert_mode_no_matching_commands() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/xyz".to_string());
+
+        state.update_menu_visibility();
+
+        assert_eq!(state.menu_visible, false);
     }
 }
