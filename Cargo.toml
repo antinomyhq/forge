@@ -10,6 +10,12 @@ codegen-units = 1
 opt-level = 3
 strip = true
 
+[profile.dev]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true
+
 [workspace.dependencies]
 anyhow = "1.0.95"
 async-recursion = "1.1.1"
