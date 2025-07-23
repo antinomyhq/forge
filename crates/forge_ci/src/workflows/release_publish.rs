@@ -35,7 +35,7 @@ pub fn release_publish() {
             "build_release",
             release_build_job
                 .into_job()
-                .cond(Expression::new("github.event_name == 'release'")),
+                .cond(Expression::new("false")),
         )
         // Build job for PRs (runs only on pull request events, uploads artifacts)
         .add_job(

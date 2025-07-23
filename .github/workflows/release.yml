@@ -29,7 +29,7 @@ permissions:
   pull-requests: write
 jobs:
   build_release:
-    if: github.event_name == 'release'
+    if: 'false'
     name: build-release
     runs-on: ${{ matrix.os }}
     permissions:
