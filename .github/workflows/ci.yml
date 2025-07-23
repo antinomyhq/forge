@@ -174,11 +174,12 @@ jobs:
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ needs.draft_release.outputs.crate_release_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
-    - uses: xresloader/upload-to-github-release@v1
+    - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
+    - uses: actions/upload-artifact@v4
       with:
-        release_id: ${{ needs.draft_release.outputs.crate_release_id }}
-        file: ${{ matrix.binary_name }}
-        overwrite: 'true'
+        name: ${{ matrix.binary_name }}
+        path: ${{ matrix.binary_name }}
+        retention-days: '7'
   build_release_pr:
     needs:
     - draft_release
@@ -259,5 +260,11 @@ jobs:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ needs.draft_release.outputs.crate_release_name }}
+    - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.binary_name }}
+        path: ${{ matrix.binary_name }}
+        retention-days: '7'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

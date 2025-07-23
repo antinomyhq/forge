@@ -83,7 +83,7 @@ impl From<ReleaseBuilderJob> for Job {
                     .add_env(("APP_VERSION", value.version.to_string())),
             );
 
-        if let Some(release_id) = value.release_id {
+        if let Some(_release_id) = value.release_id {
             job = job
                 // Rename binary to target name
                 .add_step(Step::run(
@@ -96,20 +96,21 @@ impl From<ReleaseBuilderJob> for Job {
                         .add_with(("file", "${{ matrix.binary_name }}"))
                         .add_with(("overwrite", "true")),
                 )*/;
-        } else if value.upload_artifacts.unwrap_or(true) {
-            job = job
-                // Rename binary to target name
-                .add_step(Step::run(
-                    "cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}",
-                ))
-                // Upload as artifact for PR testing
-                .add_step(
-                    Step::uses("actions", "upload-artifact", "v4")
-                        .add_with(("name", "${{ matrix.binary_name }}"))
-                        .add_with(("path", "${{ matrix.binary_name }}"))
-                        .add_with(("retention-days", "7")),
-                );
         }
+
+        job = job
+            // Rename binary to target name
+            .add_step(Step::run(
+                "cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}",
+            ))
+            // Upload as artifact for PR testing
+            .add_step(
+                Step::uses("actions", "upload-artifact", "v4")
+                    .add_with(("name", "${{ matrix.binary_name }}"))
+                    .add_with(("path", "${{ matrix.binary_name }}"))
+                    .add_with(("retention-days", "7")),
+            );
+
 
         job
     }

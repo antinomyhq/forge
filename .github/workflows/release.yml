@@ -107,11 +107,12 @@ jobs:
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ github.event.release.tag_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
-    - uses: xresloader/upload-to-github-release@v1
+    - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
+    - uses: actions/upload-artifact@v4
       with:
-        release_id: ${{ github.event.release.id }}
-        file: ${{ matrix.binary_name }}
-        overwrite: 'true'
+        name: ${{ matrix.binary_name }}
+        path: ${{ matrix.binary_name }}
+        retention-days: '7'
   build_pr_test:
     if: github.event_name == 'pull_request'
     name: build-release
@@ -274,11 +275,12 @@ jobs:
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ github.event.release.tag_name }}
     - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
-    - uses: xresloader/upload-to-github-release@v1
+    - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
+    - uses: actions/upload-artifact@v4
       with:
-        release_id: ${{ github.event.release.id }}
-        file: ${{ matrix.binary_name }}
-        overwrite: 'true'
+        name: ${{ matrix.binary_name }}
+        path: ${{ matrix.binary_name }}
+        retention-days: '7'
   npm_release:
     needs:
     - job-0
