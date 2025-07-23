@@ -8,6 +8,7 @@ ignore.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
 derive_setters.workspace = true
+rayon.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

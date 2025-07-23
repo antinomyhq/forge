@@ -1555,6 +1555,7 @@ dependencies = [
  "moka2",
  "nom 8.0.0",
  "pretty_assertions",
+ "rayon",
  "regex",
  "reqwest 0.12.22",
  "rmcp",
@@ -1677,6 +1678,7 @@ dependencies = [
  "derive_setters",
  "ignore",
  "pretty_assertions",
+ "rayon",
  "tempfile",
  "tokio",
 ]

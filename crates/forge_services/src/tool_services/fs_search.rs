@@ -10,55 +10,6 @@ use crate::infra::WalkerInfra;
 use crate::utils::assert_absolute_path;
 use crate::{FileInfoInfra, FileReaderInfra};
 
-// Using FSSearchInput from forge_domain
-
-// Helper to handle FSSearchInput functionality
-struct FSSearchHelper<'a, T> {
-    path: &'a str,
-    content_pattern_regex: Option<&'a String>,
-    file_pattern: Option<&'a String>,
-    infra: &'a T,
-}
-
-impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
-    fn path(&self) -> &str {
-        self.path
-    }
-
-    fn regex(&self) -> Option<&String> {
-        self.content_pattern_regex
-    }
-
-    fn get_file_pattern(&self) -> anyhow::Result<Option<glob::Pattern>> {
-        Ok(match &self.file_pattern {
-            Some(pattern) => Some(
-                glob::Pattern::new(pattern)
-                    .with_context(|| format!("Invalid glob pattern: {pattern}"))?,
-            ),
-            None => None,
-        })
-    }
-
-    async fn match_file_path(&self, path: &Path) -> anyhow::Result<bool> {
-        // Don't process directories
-        if !self.infra.is_file(path).await? {
-            return Ok(false);
-        }
-
-        // If no pattern is specified, match all files
-        let pattern = self.get_file_pattern()?;
-        if pattern.is_none() {
-            return Ok(true);
-        }
-
-        // Otherwise, check if the file matches the pattern
-        Ok(path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| !name.is_empty() && pattern.unwrap().matches(name)))
-    }
-}
-
 /// Recursively searches directories for files by content (regex) and/or name
 /// (glob pattern). Provides context-rich results with line numbers for content
 /// matches. Two modes: content search (when regex provided) or file finder
@@ -79,24 +30,19 @@ impl<W> ForgeFsSearch<W> {
 }
 
 #[async_trait::async_trait]
-impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for ForgeFsSearch<W> {
+impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra + 'static> FsSearchService
+    for ForgeFsSearch<W>
+{
     async fn search(
         &self,
         input_path: String,
         input_regex: Option<String>,
         file_pattern: Option<String>,
     ) -> anyhow::Result<Option<SearchResult>> {
-        let helper = FSSearchHelper {
-            path: &input_path,
-            content_pattern_regex: input_regex.as_ref(),
-            file_pattern: file_pattern.as_ref(),
-            infra: self.infra.as_ref(),
-        };
-
-        let path = Path::new(helper.path());
+        let path = Path::new(&input_path);
         assert_absolute_path(path)?;
 
-        let content_pattern = match helper.regex() {
+        let content_pattern = match input_regex.as_ref() {
             Some(regex) => {
                 let pattern = format!("(?i){regex}"); // Case-insensitive by default
                 Some(
@@ -108,61 +54,108 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
         };
         let paths = self.retrieve_file_paths(path).await?;
 
-        let mut matches = Vec::new();
+        // Process files in parallel using rayon
+        let matches = {
+            use rayon::prelude::*;
+            use tokio::runtime::Handle;
 
-        for path in paths {
-            if !helper.match_file_path(path.as_path()).await? {
-                continue;
-            }
+            let infra = self.infra.clone();
+            let helper_regex = input_regex.clone();
+            let content_pattern_clone = content_pattern.clone();
+            let helper_file_pattern = file_pattern.clone();
 
-            // File name only search mode
-            if content_pattern.is_none() {
-                matches.push(Match { path: path.to_string_lossy().to_string(), result: None });
-                continue;
-            }
+            // Use spawn_blocking to run the parallel processing in a blocking context
+            tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<Match>> {
+                let rt = Handle::current();
 
-            // Skip binary files
-            if self.infra.is_binary(&path).await? {
-                continue;
-            }
+                let all_matches: Vec<Vec<Match>> = paths
+                    .par_iter()
+                    .map(|path| -> anyhow::Result<Vec<Match>> {
+                        let path_matches = rt.block_on(async {
+                            // Check if file matches pattern (recreate helper logic)
+                            if !infra.is_file(path).await? {
+                                return Ok::<Vec<Match>, anyhow::Error>(Vec::new());
+                            }
 
-            // Process the file line by line to find content matches
-            if let Some(regex) = &content_pattern {
-                let mut searcher = grep_searcher::Searcher::new();
-                let path_string = path.to_string_lossy().to_string();
+                            // Check file pattern matching
+                            if let Some(pattern_str) = &helper_file_pattern {
+                                let pattern = glob::Pattern::new(pattern_str)
+                                    .with_context(|| format!("Invalid glob pattern: {pattern_str}"))?;
 
-                let content = self
-                    .infra
-                    .read(&path)
-                    .await
-                    .map(|v| String::from_utf8_lossy(&v).to_string())?;
-                let mut found_match = false;
-                searcher.search_slice(
-                    regex,
-                    content.as_bytes(),
-                    UTF8(|line_num, line| {
-                        found_match = true;
-                        matches.push(Match {
-                            path: path_string.clone(),
-                            result: Some(MatchResult::Found {
-                                line_number: line_num as usize,    /* grep_searcher already
-                                                                    * returns
-                                                                    * 1-based line numbers */
-                                line: line.trim_end().to_string(), // Remove trailing newline
-                            }),
-                        });
+                                let matches_pattern = path
+                                    .file_name()
+                                    .and_then(|name| name.to_str())
+                                    .is_some_and(|name| !name.is_empty() && pattern.matches(name));
 
-                        Ok(true)
-                    }),
-                )?;
+                                if !matches_pattern {
+                                    return Ok::<Vec<Match>, anyhow::Error>(Vec::new());
+                                }
+                            }
 
-                // If no matches found in content but we're looking for content,
-                // don't add this file to matches
-                if !found_match && helper.regex().is_some() {
-                    continue;
-                }
-            }
-        }
+                            let mut file_matches = Vec::new();
+
+                            // File name only search mode
+                            if content_pattern_clone.is_none() {
+                                file_matches.push(Match {
+                                    path: path.to_string_lossy().to_string(),
+                                    result: None
+                                });
+                                return Ok(file_matches);
+                            }
+
+                            // Skip binary files
+                            if infra.is_binary(path).await? {
+                                return Ok::<Vec<Match>, anyhow::Error>(Vec::new());
+                            }
+
+                            // Process the file line by line to find content matches
+                            if let Some(regex) = &content_pattern_clone {
+                                let mut searcher = grep_searcher::Searcher::new();
+                                let path_string = path.to_string_lossy().to_string();
+
+                                let content = infra
+                                    .read(path)
+                                    .await
+                                    .map(|v| String::from_utf8_lossy(&v).to_string())?;
+
+                                let mut found_match = false;
+                                searcher.search_slice(
+                                    regex,
+                                    content.as_bytes(),
+                                    UTF8(|line_num, line| {
+                                        found_match = true;
+                                        file_matches.push(Match {
+                                            path: path_string.clone(),
+                                            result: Some(MatchResult::Found {
+                                                line_number: line_num as usize,    /* grep_searcher already
+                                                                                    * returns
+                                                                                    * 1-based line numbers */
+                                                line: line.trim_end().to_string(), // Remove trailing newline
+                                            }),
+                                        });
+
+                                        Ok(true)
+                                    }),
+                                )?;
+
+                                // If no matches found in content but we're looking for content,
+                                // don't add this file to matches
+                                if !found_match && helper_regex.is_some() {
+                                    return Ok::<Vec<Match>, anyhow::Error>(Vec::new());
+                                }
+                            }
+
+                            Ok(file_matches)
+                        })?;
+
+                        Ok(path_matches)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                // Flatten all matches from all files
+                Ok(all_matches.into_iter().flatten().collect())
+            }).await??
+        };
         if matches.is_empty() {
             return Ok(None);
         }
@@ -516,5 +509,48 @@ mod test {
 
         // Should be an empty file
         assert!(actual.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_parallel_fs_search_performance() {
+        use std::time::Instant;
+
+        let fixture = TempDir::new().unwrap();
+
+        // Create multiple files with different patterns
+        for i in 0..20 {
+            tokio::fs::write(
+                fixture.path().join(format!("file_{}.txt", i)),
+                format!("content {} test pattern", i),
+            )
+            .await
+            .unwrap();
+        }
+
+        let start = Instant::now();
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                Some("test".to_string()),
+                None,
+            )
+            .await
+            .unwrap();
+        let duration = start.elapsed();
+
+        // Verify results
+        assert!(actual.is_some(), "Should find matches");
+        let result = actual.unwrap();
+        assert!(
+            result.matches.len() >= 20,
+            "Should find all files with pattern"
+        );
+
+        // Performance should be reasonable (not a strict test, just ensuring it works)
+        assert!(
+            duration.as_secs() < 10,
+            "Search took too long: {:?}",
+            duration
+        );
     }
 }
