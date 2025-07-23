@@ -309,7 +309,6 @@ async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::R
             }
         },
         TopLevelCommand::Undo(args) => {
-            // let snapshots_dir = TRACKER.home_dir().join("snapshots");
             let snapshots_dir = std::env::current_dir()?.join("snapshots");
             let service = SnapshotService::new(snapshots_dir);
 
@@ -455,6 +454,17 @@ async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::R
                 // Exit the UI after logout
                 return Ok(true);
             }
+
+            Command::Undo(path) => {
+                let snapshots_dir = std::env::current_dir()?.join("snapshots");
+                let service = SnapshotService::new(snapshots_dir);
+            
+                if let Err(e) = service.undo_snapshot(path.clone()).await {
+                    eprintln!("Failed to undo {:?}: {}", path, e);
+                } else {
+                    println!("Successfully restored {:?}", path);
+                }
+            }            
         }
 
         Ok(false)

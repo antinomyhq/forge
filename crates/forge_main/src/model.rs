@@ -185,6 +185,14 @@ impl ForgeCommandManager {
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
+            "/undo" => {
+                            if parameters.is_empty() {
+                                return Err(anyhow::anyhow!("Path is required for /undo command"));
+                            }
+                            let path = std::path::PathBuf::from(parameters.join(" "));
+                            Ok(Command::Undo(path))
+                        },
+
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -280,6 +288,11 @@ pub enum Command {
     /// Logs out of the current session.
     #[strum(props(usage = "Logout of the current session"))]
     Logout,
+
+     /// Undo last snapshot for a given file.
+    /// Triggered with `/undo <file path>`
+    #[strum(props(usage = "Undo last snapshot for a file"))]
+    Undo(std::path::PathBuf),
 }
 
 impl Command {
@@ -302,6 +315,7 @@ impl Command {
             Command::Agent => "/agent",
             Command::Login => "/login",
             Command::Logout => "/logout",
+            Command::Undo(_) => "/undo",
         }
     }
 
@@ -509,5 +523,15 @@ mod tests {
             !contains_shell,
             "Shell command should not be in default commands"
         );
+    }
+
+    #[test]
+    fn test_parse_undo() {
+        let manager = ForgeCommandManager::default();
+        let result = manager.parse("/undo /tmp/test.txt").unwrap();
+        match result {
+            Command::Undo(path) => assert_eq!(path, std::path::PathBuf::from("/tmp/test.txt")),
+            _ => panic!("Expected Command::Undo"),
+        }
     }
 }
