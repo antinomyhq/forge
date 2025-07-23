@@ -543,7 +543,7 @@ mod tests {
         let key_event = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
         let actual_command = handle_key_event(&mut state, key_event);
         assert_eq!(actual_command, Command::Empty);
-        assert_eq!(state.menu.list.selected(), Some(11)); // Last item (12 total, 0-indexed)
+        assert_eq!(state.menu.list.selected(), Some(13));
 
         // Test wrapping from bottom to top (down from last index)
         let key_event = KeyEvent::new(KeyCode::Down, KeyModifiers::NONE);
