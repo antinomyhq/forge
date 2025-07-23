@@ -111,7 +111,6 @@ impl From<ReleaseBuilderJob> for Job {
                     .add_with(("retention-days", "7")),
             );
 
-
         job
     }
 }
