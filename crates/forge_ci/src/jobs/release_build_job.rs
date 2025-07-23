@@ -38,21 +38,6 @@ impl From<ReleaseBuilderJob> for Job {
                     .pull_requests(Level::Write),
             )
             .add_step(Step::uses("actions", "checkout", "v4"))
-            // Install Rust with cross-compilation target
-            .add_step(
-                Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
-                    .with(("target", "${{ matrix.target }}"))
-                    .if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
-            )
-            // Explicitly add the target to ensure it's available
-            .add_step(Step::run("rustup target add ${{ matrix.target }}").name("Add Rust target"))
-            // Build add link flags
-            .add_step(
-                Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
-                    .if_condition(Expression::new(
-                        "!contains(matrix.target, '-unknown-linux-')",
-                    )),
-            )
             // Build release binary
             .add_step(
                 Step::uses("ClementTsang", "cargo-action", "v0.0.6")

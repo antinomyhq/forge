@@ -37,7 +37,7 @@ impl Default for ReleaseMatrix {
                 target: "x86_64-unknown-linux-gnu",
                 binary_name: "forge-x86_64-unknown-linux-gnu",
                 binary_path: "target/x86_64-unknown-linux-gnu/release/forge",
-                cross: "false",
+                cross: "true",
             },
             MatrixEntry {
                 os: "ubuntu-latest",
@@ -51,28 +51,28 @@ impl Default for ReleaseMatrix {
                 target: "x86_64-apple-darwin",
                 binary_name: "forge-x86_64-apple-darwin",
                 binary_path: "target/x86_64-apple-darwin/release/forge",
-                cross: "false",
+                cross: "true",
             },
             MatrixEntry {
                 os: "macos-latest",
                 target: "aarch64-apple-darwin",
                 binary_name: "forge-aarch64-apple-darwin",
                 binary_path: "target/aarch64-apple-darwin/release/forge",
-                cross: "false",
+                cross: "true",
             },
             MatrixEntry {
                 os: "windows-latest",
                 target: "x86_64-pc-windows-msvc",
                 binary_name: "forge-x86_64-pc-windows-msvc.exe",
                 binary_path: "target/x86_64-pc-windows-msvc/release/forge.exe",
-                cross: "false",
+                cross: "true",
             },
             MatrixEntry {
                 os: "windows-latest",
                 target: "aarch64-pc-windows-msvc",
                 binary_name: "forge-aarch64-pc-windows-msvc.exe",
                 binary_path: "target/aarch64-pc-windows-msvc/release/forge.exe",
-                cross: "false",
+                cross: "true",
             },
         ])
     }
