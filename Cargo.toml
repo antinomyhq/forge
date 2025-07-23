@@ -11,7 +11,7 @@ opt-level = 3
 strip = true
 
 [profile.dev]
-lto = true
+lto = false
 codegen-units = 1
 opt-level = 3
 strip = true
