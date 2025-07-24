@@ -75,13 +75,11 @@ where
 // Re-export specific transformers
 mod drop_reasoning_details;
 mod image_handling;
-mod reasoning_normalizer;
 mod set_model;
 mod transform_tool_calls;
 
 pub use drop_reasoning_details::DropReasoningDetails;
 pub use image_handling::ImageHandling;
-pub use reasoning_normalizer::ReasoningNormalizer;
 pub use set_model::SetModel;
 pub use transform_tool_calls::TransformToolCalls;
 
