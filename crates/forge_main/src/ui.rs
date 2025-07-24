@@ -556,6 +556,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let conversation_id = conversation.id;
                     self.state.conversation_id = Some(conversation_id);
                     self.update_model(conversation.main_model()?);
+                    if let Some(context) = conversation.context.as_ref() {
+                        self.state.usage.total_tokens = context.token_count();
+                    }
                     self.api.upsert_conversation(conversation).await?;
                     conversation_id
                 } else {
