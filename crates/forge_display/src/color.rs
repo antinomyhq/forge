@@ -238,8 +238,15 @@ mod tests {
 
     #[test]
     fn test_colorize_with_colors_enabled() {
+        // Force colors to be enabled for this test, regardless of environment
+        colored::control::set_override(true);
+
         let fixture = ColorConfig::with_mode(ColorMode::Always);
         let actual = fixture.colorize("test", |s| s.red());
+
+        // Reset color override after test
+        colored::control::unset_override();
+
         // Should contain ANSI escape codes
         assert!(actual.contains("\x1b["));
     }
