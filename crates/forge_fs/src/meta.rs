@@ -10,8 +10,7 @@ impl crate::ForgeFS {
     }
 
     pub async fn is_binary_file<T: AsRef<Path>>(path: T) -> anyhow::Result<bool> {
-        let is_binary = is_binary(path).await?;
-        Ok(is_binary)
+        is_binary(path).await
     }
 
     pub fn is_file<T: AsRef<Path>>(path: T) -> bool {
