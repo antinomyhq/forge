@@ -62,7 +62,11 @@ fn is_binary_internal(buffer: &[u8], bytes_read: usize) -> bool {
         // encoding of the same format as UTF-16) and false negatives (a UTF-16 file
         // that is using 4 bytes to encode a character).
         const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN: usize = 512;
-        for (i, &byte) in buffer.iter().enumerate().take(bytes_read.min(ZERO_BYTE_DETECTION_BUFFER_MAX_LEN)) {
+        for (i, &byte) in buffer
+            .iter()
+            .enumerate()
+            .take(bytes_read.min(ZERO_BYTE_DETECTION_BUFFER_MAX_LEN))
+        {
             let is_endian = i % 2 == 1; // assume 2-byte sequences typical for UTF-16
             let is_zero_byte = byte == 0;
 
