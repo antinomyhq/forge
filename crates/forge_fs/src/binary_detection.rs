@@ -101,8 +101,6 @@ fn is_binary_internal(buffer: &[u8], bytes_read: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use pretty_assertions::assert_eq;
     use tempfile::NamedTempFile;
     use tokio::fs;
