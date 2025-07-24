@@ -445,11 +445,13 @@ impl Context {
             user_tokens = (content_tokens as f64 * user_ratio) as usize;
             assistant_tokens = (content_tokens as f64 * assistant_ratio) as usize;
 
-            // Ensure the sum equals the content_tokens by adding any remainder to the largest category
+            // Ensure the sum equals the content_tokens by adding any remainder to the
+            // largest category
             let allocated_content_tokens = system_tokens + user_tokens + assistant_tokens;
             let remainder = content_tokens.saturating_sub(allocated_content_tokens);
 
-            // Add remainder to the category with the most characters (most likely to be accurate)
+            // Add remainder to the category with the most characters (most likely to be
+            // accurate)
             if remainder > 0 {
                 if system_chars >= user_chars && system_chars >= assistant_chars {
                     system_tokens += remainder;

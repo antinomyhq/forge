@@ -50,7 +50,8 @@ impl UIState {
         }
     }
 
-    /// Get context length for current model, with fallback to pattern-based detection
+    /// Get context length for current model, with fallback to pattern-based
+    /// detection
     pub fn get_context_length(&self) -> u64 {
         // First try to get from stored value
         if let Some(context_length) = self.context_length {
