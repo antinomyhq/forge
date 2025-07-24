@@ -325,7 +325,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+                // Start with model and basic usage info
+                let mut info = Info::from(&self.state);
+
+                // Add usage information (context window and breakdown)
+                if let Ok(usage_info) = self.create_usage_info().await {
+                    info = info.extend(usage_info);
+                }
+
+                // Add environment and paths info
+                info = info.extend(Info::from(&self.api.environment()));
 
                 // Add user information if available
                 if let Ok(config) = self.api.app_config().await
@@ -442,9 +451,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Exit the UI after logout
                 return Ok(true);
             }
-            Command::Usage => {
-                self.display_usage_info().await?;
-            }
         }
 
         Ok(false)
@@ -462,15 +468,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Select a model from the available models
-    /// Returns Some(ModelId) if a model was selected, or None if selection was
+    /// Returns Some(Model) if a model was selected, or None if selection was
     /// canceled
-    async fn select_model(&mut self) -> Result<Option<ModelId>> {
+    async fn select_model(&mut self) -> Result<Option<Model>> {
         // Fetch available models
-        let models = self
-            .get_models()
-            .await?
-            .into_iter()
-            .map(CliModel)
+        let models = self.get_models().await?;
+
+        let cli_models = models
+            .iter()
+            .map(|m| CliModel(m.clone()))
             .collect::<Vec<_>>();
 
         // Find the index of the current model
@@ -478,20 +484,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .state
             .model
             .as_ref()
-            .and_then(|current| models.iter().position(|m| &m.0.id == current))
+            .and_then(|current| cli_models.iter().position(|m| &m.0.id == current))
             .unwrap_or(0);
 
         // Use the centralized select module
-        match ForgeSelect::select("Select a model:", models)
+        match ForgeSelect::select("Select a model:", cli_models)
             .with_starting_cursor(starting_cursor)
             .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
         {
-            Some(model) => {
-                // Cache context_length when model is selected
-                self.state.context_length = model.0.context_length;
-                Ok(Some(model.0.id))
-            }
+            Some(model) => Ok(Some(model.0)),
             None => Ok(None),
         }
     }
@@ -509,7 +511,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.api
             .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow.model = Some(model.clone());
+                workflow.model = Some(model.id.clone());
             })
             .await?;
 
@@ -518,15 +520,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
             // Update the model in the conversation
-            conversation.set_model(&model)?;
+            conversation.set_model(&model.id)?;
 
             // Upsert the updated conversation
             self.api.upsert_conversation(conversation).await?;
 
-            // Update the UI state with the new model
-            self.update_model(model.clone());
+            // Update the UI state with the new model and context length
+            self.update_model_and_context(model.id.clone(), model.context_length);
 
-            self.writeln(TitleFormat::action(format!("Switched to model: {model}")))?;
+            self.writeln(TitleFormat::action(format!(
+                "Switched to model: {}",
+                model.id
+            )))?;
         }
 
         Ok(())
@@ -581,12 +586,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         let provider = self.init_provider().await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+
         if workflow.model.is_none() {
-            workflow.model = Some(
-                self.select_model()
-                    .await?
-                    .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
-            );
+            let selected_model = self
+                .select_model()
+                .await?
+                .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
+            workflow.model = Some(selected_model.id.clone());
+
+            // Update context length if available
+            if let Some(context_length) = selected_model.context_length {
+                self.state.context_length = Some(context_length);
+            }
         }
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
@@ -812,6 +823,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.state.model = Some(model);
     }
 
+    fn update_model_and_context(&mut self, model: ModelId, context_length: Option<u64>) {
+        tracker::set_model(model.to_string());
+        self.state.model = Some(model);
+        if let Some(context_length) = context_length {
+            self.state.context_length = Some(context_length);
+        }
+    }
+
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
         let chat = ChatRequest::new(event, conversation_id);
@@ -837,34 +856,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         });
     }
 
-    async fn display_usage_info(&mut self) -> anyhow::Result<()> {
-        use forge_display::title::TitleFormat;
-
-        self.writeln("")?;
-        self.writeln(TitleFormat::info("Token Usage Analysis"))?;
-        self.writeln("")?;
-
+    async fn create_usage_info(&mut self) -> anyhow::Result<Info> {
         // Get real usage data from current state
         let usage = self.state.usage.clone();
 
-        // Get current model and its context length
-        let context_length = if let Some(cached_context_length) = self.state.context_length {
-            cached_context_length
-        } else if let Some(model_id) = self.state.model.clone() {
-            // Fallback: Get the model details to find context length if not cached
-            let models = self.get_models().await?;
-            let context_length = models
-                .iter()
-                .find(|m| m.id == model_id)
-                .and_then(|m| m.context_length)
-                .unwrap_or(200_000);
-
-            // Cache the context_length for future use
-            self.state.context_length = Some(context_length);
-            context_length
-        } else {
-            200_000 // Default context length if no model is set
-        };
+        // Get current model's context length from UIState
+        let context_length = self.state.get_context_length();
 
         let (system_tokens, prompts_tokens, assistant_tokens, tools_tokens, total_calculated) =
             if let Some(conversation_id) = &self.state.conversation_id {
@@ -898,98 +895,74 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             context_length.to_string()
         };
 
-        self.writeln(format!(
-            "Current context window ({total_used} of {context_display} tokens used)"
-        ))?;
-        self.writeln("")?;
+        let mut info = Info::new().add_title("Usage Details");
 
-        // Display progress bar
-        self.display_progress_bar(
+        // Add context window information
+        info = info.add_key_value(
+            "Context Window",
+            format!("{total_used} of {context_display} tokens used"),
+        );
+
+        // Add progress bar representation
+        let progress_bar = self.create_progress_bar_string(
             system_tokens,
             tools_tokens,
             assistant_tokens,
             prompts_tokens,
             context_length as usize,
             is_overflow,
-        )?;
-        self.writeln("")?;
+        );
+        info = info.add_key_value("Usage", progress_bar);
 
-        // Show overflow warning if needed
+        // Add overflow warning if needed
         if is_overflow {
-            self.writeln(
+            info = info.add_key_value(
+                "Warning",
                 "Context window overflow! Consider compacting or starting a new conversation.",
-            )?;
-            self.writeln("")?;
+            );
         }
 
-        // Display breakdown
-        self.writeln(TitleFormat::info("Token Breakdown"))?;
-        self.writeln("")?;
-
-        self.display_usage_line("System", system_tokens, context_length as usize, "cyan")?;
-        self.display_usage_line("Tools", tools_tokens, context_length as usize, "red")?;
-        self.display_usage_line(
+        // Add breakdown details
+        info = info.add_key_value(
+            "System",
+            self.format_usage_line(system_tokens, context_length as usize, "cyan"),
+        );
+        info = info.add_key_value(
+            "Tools",
+            self.format_usage_line(tools_tokens, context_length as usize, "red"),
+        );
+        info = info.add_key_value(
             "Assistant",
-            assistant_tokens,
-            context_length as usize,
-            "blue",
-        )?;
-        self.display_usage_line(
+            self.format_usage_line(assistant_tokens, context_length as usize, "blue"),
+        );
+        info = info.add_key_value(
             "Prompts",
-            prompts_tokens,
-            context_length as usize,
-            "magenta",
-        )?;
-        self.writeln("")?;
+            self.format_usage_line(prompts_tokens, context_length as usize, "magenta"),
+        );
 
-        if let Some(cost) = usage.cost {
-            self.writeln(format!("Cost: ${cost:.4}"))?;
-            self.writeln("")?;
-        }
-
-        if is_overflow {
-            self.writeln("  • Consider reducing file context or using shorter prompts")?;
-        }
-
-        // Show context length info
-        if let Some(model_id) = &self.state.model {
-            let context_display = if context_length >= 1_000_000 {
-                format!("{}M", context_length / 1_000_000)
-            } else if context_length >= 1000 {
-                format!("{}k", context_length / 1000)
-            } else {
-                format!("{context_length}")
-            };
-            self.writeln(format!(
-                "  • Current model: {model_id} [ {context_display} ]"
-            ))?;
-        }
-        self.writeln("")?;
-
-        Ok(())
+        Ok(info)
     }
 
-    fn display_progress_bar(
-        &mut self,
+    fn create_progress_bar_string(
+        &self,
         system_tokens: usize,
         tools_tokens: usize,
         assistant_tokens: usize,
         prompts_tokens: usize,
         context_length: usize,
         is_overflow: bool,
-    ) -> anyhow::Result<()> {
+    ) -> String {
         let progress_bar_width = 60;
 
         if is_overflow {
             // Show red overflow bar
-            let bar = format!(
+            format!(
                 "[{}] {:.1}%",
                 "█".repeat(progress_bar_width).red(),
                 (system_tokens + tools_tokens + assistant_tokens + prompts_tokens) as f64
                     / context_length as f64
                     * 100.0
-            );
-            self.writeln(bar)?;
+            )
         } else {
             // Calculate widths for each segment
             let system_width = ((system_tokens as f64 / context_length as f64)
@@ -1044,20 +1017,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 (system_tokens + tools_tokens + assistant_tokens + prompts_tokens) as f64
                     / context_length as f64
                     * 100.0;
-            let bar = format!("[{}] {:.2}%", bar_parts.join(""), total_percentage);
-            self.writeln(bar)?;
+            format!("[{}] {:.2}%", bar_parts.join(""), total_percentage)
         }
-
-        Ok(())
     }
 
-    fn display_usage_line(
-        &mut self,
-        label: &str,
-        used: usize,
-        total: usize,
-        color: &str,
-    ) -> anyhow::Result<()> {
+    fn format_usage_line(&self, used: usize, total: usize, color: &str) -> String {
         let percentage = (used as f64 / total as f64) * 100.0;
 
         // Handle special cases for very small percentages
@@ -1069,25 +1033,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             format!("{percentage:.2}")
         };
 
-        let colored_line = match color {
-            "cyan" => format!("█ {label:10} [{percentage_display:>5}%]")
-                .cyan()
-                .to_string(),
-            "red" => format!("█ {label:10} [{percentage_display:>5}%]")
-                .red()
-                .to_string(),
-            "blue" => format!("█ {label:10} [{percentage_display:>5}%]")
-                .blue()
-                .to_string(),
-            "magenta" => format!("█ {label:10} [{percentage_display:>5}%]")
-                .magenta()
-                .to_string(),
-            _ => format!("█ {label:10} [{percentage_display:>5}%]"), // Default no color
-        };
-
-        self.writeln(colored_line)?;
-
-        Ok(())
+        match color {
+            "cyan" => format!("[{percentage_display:>5}%]").cyan().to_string(),
+            "red" => format!("[{percentage_display:>5}%]").red().to_string(),
+            "blue" => format!("[{percentage_display:>5}%]").blue().to_string(),
+            "magenta" => format!("[{percentage_display:>5}%]").magenta().to_string(),
+            _ => format!("[{percentage_display:>5}%]"), // Default no color
+        }
     }
 
     async fn calculate_conversation_tokens(
@@ -1105,39 +1057,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        // Calculate detailed breakdown from conversation content
-        let (system_from_content, user_from_content, assistant_from_content, tools_from_content, _) =
-            forge_api::ConversationAnalyzer::calculate_detailed_breakdown(&conversation);
+        // Use the context's token breakdown method if context is available
+        if let Some(ref context) = conversation.context {
+            let (system_tokens, user_tokens, assistant_tokens, tools_tokens) =
+                context.token_breakdown_by_role();
+            let total_tokens = system_tokens + user_tokens + assistant_tokens + tools_tokens;
 
-        // Calculate total from content analysis
-        let content_total =
-            system_from_content + user_from_content + assistant_from_content + tools_from_content;
-
-        if content_total == 0 {
-            // If content analysis returns 0, use API total and distribute evenly
-            let total = *usage.total_tokens;
-            return Ok((total / 4, total / 4, total / 4, total / 4, total));
+            // If we got valid breakdown, use it
+            if total_tokens > 0 {
+                return Ok((
+                    system_tokens,
+                    user_tokens,
+                    assistant_tokens,
+                    tools_tokens,
+                    total_tokens,
+                ));
+            }
         }
 
-        // Use API's actual total_tokens as the authoritative source
-        let api_total = *usage.total_tokens;
-
-        // Calculate proportional scaling factor
-        let scale_factor = api_total as f64 / content_total as f64;
-
-        // Apply scaling to maintain proportions but use API total
-        let system_tokens = (system_from_content as f64 * scale_factor) as usize;
-        let user_tokens = (user_from_content as f64 * scale_factor) as usize;
-        let assistant_tokens = (assistant_from_content as f64 * scale_factor) as usize;
-        let tools_tokens = api_total.saturating_sub(system_tokens + user_tokens + assistant_tokens);
-
-        Ok((
-            system_tokens,
-            user_tokens,
-            assistant_tokens,
-            tools_tokens,
-            api_total,
-        ))
+        // Fallback: use API total and distribute evenly
+        let total = *usage.total_tokens;
+        Ok((total / 4, total / 4, total / 4, total / 4, total))
     }
 }
 

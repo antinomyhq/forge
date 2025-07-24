@@ -368,6 +368,106 @@ impl Context {
             ),
         }
     }
+
+    /// Calculate detailed token breakdown by role
+    /// Returns (system_tokens, user_tokens, assistant_tokens, tools_tokens)
+    pub fn token_breakdown_by_role(&self) -> (usize, usize, usize, usize) {
+        let mut system_tokens = 0;
+        let mut user_tokens = 0;
+        let mut assistant_tokens = 0;
+
+        // Get total tokens from context
+        let total_tokens = match self.token_count() {
+            TokenCount::Actual(count) => count,
+            TokenCount::Approx(count) => count,
+        };
+
+        if total_tokens == 0 {
+            return (0, 0, 0, 0);
+        }
+
+        // Calculate character counts for proportional distribution
+        let mut system_chars = 0;
+        let mut user_chars = 0;
+        let mut assistant_chars = 0;
+
+        for message in &self.messages {
+            let char_count = match message {
+                ContextMessage::Text(text_message) => {
+                    text_message.content.chars().count()
+                        + tool_call_content_char_count(text_message)
+                        + reasoning_content_char_count(text_message)
+                }
+                ContextMessage::Tool(tool_result) => tool_result
+                    .output
+                    .values
+                    .iter()
+                    .map(|result| match result {
+                        ToolValue::Text(text) => text.chars().count(),
+                        _ => 0,
+                    })
+                    .sum(),
+                ContextMessage::Image(_) => 1000, // Approximate for images
+            };
+
+            match message {
+                ContextMessage::Text(text_message) => match text_message.role {
+                    Role::System => system_chars += char_count,
+                    Role::User => user_chars += char_count,
+                    Role::Assistant => assistant_chars += char_count,
+                },
+                ContextMessage::Tool(_) => system_chars += char_count,
+                ContextMessage::Image(_) => user_chars += char_count,
+            }
+        }
+
+        // Calculate tokens for tool definitions
+        let tool_definition_tokens: usize = self
+            .tools
+            .iter()
+            .map(|tool| {
+                let tool_json = serde_json::to_string(tool).unwrap_or_default();
+                tool_json.chars().count().div_ceil(4)
+            })
+            .sum();
+
+        let total_content_chars = system_chars + user_chars + assistant_chars;
+
+        let tools_tokens = if total_content_chars > 0 {
+            // Distribute remaining tokens (after tools) proportionally
+            let content_tokens = total_tokens.saturating_sub(tool_definition_tokens);
+
+            let system_ratio = system_chars as f64 / total_content_chars as f64;
+            let user_ratio = user_chars as f64 / total_content_chars as f64;
+            let assistant_ratio = assistant_chars as f64 / total_content_chars as f64;
+
+            system_tokens = (content_tokens as f64 * system_ratio) as usize;
+            user_tokens = (content_tokens as f64 * user_ratio) as usize;
+            assistant_tokens = (content_tokens as f64 * assistant_ratio) as usize;
+
+            // Ensure the sum equals the content_tokens by adding any remainder to the largest category
+            let allocated_content_tokens = system_tokens + user_tokens + assistant_tokens;
+            let remainder = content_tokens.saturating_sub(allocated_content_tokens);
+
+            // Add remainder to the category with the most characters (most likely to be accurate)
+            if remainder > 0 {
+                if system_chars >= user_chars && system_chars >= assistant_chars {
+                    system_tokens += remainder;
+                } else if user_chars >= assistant_chars {
+                    user_tokens += remainder;
+                } else {
+                    assistant_tokens += remainder;
+                }
+            }
+
+            tool_definition_tokens
+        } else {
+            // If no content, all tokens are tools
+            total_tokens
+        };
+
+        (system_tokens, user_tokens, assistant_tokens, tools_tokens)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
