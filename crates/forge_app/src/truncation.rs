@@ -290,26 +290,47 @@ pub struct TruncatedSearchOutput {
     pub end_line: u64,
 }
 
+const TRUNCATION_SUFFIX: &str = "...[Truncated]";
+
+/// Truncates a line to a specified maximum length, appending a suffix if
+/// truncated
+fn truncate_line(line: String, max_length: usize) -> String {
+    if line.chars().count() > max_length {
+        let truncate_at = max_length.saturating_sub(TRUNCATION_SUFFIX.chars().count());
+        format!(
+            "{}{}",
+            line.chars().take(truncate_at).collect::<String>(),
+            TRUNCATION_SUFFIX
+        )
+    } else {
+        line
+    }
+}
+
 /// Truncates search output based on line limit, using search directory for
 /// relative paths
 pub fn truncate_search_output(
     output: &[Match],
     start_line: u64,
-    count: u64,
+    max_lines: u64,
+    max_line_length: usize,
     search_dir: &Path,
 ) -> TruncatedSearchOutput {
-    let total_outputs = output.len() as u64;
-    let is_truncated = total_outputs > count;
     let output = output
         .iter()
         .map(|v| format_match(v, search_dir))
+        .map(|s| truncate_line(s, max_line_length))
         .collect::<Vec<_>>();
+
+    // Count the actual number of lines in the output
+    let total_lines = output.iter().map(|s| s.lines().count()).sum::<usize>() as u64;
+    let is_truncated = total_lines > max_lines;
 
     let truncated_output = if is_truncated {
         output
             .iter()
             .skip(start_line as usize)
-            .take(count as usize)
+            .take(max_lines as usize)
             .map(String::from)
             .collect::<Vec<_>>()
     } else {
@@ -318,12 +339,34 @@ pub fn truncate_search_output(
 
     TruncatedSearchOutput {
         output: truncated_output.join("\n"),
-        total_lines: total_outputs,
+        total_lines,
         start_line: start_line + 1,
         end_line: if is_truncated {
-            start_line + count
+            start_line + max_lines
         } else {
-            total_outputs
+            total_lines
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_truncate_line() {
+        // case 1: line exceeds the maximum length
+        let long_line =
+            "This is a very long line that exceeds the maximum length allowed for truncation."
+                .to_string();
+        let max_length = 50;
+        let truncated = truncate_line(long_line, max_length);
+        assert!(truncated.len() <= max_length);
+        assert!(truncated.ends_with(TRUNCATION_SUFFIX));
+
+        // case 2: line is within the maximum length
+        let short_line = "This line is short enough.".to_string();
+        let truncated_short = truncate_line(short_line.clone(), max_length);
+        assert_eq!(truncated_short, short_line);
     }
 }

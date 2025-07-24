@@ -4,6 +4,7 @@ expression: to_value(actual)
 ---
 <search_results
   path="/home/user/project"
+  max_line_length="100"
   total_lines="50"
   display_lines="6-15"
   regex="search"
