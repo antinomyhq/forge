@@ -13,7 +13,7 @@ enum Encoding {
 impl Encoding {
     /// Detects BOM (Byte Order Mark) patterns
     pub fn detect(buffer: &[u8], bytes_read: usize) -> Option<Self> {
-        match (buffer.get(0), buffer.get(1), buffer.get(2)) {
+        match (buffer.first(), buffer.get(1), buffer.get(2)) {
             (Some(&0xEF), Some(&0xBB), Some(&0xBF)) if bytes_read >= 3 => {
                 Some(Encoding::Utf8WithBom)
             }
