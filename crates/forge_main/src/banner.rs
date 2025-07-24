@@ -1,6 +1,6 @@
 use std::io;
 
-use colored::Colorize;
+use forge_display::color::enhanced;
 use forge_tracker::VERSION;
 
 const BANNER: &str = include_str!("banner");
@@ -27,8 +27,8 @@ pub fn display() -> io::Result<()> {
         banner.push_str(
             format!(
                 "\n{}{}",
-                format!("{key:>max_width$} ").dimmed(),
-                value.cyan()
+                enhanced::dimmed(&format!("{key:>max_width$} ")),
+                enhanced::cyan(value)
             )
             .as_str(),
         );

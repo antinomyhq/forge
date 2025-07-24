@@ -1,8 +1,8 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use colored::Colorize;
 use forge_api::{Environment, LoginInfo};
+use forge_display::color::enhanced;
 use forge_tracker::VERSION;
 
 use crate::model::ForgeCommandManager;
@@ -115,11 +115,20 @@ impl fmt::Display for Info {
             match section {
                 Section::Title(title) => {
                     writeln!(f)?;
-                    writeln!(f, "{}", title.to_uppercase().bold().dimmed())?
+                    writeln!(
+                        f,
+                        "{}",
+                        enhanced::dimmed(&enhanced::bold(&title.to_uppercase()))
+                    )?
                 }
                 Section::Items(key, value) => {
                     if let Some(value) = value {
-                        writeln!(f, "{}: {}", key.bright_cyan().bold(), value)?;
+                        writeln!(
+                            f,
+                            "{}: {}",
+                            enhanced::bright_cyan(&enhanced::bold(key)),
+                            value
+                        )?;
                     } else {
                         writeln!(f, "{key}")?;
                     }
