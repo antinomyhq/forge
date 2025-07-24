@@ -69,15 +69,17 @@ impl ColorConfig {
     fn detect_color_mode() -> ColorMode {
         // Check NO_COLOR first (industry standard)
         if let Ok(no_color) = env::var("NO_COLOR")
-            && !no_color.is_empty() {
-                return ColorMode::Never;
-            }
+            && !no_color.is_empty()
+        {
+            return ColorMode::Never;
+        }
 
         // Check FORGE_COLOR environment variable
         if let Ok(forge_color) = env::var("FORGE_COLOR")
-            && let Ok(mode) = ColorMode::from_str(&forge_color) {
-                return mode;
-            }
+            && let Ok(mode) = ColorMode::from_str(&forge_color)
+        {
+            return mode;
+        }
 
         // Default to auto-detection
         ColorMode::Auto
