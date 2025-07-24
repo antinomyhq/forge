@@ -63,7 +63,7 @@ impl Completer for InputCompleter {
                                     append_whitespace: true,
                                 },
                             ))
-                        }else { 
+                        } else {
                             None
                         }
                     } else {
