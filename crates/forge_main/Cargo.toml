@@ -33,6 +33,7 @@ derive_setters.workspace = true
 lazy_static.workspace = true
 reedline.workspace = true
 nu-ansi-term.workspace = true
+nucleo.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
@@ -53,3 +54,4 @@ open.workspace = true
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
+tempfile.workspace = true
