@@ -82,6 +82,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
+        self.cli.conversation = None;
         banner::display()?;
         self.trace_user();
         Ok(())
@@ -556,8 +557,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let conversation_id = conversation.id;
                     self.state.conversation_id = Some(conversation_id);
                     self.update_model(conversation.main_model()?);
-                    if let Some(context) = conversation.context.as_ref() {
-                        self.state.usage.total_tokens = context.token_count();
+                    if let Some(context) = conversation.context.clone() {
+                        self.state.usage = context.usage.unwrap_or_default();
                     }
                     self.api.upsert_conversation(conversation).await?;
                     conversation_id
