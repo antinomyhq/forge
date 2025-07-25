@@ -64,6 +64,24 @@ pub struct Cli {
     #[arg(long, default_value_t = false, short = 'n')]
     pub neo_ui: bool,
     /// Working directory to set before starting forge.
+    /// Control color output.
+    ///
+    /// Controls when to use colored output:
+    /// - auto: Use colors when outputting to a terminal (default)
+    /// - always: Always use colors
+    /// - never: Never use colors
+    ///
+    /// This can also be controlled via the FORGE_COLOR environment variable
+    /// or by setting NO_COLOR (industry standard) to disable colors.
+    #[arg(long, value_enum, default_value = "auto")]
+    pub color: ColorOption,
+
+    /// Disable colored output (equivalent to --color=never).
+    ///
+    /// This flag provides a convenient way to disable colors without
+    /// specifying the full --color=never option.
+    #[arg(long, conflicts_with = "color")]
+    pub no_color: bool,
     ///
     /// If provided, the application will change to this directory before
     /// starting. This allows running forge from a different directory.
@@ -176,4 +194,14 @@ impl From<Scope> for forge_domain::Scope {
 pub enum Transport {
     Stdio,
     Sse,
+}
+#[derive(Copy, Clone, Debug, ValueEnum)]
+#[clap(rename_all = "lower")]
+pub enum ColorOption {
+    /// Use colors when outputting to a terminal (default)
+    Auto,
+    /// Always use colors
+    Always,
+    /// Never use colors
+    Never,
 }

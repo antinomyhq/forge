@@ -1612,6 +1612,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
+ "forge_display",
  "indicatif",
  "rand 0.8.5",
  "tokio",

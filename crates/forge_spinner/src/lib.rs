@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use anyhow::Result;
-use colored::Colorize;
+use forge_display::color::enhanced;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use tokio::task::JoinHandle;
@@ -66,8 +66,8 @@ impl SpinnerManager {
         // Set the initial message
         let message = format!(
             "{} 0s · {}",
-            word.green().bold(),
-            "Ctrl+C to interrupt".white().dimmed()
+            enhanced::green(word),
+            enhanced::dimmed("Ctrl+C to interrupt")
         );
         pb.set_message(message);
 
@@ -93,9 +93,9 @@ impl SpinnerManager {
                     // Create a new message with the elapsed time
                     let updated_message = format!(
                         "{} {}s · {}",
-                        message.green().bold(),
+                        enhanced::green(message),
                         seconds,
-                        "Ctrl+C to interrupt".white().dimmed()
+                        enhanced::dimmed("Ctrl+C to interrupt")
                     );
 
                     // Update the spinner's message

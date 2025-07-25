@@ -1,7 +1,8 @@
 use std::fmt::{self, Display, Formatter};
 
-use colored::Colorize;
 use derive_setters::Setters;
+
+use crate::color::enhanced;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Category {
@@ -84,11 +85,11 @@ impl TitleFormat {
         let mut buf = String::new();
 
         let icon = match self.category {
-            Category::Action => "⏺".yellow(),
-            Category::Info => "⏺".white(),
-            Category::Debug => "⏺".cyan(),
-            Category::Error => "⏺".red(),
-            Category::Completion => "⏺".yellow(),
+            Category::Action => enhanced::yellow("⏺"),
+            Category::Info => enhanced::white("⏺"),
+            Category::Debug => enhanced::cyan("⏺"),
+            Category::Error => enhanced::red("⏺"),
+            Category::Completion => enhanced::yellow("⏺"),
         };
 
         buf.push_str(format!("{icon} ").as_str());
@@ -98,25 +99,24 @@ impl TitleFormat {
             use chrono::Local;
 
             buf.push_str(
-                format!("[{}] ", Local::now().format("%H:%M:%S"))
-                    .dimmed()
-                    .to_string()
-                    .as_str(),
+                enhanced::dimmed(&format!("[{}] ", Local::now().format("%H:%M:%S"))).as_str(),
             );
         }
 
         let title = match self.category {
-            Category::Action => self.title.white(),
-            Category::Info => self.title.white(),
-            Category::Debug => self.title.dimmed(),
-            Category::Error => format!("{} {}", "ERROR:".bold(), self.title).red(),
-            Category::Completion => self.title.white().bold(),
+            Category::Action => enhanced::white(&self.title),
+            Category::Info => enhanced::white(&self.title),
+            Category::Debug => enhanced::dimmed(&self.title),
+            Category::Error => {
+                enhanced::red(&format!("{} {}", enhanced::bold("ERROR:"), self.title))
+            }
+            Category::Completion => enhanced::bold(&enhanced::white(&self.title)),
         };
 
         buf.push_str(title.to_string().as_str());
 
         if let Some(ref sub_title) = self.sub_title {
-            buf.push_str(&format!(" {}", sub_title.dimmed()).to_string());
+            buf.push_str(&format!(" {}", enhanced::dimmed(sub_title)));
         }
 
         buf

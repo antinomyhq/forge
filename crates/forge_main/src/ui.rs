@@ -9,6 +9,7 @@ use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Workflow,
 };
+use forge_display::color::{ColorConfig, ColorMode, init_color_config};
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
 use forge_fs::ForgeFS;
@@ -19,7 +20,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
-use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli::{Cli, ColorOption, McpCommand, TopLevelCommand, Transport};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
@@ -143,6 +144,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     pub fn init(cli: Cli, f: F) -> Result<Self> {
+        // Initialize color configuration based on CLI flags
+        let color_mode = if cli.no_color {
+            ColorMode::Never
+        } else {
+            match cli.color {
+                ColorOption::Auto => ColorMode::Auto,
+                ColorOption::Always => ColorMode::Always,
+                ColorOption::Never => ColorMode::Never,
+            }
+        };
+
+        let color_config = ColorConfig::with_mode(color_mode);
+        init_color_config(color_config);
+
         // Parse CLI arguments first to get flags
         let api = Arc::new(f());
         let env = api.environment();
