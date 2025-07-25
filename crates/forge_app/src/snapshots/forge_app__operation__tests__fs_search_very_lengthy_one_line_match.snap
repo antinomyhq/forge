@@ -9,6 +9,6 @@ expression: to_value(actual)
   display_lines="0-0"
   regex="search"
   file_pattern="*.txt"
-><![CDATA[
-[Results truncated due to exceeding the 1049 bytes size limit. Please use a more specific search pattern.]]]>
+  reason="Results truncated due to exceeding the 1049 bytes size limit. Please use a more specific search pattern"
+><![CDATA[]]>
 </search_results>
