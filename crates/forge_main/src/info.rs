@@ -133,8 +133,8 @@ impl fmt::Display for Info {
     }
 }
 
-/// Formats a path for display, using %USERPROFILE% on Windows and tilde
-/// notation on Unix
+/// Formats a path for display, using actual home directory on Windows and tilde
+/// notation on Unix, with proper quoting for paths containing spaces
 fn format_path_for_display(env: &Environment, path: &Path) -> String {
     // Check if path is under home directory first
     if let Some(home) = &env.home
@@ -142,18 +142,33 @@ fn format_path_for_display(env: &Environment, path: &Path) -> String {
     {
         // Format based on OS
         return if env.os == "windows" {
-            format!(
-                "%USERPROFILE%{}{}",
+            // Use actual home path with proper quoting for Windows to work in both cmd and
+            // PowerShell
+            let home_path = home.display().to_string();
+            let full_path = format!(
+                "{}{}{}",
+                home_path,
                 std::path::MAIN_SEPARATOR,
                 rel_path.display()
-            )
+            );
+            if full_path.contains(' ') {
+                format!("\"{full_path}\"")
+            } else {
+                full_path
+            }
         } else {
             format!("~/{}", rel_path.display())
         };
     }
 
     // Fall back to absolute path if not under home directory
-    path.display().to_string()
+    // Quote paths on Windows if they contain spaces
+    let path_str = path.display().to_string();
+    if env.os == "windows" && path_str.contains(' ') {
+        format!("\"{path_str}\"")
+    } else {
+        path_str
+    }
 }
 
 /// Gets the current git branch name if available
@@ -310,14 +325,28 @@ mod tests {
 
     #[test]
     fn test_format_path_for_display_windows_home() {
-        let fixture = create_env("windows", Some("C:/Users/User"));
-        let path = PathBuf::from("C:/Users/User/project");
+        let fixture = create_env("windows", Some("C:\\Users\\User"));
+        let path = PathBuf::from("C:\\Users\\User\\project");
 
         let actual = super::format_path_for_display(&fixture, &path);
         let expected = if cfg!(windows) {
-            "%USERPROFILE%\\project"
+            "C:\\Users\\User\\project"
         } else {
-            "%USERPROFILE%/project"
+            "C:\\Users\\User\\project"
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_windows_home_with_spaces() {
+        let fixture = create_env("windows", Some("C:\\Users\\User Name"));
+        let path = PathBuf::from("C:\\Users\\User Name\\project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = if cfg!(windows) {
+            "\"C:\\Users\\User Name\\project\""
+        } else {
+            "\"C:\\Users\\User Name\\project\""
         };
         assert_eq!(actual, expected);
     }
@@ -329,6 +358,16 @@ mod tests {
 
         let actual = super::format_path_for_display(&fixture, &path);
         let expected = "/var/log/app";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_absolute_windows_with_spaces() {
+        let fixture = create_env("windows", Some("C:/Users/User"));
+        let path = PathBuf::from("C:/Program Files/App");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "\"C:/Program Files/App\"";
         assert_eq!(actual, expected);
     }
 
