@@ -149,7 +149,7 @@ fn format_path_for_display(env: &Environment, path: &Path) -> String {
             )
         } else {
             format!("~/{}", rel_path.display())
-        }
+        };
     }
 
     // Fall back to absolute path if not under home directory
