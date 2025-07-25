@@ -21,6 +21,7 @@ forge_app.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
+once_cell = "1.21.3"
 
 [dev-dependencies]
 insta.workspace = true
