@@ -1511,6 +1511,7 @@ dependencies = [
  "forge_app",
  "insta",
  "mockito",
+ "once_cell",
  "pretty_assertions",
  "regex",
  "reqwest 0.12.22",

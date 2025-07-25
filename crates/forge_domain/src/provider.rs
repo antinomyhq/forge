@@ -39,7 +39,7 @@ impl Provider {
                     *set_url = Url::parse(&format!("{url}/")).unwrap();
                 }
             }
-            Provider::Anthropic { .. } => {}
+            _ => {}
         }
     }
 
@@ -53,7 +53,7 @@ impl Provider {
                     *set_url = Url::parse(&format!("{url}/")).unwrap();
                 }
             }
-            Provider::OpenAI { .. } => {}
+            _ => {}
         }
     }
 
@@ -99,6 +99,13 @@ impl Provider {
         }
     }
 
+    pub fn copilot(key: &str) -> Provider {
+        Provider::OpenAI {
+            url: Url::parse(Provider::COPILOT_URL).unwrap(),
+            key: Some(key.into()),
+        }
+    }
+
     pub fn key(&self) -> Option<&str> {
         match self {
             Provider::OpenAI { key, .. } => key.as_deref(),
@@ -114,6 +121,7 @@ impl Provider {
     pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
     pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
     pub const FORGE_URL: &str = "https://api.forgecode.dev/api/v1/";
+    pub const COPILOT_URL: &str = "https://api.githubcopilot.com/";
 
     /// Converts the provider to it's base URL
     pub fn to_base_url(&self) -> Url {
@@ -126,42 +134,49 @@ impl Provider {
     pub fn is_forge(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::FORGE_URL),
-            Provider::Anthropic { .. } => false,
+            _ => false,
         }
     }
 
     pub fn is_open_router(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPEN_ROUTER_URL),
-            Provider::Anthropic { .. } => false,
+            _ => false,
         }
     }
 
     pub fn is_requesty(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::REQUESTY_URL),
-            Provider::Anthropic { .. } => false,
+            _ => false,
         }
     }
 
     pub fn is_xai(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::XAI_URL),
-            Provider::Anthropic { .. } => false,
+            _ => false,
         }
     }
 
     pub fn is_open_ai(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPENAI_URL),
-            Provider::Anthropic { .. } => false,
+            _ => false,
         }
     }
 
     pub fn is_anthropic(&self) -> bool {
         match self {
-            Provider::OpenAI { .. } => false,
             Provider::Anthropic { url, .. } => url.as_str().starts_with(Self::ANTHROPIC_URL),
+            _ => false,
+        }
+    }
+
+    pub fn is_copilot(&self) -> bool {
+        match self {
+            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::COPILOT_URL),
+            _ => false,
         }
     }
 }

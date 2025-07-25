@@ -33,11 +33,18 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
         None
     }
     fn get_provider(&self, forge_config: AppConfig) -> Option<Provider> {
+        // Try to resolve from environment variables first
+        if let Some(url) = self.provider_url() {
+            if let Some(env_provider) = resolve_env_provider(self.provider_url(), self.infra.as_ref()) {
+                return Some(env_provider);
+            }
+        }
+        // Fallback to Forge key if present
         if let Some(forge_key) = &forge_config.key_info {
             let provider = Provider::forge(forge_key.api_key.as_str());
             return Some(override_url(provider, self.provider_url()));
         }
-        resolve_env_provider(self.provider_url(), self.infra.as_ref())
+        None
     }
 }
 
@@ -60,13 +67,14 @@ fn resolve_env_provider<F: EnvironmentInfra>(
     url: Option<ProviderUrl>,
     env: &F,
 ) -> Option<Provider> {
-    let keys: [ProviderSearch; 6] = [
+    let keys: [ProviderSearch; 7] = [
         ("FORGE_KEY", Box::new(Provider::forge)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
         ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
         ("XAI_API_KEY", Box::new(Provider::xai)),
         ("OPENAI_API_KEY", Box::new(Provider::openai)),
         ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
+        ("GITHUB_COPILOT_TOKEN", Box::new(Provider::copilot)),
     ];
 
     keys.into_iter().find_map(|(key, fun)| {
