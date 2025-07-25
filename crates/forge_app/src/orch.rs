@@ -431,7 +431,7 @@ impl<S: AgentService> Orchestrator<S> {
                 token_usage = format!("{}", usage.prompt_tokens),
                 total_tokens = format!("{}", usage.total_tokens),
                 cached_tokens = format!("{}", usage.cached_tokens),
-                cost = format!("{}", usage.cost.unwrap_or_default()),
+                cost = usage.cost.unwrap_or_default(),
                 "Processing usage information"
             );
 
