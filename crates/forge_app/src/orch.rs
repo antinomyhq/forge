@@ -255,8 +255,7 @@ impl<S: AgentService> Orchestrator<S> {
         let mut transformers = TransformToolCalls::new()
             .when(|_| !tool_supported)
             .pipe(ImageHandling::new())
-            .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
-            .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
+            .pipe(DropReasoningDetails.when(|_| !reasoning_supported));
         let response = self
             .services
             .chat_agent(model_id, transformers.transform(context))
@@ -428,8 +427,12 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             info!(
+                conversation_id = %self.conversation.id,
+                conversation_length = context.messages.len(),
                 token_usage = format!("{}", usage.prompt_tokens),
                 total_tokens = format!("{}", usage.total_tokens),
+                cached_tokens = format!("{}", usage.cached_tokens),
+                cost = usage.cost.unwrap_or_default(),
                 "Processing usage information"
             );
 

@@ -8,6 +8,7 @@
 //! the format "Failed to [operation] [path]", ensuring uniform error reporting
 //! throughout the application while preserving the original error cause.
 
+mod binary_detection;
 mod error;
 mod file_info;
 mod file_size;
@@ -17,6 +18,7 @@ mod read;
 mod read_range;
 mod write;
 
+pub use crate::binary_detection::is_binary;
 pub use crate::error::Error;
 pub use crate::file_info::FileInfo;
 
