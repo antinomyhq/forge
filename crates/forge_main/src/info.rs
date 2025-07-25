@@ -276,195 +276,69 @@ mod tests {
         assert_eq!(actual.sections, expected.sections);
     }
 
-    #[test]
-    fn test_format_path_for_display_unix() {
-        // Test Unix-style path formatting with tilde notation
-        let fixture = Environment {
-            os: "linux".to_string(),
-            pid: 1234,
-            cwd: PathBuf::from("/home/user/project"),
-            home: Some(PathBuf::from("/home/user")),
+    // Helper to create minimal test environment
+    fn create_env(os: &str, home: Option<&str>) -> Environment {
+        Environment {
+            os: os.to_string(),
+            home: home.map(PathBuf::from),
+            // Minimal required fields with defaults
+            pid: 1,
+            cwd: PathBuf::from("/"),
             shell: "bash".to_string(),
-            base_path: PathBuf::from("/home/user/.forge"),
-            forge_api_url: "https://api.forge.com".parse().unwrap(),
+            base_path: PathBuf::from("/tmp"),
+            forge_api_url: "http://localhost".parse().unwrap(),
             retry_config: Default::default(),
-            max_search_lines: 1000,
-            fetch_truncation_limit: 10000,
-            stdout_max_prefix_length: 100,
-            stdout_max_suffix_length: 100,
-            max_read_size: 2000,
+            max_search_lines: 100,
+            fetch_truncation_limit: 1000,
+            stdout_max_prefix_length: 10,
+            stdout_max_suffix_length: 10,
+            max_read_size: 100,
             http: Default::default(),
-            max_file_size: 1000000,
-        };
-        let path = PathBuf::from("/home/user/forge/snapshots");
-
-        let actual = super::format_path_for_display(&fixture, &path);
-        let expected = "~/forge/snapshots";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_format_path_for_display_windows() {
-        // Test Windows-style path formatting with %USERPROFILE% notation
-        let home_path = if cfg!(windows) {
-            PathBuf::from("C:\\Users\\User")
-        } else {
-            PathBuf::from("C:/Users/User")
-        };
-
-        let test_path = if cfg!(windows) {
-            PathBuf::from("C:\\Users\\User\\forge\\snapshots")
-        } else {
-            PathBuf::from("C:/Users/User/forge/snapshots")
-        };
-
-        let fixture = Environment {
-            os: "windows".to_string(),
-            pid: 1234,
-            cwd: PathBuf::from("C:/Users/User/project"),
-            home: Some(home_path),
-            shell: "cmd".to_string(),
-            base_path: PathBuf::from("C:/Users/User/.forge"),
-            forge_api_url: "https://api.forge.com".parse().unwrap(),
-            retry_config: Default::default(),
-            max_search_lines: 1000,
-            fetch_truncation_limit: 10000,
-            stdout_max_prefix_length: 100,
-            stdout_max_suffix_length: 100,
-            max_read_size: 2000,
-            http: Default::default(),
-            max_file_size: 1000000,
-        };
-
-        let actual = super::format_path_for_display(&fixture, &test_path);
-        let expected = if cfg!(windows) {
-            "%USERPROFILE%\\forge\\snapshots"
-        } else {
-            "%USERPROFILE%/forge/snapshots"
-        };
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_format_path_for_display_absolute_path() {
-        // Test path outside home directory
-        let fixture = Environment {
-            os: "linux".to_string(),
-            pid: 1234,
-            cwd: PathBuf::from("/home/user/project"),
-            home: Some(PathBuf::from("/home/user")),
-            shell: "bash".to_string(),
-            base_path: PathBuf::from("/home/user/.forge"),
-            forge_api_url: "https://api.forge.com".parse().unwrap(),
-            retry_config: Default::default(),
-            max_search_lines: 1000,
-            fetch_truncation_limit: 10000,
-            stdout_max_prefix_length: 100,
-            stdout_max_suffix_length: 100,
-            max_read_size: 2000,
-            http: Default::default(),
-            max_file_size: 1000000,
-        };
-        let path = PathBuf::from("/var/log/forge");
-
-        let actual = super::format_path_for_display(&fixture, &path);
-        let expected = "/var/log/forge";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_format_path_for_display_macos() {
-        // Test macOS-style path formatting with tilde notation
-        let fixture = Environment {
-            os: "macos".to_string(),
-            pid: 1234,
-            cwd: PathBuf::from("/Users/user/project"),
-            home: Some(PathBuf::from("/Users/user")),
-            shell: "zsh".to_string(),
-            base_path: PathBuf::from("/Users/user/.forge"),
-            forge_api_url: "https://api.forge.com".parse().unwrap(),
-            retry_config: Default::default(),
-            max_search_lines: 1000,
-            fetch_truncation_limit: 10000,
-            stdout_max_prefix_length: 100,
-            stdout_max_suffix_length: 100,
-            max_read_size: 2000,
-            http: Default::default(),
-            max_file_size: 1000000,
-        };
-        let path = PathBuf::from("/Users/user/forge/snapshots");
-
-        let actual = super::format_path_for_display(&fixture, &path);
-        let expected = "~/forge/snapshots";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_format_path_for_display_windows_userprofile() {
-        // Test Windows with USERPROFILE-style path
-        let home_path = if cfg!(windows) {
-            PathBuf::from("C:\\Users\\JohnDoe")
-        } else {
-            PathBuf::from("C:/Users/JohnDoe")
-        };
-
-        let test_path = if cfg!(windows) {
-            PathBuf::from("C:\\Users\\JohnDoe\\forge\\logs")
-        } else {
-            PathBuf::from("C:/Users/JohnDoe/forge/logs")
-        };
-
-        let fixture = Environment {
-            os: "windows".to_string(),
-            pid: 1234,
-            cwd: PathBuf::from("C:/Users/JohnDoe/project"),
-            home: Some(home_path),
-            shell: "powershell".to_string(),
-            base_path: PathBuf::from("C:/Users/JohnDoe/.forge"),
-            forge_api_url: "https://api.forge.com".parse().unwrap(),
-            retry_config: Default::default(),
-            max_search_lines: 1000,
-            fetch_truncation_limit: 10000,
-            stdout_max_prefix_length: 100,
-            stdout_max_suffix_length: 100,
-            max_read_size: 2000,
-            http: Default::default(),
-            max_file_size: 1000000,
-        };
-
-        let actual = super::format_path_for_display(&fixture, &test_path);
-        let expected = if cfg!(windows) {
-            "%USERPROFILE%\\forge\\logs"
-        } else {
-            "%USERPROFILE%/forge/logs"
-        };
-        assert_eq!(actual, expected);
+            max_file_size: 1000,
+        }
     }
 
     #[test]
     fn test_format_path_for_display_unix_home() {
-        // Test Unix with HOME-style path
-        let fixture = Environment {
-            os: "linux".to_string(),
-            pid: 1234,
-            cwd: PathBuf::from("/home/jane/project"),
-            home: Some(PathBuf::from("/home/jane")),
-            shell: "bash".to_string(),
-            base_path: PathBuf::from("/home/jane/.forge"),
-            forge_api_url: "https://api.forge.com".parse().unwrap(),
-            retry_config: Default::default(),
-            max_search_lines: 1000,
-            fetch_truncation_limit: 10000,
-            stdout_max_prefix_length: 100,
-            stdout_max_suffix_length: 100,
-            max_read_size: 2000,
-            http: Default::default(),
-            max_file_size: 1000000,
-        };
-        let path = PathBuf::from("/home/jane/.config/forge");
+        let fixture = create_env("linux", Some("/home/user"));
+        let path = PathBuf::from("/home/user/project");
 
         let actual = super::format_path_for_display(&fixture, &path);
-        let expected = "~/.config/forge";
+        let expected = "~/project";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_windows_home() {
+        let fixture = create_env("windows", Some("C:/Users/User"));
+        let path = PathBuf::from("C:/Users/User/project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = if cfg!(windows) {
+            "%USERPROFILE%\\project"
+        } else {
+            "%USERPROFILE%/project"
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_absolute() {
+        let fixture = create_env("linux", Some("/home/user"));
+        let path = PathBuf::from("/var/log/app");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "/var/log/app";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_no_home() {
+        let fixture = create_env("linux", None);
+        let path = PathBuf::from("/home/user/project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "/home/user/project";
         assert_eq!(actual, expected);
     }
 }
