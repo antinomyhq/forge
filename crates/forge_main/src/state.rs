@@ -17,6 +17,7 @@ pub struct UIState {
     pub is_first: bool,
     pub model: Option<ModelId>,
     pub provider: Option<Provider>,
+    pub context_length: Option<u64>,
 }
 
 impl UIState {
@@ -45,6 +46,36 @@ impl UIState {
             model: workflow.model,
             operating_agent,
             provider: Default::default(),
+            context_length: None,
+        }
+    }
+
+    /// Get context length for current model, with fallback to pattern-based
+    /// detection
+    pub fn get_context_length(&self) -> u64 {
+        // First try to get from stored value
+        if let Some(context_length) = self.context_length {
+            return context_length;
+        }
+
+        // Fallback to pattern-based detection for current model
+        if let Some(model_id) = &self.model {
+            let model_str = model_id.as_str().to_lowercase();
+            if model_str.contains("claude") {
+                200_000
+            } else if model_str.contains("gpt-4") {
+                if model_str.contains("turbo") {
+                    128_000
+                } else {
+                    8_000
+                }
+            } else if model_str.contains("gemini") {
+                1_000_000
+            } else {
+                128_000 // Default context length for unknown models
+            }
+        } else {
+            200_000 // Default context length if no model is set
         }
     }
 }
