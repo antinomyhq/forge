@@ -71,7 +71,7 @@ impl StatefulWidget for SpotlightWidget {
         // alignment
         let max_name_width = filtered_commands
             .iter()
-            .map(|cmd| cmd.to_string().len())
+            .map(|cmd| cmd.name().len())
             .max()
             .unwrap_or(0);
 
@@ -86,7 +86,7 @@ impl StatefulWidget for SpotlightWidget {
                     Style::default()
                 };
 
-                let name = cmd.to_string();
+                let name = cmd.name();
                 let desc = cmd.description();
 
                 // Pad the name to the maximum width and add a separator
