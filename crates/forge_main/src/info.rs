@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use colored::Colorize;
 use forge_api::{Environment, LoginInfo};
@@ -58,25 +58,28 @@ impl From<&Environment> for Info {
             None => "(not in a git repository)".to_string(),
         };
 
-        Info::new()
+        let mut info = Info::new()
             .add_title("Environment")
             .add_key_value("Version", VERSION)
-            .add_key_value(
-                "Working Directory",
-                format_path_zsh_style(&env.home, &env.cwd),
-            )
+            .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
             .add_key_value("Shell", &env.shell)
             .add_key_value("Git Branch", branch_info)
-            .add_title("Paths")
-            .add_key_value("Logs", format_path_zsh_style(&env.home, &env.log_path()))
-            .add_key_value(
-                "History",
-                format_path_zsh_style(&env.home, &env.history_path()),
-            )
+            .add_title("Paths");
+
+        // Only show logs path if the directory exists
+        let log_path = env.log_path();
+        if log_path.exists() {
+            info = info.add_key_value("Logs", format_path_for_display(env, &log_path));
+        }
+
+        info = info
+            .add_key_value("History", format_path_for_display(env, &env.history_path()))
             .add_key_value(
                 "Checkpoints",
-                format_path_zsh_style(&env.home, &env.snapshot_path()),
-            )
+                format_path_for_display(env, &env.snapshot_path()),
+            );
+
+        info
     }
 }
 
@@ -129,13 +132,27 @@ impl fmt::Display for Info {
         Ok(())
     }
 }
-/// Formats a path in zsh style, replacing home directory with ~
-fn format_path_zsh_style(home: &Option<PathBuf>, path: &Path) -> String {
-    if let Some(home) = home
+
+/// Formats a path for display, using %USERPROFILE% on Windows and tilde
+/// notation on Unix
+fn format_path_for_display(env: &Environment, path: &Path) -> String {
+    // Check if path is under home directory first
+    if let Some(home) = &env.home
         && let Ok(rel_path) = path.strip_prefix(home)
     {
-        return format!("~/{}", rel_path.display());
+        // Format based on OS
+        return if env.os == "windows" {
+            format!(
+                "%USERPROFILE%{}{}",
+                std::path::MAIN_SEPARATOR,
+                rel_path.display()
+            )
+        } else {
+            format!("~/{}", rel_path.display())
+        }
     }
+
+    // Fall back to absolute path if not under home directory
     path.display().to_string()
 }
 
@@ -210,7 +227,9 @@ fn truncate_key(key: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use forge_api::LoginInfo;
+    use std::path::PathBuf;
+
+    use forge_api::{Environment, LoginInfo};
     use pretty_assertions::assert_eq;
 
     use crate::info::Info;
@@ -255,5 +274,197 @@ mod tests {
             .add_key_value("Key", "sk-fg-v1-abcd...1234");
 
         assert_eq!(actual.sections, expected.sections);
+    }
+
+    #[test]
+    fn test_format_path_for_display_unix() {
+        // Test Unix-style path formatting with tilde notation
+        let fixture = Environment {
+            os: "linux".to_string(),
+            pid: 1234,
+            cwd: PathBuf::from("/home/user/project"),
+            home: Some(PathBuf::from("/home/user")),
+            shell: "bash".to_string(),
+            base_path: PathBuf::from("/home/user/.forge"),
+            forge_api_url: "https://api.forge.com".parse().unwrap(),
+            retry_config: Default::default(),
+            max_search_lines: 1000,
+            fetch_truncation_limit: 10000,
+            stdout_max_prefix_length: 100,
+            stdout_max_suffix_length: 100,
+            max_read_size: 2000,
+            http: Default::default(),
+            max_file_size: 1000000,
+        };
+        let path = PathBuf::from("/home/user/forge/snapshots");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "~/forge/snapshots";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_windows() {
+        // Test Windows-style path formatting with %USERPROFILE% notation
+        let home_path = if cfg!(windows) {
+            PathBuf::from("C:\\Users\\User")
+        } else {
+            PathBuf::from("C:/Users/User")
+        };
+
+        let test_path = if cfg!(windows) {
+            PathBuf::from("C:\\Users\\User\\forge\\snapshots")
+        } else {
+            PathBuf::from("C:/Users/User/forge/snapshots")
+        };
+
+        let fixture = Environment {
+            os: "windows".to_string(),
+            pid: 1234,
+            cwd: PathBuf::from("C:/Users/User/project"),
+            home: Some(home_path),
+            shell: "cmd".to_string(),
+            base_path: PathBuf::from("C:/Users/User/.forge"),
+            forge_api_url: "https://api.forge.com".parse().unwrap(),
+            retry_config: Default::default(),
+            max_search_lines: 1000,
+            fetch_truncation_limit: 10000,
+            stdout_max_prefix_length: 100,
+            stdout_max_suffix_length: 100,
+            max_read_size: 2000,
+            http: Default::default(),
+            max_file_size: 1000000,
+        };
+
+        let actual = super::format_path_for_display(&fixture, &test_path);
+        let expected = if cfg!(windows) {
+            "%USERPROFILE%\\forge\\snapshots"
+        } else {
+            "%USERPROFILE%/forge/snapshots"
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_absolute_path() {
+        // Test path outside home directory
+        let fixture = Environment {
+            os: "linux".to_string(),
+            pid: 1234,
+            cwd: PathBuf::from("/home/user/project"),
+            home: Some(PathBuf::from("/home/user")),
+            shell: "bash".to_string(),
+            base_path: PathBuf::from("/home/user/.forge"),
+            forge_api_url: "https://api.forge.com".parse().unwrap(),
+            retry_config: Default::default(),
+            max_search_lines: 1000,
+            fetch_truncation_limit: 10000,
+            stdout_max_prefix_length: 100,
+            stdout_max_suffix_length: 100,
+            max_read_size: 2000,
+            http: Default::default(),
+            max_file_size: 1000000,
+        };
+        let path = PathBuf::from("/var/log/forge");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "/var/log/forge";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_macos() {
+        // Test macOS-style path formatting with tilde notation
+        let fixture = Environment {
+            os: "macos".to_string(),
+            pid: 1234,
+            cwd: PathBuf::from("/Users/user/project"),
+            home: Some(PathBuf::from("/Users/user")),
+            shell: "zsh".to_string(),
+            base_path: PathBuf::from("/Users/user/.forge"),
+            forge_api_url: "https://api.forge.com".parse().unwrap(),
+            retry_config: Default::default(),
+            max_search_lines: 1000,
+            fetch_truncation_limit: 10000,
+            stdout_max_prefix_length: 100,
+            stdout_max_suffix_length: 100,
+            max_read_size: 2000,
+            http: Default::default(),
+            max_file_size: 1000000,
+        };
+        let path = PathBuf::from("/Users/user/forge/snapshots");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "~/forge/snapshots";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_windows_userprofile() {
+        // Test Windows with USERPROFILE-style path
+        let home_path = if cfg!(windows) {
+            PathBuf::from("C:\\Users\\JohnDoe")
+        } else {
+            PathBuf::from("C:/Users/JohnDoe")
+        };
+
+        let test_path = if cfg!(windows) {
+            PathBuf::from("C:\\Users\\JohnDoe\\forge\\logs")
+        } else {
+            PathBuf::from("C:/Users/JohnDoe/forge/logs")
+        };
+
+        let fixture = Environment {
+            os: "windows".to_string(),
+            pid: 1234,
+            cwd: PathBuf::from("C:/Users/JohnDoe/project"),
+            home: Some(home_path),
+            shell: "powershell".to_string(),
+            base_path: PathBuf::from("C:/Users/JohnDoe/.forge"),
+            forge_api_url: "https://api.forge.com".parse().unwrap(),
+            retry_config: Default::default(),
+            max_search_lines: 1000,
+            fetch_truncation_limit: 10000,
+            stdout_max_prefix_length: 100,
+            stdout_max_suffix_length: 100,
+            max_read_size: 2000,
+            http: Default::default(),
+            max_file_size: 1000000,
+        };
+
+        let actual = super::format_path_for_display(&fixture, &test_path);
+        let expected = if cfg!(windows) {
+            "%USERPROFILE%\\forge\\logs"
+        } else {
+            "%USERPROFILE%/forge/logs"
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_unix_home() {
+        // Test Unix with HOME-style path
+        let fixture = Environment {
+            os: "linux".to_string(),
+            pid: 1234,
+            cwd: PathBuf::from("/home/jane/project"),
+            home: Some(PathBuf::from("/home/jane")),
+            shell: "bash".to_string(),
+            base_path: PathBuf::from("/home/jane/.forge"),
+            forge_api_url: "https://api.forge.com".parse().unwrap(),
+            retry_config: Default::default(),
+            max_search_lines: 1000,
+            fetch_truncation_limit: 10000,
+            stdout_max_prefix_length: 100,
+            stdout_max_suffix_length: 100,
+            max_read_size: 2000,
+            http: Default::default(),
+            max_file_size: 1000000,
+        };
+        let path = PathBuf::from("/home/jane/.config/forge");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "~/.config/forge";
+        assert_eq!(actual, expected);
     }
 }
