@@ -470,8 +470,9 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?;
             }
 
-            let mut tool_context =
-                ToolCallContext::new(self.conversation.tasks.clone()).sender(self.sender.clone());
+            let mut tool_context = ToolCallContext::new(self.conversation.tasks.clone())
+                .sender(self.sender.clone())
+                .task_supported(agent.task_supported());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured

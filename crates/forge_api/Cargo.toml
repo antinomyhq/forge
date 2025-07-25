@@ -26,3 +26,4 @@ tempfile.workspace = true
 tokio = { workspace = true }
 insta.workspace = true
 serde.workspace = true
+pretty_assertions.workspace = true
