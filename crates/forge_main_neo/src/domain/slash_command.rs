@@ -10,6 +10,9 @@ pub enum SlashCommand {
     )]
     Agent,
 
+    #[strum(message = "Clear the screen and conversation history")]
+    Clear,
+
     #[strum(message = "Compact the conversation context")]
     Compact,
 
@@ -88,7 +91,7 @@ mod tests {
     fn test_enum_iteration() {
         let fixture = SlashCommand::iter().collect::<Vec<_>>();
         let actual = fixture.len();
-        let expected = 12;
+        let expected = 13;
         assert_eq!(actual, expected);
     }
 
