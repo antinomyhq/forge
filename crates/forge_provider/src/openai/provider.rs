@@ -1,23 +1,26 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ContextMessage, ResultStream, Content
+    ChatCompletionMessage, Content, Context as ChatContext, ContextMessage, ModelId, Provider,
+    ResultStream,
 };
+use once_cell::sync::Lazy;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
+use serde_json::{Value, json};
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
-use serde_json::{json, Value};
+
 use super::model::{ListModelResponse, Model};
 use super::request::Request;
 use super::response::Response;
 use crate::error::Error;
 use crate::openai::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
-use std::sync::Mutex;
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
 
 #[derive(Clone, Builder)]
 pub struct ForgeProvider {
@@ -26,7 +29,8 @@ pub struct ForgeProvider {
     version: String,
 }
 
-static THREAD_ID_CACHE: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static THREAD_ID_CACHE: Lazy<Mutex<HashMap<String, String>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 impl ForgeProvider {
     pub fn builder() -> ForgeProviderBuilder {
@@ -54,7 +58,9 @@ impl ForgeProvider {
     async fn copilot_create_thread(&self) -> anyhow::Result<String> {
         let url = self.url("github/chat/threads")?;
         let headers = self.headers();
-        let resp = self.client.post(url)
+        let resp = self
+            .client
+            .post(url)
             .headers(headers)
             .send()
             .await?
@@ -62,7 +68,8 @@ impl ForgeProvider {
             .json::<serde_json::Value>()
             .await?;
         // Extract thread_id from response
-        let thread_id = resp.get("thread_id")
+        let thread_id = resp
+            .get("thread_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("No thread id in Copilot response"))?;
         Ok(thread_id.to_string())
@@ -78,11 +85,8 @@ impl ForgeProvider {
                 headers.insert(
                     AUTHORIZATION,
                     HeaderValue::from_str(&format!("GitHub-Bearer {api_key}")).unwrap(),
-                );            
-                headers.insert(
-                    "Copilot-Integration-Id",
-                    HeaderValue::from_static("forge"),
                 );
+                headers.insert("Copilot-Integration-Id", HeaderValue::from_static("forge"));
             } else {
                 headers.insert(
                     AUTHORIZATION,
@@ -109,8 +113,6 @@ impl ForgeProvider {
         headers
     }
 
-    
-
     async fn copilot_chat(
         &self,
         model: &ModelId,
@@ -122,8 +124,8 @@ impl ForgeProvider {
             .messages
             .last()
             .map(|m| m.to_text().clone())
-            .unwrap_or_else(|| "".to_string());
-    
+            .unwrap_or_default();
+
         // 2. Build the Copilot request payload
         let payload = json!({
             "content": user_content,
@@ -154,12 +156,12 @@ impl ForgeProvider {
             "thread_id": thread_id,
             "streaming": true,
         });
-    
+
         // 3. Build the URL
-        let url = self.url(&format!("github/chat/threads/{}/messages", thread_id))?;
+        let url = self.url(&format!("github/chat/threads/{thread_id}/messages"))?;
         let headers = self.headers();
         let url_for_filter = url.clone();
-    
+
         // 4. Make the POST request and get the event stream
         let es = self
             .client
@@ -168,7 +170,7 @@ impl ForgeProvider {
             .json(&payload)
             .eventsource()
             .with_context(|| format_http_context(None, "POST", &url))?;
-    
+
         // 5. Parse the event stream
         let stream = es
             .take_while(|message| {
@@ -208,12 +210,12 @@ impl ForgeProvider {
                                 reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
                                     let status = response.status();
                                     Some(Err(anyhow::anyhow!(Error::InvalidStatusCode(status.as_u16()))
-                                        .context(format!("HTTP {}", status))))
+                                        .context(format!("HTTP {status}"))))
                                 }
                                 reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
                                     let status_code = response.status();
                                     Some(Err(anyhow::anyhow!(error)
-                                        .context(format!("Invalid content type. HTTP Status: {}", status_code))))
+                                        .context(format!("Invalid content type. HTTP Status: {status_code}"))))
                                 }
                                 error => {
                                     tracing::error!(error = ?error, "Failed to receive chat completion event");
@@ -228,16 +230,18 @@ impl ForgeProvider {
                 response.map(|result| result.with_context(|| format_http_context(None, "POST", &url_for_filter)))
             });
         Ok(Box::pin(stream))
-    }   
+    }
 
     async fn inner_chat(
         &self,
         model: &ModelId,
         context: ChatContext,
-    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> 
-    {
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         if self.provider.is_copilot() {
-            let cid = context.conversation_id.clone().unwrap_or_default().to_string();
+            let cid = context
+                .conversation_id
+                .unwrap_or_default()
+                .to_string();
             // Check cache for thread_id
             let cached_tid = {
                 let cache = THREAD_ID_CACHE.lock().unwrap();
@@ -255,10 +259,12 @@ impl ForgeProvider {
             };
             return self.copilot_chat(model, context.clone(), thread_id).await;
         }
-        let mut request = Request::from(context.clone()).model(model.clone()).stream(true);
+        let mut request = Request::from(context.clone())
+            .model(model.clone())
+            .stream(true);
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
-    
+
         let url = self.url("chat/completions")?;
         let headers = self.headers();
 
