@@ -21,6 +21,7 @@ pub struct State {
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
+    pub restricted: bool,
 }
 
 impl Default for State {
@@ -38,6 +39,7 @@ impl Default for State {
             conversation: Default::default(),
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
+            restricted: Default::default(),
         }
     }
 }

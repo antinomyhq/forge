@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
     let restricted = cli.restricted;
     let neo_ui = cli.neo_ui;
     if neo_ui {
-        return forge_main_neo::main_neo(cwd).await;
+        return forge_main_neo::main_neo(cwd, restricted).await;
     }
     let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
     ui.run().await;

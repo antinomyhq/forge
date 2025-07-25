@@ -144,14 +144,25 @@ fn handle_prompt_submit(
         if message.trim().is_empty() {
             Command::Empty
         } else {
-            state.add_user_message(message.clone());
-            state.show_spinner = true;
-            let chat_command = Command::ChatMessage {
-                message,
-                conversation_id: state.conversation.conversation_id,
-                is_first: state.conversation.is_first,
-            };
-            Command::Interval { duration: Duration::from_millis(100) }.and(chat_command)
+            // Check if the message starts with "!" for shell commands
+            if let Some(shell_command) = message.strip_prefix('!') {
+                let command = shell_command.trim().to_string();
+                if command.is_empty() {
+                    Command::Empty
+                } else {
+                    state.add_user_message(message.clone());
+                    Command::ShellCmd { command, restricted: state.restricted }
+                }
+            } else {
+                state.add_user_message(message.clone());
+                state.show_spinner = true;
+                let chat_command = Command::ChatMessage {
+                    message,
+                    conversation_id: state.conversation.conversation_id,
+                    is_first: state.conversation.is_first,
+                };
+                Command::Interval { duration: Duration::from_millis(100) }.and(chat_command)
+            }
         }
     } else {
         Command::Empty
@@ -305,8 +316,8 @@ mod tests {
     use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::*;
-    use crate::domain::State;
     use crate::domain::slash_command::SlashCommand;
+    use crate::domain::{Message, State};
 
     fn create_test_state_with_text() -> State {
         let mut state = State::default();
@@ -501,6 +512,104 @@ mod tests {
         let expected_command = Command::InterruptStream;
 
         assert_eq!(actual_command, expected_command);
+    }
+
+    #[test]
+    fn test_handle_prompt_submit_with_shell_command() {
+        let mut fixture_state = State::default();
+        fixture_state.editor.mode = EditorMode::Normal;
+        fixture_state
+            .editor
+            .set_text_with_cursor_at_end("!echo hello".to_string());
+
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let actual_command = handle_prompt_submit(&mut fixture_state, key_event);
+        let expected_command =
+            Command::ShellCmd { command: "echo hello".to_string(), restricted: false };
+
+        assert_eq!(actual_command, expected_command);
+
+        // Verify the user message was added
+        assert_eq!(fixture_state.messages.len(), 1);
+        if let Message::User(msg) = &fixture_state.messages[0] {
+            assert_eq!(msg, "!echo hello");
+        } else {
+            panic!("Expected user message");
+        }
+    }
+
+    #[test]
+    fn test_handle_prompt_submit_with_shell_command_only_exclamation() {
+        let mut fixture_state = State::default();
+        fixture_state.editor.mode = EditorMode::Normal;
+        fixture_state
+            .editor
+            .set_text_with_cursor_at_end("!".to_string());
+
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let actual_command = handle_prompt_submit(&mut fixture_state, key_event);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+
+        // Verify no message was added
+        assert_eq!(fixture_state.messages.len(), 0);
+    }
+
+    #[test]
+    fn test_handle_prompt_submit_with_shell_command_whitespace_only() {
+        let mut fixture_state = State::default();
+        fixture_state.editor.mode = EditorMode::Normal;
+        fixture_state
+            .editor
+            .set_text_with_cursor_at_end("!   ".to_string());
+
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let actual_command = handle_prompt_submit(&mut fixture_state, key_event);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+
+        // Verify no message was added
+        assert_eq!(fixture_state.messages.len(), 0);
+    }
+
+    #[test]
+    fn test_handle_prompt_submit_with_regular_message_still_works() {
+        let mut fixture_state = State::default();
+        fixture_state.editor.mode = EditorMode::Normal;
+        fixture_state
+            .editor
+            .set_text_with_cursor_at_end("regular message".to_string());
+
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let actual_command = handle_prompt_submit(&mut fixture_state, key_event);
+
+        // Should be a chat message command with interval
+        match actual_command {
+            Command::And(commands) => {
+                assert_eq!(commands.len(), 2);
+                assert!(matches!(commands[0], Command::Interval { .. }));
+                if let Command::ChatMessage { message, .. } = &commands[1] {
+                    assert_eq!(message, "regular message");
+                } else {
+                    panic!("Expected ChatMessage command");
+                }
+            }
+            _ => panic!("Expected And command with interval and chat message"),
+        }
+
+        // Verify the user message was added
+        assert_eq!(fixture_state.messages.len(), 1);
+        if let Message::User(msg) = &fixture_state.messages[0] {
+            assert_eq!(msg, "regular message");
+        } else {
+            panic!("Expected user message");
+        }
     }
 
     #[test]
