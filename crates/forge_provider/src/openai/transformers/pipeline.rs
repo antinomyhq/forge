@@ -5,8 +5,8 @@ use super::make_openai_compat::MakeOpenAiCompat;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
-use crate::forge_provider::request::Request;
-use crate::forge_provider::tool_choice::ToolChoice;
+use crate::openai::request::Request;
+use crate::openai::tool_choice::ToolChoice;
 
 /// Pipeline for transforming requests based on the provider type
 pub struct ProviderPipeline<'a>(&'a Provider);

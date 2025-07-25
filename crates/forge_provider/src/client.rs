@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
 use crate::anthropic::Anthropic;
-use crate::forge_provider::ForgeProvider;
+use crate::openai::ForgeProvider;
 use crate::retry::into_retry;
 
 #[derive(Setters)]

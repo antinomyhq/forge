@@ -433,6 +433,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
+                let provider = self.api.provider().await?;
+                self.state.provider = Some(provider);
             }
             Command::Logout => {
                 self.spinner.start(Some("Logging out"))?;
@@ -760,8 +762,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.usage = usage;
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
-                self.spinner.start(Some("Retrying"))?;
-                self.writeln(TitleFormat::error(cause.as_str()))?;
+                if !self.api.environment().retry_config.suppress_retry_errors {
+                    self.spinner.start(Some("Retrying"))?;
+                    self.writeln(TitleFormat::error(cause.as_str()))?;
+                }
             }
             ChatResponse::Interrupt { reason } => {
                 self.spinner.stop(None)?;

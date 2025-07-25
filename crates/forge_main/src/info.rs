@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use colored::Colorize;
 use forge_api::{Environment, LoginInfo};
@@ -58,25 +58,28 @@ impl From<&Environment> for Info {
             None => "(not in a git repository)".to_string(),
         };
 
-        Info::new()
+        let mut info = Info::new()
             .add_title("Environment")
             .add_key_value("Version", VERSION)
-            .add_key_value(
-                "Working Directory",
-                format_path_zsh_style(&env.home, &env.cwd),
-            )
+            .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
             .add_key_value("Shell", &env.shell)
             .add_key_value("Git Branch", branch_info)
-            .add_title("Paths")
-            .add_key_value("Logs", format_path_zsh_style(&env.home, &env.log_path()))
-            .add_key_value(
-                "History",
-                format_path_zsh_style(&env.home, &env.history_path()),
-            )
+            .add_title("Paths");
+
+        // Only show logs path if the directory exists
+        let log_path = env.log_path();
+        if log_path.exists() {
+            info = info.add_key_value("Logs", format_path_for_display(env, &log_path));
+        }
+
+        info = info
+            .add_key_value("History", format_path_for_display(env, &env.history_path()))
             .add_key_value(
                 "Checkpoints",
-                format_path_zsh_style(&env.home, &env.snapshot_path()),
-            )
+                format_path_for_display(env, &env.snapshot_path()),
+            );
+
+        info
     }
 }
 
@@ -129,14 +132,43 @@ impl fmt::Display for Info {
         Ok(())
     }
 }
-/// Formats a path in zsh style, replacing home directory with ~
-fn format_path_zsh_style(home: &Option<PathBuf>, path: &Path) -> String {
-    if let Some(home) = home
+
+/// Formats a path for display, using actual home directory on Windows and tilde
+/// notation on Unix, with proper quoting for paths containing spaces
+fn format_path_for_display(env: &Environment, path: &Path) -> String {
+    // Check if path is under home directory first
+    if let Some(home) = &env.home
         && let Ok(rel_path) = path.strip_prefix(home)
     {
-        return format!("~/{}", rel_path.display());
+        // Format based on OS
+        return if env.os == "windows" {
+            // Use actual home path with proper quoting for Windows to work in both cmd and
+            // PowerShell
+            let home_path = home.display().to_string();
+            let full_path = format!(
+                "{}{}{}",
+                home_path,
+                std::path::MAIN_SEPARATOR,
+                rel_path.display()
+            );
+            if full_path.contains(' ') {
+                format!("\"{full_path}\"")
+            } else {
+                full_path
+            }
+        } else {
+            format!("~/{}", rel_path.display())
+        };
     }
-    path.display().to_string()
+
+    // Fall back to absolute path if not under home directory
+    // Quote paths on Windows if they contain spaces
+    let path_str = path.display().to_string();
+    if env.os == "windows" && path_str.contains(' ') {
+        format!("\"{path_str}\"")
+    } else {
+        path_str
+    }
 }
 
 /// Gets the current git branch name if available
@@ -210,7 +242,9 @@ fn truncate_key(key: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use forge_api::LoginInfo;
+    use std::path::PathBuf;
+
+    use forge_api::{Environment, LoginInfo};
     use pretty_assertions::assert_eq;
 
     use crate::info::Info;
@@ -255,5 +289,95 @@ mod tests {
             .add_key_value("Key", "sk-fg-v1-abcd...1234");
 
         assert_eq!(actual.sections, expected.sections);
+    }
+
+    // Helper to create minimal test environment
+    fn create_env(os: &str, home: Option<&str>) -> Environment {
+        Environment {
+            os: os.to_string(),
+            home: home.map(PathBuf::from),
+            // Minimal required fields with defaults
+            pid: 1,
+            cwd: PathBuf::from("/"),
+            shell: "bash".to_string(),
+            base_path: PathBuf::from("/tmp"),
+            forge_api_url: "http://localhost".parse().unwrap(),
+            retry_config: Default::default(),
+            max_search_lines: 100,
+            fetch_truncation_limit: 1000,
+            stdout_max_prefix_length: 10,
+            stdout_max_suffix_length: 10,
+            max_read_size: 100,
+            http: Default::default(),
+            max_file_size: 1000,
+        }
+    }
+
+    #[test]
+    fn test_format_path_for_display_unix_home() {
+        let fixture = create_env("linux", Some("/home/user"));
+        let path = PathBuf::from("/home/user/project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "~/project";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_windows_home() {
+        let fixture = create_env("windows", Some("C:\\Users\\User"));
+        let path = PathBuf::from("C:\\Users\\User\\project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = if cfg!(windows) {
+            "C:\\Users\\User\\project"
+        } else {
+            "C:\\Users\\User\\project"
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_windows_home_with_spaces() {
+        let fixture = create_env("windows", Some("C:\\Users\\User Name"));
+        let path = PathBuf::from("C:\\Users\\User Name\\project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = if cfg!(windows) {
+            "\"C:\\Users\\User Name\\project\""
+        } else {
+            "\"C:\\Users\\User Name\\project\""
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_absolute() {
+        let fixture = create_env("linux", Some("/home/user"));
+        let path = PathBuf::from("/var/log/app");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "/var/log/app";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_absolute_windows_with_spaces() {
+        let fixture = create_env("windows", Some("C:/Users/User"));
+        let path = PathBuf::from("C:/Program Files/App");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "\"C:/Program Files/App\"";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_no_home() {
+        let fixture = create_env("linux", None);
+        let path = PathBuf::from("/home/user/project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "/home/user/project";
+        assert_eq!(actual, expected);
     }
 }

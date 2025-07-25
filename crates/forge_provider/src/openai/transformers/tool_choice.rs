@@ -1,7 +1,7 @@
 use forge_app::domain::Transformer;
 
-use crate::forge_provider::request::Request;
-use crate::forge_provider::tool_choice::ToolChoice;
+use crate::openai::request::Request;
+use crate::openai::tool_choice::ToolChoice;
 
 pub struct SetToolChoice {
     choice: ToolChoice,

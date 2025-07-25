@@ -13,7 +13,7 @@ use super::model::{ListModelResponse, Model};
 use super::request::Request;
 use super::response::Response;
 use crate::error::Error;
-use crate::forge_provider::transformers::{ProviderPipeline, Transformer};
+use crate::openai::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
 
 #[derive(Clone, Builder)]
