@@ -433,6 +433,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
+                let provider = self.api.provider().await?;
+                self.state.provider = Some(provider);
             }
             Command::Logout => {
                 self.spinner.start(Some("Logging out"))?;
