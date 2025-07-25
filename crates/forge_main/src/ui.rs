@@ -760,8 +760,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.usage = usage;
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
-                self.spinner.start(Some("Retrying"))?;
-                self.writeln(TitleFormat::error(cause.as_str()))?;
+                if !self.api.environment().retry_config.suppress_retry_errors {
+                    self.spinner.start(Some("Retrying"))?;
+                    self.writeln(TitleFormat::error(cause.as_str()))?;
+                }
             }
             ChatResponse::Interrupt { reason } => {
                 self.spinner.stop(None)?;
