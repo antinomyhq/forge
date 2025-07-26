@@ -58,6 +58,7 @@ reqwest = { version = "0.12.22", features = [
     "hickory-dns",
 ], default-features = false }
 reqwest-eventsource = "0.6.0"
+rayon = "1.10.0"
 rust-embed = "8.5.0"
 schemars = "0.8.21"
 serde = { version = "1.0.217", features = ["derive"] }
