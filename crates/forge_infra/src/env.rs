@@ -120,6 +120,9 @@ impl ForgeEnvironmentInfra {
             .and_then(|url| Url::parse(url.as_str()).ok())
             .unwrap_or_else(|| Url::parse(Provider::FORGE_URL).unwrap());
 
+        // Convert 0.25 MB to bytes
+        let max_bytes: f64 = 0.25 * 1024.0 * 1024.0;
+
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
@@ -131,6 +134,7 @@ impl ForgeEnvironmentInfra {
             home: dirs::home_dir(),
             retry_config,
             max_search_lines: 200,
+            max_search_result_bytes: max_bytes.ceil() as usize,
             fetch_truncation_limit: 40_000,
             max_read_size: 500,
             stdout_max_prefix_length: 200,
