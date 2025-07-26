@@ -1,6 +1,7 @@
 use edtui::EditorEventHandler;
 use forge_api::ChatResponse;
 use ratatui::crossterm::event::KeyEventKind;
+use tracing::debug;
 
 use crate::domain::update_key_event::handle_key_event;
 use crate::domain::{Action, Command, State, EditorStateExt};
@@ -84,32 +85,57 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             // Autocomplete for file tagging: only trigger if input starts with '@'
             let input = state.editor.get_text();
             if let Some(tag_prefix) = input.strip_prefix('@') {
-                // Replace with a valid way to get files, e.g., from state or a method
-
-                let workspace_dir = state.workspace.current_dir.clone().unwrap_or_default();
-                let files = match std::fs::read_dir(&workspace_dir) {
-                    Ok(entries) => entries
-                        .filter_map(|entry| entry.ok())
-                        .filter_map(|entry| entry.path().file_name()?.to_str().map(|s| s.to_string()))
-                        .collect::<Vec<String>>(),
-                    Err(_) => Vec::new(),
-                };
-                // Find files that start with the tag prefix
-                let suggestions: Vec<_> = files
-                    .iter()
-                    .filter(|file| file.starts_with(tag_prefix))
-                    .cloned()
+                use forge_walker::Walker;
+                use nucleo::pattern::{CaseMatching, Normalization, Pattern};
+                use nucleo::{Config, Matcher, Utf32Str};
+                let workspace_pathbuf = state.cwd.as_ref()
+                    .expect("CWD should be set")
+                    .clone();
+                tracing::debug!(?workspace_pathbuf, "Searching for files in workspace");
+                println!("Workspace path: {:?}", workspace_pathbuf.canonicalize().unwrap().display());
+                let walker = Walker::max_all().cwd(workspace_pathbuf).skip_binary(true);
+                let files = walker.get_blocking().unwrap_or_default();
+                tracing::debug!(?files, "files found");
+                let mut fuzzy_matcher = Matcher::new(Config::DEFAULT);
+                let query = tag_prefix.trim();
+                let mut haystack_buf = Vec::new();
+                let mut scored_matches: Vec<(u32, String)> = files
+                    .into_iter()
+                    .filter(|file| !file.is_dir())
+                    .filter_map(|file| {
+                        if let Some(file_name) = file.file_name.as_ref() {
+                            let haystack = Utf32Str::new(file_name, &mut haystack_buf);
+                            let pattern = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
+                            if let Some(score) = pattern.score(haystack, &mut fuzzy_matcher) {
+                                Some((score, file.path.clone()))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
                     .collect();
+                scored_matches.sort_by(|a, b| b.0.cmp(&a.0));
+                let suggestions: Vec<String> = scored_matches.into_iter().map(|(_, path)| format!("[{}]", path)).collect();
 
-                // If only one suggestion, insert it into the editor as [filepath]
-                if suggestions.len() == 1 {
-                    let tag = format!("[{}]", suggestions[0]);
-                    state.editor.set_text_insert_mode(tag);
-                    state.spotlight.is_visible = false;
+                state.show_autocomplete = input.starts_with('@');
+                if state.show_autocomplete {
+                    state.autcomplete_suggestions = suggestions;
+                    debug!("Autocomplete suggestions: {:?}", state.autcomplete_suggestions);
+                    if !state.autcomplete_suggestions.is_empty() {
+                        state.autocomplete_list_state.select(Some(0));
+                    } else {
+                        state.autocomplete_list_state.select(None);
+                    }
+                } else {
+                    state.autcomplete_suggestions.clear();
+                    state.autocomplete_list_state.select(None);
                 }
-
-                // Show widget with suggestions
-                
+            } else {
+                state.show_autocomplete = false;
+                state.autcomplete_suggestions.clear();
+                state.autocomplete_list_state.select(None);
             }
             Command::Empty
         }

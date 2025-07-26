@@ -9,6 +9,7 @@ use crate::widgets::spotlight::SpotlightWidget;
 use crate::widgets::status_bar::StatusBar;
 use crate::widgets::welcome::WelcomeWidget;
 use crate::widgets::editor::EditorWidget;
+use crate::widgets::autocomplete::AutocompleteWidget;
 
 /// Chat widget that handles the chat interface with editor and message list
 #[derive(Clone, Default)]
@@ -43,6 +44,9 @@ impl StatefulWidget for ChatWidget {
 
         if state.spotlight.is_visible {
             SpotlightWidget.render(messages_area, buf, state)
+        }
+        if state.show_autocomplete {
+            AutocompleteWidget.render(messages_area, buf, state);
         }
 
         // User input area block with status bar (now at bottom)

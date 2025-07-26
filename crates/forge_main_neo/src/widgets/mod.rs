@@ -7,5 +7,6 @@ mod spotlight;
 mod status_bar;
 mod welcome;
 mod editor;
+mod autocomplete;
 
 pub use app::App;

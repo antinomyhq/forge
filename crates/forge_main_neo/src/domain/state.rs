@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -8,6 +9,7 @@ use tui_scrollview::ScrollViewState;
 
 use crate::domain::spotlight::SpotlightState;
 use crate::domain::{CancelId, EditorStateExt, Message, Workspace};
+use ratatui::widgets::ListState;
 
 #[derive(Clone)]
 pub struct State {
@@ -17,10 +19,14 @@ pub struct State {
     pub spinner: ThrobberState,
     pub timer: Option<Timer>,
     pub show_spinner: bool,
+    pub show_autocomplete: bool,
+    pub autcomplete_suggestions: Vec<String>,
+    pub autocomplete_list_state: ListState,
     pub spotlight: SpotlightState,
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
+    pub cwd: Option<PathBuf>,
 }
 
 impl Default for State {
@@ -34,10 +40,14 @@ impl Default for State {
             spinner: Default::default(),
             timer: Default::default(),
             show_spinner: Default::default(),
+            show_autocomplete: false,
+            autcomplete_suggestions: Default::default(),
+            autocomplete_list_state: ListState::default(),
             spotlight: Default::default(),
             conversation: Default::default(),
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
+            cwd: None,
         }
     }
 }

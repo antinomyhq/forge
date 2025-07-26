@@ -238,8 +238,12 @@ pub fn handle_key_event(
         return Command::InterruptStream;
     }
 
-    if key_event.code == KeyCode::Char('\t') {
-        return Command::Autocomplete;
+    // Autocomplete for file tagging: Tab with '@' prefix in Insert mode
+    if key_event.code == KeyCode::Tab && state.editor.mode == EditorMode::Insert {
+        let input = state.editor.get_text();
+        if input.starts_with('@') {
+            return Command::Autocomplete;
+        }
     }
 
     if state.spotlight.is_visible {
@@ -270,6 +274,51 @@ pub fn handle_key_event(
         } else {
             // Spotlight navigation handled, return the command from navigation
             cmd.and(spotlight_nav_cmd.unwrap_or(Command::Empty))
+        }
+    } else if state.show_autocomplete {
+        // Autocomplete navigation and selection
+        use ratatui::crossterm::event::KeyCode;
+        let suggestions_len = state.autcomplete_suggestions.len();
+        let selected = state.autocomplete_list_state.selected().unwrap_or(0);
+
+        match key_event.code {
+            KeyCode::Up => {
+                if suggestions_len > 0 && selected > 0 {
+                    state.autocomplete_list_state.select(Some(selected - 1));
+                }
+                Command::Empty
+            }
+            KeyCode::Down => {
+                if suggestions_len > 0 && selected < suggestions_len - 1 {
+                    state.autocomplete_list_state.select(Some(selected + 1));
+                }
+                Command::Empty
+            }
+            KeyCode::Tab | KeyCode::Enter => {
+                // Insert the selected suggestion into the editor
+                if suggestions_len > 0 {
+                    let suggestion = &state.autcomplete_suggestions[selected];
+                    // Replace the @ prefix with the selected suggestion
+                    let input = state.editor.get_text();
+                    if let Some(tag_prefix) = input.strip_prefix('@') {
+                        let new_text = format!("@{}", suggestion);
+                        state.editor.set_text_insert_mode(new_text);
+                    }
+                    // Hide autocomplete after selection
+                    state.show_autocomplete = false;
+                    state.autcomplete_suggestions.clear();
+                    state.autocomplete_list_state.select(None);
+                }
+                Command::Empty
+            }
+            KeyCode::Esc => {
+                // Hide autocomplete on escape
+                state.show_autocomplete = false;
+                state.autcomplete_suggestions.clear();
+                state.autocomplete_list_state.select(None);
+                Command::Empty
+            }
+            _ => Command::Empty,
         }
     } else {
         // When spotlight is not visible, route events to main editor
