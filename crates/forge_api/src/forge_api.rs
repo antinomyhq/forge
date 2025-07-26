@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{
-    AppConfig, AppConfigService, AuthService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, InitAuth, McpConfigManager, ProviderRegistry, ProviderService,
-    Services, User, Walker, WorkflowService,
+    AgentLoaderService, AppConfig, AppConfigService, AuthService, ConversationService,
+    EnvironmentService, FileDiscoveryService, ForgeApp, InitAuth, McpConfigManager,
+    ProviderRegistry, ProviderService, Services, User, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -172,5 +172,9 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             return Ok(Some(user_info));
         }
         Ok(None)
+    }
+
+    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        self.services.load_agents().await
     }
 }

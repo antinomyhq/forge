@@ -98,4 +98,7 @@ pub trait API: Sync + Send {
     async fn provider(&self) -> anyhow::Result<Provider>;
     async fn app_config(&self) -> anyhow::Result<AppConfig>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
+
+    /// Load agent definitions to extend workflow capabilities
+    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>>;
 }
