@@ -7,7 +7,7 @@ use forge_domain::{
 };
 use merge::Merge;
 
-use crate::user::User;
+use crate::user::{User, UserUsage};
 use crate::{AppConfig, InitAuth, LoginInfo, Walker};
 
 #[derive(Debug)]
@@ -287,6 +287,7 @@ pub trait AuthService: Send + Sync {
     async fn init_auth(&self) -> anyhow::Result<InitAuth>;
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User>;
+    async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage>;
 }
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
@@ -599,5 +600,9 @@ impl<I: Services> AuthService for I {
 
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
         self.auth_service().user_info(api_key).await
+    }
+
+    async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage> {
+        self.auth_service().user_usage(api_key).await
     }
 }
