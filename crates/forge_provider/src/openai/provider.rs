@@ -6,9 +6,9 @@ use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
 use forge_domain::HttpInfra;
+use reqwest::header::AUTHORIZATION;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
-use reqwest::header::AUTHORIZATION;
 
 use super::model::{ListModelResponse, Model};
 use super::request::Request;
@@ -59,7 +59,9 @@ impl ForgeProvider {
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
-        let url = self.http.url(self.provider.to_base_url().as_str(), "chat/completions")?;
+        let url = self
+            .http
+            .url(self.provider.to_base_url().as_str(), "chat/completions")?;
         let headers = self.http.resolve_headers(self.get_headers());
 
         info!(
@@ -123,7 +125,9 @@ impl ForgeProvider {
     }
 
     async fn inner_models(&self) -> Result<Vec<forge_domain::Model>> {
-        let url = self.http.url(self.provider.to_base_url().as_str(), "models")?;
+        let url = self
+            .http
+            .url(self.provider.to_base_url().as_str(), "models")?;
         debug!(url = %url, "Fetching models");
         match self.fetch_models(url.as_str()).await {
             Err(error) => {

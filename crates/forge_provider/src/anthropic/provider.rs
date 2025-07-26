@@ -62,7 +62,11 @@ impl Anthropic {
 
         let stream = self
             .http
-            .post_stream(&url, Some(self.http.resolve_headers(self.get_headers())), json_bytes.into())
+            .post_stream(
+                &url,
+                Some(self.http.resolve_headers(self.get_headers())),
+                json_bytes.into(),
+            )
             .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
@@ -105,7 +109,7 @@ impl Anthropic {
     }
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        let url = self.http.url(&self.base_url,"models")?;
+        let url = self.http.url(&self.base_url, "models")?;
         debug!(url = %url, "Fetching models");
 
         let response = self
@@ -211,7 +215,11 @@ mod tests {
             .build()
             .unwrap();
         assert_eq!(
-            anthropic.http.url("https://api.anthropic.com/v1/", "/models").unwrap().as_str(),
+            anthropic
+                .http
+                .url("https://api.anthropic.com/v1/", "/models")
+                .unwrap()
+                .as_str(),
             "https://api.anthropic.com/v1/models"
         );
     }
