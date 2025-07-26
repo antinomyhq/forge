@@ -258,6 +258,10 @@ impl<T: API + 'static> Executor<T> {
                 // Send InterruptStream action to trigger state update
                 tx.send(Ok(Action::InterruptStream)).await?;
             }
+            Command::Info => {
+                // Send ShowInfo action to trigger state update
+                tx.send(Ok(Action::ShowInfo)).await?;
+            }
         }
         Ok(())
     }

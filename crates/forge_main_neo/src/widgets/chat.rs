@@ -4,6 +4,7 @@ use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
 
 use crate::domain::State;
+use crate::widgets::info::InfoWidget;
 use crate::widgets::message_list::MessageList;
 use crate::widgets::spotlight::SpotlightWidget;
 use crate::widgets::status_bar::StatusBar;
@@ -42,6 +43,10 @@ impl StatefulWidget for ChatWidget {
 
         if state.spotlight.is_visible {
             SpotlightWidget.render(messages_area, buf, state)
+        }
+
+        if state.show_info {
+            InfoWidget.render(messages_area, buf, state)
         }
 
         // User input area block with status bar (now at bottom)

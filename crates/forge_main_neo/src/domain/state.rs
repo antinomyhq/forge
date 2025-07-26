@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use edtui::EditorState;
-use forge_api::{ChatResponse, ConversationId};
+use forge_api::{ChatResponse, ConversationId, Environment};
 use throbber_widgets_tui::ThrobberState;
 use tui_scrollview::ScrollViewState;
 
@@ -21,10 +21,12 @@ pub struct State {
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
+    pub show_info: bool,
+    pub env: Environment,
 }
 
-impl Default for State {
-    fn default() -> Self {
+impl State {
+    pub fn default(env: Environment) -> Self {
         let prompt_editor = EditorState::default();
 
         Self {
@@ -38,6 +40,8 @@ impl Default for State {
             conversation: Default::default(),
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
+            show_info: false,
+            env,
         }
     }
 }

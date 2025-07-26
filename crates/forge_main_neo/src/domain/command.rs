@@ -28,6 +28,7 @@ pub enum Command {
     Interval {
         duration: Duration,
     },
+    Info,
 }
 
 #[derive(Clone, From, PartialEq, Eq, Debug)]
