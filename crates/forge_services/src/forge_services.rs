@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::Services;
+use forge_domain::HttpInfra;
 
 use crate::app_config::ForgeConfigService;
 use crate::attachment::ForgeChatRequest;
@@ -19,8 +20,7 @@ use crate::tool_services::{
 use crate::workflow::ForgeWorkflowService;
 use crate::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
-    WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;

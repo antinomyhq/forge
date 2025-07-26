@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::ProviderService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
+    ChatCompletionMessage, Context as ChatContext, HttpConfig, HttpInfra, Model, ModelId, Provider,
     ResultStream, RetryConfig,
 };
 use forge_provider::{Client, ClientBuilder};
@@ -18,10 +18,11 @@ pub struct ForgeProviderService {
     cached_models: Arc<Mutex<Option<Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
+    http_infra: Arc<dyn HttpInfra>,
 }
 
 impl ForgeProviderService {
-    pub fn new<I: EnvironmentInfra>(infra: Arc<I>) -> Self {
+    pub fn new<I: EnvironmentInfra + forge_domain::HttpInfra>(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
         let retry_config = Arc::new(env.retry_config);
@@ -31,6 +32,7 @@ impl ForgeProviderService {
             cached_models: Arc::new(Mutex::new(None)),
             version,
             timeout_config: env.http,
+            http_infra: infra as Arc<dyn HttpInfra>,
         }
     }
 
@@ -44,7 +46,7 @@ impl ForgeProviderService {
                     .retry_config(self.retry_config.clone())
                     .timeout_config(self.timeout_config.clone())
                     .use_hickory(false) // use native DNS resolver(GAI)
-                    .build()?;
+                    .build(self.http_infra.clone())?;
 
                 // Cache the new client
                 *client_guard = Some(client.clone());
