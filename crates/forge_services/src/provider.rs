@@ -12,17 +12,17 @@ use tokio::sync::Mutex;
 use crate::EnvironmentInfra;
 
 #[derive(Clone)]
-pub struct ForgeProviderService {
+pub struct ForgeProviderService<I: HttpInfra> {
     retry_config: Arc<RetryConfig>,
     cached_client: Arc<Mutex<Option<Client>>>,
     cached_models: Arc<Mutex<Option<Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
-    http_infra: Arc<dyn HttpInfra>,
+    http_infra: Arc<I>,
 }
 
-impl ForgeProviderService {
-    pub fn new<I: EnvironmentInfra + forge_domain::HttpInfra>(infra: Arc<I>) -> Self {
+impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
+    pub fn new(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
         let retry_config = Arc::new(env.retry_config);
@@ -32,7 +32,7 @@ impl ForgeProviderService {
             cached_models: Arc::new(Mutex::new(None)),
             version,
             timeout_config: env.http,
-            http_infra: infra as Arc<dyn HttpInfra>,
+            http_infra: infra,
         }
     }
 
@@ -46,7 +46,7 @@ impl ForgeProviderService {
                     .retry_config(self.retry_config.clone())
                     .timeout_config(self.timeout_config.clone())
                     .use_hickory(false) // use native DNS resolver(GAI)
-                    .build(self.http_infra.clone())?;
+                    .build(self.http_infra.clone() as Arc<dyn HttpInfra>)?;
 
                 // Cache the new client
                 *client_guard = Some(client.clone());
@@ -57,7 +57,7 @@ impl ForgeProviderService {
 }
 
 #[async_trait::async_trait]
-impl ProviderService for ForgeProviderService {
+impl<I: EnvironmentInfra + HttpInfra> ProviderService for ForgeProviderService<I> {
     async fn chat(
         &self,
         model: &ModelId,

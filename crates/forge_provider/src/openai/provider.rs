@@ -19,7 +19,6 @@ use crate::utils::{format_http_context, sanitize_headers};
 #[derive(Clone, Builder)]
 pub struct ForgeProvider {
     provider: Provider,
-    version: String,
     http: Arc<dyn HttpInfra>,
 }
 
@@ -32,22 +31,11 @@ impl ForgeProvider {
     // - `HTTP-Referer`: Identifies your app on openrouter.ai
     // - `X-Title`: Sets/modifies your app's title
     fn get_headers(&self) -> Vec<(String, String)> {
-        let mut vec = vec![
-            ("X-Title".to_string(), "forge".to_string()),
-            ("x-app-version".to_string(), format!("v{}", self.version)),
-            (
-                "HTTP-Referer".to_string(),
-                "https://github.com/antinomyhq/forge".to_string(),
-            ),
-            (
-                reqwest::header::CONNECTION.to_string(),
-                "keep-alive".to_string(),
-            ),
-        ];
+        let mut headers = Vec::new();
         if let Some(ref api_key) = self.provider.key() {
-            vec.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
+            headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
         }
-        vec
+        headers
     }
 
     async fn inner_chat(
@@ -239,7 +227,6 @@ mod tests {
                 std::env::current_dir().unwrap(),
             )))
             .provider(provider)
-            .version("1.0.0".to_string())
             .build()
             .unwrap())
     }

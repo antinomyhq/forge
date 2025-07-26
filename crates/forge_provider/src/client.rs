@@ -42,7 +42,6 @@ impl ClientBuilder {
     /// Build the client with the configured settings.
     pub fn build(self, http: Arc<dyn HttpInfra>) -> Result<Client> {
         let provider = self.provider;
-        let version = self.version;
         let retry_config = self.retry_config;
 
         let inner = match &provider {
@@ -50,7 +49,6 @@ impl ClientBuilder {
                 ForgeProvider::builder()
                     .http(http.clone())
                     .provider(provider.clone())
-                    .version(version.clone())
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             ),

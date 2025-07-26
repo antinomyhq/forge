@@ -23,9 +23,6 @@ impl ForgeHttpService {
         Default::default()
     }
 
-    // pub fn with_client(client: Client) -> Self {
-    //     Self { client }
-    // }
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
         Ok(self
             .client
