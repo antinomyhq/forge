@@ -1,4 +1,4 @@
-use forge_api::{ChatResponse, ConversationId};
+use forge_api::{ChatResponse, ConversationId, Model, ModelId};
 use ratatui::crossterm::event::Event;
 
 use crate::domain::{CancelId, Timer};
@@ -7,6 +7,7 @@ use crate::domain::{CancelId, Timer};
 #[derive(Clone, Debug)]
 pub enum Action {
     CrossTerm(Event),
+    WorkflowLoaded(ModelId),
     Initialize,
     Workspace {
         current_dir: Option<String>,
@@ -17,4 +18,7 @@ pub enum Action {
     IntervalTick(Timer),
     InterruptStream,
     StartStream(CancelId),
+    ShowModelSelection,
+    ModelsLoaded(Vec<Model>),
+    ModelSelected(ModelId),
 }
