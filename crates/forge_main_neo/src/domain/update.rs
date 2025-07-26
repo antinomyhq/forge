@@ -3,7 +3,7 @@ use forge_api::ChatResponse;
 use ratatui::crossterm::event::KeyEventKind;
 
 use crate::domain::update_key_event::handle_key_event;
-use crate::domain::{Action, Command, State};
+use crate::domain::{Action, Command, State, EditorStateExt};
 
 pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
     let action = action.into();
@@ -78,6 +78,39 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
         Action::StartStream(cancel_id) => {
             // Store the cancellation token for this stream
             state.chat_stream = Some(cancel_id);
+            Command::Empty
+        }
+        Action::Autocomplete => {
+            // Autocomplete for file tagging: only trigger if input starts with '@'
+            let input = state.editor.get_text();
+            if let Some(tag_prefix) = input.strip_prefix('@') {
+                // Replace with a valid way to get files, e.g., from state or a method
+
+                let workspace_dir = state.workspace.current_dir.clone().unwrap_or_default();
+                let files = match std::fs::read_dir(&workspace_dir) {
+                    Ok(entries) => entries
+                        .filter_map(|entry| entry.ok())
+                        .filter_map(|entry| entry.path().file_name()?.to_str().map(|s| s.to_string()))
+                        .collect::<Vec<String>>(),
+                    Err(_) => Vec::new(),
+                };
+                // Find files that start with the tag prefix
+                let suggestions: Vec<_> = files
+                    .iter()
+                    .filter(|file| file.starts_with(tag_prefix))
+                    .cloned()
+                    .collect();
+
+                // If only one suggestion, insert it into the editor as [filepath]
+                if suggestions.len() == 1 {
+                    let tag = format!("[{}]", suggestions[0]);
+                    state.editor.set_text_insert_mode(tag);
+                    state.spotlight.is_visible = false;
+                }
+
+                // Show widget with suggestions
+                
+            }
             Command::Empty
         }
     }

@@ -1,13 +1,14 @@
 use edtui::{EditorTheme, EditorView};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style, Stylize};
-use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
+use ratatui::widgets::{self, Block, Padding, StatefulWidget, Widget};
 
 use crate::domain::State;
 use crate::widgets::message_list::MessageList;
 use crate::widgets::spotlight::SpotlightWidget;
 use crate::widgets::status_bar::StatusBar;
 use crate::widgets::welcome::WelcomeWidget;
+use crate::widgets::editor::EditorWidget;
 
 /// Chat widget that handles the chat interface with editor and message list
 #[derive(Clone, Default)]
@@ -54,15 +55,8 @@ impl StatefulWidget for ChatWidget {
                 state.workspace.clone(),
             ));
 
-        EditorView::new(&mut state.editor)
-            .theme(
-                EditorTheme::default()
-                    .base(Style::reset())
-                    .cursor_style(Style::default().fg(Color::Black).bg(Color::White))
-                    .hide_status_line(),
-            )
-            .wrap(true)
-            .render(user_block.inner(user_area), buf);
+        EditorWidget
+            .render(user_block.inner(user_area), buf, state);
 
         // Render blocks
         message_block.render(messages_area, buf);

@@ -238,6 +238,10 @@ pub fn handle_key_event(
         return Command::InterruptStream;
     }
 
+    if key_event.code == KeyCode::Char('\t') {
+        return Command::Autocomplete;
+    }
+
     if state.spotlight.is_visible {
         // When spotlight is visible, route events to spotlight editor
         let cmd = handle_spotlight_toggle(state, key_event, state.editor.mode);
