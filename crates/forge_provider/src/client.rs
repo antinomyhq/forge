@@ -153,11 +153,10 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use forge_app::domain::Provider;
+    use forge_infra::ForgeInfra;
     use reqwest::Url;
 
     use super::*;
-
-    use forge_infra::ForgeInfra;
 
     #[tokio::test]
     async fn test_cache_initialization() {
@@ -165,7 +164,12 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::new(provider, "dev").build(Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()))).unwrap();
+        let client = ClientBuilder::new(provider, "dev")
+            .build(Arc::new(ForgeInfra::new(
+                false,
+                std::env::current_dir().unwrap(),
+            )))
+            .unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -178,7 +182,12 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::new(provider, "dev").build(Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()))).unwrap();
+        let client = ClientBuilder::new(provider, "dev")
+            .build(Arc::new(ForgeInfra::new(
+                false,
+                std::env::current_dir().unwrap(),
+            )))
+            .unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)
@@ -199,7 +208,10 @@ mod tests {
             .retry_config(Arc::new(RetryConfig::default()))
             .timeout_config(HttpConfig::default())
             .use_hickory(true)
-            .build(Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap())))
+            .build(Arc::new(ForgeInfra::new(
+                false,
+                std::env::current_dir().unwrap(),
+            )))
             .unwrap();
 
         // Verify cache is initialized as empty
@@ -215,7 +227,12 @@ mod tests {
         };
 
         // Test that ClientBuilder::new works with minimal parameters
-        let client = ClientBuilder::new(provider, "dev").build(Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()))).unwrap();
+        let client = ClientBuilder::new(provider, "dev")
+            .build(Arc::new(ForgeInfra::new(
+                false,
+                std::env::current_dir().unwrap(),
+            )))
+            .unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
