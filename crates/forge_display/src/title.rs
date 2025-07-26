@@ -10,6 +10,7 @@ pub enum Category {
     Debug,
     Error,
     Completion,
+    Upgrade,
 }
 
 #[derive(Clone, Setters, Debug, PartialEq)]
@@ -76,6 +77,14 @@ impl TitleFormat {
         }
     }
 
+    pub fn upgrade(message: impl Into<String>) -> Self {
+        Self {
+            title: message.into(),
+            sub_title: None,
+            category: Category::Upgrade,
+        }
+    }
+
     pub fn render(&self, with_timestamp: bool) -> String {
         self.format(with_timestamp)
     }
@@ -89,6 +98,7 @@ impl TitleFormat {
             Category::Debug => "⏺".cyan(),
             Category::Error => "⏺".red(),
             Category::Completion => "⏺".yellow(),
+            Category::Upgrade => "⏺".yellow(),
         };
 
         buf.push_str(format!("{icon} ").as_str());
@@ -111,6 +121,7 @@ impl TitleFormat {
             Category::Debug => self.title.dimmed(),
             Category::Error => format!("{} {}", "ERROR:".bold(), self.title).red(),
             Category::Completion => self.title.white().bold(),
+            Category::Upgrade => self.title.white().bold(),
         };
 
         buf.push_str(title.to_string().as_str());
