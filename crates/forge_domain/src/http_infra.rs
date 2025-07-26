@@ -36,8 +36,6 @@ pub trait HttpInfra: Send + Sync + 'static {
         Ok(url)
     }
 
-
-
     fn resolve_headers(&self, headers: Vec<(String, String)>) -> HeaderMap {
         let mut header_map = HeaderMap::new();
         for (key, value) in headers {
