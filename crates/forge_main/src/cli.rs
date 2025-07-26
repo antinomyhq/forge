@@ -73,6 +73,8 @@ pub struct Cli {
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
+     /// Undo last snapshot of a file
+    Undo(UndoArgs),
 }
 
 /// Group of MCP-related commands
@@ -176,4 +178,10 @@ impl From<Scope> for forge_domain::Scope {
 pub enum Transport {
     Stdio,
     Sse,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct UndoArgs {
+    /// Path to the file to undo
+    pub path: PathBuf,
 }

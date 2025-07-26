@@ -1,6 +1,7 @@
 // Export the modules
-mod service;
+pub mod service;
 mod snapshot;
+
 
 // Re-export the SnapshotInfo struct and SnapshotId
 pub use service::*;

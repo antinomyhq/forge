@@ -86,9 +86,8 @@ impl SnapshotService {
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
-
     use super::*;
-
+    use std::fs;
     // Test helpers
     struct TestContext {
         _temp_dir: TempDir,
@@ -252,4 +251,31 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_undo_command_restores_previous_file_state() -> anyhow::Result<()> {
+        // Temporary workspace
+        let temp_dir = TempDir::new()?;
+        let file_path = temp_dir.path().join("test.txt");
+        let snapshots_dir = temp_dir.path().join("snapshots");
+
+        // Write initial content
+        fs::write(&file_path, "Initial").unwrap();
+
+        // Create snapshot
+        let service = SnapshotService::new(snapshots_dir.clone());
+        service.create_snapshot(file_path.clone()).await?;
+
+        // Modify file content
+        fs::write(&file_path, "Modified").unwrap();
+
+        // Run undo
+        service.undo_snapshot(file_path.clone()).await?;
+
+        // Read back content
+        let content = fs::read_to_string(file_path).unwrap();
+        assert_eq!(content, "Initial");
+        Ok(())
+    }
+
 }
