@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow.workspace = true
 colored.workspace = true
+forge_tracker = { path = "../forge_tracker" }
 tokio.workspace = true
 indicatif = "0.17.11"
 rand = "0.8.5"

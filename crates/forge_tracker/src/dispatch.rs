@@ -134,6 +134,144 @@ impl Tracker {
         *guard = None;
         conversation
     }
+    pub async fn startup_phase<S: Into<String>>(&'static self, phase: S, duration_ms: u64) {
+        self.dispatch(EventKind::StartupPhase { phase: phase.into(), duration_ms })
+            .await
+            .ok();
+    }
+
+    pub async fn service_init<S: Into<String>>(&'static self, service_name: S, duration_ms: u64) {
+        self.dispatch(EventKind::ServiceInit { service_name: service_name.into(), duration_ms })
+            .await
+            .ok();
+    }
+
+    pub async fn tool_execution<S: Into<String>>(
+        &'static self,
+        tool_name: S,
+        tool_type: crate::event::ToolType,
+        execution_duration_ms: u64,
+        queue_duration_ms: u64,
+        output_size_bytes: usize,
+        error_type: Option<String>,
+    ) {
+        self.dispatch(EventKind::ToolExecution {
+            tool_name: tool_name.into(),
+            tool_type,
+            execution_duration_ms,
+            queue_duration_ms,
+            output_size_bytes,
+            error_type,
+        })
+        .await
+        .ok();
+    }
+
+    pub async fn llm_request<S: Into<String>>(
+        &'static self,
+        provider: S,
+        model: S,
+        request_prep_duration_ms: u64,
+        network_duration_ms: u64,
+        response_parse_duration_ms: u64,
+        total_duration_ms: u64,
+        input_tokens: u32,
+        output_tokens: u32,
+        is_streaming: bool,
+    ) {
+        self.dispatch(EventKind::LlmRequest {
+            provider: provider.into(),
+            model: model.into(),
+            request_prep_duration_ms,
+            network_duration_ms,
+            response_parse_duration_ms,
+            total_duration_ms,
+            input_tokens,
+            output_tokens,
+            is_streaming,
+        })
+        .await
+        .ok();
+    }
+
+    pub async fn context_operation<S: Into<String>>(
+        &'static self,
+        operation: S,
+        duration_ms: u64,
+        context_size_messages: usize,
+        context_size_tokens: usize,
+        memory_usage_bytes: usize,
+    ) {
+        self.dispatch(EventKind::ContextOperation {
+            operation: operation.into(),
+            duration_ms,
+            context_size_messages,
+            context_size_tokens,
+            memory_usage_bytes,
+        })
+        .await
+        .ok();
+    }
+
+    pub async fn compaction(
+        &'static self,
+        trigger_reason: String,
+        duration_ms: u64,
+        original_messages: usize,
+        compacted_messages: usize,
+        original_tokens: usize,
+        compacted_tokens: usize,
+        memory_saved_bytes: usize,
+    ) {
+        self.dispatch(EventKind::Compaction {
+            trigger_reason,
+            duration_ms,
+            original_messages,
+            compacted_messages,
+            original_tokens,
+            compacted_tokens,
+            memory_saved_bytes,
+        })
+        .await
+        .ok();
+    }
+
+    pub async fn file_operation<S: Into<String>>(
+        &'static self,
+        operation: S,
+        file_path: S,
+        file_size_bytes: usize,
+        duration_ms: u64,
+        lines_processed: usize,
+    ) {
+        self.dispatch(EventKind::FileOperation {
+            operation: operation.into(),
+            file_path: file_path.into(),
+            file_size_bytes,
+            duration_ms,
+            lines_processed,
+        })
+        .await
+        .ok();
+    }
+
+    pub async fn memory_snapshot<S: Into<String>>(
+        &'static self,
+        location: S,
+        heap_usage_bytes: usize,
+        clone_count: usize,
+        operation: S,
+    ) {
+        self.dispatch(EventKind::MemorySnapshot {
+            location: location.into(),
+            heap_usage_bytes,
+            clone_count,
+            operation: operation.into(),
+        })
+        .await
+        .ok();
+    }
+
     pub async fn set_conversation(&self, conversation: Conversation) {
         *self.conversation.lock().await = Some(conversation);
     }
