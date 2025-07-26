@@ -6,8 +6,6 @@ use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
 use forge_domain::HttpInfra;
-use reqwest::Url;
-use reqwest::header::HeaderMap;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
@@ -20,21 +18,13 @@ use crate::utils::format_http_context;
 pub struct Anthropic {
     http: Arc<dyn HttpInfra>,
     api_key: String,
-    base_url: Url,
+    base_url: String,
     anthropic_version: String,
 }
 
 impl Anthropic {
     pub fn builder() -> AnthropicBuilder {
         AnthropicBuilder::default()
-    }
-
-    fn url(&self, path: &str) -> anyhow::Result<Url> {
-        self.http.url(self.base_url.as_str(), path)
-    }
-
-    fn headers(&self) -> HeaderMap {
-        self.http.resolve_headers(self.get_headers())
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -63,7 +53,8 @@ impl Anthropic {
             .stream(true)
             .max_tokens(max_tokens as u64);
 
-        let url = self.url("/messages")?;
+        let path = "/messages";
+        let url = self.http.url(&self.base_url, path)?;
         debug!(url = %url, model = %model, "Connecting Upstream");
 
         let json_bytes =
@@ -71,7 +62,7 @@ impl Anthropic {
 
         let stream = self
             .http
-            .post_stream(&url, Some(self.headers()), json_bytes.into())
+            .post_stream(&url, Some(self.http.resolve_headers(self.get_headers())), json_bytes.into())
             .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
@@ -114,12 +105,12 @@ impl Anthropic {
     }
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        let url = self.url("models")?;
+        let url = self.http.url(&self.base_url,"models")?;
         debug!(url = %url, "Fetching models");
 
         let response = self
             .http
-            .get(&url, Some(self.headers()))
+            .get(&url, Some(self.http.resolve_headers(self.get_headers())))
             .await
             .with_context(|| format_http_context(None, "GET", &url))
             .with_context(|| "Failed to fetch models")?;
@@ -163,7 +154,7 @@ mod tests {
                 false,
                 std::env::current_dir().unwrap(),
             )))
-            .base_url(Url::parse(base_url)?)
+            .base_url(base_url.to_string())
             .anthropic_version("2023-06-01".to_string())
             .api_key("sk-test-key".to_string())
             .build()
@@ -214,13 +205,13 @@ mod tests {
                 false,
                 std::env::current_dir().unwrap(),
             )))
-            .base_url(Url::parse("https://api.anthropic.com/v1/").unwrap())
+            .base_url("https://api.anthropic.com/v1/".to_string())
             .anthropic_version("v1".to_string())
             .api_key("sk-some-key".to_string())
             .build()
             .unwrap();
         assert_eq!(
-            anthropic.url("/models").unwrap().as_str(),
+            anthropic.http.url("https://api.anthropic.com/v1/", "/models").unwrap().as_str(),
             "https://api.anthropic.com/v1/models"
         );
     }

@@ -59,7 +59,7 @@ impl ClientBuilder {
                 Anthropic::builder()
                     .http(http.clone())
                     .api_key(key.to_string())
-                    .base_url(url.clone())
+                    .base_url(provider.to_base_url().to_string())
                     .anthropic_version("2023-06-01".to_string())
                     .build()
                     .with_context(|| {
