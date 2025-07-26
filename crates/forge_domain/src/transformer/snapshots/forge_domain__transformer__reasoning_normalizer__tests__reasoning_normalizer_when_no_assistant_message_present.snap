@@ -1,0 +1,37 @@
+---
+source: crates/forge_domain/src/transformer/reasoning_normalizer.rs
+expression: snapshot
+---
+transformation: ReasoningNormalizer_first_no_assistant_message_present
+before:
+  messages:
+    - text:
+        role: System
+        content: System message
+        tool_calls: ~
+        model: ~
+        reasoning_details: ~
+    - text:
+        role: User
+        content: User message
+        tool_calls: ~
+        model: ~
+        reasoning_details: ~
+  reasoning:
+    enabled: true
+after:
+  messages:
+    - text:
+        role: System
+        content: System message
+        tool_calls: ~
+        model: ~
+        reasoning_details: ~
+    - text:
+        role: User
+        content: User message
+        tool_calls: ~
+        model: ~
+        reasoning_details: ~
+  reasoning:
+    enabled: true
