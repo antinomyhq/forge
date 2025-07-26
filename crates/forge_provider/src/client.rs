@@ -150,73 +150,75 @@ impl Client {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use forge_app::domain::Provider;
-//     use reqwest::Url;
+#[cfg(test)]
+mod tests {
+    use forge_app::domain::Provider;
+    use reqwest::Url;
 
-//     use super::*;
+    use super::*;
 
-//     #[tokio::test]
-//     async fn test_cache_initialization() {
-//         let provider = Provider::OpenAI {
-//             url: Url::parse("https://api.openai.com/v1/").unwrap(),
-//             key: Some("test-key".to_string()),
-//         };
-//         let client = ClientBuilder::new(provider, "dev").build().unwrap();
+    use forge_infra::ForgeInfra;
 
-//         // Verify cache is initialized as empty
-//         let cache = client.models_cache.read().await;
-//         assert!(cache.is_empty());
-//     }
+    #[tokio::test]
+    async fn test_cache_initialization() {
+        let provider = Provider::OpenAI {
+            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            key: Some("test-key".to_string()),
+        };
+        let client = ClientBuilder::new(provider, "dev").build(Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()))).unwrap();
 
-//     #[tokio::test]
-//     async fn test_refresh_models_method_exists() {
-//         let provider = Provider::OpenAI {
-//             url: Url::parse("https://api.openai.com/v1/").unwrap(),
-//             key: Some("test-key".to_string()),
-//         };
-//         let client = ClientBuilder::new(provider, "dev").build().unwrap();
+        // Verify cache is initialized as empty
+        let cache = client.models_cache.read().await;
+        assert!(cache.is_empty());
+    }
 
-//         // Verify refresh_models method is available (it will fail due to no
-// actual API,         // but that's expected)
-//         let result = client.refresh_models().await;
-//         assert!(result.is_err()); // Expected to fail since we're not hitting
-// a         // real API
-//     }
+    #[tokio::test]
+    async fn test_refresh_models_method_exists() {
+        let provider = Provider::OpenAI {
+            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            key: Some("test-key".to_string()),
+        };
+        let client = ClientBuilder::new(provider, "dev").build(Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()))).unwrap();
 
-//     #[tokio::test]
-//     async fn test_builder_pattern_api() {
-//         let provider = Provider::OpenAI {
-//             url: Url::parse("https://api.openai.com/v1/").unwrap(),
-//             key: Some("test-key".to_string()),
-//         };
+        // Verify refresh_models method is available (it will fail due to no actual API,
+        // but that's expected)
+        let result = client.refresh_models().await;
+        assert!(result.is_err()); // Expected to fail since we're not hitting a
+        // real API
+    }
 
-//         // Test the builder pattern API
-//         let client = ClientBuilder::new(provider, "dev")
-//             .retry_config(Arc::new(RetryConfig::default()))
-//             .timeout_config(HttpConfig::default())
-//             .use_hickory(true)
-//             .build()
-//             .unwrap();
+    #[tokio::test]
+    async fn test_builder_pattern_api() {
+        let provider = Provider::OpenAI {
+            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            key: Some("test-key".to_string()),
+        };
 
-//         // Verify cache is initialized as empty
-//         let cache = client.models_cache.read().await;
-//         assert!(cache.is_empty());
-//     }
+        // Test the builder pattern API
+        let client = ClientBuilder::new(provider, "dev")
+            .retry_config(Arc::new(RetryConfig::default()))
+            .timeout_config(HttpConfig::default())
+            .use_hickory(true)
+            .build(Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap())))
+            .unwrap();
 
-//     #[tokio::test]
-//     async fn test_builder_with_defaults() {
-//         let provider = Provider::OpenAI {
-//             url: Url::parse("https://api.openai.com/v1/").unwrap(),
-//             key: Some("test-key".to_string()),
-//         };
+        // Verify cache is initialized as empty
+        let cache = client.models_cache.read().await;
+        assert!(cache.is_empty());
+    }
 
-//         // Test that ClientBuilder::new works with minimal parameters
-//         let client = ClientBuilder::new(provider, "dev").build().unwrap();
+    #[tokio::test]
+    async fn test_builder_with_defaults() {
+        let provider = Provider::OpenAI {
+            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            key: Some("test-key".to_string()),
+        };
 
-//         // Verify cache is initialized as empty
-//         let cache = client.models_cache.read().await;
-//         assert!(cache.is_empty());
-//     }
-// }
+        // Test that ClientBuilder::new works with minimal parameters
+        let client = ClientBuilder::new(provider, "dev").build(Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()))).unwrap();
+
+        // Verify cache is initialized as empty
+        let cache = client.models_cache.read().await;
+        assert!(cache.is_empty());
+    }
+}
