@@ -427,8 +427,12 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             info!(
+                conversation_id = %self.conversation.id,
+                conversation_length = context.messages.len(),
                 token_usage = format!("{}", usage.prompt_tokens),
                 total_tokens = format!("{}", usage.total_tokens),
+                cached_tokens = format!("{}", usage.cached_tokens),
+                cost = usage.cost.unwrap_or_default(),
                 "Processing usage information"
             );
 
