@@ -28,6 +28,9 @@ pub enum Command {
     Interval {
         duration: Duration,
     },
+    Compact {
+        conversation_id: ConversationId,
+    },
 }
 
 #[derive(Clone, From, PartialEq, Eq, Debug)]
@@ -332,6 +335,52 @@ mod tests {
                 is_first: true,
             },
         ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_compact_command_structure() {
+        let conversation_id = forge_api::ConversationId::generate();
+        let fixture = Command::Compact { conversation_id };
+
+        match fixture {
+            Command::Compact { conversation_id: id } => {
+                assert_eq!(id, conversation_id);
+            }
+            _ => panic!("Expected Command::Compact"),
+        }
+    }
+
+    #[test]
+    fn test_compact_command_in_and_structure() {
+        let conversation_id = forge_api::ConversationId::generate();
+        let fixture = Command::And(vec![
+            Command::Interval { duration: std::time::Duration::from_millis(100) },
+            Command::Compact { conversation_id },
+        ]);
+
+        match fixture {
+            Command::And(commands) => {
+                assert_eq!(commands.len(), 2);
+                assert!(matches!(commands[0], Command::Interval { .. }));
+                assert!(matches!(commands[1], Command::Compact { .. }));
+            }
+            _ => panic!("Expected Command::And"),
+        }
+    }
+
+    #[test]
+    fn test_compact_command_flatten() {
+        let conversation_id = forge_api::ConversationId::generate();
+        let fixture = Command::And(vec![
+            Command::Empty,
+            Command::Compact { conversation_id },
+            Command::Empty,
+        ]);
+
+        let actual = fixture.flatten();
+        let expected = Command::Compact { conversation_id };
+
         assert_eq!(actual, expected);
     }
 }
