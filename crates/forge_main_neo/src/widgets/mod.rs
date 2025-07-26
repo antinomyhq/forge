@@ -1,3 +1,4 @@
+mod agent_selection;
 mod app;
 // mod bordered_panel;
 mod chat;

@@ -9,6 +9,63 @@ use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 use crate::domain::spotlight::SpotlightState;
 use crate::domain::{Command, EditorStateExt, State};
 
+fn handle_agent_selection_input_change(state: &mut State) {
+    // Reset selection index when input changes to ensure it's within bounds
+    // of the filtered results
+    let filtered_count = state.agent_selection.filtered_agents().len();
+
+    // Reset selection to 0 if current selection is out of bounds
+    if state.agent_selection.selected_index >= filtered_count {
+        state.agent_selection.selected_index = 0;
+    }
+}
+
+fn handle_agent_selection_navigation(
+    state: &mut State,
+    key_event: ratatui::crossterm::event::KeyEvent,
+) -> Option<Command> {
+    use ratatui::crossterm::event::KeyCode;
+
+    if !state.agent_selection.is_visible {
+        return None;
+    }
+
+    match key_event.code {
+        KeyCode::Up => {
+            if state.agent_selection.selected_index > 0 {
+                state.agent_selection.selected_index -= 1;
+            }
+            Some(Command::Empty)
+        }
+        KeyCode::Down => {
+            let filtered_agents = state.agent_selection.filtered_agents();
+            let max_agents = filtered_agents.len();
+            if max_agents > 0 && state.agent_selection.selected_index < max_agents - 1 {
+                state.agent_selection.selected_index += 1;
+            }
+            Some(Command::Empty)
+        }
+        KeyCode::Enter => {
+            // Select the current agent from filtered results
+            if let Some(selected_agent) = state.agent_selection.selected_agent() {
+                Some(Command::Spotlight(crate::domain::SpotlightCommand::Agent(
+                    selected_agent.id.clone(),
+                )))
+            } else {
+                Some(Command::Empty)
+            }
+        }
+        KeyCode::Esc => {
+            // Hide agent selection and clear search
+            state.agent_selection.is_visible = false;
+            state.agent_selection.selected_index = 0;
+            state.agent_selection.editor.clear();
+            Some(Command::Empty)
+        }
+        _ => None,
+    }
+}
+
 fn handle_spotlight_input_change(state: &mut State) {
     // Reset selection index when input changes to ensure it's within bounds
     // of the filtered results
@@ -64,8 +121,8 @@ fn handle_spotlight_navigation(
                 let command = match selected_cmd {
                     crate::domain::slash_command::SlashCommand::Exit => Command::Exit,
                     crate::domain::slash_command::SlashCommand::Agent => {
-                        // For now, just hide spotlight - proper agent selection would need more UI
-                        Command::Empty
+                        // Show agent selection UI instead of just toggling
+                        Command::ShowAgentSelection
                     }
                     crate::domain::slash_command::SlashCommand::Model => {
                         // For now, just hide spotlight - proper model selection would need more UI
@@ -150,6 +207,7 @@ fn handle_prompt_submit(
                 message,
                 conversation_id: state.conversation.conversation_id,
                 is_first: state.conversation.is_first,
+                agent: state.agent_selection.current_agent.clone(),
             };
             Command::Interval { duration: Duration::from_millis(100) }.and(chat_command)
         }
@@ -236,6 +294,29 @@ pub fn handle_key_event(
     // Handle Ctrl+C interrupt (stop current LLM output stream)
     if key_event.code == KeyCode::Char('c') && key_event.modifiers.contains(KeyModifiers::CONTROL) {
         return Command::InterruptStream;
+    }
+
+    // Check agent selection navigation first
+    if let Some(cmd) = handle_agent_selection_navigation(state, key_event) {
+        return cmd;
+    }
+
+    // Handle agent selection input when visible
+    if state.agent_selection.is_visible {
+        // Check if navigation was handled
+        let line_nav_handled = handle_line_navigation(&mut state.agent_selection.editor, key_event);
+        let word_nav_handled = handle_word_navigation(&mut state.agent_selection.editor, key_event);
+
+        // Only call editor default if no navigation was handled
+        if !line_nav_handled && !word_nav_handled {
+            handle_editor_default(&mut state.agent_selection.editor, key_event);
+            // Reset selection index when input changes
+            handle_agent_selection_input_change(state);
+        }
+
+        // Always keep agent selection editor in "insert" mode
+        state.agent_selection.editor.mode = edtui::EditorMode::Insert;
+        return Command::Empty;
     }
 
     if state.spotlight.is_visible {
