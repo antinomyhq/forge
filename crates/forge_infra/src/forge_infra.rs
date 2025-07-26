@@ -3,6 +3,7 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use forge_app::WriteChannel;
 use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
@@ -41,10 +42,11 @@ pub struct ForgeInfra {
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
     http_service: Arc<ForgeHttpService>,
+    experimental_no_stdout_tool: bool,
 }
 
 impl ForgeInfra {
-    pub fn new(restricted: bool, cwd: PathBuf) -> Self {
+    pub fn new(restricted: bool, cwd: PathBuf, experimental_no_stdout_tool: bool) -> Self {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -67,6 +69,7 @@ impl ForgeInfra {
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
             http_service,
+            experimental_no_stdout_tool,
         }
     }
 }
@@ -187,6 +190,25 @@ impl CommandInfra for ForgeInfra {
         self.command_executor_service
             .execute_command_raw(command, working_dir)
             .await
+    }
+
+    async fn execute_command_streaming(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        channel: &mut (impl WriteChannel + Send + Sync),
+    ) -> anyhow::Result<CommandOutput> {
+        if self.experimental_no_stdout_tool {
+            return self
+                .command_executor_service
+                .execute_command_streaming(command, working_dir, channel)
+                .await;
+        } else {
+            return self
+                .command_executor_service
+                .execute_command(command, working_dir)
+                .await;
+        }
     }
 }
 

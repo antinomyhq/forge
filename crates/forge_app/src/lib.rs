@@ -11,6 +11,7 @@ mod operation;
 mod orch;
 mod retry;
 mod services;
+mod tool_call_context;
 mod tool_executor;
 mod tool_registry;
 mod truncation;
@@ -22,6 +23,7 @@ pub use app::*;
 pub use app_config::*;
 pub use error::*;
 pub use services::*;
+pub use tool_call_context::*;
 pub use user::*;
 pub use walker::*;
 pub mod domain {

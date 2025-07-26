@@ -90,10 +90,10 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_app::AttachmentService;
     use forge_app::domain::{
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
+    use forge_app::{AttachmentService, WriteChannel};
     use forge_snaps::Snapshot;
     use serde_json::Value;
     use url::Url;
@@ -470,6 +470,15 @@ pub mod tests {
             _: &str,
             _: PathBuf,
         ) -> anyhow::Result<std::process::ExitStatus> {
+            unimplemented!()
+        }
+
+        async fn execute_command_streaming(
+            &self,
+            _: String,
+            _: PathBuf,
+            _: &mut (impl WriteChannel + Send + Sync),
+        ) -> anyhow::Result<CommandOutput> {
             unimplemented!()
         }
     }

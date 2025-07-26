@@ -5,7 +5,7 @@ use bytes::Bytes;
 use forge_app::domain::{
     CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
-use forge_app::{WalkedFile, Walker};
+use forge_app::{WalkedFile, Walker, WriteChannel};
 use forge_snaps::Snapshot;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -119,6 +119,13 @@ pub trait CommandInfra: Send + Sync {
         command: &str,
         working_dir: PathBuf,
     ) -> anyhow::Result<std::process::ExitStatus>;
+
+    async fn execute_command_streaming(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        channel: &mut (impl WriteChannel + Send + Sync),
+    ) -> anyhow::Result<CommandOutput>;
 }
 
 #[async_trait::async_trait]

@@ -41,6 +41,13 @@ pub struct Cli {
     #[arg(long, default_value_t = false, short = 'r')]
     pub restricted: bool,
 
+    /// Enable experimental no-stdout tool execution.
+    ///
+    /// When enabled, uses execute_command_streaming for shell commands.
+    /// When disabled (default), uses execute_command.
+    #[arg(long, default_value_t = false)]
+    pub experimental_no_stdout_tool: bool,
+
     /// Path to a file containing the workflow to execute.
     #[arg(long, short = 'w')]
     pub workflow: Option<PathBuf>,

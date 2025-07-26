@@ -1,12 +1,17 @@
 use std::sync::Arc;
 
 use derive_setters::Setters;
+use forge_domain::{ChatResponse, TaskList};
 use tokio::sync::mpsc::Sender;
-
-use crate::{ChatResponse, TaskList};
 
 /// Type alias for Arc<Sender<Result<ChatResponse>>>
 type ArcSender = Arc<Sender<anyhow::Result<ChatResponse>>>;
+
+#[async_trait::async_trait]
+pub trait WriteChannel {
+    async fn send(&self, agent_message: impl Into<ChatResponse> + Send) -> anyhow::Result<()>;
+    async fn send_text(&self, content: impl ToString + Send) -> anyhow::Result<()>;
+}
 
 /// Provides additional context for tool calls.
 #[derive(Debug, Setters)]
@@ -20,16 +25,18 @@ impl ToolCallContext {
     pub fn new(task_list: TaskList) -> Self {
         Self { sender: None, tasks: task_list }
     }
+}
 
-    /// Send a message through the sender if available
-    pub async fn send(&self, agent_message: impl Into<ChatResponse>) -> anyhow::Result<()> {
+#[async_trait::async_trait]
+impl WriteChannel for ToolCallContext {
+    async fn send(&self, agent_message: impl Into<ChatResponse> + Send) -> anyhow::Result<()> {
         if let Some(sender) = &self.sender {
             sender.send(Ok(agent_message.into())).await?
         }
         Ok(())
     }
 
-    pub async fn send_text(&self, content: impl ToString) -> anyhow::Result<()> {
+    async fn send_text(&self, content: impl ToString + Send) -> anyhow::Result<()> {
         self.send(ChatResponse::Text { text: content.to_string(), is_complete: true, is_md: false })
             .await
     }

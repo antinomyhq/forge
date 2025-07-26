@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use forge_display::TitleFormat;
-use forge_domain::{ToolCallContext, ToolCallFull, ToolName, ToolOutput};
+use forge_domain::{ToolCallFull, ToolName, ToolOutput};
 
 use crate::McpService;
+use crate::tool_call_context::{ToolCallContext, WriteChannel};
 
 pub struct McpExecutor<S> {
     pub services: Arc<S>,

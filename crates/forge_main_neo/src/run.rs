@@ -12,13 +12,17 @@ use crate::event_reader::EventReader;
 use crate::executor::Executor;
 use crate::widgets::App;
 
-pub async fn run(mut terminal: DefaultTerminal, cwd: PathBuf) -> anyhow::Result<()> {
+pub async fn run(
+    mut terminal: DefaultTerminal,
+    experimental_no_stdout_tool: bool,
+    cwd: PathBuf,
+) -> anyhow::Result<()> {
     // Initialize channels
     let (action_tx, mut action_rx) = tokio::sync::mpsc::channel::<anyhow::Result<Action>>(1024);
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel::<Command>(1024);
 
     let mut state = State::default();
-    let api = ForgeAPI::init(false, cwd);
+    let api = ForgeAPI::init(false, cwd, experimental_no_stdout_tool);
 
     // Initialize forge_tracker using the API instance
     let env = api.environment();

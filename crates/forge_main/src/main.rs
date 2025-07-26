@@ -40,10 +40,13 @@ async fn main() -> Result<()> {
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;
     let neo_ui = cli.neo_ui;
+    let experimental_no_stdout_tool = cli.experimental_no_stdout_tool;
     if neo_ui {
-        return forge_main_neo::main_neo(cwd).await;
+        return forge_main_neo::main_neo(experimental_no_stdout_tool, cwd).await;
     }
-    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
+    let mut ui = UI::init(cli, move || {
+        ForgeAPI::init(restricted, cwd.clone(), experimental_no_stdout_tool)
+    })?;
     ui.run().await;
 
     Ok(())
