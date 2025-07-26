@@ -1,17 +1,18 @@
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Environment, McpServerConfig};
+use forge_domain::{CommandOutput, Environment, HttpInfra, McpServerConfig, ServerSentEvent};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
-    WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
-use reqwest::Response;
 use reqwest::header::HeaderMap;
+use reqwest::{Response, Url};
+use tokio_stream::Stream;
 
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -231,15 +232,23 @@ impl WalkerInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl HttpInfra for ForgeInfra {
-    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
         self.http_service.get(url, headers).await
     }
 
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {
+    async fn post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
         self.http_service.post(url, body).await
     }
 
-    async fn delete(&self, url: &str) -> anyhow::Result<Response> {
+    async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
         self.http_service.delete(url).await
+    }
+    async fn post_stream(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+        self.http_service.post_stream(url, headers, body).await
     }
 }

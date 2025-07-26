@@ -8,7 +8,7 @@ use derive_setters::Setters;
 use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
-use reqwest::redirect::Policy;
+use forge_domain::HttpInfra;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
@@ -40,41 +40,24 @@ impl ClientBuilder {
     }
 
     /// Build the client with the configured settings.
-    pub fn build(self) -> Result<Client> {
+    pub fn build(self, http: Arc<dyn HttpInfra>) -> Result<Client> {
         let provider = self.provider;
-        let version = self.version;
-
-        let timeout_config = self.timeout_config;
         let retry_config = self.retry_config;
-
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(
-                timeout_config.connect_timeout,
-            ))
-            .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
-            .pool_idle_timeout(std::time::Duration::from_secs(
-                timeout_config.pool_idle_timeout,
-            ))
-            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
-            .redirect(Policy::limited(timeout_config.max_redirects))
-            .hickory_dns(self.use_hickory)
-            .build()?;
 
         let inner = match &provider {
             Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
                 ForgeProvider::builder()
-                    .client(client)
+                    .http(http.clone())
                     .provider(provider.clone())
-                    .version(version.clone())
                     .build()
                     .with_context(|| format!("Failed to initialize: {url}"))?,
             ),
 
             Provider::Anthropic { url, key } => InnerClient::Anthropic(
                 Anthropic::builder()
-                    .client(client)
+                    .http(http.clone())
                     .api_key(key.to_string())
-                    .base_url(url.clone())
+                    .base_url(provider.to_base_url().to_string())
                     .anthropic_version("2023-06-01".to_string())
                     .build()
                     .with_context(|| {
@@ -168,6 +151,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use forge_app::domain::Provider;
+    use forge_infra::ForgeInfra;
     use reqwest::Url;
 
     use super::*;
@@ -178,7 +162,12 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::new(provider, "dev").build().unwrap();
+        let client = ClientBuilder::new(provider, "dev")
+            .build(Arc::new(ForgeInfra::new(
+                false,
+                std::env::current_dir().unwrap(),
+            )))
+            .unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -191,7 +180,12 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::new(provider, "dev").build().unwrap();
+        let client = ClientBuilder::new(provider, "dev")
+            .build(Arc::new(ForgeInfra::new(
+                false,
+                std::env::current_dir().unwrap(),
+            )))
+            .unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)
@@ -212,7 +206,10 @@ mod tests {
             .retry_config(Arc::new(RetryConfig::default()))
             .timeout_config(HttpConfig::default())
             .use_hickory(true)
-            .build()
+            .build(Arc::new(ForgeInfra::new(
+                false,
+                std::env::current_dir().unwrap(),
+            )))
             .unwrap();
 
         // Verify cache is initialized as empty
@@ -228,7 +225,12 @@ mod tests {
         };
 
         // Test that ClientBuilder::new works with minimal parameters
-        let client = ClientBuilder::new(provider, "dev").build().unwrap();
+        let client = ClientBuilder::new(provider, "dev")
+            .build(Arc::new(ForgeInfra::new(
+                false,
+                std::env::current_dir().unwrap(),
+            )))
+            .unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;

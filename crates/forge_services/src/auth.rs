@@ -3,9 +3,11 @@ use std::sync::Arc;
 use anyhow::bail;
 use bytes::Bytes;
 use forge_app::{AuthService, Error, InitAuth, LoginInfo, User};
+use forge_domain::HttpInfra;
+use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
-use crate::{EnvironmentInfra, HttpInfra};
+use crate::EnvironmentInfra;
 
 const AUTH_ROUTE: &str = "auth/sessions/";
 const USER_INFO_ROUTE: &str = "auth/user";
@@ -21,6 +23,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
     }
     async fn init(&self) -> anyhow::Result<InitAuth> {
         let init_url = format!("{}{AUTH_ROUTE}", self.infra.get_environment().forge_api_url);
+        let init_url = Url::parse(&init_url)?;
         let resp = self.infra.post(&init_url, Bytes::new()).await?;
         if !resp.status().is_success() {
             bail!("Failed to initialize auth")
@@ -35,6 +38,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             self.infra.get_environment().forge_api_url,
             auth.session_id
         );
+        let url = Url::parse(&url)?;
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
@@ -56,6 +60,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
             "{}{USER_INFO_ROUTE}",
             self.infra.get_environment().forge_api_url
         );
+        let url = Url::parse(&url)?;
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
