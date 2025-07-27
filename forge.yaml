@@ -63,9 +63,16 @@ custom_rules: |-
 
   Running Tests:
   - We use `insta` to run tests:
-  ```
-  cargo insta test --accept --unreferenced=delete
-  ```
+    ```
+    cargo insta test --accept --unreferenced=delete
+    ```
+  - Use `new`, Default and derive_more::Setters to create `actual`, `expected` and specially `fixtures`. For eg:
+    Good
+    User::default().age(12).is_happy(true).name("John")
+    User::new("Job").age(12).is_happy()
+
+    Bad
+    Use {name: "John".to_string(), is_happy: true, age: 12}
 
   Verification:
   - run the following command to format and validate if the code is working:
