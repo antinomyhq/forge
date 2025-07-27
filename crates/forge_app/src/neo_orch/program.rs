@@ -21,7 +21,12 @@ pub trait Program {
 trait ProgramExt: Program {
     fn combine<B: Program>(self, other: B) -> impl Program
     where
-        B: Program<Action = Self::Action, State = Self::State, Success = Self::Success, Error = Self::Error>;
+        B: Program<
+                Action = Self::Action,
+                State = Self::State,
+                Success = Self::Success,
+                Error = Self::Error,
+            >;
 }
 
 impl<A: Program> ProgramExt for A
