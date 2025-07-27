@@ -5,6 +5,7 @@ use forge_domain::{
 use crate::neo_orch::program::{Identity, SemiGroup};
 
 pub enum UserAction {
+    Message(String),
     ChatCompletionMessage(anyhow::Result<ChatCompletionMessage>),
     ToolResult(ToolResult),
     RenderResult(String),
