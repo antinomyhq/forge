@@ -24,8 +24,11 @@ pub trait Program {
     ) -> std::result::Result<Self::Success, Self::Error>;
 }
 
-trait ProgramExt: Program {
-    fn combine<B: Program>(self, other: B) -> impl Program
+pub trait ProgramExt: Program {
+    fn combine<B: Program>(
+        self,
+        other: B,
+    ) -> impl Program<Action = Self::Action, State = Self::State, Success = Self::Success, Error = Self::Error>
     where
         B: Program<
                 Action = Self::Action,
@@ -39,7 +42,10 @@ impl<A: Program> ProgramExt for A
 where
     A: Program,
 {
-    fn combine<B: Program>(self, other: B) -> impl Program
+    fn combine<B: Program>(
+        self,
+        other: B,
+    ) -> impl Program<Action = A::Action, State = A::State, Success = A::Success, Error = A::Error>
     where
         B: Program<Action = A::Action, State = A::State, Success = A::Success, Error = A::Error>,
     {

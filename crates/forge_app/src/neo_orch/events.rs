@@ -11,6 +11,7 @@ pub enum UserAction {
     RenderResult(String),
 }
 
+#[derive(Debug)]
 pub enum AgentAction {
     ToolCall {
         call: ToolCallFull,

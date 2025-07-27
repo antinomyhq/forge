@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn test_new_creates_empty_program() {
-        let fixture = InitToolProgram::new();
+        let fixture = InitToolProgram::default();
         let actual = fixture.tool_definitions.len();
         let expected = 0;
         assert_eq!(actual, expected);
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_update_with_empty_tools() {
-        let fixture = InitToolProgram::new();
+        let fixture = InitToolProgram::default();
         let mut state = AgentState::default();
         let action = UserAction::Message("test message".to_string());
 
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_update_returns_empty_action() {
-        let fixture = InitToolProgram::new();
+        let fixture = InitToolProgram::default();
         let mut state = AgentState::default();
         let action = UserAction::Message("test message".to_string());
 
