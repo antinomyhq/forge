@@ -18,8 +18,10 @@ pub trait Program {
     ) -> std::result::Result<Self::Success, Self::Error>;
 }
 
-trait ProgramExt: Sized {
-    fn combine<Other: Program>(self, other: Other) -> impl Program;
+trait ProgramExt: Program {
+    fn combine<B: Program>(self, other: B) -> impl Program
+    where
+        B: Program<Action = Self::Action, State = Self::State, Success = Self::Success, Error = Self::Error>;
 }
 
 impl<A: Program> ProgramExt for A
