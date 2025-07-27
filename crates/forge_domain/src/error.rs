@@ -86,10 +86,8 @@ mod test {
     fn test_debug_serde_error() {
         let args = "{a: 1}";
         let serde_error = serde_json::from_str::<Value>(&args).unwrap_err();
-        let parse_error = crate::ToolCallFullError::Json {
-            error: serde_error.into(),
-            args: args.to_string(),
-        };
+        let parse_error =
+            crate::ToolCallFullError::Json { error: serde_error.into(), args: args.to_string() };
         let a = Error::ToolCallParse(parse_error);
         let a = anyhow::anyhow!(a);
         eprintln!("{:?}", a.root_cause());

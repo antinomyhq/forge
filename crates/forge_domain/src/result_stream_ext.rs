@@ -2,7 +2,10 @@ use anyhow::Context as _;
 use tokio_stream::StreamExt;
 
 use crate::reasoning::{Reasoning, ReasoningFull};
-use crate::{ChatCompletionMessage, ChatCompletionMessageFull, ToolCallFull, ToolCallPart, ToolCallFullError, Usage};
+use crate::{
+    ChatCompletionMessage, ChatCompletionMessageFull, ToolCallFull, ToolCallFullError,
+    ToolCallPart, Usage,
+};
 
 /// Extension trait for ResultStream to provide additional functionality
 #[async_trait::async_trait]
@@ -418,7 +421,10 @@ mod tests {
         };
         assert_eq!(actual.usage, expected_final_usage);
         assert_eq!(actual.tool_calls.len(), 1);
-        assert_eq!(actual.tool_calls[0].as_ref().unwrap().name.as_str(), "test_tool");
+        assert_eq!(
+            actual.tool_calls[0].as_ref().unwrap().name.as_str(),
+            "test_tool"
+        );
         assert_eq!(actual.content, xml_content);
     }
 
@@ -539,7 +545,10 @@ mod tests {
         // but final usage
         assert_eq!(actual.content, xml_content);
         assert_eq!(actual.tool_calls.len(), 1);
-        assert_eq!(actual.tool_calls[0].as_ref().unwrap().name.as_str(), "test_tool");
+        assert_eq!(
+            actual.tool_calls[0].as_ref().unwrap().name.as_str(),
+            "test_tool"
+        );
         assert_eq!(actual.usage.total_tokens, TokenCount::Actual(25));
         assert_eq!(actual.usage.completion_tokens, TokenCount::Actual(20));
     }

@@ -138,9 +138,7 @@ pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, crate::ToolCallFullError>
                     }
                     Err(error) => {
                         if tool_calls.is_empty() {
-                            return Err(crate::ToolCallFullError::Xml {
-                                error: error.to_string(),
-                            });
+                            return Err(crate::ToolCallFullError::Xml { error: error.to_string() });
                         }
                         // If we've already found some tool calls, we can stop here
                         break;
