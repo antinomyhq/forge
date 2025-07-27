@@ -70,9 +70,11 @@ custom_rules: |-
     Good
     User::default().age(12).is_happy(true).name("John")
     User::new("Job").age(12).is_happy()
+    User::test() // Special test constructor
 
     Bad
     Use {name: "John".to_string(), is_happy: true, age: 12}
+    User::with_name("Job") // Bad name, should stick to User::new() or User::test()
 
   Verification:
   - run the following command to format and validate if the code is working:
