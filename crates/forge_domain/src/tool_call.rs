@@ -1,3 +1,4 @@
+use derive_more::Display;
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -7,16 +8,26 @@ use thiserror::Error;
 use crate::ToolName;
 use crate::xml::extract_tag_content;
 
-#[derive(Debug, Error)]
-pub enum ToolCallParseError {
-    #[error("Invalid tool call JSON: {error}")]
-    JsonParse {
-        error: serde_json::Error,
-        args: String,
-    },
+#[derive(Display, Debug, Error, From)]
+pub struct JsonParseError(serde_json::Error);
 
-    #[error("Invalid tool call XML: {0}")]
-    XmlParse(String),
+#[cfg(test)]
+impl PartialEq for JsonParseError {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.column() == other.0.column()
+            && self.0.line() == other.0.line()
+            && self.0.classify() == other.0.classify()
+    }
+}
+
+#[derive(Debug, Error)]
+#[cfg_attr(test, derive(PartialEq))]
+pub enum ToolCallFullError {
+    #[error("Invalid tool call JSON: {error}")]
+    Json { error: JsonParseError, args: String },
+
+    #[error("Invalid tool call XML: {error}")]
+    Xml { error: String },
 }
 
 /// Unique identifier for a using a tool
@@ -94,7 +105,7 @@ impl ToolCallFull {
 
     pub fn try_from_parts(
         parts: &[ToolCallPart],
-    ) -> std::result::Result<Vec<Self>, ToolCallParseError> {
+    ) -> std::result::Result<Vec<Self>, ToolCallFullError> {
         if parts.is_empty() {
             return Ok(vec![]);
         }
@@ -120,8 +131,8 @@ impl ToolCallFull {
                                 Value::default()
                             } else {
                                 serde_json::from_str(&current_arguments).map_err(|error| {
-                                    ToolCallParseError::JsonParse {
-                                        error,
+                                    ToolCallFullError::Json {
+                                        error: error.into(),
                                         args: current_arguments.clone(),
                                     }
                                 })?
@@ -151,7 +162,10 @@ impl ToolCallFull {
                     Value::default()
                 } else {
                     serde_json::from_str(&current_arguments).map_err(|error| {
-                        ToolCallParseError::JsonParse { error, args: current_arguments.clone() }
+                        ToolCallFullError::Json {
+                            error: error.into(),
+                            args: current_arguments.clone(),
+                        }
                     })?
                 },
             });
@@ -161,13 +175,14 @@ impl ToolCallFull {
     }
 
     /// Parse multiple tool calls from XML format.
-    pub fn try_from_xml(input: &str) -> std::result::Result<Vec<ToolCallFull>, ToolCallParseError> {
+    pub fn try_from_xml(input: &str) -> std::result::Result<Vec<ToolCallFull>, ToolCallFullError> {
         match extract_tag_content(input, "forge_tool_call") {
             None => Ok(Default::default()),
             Some(content) => {
                 let mut tool_call: ToolCallFull =
-                    serde_json::from_str(content).map_err(|error| {
-                        ToolCallParseError::JsonParse { error, args: content.to_string() }
+                    serde_json::from_str(content).map_err(|error| ToolCallFullError::Json {
+                        error: error.into(),
+                        args: content.to_string(),
                     })?;
 
                 // User might switch the model from a tool unsupported to tool supported model

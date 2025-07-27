@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use tokio_stream::StreamExt;
 
 use crate::reasoning::{Reasoning, ReasoningFull};
-use crate::{ChatCompletionMessage, ChatCompletionMessageFull, ToolCallFull, ToolCallPart, Usage};
+use crate::{ChatCompletionMessage, ChatCompletionMessageFull, ToolCallFull, ToolCallPart, ToolCallFullError, Usage};
 
 /// Extension trait for ResultStream to provide additional functionality
 #[async_trait::async_trait]
@@ -122,10 +122,11 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             .map_err(crate::Error::Retryable)?;
 
         // Combine all sources of tool calls
-        let tool_calls: Vec<ToolCallFull> = initial_tool_calls
+        let tool_calls: Vec<Result<ToolCallFull, ToolCallFullError>> = initial_tool_calls
             .into_iter()
-            .chain(partial_tool_calls)
-            .chain(xml_tool_calls)
+            .map(Ok)
+            .chain(partial_tool_calls.into_iter().map(Ok))
+            .chain(xml_tool_calls.into_iter().map(Ok))
             .collect();
 
         // Collect reasoning details from all messages
@@ -234,7 +235,7 @@ mod tests {
         // Expected: Content and tool calls
         let expected = ChatCompletionMessageFull {
             content: "Processing...".to_string(),
-            tool_calls: vec![tool_call],
+            tool_calls: vec![Ok(tool_call)],
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: None,
@@ -417,7 +418,7 @@ mod tests {
         };
         assert_eq!(actual.usage, expected_final_usage);
         assert_eq!(actual.tool_calls.len(), 1);
-        assert_eq!(actual.tool_calls[0].name.as_str(), "test_tool");
+        assert_eq!(actual.tool_calls[0].as_ref().unwrap().name.as_str(), "test_tool");
         assert_eq!(actual.content, xml_content);
     }
 
@@ -538,7 +539,7 @@ mod tests {
         // but final usage
         assert_eq!(actual.content, xml_content);
         assert_eq!(actual.tool_calls.len(), 1);
-        assert_eq!(actual.tool_calls[0].name.as_str(), "test_tool");
+        assert_eq!(actual.tool_calls[0].as_ref().unwrap().name.as_str(), "test_tool");
         assert_eq!(actual.usage.total_tokens, TokenCount::Actual(25));
         assert_eq!(actual.usage.completion_tokens, TokenCount::Actual(20));
     }

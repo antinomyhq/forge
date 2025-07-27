@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use strum_macros::EnumString;
 
 use super::{ToolCall, ToolCallFull};
-use crate::TokenCount;
 use crate::reasoning::{Reasoning, ReasoningFull};
+use crate::{TokenCount, ToolCallFullError};
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Usage {
@@ -136,11 +136,12 @@ impl ChatCompletionMessage {
 /// Represents a complete message from the LLM provider with all content
 /// collected This is typically used after processing a stream of
 /// ChatCompletionMessage
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ChatCompletionMessageFull {
     pub content: String,
     pub reasoning: Option<String>,
-    pub tool_calls: Vec<ToolCallFull>,
+    pub tool_calls: Vec<Result<ToolCallFull, ToolCallFullError>>,
     pub reasoning_details: Option<Vec<ReasoningFull>>,
     pub usage: Usage,
 }

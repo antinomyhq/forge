@@ -122,7 +122,7 @@ fn tool_call_to_struct(parsed: ToolCallParsed) -> ToolCallFull {
     }
 }
 
-pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, crate::ToolCallParseError> {
+pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, crate::ToolCallFullError> {
     let mut tool_calls = Vec::new();
     let mut current_input = input;
 
@@ -136,9 +136,11 @@ pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, crate::ToolCallParseError
                         tool_calls.push(tool_call_to_struct(parsed));
                         current_input = new_remaining;
                     }
-                    Err(e) => {
+                    Err(error) => {
                         if tool_calls.is_empty() {
-                            return Err(crate::ToolCallParseError::XmlParse(e.to_string()));
+                            return Err(crate::ToolCallFullError::Xml {
+                                error: error.to_string(),
+                            });
                         }
                         // If we've already found some tool calls, we can stop here
                         break;
