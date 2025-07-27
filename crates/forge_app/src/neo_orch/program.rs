@@ -1,10 +1,16 @@
+use std::marker::PhantomData;
+
 pub trait SemiGroup {
     fn combine(self, other: Self) -> Self;
 }
 
-pub trait Monoid: SemiGroup {
+pub trait Identity {
     fn identity() -> Self;
 }
+
+pub trait Monoid: SemiGroup + Identity {}
+
+impl<T> Monoid for T where T: SemiGroup + Identity {}
 
 pub trait Program {
     type State;
@@ -12,7 +18,7 @@ pub trait Program {
     type Success: Monoid;
     type Error;
     fn update(
-        self,
+        &self,
         action: &Self::Action,
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error>;
@@ -41,6 +47,23 @@ where
     }
 }
 
+impl<State, Action, Success: Monoid, Error> Program
+    for PhantomData<(State, Action, Success, Error)>
+{
+    type State = State;
+    type Action = Action;
+    type Success = Success;
+    type Error = Error;
+
+    fn update(
+        &self,
+        _: &Self::Action,
+        _: &mut Self::State,
+    ) -> std::result::Result<Self::Success, Self::Error> {
+        Ok(Success::identity())
+    }
+}
+
 impl<A: Program, B> Program for (A, B)
 where
     B: Program<Action = A::Action, State = A::State, Success = A::Success, Error = A::Error>,
@@ -51,7 +74,7 @@ where
     type Error = A::Error;
 
     fn update(
-        self,
+        &self,
         action: &Self::Action,
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error> {

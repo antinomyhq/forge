@@ -1,9 +1,19 @@
-use crate::neo_orch::events::{AgentAction, UserAction};
-use crate::neo_orch::program::Program;
-use crate::neo_orch::state::AgentState;
-pub struct MainProgram;
+use crate::neo_orch::{
+    events::{AgentAction, UserAction},
+    program::Program,
+    state::AgentState,
+};
 
-impl Program for MainProgram {
+#[derive(Default)]
+pub struct InitToolProgram;
+
+impl InitToolProgram {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Program for InitToolProgram {
     type State = AgentState;
     type Action = UserAction;
     type Success = AgentAction;

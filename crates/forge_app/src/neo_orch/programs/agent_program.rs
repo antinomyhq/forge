@@ -1,9 +1,12 @@
-use crate::neo_orch::events::{AgentAction, UserAction};
-use crate::neo_orch::program::Program;
-use crate::neo_orch::state::AgentState;
-pub struct MainProgram;
+use crate::neo_orch::{
+    events::{AgentAction, UserAction},
+    program::{Program, init_tool_program::InitToolProgram},
+    state::AgentState,
+};
 
-impl Program for MainProgram {
+pub struct AgentProgram;
+
+impl Program for AgentProgram {
     type State = AgentState;
     type Action = UserAction;
     type Success = AgentAction;
@@ -14,6 +17,6 @@ impl Program for MainProgram {
         action: &Self::Action,
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error> {
-        todo!()
+        InitToolProgram::new().update(action, state)
     }
 }

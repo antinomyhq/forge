@@ -1,2 +1,6 @@
+use forge_domain::Context;
+
 #[derive(Default)]
-pub struct AgentState {}
+pub struct AgentState {
+    context: Context,
+}

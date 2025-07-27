@@ -2,7 +2,7 @@ use forge_domain::{
     ChatCompletionMessage, ChatResponse, Context, ModelId, ToolCallFull, ToolResult,
 };
 
-use crate::neo_orch::program::{Monoid, SemiGroup};
+use crate::neo_orch::program::{Identity, SemiGroup};
 
 pub enum UserAction {
     ChatCompletionMessage(anyhow::Result<ChatCompletionMessage>),
@@ -27,7 +27,7 @@ pub enum AgentAction {
     Empty,
 }
 
-impl Monoid for AgentAction {
+impl Identity for AgentAction {
     fn identity() -> Self {
         AgentAction::Empty
     }
