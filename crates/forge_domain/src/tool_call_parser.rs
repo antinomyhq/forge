@@ -7,7 +7,7 @@ use nom::{IResult, Parser};
 use serde_json::Value;
 
 use super::ToolCallFull;
-use crate::{Error, ToolName};
+use crate::ToolName;
 
 #[derive(Debug, PartialEq)]
 pub struct ToolCallParsed {
@@ -122,7 +122,7 @@ fn tool_call_to_struct(parsed: ToolCallParsed) -> ToolCallFull {
     }
 }
 
-pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, Error> {
+pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, crate::ToolCallParseError> {
     let mut tool_calls = Vec::new();
     let mut current_input = input;
 
@@ -138,7 +138,7 @@ pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, Error> {
                     }
                     Err(e) => {
                         if tool_calls.is_empty() {
-                            return Err(Error::ToolCallParse(e.to_string()));
+                            return Err(crate::ToolCallParseError::XmlParse(e.to_string()));
                         }
                         // If we've already found some tool calls, we can stop here
                         break;

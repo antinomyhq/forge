@@ -3,7 +3,7 @@ use std::pin::Pin;
 use derive_more::From;
 use thiserror::Error;
 
-use crate::{AgentId, ConversationId};
+use crate::{AgentId, ConversationId, ToolCallParseError};
 
 // NOTE: Deriving From for error is a really bad idea. This is because you end
 // up converting errors incorrectly without much context. For eg: You don't want
@@ -17,16 +17,8 @@ pub enum Error {
     #[error("{0}")]
     EToolCallArgument(ToolCallArgumentError),
 
-    #[error("JSON deserialization error: {error}")]
-    #[from(skip)]
-    ToolCallArgument {
-        error: serde_json::Error,
-        args: String,
-    },
-
-    #[error("Invalid tool call XML: {0}")]
-    #[from(skip)]
-    ToolCallParse(String),
+    #[error(transparent)]
+    ToolCallParse(ToolCallParseError),
 
     #[error("Invalid conversation id: {0}")]
     ConversationId(uuid::Error),
@@ -94,7 +86,11 @@ mod test {
     fn test_debug_serde_error() {
         let args = "{a: 1}";
         let serde_error = serde_json::from_str::<Value>(&args).unwrap_err();
-        let a = Error::ToolCallArgument { error: serde_error, args: args.to_string() };
+        let parse_error = crate::ToolCallParseError::JsonParse {
+            error: serde_error,
+            args: args.to_string(),
+        };
+        let a = Error::ToolCallParse(parse_error);
         let a = anyhow::anyhow!(a);
         eprintln!("{:?}", a.root_cause());
     }

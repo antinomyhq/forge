@@ -136,7 +136,7 @@ impl ChatCompletionMessage {
 /// Represents a complete message from the LLM provider with all content
 /// collected This is typically used after processing a stream of
 /// ChatCompletionMessage
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct ChatCompletionMessageFull {
     pub content: String,
     pub reasoning: Option<String>,
