@@ -31,29 +31,23 @@ impl Provider {
     }
     /// Sets the OpenAI URL if the provider is an OpenAI compatible provider
     fn open_ai_url(&mut self, url: String) {
-        match self {
-            Provider::OpenAI { url: set_url, .. } => {
-                if url.ends_with("/") {
-                    *set_url = Url::parse(&url).unwrap();
-                } else {
-                    *set_url = Url::parse(&format!("{url}/")).unwrap();
-                }
+        if let Provider::OpenAI { url: set_url, .. } = self {
+            if url.ends_with("/") {
+                *set_url = Url::parse(&url).unwrap();
+            } else {
+                *set_url = Url::parse(&format!("{url}/")).unwrap();
             }
-            _ => {}
         }
     }
 
     /// Sets the Anthropic URL if the provider is Anthropic
     fn anthropic_url(&mut self, url: String) {
-        match self {
-            Provider::Anthropic { url: set_url, .. } => {
-                if url.ends_with("/") {
-                    *set_url = Url::parse(&url).unwrap();
-                } else {
-                    *set_url = Url::parse(&format!("{url}/")).unwrap();
-                }
+        if let Provider::Anthropic { url: set_url, .. } = self {
+            if url.ends_with("/") {
+                *set_url = Url::parse(&url).unwrap();
+            } else {
+                *set_url = Url::parse(&format!("{url}/")).unwrap();
             }
-            _ => {}
         }
     }
 

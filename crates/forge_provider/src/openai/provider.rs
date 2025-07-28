@@ -1,14 +1,16 @@
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ContextMessage, ResultStream, Content
+    ChatCompletionMessage, Content, Context as ChatContext, ModelId, Provider,
+    ResultStream,
 };
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
+use serde_json::{Value, json};
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
-use serde_json::{json, Value};
+
 use super::model::{ListModelResponse, Model};
 use super::request::{Request, MessageContent, ContentPart, Role};
 use super::response::Response;
@@ -48,7 +50,9 @@ impl ForgeProvider {
     pub async fn copilot_create_thread(&self) -> anyhow::Result<String> {
         let url = self.url("github/chat/threads")?;
         let headers = self.headers();
-        let resp = self.client.post(url)
+        let resp = self
+            .client
+            .post(url)
             .headers(headers)
             .send()
             .await?
@@ -56,7 +60,8 @@ impl ForgeProvider {
             .json::<serde_json::Value>()
             .await?;
         // Extract thread_id from response
-        let thread_id = resp.get("thread_id")
+        let thread_id = resp
+            .get("thread_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("No thread id in Copilot response"))?;
         Ok(thread_id.to_string())
@@ -72,11 +77,8 @@ impl ForgeProvider {
                 headers.insert(
                     AUTHORIZATION,
                     HeaderValue::from_str(&format!("GitHub-Bearer {api_key}")).unwrap(),
-                );            
-                headers.insert(
-                    "Copilot-Integration-Id",
-                    HeaderValue::from_static("forge"),
                 );
+                headers.insert("Copilot-Integration-Id", HeaderValue::from_static("forge"));
             } else {
                 headers.insert(
                     AUTHORIZATION,
@@ -105,7 +107,7 @@ impl ForgeProvider {
 
     
 
-    pub async fn copilot_chat(
+    async fn copilot_chat(
         &self,
         model: &ModelId,
         context: ChatContext,
@@ -185,10 +187,10 @@ impl ForgeProvider {
         request.stream = None;
                 
         // 3. Build the URL
-        let url = self.url(&format!("github/chat/threads/{}/messages", thread_id))?;
+        let url = self.url(&format!("github/chat/threads/{thread_id}/messages"))?;
         let headers = self.headers();
         let url_for_filter = url.clone();
-    
+
         // 4. Make the POST request and get the event stream
         let es = self
             .client
@@ -237,12 +239,12 @@ impl ForgeProvider {
                                 reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
                                     let status = response.status();
                                     Some(Err(anyhow::anyhow!(Error::InvalidStatusCode(status.as_u16()))
-                                        .context(format!("HTTP {}", status))))
+                                        .context(format!("HTTP {status}"))))
                                 }
                                 reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
                                     let status_code = response.status();
                                     Some(Err(anyhow::anyhow!(error)
-                                        .context(format!("Invalid content type. HTTP Status: {}", status_code))))
+                                        .context(format!("Invalid content type. HTTP Status: {status_code}"))))
                                 }
                                 error => {
                                     tracing::error!(error = ?error, "Failed to receive chat completion event");
@@ -257,23 +259,24 @@ impl ForgeProvider {
                 response.map(|result| result.with_context(|| format_http_context(None, "POST", &url_for_filter)))
             });
         Ok(Box::pin(stream))
-    }   
+    }
 
     async fn inner_chat(
         &self,
         model: &ModelId,
         context: ChatContext,
-    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> 
-    {
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         if self.provider.is_copilot() {
             // For Copilot, the service layer handles thread ID management
             // This method should not be called directly for Copilot
             anyhow::bail!("Copilot chat should be handled through copilot_chat method");
         }
-        let mut request = Request::from(context.clone()).model(model.clone()).stream(true);
+        let mut request = Request::from(context.clone())
+            .model(model.clone())
+            .stream(true);
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
-    
+
         let url = self.url("chat/completions")?;
         let headers = self.headers();
 
