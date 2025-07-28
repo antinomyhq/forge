@@ -19,11 +19,10 @@ impl Transformer for ReasoningNormalizer {
             .messages
             .iter()
             .find(|message| message.has_role(crate::Role::Assistant))
-            .map(|message| message.has_reasoning_details())
-            .unwrap_or(false);
+            .map(|message| message.has_reasoning_details());
 
         // Second pass: apply the consistency rule
-        if !first_assistant_has_reasoning {
+        if first_assistant_has_reasoning == Some(false) {
             // Remove reasoning details from all assistant messages
             for message in context.messages.iter_mut() {
                 if message.has_role(crate::Role::Assistant)
@@ -151,6 +150,25 @@ mod tests {
         // reasoning
         let snapshot =
             TransformationSnapshot::new("ReasoningNormalizer_first_no_reasoning", context, actual);
+        assert_yaml_snapshot!(snapshot);
+    }
+
+    #[test]
+    fn test_reasoning_normalizer_when_no_assistant_message_present() {
+        let context = Context::default()
+            .reasoning(ReasoningConfig::default().enabled(true))
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User message", None));
+        let mut transformer = ReasoningNormalizer::default();
+        let actual = transformer.transform(context.clone());
+
+        // All reasoning details should be removed since first assistant has no
+        // reasoning
+        let snapshot = TransformationSnapshot::new(
+            "ReasoningNormalizer_first_no_assistant_message_present",
+            context,
+            actual,
+        );
         assert_yaml_snapshot!(snapshot);
     }
 }

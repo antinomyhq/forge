@@ -58,7 +58,7 @@ impl ToolResult {
                 }
 
                 self.output = ToolOutput::text(
-                    Element::new("error")
+                    Element::new("tool_call_error")
                         .append(Element::new("cause").cdata(message.join("\n")))
                         .append(Element::new("reflection").text(REFLECTION_PROMPT)),
                 )
