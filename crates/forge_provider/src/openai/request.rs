@@ -450,7 +450,7 @@ mod tests {
         let tool_call = ToolCallFull {
             call_id: Some(ToolCallId::new("123")),
             name: ToolName::new("test_tool"),
-            arguments: json!({"key": "value"}),
+            arguments: json!({"key": "value"}).into(),
         };
 
         let assistant_message = ContextMessage::Text(TextMessage {

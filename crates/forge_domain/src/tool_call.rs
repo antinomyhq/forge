@@ -6,6 +6,53 @@ use serde_json::Value;
 use crate::xml::extract_tag_content;
 use crate::{Error, Result, ToolName};
 
+/// Arguments that need to be passed to a tool
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct ToolCallArguments(Value);
+
+impl ToolCallArguments {
+    pub fn new(value: Value) -> Self {
+        ToolCallArguments(value)
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
+    }
+
+    pub fn as_value(&self) -> &Value {
+        &self.0
+    }
+
+    pub fn into_value(self) -> Value {
+        self.0
+    }
+}
+
+impl Default for ToolCallArguments {
+    fn default() -> Self {
+        ToolCallArguments(Value::default())
+    }
+}
+
+impl From<Value> for ToolCallArguments {
+    fn from(value: Value) -> Self {
+        ToolCallArguments(value)
+    }
+}
+
+impl From<ToolCallArguments> for Value {
+    fn from(args: ToolCallArguments) -> Self {
+        args.0
+    }
+}
+
+impl std::fmt::Display for ToolCallArguments {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Unique identifier for a using a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(transparent)]
@@ -71,12 +118,12 @@ impl ToolCall {
 pub struct ToolCallFull {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
-    pub arguments: Value,
+    pub arguments: ToolCallArguments,
 }
 
 impl ToolCallFull {
     pub fn new(tool_name: ToolName) -> Self {
-        Self { name: tool_name, call_id: None, arguments: Value::default() }
+        Self { name: tool_name, call_id: None, arguments: ToolCallArguments::default() }
     }
 
     pub fn try_from_parts(parts: &[ToolCallPart]) -> Result<Vec<Self>> {
@@ -102,14 +149,14 @@ impl ToolCallFull {
                             name: tool_name,
                             call_id: Some(existing_call_id.clone()),
                             arguments: if current_arguments.is_empty() {
-                                Value::default()
+                                ToolCallArguments::default()
                             } else {
-                                serde_json::from_str(&current_arguments).map_err(|error| {
+                                ToolCallArguments::new(serde_json::from_str(&current_arguments).map_err(|error| {
                                     Error::ToolCallArgument {
                                         error,
                                         args: current_arguments.clone(),
                                     }
-                                })?
+                                })?)
                             },
                         });
                     }
@@ -133,11 +180,11 @@ impl ToolCallFull {
                 name: tool_name,
                 call_id: current_call_id,
                 arguments: if current_arguments.is_empty() {
-                    Value::default()
+                    ToolCallArguments::default()
                 } else {
-                    serde_json::from_str(&current_arguments).map_err(|error| {
+                    ToolCallArguments::new(serde_json::from_str(&current_arguments).map_err(|error| {
                         Error::ToolCallArgument { error, args: current_arguments.clone() }
-                    })?
+                    })?)
                 },
             });
         }
@@ -214,17 +261,17 @@ mod tests {
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_1".to_string())),
-                arguments: serde_json::json!({"path": "crates/forge_services/src/fixtures/mascot.md"}),
+                arguments: ToolCallArguments::new(serde_json::json!({"path": "crates/forge_services/src/fixtures/mascot.md"})),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_2".to_string())),
-                arguments: serde_json::json!({"path": "docs/onboarding.md"}),
+                arguments: ToolCallArguments::new(serde_json::json!({"path": "docs/onboarding.md"})),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_3".to_string())),
-                arguments: serde_json::json!({"path": "crates/forge_services/src/service/service.md"}),
+                arguments: ToolCallArguments::new(serde_json::json!({"path": "crates/forge_services/src/service/service.md"})),
             },
         ];
 
@@ -243,7 +290,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("forge_tool_fs_read"),
-            arguments: serde_json::json!({"path": "docs/onboarding.md"}),
+            arguments: ToolCallArguments::new(serde_json::json!({"path": "docs/onboarding.md"})),
         }];
 
         assert_eq!(actual, expected);
@@ -269,7 +316,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("screenshot"),
-            arguments: Value::default(),
+            arguments: ToolCallArguments::default(),
         }];
 
         assert_eq!(actual, expected);
@@ -318,7 +365,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId("0".to_string())),
-            arguments: serde_json::json!({"path": "/test/file.md"}),
+            arguments: ToolCallArguments::new(serde_json::json!({"path": "/test/file.md"})),
         }];
 
         assert_eq!(actual, expected);

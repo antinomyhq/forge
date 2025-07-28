@@ -217,7 +217,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: Value::String("test_arg".to_string()),
+            arguments: crate::ToolCallArguments::new(Value::String("test_arg".to_string())),
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
