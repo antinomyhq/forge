@@ -17,11 +17,7 @@ impl Default for SpotlightState {
         let mut editor = EditorState::default();
         editor.mode = EditorMode::Insert;
 
-        Self {
-            editor,
-            selected_index: 0,
-            list_state: ListState::default(),
-        }
+        Self { editor, selected_index: 0, list_state: ListState::default() }
     }
 }
 
