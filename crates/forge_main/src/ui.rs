@@ -311,14 +311,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Make sure to init model
                 self.on_new().await?;
 
-                self.display_info().await?;
+                self.on_info().await?;
                 return Ok(());
             }
         }
         Ok(())
     }
 
-    async fn display_info(&mut self) -> anyhow::Result<()> {
+    async fn on_info(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Info"))?;
         let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
 
@@ -354,7 +354,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                self.display_info().await?;
+                self.on_info().await?;
             }
             Command::Message(ref content) => {
                 self.spinner.start(None)?;

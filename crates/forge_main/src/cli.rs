@@ -74,7 +74,7 @@ pub struct Cli {
 pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
 
-    /// Print information about the environment and exit.
+    /// Print information about the environment
     Info,
 }
 
