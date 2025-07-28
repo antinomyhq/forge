@@ -36,7 +36,7 @@ impl Program for InitToolProgram {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Event, ToolName, ToolResult};
+    use forge_domain::{Event, TemplateId, ToolName, ToolResult};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -106,7 +106,8 @@ mod tests {
             .build()
             .unwrap();
         let mut state = AgentState::default();
-        let action = UserAction::RenderResult("test".to_string());
+        let action =
+            UserAction::RenderResult { id: TemplateId::new(100), content: "test".to_string() };
 
         let result = fixture.update(&action, &mut state);
 

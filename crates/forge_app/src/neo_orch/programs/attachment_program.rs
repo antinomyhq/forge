@@ -62,7 +62,7 @@ impl Program for AttachmentProgram {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Attachment, Event, Image};
+    use forge_domain::{Attachment, Event, Image, TemplateId};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -245,7 +245,8 @@ mod tests {
             .unwrap();
         let mut state = AgentState::default();
 
-        let action = UserAction::RenderResult("test".to_string());
+        let action =
+            UserAction::RenderResult { id: TemplateId::new(1020), content: "test".to_string() };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 

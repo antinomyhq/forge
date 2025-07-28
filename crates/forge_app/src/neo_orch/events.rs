@@ -1,5 +1,6 @@
 use forge_domain::{
-    ChatCompletionMessageFull, ChatResponse, Context, Event, ModelId, ToolCallFull, ToolResult,
+    ChatCompletionMessageFull, ChatResponse, Context, Event, ModelId, TemplateId, ToolCallFull,
+    ToolResult,
 };
 
 use crate::neo_orch::program::{Identity, SemiGroup};
@@ -8,7 +9,7 @@ pub enum UserAction {
     ChatEvent(Event),
     ChatCompletionMessage(anyhow::Result<ChatCompletionMessageFull>),
     ToolResult(ToolResult),
-    RenderResult(String),
+    RenderResult { id: TemplateId, content: String },
 }
 
 #[derive(Debug, PartialEq)]
@@ -21,7 +22,8 @@ pub enum AgentAction {
         context: Context,
     },
     Render {
-        template: &'static str,
+        id: TemplateId,
+        template: String,
         object: serde_json::Value,
     },
     ChatResponse(ChatResponse),

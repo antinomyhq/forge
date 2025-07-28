@@ -9,6 +9,8 @@ use crate::neo_orch::state::AgentState;
 #[derive(Default, Setters, Builder)]
 pub struct SystemPromptProgram {
     system_prompt: Option<Template<SystemContext>>,
+    // FIXME: SystemContext should be created in the program
+    context: Option<SystemContext>,
 }
 
 impl SystemPromptProgram {
@@ -19,11 +21,16 @@ impl SystemPromptProgram {
         } else {
             Some(Template::new(template_str))
         };
-        Self { system_prompt }
+        Self { system_prompt, context: None }
     }
 
     pub fn new(template: Template<SystemContext>) -> Self {
-        Self { system_prompt: Some(template) }
+        Self { system_prompt: Some(template), context: None }
+    }
+
+    pub fn with_context(mut self, context: SystemContext) -> Self {
+        self.context = Some(context);
+        self
     }
 }
 
@@ -38,19 +45,31 @@ impl Program for SystemPromptProgram {
         action: &Self::Action,
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error> {
-        // Only set system prompt when receiving a Message action and we have a template
-        if matches!(action, UserAction::ChatEvent(_))
-            && let Some(template) = &self.system_prompt
-        {
-            // For now, we'll use the template string directly without rendering
-            // In the future, this could be enhanced to render with SystemContext
-            state.context = state
-                .context
-                .clone()
-                .set_first_system_message(&template.template);
-        }
+        match action {
+            // When receiving a ChatEvent and we have a template, trigger rendering
+            UserAction::ChatEvent(_) => {
+                if let Some(template) = &self.system_prompt {
+                    // Create context for rendering (use provided context or default)
+                    let render_context = self.context.clone().unwrap_or_default();
 
-        Ok(AgentAction::Empty)
+                    return Ok(AgentAction::Render {
+                        id: template.id(),
+                        template: template.template.clone(),
+                        object: serde_json::to_value(render_context)?,
+                    });
+                }
+                Ok(AgentAction::Empty)
+            }
+            // When receiving a RenderResult, set the system message
+            UserAction::RenderResult { id: _, content: rendered_content } => {
+                state.context = state
+                    .context
+                    .clone()
+                    .set_first_system_message(rendered_content);
+                Ok(AgentAction::Empty)
+            }
+            _ => Ok(AgentAction::Empty),
+        }
     }
 }
 
@@ -111,10 +130,37 @@ mod tests {
     }
 
     #[test]
-    fn test_update_sets_system_prompt_on_message() {
+    fn test_update_triggers_render_on_chat_event() {
         let fixture = SystemPromptProgram::from_str("You are a helpful assistant");
         let mut state = AgentState::default();
         let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+
+        let actual = fixture.update(&action, &mut state).unwrap();
+
+        // Should return a Render action
+        match actual {
+            AgentAction::Render { template, object: _, .. } => {
+                let expected_template = "You are a helpful assistant";
+                assert_eq!(template, expected_template);
+            }
+            _ => panic!("Expected AgentAction::Render"),
+        }
+
+        // State should not be modified yet (happens on RenderResult)
+        let actual_messages_count = state.context.messages.len();
+        let expected_messages_count = 0;
+        assert_eq!(actual_messages_count, expected_messages_count);
+    }
+
+    #[test]
+    fn test_update_sets_system_prompt_on_render_result() {
+        let prompt = "You are a helpful assistant";
+        let fixture = SystemPromptProgram::from_str(prompt);
+        let mut state = AgentState::default();
+        let action = UserAction::RenderResult {
+            id: TemplateId::from_template(prompt),
+            content: "You are a helpful assistant".to_string(),
+        };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
@@ -161,10 +207,12 @@ mod tests {
     }
 
     #[test]
-    fn test_update_ignores_non_message_actions() {
+    fn test_update_ignores_non_relevant_actions() {
         let fixture = SystemPromptProgram::from_str("You are a helpful assistant");
         let mut state = AgentState::default();
-        let action = UserAction::RenderResult("test".to_string());
+        let action = UserAction::ToolResult(forge_domain::ToolResult::new(
+            forge_domain::ToolName::new("test_tool"),
+        ));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
@@ -177,10 +225,13 @@ mod tests {
     }
 
     #[test]
-    fn test_update_returns_empty_action() {
+    fn test_update_returns_empty_action_for_render_result() {
         let fixture = SystemPromptProgram::from_str("You are a helpful assistant");
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+        let action = UserAction::RenderResult {
+            id: TemplateId::from_template("test_template"),
+            content: "Rendered content".to_string(),
+        };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
@@ -189,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_with_custom_prompt() {
+    fn test_update_with_custom_prompt_render() {
         let custom_prompt = "You are a specialized coding assistant.";
         let fixture = SystemPromptProgram::from_str(custom_prompt);
         let mut state = AgentState::default();
@@ -197,25 +248,12 @@ mod tests {
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
-        assert_eq!(actual, expected);
-
-        let first_message = state
-            .context
-            .messages
-            .first()
-            .expect("Should have at least one message");
-        match first_message {
-            forge_domain::ContextMessage::Text(content_message) => {
-                let actual_role = &content_message.role;
-                let expected_role = &forge_domain::Role::System;
-                assert_eq!(actual_role, expected_role);
-
-                let actual_content = &content_message.content;
-                let expected_content = custom_prompt;
-                assert_eq!(actual_content, expected_content);
+        match actual {
+            AgentAction::Render { template, object: _, .. } => {
+                let expected_template = custom_prompt;
+                assert_eq!(template, expected_template);
             }
-            _ => panic!("Expected a text message with system role"),
+            _ => panic!("Expected AgentAction::Render"),
         }
     }
 
@@ -227,7 +265,10 @@ mod tests {
         // Set some initial context state
         state.context = state.context.clone().max_tokens(100usize);
 
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+        let action = UserAction::RenderResult {
+            id: TemplateId::from_template("test_template"),
+            content: "Rendered content".to_string(),
+        };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
@@ -241,5 +282,14 @@ mod tests {
         let actual_messages_count = state.context.messages.len();
         let expected_messages_count = 1;
         assert_eq!(actual_messages_count, expected_messages_count);
+    }
+
+    #[test]
+    fn test_with_context_sets_render_context() {
+        let context = SystemContext::default();
+        let fixture = SystemPromptProgram::from_str("Hello {{name}}").with_context(context.clone());
+
+        let actual_context = &fixture.context;
+        assert!(actual_context.is_some());
     }
 }
