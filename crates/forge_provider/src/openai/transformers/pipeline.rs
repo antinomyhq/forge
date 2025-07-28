@@ -2,6 +2,7 @@ use forge_app::domain::{DefaultTransformation, Provider, Transformer};
 
 use super::drop_tool_call::DropToolCalls;
 use super::make_openai_compat::MakeOpenAiCompat;
+use super::role_choice::RoleChoice;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
@@ -29,6 +30,7 @@ impl Transformer for ProviderPipeline<'_> {
             .pipe(DropToolCalls.when(when_model("mistral")))
             .pipe(SetToolChoice::new(ToolChoice::Auto).when(when_model("gemini")))
             .pipe(SetCache.when(when_model("gemini|anthropic")))
+            .pipe(RoleChoice.when(when_model("openai")))
             .when(move |_| supports_open_router_params(provider));
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
