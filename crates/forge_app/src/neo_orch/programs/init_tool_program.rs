@@ -39,7 +39,7 @@ impl Program for InitToolProgram {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{ToolName, ToolResult, Event};
+    use forge_domain::{Event, ToolName, ToolResult};
     use pretty_assertions::assert_eq;
 
     use super::*;
