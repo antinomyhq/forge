@@ -1,10 +1,11 @@
+use derive_builder::Builder;
 use forge_domain::ToolDefinition;
 
 use crate::neo_orch::events::{AgentAction, UserAction};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
-#[derive(Default)]
+#[derive(Default, Builder)]
 pub struct InitToolProgram {
     tool_definitions: Vec<ToolDefinition>,
 }

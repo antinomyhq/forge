@@ -1,22 +1,20 @@
-use forge_domain::{Agent, ToolDefinition};
+use derive_builder::Builder;
+use forge_domain::{Agent, Model, ToolDefinition};
 
 use crate::neo_orch::events::{AgentAction, UserAction};
 use crate::neo_orch::program::{Program, ProgramExt};
 use crate::neo_orch::programs::SystemPromptProgram;
+use crate::neo_orch::programs::attachment_program::AttachmentProgram;
 use crate::neo_orch::programs::init_tool_program::InitToolProgram;
 use crate::neo_orch::state::AgentState;
 
 ///
 /// The main agent program that runs an agent
+#[derive(Builder)]
 pub struct AgentProgram {
     tool_definitions: Vec<ToolDefinition>,
     agent: Agent,
-}
-
-impl AgentProgram {
-    pub fn new(tool_definitions: Vec<ToolDefinition>, agent: Agent) -> Self {
-        Self { tool_definitions, agent }
-    }
+    model: Model,
 }
 
 impl Program for AgentProgram {
@@ -31,10 +29,10 @@ impl Program for AgentProgram {
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error> {
         let program = InitToolProgram::new(self.tool_definitions.clone())
-            //
             .combine(
                 SystemPromptProgram::default().system_prompt(self.agent.system_prompt.to_owned()),
-            );
+            )
+            .combine(AttachmentProgram::new(self.model.id.clone()));
 
         program.update(action, state)
     }

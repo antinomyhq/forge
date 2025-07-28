@@ -1,3 +1,4 @@
+use derive_builder::Builder;
 use derive_setters::Setters;
 use forge_domain::{SystemContext, Template};
 
@@ -5,7 +6,7 @@ use crate::neo_orch::events::{AgentAction, UserAction};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
-#[derive(Default, Setters)]
+#[derive(Default, Setters, Builder)]
 pub struct SystemPromptProgram {
     system_prompt: Option<Template<SystemContext>>,
 }
