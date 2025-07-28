@@ -307,7 +307,36 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     )))?;
                 }
             },
+            TopLevelCommand::Info => {
+                // Make sure to init model 
+                self.on_new().await?;
+                
+                self.display_info().await?;
+                return Ok(());
+            }
         }
+        Ok(())
+    }
+
+    async fn display_info(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading Info"))?;
+        let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+
+        // Add user information if available
+        if let Ok(config) = self.api.app_config().await
+            && let Some(login_info) = &config.key_info
+        {
+            info = info.extend(Info::from(login_info));
+        }
+
+        // Add usage information
+        if let Ok(Some(user_usage)) = self.api.user_usage().await {
+            info = info.extend(Info::from(&user_usage));
+        }
+
+        self.writeln(info)?;
+        self.spinner.stop(None)?;
+
         Ok(())
     }
 
@@ -325,23 +354,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                self.spinner.start(Some("Loading Info"))?;
-                let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
-
-                // Add user information if available
-                if let Ok(config) = self.api.app_config().await
-                    && let Some(login_info) = &config.key_info
-                {
-                    info = info.extend(Info::from(login_info));
-                }
-
-                // Add usage information
-                if let Ok(Some(user_usage)) = self.api.user_usage().await {
-                    info = info.extend(Info::from(&user_usage));
-                }
-
-                self.writeln(info)?;
-                self.spinner.stop(None)?;
+                self.display_info().await?;
             }
             Command::Message(ref content) => {
                 self.spinner.start(None)?;
