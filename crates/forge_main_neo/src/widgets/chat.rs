@@ -3,12 +3,12 @@ use ratatui::style::{Style, Stylize};
 use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
 
 use crate::domain::State;
+use crate::widgets::autocomplete::AutocompleteWidget;
+use crate::widgets::editor::EditorWidget;
 use crate::widgets::message_list::MessageList;
 use crate::widgets::spotlight::SpotlightWidget;
 use crate::widgets::status_bar::StatusBar;
 use crate::widgets::welcome::WelcomeWidget;
-use crate::widgets::editor::EditorWidget;
-use crate::widgets::autocomplete::AutocompleteWidget;
 
 /// Chat widget that handles the chat interface with editor and message list
 #[derive(Clone, Default)]
@@ -57,8 +57,7 @@ impl StatefulWidget for ChatWidget {
                 state.workspace.clone(),
             ));
 
-        EditorWidget
-            .render(user_block.inner(user_area), buf, state);
+        EditorWidget.render(user_block.inner(user_area), buf, state);
 
         // Render blocks
         message_block.render(messages_area, buf);

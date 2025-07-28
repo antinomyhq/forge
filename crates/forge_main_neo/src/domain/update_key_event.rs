@@ -4,10 +4,12 @@ use edtui::actions::{
     Execute, MoveToEndOfLine, MoveToStartOfLine, MoveWordBackward, MoveWordForward,
 };
 use edtui::{EditorEventHandler, EditorMode};
+use forge_walker::Walker;
+use nucleo::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo::{Config, Matcher, Utf32Str};
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
-use crate::domain::spotlight::SpotlightState;
-use crate::domain::{Command, EditorStateExt, State, LayoverState};
+use crate::domain::{Command, EditorStateExt, LayoverState, State};
 
 fn handle_spotlight_input_change(state: &mut State) {
     // Reset selection index when input changes to ensure it's within bounds
@@ -78,7 +80,7 @@ fn handle_spotlight_navigation(
                 };
 
                 // Hide spotlight and return the command
-                state.spotlight = SpotlightState::default();
+                state.layover_state = LayoverState::Editor;
                 return Some(command);
             }
             Some(Command::Empty)
@@ -185,7 +187,7 @@ fn handle_spotlight_toggle(
             state.layover_state = LayoverState::Spotlight;
         } else {
             // Hide spotlight in all other cases
-            state.spotlight = SpotlightState::default();
+            state.layover_state = LayoverState::Editor;
         }
         Command::Empty
     } else {
@@ -238,12 +240,11 @@ pub fn handle_key_event(
         return Command::InterruptStream;
     }
 
-    // Autocomplete for file tagging: Tab with '@' prefix in Insert mode
-    if key_event.code == KeyCode::Tab && state.editor.mode == EditorMode::Insert {
-        let input = state.editor.get_text();
-        if input.starts_with('@') {
-            return Command::Autocomplete;
-        }
+    if key_event.code == KeyCode::Tab
+        && state.editor.mode == EditorMode::Insert
+        && state.editor.get_text_from_at_to_cursor().is_some()
+    {
+        return Command::Autocomplete;
     }
 
     if state.layover_state.is_spotlight() {
@@ -281,14 +282,14 @@ pub fn handle_key_event(
         let selected = autocomplete_state.list_state.selected().unwrap_or(0);
 
         match key_event.code {
-            KeyCode::Up => {
+            KeyCode::Up if key_event.modifiers.is_empty() => {
                 if suggestions_len > 0 && selected > 0 {
                     autocomplete_state.list_state.select(Some(selected - 1));
                     autocomplete_state.selected_index = selected - 1;
                 }
                 Command::Empty
             }
-            KeyCode::Down => {
+            KeyCode::Down if key_event.modifiers.is_empty() => {
                 if suggestions_len > 0 && selected < suggestions_len - 1 {
                     autocomplete_state.list_state.select(Some(selected + 1));
                     autocomplete_state.selected_index = selected + 1;
@@ -299,10 +300,15 @@ pub fn handle_key_event(
                 // Insert the selected suggestion into the editor
                 if suggestions_len > 0 {
                     let suggestion = &autocomplete_state.suggestions[selected];
-                    let input = state.editor.get_text();
-                    if let Some(_tag_prefix) = input.strip_prefix('@') {
-                        let new_text = format!("@{}", suggestion);
-                        state.editor.set_text_insert_mode(new_text);
+                    // Replace the text from @ to cursor with the suggestion
+                    if let Some(text) = state.editor.get_text_from_at_to_cursor() {
+                        let input = state.editor.get_text();
+                        if let Some(at_pos) = input.rfind('@') {
+                            let before = &input[..at_pos];
+                            let after = &input[at_pos + text.len() + 1..]; // +1 for the '@'
+                            let new_text = format!("{before}@{suggestion}{after}");
+                            state.editor.set_text_insert_mode(new_text);
+                        }
                     }
                 }
                 // Hide autocomplete after selection
@@ -314,7 +320,76 @@ pub fn handle_key_event(
                 state.layover_state = LayoverState::Editor;
                 Command::Empty
             }
-            _ => Command::Empty,
+            _ => {
+                // For all other keys, pass to the autocomplete editor for navigation and
+                // editing
+                let line_nav_handled =
+                    handle_line_navigation(&mut autocomplete_state.editor, key_event);
+                let word_nav_handled =
+                    handle_word_navigation(&mut autocomplete_state.editor, key_event);
+
+                if !line_nav_handled && !word_nav_handled {
+                    EditorEventHandler::default()
+                        .on_key_event(key_event, &mut autocomplete_state.editor);
+                }
+
+                // Update search term and refilter results
+                autocomplete_state.update_search_term();
+                let search_term = autocomplete_state.search_term.clone();
+
+                // Refilter files based on updated search term
+                if !search_term.is_empty() {
+                    let workspace_pathbuf = state.cwd.as_ref().expect("CWD should be set").clone();
+                    let walker = Walker::max_all().cwd(workspace_pathbuf).skip_binary(true);
+                    let files = walker.get_blocking().unwrap_or_default();
+                    let mut fuzzy_matcher = Matcher::new(Config::DEFAULT);
+                    let query = search_term.trim();
+                    let mut haystack_buf = Vec::new();
+                    let mut scored_matches: Vec<(u32, String)> = files
+                        .into_iter()
+                        .filter_map(|file| {
+                            if let Some(file_name) = file.file_name.as_ref() {
+                                let haystack = Utf32Str::new(file_name, &mut haystack_buf);
+                                let pattern = Pattern::parse(
+                                    query,
+                                    CaseMatching::Ignore,
+                                    Normalization::Smart,
+                                );
+                                if let Some(score) = pattern.score(haystack, &mut fuzzy_matcher) {
+                                    Some((score, file.path.clone()))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    scored_matches.sort_by(|a, b| b.0.cmp(&a.0));
+                    let suggestions: Vec<String> =
+                        scored_matches.into_iter().map(|(_, path)| path).collect();
+
+                    autocomplete_state.suggestions = suggestions;
+
+                    // Reset selection if needed
+                    if autocomplete_state.suggestions.is_empty() {
+                        autocomplete_state.selected_index = 0;
+                        autocomplete_state.list_state.select(None);
+                    } else if autocomplete_state.selected_index
+                        >= autocomplete_state.suggestions.len()
+                    {
+                        autocomplete_state.selected_index = 0;
+                        autocomplete_state.list_state.select(Some(0));
+                    }
+                } else {
+                    // Clear suggestions if search term is empty
+                    autocomplete_state.suggestions.clear();
+                    autocomplete_state.selected_index = 0;
+                    autocomplete_state.list_state.select(None);
+                }
+
+                Command::Empty
+            }
         }
     } else {
         // When spotlight is not visible, route events to main editor

@@ -7,16 +7,16 @@ use forge_api::{ChatResponse, ConversationId};
 use throbber_widgets_tui::ThrobberState;
 use tui_scrollview::ScrollViewState;
 
+use crate::domain::autocomplete::AutocompleteState;
 use crate::domain::spotlight::SpotlightState;
 use crate::domain::{CancelId, EditorStateExt, Message, Workspace};
-use crate::domain::autocomplete::AutocompleteState;
 
-#[derive(Clone, Debug, Default)]
-pub enum LayoverState{
+#[derive(Clone, Default)]
+pub enum LayoverState {
     #[default]
-    Editor, 
+    Editor,
     Spotlight,
-    Autocomplete(AutocompleteState),
+    Autocomplete(Box<AutocompleteState>),
 }
 impl LayoverState {
     pub fn is_spotlight(&self) -> bool {

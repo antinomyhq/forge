@@ -1,12 +1,13 @@
 use edtui::EditorEventHandler;
 use forge_api::ChatResponse;
-use ratatui::crossterm::event::KeyEventKind;
 use forge_walker::Walker;
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32Str};
+use ratatui::crossterm::event::KeyEventKind;
 
+use crate::domain::autocomplete::AutocompleteState;
 use crate::domain::update_key_event::handle_key_event;
-use crate::domain::{Action, Command, State, EditorStateExt, LayoverState};
+use crate::domain::{Action, Command, EditorStateExt, LayoverState, State};
 
 pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
     let action = action.into();
@@ -84,24 +85,21 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             Command::Empty
         }
         Action::Autocomplete => {
-            // Autocomplete for file tagging: only trigger if input starts with '@'
-            let input = state.editor.get_text();
-            if let Some(tag_prefix) = input.strip_prefix('@') {
-                let workspace_pathbuf = state.cwd.as_ref()
-                    .expect("CWD should be set")
-                    .clone();
+            // Get text from '@' to cursor position
+            if let Some(search_term) = state.editor.get_text_from_at_to_cursor() {
+                let workspace_pathbuf = state.cwd.as_ref().expect("CWD should be set").clone();
                 let walker = Walker::max_all().cwd(workspace_pathbuf).skip_binary(true);
                 let files = walker.get_blocking().unwrap_or_default();
                 let mut fuzzy_matcher = Matcher::new(Config::DEFAULT);
-                let query = tag_prefix.trim();
+                let query = search_term.trim();
                 let mut haystack_buf = Vec::new();
                 let mut scored_matches: Vec<(u32, String)> = files
                     .into_iter()
-                    .filter(|file| !file.is_dir())
                     .filter_map(|file| {
                         if let Some(file_name) = file.file_name.as_ref() {
                             let haystack = Utf32Str::new(file_name, &mut haystack_buf);
-                            let pattern = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
+                            let pattern =
+                                Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
                             if let Some(score) = pattern.score(haystack, &mut fuzzy_matcher) {
                                 Some((score, file.path.clone()))
                             } else {
@@ -113,15 +111,13 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
                     })
                     .collect();
                 scored_matches.sort_by(|a, b| b.0.cmp(&a.0));
-                let suggestions: Vec<String> = scored_matches.into_iter().map(|(_, path)| format!("[{}]", path)).collect();
+                let suggestions: Vec<String> =
+                    scored_matches.into_iter().map(|(_, path)| path).collect();
 
                 if !suggestions.is_empty() {
-                    use crate::domain::autocomplete::AutocompleteState;
-                    let mut autocomplete_state = AutocompleteState::default();
+                    let mut autocomplete_state = AutocompleteState::new(search_term);
                     autocomplete_state.suggestions = suggestions;
-                    autocomplete_state.selected_index = 0;
-                    autocomplete_state.list_state.select(Some(0));
-                    state.layover_state = LayoverState::Autocomplete(autocomplete_state);
+                    state.layover_state = LayoverState::Autocomplete(Box::new(autocomplete_state));
                 } else {
                     state.layover_state = LayoverState::Editor;
                 }

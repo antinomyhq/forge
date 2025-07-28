@@ -1,6 +1,7 @@
 use edtui::{EditorTheme, EditorView};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{StatefulWidget, Widget};
+
 use crate::domain::State;
 
 #[derive(Default)]
