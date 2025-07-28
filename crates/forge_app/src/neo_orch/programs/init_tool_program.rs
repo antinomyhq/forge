@@ -1,19 +1,15 @@
 use derive_builder::Builder;
+use derive_setters::Setters;
 use forge_domain::ToolDefinition;
 
 use crate::neo_orch::events::{AgentAction, UserAction};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
-#[derive(Default, Builder)]
+#[derive(Setters, Builder)]
+#[setters(strip_option, into)]
 pub struct InitToolProgram {
     tool_definitions: Vec<ToolDefinition>,
-}
-
-impl InitToolProgram {
-    pub fn new(tool_definitions: Vec<ToolDefinition>) -> Self {
-        Self { tool_definitions }
-    }
 }
 
 impl Program for InitToolProgram {
@@ -53,17 +49,23 @@ mod tests {
     }
 
     #[test]
-    fn test_new_creates_empty_program() {
-        let fixture = InitToolProgram::default();
+    fn test_builder_creates_empty_program() {
+        let fixture = InitToolProgramBuilder::default()
+            .tool_definitions(vec![])
+            .build()
+            .unwrap();
         let actual = fixture.tool_definitions.len();
         let expected = 0;
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_with_tools_creates_program_with_tools() {
+    fn test_builder_creates_program_with_tools() {
         let tool_definitions = create_test_tool_definitions();
-        let fixture = InitToolProgram::new(tool_definitions.clone());
+        let fixture = InitToolProgramBuilder::default()
+            .tool_definitions(tool_definitions.clone())
+            .build()
+            .unwrap();
         let actual = fixture.tool_definitions;
         let expected = tool_definitions;
         assert_eq!(actual, expected);
@@ -72,7 +74,10 @@ mod tests {
     #[test]
     fn test_update_adds_tools_to_context_on_message() {
         let tool_definitions = create_test_tool_definitions();
-        let fixture = InitToolProgram::new(tool_definitions.clone());
+        let fixture = InitToolProgramBuilder::default()
+            .tool_definitions(tool_definitions.clone())
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
         let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
@@ -96,7 +101,10 @@ mod tests {
     #[test]
     fn test_update_ignores_non_message_actions() {
         let tool_definitions = create_test_tool_definitions();
-        let fixture = InitToolProgram::new(tool_definitions);
+        let fixture = InitToolProgramBuilder::default()
+            .tool_definitions(tool_definitions)
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
         let action = UserAction::RenderResult("test".to_string());
 
@@ -111,7 +119,10 @@ mod tests {
     #[test]
     fn test_update_ignores_tool_result_action() {
         let tool_definitions = create_test_tool_definitions();
-        let fixture = InitToolProgram::new(tool_definitions);
+        let fixture = InitToolProgramBuilder::default()
+            .tool_definitions(tool_definitions)
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
         let action = UserAction::ToolResult(
             ToolResult::new(ToolName::new("test_tool")).success("test output"),
@@ -127,7 +138,10 @@ mod tests {
 
     #[test]
     fn test_update_with_empty_tools() {
-        let fixture = InitToolProgram::default();
+        let fixture = InitToolProgramBuilder::default()
+            .tool_definitions(vec![])
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
         let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
@@ -141,7 +155,10 @@ mod tests {
 
     #[test]
     fn test_update_returns_empty_action() {
-        let fixture = InitToolProgram::default();
+        let fixture = InitToolProgramBuilder::default()
+            .tool_definitions(vec![])
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
         let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
@@ -156,7 +173,10 @@ mod tests {
     #[test]
     fn test_update_preserves_existing_context_state() {
         let tool_definitions = create_test_tool_definitions();
-        let fixture = InitToolProgram::new(tool_definitions);
+        let fixture = InitToolProgramBuilder::default()
+            .tool_definitions(tool_definitions)
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
 
         // Set some initial context state

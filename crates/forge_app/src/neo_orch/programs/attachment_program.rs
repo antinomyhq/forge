@@ -7,15 +7,10 @@ use crate::neo_orch::events::{AgentAction, UserAction};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
-#[derive(Default, Setters, Builder)]
+#[derive(Setters, Builder)]
+#[setters(strip_option, into)]
 pub struct AttachmentProgram {
-    model_id: Option<ModelId>,
-}
-
-impl AttachmentProgram {
-    pub fn new(model_id: ModelId) -> Self {
-        Self { model_id: Some(model_id) }
-    }
+    model_id: ModelId,
 }
 
 impl Program for AttachmentProgram {
@@ -34,10 +29,7 @@ impl Program for AttachmentProgram {
             && !event.attachments.is_empty()
         {
             // Get the model_id to use for context messages
-            let model_id = self
-                .model_id
-                .clone()
-                .unwrap_or_else(|| ModelId::new("default"));
+            let model_id = &self.model_id;
 
             // Process each attachment and add it to the context
             for attachment in &event.attachments {
@@ -76,25 +68,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_new_creates_program_with_model_id() {
+    fn test_builder_creates_program_with_model_id() {
         let model_id = ModelId::new("test-model");
-        let fixture = AttachmentProgram::new(model_id.clone());
-        let actual = fixture.model_id.as_ref().expect("Should have model_id");
+        let fixture = AttachmentProgramBuilder::default()
+            .model_id(model_id.clone())
+            .build()
+            .unwrap();
+        let actual = &fixture.model_id;
         let expected = &model_id;
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_default_creates_program_without_model_id() {
-        let fixture = AttachmentProgram::default();
-        let actual = fixture.model_id.is_none();
-        let expected = true;
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_update_processes_file_attachments() {
-        let fixture = AttachmentProgram::new(ModelId::new("test-model"));
+        let fixture = AttachmentProgramBuilder::default()
+            .model_id(ModelId::new("test-model"))
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
 
         let attachment = Attachment {
@@ -141,7 +131,10 @@ mod tests {
 
     #[test]
     fn test_update_processes_image_attachments() {
-        let fixture = AttachmentProgram::new(ModelId::new("test-model"));
+        let fixture = AttachmentProgramBuilder::default()
+            .model_id(ModelId::new("test-model"))
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
 
         let image = Image::new_base64(
@@ -183,7 +176,10 @@ mod tests {
 
     #[test]
     fn test_update_processes_multiple_attachments() {
-        let fixture = AttachmentProgram::new(ModelId::new("test-model"));
+        let fixture = AttachmentProgramBuilder::default()
+            .model_id(ModelId::new("test-model"))
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
 
         let file_attachment = Attachment {
@@ -222,7 +218,10 @@ mod tests {
 
     #[test]
     fn test_update_skips_when_no_attachments() {
-        let fixture = AttachmentProgram::new(ModelId::new("test-model"));
+        let fixture = AttachmentProgramBuilder::default()
+            .model_id(ModelId::new("test-model"))
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
 
         let event = Event::new("test_message", Some("test message"));
@@ -240,7 +239,10 @@ mod tests {
 
     #[test]
     fn test_update_ignores_non_chat_event_actions() {
-        let fixture = AttachmentProgram::new(ModelId::new("test-model"));
+        let fixture = AttachmentProgramBuilder::default()
+            .model_id(ModelId::new("test-model"))
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
 
         let action = UserAction::RenderResult("test".to_string());
@@ -257,7 +259,10 @@ mod tests {
 
     #[test]
     fn test_update_returns_empty_action() {
-        let fixture = AttachmentProgram::new(ModelId::new("test-model"));
+        let fixture = AttachmentProgramBuilder::default()
+            .model_id(ModelId::new("test-model"))
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
 
         let attachment = Attachment {
@@ -280,8 +285,11 @@ mod tests {
     }
 
     #[test]
-    fn test_update_uses_default_model_id_when_none_provided() {
-        let fixture = AttachmentProgram::default();
+    fn test_update_uses_default_model_id_when_using_builder() {
+        let fixture = AttachmentProgramBuilder::default()
+            .model_id(ModelId::new("default"))
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
 
         let attachment = Attachment {
@@ -309,7 +317,10 @@ mod tests {
 
     #[test]
     fn test_update_preserves_existing_context_state() {
-        let fixture = AttachmentProgram::new(ModelId::new("test-model"));
+        let fixture = AttachmentProgramBuilder::default()
+            .model_id(ModelId::new("test-model"))
+            .build()
+            .unwrap();
         let mut state = AgentState::default();
 
         // Set some initial context state
