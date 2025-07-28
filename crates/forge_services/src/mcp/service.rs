@@ -65,7 +65,7 @@ where
             ));
 
             tool.name = generated_name.clone();
-            
+
             tool_map.insert(
                 generated_name,
                 ToolHolder { definition: tool, executable: server },
