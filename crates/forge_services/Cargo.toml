@@ -57,6 +57,7 @@ strip-ansi-escapes.workspace = true
 rmcp.workspace = true
 forge_app.workspace = true
 url.workspace = true
+once_cell = "1.21.3"
 
 [dev-dependencies]
 insta.workspace = true

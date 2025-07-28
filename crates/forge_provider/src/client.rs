@@ -126,6 +126,14 @@ impl Client {
 
         Ok(models)
     }
+
+    pub async fn copilot_create_thread(&self) -> anyhow::Result<String> {
+        match self.inner.as_ref() {
+            InnerClient::OpenAICompat(provider) => provider.copilot_create_thread().await,
+            InnerClient::Anthropic(_) => anyhow::bail!("Copilot methods are only available for OpenAI-compatible providers"),
+        }
+    }
+
 }
 
 impl Client {
@@ -133,9 +141,10 @@ impl Client {
         &self,
         model: &ModelId,
         context: Context,
+        thread_id: Option<String>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let chat_stream = self.clone().retry(match self.inner.as_ref() {
-            InnerClient::OpenAICompat(provider) => provider.chat(model, context).await,
+            InnerClient::OpenAICompat(provider) => provider.chat(model, context, thread_id).await,
             InnerClient::Anthropic(provider) => provider.chat(model, context).await,
         })?;
 

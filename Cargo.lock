@@ -1557,6 +1557,7 @@ dependencies = [
  "mockito",
  "moka2",
  "nom 8.0.0",
+ "once_cell",
  "pretty_assertions",
  "regex",
  "reqwest 0.12.22",

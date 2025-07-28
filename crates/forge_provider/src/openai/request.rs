@@ -184,6 +184,17 @@ pub struct Request {
     pub reasoning: Option<forge_app::domain::ReasoningConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_completion_tokens: Option<u32>,
+    // Copilot-specific fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub streaming: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -280,6 +291,11 @@ impl From<Context> for Request {
             session_id: context.conversation_id.map(|id| id.to_string()),
             reasoning: context.reasoning,
             max_completion_tokens: Default::default(),
+            content: Default::default(),
+            context: Default::default(),
+            intent: Default::default(),
+            thread_id: Default::default(),
+            streaming: Default::default(),
         }
     }
 }

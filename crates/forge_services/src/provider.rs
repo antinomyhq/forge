@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::sync::Arc;
+use once_cell::sync::Lazy;
 
 use anyhow::{Context, Result};
 use forge_app::ProviderService;
@@ -10,6 +12,9 @@ use forge_provider::{Client, ClientBuilder};
 use tokio::sync::Mutex;
 
 use crate::EnvironmentInfra;
+
+// Simple mapping for conversation_id to thread_id
+static THREAD_ID_MAP: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Clone)]
 pub struct ForgeProviderService {
@@ -52,6 +57,32 @@ impl ForgeProviderService {
             }
         }
     }
+
+    /// Get or create a thread ID for Copilot conversations
+    async fn get_or_create_thread_id(
+        &self,
+        client: &Client,
+        conversation_id: &str,
+    ) -> anyhow::Result<String> {
+        // First check if thread_id exists in map
+        let existing_thread_id = {
+            let map = THREAD_ID_MAP.lock().await;
+            map.get(conversation_id).cloned()
+        };
+        
+        if let Some(existing_thread_id) = existing_thread_id {
+            Ok(existing_thread_id)
+        } else {
+            // Create a new thread if none exists
+            let new_thread_id = client.copilot_create_thread().await?;
+            // Store the new thread_id in map
+            {
+                let mut map = THREAD_ID_MAP.lock().await;
+                map.insert(conversation_id.to_string(), new_thread_id.clone());
+            }
+            Ok(new_thread_id)
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -62,10 +93,23 @@ impl ProviderService for ForgeProviderService {
         request: ChatContext,
         provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let client = self.client(provider).await?;
-
+        let client = self.client(provider.clone()).await?;
+        
+        // Handle Copilot thread ID management
+        if provider.is_copilot() {
+            // Get conversation_id for mapping
+            let conversation_id = request.conversation_id.clone().unwrap_or_default();
+            let conversation_id_str = conversation_id.to_string();
+            
+            // Get or create thread ID
+            let thread_id = self.get_or_create_thread_id(&client, &conversation_id_str).await?;
+            
+            // Pass the thread ID to the chat function
+            return client.chat(model, request, Some(thread_id)).await;
+        }
+        
         client
-            .chat(model, request)
+            .chat(model, request, None)
             .await
             .with_context(|| format!("Failed to chat with model: {model}"))
     }
