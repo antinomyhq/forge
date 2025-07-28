@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use once_cell::sync::Lazy;
 
 use anyhow::{Context, Result};
 use forge_app::ProviderService;
@@ -9,12 +8,14 @@ use forge_app::domain::{
     ResultStream, RetryConfig,
 };
 use forge_provider::{Client, ClientBuilder};
+use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 
 use crate::EnvironmentInfra;
 
 // Simple mapping for conversation_id to thread_id
-static THREAD_ID_MAP: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static THREAD_ID_MAP: Lazy<Mutex<HashMap<String, String>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Clone)]
 pub struct ForgeProviderService {
@@ -69,7 +70,7 @@ impl ForgeProviderService {
             let map = THREAD_ID_MAP.lock().await;
             map.get(conversation_id).cloned()
         };
-        
+
         if let Some(existing_thread_id) = existing_thread_id {
             Ok(existing_thread_id)
         } else {
@@ -94,20 +95,22 @@ impl ProviderService for ForgeProviderService {
         provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let client = self.client(provider.clone()).await?;
-        
+
         // Handle Copilot thread ID management
         if provider.is_copilot() {
             // Get conversation_id for mapping
-            let conversation_id = request.conversation_id.clone().unwrap_or_default();
+            let conversation_id = request.conversation_id.unwrap_or_default();
             let conversation_id_str = conversation_id.to_string();
-            
+
             // Get or create thread ID
-            let thread_id = self.get_or_create_thread_id(&client, &conversation_id_str).await?;
-            
+            let thread_id = self
+                .get_or_create_thread_id(&client, &conversation_id_str)
+                .await?;
+
             // Pass the thread ID to the chat function
             return client.chat(model, request, Some(thread_id)).await;
         }
-        
+
         client
             .chat(model, request, None)
             .await

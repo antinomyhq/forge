@@ -1,8 +1,7 @@
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_app::domain::{
-    ChatCompletionMessage, Content, Context as ChatContext, ModelId, Provider,
-    ResultStream,
+    ChatCompletionMessage, Content, Context as ChatContext, ModelId, Provider, ResultStream,
 };
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
@@ -12,7 +11,7 @@ use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
 use super::model::{ListModelResponse, Model};
-use super::request::{Request, MessageContent, ContentPart, Role};
+use super::request::{ContentPart, MessageContent, Request, Role};
 use super::response::Response;
 use crate::error::Error;
 use crate::openai::transformers::{ProviderPipeline, Transformer};
@@ -105,8 +104,6 @@ impl ForgeProvider {
         headers
     }
 
-    
-
     async fn copilot_chat(
         &self,
         model: &ModelId,
@@ -114,54 +111,26 @@ impl ForgeProvider {
         thread_id: String,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         // Use the standard Request format but populate Copilot-specific fields
-        let mut request = Request::from(context.clone()).model(model.clone()).stream(true);
+        let mut request = Request::from(context.clone())
+            .model(model.clone())
+            .stream(true);
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
-        
+
         // Populate Copilot-specific fields
         request = request
             .thread_id(thread_id.clone())
             .intent("conversation".to_string())
             .streaming(true);
-        
+
         // Extract content from the last message
-        if let Some(messages) = &request.messages {
-            if let Some(last_msg) = messages.last() {
-                if let Some(content) = &last_msg.content {
+        if let Some(messages) = &request.messages
+            && let Some(last_msg) = messages.last()
+                && let Some(content) = &last_msg.content {
                     let content_str = match content {
                         MessageContent::Text(text) => text.clone(),
-                        MessageContent::Parts(parts) => {
-                            parts.iter()
-                                .filter_map(|part| {
-                                    if let ContentPart::Text { text, .. } = part {
-                                        Some(text.clone())
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect::<Vec<_>>()
-                                .join(" ")
-                        }
-                    };
-                    request = request.content(content_str);
-                }
-            }
-        }
-        
-        // Build context from messages
-        if let Some(messages) = &request.messages {
-            let context_messages: Vec<serde_json::Value> = messages.iter().map(|msg| {
-                let role = match msg.role {
-                    Role::System => "system",
-                    Role::User => "user", 
-                    Role::Assistant => "assistant",
-                    Role::Tool => "tool",
-                };
-                
-                let content = msg.content.as_ref().map(|c| match c {
-                    MessageContent::Text(text) => text.clone(),
-                    MessageContent::Parts(parts) => {
-                        parts.iter()
+                        MessageContent::Parts(parts) => parts
+                            .iter()
                             .filter_map(|part| {
                                 if let ContentPart::Text { text, .. } = part {
                                     Some(text.clone())
@@ -170,22 +139,55 @@ impl ForgeProvider {
                                 }
                             })
                             .collect::<Vec<_>>()
-                            .join(" ")
-                    }
-                }).unwrap_or_default();
+                            .join(" "),
+                    };
+                    request = request.content(content_str);
+                }
 
-                json!({
-                    "role": role,
-                    "content": content,
+        // Build context from messages
+        if let Some(messages) = &request.messages {
+            let context_messages: Vec<serde_json::Value> = messages
+                .iter()
+                .map(|msg| {
+                    let role = match msg.role {
+                        Role::System => "system",
+                        Role::User => "user",
+                        Role::Assistant => "assistant",
+                        Role::Tool => "tool",
+                    };
+
+                    let content = msg
+                        .content
+                        .as_ref()
+                        .map(|c| match c {
+                            MessageContent::Text(text) => text.clone(),
+                            MessageContent::Parts(parts) => parts
+                                .iter()
+                                .filter_map(|part| {
+                                    if let ContentPart::Text { text, .. } = part {
+                                        Some(text.clone())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" "),
+                        })
+                        .unwrap_or_default();
+
+                    json!({
+                        "role": role,
+                        "content": content,
+                    })
                 })
-            }).collect();
+                .collect();
             request = request.context(context_messages);
         }
 
         request.messages = None;
         request.max_completion_tokens = None;
         request.stream = None;
-                
+
         // 3. Build the URL
         let url = self.url(&format!("github/chat/threads/{thread_id}/messages"))?;
         let headers = self.headers();
@@ -199,7 +201,7 @@ impl ForgeProvider {
             .json(&request)
             .eventsource()
             .with_context(|| format_http_context(None, "POST", &url))?;
-        
+
         // 5. Parse the event stream
         let stream = es
             .take_while(|message| {
@@ -424,7 +426,7 @@ impl ForgeProvider {
                 anyhow::bail!("Thread ID is required for Copilot chat");
             }
         }
-        
+
         // For non-Copilot providers, use the regular chat method
         self.inner_chat(model, context).await
     }

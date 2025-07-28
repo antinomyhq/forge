@@ -67,10 +67,12 @@ impl<S: AgentService> Orchestrator<S> {
             let mut tool_call = tool_call.clone();
             if tool_call.name.as_str() == "forge_tool_attempt_completion"
                 && let Some(obj) = tool_call.arguments.as_object_mut()
-                    && obj.contains_key("message") && !obj.contains_key("result")
-                        && let Some(val) = obj.remove("message") {
-                            obj.insert("result".to_string(), val);
-                        }
+                && obj.contains_key("message")
+                && !obj.contains_key("result")
+                && let Some(val) = obj.remove("message")
+            {
+                obj.insert("result".to_string(), val);
+            }
             // Send the start notification
             self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                 .await?;

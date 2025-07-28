@@ -130,10 +130,11 @@ impl Client {
     pub async fn copilot_create_thread(&self) -> anyhow::Result<String> {
         match self.inner.as_ref() {
             InnerClient::OpenAICompat(provider) => provider.copilot_create_thread().await,
-            InnerClient::Anthropic(_) => anyhow::bail!("Copilot methods are only available for OpenAI-compatible providers"),
+            InnerClient::Anthropic(_) => {
+                anyhow::bail!("Copilot methods are only available for OpenAI-compatible providers")
+            }
         }
     }
-
 }
 
 impl Client {

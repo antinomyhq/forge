@@ -37,9 +37,9 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
         if let Some(url) = self.provider_url()
             && let Some(env_provider) =
                 resolve_env_provider(self.provider_url(), self.infra.as_ref())
-            {
-                return Some(env_provider);
-            }
+        {
+            return Some(env_provider);
+        }
         // Fallback to Forge key if present
         if let Some(forge_key) = &forge_config.key_info {
             let provider = Provider::forge(forge_key.api_key.as_str());
