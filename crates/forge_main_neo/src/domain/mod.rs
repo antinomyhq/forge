@@ -9,6 +9,7 @@ mod state;
 mod update;
 mod update_key_event;
 mod workspace;
+mod autocomplete;
 
 pub use action::*;
 pub use cancel::*;
@@ -18,3 +19,4 @@ pub use message::*;
 pub use state::*;
 pub use update::*;
 pub use workspace::*;
+// pub use autocomplete::*;

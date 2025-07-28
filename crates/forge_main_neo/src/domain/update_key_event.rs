@@ -7,7 +7,7 @@ use edtui::{EditorEventHandler, EditorMode};
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::domain::spotlight::SpotlightState;
-use crate::domain::{Command, EditorStateExt, State};
+use crate::domain::{Command, EditorStateExt, State, LayoverState};
 
 fn handle_spotlight_input_change(state: &mut State) {
     // Reset selection index when input changes to ensure it's within bounds
@@ -26,7 +26,7 @@ fn handle_spotlight_navigation(
 ) -> Option<Command> {
     use ratatui::crossterm::event::KeyCode;
 
-    if !state.spotlight.is_visible {
+    if !state.layover_state.is_spotlight() {
         return None;
     }
 
@@ -165,7 +165,7 @@ fn handle_spotlight_show(
     use ratatui::crossterm::event::KeyCode;
 
     if key_event.code == KeyCode::Char(':') && state.editor.mode == EditorMode::Normal {
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
         Command::Empty
     } else {
         Command::Empty
@@ -180,9 +180,9 @@ fn handle_spotlight_toggle(
     use ratatui::crossterm::event::KeyCode;
 
     if key_event.code == KeyCode::Esc {
-        if !state.spotlight.is_visible && original_editor_mode == EditorMode::Normal {
+        if !state.layover_state.is_spotlight() && original_editor_mode == EditorMode::Normal {
             // Open spotlight when it's closed and editor was originally in normal mode
-            state.spotlight.is_visible = true;
+            state.layover_state = LayoverState::Spotlight;
         } else {
             // Hide spotlight in all other cases
             state.spotlight = SpotlightState::default();
@@ -199,7 +199,7 @@ fn handle_message_scroll(
 ) -> bool {
     use ratatui::crossterm::event::KeyCode;
 
-    if state.spotlight.is_visible || state.editor.mode != EditorMode::Normal {
+    if state.layover_state.is_spotlight() || state.editor.mode != EditorMode::Normal {
         return false;
     }
 
@@ -246,7 +246,7 @@ pub fn handle_key_event(
         }
     }
 
-    if state.spotlight.is_visible {
+    if state.layover_state.is_spotlight() {
         // When spotlight is visible, route events to spotlight editor
         let cmd = handle_spotlight_toggle(state, key_event, state.editor.mode);
 
@@ -275,47 +275,43 @@ pub fn handle_key_event(
             // Spotlight navigation handled, return the command from navigation
             cmd.and(spotlight_nav_cmd.unwrap_or(Command::Empty))
         }
-    } else if state.show_autocomplete {
-        // Autocomplete navigation and selection
+    } else if let LayoverState::Autocomplete(ref mut autocomplete_state) = state.layover_state {
         use ratatui::crossterm::event::KeyCode;
-        let suggestions_len = state.autcomplete_suggestions.len();
-        let selected = state.autocomplete_list_state.selected().unwrap_or(0);
+        let suggestions_len = autocomplete_state.suggestions.len();
+        let selected = autocomplete_state.list_state.selected().unwrap_or(0);
 
         match key_event.code {
             KeyCode::Up => {
                 if suggestions_len > 0 && selected > 0 {
-                    state.autocomplete_list_state.select(Some(selected - 1));
+                    autocomplete_state.list_state.select(Some(selected - 1));
+                    autocomplete_state.selected_index = selected - 1;
                 }
                 Command::Empty
             }
             KeyCode::Down => {
                 if suggestions_len > 0 && selected < suggestions_len - 1 {
-                    state.autocomplete_list_state.select(Some(selected + 1));
+                    autocomplete_state.list_state.select(Some(selected + 1));
+                    autocomplete_state.selected_index = selected + 1;
                 }
                 Command::Empty
             }
             KeyCode::Tab | KeyCode::Enter => {
                 // Insert the selected suggestion into the editor
                 if suggestions_len > 0 {
-                    let suggestion = &state.autcomplete_suggestions[selected];
-                    // Replace the @ prefix with the selected suggestion
+                    let suggestion = &autocomplete_state.suggestions[selected];
                     let input = state.editor.get_text();
-                    if let Some(tag_prefix) = input.strip_prefix('@') {
+                    if let Some(_tag_prefix) = input.strip_prefix('@') {
                         let new_text = format!("@{}", suggestion);
                         state.editor.set_text_insert_mode(new_text);
                     }
-                    // Hide autocomplete after selection
-                    state.show_autocomplete = false;
-                    state.autcomplete_suggestions.clear();
-                    state.autocomplete_list_state.select(None);
                 }
+                // Hide autocomplete after selection
+                state.layover_state = LayoverState::Editor;
                 Command::Empty
             }
             KeyCode::Esc => {
                 // Hide autocomplete on escape
-                state.show_autocomplete = false;
-                state.autcomplete_suggestions.clear();
-                state.autocomplete_list_state.select(None);
+                state.layover_state = LayoverState::Editor;
                 Command::Empty
             }
             _ => Command::Empty,
@@ -370,7 +366,7 @@ mod tests {
         // Position cursor in the middle of the first word for testing
         state.editor.cursor = Index2::new(0, 6); // After "hello "
         // Ensure spotlight is not visible for main editor tests
-        state.spotlight.is_visible = false;
+        state.layover_state = LayoverState::Editor;
         state
     }
 
@@ -450,7 +446,7 @@ mod tests {
     #[test]
     fn test_spotlight_visible_routes_events_to_spotlight_editor() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
         let key_event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
 
         let actual_command = handle_key_event(&mut state, key_event);
@@ -466,7 +462,7 @@ mod tests {
     #[test]
     fn test_spotlight_hidden_routes_events_to_main_editor() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = false;
+        state.layover_state = LayoverState::Editor;
         let key_event = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
 
         let actual_command = handle_key_event(&mut state, key_event);
@@ -482,7 +478,7 @@ mod tests {
     #[test]
     fn test_escape_opens_spotlight_when_closed_and_in_normal_mode() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = false;
+        state.layover_state = LayoverState::Editor;
         state.editor.mode = EditorMode::Normal;
         let key_event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
 
@@ -490,26 +486,26 @@ mod tests {
         let expected_command = Command::Empty;
 
         assert_eq!(actual_command, expected_command);
-        assert!(state.spotlight.is_visible);
+        assert!(matches!(state.layover_state, LayoverState::Spotlight));
     }
 
     #[test]
     fn test_escape_hides_spotlight_when_visible() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
         let key_event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
 
         let actual_command = handle_key_event(&mut state, key_event);
         let expected_command = Command::Empty;
 
         assert_eq!(actual_command, expected_command);
-        assert!(!state.spotlight.is_visible);
+        assert!(matches!(state.layover_state, LayoverState::Editor));
     }
 
     #[test]
     fn test_escape_does_not_open_spotlight_when_editor_in_insert_mode() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = false;
+        state.layover_state = LayoverState::Editor;
         state.editor.mode = EditorMode::Insert;
         let key_event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
 
@@ -517,13 +513,13 @@ mod tests {
         let expected_command = Command::Empty;
 
         assert_eq!(actual_command, expected_command);
-        assert!(!state.spotlight.is_visible);
+        assert!(matches!(state.layover_state, LayoverState::Editor));
     }
 
     #[test]
     fn test_exit_command_works_regardless_of_spotlight_state() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
         let key_event = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
 
         let actual_command = handle_key_event(&mut state, key_event);
@@ -535,7 +531,7 @@ mod tests {
     #[test]
     fn test_ctrl_c_interrupt_stops_stream_regardless_of_spotlight_state() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
         let key_event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
 
         let actual_command = handle_key_event(&mut state, key_event);
@@ -547,7 +543,7 @@ mod tests {
     #[test]
     fn test_ctrl_c_interrupt_stops_stream_when_spotlight_hidden() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = false;
+        state.layover_state = LayoverState::Editor;
         let key_event = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
 
         let actual_command = handle_key_event(&mut state, key_event);
@@ -559,7 +555,7 @@ mod tests {
     #[test]
     fn test_spotlight_word_navigation() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
         // Set up some text in spotlight editor
         state
             .spotlight
@@ -592,7 +588,7 @@ mod tests {
         // Cursor should have moved to line start (navigation was handled)
         assert_eq!(state.editor.cursor.col, 0);
         // Spotlight should remain hidden (spotlight_show was not called)
-        assert!(!state.spotlight.is_visible);
+        assert!(!state.layover_state.is_spotlight());
     }
 
     #[test]
@@ -610,13 +606,13 @@ mod tests {
         // Cursor should have moved forward (navigation was handled)
         assert!(state.editor.cursor.col > 6); // Started at position 6
         // Spotlight should remain hidden (spotlight_show was not called)
-        assert!(!state.spotlight.is_visible);
+        assert!(!state.layover_state.is_spotlight());
     }
 
     #[test]
     fn test_spotlight_navigation_up_down() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
         state.spotlight.selected_index = 2;
 
         // Test down navigation
@@ -639,7 +635,7 @@ mod tests {
     #[test]
     fn test_spotlight_navigation_boundaries() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
         state.spotlight.selected_index = 0;
 
         // Test up navigation at top boundary
@@ -665,7 +661,7 @@ mod tests {
     #[test]
     fn test_spotlight_navigation_when_not_visible() {
         let mut state = create_test_state_with_text();
-        state.spotlight.is_visible = false;
+        state.layover_state = LayoverState::Editor;
         state.spotlight.selected_index = 2;
 
         // Test that navigation doesn't work when spotlight is not visible
@@ -680,7 +676,7 @@ mod tests {
     #[test]
     fn test_spotlight_shows_slash_commands() {
         let mut state = State::default();
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
 
         // Test that spotlight shows all slash commands
         let filtered_commands = state.spotlight.filtered_commands();
@@ -703,7 +699,7 @@ mod tests {
     #[test]
     fn test_spotlight_command_execution() {
         let mut state = State::default();
-        state.spotlight.is_visible = true;
+        state.layover_state = LayoverState::Spotlight;
 
         // Set up to select the exit command
         state
@@ -719,7 +715,7 @@ mod tests {
 
         assert_eq!(actual_command, expected_command);
         // Spotlight should be hidden after command execution
-        assert!(!state.spotlight.is_visible);
+        assert!(matches!(state.layover_state, LayoverState::Editor));
     }
 
     #[test]

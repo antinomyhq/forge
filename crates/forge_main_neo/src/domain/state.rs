@@ -9,19 +9,33 @@ use tui_scrollview::ScrollViewState;
 
 use crate::domain::spotlight::SpotlightState;
 use crate::domain::{CancelId, EditorStateExt, Message, Workspace};
-use ratatui::widgets::ListState;
+use crate::domain::autocomplete::AutocompleteState;
 
+#[derive(Clone, Debug, Default)]
+pub enum LayoverState{
+    #[default]
+    Editor, 
+    Spotlight,
+    Autocomplete(AutocompleteState),
+}
+impl LayoverState {
+    pub fn is_spotlight(&self) -> bool {
+        matches!(self, LayoverState::Spotlight)
+    }
+
+    pub fn is_autocomplete(&self) -> bool {
+        matches!(self, LayoverState::Autocomplete(_))
+    }
+}
 #[derive(Clone)]
 pub struct State {
     pub workspace: Workspace,
     pub editor: EditorState,
+    pub layover_state: LayoverState,
     pub messages: Vec<Message>,
     pub spinner: ThrobberState,
     pub timer: Option<Timer>,
     pub show_spinner: bool,
-    pub show_autocomplete: bool,
-    pub autcomplete_suggestions: Vec<String>,
-    pub autocomplete_list_state: ListState,
     pub spotlight: SpotlightState,
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
@@ -36,13 +50,11 @@ impl Default for State {
         Self {
             workspace: Default::default(),
             editor: prompt_editor,
+            layover_state: LayoverState::Editor,
             messages: Default::default(),
             spinner: Default::default(),
             timer: Default::default(),
             show_spinner: Default::default(),
-            show_autocomplete: false,
-            autcomplete_suggestions: Default::default(),
-            autocomplete_list_state: ListState::default(),
             spotlight: Default::default(),
             conversation: Default::default(),
             chat_stream: None,

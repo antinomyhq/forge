@@ -1,7 +1,6 @@
-use edtui::{EditorTheme, EditorView};
 use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::style::{Color, Style, Stylize};
-use ratatui::widgets::{self, Block, Padding, StatefulWidget, Widget};
+use ratatui::style::{Style, Stylize};
+use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
 
 use crate::domain::State;
 use crate::widgets::message_list::MessageList;
@@ -42,10 +41,9 @@ impl StatefulWidget for ChatWidget {
             MessageList.render(message_block.inner(messages_area), buf, state);
         }
 
-        if state.spotlight.is_visible {
-            SpotlightWidget.render(messages_area, buf, state)
-        }
-        if state.show_autocomplete {
+        if state.layover_state.is_spotlight() {
+            SpotlightWidget.render(messages_area, buf, state);
+        } else if state.layover_state.is_autocomplete() {
             AutocompleteWidget.render(messages_area, buf, state);
         }
 

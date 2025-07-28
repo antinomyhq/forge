@@ -19,7 +19,7 @@ pub async fn run(mut terminal: DefaultTerminal, cwd: PathBuf) -> anyhow::Result<
 
     let mut state = State::default();
     let api = ForgeAPI::init(false, cwd.clone());
-    state.cwd = Some(cwd);
+    state.cwd = Some(api.environment().cwd);
 
     // Initialize forge_tracker using the API instance
     let env = api.environment();

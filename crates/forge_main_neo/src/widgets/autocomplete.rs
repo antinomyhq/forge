@@ -1,10 +1,10 @@
 // ...existing code...
-use ratatui::layout::{Constraint, Flex, Layout, Margin};
+use ratatui::layout::{Constraint, Flex, Layout};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::symbols::{border, line};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, Borders, Clear, List, ListItem, StatefulWidget, Widget,
+    Block, Borders, Clear, List, ListItem, StatefulWidget, Widget
 };
 
 use crate::domain::State;
@@ -36,6 +36,11 @@ impl StatefulWidget for AutocompleteWidget {
         let [input_area, content_area] =
             Layout::vertical([Constraint::Length(3), Constraint::Fill(0)]).areas(area);
 
+        let (is_autocomplete, autocomplete_state) = match &mut state.layover_state {
+            crate::domain::LayoverState::Autocomplete(autocomplete_state) => (true, Some(autocomplete_state)),
+            _ => (false, None),
+        };
+
         let input_block = Block::bordered()
             .title_style(Style::default().bold())
             .border_set(border::Set {
@@ -44,22 +49,21 @@ impl StatefulWidget for AutocompleteWidget {
                 ..border::PLAIN
             })
             .border_style(Style::default().fg(Color::Blue))
-            .title_top(if state.show_autocomplete { " AUTOCOMPLETE " } else { " SPOTLIGHT " });
+            .title_top(" AUTOCOMPLETE ");
 
-        // Render input area (just the block, no editor view)
         input_block.render(input_area, buf);
 
-        if state.show_autocomplete {
+        if let Some(autocomplete_state) = autocomplete_state {
             // Use the same UI as spotlight, but for autocomplete suggestions
-            let selected_index = state.autocomplete_list_state.selected().unwrap_or(0);
-            let max_name_width = state
-                .autcomplete_suggestions
+            let selected_index = autocomplete_state.list_state.selected().unwrap_or(0);
+            let max_name_width = autocomplete_state
+                .suggestions
                 .iter()
                 .map(|s| s.len())
                 .max()
                 .unwrap_or(0);
-            let items: Vec<ListItem> = state
-                .autcomplete_suggestions
+            let items: Vec<ListItem> = autocomplete_state
+                .suggestions
                 .iter()
                 .enumerate()
                 .map(|(i, suggestion)| {
@@ -85,7 +89,7 @@ impl StatefulWidget for AutocompleteWidget {
                 autocomplete_list,
                 content_area,
                 buf,
-                &mut state.autocomplete_list_state,
+                &mut autocomplete_state.list_state,
             );
         } else {
             // ...existing spotlight rendering code...
