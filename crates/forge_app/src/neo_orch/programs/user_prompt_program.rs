@@ -16,7 +16,7 @@ pub struct UserPromptProgram {
     variables: HashMap<String, Value>,
     current_time: String,
 
-    // FIXME: Event should be created inside the program
+    // FIXME: Event should be created inside the program like we do in orch.rs
     pending_event: Option<forge_domain::Event>,
 }
 

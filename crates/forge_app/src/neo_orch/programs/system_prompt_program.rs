@@ -9,7 +9,7 @@ use crate::neo_orch::state::AgentState;
 #[derive(Default, Setters, Builder)]
 pub struct SystemPromptProgram {
     system_prompt: Option<Template<SystemContext>>,
-    // FIXME: SystemContext should be created in the program
+    // FIXME: SystemContext should be created in the program like in orch
     context: Option<SystemContext>,
 }
 
