@@ -18,3 +18,26 @@ impl AuthProviderId {
 pub struct User {
     pub auth_provider_id: AuthProviderId,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Plan {
+    pub r#type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageInfo {
+    pub current: u32,
+    pub limit: u32,
+    pub remaining: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reset_in: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserUsage {
+    pub plan: Plan,
+    pub usage: UsageInfo,
+}
