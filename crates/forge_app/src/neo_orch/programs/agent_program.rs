@@ -61,6 +61,7 @@ impl Program for AgentProgram {
 #[cfg(test)]
 mod tests {
     use forge_domain::{Agent, AgentId, Event, Model, ModelId, ToolDefinition};
+
     use super::*;
     use crate::neo_orch::events::UserAction;
     use crate::neo_orch::program::Program;
@@ -95,6 +96,10 @@ mod tests {
 
         let actual = fixture.update(&action, &mut state);
 
-        assert!(actual.is_ok(), "Expected update to succeed, but got error: {:?}", actual.err());
+        assert!(
+            actual.is_ok(),
+            "Expected update to succeed, but got error: {:?}",
+            actual.err()
+        );
     }
 }
