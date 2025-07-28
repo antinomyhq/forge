@@ -7,7 +7,6 @@ mod compact;
 mod error;
 pub mod fmt;
 mod mcp_executor;
-mod neo_orch;
 mod operation;
 mod orch;
 mod retry;
