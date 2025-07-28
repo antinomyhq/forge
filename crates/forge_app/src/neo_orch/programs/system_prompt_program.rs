@@ -62,8 +62,11 @@ mod tests {
     #[test]
     fn test_new_creates_program_with_prompt() {
         let fixture = SystemPromptProgram::from_str("You are a helpful assistant");
-        assert!(fixture.system_prompt.is_some());
-        let actual = &fixture.system_prompt.as_ref().unwrap().template;
+        let actual = &fixture
+            .system_prompt
+            .as_ref()
+            .expect("Should have system prompt")
+            .template;
         let expected = "You are a helpful assistant";
         assert_eq!(actual, expected);
     }
@@ -71,27 +74,36 @@ mod tests {
     #[test]
     fn test_new_with_empty_string_creates_empty_program() {
         let fixture = SystemPromptProgram::from_str("");
-        assert!(fixture.system_prompt.is_none());
+        let actual = fixture.system_prompt.is_none();
+        let expected = true;
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_new_with_whitespace_only_creates_empty_program() {
         let fixture = SystemPromptProgram::from_str("   ");
-        assert!(fixture.system_prompt.is_none());
+        let actual = fixture.system_prompt.is_none();
+        let expected = true;
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_empty_creates_program_without_prompt() {
         let fixture = SystemPromptProgram::default();
-        assert!(fixture.system_prompt.is_none());
+        let actual = fixture.system_prompt.is_none();
+        let expected = true;
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_with_template_creates_program_with_template() {
         let template = Template::new("You are a specialized coding assistant.");
         let fixture = SystemPromptProgram::new(template);
-        assert!(fixture.system_prompt.is_some());
-        let actual = &fixture.system_prompt.as_ref().unwrap().template;
+        let actual = &fixture
+            .system_prompt
+            .as_ref()
+            .expect("Should have system prompt")
+            .template;
         let expected = "You are a specialized coding assistant.";
         assert_eq!(actual, expected);
     }
@@ -102,24 +114,31 @@ mod tests {
         let mut state = AgentState::default();
         let action = UserAction::Message("test message".to_string());
 
-        let result = fixture.update(&action, &mut state);
+        let actual = fixture.update(&action, &mut state).unwrap();
 
-        assert!(result.is_ok());
-        let actual = state.context.messages.len();
-        let expected = 1;
+        let expected = AgentAction::Empty;
         assert_eq!(actual, expected);
 
-        // Check that the first message is a system message
-        if let Some(first_message) = state.context.messages.first() {
-            match first_message {
-                forge_domain::ContextMessage::Text(content_message) => {
-                    assert_eq!(content_message.role, forge_domain::Role::System);
-                    assert_eq!(content_message.content, "You are a helpful assistant");
-                }
-                _ => panic!("Expected a text message with system role"),
+        let actual_messages_count = state.context.messages.len();
+        let expected_messages_count = 1;
+        assert_eq!(actual_messages_count, expected_messages_count);
+
+        let first_message = state
+            .context
+            .messages
+            .first()
+            .expect("Should have at least one message");
+        match first_message {
+            forge_domain::ContextMessage::Text(content_message) => {
+                let actual_role = &content_message.role;
+                let expected_role = &forge_domain::Role::System;
+                assert_eq!(actual_role, expected_role);
+
+                let actual_content = &content_message.content;
+                let expected_content = "You are a helpful assistant";
+                assert_eq!(actual_content, expected_content);
             }
-        } else {
-            panic!("Expected at least one message in context");
+            _ => panic!("Expected a text message with system role"),
         }
     }
 
@@ -129,12 +148,14 @@ mod tests {
         let mut state = AgentState::default();
         let action = UserAction::Message("test message".to_string());
 
-        let result = fixture.update(&action, &mut state);
+        let actual = fixture.update(&action, &mut state).unwrap();
 
-        assert!(result.is_ok());
-        let actual = state.context.messages.len();
-        let expected = 0;
+        let expected = AgentAction::Empty;
         assert_eq!(actual, expected);
+
+        let actual_messages_count = state.context.messages.len();
+        let expected_messages_count = 0;
+        assert_eq!(actual_messages_count, expected_messages_count);
     }
 
     #[test]
@@ -143,12 +164,14 @@ mod tests {
         let mut state = AgentState::default();
         let action = UserAction::RenderResult("test".to_string());
 
-        let result = fixture.update(&action, &mut state);
+        let actual = fixture.update(&action, &mut state).unwrap();
 
-        assert!(result.is_ok());
-        let actual = state.context.messages.len();
-        let expected = 0;
+        let expected = AgentAction::Empty;
         assert_eq!(actual, expected);
+
+        let actual_messages_count = state.context.messages.len();
+        let expected_messages_count = 0;
+        assert_eq!(actual_messages_count, expected_messages_count);
     }
 
     #[test]
@@ -159,10 +182,8 @@ mod tests {
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        match actual {
-            AgentAction::Empty => assert!(true),
-            _ => panic!("Expected AgentAction::Empty"),
-        }
+        let expected = AgentAction::Empty;
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -172,20 +193,27 @@ mod tests {
         let mut state = AgentState::default();
         let action = UserAction::Message("test message".to_string());
 
-        let result = fixture.update(&action, &mut state);
+        let actual = fixture.update(&action, &mut state).unwrap();
 
-        assert!(result.is_ok());
+        let expected = AgentAction::Empty;
+        assert_eq!(actual, expected);
 
-        if let Some(first_message) = state.context.messages.first() {
-            match first_message {
-                forge_domain::ContextMessage::Text(content_message) => {
-                    assert_eq!(content_message.role, forge_domain::Role::System);
-                    assert_eq!(content_message.content, custom_prompt);
-                }
-                _ => panic!("Expected a text message with system role"),
+        let first_message = state
+            .context
+            .messages
+            .first()
+            .expect("Should have at least one message");
+        match first_message {
+            forge_domain::ContextMessage::Text(content_message) => {
+                let actual_role = &content_message.role;
+                let expected_role = &forge_domain::Role::System;
+                assert_eq!(actual_role, expected_role);
+
+                let actual_content = &content_message.content;
+                let expected_content = custom_prompt;
+                assert_eq!(actual_content, expected_content);
             }
-        } else {
-            panic!("Expected at least one message in context");
+            _ => panic!("Expected a text message with system role"),
         }
     }
 
@@ -198,9 +226,12 @@ mod tests {
         state.context = state.context.clone().max_tokens(100usize);
 
         let action = UserAction::Message("test message".to_string());
-        let result = fixture.update(&action, &mut state);
 
-        assert!(result.is_ok());
+        let actual = fixture.update(&action, &mut state).unwrap();
+
+        let expected = AgentAction::Empty;
+        assert_eq!(actual, expected);
+
         let actual_max_tokens = state.context.max_tokens;
         let expected_max_tokens = Some(100);
         assert_eq!(actual_max_tokens, expected_max_tokens);

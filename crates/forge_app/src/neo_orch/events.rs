@@ -11,7 +11,7 @@ pub enum UserAction {
     RenderResult(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AgentAction {
     ToolCall {
         call: ToolCallFull,
@@ -28,7 +28,6 @@ pub enum AgentAction {
     Combine(Box<AgentAction>, Box<AgentAction>),
     Empty,
 }
-
 impl Identity for AgentAction {
     fn identity() -> Self {
         AgentAction::Empty

@@ -4,7 +4,7 @@ use crate::{ToolCallFull, ToolResult, Usage};
 
 /// Events that are emitted by the agent for external consumption. This includes
 /// events for all internal state changes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponse {
     Text {
         text: String,
@@ -29,13 +29,13 @@ pub enum ChatResponse {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum InterruptionReason {
     MaxToolFailurePerTurnLimitReached { limit: u64 },
     MaxRequestPerTurnLimitReached { limit: u64 },
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Cause(String);
 
 impl Cause {
