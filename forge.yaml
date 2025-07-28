@@ -76,7 +76,7 @@ custom_rules: |-
     Use {name: "John".to_string(), is_happy: true, age: 12}
     User::with_name("Job") // Bad name, should stick to User::new() or User::test()
 
-  - Use `expect` instead of panic while writing tests, for eg:
+  - Use `expect` instead of `panic!` while writing tests, for eg:
     Good
     users.first().expect("List should not be empty")
 
