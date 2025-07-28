@@ -114,7 +114,7 @@ where
 
         let mut sanitized_tools = Vec::new();
         for tool in tools.values() {
-            let sanitized = ToolName::sanitize(&tool.definition.name);
+            let sanitized = ToolName::sanitized(&tool.definition.name);
             sanitized_to_actual_lock.insert(sanitized.clone(), tool.definition.name.clone());
 
             let mut sanitized_definition = tool.definition.clone();
