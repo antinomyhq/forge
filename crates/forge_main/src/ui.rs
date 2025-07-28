@@ -451,6 +451,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Exit the UI after logout
                 return Ok(true);
             }
+            Command::Retry => {
+                self.spinner.start(None)?;
+                self.on_message(None).await?;
+            }
         }
 
         Ok(false)

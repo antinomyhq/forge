@@ -185,6 +185,7 @@ impl ForgeCommandManager {
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
+            "/retry" => Ok(Command::Retry),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -280,6 +281,11 @@ pub enum Command {
     /// Logs out of the current session.
     #[strum(props(usage = "Logout of the current session"))]
     Logout,
+
+    /// Retry the last command.
+    /// This can be triggered with the '/retry' command.
+    #[strum(props(usage = "Retry the last command"))]
+    Retry,
 }
 
 impl Command {
@@ -302,6 +308,7 @@ impl Command {
             Command::Agent => "/agent",
             Command::Login => "/login",
             Command::Logout => "/logout",
+            Command::Retry => "/retry",
         }
     }
 
