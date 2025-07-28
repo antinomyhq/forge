@@ -75,7 +75,7 @@ impl Program for SystemPromptProgram {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::Event;
+    use forge_domain::{Event, TemplateId};
     use pretty_assertions::assert_eq;
 
     use super::*;

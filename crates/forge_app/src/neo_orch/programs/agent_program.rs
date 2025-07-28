@@ -1,6 +1,6 @@
 use derive_builder::Builder;
 use derive_setters::Setters;
-use forge_domain::{Agent, Model, ToolDefinition};
+use forge_domain::{Agent, Model, SystemContext, ToolDefinition};
 
 use crate::neo_orch::events::{AgentAction, UserAction};
 use crate::neo_orch::program::{Program, ProgramExt};
@@ -37,12 +37,15 @@ impl Program for AgentProgram {
             .combine(
                 SystemPromptProgramBuilder::default()
                     .system_prompt(self.agent.system_prompt.clone())
+                    .context(Some(SystemContext::default()))
                     .build()?,
             )
             .combine(
                 UserPromptProgramBuilder::default()
-                    // FIXME: add variables and time
                     .agent(self.agent.clone())
+                    .variables(std::collections::HashMap::new())
+                    .current_time(chrono::Utc::now().to_rfc3339())
+                    .pending_event(None)
                     .build()?,
             )
             .combine(
@@ -58,8 +61,6 @@ impl Program for AgentProgram {
 #[cfg(test)]
 mod tests {
     use forge_domain::{Agent, AgentId, Event, Model, ModelId, ToolDefinition};
-    use pretty_assertions::assert_eq;
-
     use super::*;
     use crate::neo_orch::events::UserAction;
     use crate::neo_orch::program::Program;
@@ -94,7 +95,6 @@ mod tests {
 
         let actual = fixture.update(&action, &mut state);
 
-        let expected = actual.is_ok();
-        assert_eq!(expected, true);
+        assert!(actual.is_ok(), "Expected update to succeed, but got error: {:?}", actual.err());
     }
 }

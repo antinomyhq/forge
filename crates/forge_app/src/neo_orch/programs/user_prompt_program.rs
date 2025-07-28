@@ -71,7 +71,7 @@ impl Program for UserPromptProgram {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, Event, Template};
+    use forge_domain::{Agent, AgentId, Event, Template, TemplateId};
     use pretty_assertions::assert_eq;
     use serde_json::json;
 
