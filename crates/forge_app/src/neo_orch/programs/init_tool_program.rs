@@ -1,9 +1,8 @@
-use crate::neo_orch::{
-    events::{AgentAction, UserAction},
-    program::Program,
-    state::AgentState,
-};
-use forge_domain::{ToolDefinition, ToolResult};
+use forge_domain::ToolDefinition;
+
+use crate::neo_orch::events::{AgentAction, UserAction};
+use crate::neo_orch::program::Program;
+use crate::neo_orch::state::AgentState;
 
 #[derive(Default)]
 pub struct InitToolProgram {
@@ -40,8 +39,10 @@ impl Program for InitToolProgram {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use forge_domain::{ToolName, ToolResult};
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     fn create_test_tool_definitions() -> Vec<ToolDefinition> {
         vec![
@@ -81,8 +82,12 @@ mod tests {
         let expected = 2;
         assert_eq!(actual, expected);
 
-        let actual_tool_names: Vec<String> =
-            state.context.tools.iter().map(|t| t.name.clone()).collect();
+        let actual_tool_names: Vec<String> = state
+            .context
+            .tools
+            .iter()
+            .map(|t| t.name.to_string())
+            .collect();
         let expected_tool_names = vec!["test_tool_1".to_string(), "test_tool_2".to_string()];
         assert_eq!(actual_tool_names, expected_tool_names);
     }
@@ -107,11 +112,9 @@ mod tests {
         let tool_definitions = create_test_tool_definitions();
         let fixture = InitToolProgram::new(tool_definitions);
         let mut state = AgentState::default();
-        let action = UserAction::ToolResult(ToolResult {
-            name: "test_tool".to_string(),
-            output: "test output".to_string(),
-            status: forge_domain::Status::Success,
-        });
+        let action = UserAction::ToolResult(
+            ToolResult::new(ToolName::new("test_tool")).success("test output"),
+        );
 
         let result = fixture.update(&action, &mut state);
 
@@ -156,7 +159,7 @@ mod tests {
         let mut state = AgentState::default();
 
         // Set some initial context state
-        state.context = state.context.clone().max_tokens(100);
+        state.context = state.context.clone().max_tokens(100usize);
 
         let action = UserAction::Message("test message".to_string());
         let result = fixture.update(&action, &mut state);
