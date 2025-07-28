@@ -15,6 +15,7 @@ use crate::{McpClientInfra, McpServerInfra};
 #[derive(Clone)]
 pub struct ForgeMcpService<M, I, C> {
     tools: Arc<RwLock<HashMap<ToolName, ToolHolder<McpExecutor<C>>>>>,
+    sanitized_to_actual_tools: Arc<RwLock<HashMap<ToolName, ToolName>>>,
     previous_config_hash: Arc<Mutex<u64>>,
     manager: Arc<M>,
     infra: Arc<I>,
@@ -34,6 +35,7 @@ where
     pub fn new(manager: Arc<M>, infra: Arc<I>) -> Self {
         Self {
             tools: Default::default(),
+            sanitized_to_actual_tools: Default::default(),
             previous_config_hash: Arc::new(Mutex::new(0)),
             manager,
             infra,
@@ -106,22 +108,34 @@ where
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         self.init_mcp().await?;
-        Ok(self
-            .tools
-            .read()
-            .await
-            .values()
-            .map(|tool| tool.definition.clone())
-            .collect())
+        let tools = self.tools.read().await;
+
+        let mut sanitized_to_actual_lock = self.sanitized_to_actual_tools.write().await;
+
+        let mut sanitized_tools = Vec::new();
+        for tool in tools.values() {
+            let sanitized = ToolName::sanitize(&tool.definition.name);
+            sanitized_to_actual_lock.insert(sanitized.clone(), tool.definition.name.clone());
+
+            let mut sanitized_definition = tool.definition.clone();
+            sanitized_definition.name = sanitized.clone();
+            sanitized_tools.push(sanitized_definition);
+        }
+
+        Ok(sanitized_tools)
     }
     async fn clear_tools(&self) {
         self.tools.write().await.clear()
     }
 
     async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
-        let lock = self.tools.read().await;
+        let sanitized_to_actual_lock = self.sanitized_to_actual_tools.read().await;
+        let actual_tool_name = sanitized_to_actual_lock
+            .get(&call.name)
+            .context("Sanitized tool name not found")?;
 
-        let tool = lock.get(&call.name).context("Tool not found")?;
+        let lock = self.tools.read().await;
+        let tool = lock.get(actual_tool_name).context("Tool not found")?;
 
         tool.executable.call_tool(call.arguments).await
     }
