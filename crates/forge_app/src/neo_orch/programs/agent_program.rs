@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use derive_setters::Setters;
 use forge_domain::{Agent, Model, SystemContext, ToolDefinition};
 
-use crate::neo_orch::events::{AgentAction, UserAction};
+use crate::neo_orch::events::{AgentCommand, AgentAction};
 use crate::neo_orch::program::{Program, ProgramExt};
 use crate::neo_orch::programs::SystemPromptProgramBuilder;
 use crate::neo_orch::programs::attachment_program::AttachmentProgramBuilder;
@@ -22,8 +22,8 @@ pub struct AgentProgram {
 
 impl Program for AgentProgram {
     type State = AgentState;
-    type Action = UserAction;
-    type Success = AgentAction;
+    type Action = AgentAction;
+    type Success = AgentCommand;
     type Error = anyhow::Error;
 
     fn update(
@@ -63,7 +63,7 @@ mod tests {
     use forge_domain::{Agent, AgentId, Event, Model, ModelId, ToolDefinition};
 
     use super::*;
-    use crate::neo_orch::events::UserAction;
+    use crate::neo_orch::events::AgentAction;
     use crate::neo_orch::program::Program;
     use crate::neo_orch::state::AgentState;
 
@@ -92,7 +92,7 @@ mod tests {
     fn test_update_handles_chat_event() {
         let fixture = create_test_agent_program();
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("Hello world")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("Hello world")));
 
         let actual = fixture.update(&action, &mut state);
 

@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use derive_setters::Setters;
 use forge_domain::{SystemContext, Template};
 
-use crate::neo_orch::events::{AgentAction, UserAction};
+use crate::neo_orch::events::{AgentCommand, AgentAction};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
@@ -36,8 +36,8 @@ impl SystemPromptProgram {
 
 impl Program for SystemPromptProgram {
     type State = AgentState;
-    type Action = UserAction;
-    type Success = AgentAction;
+    type Action = AgentAction;
+    type Success = AgentCommand;
     type Error = anyhow::Error;
 
     fn update(
@@ -47,28 +47,28 @@ impl Program for SystemPromptProgram {
     ) -> std::result::Result<Self::Success, Self::Error> {
         match action {
             // When receiving a ChatEvent and we have a template, trigger rendering
-            UserAction::ChatEvent(_) => {
+            AgentAction::ChatEvent(_) => {
                 if let Some(template) = &self.system_prompt {
                     // Create context for rendering (use provided context or default)
                     let render_context = self.context.clone().unwrap_or_default();
 
-                    return Ok(AgentAction::Render {
+                    return Ok(AgentCommand::Render {
                         id: template.id(),
                         template: template.template.clone(),
                         object: serde_json::to_value(render_context)?,
                     });
                 }
-                Ok(AgentAction::Empty)
+                Ok(AgentCommand::Empty)
             }
             // When receiving a RenderResult, set the system message
-            UserAction::RenderResult { id: _, content: rendered_content } => {
+            AgentAction::RenderResult { id: _, content: rendered_content } => {
                 state.context = state
                     .context
                     .clone()
                     .set_first_system_message(rendered_content);
-                Ok(AgentAction::Empty)
+                Ok(AgentCommand::Empty)
             }
-            _ => Ok(AgentAction::Empty),
+            _ => Ok(AgentCommand::Empty),
         }
     }
 }
@@ -133,13 +133,13 @@ mod tests {
     fn test_update_triggers_render_on_chat_event() {
         let fixture = SystemPromptProgram::from_str("You are a helpful assistant");
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
         // Should return a Render action
         match actual {
-            AgentAction::Render { template, object: _, .. } => {
+            AgentCommand::Render { template, object: _, .. } => {
                 let expected_template = "You are a helpful assistant";
                 assert_eq!(template, expected_template);
             }
@@ -157,14 +157,14 @@ mod tests {
         let prompt = "You are a helpful assistant";
         let fixture = SystemPromptProgram::from_str(prompt);
         let mut state = AgentState::default();
-        let action = UserAction::RenderResult {
+        let action = AgentAction::RenderResult {
             id: TemplateId::from_template(prompt),
             content: "You are a helpful assistant".to_string(),
         };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -194,11 +194,11 @@ mod tests {
     fn test_update_skips_when_no_system_prompt() {
         let fixture = SystemPromptProgram::default();
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -210,13 +210,13 @@ mod tests {
     fn test_update_ignores_non_relevant_actions() {
         let fixture = SystemPromptProgram::from_str("You are a helpful assistant");
         let mut state = AgentState::default();
-        let action = UserAction::ToolResult(forge_domain::ToolResult::new(
+        let action = AgentAction::ToolResult(forge_domain::ToolResult::new(
             forge_domain::ToolName::new("test_tool"),
         ));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -228,14 +228,14 @@ mod tests {
     fn test_update_returns_empty_action_for_render_result() {
         let fixture = SystemPromptProgram::from_str("You are a helpful assistant");
         let mut state = AgentState::default();
-        let action = UserAction::RenderResult {
+        let action = AgentAction::RenderResult {
             id: TemplateId::from_template("test_template"),
             content: "Rendered content".to_string(),
         };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
     }
 
@@ -244,12 +244,12 @@ mod tests {
         let custom_prompt = "You are a specialized coding assistant.";
         let fixture = SystemPromptProgram::from_str(custom_prompt);
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
         match actual {
-            AgentAction::Render { template, object: _, .. } => {
+            AgentCommand::Render { template, object: _, .. } => {
                 let expected_template = custom_prompt;
                 assert_eq!(template, expected_template);
             }
@@ -265,14 +265,14 @@ mod tests {
         // Set some initial context state
         state.context = state.context.clone().max_tokens(100usize);
 
-        let action = UserAction::RenderResult {
+        let action = AgentAction::RenderResult {
             id: TemplateId::from_template("test_template"),
             content: "Rendered content".to_string(),
         };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_max_tokens = state.context.max_tokens;

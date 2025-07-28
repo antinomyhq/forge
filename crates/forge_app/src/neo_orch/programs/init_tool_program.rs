@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use derive_setters::Setters;
 use forge_domain::ToolDefinition;
 
-use crate::neo_orch::events::{AgentAction, UserAction};
+use crate::neo_orch::events::{AgentCommand, AgentAction};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
@@ -14,8 +14,8 @@ pub struct InitToolProgram {
 
 impl Program for InitToolProgram {
     type State = AgentState;
-    type Action = UserAction;
-    type Success = AgentAction;
+    type Action = AgentAction;
+    type Success = AgentCommand;
     type Error = anyhow::Error;
 
     fn update(
@@ -24,13 +24,13 @@ impl Program for InitToolProgram {
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error> {
         // Only set tool information in the context when receiving a Message action
-        if matches!(action, UserAction::ChatEvent(_)) {
+        if matches!(action, AgentAction::ChatEvent(_)) {
             for tool in &self.tool_definitions {
                 state.context = state.context.clone().add_tool(tool.clone());
             }
         }
 
-        Ok(AgentAction::Empty)
+        Ok(AgentCommand::Empty)
     }
 }
 
@@ -79,7 +79,7 @@ mod tests {
             .build()
             .unwrap();
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let result = fixture.update(&action, &mut state);
 
@@ -107,7 +107,7 @@ mod tests {
             .unwrap();
         let mut state = AgentState::default();
         let action =
-            UserAction::RenderResult { id: TemplateId::new(100), content: "test".to_string() };
+            AgentAction::RenderResult { id: TemplateId::new(100), content: "test".to_string() };
 
         let result = fixture.update(&action, &mut state);
 
@@ -125,7 +125,7 @@ mod tests {
             .build()
             .unwrap();
         let mut state = AgentState::default();
-        let action = UserAction::ToolResult(
+        let action = AgentAction::ToolResult(
             ToolResult::new(ToolName::new("test_tool")).success("test output"),
         );
 
@@ -144,7 +144,7 @@ mod tests {
             .build()
             .unwrap();
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let result = fixture.update(&action, &mut state);
 
@@ -161,12 +161,12 @@ mod tests {
             .build()
             .unwrap();
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
         match actual {
-            AgentAction::Empty => assert!(true),
+            AgentCommand::Empty => assert!(true),
             _ => panic!("Expected AgentAction::Empty"),
         }
     }
@@ -183,7 +183,7 @@ mod tests {
         // Set some initial context state
         state.context = state.context.clone().max_tokens(100usize);
 
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("test message")));
         let result = fixture.update(&action, &mut state);
 
         assert!(result.is_ok());

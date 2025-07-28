@@ -5,7 +5,7 @@ use forge_domain::{
 
 use crate::neo_orch::program::{Identity, SemiGroup};
 
-pub enum UserAction {
+pub enum AgentAction {
     ChatEvent(Event),
     ChatCompletionMessage(anyhow::Result<ChatCompletionMessageFull>),
     ToolResult(ToolResult),
@@ -13,7 +13,7 @@ pub enum UserAction {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum AgentAction {
+pub enum AgentCommand {
     ToolCall {
         call: ToolCallFull,
     },
@@ -27,17 +27,17 @@ pub enum AgentAction {
         object: serde_json::Value,
     },
     ChatResponse(ChatResponse),
-    Combine(Box<AgentAction>, Box<AgentAction>),
+    Combine(Box<AgentCommand>, Box<AgentCommand>),
     Empty,
 }
-impl Identity for AgentAction {
+impl Identity for AgentCommand {
     fn identity() -> Self {
-        AgentAction::Empty
+        AgentCommand::Empty
     }
 }
 
-impl SemiGroup for AgentAction {
+impl SemiGroup for AgentCommand {
     fn combine(self, other: Self) -> Self {
-        AgentAction::Combine(Box::new(self), Box::new(other))
+        AgentCommand::Combine(Box::new(self), Box::new(other))
     }
 }

@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use derive_setters::Setters;
 use forge_domain::ModelId;
 
-use crate::neo_orch::events::{AgentAction, UserAction};
+use crate::neo_orch::events::{AgentCommand, AgentAction};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
@@ -16,8 +16,8 @@ pub struct ChatProgram {
 
 impl Program for ChatProgram {
     type State = AgentState;
-    type Action = UserAction;
-    type Success = AgentAction;
+    type Action = AgentAction;
+    type Success = AgentCommand;
     type Error = anyhow::Error;
 
     fn update(
@@ -28,15 +28,15 @@ impl Program for ChatProgram {
         match action {
             // When we receive a ChatEvent and we're not already waiting for a response,
             // initiate a chat request
-            UserAction::ChatEvent(_) if !self.waiting_for_response => {
+            AgentAction::ChatEvent(_) if !self.waiting_for_response => {
                 let context = state.context.clone();
 
                 // Create a chat action to request completion from the LLM
-                Ok(AgentAction::Chat { model: self.model_id.clone(), context })
+                Ok(AgentCommand::Chat { model: self.model_id.clone(), context })
             }
 
             // When we receive a ChatCompletionMessage response, process it
-            UserAction::ChatCompletionMessage(completion_result) => {
+            AgentAction::ChatCompletionMessage(completion_result) => {
                 match completion_result {
                     Ok(completion_message) => {
                         // Add the assistant's response to the context
@@ -50,7 +50,7 @@ impl Program for ChatProgram {
 
                         // If there are tool calls, we might need to handle them
                         // For now, we'll just return Empty to indicate completion
-                        Ok(AgentAction::Empty)
+                        Ok(AgentCommand::Empty)
                     }
                     Err(error) => {
                         // Handle the error case - could log it or return an error action
@@ -60,7 +60,7 @@ impl Program for ChatProgram {
             }
 
             // For all other actions, do nothing
-            _ => Ok(AgentAction::Empty),
+            _ => Ok(AgentCommand::Empty),
         }
     }
 }
@@ -72,7 +72,7 @@ mod tests {
 
     use super::*;
     use forge_domain::ChatCompletionMessageFull;
-    use crate::neo_orch::events::UserAction;
+    use crate::neo_orch::events::AgentAction;
     use crate::neo_orch::program::Program;
     use crate::neo_orch::state::AgentState;
 
@@ -100,12 +100,12 @@ mod tests {
     fn test_update_initiates_chat_on_chat_event() {
         let fixture = create_test_chat_program();
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("Hello world")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("Hello world")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
         match actual {
-            AgentAction::Chat { model, context: _ } => {
+            AgentCommand::Chat { model, context: _ } => {
                 let expected_model = ModelId::new("test-model");
                 assert_eq!(model, expected_model);
             }
@@ -126,11 +126,11 @@ mod tests {
             reasoning_details: None,
         };
 
-        let action = UserAction::ChatCompletionMessage(Ok(completion_message));
+        let action = AgentAction::ChatCompletionMessage(Ok(completion_message));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         // Check that the assistant's message was added to the context
@@ -159,7 +159,7 @@ mod tests {
         let mut state = AgentState::default();
 
         let error = anyhow::anyhow!("API request failed");
-        let action = UserAction::ChatCompletionMessage(Err(error));
+        let action = AgentAction::ChatCompletionMessage(Err(error));
 
         let actual = fixture.update(&action, &mut state);
 
@@ -173,14 +173,14 @@ mod tests {
         let fixture = create_test_chat_program();
         let mut state = AgentState::default();
 
-        let action = UserAction::RenderResult {
+        let action = AgentAction::RenderResult {
             id: forge_domain::TemplateId::new(100),
             content: "test".to_string(),
         };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         // Context should remain unchanged
@@ -205,11 +205,11 @@ mod tests {
             reasoning_details: None,
         };
 
-        let action = UserAction::ChatCompletionMessage(Ok(completion_message));
+        let action = AgentAction::ChatCompletionMessage(Ok(completion_message));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         // Check that existing context properties are preserved
@@ -231,12 +231,12 @@ mod tests {
             .build()
             .unwrap();
         let mut state = AgentState::default();
-        let action = UserAction::ChatEvent(Event::new("test_message", Some("Hello world")));
+        let action = AgentAction::ChatEvent(Event::new("test_message", Some("Hello world")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
         // Should return Empty instead of initiating a new chat
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
     }
 }

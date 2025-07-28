@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use forge_domain::{AttachmentContent, ContextMessage, ModelId};
 use forge_template::Element;
 
-use crate::neo_orch::events::{AgentAction, UserAction};
+use crate::neo_orch::events::{AgentCommand, AgentAction};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
@@ -15,8 +15,8 @@ pub struct AttachmentProgram {
 
 impl Program for AttachmentProgram {
     type State = AgentState;
-    type Action = UserAction;
-    type Success = AgentAction;
+    type Action = AgentAction;
+    type Success = AgentCommand;
     type Error = anyhow::Error;
 
     fn update(
@@ -25,7 +25,7 @@ impl Program for AttachmentProgram {
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error> {
         // Only process attachments when receiving a ChatEvent action
-        if let UserAction::ChatEvent(event) = action
+        if let AgentAction::ChatEvent(event) = action
             && !event.attachments.is_empty()
         {
             // Get the model_id to use for context messages
@@ -56,7 +56,7 @@ impl Program for AttachmentProgram {
             }
         }
 
-        Ok(AgentAction::Empty)
+        Ok(AgentCommand::Empty)
     }
 }
 
@@ -98,11 +98,11 @@ mod tests {
         };
 
         let event = Event::new("test_message", Some("test message")).attachments(vec![attachment]);
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -148,11 +148,11 @@ mod tests {
         };
 
         let event = Event::new("test_message", Some("test message")).attachments(vec![attachment]);
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -204,11 +204,11 @@ mod tests {
 
         let event = Event::new("test_message", Some("test message"))
             .attachments(vec![file_attachment, image_attachment]);
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -225,11 +225,11 @@ mod tests {
         let mut state = AgentState::default();
 
         let event = Event::new("test_message", Some("test message"));
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -246,11 +246,11 @@ mod tests {
         let mut state = AgentState::default();
 
         let action =
-            UserAction::RenderResult { id: TemplateId::new(1020), content: "test".to_string() };
+            AgentAction::RenderResult { id: TemplateId::new(1020), content: "test".to_string() };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -277,11 +277,11 @@ mod tests {
         };
 
         let event = Event::new("test_message", Some("test message")).attachments(vec![attachment]);
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
     }
 
@@ -304,11 +304,11 @@ mod tests {
         };
 
         let event = Event::new("test_message", Some("test message")).attachments(vec![attachment]);
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -338,11 +338,11 @@ mod tests {
         };
 
         let event = Event::new("test_message", Some("test message")).attachments(vec![attachment]);
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_max_tokens = state.context.max_tokens;

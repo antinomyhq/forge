@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use forge_domain::{Agent, ContextMessage, EventContext};
 use serde_json::Value;
 
-use crate::neo_orch::events::{AgentAction, UserAction};
+use crate::neo_orch::events::{AgentCommand, AgentAction};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
@@ -22,8 +22,8 @@ pub struct UserPromptProgram {
 
 impl Program for UserPromptProgram {
     type State = AgentState;
-    type Action = UserAction;
-    type Success = AgentAction;
+    type Action = AgentAction;
+    type Success = AgentCommand;
     type Error = anyhow::Error;
 
     fn update(
@@ -33,7 +33,7 @@ impl Program for UserPromptProgram {
     ) -> std::result::Result<Self::Success, Self::Error> {
         match action {
             // When receiving a ChatEvent, trigger rendering if we have a user prompt template
-            UserAction::ChatEvent(event) => {
+            AgentAction::ChatEvent(event) => {
                 if let Some(user_prompt) = &self.agent.user_prompt
                     && event.value.is_some()
                 {
@@ -41,7 +41,7 @@ impl Program for UserPromptProgram {
                         .variables(self.variables.clone())
                         .current_time(self.current_time.clone());
 
-                    return Ok(AgentAction::Render {
+                    return Ok(AgentCommand::Render {
                         id: user_prompt.id(),
                         template: user_prompt.template.clone(),
                         object: serde_json::to_value(event_context)?,
@@ -54,17 +54,17 @@ impl Program for UserPromptProgram {
                         .clone()
                         .add_message(ContextMessage::user(content, self.agent.model.clone()));
                 }
-                Ok(AgentAction::Empty)
+                Ok(AgentCommand::Empty)
             }
             // When receiving a RenderResult, add the rendered content as a user message
-            UserAction::RenderResult { id: _, content: rendered_content } => {
+            AgentAction::RenderResult { id: _, content: rendered_content } => {
                 state.context = state.context.clone().add_message(ContextMessage::user(
                     rendered_content.clone(),
                     self.agent.model.clone(),
                 ));
-                Ok(AgentAction::Empty)
+                Ok(AgentCommand::Empty)
             }
-            _ => Ok(AgentAction::Empty),
+            _ => Ok(AgentCommand::Empty),
         }
     }
 }
@@ -122,13 +122,13 @@ mod tests {
         let mut state = AgentState::default();
 
         let event = Event::new("test_message", Some(json!("world")));
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
         // Should return a Render action
         match actual {
-            AgentAction::Render { template, object: _, .. } => {
+            AgentCommand::Render { template, object: _, .. } => {
                 let expected_template = "Hello {{event.value}}!";
                 assert_eq!(template, expected_template);
             }
@@ -158,14 +158,14 @@ mod tests {
 
         let mut state = AgentState::default();
 
-        let action = UserAction::RenderResult {
+        let action = AgentAction::RenderResult {
             id: TemplateId::from_template("test_template"),
             content: "Hello world!".to_string(),
         };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -208,11 +208,11 @@ mod tests {
         let mut state = AgentState::default();
 
         let event = Event::new("test_message", Some(json!("Hello world!")));
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -252,11 +252,11 @@ mod tests {
         let mut state = AgentState::default();
 
         let event = Event::new("test_message", None::<String>);
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -280,13 +280,13 @@ mod tests {
 
         let mut state = AgentState::default();
 
-        let action = UserAction::ToolResult(forge_domain::ToolResult::new(
+        let action = AgentAction::ToolResult(forge_domain::ToolResult::new(
             forge_domain::ToolName::new("test_tool"),
         ));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_messages_count = state.context.messages.len();
@@ -313,14 +313,14 @@ mod tests {
         // Set some initial context state
         state.context = state.context.clone().max_tokens(100usize);
 
-        let action = UserAction::RenderResult {
+        let action = AgentAction::RenderResult {
             id: TemplateId::from_template("test_template"),
             content: "Hello world!".to_string(),
         };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         let actual_max_tokens = state.context.max_tokens;
@@ -351,13 +351,13 @@ mod tests {
         let mut state = AgentState::default();
 
         let event = Event::new("test_message", Some(json!("world")));
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
         // Should trigger render with variables context
         match actual {
-            AgentAction::Render { template, object: _, .. } => {
+            AgentCommand::Render { template, object: _, .. } => {
                 let expected_template = "Hello {{variables.name}}!";
                 assert_eq!(template, expected_template);
             }
@@ -385,14 +385,14 @@ mod tests {
 
         let mut state = AgentState::default();
 
-        let action = UserAction::RenderResult {
+        let action = AgentAction::RenderResult {
             id: TemplateId::from_template("test_template"),
             content: "Hello world!".to_string(),
         };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
     }
 
@@ -414,11 +414,11 @@ mod tests {
         let mut state = AgentState::default();
 
         let event = Event::new("test_message", None::<String>);
-        let action = UserAction::ChatEvent(event);
+        let action = AgentAction::ChatEvent(event);
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
-        let expected = AgentAction::Empty;
+        let expected = AgentCommand::Empty;
         assert_eq!(actual, expected);
 
         // Should not add any messages when event has no value and user_prompt is
