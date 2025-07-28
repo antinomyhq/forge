@@ -282,8 +282,7 @@ pub enum Command {
     #[strum(props(usage = "Logout of the current session"))]
     Logout,
 
-    /// Retry the last command.
-    /// This can be triggered with the '/retry' command.
+    /// Retry without modifying model context
     #[strum(props(usage = "Retry the last command"))]
     Retry,
 }
