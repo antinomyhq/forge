@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use derive_setters::Setters;
 use forge_domain::{Agent, Model, SystemContext, ToolDefinition};
 
-use crate::neo_orch::events::{AgentCommand, AgentAction};
+use crate::neo_orch::events::{AgentAction, AgentCommand};
 use crate::neo_orch::program::{Program, ProgramExt};
 use crate::neo_orch::programs::SystemPromptProgramBuilder;
 use crate::neo_orch::programs::attachment_program::AttachmentProgramBuilder;

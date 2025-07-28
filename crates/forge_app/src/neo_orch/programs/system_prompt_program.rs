@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use derive_setters::Setters;
 use forge_domain::{SystemContext, Template};
 
-use crate::neo_orch::events::{AgentCommand, AgentAction};
+use crate::neo_orch::events::{AgentAction, AgentCommand};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 

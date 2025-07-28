@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use forge_domain::{AttachmentContent, ContextMessage, ModelId};
 use forge_template::Element;
 
-use crate::neo_orch::events::{AgentCommand, AgentAction};
+use crate::neo_orch::events::{AgentAction, AgentCommand};
 use crate::neo_orch::program::Program;
 use crate::neo_orch::state::AgentState;
 
