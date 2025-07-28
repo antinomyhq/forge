@@ -1,2 +1,4 @@
 [build.env]
-passthrough = []
+passthrough = [
+    "POSTHOG_API_SECRET"
+]
