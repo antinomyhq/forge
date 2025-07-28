@@ -113,7 +113,7 @@ impl ForgeMcpClient {
         let client = self.connect().await?;
         let result = client
             .call_tool(CallToolRequestParam {
-                name: Cow::Owned(tool_name.to_string()),
+                name: Cow::Owned(tool_name.original.to_string()),
                 arguments: if let Value::Object(args) = input {
                     Some(args.clone())
                 } else {

@@ -66,6 +66,10 @@ impl Anthropic {
         model: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let mut context = context.clone();
+        for tool in context.tools.iter_mut() {
+            tool.name.name = tool.name.sanitized_name().to_owned();
+        }
         let max_tokens = context.max_tokens.unwrap_or(4000);
         // transform the context to match the request format
         let context = ReasoningTransform.transform(context);
