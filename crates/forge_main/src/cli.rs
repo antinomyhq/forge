@@ -75,7 +75,7 @@ pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
 
     /// Print information about the environment and exit.
-    Info
+    Info,
 }
 
 /// Group of MCP-related commands

@@ -308,9 +308,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             },
             TopLevelCommand::Info => {
-                // Make sure to init model 
+                // Make sure to init model
                 self.on_new().await?;
-                
+
                 self.display_info().await?;
                 return Ok(());
             }
