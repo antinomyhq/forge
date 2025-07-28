@@ -774,6 +774,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln(TitleFormat::error(cause.as_str()))?;
                 }
             }
+            ChatResponse::RetryExhausted { cause, attempts } => {
+                self.spinner.stop(None)?;
+                self.writeln(TitleFormat::error(format!(
+                    "Network error after {} retry attempts: {}",
+                    attempts,
+                    cause.as_str()
+                )))?;
+                self.prompt_for_additional_retries().await?;
+            }
             ChatResponse::Interrupt { reason } => {
                 self.spinner.stop(None)?;
 
@@ -805,6 +814,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
+            Box::pin(self.on_message(None)).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn prompt_for_additional_retries(&mut self) -> anyhow::Result<()> {
+        let should_retry = ForgeSelect::confirm("Would you like to retry the operation?")
+            .with_default(true)
+            .prompt()?;
+
+        if should_retry.unwrap_or(false) {
+            self.spinner.start(Some("Retrying"))?;
+            // Continue with the current conversation by sending an empty message
             Box::pin(self.on_message(None)).await?;
         }
 
