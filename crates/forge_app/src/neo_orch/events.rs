@@ -1,11 +1,11 @@
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Context, ModelId, ToolCallFull, ToolResult,
+    ChatCompletionMessage, ChatResponse, Context, Event, ModelId, ToolCallFull, ToolResult,
 };
 
 use crate::neo_orch::program::{Identity, SemiGroup};
 
 pub enum UserAction {
-    Message(String),
+    ChatEvent(Event),
     ChatCompletionMessage(anyhow::Result<ChatCompletionMessage>),
     ToolResult(ToolResult),
     RenderResult(String),

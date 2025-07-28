@@ -38,7 +38,7 @@ impl Program for SystemPromptProgram {
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error> {
         // Only set system prompt when receiving a Message action and we have a template
-        if matches!(action, UserAction::Message(_))
+        if matches!(action, UserAction::ChatEvent(_))
             && let Some(template) = &self.system_prompt
         {
             // For now, we'll use the template string directly without rendering
@@ -55,6 +55,7 @@ impl Program for SystemPromptProgram {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::Event;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -112,7 +113,7 @@ mod tests {
     fn test_update_sets_system_prompt_on_message() {
         let fixture = SystemPromptProgram::from_str("You are a helpful assistant");
         let mut state = AgentState::default();
-        let action = UserAction::Message("test message".to_string());
+        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
@@ -146,7 +147,7 @@ mod tests {
     fn test_update_skips_when_no_system_prompt() {
         let fixture = SystemPromptProgram::default();
         let mut state = AgentState::default();
-        let action = UserAction::Message("test message".to_string());
+        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
@@ -178,7 +179,7 @@ mod tests {
     fn test_update_returns_empty_action() {
         let fixture = SystemPromptProgram::from_str("You are a helpful assistant");
         let mut state = AgentState::default();
-        let action = UserAction::Message("test message".to_string());
+        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
@@ -191,7 +192,7 @@ mod tests {
         let custom_prompt = "You are a specialized coding assistant.";
         let fixture = SystemPromptProgram::from_str(custom_prompt);
         let mut state = AgentState::default();
-        let action = UserAction::Message("test message".to_string());
+        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
@@ -225,7 +226,7 @@ mod tests {
         // Set some initial context state
         state.context = state.context.clone().max_tokens(100usize);
 
-        let action = UserAction::Message("test message".to_string());
+        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 

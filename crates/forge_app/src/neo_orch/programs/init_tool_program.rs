@@ -27,7 +27,7 @@ impl Program for InitToolProgram {
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error> {
         // Only set tool information in the context when receiving a Message action
-        if matches!(action, UserAction::Message(_)) {
+        if matches!(action, UserAction::ChatEvent(_)) {
             for tool in &self.tool_definitions {
                 state.context = state.context.clone().add_tool(tool.clone());
             }
@@ -39,7 +39,7 @@ impl Program for InitToolProgram {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{ToolName, ToolResult};
+    use forge_domain::{ToolName, ToolResult, Event};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -73,7 +73,7 @@ mod tests {
         let tool_definitions = create_test_tool_definitions();
         let fixture = InitToolProgram::new(tool_definitions.clone());
         let mut state = AgentState::default();
-        let action = UserAction::Message("test message".to_string());
+        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let result = fixture.update(&action, &mut state);
 
@@ -128,7 +128,7 @@ mod tests {
     fn test_update_with_empty_tools() {
         let fixture = InitToolProgram::default();
         let mut state = AgentState::default();
-        let action = UserAction::Message("test message".to_string());
+        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let result = fixture.update(&action, &mut state);
 
@@ -142,7 +142,7 @@ mod tests {
     fn test_update_returns_empty_action() {
         let fixture = InitToolProgram::default();
         let mut state = AgentState::default();
-        let action = UserAction::Message("test message".to_string());
+        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
 
         let actual = fixture.update(&action, &mut state).unwrap();
 
@@ -161,7 +161,7 @@ mod tests {
         // Set some initial context state
         state.context = state.context.clone().max_tokens(100usize);
 
-        let action = UserAction::Message("test message".to_string());
+        let action = UserAction::ChatEvent(Event::new("test_message", Some("test message")));
         let result = fixture.update(&action, &mut state);
 
         assert!(result.is_ok());

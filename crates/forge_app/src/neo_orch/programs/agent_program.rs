@@ -30,9 +30,11 @@ impl Program for AgentProgram {
         action: &Self::Action,
         state: &mut Self::State,
     ) -> std::result::Result<Self::Success, Self::Error> {
-        let program = InitToolProgram::new(self.tool_definitions.clone()).combine(
-            SystemPromptProgram::default().system_prompt(self.agent.system_prompt.to_owned()),
-        );
+        let program = InitToolProgram::new(self.tool_definitions.clone())
+            //
+            .combine(
+                SystemPromptProgram::default().system_prompt(self.agent.system_prompt.to_owned()),
+            );
 
         program.update(action, state)
     }
