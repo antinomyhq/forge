@@ -7,6 +7,7 @@ use crate::neo_orch::program::{Program, ProgramExt};
 use crate::neo_orch::programs::SystemPromptProgramBuilder;
 use crate::neo_orch::programs::attachment_program::AttachmentProgramBuilder;
 use crate::neo_orch::programs::init_tool_program::InitToolProgramBuilder;
+use crate::neo_orch::programs::user_prompt_program::{UserPromptProgram, UserPromptProgramBuilder};
 use crate::neo_orch::state::AgentState;
 
 ///
@@ -36,6 +37,12 @@ impl Program for AgentProgram {
             .combine(
                 SystemPromptProgramBuilder::default()
                     .system_prompt(self.agent.system_prompt.clone())
+                    .build()?,
+            )
+            .combine(
+                UserPromptProgramBuilder::default()
+                    // FIXME: add variables and time
+                    .agent(self.agent.clone())
                     .build()?,
             )
             .combine(
