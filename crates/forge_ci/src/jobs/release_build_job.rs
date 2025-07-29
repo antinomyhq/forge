@@ -9,13 +9,20 @@ pub struct ReleaseBuilderJob {
     // Required to burn into the binary
     pub version: String,
 
-    // When provide the generated release will be uploaded
+    // When provided the generated release will be uploaded
     pub release_id: Option<String>,
+
+    // When true, upload as artifacts for PR testing
+    pub upload_artifacts: Option<bool>,
 }
 
 impl ReleaseBuilderJob {
     pub fn new(version: impl AsRef<str>) -> Self {
-        Self { version: version.as_ref().to_string(), release_id: None }
+        Self {
+            version: version.as_ref().to_string(),
+            release_id: None,
+            upload_artifacts: None,
+        }
     }
 
     pub fn into_job(self) -> Job {
@@ -56,29 +63,47 @@ impl From<ReleaseBuilderJob> for Job {
             // Build release binary
             .add_step(
                 Step::uses("ClementTsang", "cargo-action", "v0.0.6")
-                    .add_with(("command", "build --release"))
+                    .add_with(("command", "build"))
                     .add_with(("args", "--target ${{ matrix.target }}"))
                     .add_with(("use-cross", "${{ matrix.cross }}"))
                     .add_with(("cross-version", "0.2.4"))
                     .add_env(("RUSTFLAGS", "${{ env.RUSTFLAGS }}"))
                     .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
-                    .add_env(("APP_VERSION", value.version.to_string())),
+                    .add_env((
+                        "CROSS_POSTHOG_API_SECRET",
+                        "${{secrets.POSTHOG_API_SECRET}}",
+                    ))
+                    .add_env(("APP_VERSION", value.version.to_string()))
+                    .add_env(("CROSS_APP_VERSION", value.version.to_string())),
             );
 
-        if let Some(release_id) = value.release_id {
+        if let Some(_release_id) = value.release_id {
             job = job
                 // Rename binary to target name
                 .add_step(Step::run(
                     "cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}",
                 ))
                 // Upload to the generated github release id
-                .add_step(
+/*                .add_step(
                     Step::uses("xresloader", "upload-to-github-release", "v1")
                         .add_with(("release_id", release_id))
                         .add_with(("file", "${{ matrix.binary_name }}"))
                         .add_with(("overwrite", "true")),
-                );
+                )*/;
         }
+
+        job = job
+            // Rename binary to target name
+            .add_step(Step::run(
+                "cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}",
+            ))
+            // Upload as artifact for PR testing
+            .add_step(
+                Step::uses("actions", "upload-artifact", "v4")
+                    .add_with(("name", "${{ matrix.binary_name }}"))
+                    .add_with(("path", "${{ matrix.binary_name }}"))
+                    .add_with(("retention-days", "7")),
+            );
 
         job
     }

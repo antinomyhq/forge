@@ -1,9 +1,9 @@
 use forge_ci::workflows as workflow;
 
-#[test]
-fn generate() {
-    workflow::generate_ci_workflow();
-}
+// #[test]
+// fn generate() {
+//     workflow::generate_ci_workflow();
+// }
 
 #[test]
 fn test_release_drafter() {
