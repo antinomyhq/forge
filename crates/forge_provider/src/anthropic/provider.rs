@@ -3,9 +3,8 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use derive_builder::Builder;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
+    HttpInfra, ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
-use forge_domain::HttpInfra;
 use tokio_stream::StreamExt;
 use tracing::debug;
 

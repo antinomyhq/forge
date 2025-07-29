@@ -3,9 +3,8 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
+    HttpInfra, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
-use forge_domain::HttpInfra;
 use reqwest::header::AUTHORIZATION;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
@@ -111,7 +110,7 @@ impl ForgeProvider {
         Ok(Box::pin(stream))
     }
 
-    async fn inner_models(&self) -> Result<Vec<forge_domain::Model>> {
+    async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
         let url = join_url(self.provider.to_base_url().as_str(), "models")?;
         debug!(url = %url, "Fetching models");
         match self.fetch_models(url.as_str()).await {

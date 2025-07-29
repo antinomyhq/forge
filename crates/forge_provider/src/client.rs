@@ -6,9 +6,8 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
+    HttpInfra, ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
-use forge_domain::HttpInfra;
 use reqwest::Url;
 use reqwest::header::HeaderMap;
 use tokio::sync::RwLock;
