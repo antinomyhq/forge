@@ -193,8 +193,8 @@ impl Anthropic {
 #[cfg(test)]
 mod tests {
     use forge_app::domain::{
-        Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
-        ToolResult,
+        Context, ContextMessage, ToolCallArguments, ToolCallFull, ToolCallId, ToolChoice, ToolName,
+        ToolOutput, ToolResult,
     };
 
     use super::*;
@@ -279,7 +279,7 @@ mod tests {
                 Some(vec![ToolCallFull {
                     name: ToolName::new("math"),
                     call_id: Some(ToolCallId::new("math-1")),
-                    arguments: serde_json::json!({"expression": "2 + 2"}).into(),
+                    arguments: ToolCallArguments::new(r#"{"expression": "2 + 2"}"#),
                 }]),
             ))
             .add_tool_results(vec![ToolResult {

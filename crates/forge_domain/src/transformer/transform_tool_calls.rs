@@ -74,7 +74,10 @@ mod tests {
     use serde::Serialize;
 
     use super::*;
-    use crate::{Image, ToolCallFull, ToolCallId, ToolName, ToolOutput, ToolResult, ToolValue};
+    use crate::{
+        Image, ToolCallArguments, ToolCallFull, ToolCallId, ToolName, ToolOutput, ToolResult,
+        ToolValue,
+    };
 
     #[derive(Serialize)]
     struct TransformationSnapshot {
@@ -93,7 +96,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: serde_json::json!({"param": "value"}).into(),
+            arguments: ToolCallArguments::new(r#"{"param": "value"}"#),
         };
 
         Context::default()

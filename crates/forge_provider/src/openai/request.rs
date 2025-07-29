@@ -402,10 +402,10 @@ pub enum Role {
 #[cfg(test)]
 mod tests {
     use forge_app::domain::{
-        ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        ContextMessage, Role, TextMessage, ToolCallArguments, ToolCallFull, ToolCallId, ToolName,
+        ToolResult,
     };
     use insta::assert_json_snapshot;
-    use serde_json::json;
 
     use super::*;
 
@@ -450,7 +450,7 @@ mod tests {
         let tool_call = ToolCallFull {
             call_id: Some(ToolCallId::new("123")),
             name: ToolName::new("test_tool"),
-            arguments: json!({"key": "value"}).into(),
+            arguments: ToolCallArguments::new(r#"{"key": "value"}"#),
         };
 
         let assistant_message = ContextMessage::Text(TextMessage {

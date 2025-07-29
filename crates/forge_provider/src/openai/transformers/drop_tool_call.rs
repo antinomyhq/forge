@@ -35,9 +35,9 @@ impl Transformer for DropToolCalls {
 #[cfg(test)]
 mod tests {
     use forge_app::domain::{
-        Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        Context, ContextMessage, Role, TextMessage, ToolCallArguments, ToolCallFull, ToolCallId,
+        ToolName, ToolResult,
     };
-    use serde_json::json;
 
     use super::*;
 
@@ -46,7 +46,7 @@ mod tests {
         let tool_call = ToolCallFull {
             call_id: Some(ToolCallId::new("123")),
             name: ToolName::new("test_tool"),
-            arguments: json!({"key": "value"}).into(),
+            arguments: ToolCallArguments::new(r#"{"key": "value"}"#),
         };
 
         let tool_result = ToolResult::new(ToolName::new("test_tool"))

@@ -18,7 +18,7 @@ before:
         tool_calls:
           - name: test_tool
             call_id: call_123
-            arguments: "{\"param\":\"value\"}"
+            arguments: "{\"param\": \"value\"}"
         model: ~
         reasoning_details: ~
     - tool:

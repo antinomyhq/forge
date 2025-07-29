@@ -24,7 +24,7 @@ snapshot_kind: text
         {
           "type": "tool_use",
           "id": "math-1",
-          "input": "{\"expression\":\"2 + 2\"}",
+          "input": "{\"expression\": \"2 + 2\"}",
           "name": "math"
         }
       ],

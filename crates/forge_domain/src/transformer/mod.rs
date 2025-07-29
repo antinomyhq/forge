@@ -93,7 +93,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        Context, ContextMessage, ToolCallFull, ToolCallId, ToolName, ToolOutput, ToolResult,
+        Context, ContextMessage, ToolCallArguments, ToolCallFull, ToolCallId, ToolName, ToolOutput,
+        ToolResult,
     };
 
     #[derive(Serialize)]
@@ -113,7 +114,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: serde_json::json!({"param": "value"}).into(),
+            arguments: ToolCallArguments::new(r#"{"param": "value"}"#),
         };
 
         Context::default()
