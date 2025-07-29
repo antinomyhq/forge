@@ -57,7 +57,7 @@ impl ClientBuilder {
             ))
             .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
             .redirect(Policy::limited(timeout_config.max_redirects))
-            .hickory_dns(self.use_hickory)
+            .hickory_dns(true)
             .use_native_tls()
             .build()?;
 
