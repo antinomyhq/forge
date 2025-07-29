@@ -1,3 +1,4 @@
+use forge_api::ModelId;
 use ratatui::layout::Alignment;
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span};
@@ -8,15 +9,22 @@ pub struct StatusBar {
     editor_status: Option<String>,
     agent: Option<String>,
     workspace: Workspace,
+    current_model: Option<ModelId>,
 }
 
 impl StatusBar {
     /// Create a new StatusBar with all fields
-    pub fn new(agent: impl ToString, editor_status: impl ToString, workspace: Workspace) -> Self {
+    pub fn new(
+        agent: impl ToString,
+        editor_status: impl ToString,
+        workspace: Workspace,
+        current_model: Option<ModelId>,
+    ) -> Self {
         Self {
             editor_status: Some(editor_status.to_string()),
             agent: Some(agent.to_string()),
             workspace,
+            current_model,
         }
     }
 }
@@ -40,6 +48,12 @@ impl<'a> From<StatusBar> for Line<'a> {
         // Add agent if available
         if let Some(agent) = value.agent {
             spans.push(Span::from(format!(" {} ", agent.to_uppercase())).bg(Color::White));
+            spans.push(space.clone());
+        }
+
+        // Add current model if available
+        if let Some(model) = value.current_model {
+            spans.push(Span::from(format!(" Model: {} ", model.as_str())).bg(Color::Cyan));
             spans.push(space.clone());
         }
 
