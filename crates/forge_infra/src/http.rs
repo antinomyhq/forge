@@ -18,8 +18,8 @@ impl ForgeHttpService {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .danger_accept_invalid_certs(true)
-            .use_native_tls()
-            // .use_rustls_tls()
+            // .use_native_tls()
+            .use_rustls_tls()
             .build()
             .unwrap();
         Self { client }
