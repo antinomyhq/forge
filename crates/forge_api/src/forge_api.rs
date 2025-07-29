@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{
-    AppConfig, AppConfigService, AuthService, ConversationService,
-    EnvironmentService, FileDiscoveryService, ForgeApp, InitAuth, McpConfigManager,
-    ProviderRegistry, ProviderService, Services, User, Walker, WorkflowService,
+    AppConfig, AppConfigService, AuthService, ConversationService, EnvironmentService,
+    FileDiscoveryService, ForgeApp, InitAuth, McpConfigManager, ProviderRegistry, ProviderService,
+    Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -171,6 +171,15 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         if let Some(api_key) = provider.key() {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
+        }
+        Ok(None)
+    }
+
+    async fn user_usage(&self) -> Result<Option<UserUsage>> {
+        let provider = self.provider().await?;
+        if let Some(api_key) = provider.key() {
+            let user_usage = self.services.user_usage(api_key).await?;
+            return Ok(Some(user_usage));
         }
         Ok(None)
     }

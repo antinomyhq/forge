@@ -69,6 +69,13 @@ impl ForgeEnvironmentInfra {
             }
         }
 
+        if let Some(parsed) = std::env::var("FORGE_SUPPRESS_RETRY_ERRORS")
+            .ok()
+            .and_then(|val| val.parse::<bool>().ok())
+        {
+            config.suppress_retry_errors = parsed;
+        }
+
         config
     }
 
@@ -272,6 +279,7 @@ mod tests {
                 env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
                 env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
                 env::remove_var("FORGE_RETRY_STATUS_CODES");
+                env::remove_var("FORGE_SUPPRESS_RETRY_ERRORS");
             }
 
             // Verify that the environment service uses the same default as RetryConfig
@@ -298,6 +306,12 @@ mod tests {
                 retry_config_from_env.retry_status_codes, default_retry_config.retry_status_codes,
                 "Environment service and RetryConfig should have consistent default retry_status_codes"
             );
+
+            assert_eq!(
+                retry_config_from_env.suppress_retry_errors,
+                default_retry_config.suppress_retry_errors,
+                "Environment service and RetryConfig should have consistent default suppress_retry_errors"
+            );
         }
 
         // Test 2: Environment variable override
@@ -308,6 +322,7 @@ mod tests {
                 env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
                 env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
                 env::remove_var("FORGE_RETRY_STATUS_CODES");
+                env::remove_var("FORGE_SUPPRESS_RETRY_ERRORS");
             }
 
             // Set environment variables to override defaults
@@ -316,6 +331,7 @@ mod tests {
                 env::set_var("FORGE_RETRY_BACKOFF_FACTOR", "3");
                 env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "5");
                 env::set_var("FORGE_RETRY_STATUS_CODES", "429,500,502");
+                env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "true");
             }
 
             let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
@@ -325,6 +341,7 @@ mod tests {
             assert_eq!(config.backoff_factor, 3);
             assert_eq!(config.max_retry_attempts, 5);
             assert_eq!(config.retry_status_codes, vec![429, 500, 502]);
+            assert_eq!(config.suppress_retry_errors, true);
 
             // Clean up environment variables
             unsafe {
@@ -332,6 +349,7 @@ mod tests {
                 env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
                 env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
                 env::remove_var("FORGE_RETRY_STATUS_CODES");
+                env::remove_var("FORGE_SUPPRESS_RETRY_ERRORS");
             }
         }
 
@@ -343,6 +361,7 @@ mod tests {
                 env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
                 env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
                 env::remove_var("FORGE_RETRY_STATUS_CODES");
+                env::remove_var("FORGE_SUPPRESS_RETRY_ERRORS");
             }
 
             // Set only some environment variables
@@ -378,6 +397,7 @@ mod tests {
                 env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
                 env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
                 env::remove_var("FORGE_RETRY_STATUS_CODES");
+                env::remove_var("FORGE_SUPPRESS_RETRY_ERRORS");
             }
 
             // Set invalid environment variables
@@ -404,6 +424,52 @@ mod tests {
                 env::remove_var("FORGE_RETRY_BACKOFF_FACTOR");
                 env::remove_var("FORGE_RETRY_MAX_ATTEMPTS");
                 env::remove_var("FORGE_RETRY_STATUS_CODES");
+                env::remove_var("FORGE_SUPPRESS_RETRY_ERRORS");
+            }
+        }
+
+        // Test 5: FORGE_SUPPRESS_RETRY_ERRORS environment variable
+        {
+            // Clean up any existing environment variables first
+            unsafe {
+                env::remove_var("FORGE_SUPPRESS_RETRY_ERRORS");
+            }
+
+            // Test default value (false)
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+            let config = env_service.resolve_retry_config();
+            assert_eq!(config.suppress_retry_errors, false);
+
+            // Test setting to true
+            unsafe {
+                env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "true");
+            }
+
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+            let config = env_service.resolve_retry_config();
+            assert_eq!(config.suppress_retry_errors, true);
+
+            // Test setting to false explicitly
+            unsafe {
+                env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "false");
+            }
+
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+            let config = env_service.resolve_retry_config();
+            assert_eq!(config.suppress_retry_errors, false);
+
+            // Test invalid value (should use default)
+            unsafe {
+                env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "invalid");
+            }
+
+            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+            let config = env_service.resolve_retry_config();
+            assert_eq!(config.suppress_retry_errors, false); // Should fallback to default
+
+            // Clean up environment variable
+            unsafe {
+                env::remove_var("FORGE_SUPPRESS_RETRY_ERRORS");
             }
         }
     }
