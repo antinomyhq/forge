@@ -58,7 +58,7 @@ impl std::fmt::Display for ToolCallArguments {
 /// Unique identifier for a using a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(transparent)]
-pub struct ToolCallId(pub(crate) String);
+pub struct ToolCallId(String);
 
 impl ToolCallId {
     pub fn new(value: impl ToString) -> Self {
