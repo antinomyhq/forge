@@ -8,7 +8,6 @@ use derive_setters::Setters;
 use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
-use reqwest::redirect::Policy;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
