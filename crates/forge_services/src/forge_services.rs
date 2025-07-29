@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use forge_app::Services;
 
+use crate::agent_loader::AgentLoaderService as ForgeAgentLoaderService;
 use crate::app_config::ForgeConfigService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
@@ -55,6 +56,7 @@ pub struct ForgeServices<F: McpServerInfra + WalkerInfra> {
     config_service: Arc<ForgeConfigService<F>>,
     auth_service: Arc<AuthService<F>>,
     provider_service: Arc<ForgeProviderRegistry<F>>,
+    agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
 }
 
 impl<
@@ -89,7 +91,11 @@ impl<
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
-        let env_service = Arc::new(ForgeEnvironmentService::new(infra));
+        let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
+        let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(
+            infra.clone(),
+            infra.get_environment(),
+        ));
         Self {
             conversation_service,
             attachment_service,
@@ -112,6 +118,7 @@ impl<
             auth_service,
             chat_service,
             provider_service,
+            agent_loader_service,
         }
     }
 }
@@ -153,6 +160,7 @@ impl<
     type AppConfigService = ForgeConfigService<F>;
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
+    type AgentLoaderService = ForgeAgentLoaderService<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -236,5 +244,8 @@ impl<
 
     fn provider_registry(&self) -> &Self::ProviderRegistry {
         &self.provider_service
+    }
+    fn agent_loader_service(&self) -> &Self::AgentLoaderService {
+        &self.agent_loader_service
     }
 }

@@ -17,6 +17,7 @@ mod truncation;
 mod user;
 mod utils;
 mod walker;
+mod workflow_coordinator;
 
 pub use app::*;
 pub use app_config::*;
