@@ -1,21 +1,21 @@
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
+    ChatCompletionMessage, Content, Context as ChatContext, ModelId, Provider, ResultStream,
 };
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
+use serde_json::{Value, json};
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
 use super::model::{ListModelResponse, Model};
-use super::request::Request;
+use super::request::{ContentPart, MessageContent, Request, Role};
 use super::response::Response;
 use crate::error::Error;
 use crate::openai::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
-
 #[derive(Clone, Builder)]
 pub struct ForgeProvider {
     client: Client,
@@ -46,17 +46,46 @@ impl ForgeProvider {
         })
     }
 
+    pub async fn copilot_create_thread(&self) -> anyhow::Result<String> {
+        let url = self.url("github/chat/threads")?;
+        let headers = self.headers();
+        let resp = self
+            .client
+            .post(url)
+            .headers(headers)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<serde_json::Value>()
+            .await?;
+        // Extract thread_id from response
+        let thread_id = resp
+            .get("thread_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("No thread id in Copilot response"))?;
+        Ok(thread_id.to_string())
+    }
+
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
     // - `HTTP-Referer`: Identifies your app on openrouter.ai
     // - `X-Title`: Sets/modifies your app's title
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
         if let Some(ref api_key) = self.provider.key() {
-            headers.insert(
-                AUTHORIZATION,
-                HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
-            );
+            if self.provider.is_copilot() {
+                headers.insert(
+                    AUTHORIZATION,
+                    HeaderValue::from_str(&format!("GitHub-Bearer {api_key}")).unwrap(),
+                );
+                headers.insert("Copilot-Integration-Id", HeaderValue::from_static("forge"));
+            } else {
+                headers.insert(
+                    AUTHORIZATION,
+                    HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
+                );
+            }
         }
+
         headers.insert("X-Title", HeaderValue::from_static("forge"));
         headers.insert(
             "x-app-version",
@@ -75,12 +104,178 @@ impl ForgeProvider {
         headers
     }
 
+    async fn copilot_chat(
+        &self,
+        model: &ModelId,
+        context: ChatContext,
+        thread_id: String,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        // Use the standard Request format but populate Copilot-specific fields
+        let mut request = Request::from(context.clone())
+            .model(model.clone())
+            .stream(true);
+        let mut pipeline = ProviderPipeline::new(&self.provider);
+        request = pipeline.transform(request);
+
+        // Populate Copilot-specific fields
+        request = request
+            .thread_id(thread_id.clone())
+            .intent("conversation".to_string())
+            .streaming(true);
+
+        // Extract content from the last message
+        if let Some(messages) = &request.messages
+            && let Some(last_msg) = messages.last()
+                && let Some(content) = &last_msg.content {
+                    let content_str = match content {
+                        MessageContent::Text(text) => text.clone(),
+                        MessageContent::Parts(parts) => parts
+                            .iter()
+                            .filter_map(|part| {
+                                if let ContentPart::Text { text, .. } = part {
+                                    Some(text.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    };
+                    request = request.content(content_str);
+                }
+
+        // Build context from messages
+        if let Some(messages) = &request.messages {
+            let context_messages: Vec<serde_json::Value> = messages
+                .iter()
+                .map(|msg| {
+                    let role = match msg.role {
+                        Role::System => "system",
+                        Role::User => "user",
+                        Role::Assistant => "assistant",
+                        Role::Tool => "tool",
+                    };
+
+                    let content = msg
+                        .content
+                        .as_ref()
+                        .map(|c| match c {
+                            MessageContent::Text(text) => text.clone(),
+                            MessageContent::Parts(parts) => parts
+                                .iter()
+                                .filter_map(|part| {
+                                    if let ContentPart::Text { text, .. } = part {
+                                        Some(text.clone())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" "),
+                        })
+                        .unwrap_or_default();
+
+                    json!({
+                        "role": role,
+                        "content": content,
+                    })
+                })
+                .collect();
+            request = request.context(context_messages);
+        }
+
+        request.messages = None;
+        request.max_completion_tokens = None;
+        request.stream = None;
+
+        // 3. Build the URL
+        let url = self.url(&format!("github/chat/threads/{thread_id}/messages"))?;
+        let headers = self.headers();
+        let url_for_filter = url.clone();
+
+        // 4. Make the POST request and get the event stream
+        let es = self
+            .client
+            .post(url.clone())
+            .headers(headers)
+            .json(&request)
+            .eventsource()
+            .with_context(|| format_http_context(None, "POST", &url))?;
+
+        // 5. Parse the event stream
+        let stream = es
+            .take_while(|message| {
+                let is_stream_ended = matches!(message, Err(reqwest_eventsource::Error::StreamEnded));
+                !is_stream_ended
+            })
+            .then(move |event| {
+                async move {
+                    match event {
+                        Ok(Event::Message(ev)) => {
+                            if let Ok(json) = serde_json::from_str::<Value>(&ev.data) {
+                                match json.get("type").and_then(|t| t.as_str()) {
+                                    Some("content") => {
+                                        if let Some(body) = json.get("body").and_then(|b| b.as_str()) {
+                                            let content = Content::part(body);
+                                            Some(Ok(ChatCompletionMessage::assistant(content.clone())))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    Some("complete") => {
+                                        // Stream is complete, no more messages to send
+                                        None
+                                    }
+                                    _ => None,
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        Ok(Event::Open) => {
+                            None
+                        }
+                        Err(error) => {
+                            match error {
+                                reqwest_eventsource::Error::StreamEnded => None,
+                                reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
+                                    let status = response.status();
+                                    Some(Err(anyhow::anyhow!(Error::InvalidStatusCode(status.as_u16()))
+                                        .context(format!("HTTP {status}"))))
+                                }
+                                reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
+                                    let status_code = response.status();
+                                    Some(Err(anyhow::anyhow!(error)
+                                        .context(format!("Invalid content type. HTTP Status: {status_code}"))))
+                                }
+                                error => {
+                                    tracing::error!(error = ?error, "Failed to receive chat completion event");
+                                    Some(Err(anyhow::anyhow!(error)))
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+            .filter_map(move |response| {
+                response.map(|result| result.with_context(|| format_http_context(None, "POST", &url_for_filter)))
+            });
+        Ok(Box::pin(stream))
+    }
+
     async fn inner_chat(
         &self,
         model: &ModelId,
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let mut request = Request::from(context).model(model.clone()).stream(true);
+        if self.provider.is_copilot() {
+            // For Copilot, the service layer handles thread ID management
+            // This method should not be called directly for Copilot
+            anyhow::bail!("Copilot chat should be handled through copilot_chat method");
+        }
+        let mut request = Request::from(context.clone())
+            .model(model.clone())
+            .stream(true);
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
@@ -103,7 +298,6 @@ impl ForgeProvider {
             .json(&request)
             .eventsource()
             .with_context(|| format_http_context(None, "POST", &url))?;
-
         let stream = es
             .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
             .then(|event| async {
@@ -223,7 +417,17 @@ impl ForgeProvider {
         &self,
         model: &ModelId,
         context: ChatContext,
+        thread_id: Option<String>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        if self.provider.is_copilot() {
+            if let Some(tid) = thread_id {
+                return self.copilot_chat(model, context, tid).await;
+            } else {
+                anyhow::bail!("Thread ID is required for Copilot chat");
+            }
+        }
+
+        // For non-Copilot providers, use the regular chat method
         self.inner_chat(model, context).await
     }
 
