@@ -178,9 +178,7 @@ fn tool_call_content_char_count(text_message: &TextMessage) -> usize {
         .map(|tool_calls| {
             tool_calls
                 .iter()
-                .map(|tc| {
-                    tc.arguments.as_str().chars().count() + tc.name.as_str().chars().count()
-                })
+                .map(|tc| tc.arguments.as_str().chars().count() + tc.name.as_str().chars().count())
                 .sum()
         })
         .unwrap_or(0)

@@ -683,7 +683,7 @@ impl TryFrom<ToolCallFull> for Tools {
 impl TryFrom<&ToolCallFull> for AgentInput {
     type Error = ToolCallArgumentError;
     fn try_from(value: &ToolCallFull) -> Result<Self, Self::Error> {
-        eserde::json::from_str(&value.arguments.as_str()).map_err(ToolCallArgumentError::from)
+        eserde::json::from_str(value.arguments.as_str()).map_err(ToolCallArgumentError::from)
     }
 }
 

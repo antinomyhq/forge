@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::xml::extract_tag_content;
-use crate::{Error, Result, ToolName};
+use crate::{Error, ToolName};
 
 /// Arguments that need to be passed to a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -139,9 +139,9 @@ impl ToolCallFull {
         }
     }
 
-    pub fn try_from_parts(parts: &[ToolCallPart]) -> Result<Vec<Self>> {
+    pub fn try_from_parts(parts: &[ToolCallPart]) -> Vec<Self> {
         if parts.is_empty() {
-            return Ok(vec![]);
+            return vec![];
         }
 
         let mut tool_calls = Vec::new();
@@ -164,13 +164,6 @@ impl ToolCallFull {
                             arguments: if current_arguments.is_empty() {
                                 ToolCallArguments::default()
                             } else {
-                                // Validate JSON by parsing, but store as string
-                                serde_json::from_str::<Value>(&current_arguments).map_err(
-                                    |error| Error::ToolCallArgument {
-                                        error,
-                                        args: current_arguments.clone(),
-                                    },
-                                )?;
                                 ToolCallArguments::new(current_arguments.clone())
                             },
                         });
@@ -197,16 +190,12 @@ impl ToolCallFull {
                 arguments: if current_arguments.is_empty() {
                     ToolCallArguments::default()
                 } else {
-                    // Validate JSON by parsing, but store as string
-                    serde_json::from_str::<Value>(&current_arguments).map_err(|error| {
-                        Error::ToolCallArgument { error, args: current_arguments.clone() }
-                    })?;
                     ToolCallArguments::new(current_arguments.clone())
                 },
             });
         }
 
-        Ok(tool_calls)
+        tool_calls
     }
 
     /// Parse multiple tool calls from XML format.
@@ -285,7 +274,7 @@ mod tests {
             },
         ];
 
-        let actual = ToolCallFull::try_from_parts(&input).unwrap();
+        let actual = ToolCallFull::try_from_parts(&input);
 
         let expected = vec![
             ToolCallFull {
@@ -320,7 +309,7 @@ mod tests {
             arguments_part: "{\"path\": \"docs/onboarding.md\"}".to_string(),
         }];
 
-        let actual = ToolCallFull::try_from_parts(&input).unwrap();
+        let actual = ToolCallFull::try_from_parts(&input);
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("forge_tool_fs_read"),
@@ -332,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_empty_call_parts() {
-        let actual = ToolCallFull::try_from_parts(&[]).unwrap();
+        let actual = ToolCallFull::try_from_parts(&[]);
         let expected = vec![];
 
         assert_eq!(actual, expected);
@@ -346,7 +335,7 @@ mod tests {
             arguments_part: "".to_string(),
         }];
 
-        let actual = ToolCallFull::try_from_parts(&input).unwrap();
+        let actual = ToolCallFull::try_from_parts(&input);
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("screenshot"),
@@ -393,7 +382,7 @@ mod tests {
             },
         ];
 
-        let actual = ToolCallFull::try_from_parts(&input).unwrap();
+        let actual = ToolCallFull::try_from_parts(&input);
 
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
