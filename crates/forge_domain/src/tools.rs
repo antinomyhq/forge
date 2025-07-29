@@ -672,7 +672,7 @@ impl TryFrom<ToolCallFull> for Tools {
             // detailed error messages when required fields are missing.
             "{}".to_string()
         } else {
-            value.arguments.to_string()
+            value.arguments.as_str().to_string()
         };
 
         let json_str = format!(r#"{{"name": "{}", "arguments": {}}}"#, value.name, arg);
@@ -683,7 +683,7 @@ impl TryFrom<ToolCallFull> for Tools {
 impl TryFrom<&ToolCallFull> for AgentInput {
     type Error = ToolCallArgumentError;
     fn try_from(value: &ToolCallFull) -> Result<Self, Self::Error> {
-        eserde::json::from_str(&value.arguments.to_string()).map_err(ToolCallArgumentError::from)
+        eserde::json::from_str(&value.arguments.as_str()).map_err(ToolCallArgumentError::from)
     }
 }
 

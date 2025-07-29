@@ -50,12 +50,6 @@ impl Default for ToolCallArguments {
     }
 }
 
-impl From<Value> for ToolCallArguments {
-    fn from(value: Value) -> Self {
-        ToolCallArguments::from_value(value)
-    }
-}
-
 impl From<ToolCallArguments> for Value {
     fn from(args: ToolCallArguments) -> Self {
         args.into_value().unwrap_or(Value::Null)
