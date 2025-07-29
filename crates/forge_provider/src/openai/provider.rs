@@ -28,6 +28,11 @@ impl ForgeProvider {
         ForgeProviderBuilder::default()
     }
 
+    fn is_azure_openai(&self) -> bool {
+        let url_str = self.provider.to_base_url().to_string();
+        url_str.contains(".openai.azure.com")
+    }
+
     fn url(&self, path: &str) -> anyhow::Result<Url> {
         // Validate the path doesn't contain certain patterns
         if path.contains("://") || path.contains("..") {
@@ -37,13 +42,24 @@ impl ForgeProvider {
         // Remove leading slash to avoid double slashes
         let path = path.trim_start_matches('/');
 
-        self.provider.to_base_url().join(path).with_context(|| {
+        let mut url = self.provider.to_base_url().join(path).with_context(|| {
             format!(
                 "Failed to append {} to base URL: {}",
                 path,
                 self.provider.to_base_url()
             )
-        })
+        });
+
+        if let Ok(ref mut url) = url
+            && self.is_azure_openai()
+        {
+            let api_version =
+                std::env::var("OPENAI_AZURE_VERSION").unwrap_or_else(|_| "2024-10-21".to_string());
+            url.query_pairs_mut()
+                .append_pair("api-version", &api_version);
+        };
+
+        url
     }
 
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
@@ -395,6 +411,84 @@ mod tests {
         let message = ChatCompletionMessage::try_from(message.clone());
 
         assert!(message.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_azure_openai_detection() -> anyhow::Result<()> {
+        // Test Azure OpenAI endpoint
+        let azure_provider = create_provider("https://my-resource.openai.azure.com/")?;
+        assert!(azure_provider.is_azure_openai());
+
+        // Test regular OpenAI endpoint
+        let openai_provider = create_provider("https://api.openai.com/v1/")?;
+        assert!(!openai_provider.is_azure_openai());
+
+        // Test other provider
+        let other_provider = create_provider("https://api.example.com/v1/")?;
+        assert!(!other_provider.is_azure_openai());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_azure_url_with_api_version() -> anyhow::Result<()> {
+        let azure_provider = create_provider("https://my-resource.openai.azure.com/")?;
+
+        // Store original value if it exists
+        let original_value = std::env::var("OPENAI_AZURE_VERSION").ok();
+
+        // Test with environment variable set
+        unsafe {
+            std::env::set_var("OPENAI_AZURE_VERSION", "2024-06-01");
+        }
+        let url = azure_provider.url("chat/completions")?;
+        assert!(url.query().unwrap_or("").contains("api-version=2024-06-01"));
+
+        // Restore original value or remove if it didn't exist
+        match original_value {
+            Some(value) => unsafe {
+                std::env::set_var("OPENAI_AZURE_VERSION", value);
+            },
+            None => unsafe {
+                std::env::remove_var("OPENAI_AZURE_VERSION");
+            },
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_azure_url_with_default_api_version() -> anyhow::Result<()> {
+        let azure_provider = create_provider("https://my-resource.openai.azure.com/")?;
+
+        // Store original value if it exists
+        let original_value = std::env::var("OPENAI_AZURE_VERSION").ok();
+
+        // Ensure environment variable is not set
+        unsafe {
+            std::env::remove_var("OPENAI_AZURE_VERSION");
+        }
+
+        let url = azure_provider.url("chat/completions")?;
+        assert!(url.query().unwrap_or("").contains("api-version=2024-10-21"));
+
+        // Restore original value if it existed
+        if let Some(value) = original_value {
+            unsafe {
+                std::env::set_var("OPENAI_AZURE_VERSION", value);
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_non_azure_url_no_api_version() -> anyhow::Result<()> {
+        let openai_provider = create_provider("https://api.openai.com/v1/")?;
+
+        let url = openai_provider.url("chat/completions")?;
+        assert!(!url.query().unwrap_or("").contains("api-version"));
+
         Ok(())
     }
 }
