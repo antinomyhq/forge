@@ -19,13 +19,6 @@ impl ToolCallArguments {
     pub fn from_value(value: Value) -> Self {
         ToolCallArguments(value.to_string())
     }
-    pub fn from_map(map: serde_json::Map<String, Value>) -> Self {
-        // Directly serialize the map to JSON string without creating intermediate Value
-        match serde_json::to_string(&map) {
-            Ok(json_string) => ToolCallArguments(json_string),
-            Err(_) => ToolCallArguments("{}".to_string()), // Fallback to empty object
-        }
-    }
 
     pub fn is_null(&self) -> bool {
         self.0.is_empty() || self.0 == "null"
@@ -403,7 +396,7 @@ mod tests {
             Value::Number(serde_json::Number::from(42)),
         );
 
-        let actual = ToolCallArguments::from_map(map.clone());
+        let actual = ToolCallArguments::from_value(serde_json::Value::Object(map.clone()));
 
         // Expected: Should produce the same result as from_value but more efficiently
         let expected = ToolCallArguments::from_value(Value::Object(map));
