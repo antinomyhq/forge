@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::{FileInfoInfra, FileReaderInfra, FileWriterInfra};
 use anyhow::{Context, Result};
 use forge_app::domain::{Agent, AgentId};
 use forge_domain::Environment;
@@ -10,6 +9,8 @@ use gray_matter::Matter;
 use gray_matter::engine::YAML;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+
+use crate::{FileInfoInfra, FileReaderInfra, FileWriterInfra};
 
 /// A service for loading agent definitions from individual files in the
 /// forge/agent directory
