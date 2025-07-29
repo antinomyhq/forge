@@ -1,7 +1,6 @@
 ---
 source: crates/forge_provider/src/anthropic/provider.rs
 expression: "serde_json::to_string_pretty(&request).unwrap()"
-snapshot_kind: text
 ---
 {
   "max_tokens": 4000,
