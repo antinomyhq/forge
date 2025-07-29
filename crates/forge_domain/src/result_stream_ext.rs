@@ -114,11 +114,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             .collect();
 
         // Process partial tool calls
-        // Convert parse failures to retryable errors so they can be retried by asking
-        // LLM to try again
-        let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts)
-            .with_context(|| "Failed to parse tool call".to_string())
-            .map_err(crate::Error::Retryable)?;
+        let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts);
 
         // Combine all sources of tool calls
         let tool_calls: Vec<ToolCallFull> = initial_tool_calls
@@ -158,10 +154,11 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use serde_json::Value;
 
     use super::*;
-    use crate::{BoxStream, Content, TokenCount, ToolCall, ToolCallId, ToolName};
+    use crate::{
+        BoxStream, Content, TokenCount, ToolCall, ToolCallArguments, ToolCallId, ToolName,
+    };
 
     #[tokio::test]
     async fn test_into_full_basic() {
@@ -217,7 +214,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: Value::String("test_arg".to_string()),
+            arguments: ToolCallArguments::new("test_arg"),
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()

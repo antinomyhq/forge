@@ -672,7 +672,7 @@ impl TryFrom<ToolCallFull> for Tools {
             // detailed error messages when required fields are missing.
             "{}".to_string()
         } else {
-            value.arguments.to_string()
+            value.arguments.as_str().to_string()
         };
 
         let json_str = format!(r#"{{"name": "{}", "arguments": {}}}"#, value.name, arg);
@@ -683,23 +683,21 @@ impl TryFrom<ToolCallFull> for Tools {
 impl TryFrom<&ToolCallFull> for AgentInput {
     type Error = ToolCallArgumentError;
     fn try_from(value: &ToolCallFull) -> Result<Self, Self::Error> {
-        eserde::json::from_str(&value.arguments.to_string()).map_err(ToolCallArgumentError::from)
+        eserde::json::from_str(value.arguments.as_str()).map_err(ToolCallArgumentError::from)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use serde_json::json;
     use strum::IntoEnumIterator;
 
-    use crate::{FSRead, ToolCallFull, ToolName, Tools, ToolsDiscriminants};
+    use crate::{FSRead, ToolCallArguments, ToolCallFull, ToolName, Tools, ToolsDiscriminants};
 
     #[test]
     fn foo() {
-        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read")).arguments(json!({
-            "path": "/some/path/foo.txt",
-        }));
+        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read"))
+            .arguments(ToolCallArguments::new(r#"{"path": "/some/path/foo.txt"}"#));
 
         let actual = Tools::try_from(toolcall).unwrap();
         let expected = Tools::ForgeToolFsRead(FSRead {
@@ -750,10 +748,9 @@ mod tests {
 
     #[test]
     fn test_correct_deser() {
-        let tool_call = ToolCallFull::new("forge_tool_fs_create".into()).arguments(json!({
-            "path": "/some/path/foo.txt",
-            "content": "Hello, World!",
-        }));
+        let tool_call = ToolCallFull::new("forge_tool_fs_create".into()).arguments(
+            ToolCallArguments::new(r#"{"path": "/some/path/foo.txt", "content": "Hello, World!"}"#),
+        );
         let result = Tools::try_from(tool_call);
         assert!(result.is_ok());
         assert!(

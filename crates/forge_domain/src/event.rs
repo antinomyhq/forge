@@ -71,7 +71,7 @@ impl Event {
             return None;
         }
         let message: Option<EventMessage> =
-            serde_json::from_value(tool_call.arguments.clone()).ok();
+            serde_json::from_value(tool_call.arguments.clone().into()).ok();
 
         message.map(|message| message.into())
     }

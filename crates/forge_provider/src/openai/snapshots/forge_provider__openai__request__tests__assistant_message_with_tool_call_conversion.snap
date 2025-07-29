@@ -1,7 +1,6 @@
 ---
 source: crates/forge_provider/src/openai/request.rs
 expression: router_message
-snapshot_kind: text
 ---
 {
   "role": "assistant",
@@ -12,7 +11,7 @@ snapshot_kind: text
       "type": "function",
       "function": {
         "name": "test_tool",
-        "arguments": "{\"key\":\"value\"}"
+        "arguments": "\"{\\\"key\\\": \\\"value\\\"}\""
       }
     }
   ]
