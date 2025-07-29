@@ -10,7 +10,7 @@ use forge_api::{
     InterruptionReason, Model, ModelId, Workflow,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{Agent, McpConfig, McpServerConfig, Provider, Scope};
+use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
