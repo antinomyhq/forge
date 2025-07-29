@@ -392,25 +392,6 @@ mod tests {
     }
     #[test]
     fn test_try_from_parts_handles_empty_tool_names() {
-        #[test]
-        fn test_from_map_optimization() {
-            // Fixture: Create a map directly instead of going through Value
-            let mut map = serde_json::Map::new();
-            map.insert("key1".to_string(), Value::String("value1".to_string()));
-            map.insert(
-                "key2".to_string(),
-                Value::Number(serde_json::Number::from(42)),
-            );
-
-            let actual = ToolCallArguments::from_map(map.clone());
-
-            // Expected: Should produce the same result as from_value but more efficiently
-            let expected = ToolCallArguments::from_value(Value::Object(map));
-
-            assert_eq!(actual, expected);
-        }
-
-        // Fixture: Tool call parts where empty names in subsequent parts should not
         // override valid names
         let input = [
             ToolCallPart {
@@ -437,6 +418,24 @@ mod tests {
             call_id: Some(ToolCallId("0".to_string())),
             arguments: ToolCallArguments::new(r#"{"path": "/test/file.md"}"#),
         }];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_from_map_optimization() {
+        // Fixture: Create a map directly instead of going through Value
+        let mut map = serde_json::Map::new();
+        map.insert("key1".to_string(), Value::String("value1".to_string()));
+        map.insert(
+            "key2".to_string(),
+            Value::Number(serde_json::Number::from(42)),
+        );
+
+        let actual = ToolCallArguments::from_map(map.clone());
+
+        // Expected: Should produce the same result as from_value but more efficiently
+        let expected = ToolCallArguments::from_value(Value::Object(map));
 
         assert_eq!(actual, expected);
     }

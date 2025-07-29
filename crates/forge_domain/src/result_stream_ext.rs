@@ -158,7 +158,6 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use serde_json::Value;
 
     use super::*;
     use crate::{BoxStream, Content, TokenCount, ToolCall, ToolCallId, ToolName};
