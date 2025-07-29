@@ -15,6 +15,7 @@ pub struct Compact {
     /// eviction_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
     #[merge(strategy = crate::merge::std::overwrite)]
+    #[serde(default)]
     pub retention_window: usize,
 
     /// Maximum percentage of the context that can be summarized during
@@ -23,7 +24,7 @@ pub struct Compact {
     /// retention_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
     #[merge(strategy = crate::merge::std::overwrite)]
-    #[serde(deserialize_with = "deserialize_percentage")]
+    #[serde(default, deserialize_with = "deserialize_percentage")]
     pub eviction_window: f64,
 
     /// Maximum number of tokens to keep after compaction
@@ -53,6 +54,7 @@ pub struct Compact {
     /// Model ID to use for compaction, useful when compacting with a
     /// cheaper/faster model
     #[merge(strategy = crate::merge::std::overwrite)]
+    #[serde(default)]
     pub model: ModelId,
     /// Optional tag name to extract content from when summarizing (e.g.,
     /// "summary")

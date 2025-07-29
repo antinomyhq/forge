@@ -43,3 +43,9 @@ impl ModelId {
         &self.0
     }
 }
+
+impl Default for ModelId {
+    fn default() -> Self {
+        Self::new("gpt-4o")
+    }
+}
