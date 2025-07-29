@@ -48,20 +48,21 @@ impl ClientBuilder {
         let retry_config = self.retry_config;
 
         let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(
-                timeout_config.connect_timeout,
-            ))
-            .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
-            .pool_idle_timeout(std::time::Duration::from_secs(
-                timeout_config.pool_idle_timeout,
-            ))
-            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
-            .redirect(Policy::limited(timeout_config.max_redirects))
-            .hickory_dns(true)
-            .use_rustls_tls()
-            .tls_built_in_native_certs(false)
-            .tls_built_in_root_certs(false)
-            .tls_info(true)
+            // .connect_timeout(std::time::Duration::from_secs(
+            //     timeout_config.connect_timeout,
+            // ))
+            // .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
+            // .pool_idle_timeout(std::time::Duration::from_secs(
+            //     timeout_config.pool_idle_timeout,
+            // ))
+            // .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
+            // .redirect(Policy::limited(timeout_config.max_redirects))
+            // .hickory_dns(true)
+            // .use_rustls_tls()
+            // .tls_built_in_native_certs(false)
+            // .tls_built_in_root_certs(false)
+            // .tls_info(true)
+            // .tls_sni(tls_sni)
             .build()?;
 
         let inner = match &provider {
