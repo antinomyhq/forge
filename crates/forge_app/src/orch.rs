@@ -6,11 +6,17 @@ use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::*;
 use forge_template::Element;
+use forge_tracker::{ToolType, start_timing};
+use lazy_static::lazy_static;
 use serde_json::Value;
 use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+
+lazy_static! {
+    static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
+}
 
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
@@ -63,9 +69,16 @@ impl<S: AgentService> Orchestrator<S> {
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
         for tool_call in tool_calls {
+            // Track queue time (for now, assume minimal queue time in sequential
+            // processing)
+            let queue_duration_ms = 0; // Sequential processing means no queue time
+
             // Send the start notification
             self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                 .await?;
+
+            // Start timing the tool execution
+            let execution_timer = start_timing();
 
             // Execute the tool
             let tool_result = self
@@ -73,13 +86,54 @@ impl<S: AgentService> Orchestrator<S> {
                 .call(agent, tool_context, tool_call.clone())
                 .await;
 
+            let execution_duration_ms = execution_timer.elapsed_ms();
+
+            // Determine tool type (simplified logic - you may want to enhance this)
+            let tool_type = if tool_call.name.as_str().starts_with("forge_tool_") {
+                ToolType::Native
+            } else if tool_call.name.as_str().contains("mcp") {
+                ToolType::Mcp
+            } else {
+                ToolType::Agent
+            };
+
+            // Calculate output size (using debug format since Display is not implemented)
+            let output_size_bytes = format!("{:?}", tool_result.output).len();
+
+            // Determine error type if any
+            let error_type = if tool_result.is_error() {
+                Some("execution_error".to_string())
+            } else {
+                None
+            };
+
+            // Track tool execution performance
+            let tool_name = tool_call.name.as_str().to_string();
+            tokio::spawn(TRACKER.tool_execution(
+                tool_name,
+                tool_type,
+                execution_duration_ms,
+                queue_duration_ms,
+                output_size_bytes,
+                error_type,
+            ));
+
             if tool_result.is_error() {
                 warn!(
                     agent_id = %agent.id,
                     name = %tool_call.name,
                     arguments = %tool_call.arguments,
                     output = ?tool_result.output,
+                    execution_duration_ms,
                     "Tool call failed",
+                );
+            } else {
+                debug!(
+                    agent_id = %agent.id,
+                    name = %tool_call.name,
+                    execution_duration_ms,
+                    output_size_bytes,
+                    "Tool call completed",
                 );
             }
 
@@ -273,10 +327,55 @@ impl<S: AgentService> Orchestrator<S> {
         let token_count = context.token_count();
         if agent.should_compact(context, *token_count) {
             info!(agent_id = %agent.id, "Compaction needed");
-            Compactor::new(self.services.clone())
+
+            let compaction_timer = start_timing();
+            let original_messages = context.messages.len();
+            let original_tokens = match token_count {
+                TokenCount::Actual(count) => count,
+                TokenCount::Approx(count) => count,
+            };
+
+            let compacted_result = Compactor::new(self.services.clone())
                 .compact(agent, context.clone(), false)
-                .await
-                .map(Some)
+                .await;
+
+            let duration_ms = compaction_timer.elapsed_ms();
+
+            match &compacted_result {
+                Ok(compacted_context) => {
+                    let compacted_messages = compacted_context.messages.len();
+                    let compacted_tokens = match compacted_context.token_count() {
+                        TokenCount::Actual(count) => count,
+                        TokenCount::Approx(count) => count,
+                    };
+                    let memory_saved_bytes = 0; // Would need more sophisticated calculation
+
+                    // Track compaction performance
+                    tokio::spawn(TRACKER.compaction(
+                        "token_limit_exceeded".to_string(),
+                        duration_ms,
+                        original_messages,
+                        compacted_messages,
+                        original_tokens,
+                        compacted_tokens,
+                        memory_saved_bytes,
+                    ));
+                }
+                Err(_) => {
+                    // Compaction failed with error
+                    tokio::spawn(TRACKER.compaction(
+                        "compaction_error".to_string(),
+                        duration_ms,
+                        original_messages,
+                        original_messages,
+                        original_tokens,
+                        original_tokens,
+                        0,
+                    ));
+                }
+            }
+
+            compacted_result.map(Some)
         } else {
             debug!(agent_id = %agent.id, "Compaction not needed");
             Ok(None)
@@ -301,7 +400,27 @@ impl<S: AgentService> Orchestrator<S> {
         let tool_supported = self.is_tool_supported(&agent)?;
         let reasoning_supported = self.is_reasoning_supported(&agent)?;
 
-        let mut context = self.conversation.context.clone().unwrap_or_default();
+        let mut context = {
+            let context_timer = start_timing();
+            let ctx = self.conversation.context.clone().unwrap_or_default();
+            let duration_ms = context_timer.elapsed_ms();
+
+            // Track context clone operation
+            let message_count = ctx.messages.len();
+            let token_count = match ctx.token_count() {
+                TokenCount::Actual(count) => count,
+                TokenCount::Approx(count) => count,
+            };
+            tokio::spawn(TRACKER.context_operation(
+                "clone",
+                duration_ms,
+                message_count,
+                token_count,
+                0, // Memory usage tracking would need more sophisticated implementation
+            ));
+
+            ctx
+        };
 
         // attach the conversation ID to the context
         context = context.conversation_id(self.conversation.id);
@@ -508,7 +627,23 @@ impl<S: AgentService> Orchestrator<S> {
                 });
             }
 
+            let append_timer = start_timing();
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
+            let duration_ms = append_timer.elapsed_ms();
+
+            // Track context append operation
+            let message_count = context.messages.len();
+            let token_count = match context.token_count() {
+                TokenCount::Actual(count) => count,
+                TokenCount::Approx(count) => count,
+            };
+            tokio::spawn(TRACKER.context_operation(
+                "append",
+                duration_ms,
+                message_count,
+                token_count,
+                0, // Memory usage tracking would need more sophisticated implementation
+            ));
 
             if has_no_tool_calls {
                 // No tool calls present, which doesn't mean task is complete so reprompt the

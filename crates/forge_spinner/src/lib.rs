@@ -1,7 +1,6 @@
-use std::time::Instant;
-
 use anyhow::Result;
 use colored::Colorize;
+use forge_tracker::{TimingManager, start_timing};
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use tokio::task::JoinHandle;
@@ -10,7 +9,7 @@ use tokio::task::JoinHandle;
 #[derive(Default)]
 pub struct SpinnerManager {
     spinner: Option<ProgressBar>,
-    start_time: Option<Instant>,
+    timer: Option<TimingManager>,
     message: Option<String>,
     tracker: Option<JoinHandle<()>>,
 }
@@ -45,7 +44,7 @@ impl SpinnerManager {
         self.message = Some(word.to_string());
 
         // Initialize the start time for the timer
-        self.start_time = Some(Instant::now());
+        self.timer = Some(start_timing());
 
         // Create the spinner with a better style that respects terminal width
         let pb = ProgressBar::new_spinner();
@@ -75,7 +74,7 @@ impl SpinnerManager {
 
         // Clone the necessary components for the tracker task
         let spinner_clone = self.spinner.clone();
-        let start_time_clone = self.start_time;
+        let timer_clone = self.timer.clone();
         let message_clone = self.message.clone();
 
         // Spwan tracker to keep the track of time in sec.
@@ -84,11 +83,10 @@ impl SpinnerManager {
             loop {
                 interval.tick().await;
                 // Update the spinner with the current elapsed time
-                if let (Some(spinner), Some(start_time), Some(message)) =
-                    (&spinner_clone, start_time_clone, &message_clone)
+                if let (Some(spinner), Some(timer), Some(message)) =
+                    (&spinner_clone, &timer_clone, &message_clone)
                 {
-                    let elapsed = start_time.elapsed();
-                    let seconds = elapsed.as_secs();
+                    let seconds = timer.elapsed_ms() / 1000;
 
                     // Create a new message with the elapsed time
                     let updated_message = format!(
@@ -127,7 +125,7 @@ impl SpinnerManager {
             drop(a)
         }
         self.tracker = None;
-        self.start_time = None;
+        self.timer = None;
         self.message = None;
         Ok(())
     }

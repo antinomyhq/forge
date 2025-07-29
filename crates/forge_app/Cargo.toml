@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 forge_domain.workspace = true
 forge_stream.workspace = true
+forge_tracker.workspace = true
+lazy_static.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
 serde.workspace = true
