@@ -59,6 +59,9 @@ impl ClientBuilder {
             .redirect(Policy::limited(timeout_config.max_redirects))
             .hickory_dns(true)
             .use_rustls_tls()
+            .tls_built_in_native_certs(false)
+            .tls_built_in_root_certs(false)
+            .tls_info(true)
             .build()?;
 
         let inner = match &provider {
