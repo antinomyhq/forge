@@ -42,30 +42,22 @@ impl ClientBuilder {
     }
 
     /// Build the client with the configured settings.
-    pub fn build<T: HttpClientService + Clone>(self, http: T) -> Result<Client<T>> {
+    pub fn build<T: HttpClientService>(self, http: Arc<T>) -> Result<Client<T>> {
         let provider = self.provider;
         let retry_config = self.retry_config;
 
         let inner = match &provider {
-            Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
-                OpenAIProvider::builder()
-                    .http(http.clone())
-                    .provider(provider.clone())
-                    .build()
-                    .with_context(|| format!("Failed to initialize: {url}"))?,
-            ),
+            Provider::OpenAI { .. } => {
+                // FIXME: pass key and url instead of provider
+                InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http.clone()))
+            }
 
-            Provider::Anthropic { url, key } => InnerClient::Anthropic(
-                Anthropic::<T>::builder()
-                    .http(http.clone())
-                    .api_key(key.to_string())
-                    .base_url(provider.to_base_url().to_string())
-                    .anthropic_version("2023-06-01".to_string())
-                    .build()
-                    .with_context(|| {
-                        format!("Failed to initialize Anthropic client with URL: {url}")
-                    })?,
-            ),
+            Provider::Anthropic { key, .. } => InnerClient::Anthropic(Anthropic::new(
+                http.clone(),
+                key.to_string(),
+                provider.to_base_url().to_string(),
+                "2023-06-01".to_string(),
+            )),
         };
 
         Ok(Client {
@@ -76,11 +68,20 @@ impl ClientBuilder {
     }
 }
 
-#[derive(Clone)]
 pub struct Client<T> {
     retry_config: Arc<RetryConfig>,
     inner: Arc<InnerClient<T>>,
     models_cache: Arc<RwLock<HashMap<ModelId, Model>>>,
+}
+
+impl<T> Clone for Client<T> {
+    fn clone(&self) -> Self {
+        Self {
+            retry_config: self.retry_config.clone(),
+            inner: self.inner.clone(),
+            models_cache: self.models_cache.clone(),
+        }
+    }
 }
 
 enum InnerClient<T> {
@@ -88,7 +89,7 @@ enum InnerClient<T> {
     Anthropic(Anthropic<T>),
 }
 
-impl<T: HttpClientService + Clone> Client<T> {
+impl<T: HttpClientService> Client<T> {
     fn retry<A>(&self, result: anyhow::Result<A>) -> anyhow::Result<A> {
         let retry_config = &self.retry_config;
         result.map_err(move |e| into_retry(e, retry_config))
@@ -113,7 +114,7 @@ impl<T: HttpClientService + Clone> Client<T> {
     }
 }
 
-impl<T: HttpClientService + Clone> Client<T> {
+impl<T: HttpClientService> Client<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -124,7 +125,7 @@ impl<T: HttpClientService + Clone> Client<T> {
             InnerClient::Anthropic(provider) => provider.chat(model, context).await,
         })?;
 
-        let this = self.clone();
+        let this: Client<T> = self.clone();
         Ok(Box::pin(
             chat_stream.map(move |item| this.clone().retry(item)),
         ))

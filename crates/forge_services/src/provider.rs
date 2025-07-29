@@ -43,11 +43,12 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
         match client_guard.as_ref() {
             Some(client) => Ok(client.clone()),
             None => {
+                let infra = self.http_infra.clone();
                 let client = ClientBuilder::new(provider, &self.version)
                     .retry_config(self.retry_config.clone())
                     .timeout_config(self.timeout_config.clone())
                     .use_hickory(false) // use native DNS resolver(GAI)
-                    .build(HttpClient::new(self.http_infra.clone()))?;
+                    .build(Arc::new(HttpClient::new(infra)))?;
 
                 // Cache the new client
                 *client_guard = Some(client.clone());

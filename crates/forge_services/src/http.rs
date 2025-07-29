@@ -9,10 +9,10 @@ use url::Url;
 use crate::HttpInfra;
 
 #[derive(Clone)]
-pub struct HttpClient<T>(Arc<T>);
+pub struct HttpClient<I>(Arc<I>);
 
-impl<T: HttpInfra> HttpClient<T> {
-    pub fn new(infra: Arc<T>) -> Self {
+impl<I: HttpInfra> HttpClient<I> {
+    pub fn new(infra: Arc<I>) -> Self {
         HttpClient(infra)
     }
 }

@@ -4,11 +4,13 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Environment, HttpInfra, McpServerConfig, ServerSentEvent};
+use forge_app::ServerSentEvent;
+use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -22,7 +24,7 @@ use crate::fs_read::ForgeFileReadService;
 use crate::fs_remove::ForgeFileRemoveService;
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fs_write::ForgeFileWriteService;
-use crate::http::ForgeHttpService;
+use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
@@ -30,6 +32,7 @@ use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
 pub struct ForgeInfra {
+    // TODO: Drop the "Service" suffix. Use names like ForgeFileReader, ForgeFileWriter, ForgeHttpClient etc.
     file_read_service: Arc<ForgeFileReadService>,
     file_write_service: Arc<ForgeFileWriteService<ForgeFileSnapshotService>>,
     environment_service: Arc<ForgeEnvironmentInfra>,
@@ -41,7 +44,7 @@ pub struct ForgeInfra {
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
-    http_service: Arc<ForgeHttpService>,
+    http_service: Arc<ForgeHttpInfra>,
 }
 
 impl ForgeInfra {
@@ -49,7 +52,7 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
-        let http_service = Arc::new(ForgeHttpService::new());
+        let http_service = Arc::new(ForgeHttpInfra::new());
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),

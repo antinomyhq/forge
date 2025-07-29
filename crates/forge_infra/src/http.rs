@@ -1,7 +1,8 @@
 use std::pin::Pin;
 
 use bytes::Bytes;
-use forge_domain::{HttpInfra, ServerSentEvent};
+use forge_app::ServerSentEvent;
+use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::{Client, Response, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
@@ -14,11 +15,11 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 };
 
 #[derive(Default)]
-pub struct ForgeHttpService {
+pub struct ForgeHttpInfra {
     client: Client,
 }
 
-impl ForgeHttpService {
+impl ForgeHttpInfra {
     pub fn new() -> Self {
         Default::default()
     }
@@ -126,7 +127,7 @@ impl ForgeHttpService {
 }
 
 #[async_trait::async_trait]
-impl HttpInfra for ForgeHttpService {
+impl HttpInfra for ForgeHttpInfra {
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
         self.get(url, headers).await
     }

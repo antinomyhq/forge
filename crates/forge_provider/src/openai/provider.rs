@@ -17,16 +17,17 @@ use crate::client::{create_headers, join_url};
 use crate::openai::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
 
-#[derive(Clone, Builder)]
-pub struct OpenAIProvider<T> {
+#[derive(Clone)]
+pub struct OpenAIProvider<H> {
     provider: Provider,
-    http: T,
+    http: Arc<H>,
 }
 
-impl<T: HttpClientService + Clone> OpenAIProvider<T> {
-    pub fn builder() -> OpenAIProviderBuilder<T> {
-        OpenAIProviderBuilder::default()
+impl<H: HttpClientService> OpenAIProvider<H> {
+    pub fn new(provider: Provider, http: Arc<H>) -> Self {
+        Self { provider, http }
     }
+
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
     // - `HTTP-Referer`: Identifies your app on openrouter.ai
     // - `X-Title`: Sets/modifies your app's title
@@ -158,7 +159,7 @@ impl<T: HttpClientService + Clone> OpenAIProvider<T> {
     }
 }
 
-impl<T: HttpClientService + Clone> OpenAIProvider<T> {
+impl<T: HttpClientService> OpenAIProvider<T> {
     pub async fn chat(
         &self,
         model: &ModelId,

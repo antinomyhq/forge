@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use derive_builder::Builder;
 use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
@@ -16,18 +15,19 @@ use crate::anthropic::transforms::ReasoningTransform;
 use crate::client::{create_headers, join_url};
 use crate::utils::format_http_context;
 
-#[derive(Clone, Builder)]
+#[derive(Clone)]
 pub struct Anthropic<T> {
-    http: T,
+    http: Arc<T>,
     api_key: String,
     base_url: String,
     anthropic_version: String,
 }
 
-impl<T: HttpClientService + Clone> Anthropic<T> {
-    pub fn builder() -> AnthropicBuilder<T> {
-        AnthropicBuilder::default()
+impl<H: HttpClientService> Anthropic<H> {
+    pub fn new(http: Arc<H>, api_key: String, base_url: String, version: String) -> Self {
+        Self { http, api_key, base_url, anthropic_version: version }
     }
+
     fn get_headers(&self) -> Vec<(String, String)> {
         vec![
             ("x-api-key".to_string(), self.api_key.clone()),
@@ -43,7 +43,7 @@ impl<T: HttpClientService + Clone> Anthropic<T> {
     }
 }
 
-impl<T: HttpClientService + Clone> Anthropic<T> {
+impl<T: HttpClientService> Anthropic<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -157,7 +157,7 @@ mod tests {
     use super::*;
     use crate::mock_server::{MockServer, normalize_ports};
 
-    fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic> {
+    fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic<T>> {
         Ok(Anthropic::builder()
             .http(Arc::new(ForgeInfra::new(
                 false,
