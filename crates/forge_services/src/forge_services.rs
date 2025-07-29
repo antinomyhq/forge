@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use forge_app::Services;
+
 use crate::app_config::ForgeConfigService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
@@ -20,7 +22,6 @@ use crate::{
     CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
     FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
-use forge_app::Services;
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;

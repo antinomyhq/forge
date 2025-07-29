@@ -6,7 +6,7 @@ use bytes::Bytes;
 use forge_app::domain::{
     CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
-use forge_app::{HttpClientService, ServerSentEvent, WalkedFile, Walker};
+use forge_app::{ServerSentEvent, WalkedFile, Walker};
 use forge_snaps::Snapshot;
 use futures::Stream;
 use reqwest::Response;
@@ -185,5 +185,3 @@ pub trait HttpInfra: Send + Sync + 'static {
         body: Bytes,
     ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>;
 }
-
-

@@ -1,9 +1,11 @@
-use std::{pin::Pin, sync::Arc};
+use std::pin::Pin;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{HttpClientService, ServerSentEvent};
 use futures::Stream;
-use reqwest::{Response, header::HeaderMap};
+use reqwest::Response;
+use reqwest::header::HeaderMap;
 use url::Url;
 
 use crate::HttpInfra;

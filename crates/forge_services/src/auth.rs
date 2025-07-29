@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use crate::infra::HttpInfra;
 use anyhow::bail;
 use bytes::Bytes;
 use forge_app::{AuthService, Error, InitAuth, LoginInfo, User, UserUsage};
@@ -8,6 +7,7 @@ use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use crate::EnvironmentInfra;
+use crate::infra::HttpInfra;
 
 const AUTH_ROUTE: &str = "auth/sessions/";
 const USER_INFO_ROUTE: &str = "auth/user";

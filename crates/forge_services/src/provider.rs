@@ -5,7 +5,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
     ResultStream, RetryConfig,
 };
-use forge_app::{HttpClientService, ProviderService};
+use forge_app::ProviderService;
 use forge_provider::{Client, ClientBuilder};
 use tokio::sync::Mutex;
 

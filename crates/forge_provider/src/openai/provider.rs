@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use derive_builder::Builder;
 use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
