@@ -9,6 +9,8 @@ use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
 use forge_domain::HttpInfra;
+use reqwest::Url;
+use reqwest::header::HeaderMap;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
@@ -146,6 +148,33 @@ impl Client {
         let models = self.refresh_models().await?;
         Ok(models.into_iter().find(|m| m.id == *model))
     }
+}
+
+pub fn join_url(base_url: &str, path: &str) -> anyhow::Result<Url> {
+    // Validate the path doesn't contain certain patterns
+    if path.contains("://") || path.contains("..") {
+        anyhow::bail!("Invalid path: Contains forbidden patterns");
+    }
+
+    // Remove leading slash to avoid double slashes
+    let path = path.trim_start_matches('/');
+
+    let url = Url::parse(base_url)
+        .with_context(|| format!("Failed to parse base URL: {base_url}"))?
+        .join(path)
+        .with_context(|| format!("Failed to append {path} to base URL: {base_url}"))?;
+    Ok(url)
+}
+
+pub fn create_headers(headers: Vec<(String, String)>) -> HeaderMap {
+    let mut header_map = HeaderMap::new();
+    for (key, value) in headers {
+        let header_name =
+            reqwest::header::HeaderName::from_bytes(key.as_bytes()).expect("Invalid header name");
+        let header_value = value.parse().expect("Invalid header value");
+        header_map.insert(header_name, header_value);
+    }
+    header_map
 }
 
 #[cfg(test)]

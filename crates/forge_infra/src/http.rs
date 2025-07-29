@@ -139,7 +139,7 @@ impl HttpInfra for ForgeHttpService {
         self.delete(url).await
     }
 
-    async fn post_stream(
+    async fn eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,

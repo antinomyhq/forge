@@ -12,6 +12,7 @@ use tracing::debug;
 use super::request::Request;
 use super::response::{EventData, ListModelResponse};
 use crate::anthropic::transforms::ReasoningTransform;
+use crate::client::{create_headers, join_url};
 use crate::utils::format_http_context;
 
 #[derive(Clone, Builder)]
@@ -54,7 +55,7 @@ impl Anthropic {
             .max_tokens(max_tokens as u64);
 
         let path = "/messages";
-        let url = self.http.url(&self.base_url, path)?;
+        let url = join_url(&self.base_url, path)?;
         debug!(url = %url, model = %model, "Connecting Upstream");
 
         let json_bytes =
@@ -62,9 +63,9 @@ impl Anthropic {
 
         let stream = self
             .http
-            .post_stream(
+            .eventsource(
                 &url,
-                Some(self.http.resolve_headers(self.get_headers())),
+                Some(create_headers(self.get_headers())),
                 json_bytes.into(),
             )
             .await
@@ -109,12 +110,12 @@ impl Anthropic {
     }
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        let url = self.http.url(&self.base_url, "models")?;
+        let url = join_url(&self.base_url, "models")?;
         debug!(url = %url, "Fetching models");
 
         let response = self
             .http
-            .get(&url, Some(self.http.resolve_headers(self.get_headers())))
+            .get(&url, Some(create_headers(self.get_headers())))
             .await
             .with_context(|| format_http_context(None, "GET", &url))
             .with_context(|| "Failed to fetch models")?;

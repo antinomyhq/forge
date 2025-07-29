@@ -13,6 +13,7 @@ use tracing::{debug, info};
 use super::model::{ListModelResponse, Model};
 use super::request::Request;
 use super::response::Response;
+use crate::client::{create_headers, join_url};
 use crate::openai::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
 
@@ -47,10 +48,8 @@ impl ForgeProvider {
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
-        let url = self
-            .http
-            .url(self.provider.to_base_url().as_str(), "chat/completions")?;
-        let headers = self.http.resolve_headers(self.get_headers());
+        let url = join_url(self.provider.to_base_url().as_str(), "chat/completions")?;
+        let headers = create_headers(self.get_headers());
 
         info!(
             url = %url,
@@ -66,7 +65,7 @@ impl ForgeProvider {
 
         let stream = self
             .http
-            .post_stream(&url, Some(headers), json_bytes.into())
+            .eventsource(&url, Some(headers), json_bytes.into())
             .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
@@ -113,9 +112,7 @@ impl ForgeProvider {
     }
 
     async fn inner_models(&self) -> Result<Vec<forge_domain::Model>> {
-        let url = self
-            .http
-            .url(self.provider.to_base_url().as_str(), "models")?;
+        let url = join_url(self.provider.to_base_url().as_str(), "models")?;
         debug!(url = %url, "Fetching models");
         match self.fetch_models(url.as_str()).await {
             Err(error) => {
@@ -132,10 +129,9 @@ impl ForgeProvider {
     }
 
     async fn fetch_models(&self, url: &str) -> Result<String, anyhow::Error> {
-        let headers = self.http.resolve_headers(self.get_headers());
-        let url = self.http.url(url, "")?;
-        // info!(method = "GET", url = %url, headers = ?sanitize_headers(&headers),
-        // "Fetching Models");
+        let headers = create_headers(self.get_headers());
+        let url = join_url(url, "")?;
+        info!(method = "GET", url = %url, headers = ?sanitize_headers(&headers), "Fetching Models");
 
         let response = self
             .http

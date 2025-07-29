@@ -243,12 +243,12 @@ impl HttpInfra for ForgeInfra {
     async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
         self.http_service.delete(url).await
     }
-    async fn post_stream(
+    async fn eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
     ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
-        self.http_service.post_stream(url, headers, body).await
+        self.http_service.eventsource(url, headers, body).await
     }
 }
