@@ -6,7 +6,8 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream,
+    RetryConfig, TlsMode,
 };
 use reqwest::redirect::Policy;
 use tokio::sync::RwLock;
@@ -20,7 +21,7 @@ use crate::retry::into_retry;
 #[setters(strip_option, into)]
 pub struct ClientBuilder {
     pub retry_config: Arc<RetryConfig>,
-    pub timeout_config: HttpConfig,
+    pub http_config: HttpConfig,
     pub use_hickory: bool,
     pub provider: Provider,
     pub version: String,
@@ -32,7 +33,7 @@ impl ClientBuilder {
     pub fn new(provider: Provider, version: impl Into<String>) -> Self {
         Self {
             retry_config: Arc::new(RetryConfig::default()),
-            timeout_config: HttpConfig::default(),
+            http_config: HttpConfig::default(),
             use_hickory: false,
             provider,
             version: version.into(),
@@ -44,21 +45,30 @@ impl ClientBuilder {
         let provider = self.provider;
         let version = self.version;
 
-        let timeout_config = self.timeout_config;
+        let http_config = self.http_config;
         let retry_config = self.retry_config;
+        let tls_mode = http_config.tls_mode;
 
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(
-                timeout_config.connect_timeout,
-            ))
-            .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
+        let mut builder = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(http_config.connect_timeout))
+            .read_timeout(std::time::Duration::from_secs(http_config.read_timeout))
             .pool_idle_timeout(std::time::Duration::from_secs(
-                timeout_config.pool_idle_timeout,
+                http_config.pool_idle_timeout,
             ))
-            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
-            .redirect(Policy::limited(timeout_config.max_redirects))
-            .hickory_dns(self.use_hickory)
-            .build()?;
+            .pool_max_idle_per_host(http_config.pool_max_idle_per_host)
+            .redirect(Policy::limited(http_config.max_redirects))
+            .hickory_dns(self.use_hickory);
+
+        match tls_mode {
+            TlsMode::Rustls => {
+                builder = builder.use_rustls_tls();
+            }
+            TlsMode::NativeTls => {
+                builder = builder.use_native_tls();
+            }
+        }
+
+        let client = builder.build()?;
 
         let inner = match &provider {
             Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
@@ -210,7 +220,7 @@ mod tests {
         // Test the builder pattern API
         let client = ClientBuilder::new(provider, "dev")
             .retry_config(Arc::new(RetryConfig::default()))
-            .timeout_config(HttpConfig::default())
+            .http_config(HttpConfig::default())
             .use_hickory(true)
             .build()
             .unwrap();

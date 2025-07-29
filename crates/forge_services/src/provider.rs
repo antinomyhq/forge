@@ -17,7 +17,7 @@ pub struct ForgeProviderService {
     cached_client: Arc<Mutex<Option<Client>>>,
     cached_models: Arc<Mutex<Option<Vec<Model>>>>,
     version: String,
-    timeout_config: HttpConfig,
+    http_config: HttpConfig,
 }
 
 impl ForgeProviderService {
@@ -30,7 +30,7 @@ impl ForgeProviderService {
             cached_client: Arc::new(Mutex::new(None)),
             cached_models: Arc::new(Mutex::new(None)),
             version,
-            timeout_config: env.http,
+            http_config: env.http,
         }
     }
 
@@ -42,7 +42,7 @@ impl ForgeProviderService {
             None => {
                 let client = ClientBuilder::new(provider, &self.version)
                     .retry_config(self.retry_config.clone())
-                    .timeout_config(self.timeout_config.clone())
+                    .http_config(self.http_config.clone())
                     .use_hickory(false) // use native DNS resolver(GAI)
                     .build()?;
 

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use forge_domain::{Environment, Provider, RetryConfig};
+use forge_domain::{Environment, Provider, RetryConfig, TlsMode};
 use forge_services::EnvironmentInfra;
 use reqwest::Url;
 
@@ -107,6 +107,10 @@ impl ForgeEnvironmentInfra {
             config.max_redirects = parsed;
         }
 
+        if let Ok(val) = std::env::var("FORGE_HTTP_TLS_MODE") {
+            config.tls_mode = parse_tls_mode(&val);
+        }
+
         config
     }
 
@@ -161,6 +165,14 @@ impl ForgeEnvironmentInfra {
         }
 
         Some(())
+    }
+}
+
+fn parse_tls_mode(mode: &str) -> TlsMode {
+    match mode.to_lowercase().as_str() {
+        "rustls" => TlsMode::Rustls,
+        "nativetls" => TlsMode::NativeTls,
+        _ => TlsMode::Rustls,
     }
 }
 
