@@ -16,7 +16,12 @@ pub struct ForgeHttpService {
 
 impl ForgeHttpService {
     pub fn new() -> Self {
-        Default::default()
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .use_rustls_tls()
+            .build()
+            .unwrap();
+        Self { client }
     }
     async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
         Ok(self
