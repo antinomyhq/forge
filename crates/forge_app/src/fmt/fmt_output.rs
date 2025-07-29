@@ -107,6 +107,7 @@ mod tests {
                 suppress_retry_errors: false,
             },
             max_search_lines: 25,
+            max_line_length: 100,
             fetch_truncation_limit: 55,
             max_read_size: 10,
             stdout_max_prefix_length: 10,

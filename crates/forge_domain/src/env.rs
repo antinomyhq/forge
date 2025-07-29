@@ -34,6 +34,8 @@ pub struct Environment {
     pub retry_config: RetryConfig,
     /// The maximum number of lines returned for FSSearch.
     pub max_search_lines: u64,
+    /// Maximum length of a line in the output
+    pub max_line_length: usize,
     /// Maximum characters for fetch content
     pub fetch_truncation_limit: usize,
     /// Maximum lines for shell output prefix
