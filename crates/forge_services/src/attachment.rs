@@ -123,6 +123,7 @@ pub mod tests {
                 fetch_truncation_limit: 0,
                 stdout_max_prefix_length: 0,
                 stdout_max_suffix_length: 0,
+                stdout_max_truncation_limit: 0,
                 max_read_size: 2000,
                 http: Default::default(),
                 max_file_size: 10_000_000,

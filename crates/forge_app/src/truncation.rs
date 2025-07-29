@@ -59,6 +59,18 @@ fn clip_by_lines(
     (result_lines, Some((prefix_lines, hidden_lines)))
 }
 
+/// Clips text content based on the size of the content
+fn clip_by_size(content: &str, truncation_limit: usize) -> (&str, Option<usize>) {
+    // If content fits within limits, return the content
+    if content.len() <= truncation_limit {
+        return (content, None);
+    }
+
+    let hidden_content_size = content.len() - truncation_limit;
+
+    (&content[..truncation_limit], Some(hidden_content_size))
+}
+
 /// Represents formatted output with truncation metadata
 #[derive(Debug)]
 struct FormattedOutput {
@@ -77,10 +89,21 @@ struct ProcessedStream {
 }
 
 /// Helper to process a stream and return structured output
-fn process_stream(content: &str, prefix_lines: usize, suffix_lines: usize) -> ProcessedStream {
-    let (lines, truncation_info) = clip_by_lines(content, prefix_lines, suffix_lines);
+fn process_stream(
+    content: &str,
+    prefix_lines: usize,
+    suffix_lines: usize,
+    truncation_limit: usize,
+) -> ProcessedStream {
+    // First apply size truncation if needed
+    let (size_truncated_content, _size_truncation_info) = clip_by_size(content, truncation_limit);
+
+    // Then apply line truncation to the size-truncated content
+    let (lines, line_truncation_info) =
+        clip_by_lines(size_truncated_content, prefix_lines, suffix_lines);
+
     let total_lines = content.lines().count();
-    let output = tag_output(lines, truncation_info, total_lines);
+    let output = tag_output(lines, line_truncation_info, total_lines);
 
     ProcessedStream { output, total_lines }
 }
@@ -143,9 +166,10 @@ pub fn truncate_shell_output(
     stderr: &str,
     prefix_lines: usize,
     suffix_lines: usize,
+    truncation_limit: usize,
 ) -> TruncatedShellOutput {
-    let stdout_result = process_stream(stdout, prefix_lines, suffix_lines);
-    let stderr_result = process_stream(stderr, prefix_lines, suffix_lines);
+    let stdout_result = process_stream(stdout, prefix_lines, suffix_lines, truncation_limit);
+    let stderr_result = process_stream(stderr, prefix_lines, suffix_lines, truncation_limit);
 
     TruncatedShellOutput {
         stderr: Stderr {
@@ -279,6 +303,69 @@ pub fn truncate_fetch_content(content: &str, truncation_limit: usize) -> Truncat
     };
 
     TruncatedFetchOutput { content: truncated_content }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_clip_by_lines_no_truncation() {
+        let fixture = "line1\nline2\nline3";
+        let (actual, truncation_info) = clip_by_lines(fixture, 5, 5);
+        let expected = vec![
+            "line1".to_string(),
+            "line2".to_string(),
+            "line3".to_string(),
+        ];
+        assert_eq!(actual, expected);
+        assert_eq!(truncation_info, None);
+    }
+
+    #[test]
+    fn test_clip_by_lines_with_truncation() {
+        let fixture = "line1\nline2\nline3\nline4\nline5\nline6";
+        let (actual, truncation_info) = clip_by_lines(fixture, 2, 2);
+        let expected = vec![
+            "line1".to_string(),
+            "line2".to_string(),
+            "line5".to_string(),
+            "line6".to_string(),
+        ];
+        assert_eq!(actual, expected);
+        assert_eq!(truncation_info, Some((2, 2)));
+    }
+
+    #[test]
+    fn test_clip_by_size_no_truncation() {
+        let fixture = "hello world";
+        let (actual, truncation_info) = clip_by_size(fixture, 20);
+        let expected = "hello world";
+        assert_eq!(actual, expected);
+        assert_eq!(truncation_info, None);
+    }
+
+    #[test]
+    fn test_clip_by_size_with_truncation() {
+        let fixture = "hello world this is a long string";
+        let (actual, truncation_info) = clip_by_size(fixture, 10);
+        let expected = "hello worl";
+        assert_eq!(actual, expected);
+        assert_eq!(truncation_info, Some(23)); // 33 - 10 = 23 characters hidden
+    }
+
+    #[test]
+    fn test_process_stream_both_truncations() {
+        let fixture = "line1 with some content\nline2 with more content\nline3 with even more content\nline4 final line";
+        let actual = process_stream(fixture, 2, 1, 50);
+
+        // Should first truncate by size to 50 chars, then by lines to 2 prefix + 1
+        // suffix
+        assert_eq!(actual.total_lines, 4);
+        // The size truncation should happen first, then line truncation
+    }
 }
 
 /// Represents the result of fs_search truncation
