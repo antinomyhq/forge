@@ -56,18 +56,6 @@ impl From<Value> for ToolCallArguments {
     }
 }
 
-impl From<String> for ToolCallArguments {
-    fn from(s: String) -> Self {
-        ToolCallArguments(s)
-    }
-}
-
-impl From<&str> for ToolCallArguments {
-    fn from(s: &str) -> Self {
-        ToolCallArguments(s.to_string())
-    }
-}
-
 impl From<ToolCallArguments> for Value {
     fn from(args: ToolCallArguments) -> Self {
         args.into_value().unwrap_or(Value::Null)

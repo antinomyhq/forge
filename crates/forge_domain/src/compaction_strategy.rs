@@ -158,7 +158,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolName, ToolResult};
+    use crate::{ContextMessage, ModelId, ToolCallArguments, ToolCallFull, ToolCallId, ToolName, ToolResult};
 
     fn context_from_pattern(pattern: impl ToString) -> Context {
         let model_id = ModelId::new("gpt-4");
@@ -167,7 +167,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: crate::ToolCallArguments::from(r#"{"path": "/test/path"}"#),
+            arguments: ToolCallArguments::new(r#"{"path": "/test/path"}"#),
         };
 
         let tool_result = ToolResult::new(ToolName::new("forge_tool_fs_read"))

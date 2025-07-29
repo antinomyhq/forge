@@ -160,7 +160,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{BoxStream, Content, TokenCount, ToolCall, ToolCallId, ToolName};
+    use crate::{BoxStream, Content, TokenCount, ToolCall, ToolCallArguments, ToolCallId, ToolName};
 
     #[tokio::test]
     async fn test_into_full_basic() {
@@ -216,7 +216,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: crate::ToolCallArguments::from("test_arg".to_string()),
+            arguments: ToolCallArguments::new("test_arg"),
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
