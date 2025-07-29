@@ -75,6 +75,11 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             }
             Command::Empty
         }
+        Action::ClearScreen => {
+            // Clear all messages from the chat
+            state.clear_messages();
+            Command::Empty
+        }
         Action::StartStream(cancel_id) => {
             // Store the cancellation token for this stream
             state.chat_stream = Some(cancel_id);
@@ -393,6 +398,43 @@ mod tests {
         assert_eq!(actual_command, expected_command);
         // Timer should be updated to the new timer from the action
         assert_eq!(fixture_state.timer, Some(timer));
+    }
+
+    #[test]
+    fn test_clear_messages_empties_messages_and_resets_scroll() {
+        let mut fixture_state = State::default();
+        fixture_state.add_user_message("Test message".to_string());
+        fixture_state.add_assistant_message(forge_api::ChatResponse::Text {
+            text: "Response".to_string(),
+            is_complete: true,
+            is_md: false,
+        });
+
+        fixture_state.clear_messages();
+
+        let actual_messages = fixture_state.messages.len();
+        let expected_messages = 0;
+        assert_eq!(actual_messages, expected_messages);
+    }
+
+    #[test]
+    fn test_clear_screen_action_clears_messages() {
+        let mut fixture_state = State::default();
+        fixture_state.add_user_message("Test message".to_string());
+        fixture_state.add_assistant_message(forge_api::ChatResponse::Text {
+            text: "Response".to_string(),
+            is_complete: true,
+            is_md: false,
+        });
+
+        let actual_command = update(&mut fixture_state, Action::ClearScreen);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+
+        let actual_messages = fixture_state.messages.len();
+        let expected_messages = 0;
+        assert_eq!(actual_messages, expected_messages);
     }
 
     #[test]

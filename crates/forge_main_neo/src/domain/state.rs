@@ -76,6 +76,13 @@ impl State {
         // Auto-scroll to bottom when new message is added
         self.message_scroll_state.scroll_to_bottom();
     }
+
+    /// Clear all messages from the chat
+    pub fn clear_messages(&mut self) {
+        self.messages.clear();
+        // Reset scroll state to top after clearing
+        self.message_scroll_state = ScrollViewState::default();
+    }
 }
 
 #[derive(Clone, Debug, Default)]
