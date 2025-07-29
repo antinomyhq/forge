@@ -245,8 +245,10 @@ mod tests {
             .unwrap();
         let mut state = AgentState::default();
 
-        let action =
-            AgentAction::RenderResult { id: TemplateId::new(1020), content: "test".to_string() };
+        let action = AgentAction::RenderResult {
+            id: TemplateId::from_template("test_template"),
+            content: "test".to_string(),
+        };
 
         let actual = fixture.update(&action, &mut state).unwrap();
 

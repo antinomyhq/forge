@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use derive_builder::Builder;
 use derive_setters::Setters;
-use forge_domain::{Agent, ContextMessage, EventContext};
+use forge_domain::{Agent, ContextMessage, EventContext, TemplateId};
 use serde_json::Value;
 
 use crate::neo_orch::events::{AgentAction, AgentCommand};
@@ -30,7 +30,7 @@ impl Program for UserPromptProgram {
         &self,
         action: &Self::Action,
         state: &mut Self::State,
-    ) -> std::result::Result<Self::Success, Self::Error> {
+    ) -> Result<Self::Success, Self::Error> {
         match action {
             // When receiving a ChatEvent, trigger rendering if we have a user prompt template
             AgentAction::ChatEvent(event) => {
@@ -42,7 +42,7 @@ impl Program for UserPromptProgram {
                         .current_time(self.current_time.clone());
 
                     return Ok(AgentCommand::Render {
-                        id: user_prompt.id(),
+                        id: TemplateId::from_template(&user_prompt.template),
                         template: user_prompt.template.clone(),
                         object: serde_json::to_value(event_context)?,
                     });
