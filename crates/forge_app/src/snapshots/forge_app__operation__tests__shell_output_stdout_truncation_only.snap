@@ -40,4 +40,5 @@ stdout line 25
 ]]>
 </tail>
 </stdout>
+<truncated>Content is truncated to 1000 chars, remaining content can be read from path: /tmp/stdout_content.txt</truncated>
 </shell_output>

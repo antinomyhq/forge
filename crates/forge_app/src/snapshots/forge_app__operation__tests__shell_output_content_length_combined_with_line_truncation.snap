@@ -1,0 +1,27 @@
+---
+source: crates/forge_app/src/operation.rs
+expression: to_value(actual)
+---
+<shell_output
+  command="combined_truncation_test"
+  shell="/bin/bash"
+  exit_code="0"
+>
+<stdout
+  total_lines="15"
+  full_output="/tmp/stdout_content.txt"
+><![CDATA[This is a very long line number 1 with lots of content to make it exceed character limits
+This is a very long line number 2 with lots of content to make it exceed character limits
+This is a very long line number 3 with lots of content to make it exceed character limits
+This is a very long line number 4 with lots of content to make it exceed character limits
+This is a very long line number 5 with lots of content to make it exceed character limits
+This is a very long line number 6 with lots of content to make it exceed character limits
+This is a very long line number 7 with lots of content to make it exceed character limits
+This is a very long line number 8 with lots of content to make it exceed character limits
+This is a very long line number 9 with lots of content to make it exceed character limits
+This is a very long line number 10 with lots of content to make it exceed character limits
+This is a very long line number 11 with lots of content to make it exceed character limits
+This is ]]>
+</stdout>
+<truncated>Content is truncated to 1000 chars, remaining content can be read from path: /tmp/stdout_content.txt</truncated>
+</shell_output>

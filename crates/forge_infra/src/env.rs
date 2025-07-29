@@ -135,6 +135,7 @@ impl ForgeEnvironmentInfra {
             max_read_size: 500,
             stdout_max_prefix_length: 200,
             stdout_max_suffix_length: 200,
+            stdout_max_truncation_limit: 10_000,
             http: self.resolve_timeout_config(),
             max_file_size: 256 << 10, // 256 KiB
             forge_api_url,

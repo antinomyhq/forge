@@ -342,6 +342,7 @@ impl Operation {
                     &output.output.stderr,
                     env.stdout_max_prefix_length,
                     env.stdout_max_suffix_length,
+                    env.stdout_max_truncation_limit,
                 );
 
                 let stdout_elem = create_stream_element(
@@ -356,6 +357,28 @@ impl Operation {
 
                 parent_elem = parent_elem.append(stdout_elem);
                 parent_elem = parent_elem.append(stderr_elem);
+                if let Some(path) = content_files.stdout {
+                    parent_elem = parent_elem.append(
+                        Element::new("truncated")
+                            .text(
+                                format!(
+                                    "Content is truncated to {} chars, remaining content can be read from path: {}", 
+                                    env.stdout_max_truncation_limit, path.display()
+                                )
+                            )
+                    );
+                }
+                if let Some(path) = content_files.stderr {
+                    parent_elem = parent_elem.append(
+                        Element::new("truncated")
+                            .text(
+                                format!(
+                                    "Content is truncated to {} chars, remaining content can be read from path: {}", 
+                                    env.stdout_max_truncation_limit, path.display()
+                                )
+                            )
+                    );
+                }
 
                 forge_domain::ToolOutput::text(parent_elem)
             }
@@ -419,6 +442,10 @@ impl Operation {
                 let env = services.get_environment();
                 let stdout_lines = output.output.stdout.lines().count();
                 let stderr_lines = output.output.stderr.lines().count();
+                let stdout_content_truncated =
+                    output.output.stdout.len() > env.stdout_max_truncation_limit;
+                let stderr_content_truncated =
+                    output.output.stderr.len() > env.stdout_max_truncation_limit;
                 let stdout_truncated =
                     stdout_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
                 let stderr_truncated =
@@ -426,7 +453,7 @@ impl Operation {
 
                 let mut files = TempContentFiles::default();
 
-                if stdout_truncated {
+                if stdout_truncated || stdout_content_truncated {
                     files = files.stdout(
                         create_temp_file(
                             services,
@@ -437,7 +464,7 @@ impl Operation {
                         .await?,
                     );
                 }
-                if stderr_truncated {
+                if stderr_truncated || stderr_content_truncated {
                     files = files.stderr(
                         create_temp_file(
                             services,
@@ -489,6 +516,7 @@ mod tests {
             max_read_size: 10,
             stdout_max_prefix_length: 10,
             stdout_max_suffix_length: 10,
+            stdout_max_truncation_limit: 1000,
             http: Default::default(),
             max_file_size: 256 << 10, // 256 KiB
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
@@ -1657,6 +1685,189 @@ mod tests {
         let actual = fixture.into_tool_output(
             ToolName::new("forge_tool_followup"),
             TempContentFiles::default(),
+            &env,
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+    #[test]
+    fn test_shell_output_content_length_truncation_stdout_only() {
+        // Create stdout that exceeds character limit but not line limit
+        let long_line = "a".repeat(1200); // Exceeds 1000 char limit
+        let stdout = format!("short line 1\n{}\nshort line 3", long_line);
+
+        let fixture = Operation::Shell {
+            output: ShellOutput {
+                output: forge_domain::CommandOutput {
+                    command: "content_length_test".to_string(),
+                    stdout,
+                    stderr: "".to_string(),
+                    exit_code: Some(0),
+                },
+                shell: "/bin/bash".to_string(),
+            },
+        };
+
+        let env = fixture_environment();
+        let truncation_path =
+            TempContentFiles::default().stdout(PathBuf::from("/tmp/stdout_content.txt"));
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            truncation_path,
+            &env,
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_shell_output_content_length_truncation_stderr_only() {
+        // Create stderr that exceeds character limit but not line limit
+        let long_line = "error".repeat(300); // Exceeds 1000 char limit
+        let stderr = format!("error line 1\n{}\nerror line 3", long_line);
+
+        let fixture = Operation::Shell {
+            output: ShellOutput {
+                output: forge_domain::CommandOutput {
+                    command: "content_length_error_test".to_string(),
+                    stdout: "".to_string(),
+                    stderr,
+                    exit_code: Some(1),
+                },
+                shell: "/bin/bash".to_string(),
+            },
+        };
+
+        let env = fixture_environment();
+        let truncation_path =
+            TempContentFiles::default().stderr(PathBuf::from("/tmp/stderr_content.txt"));
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            truncation_path,
+            &env,
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_shell_output_content_length_truncation_both_streams() {
+        // Create both stdout and stderr that exceed character limits
+        let long_stdout_line = "output".repeat(250); // Exceeds 1000 char limit
+        let stdout = format!("stdout line 1\n{}\nstdout line 3", long_stdout_line);
+
+        let long_stderr_line = "error".repeat(250); // Exceeds 1000 char limit  
+        let stderr = format!("stderr line 1\n{}\nstderr line 3", long_stderr_line);
+
+        let fixture = Operation::Shell {
+            output: ShellOutput {
+                output: forge_domain::CommandOutput {
+                    command: "content_length_both_test".to_string(),
+                    stdout,
+                    stderr,
+                    exit_code: Some(0),
+                },
+                shell: "/bin/bash".to_string(),
+            },
+        };
+
+        let env = fixture_environment();
+        let truncation_path = TempContentFiles::default()
+            .stdout(PathBuf::from("/tmp/stdout_content.txt"))
+            .stderr(PathBuf::from("/tmp/stderr_content.txt"));
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            truncation_path,
+            &env,
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_shell_output_content_length_exactly_at_limit() {
+        // Create stdout that is exactly at the character limit
+        let exact_content = "a".repeat(1000); // Exactly 1000 chars
+        let stdout = exact_content;
+
+        let fixture = Operation::Shell {
+            output: ShellOutput {
+                output: forge_domain::CommandOutput {
+                    command: "exact_limit_test".to_string(),
+                    stdout,
+                    stderr: "".to_string(),
+                    exit_code: Some(0),
+                },
+                shell: "/bin/bash".to_string(),
+            },
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            TempContentFiles::default(),
+            &env,
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_shell_output_content_length_with_unicode() {
+        // Test content length truncation with unicode characters
+        let unicode_content = "🚀".repeat(200); // Each emoji is 4 bytes, so 800 bytes total (under 1000 limit)
+        let stdout = format!("start\n{}\nend", unicode_content);
+
+        let fixture = Operation::Shell {
+            output: ShellOutput {
+                output: forge_domain::CommandOutput {
+                    command: "unicode_test".to_string(),
+                    stdout,
+                    stderr: "".to_string(),
+                    exit_code: Some(0),
+                },
+                shell: "/bin/bash".to_string(),
+            },
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            TempContentFiles::default(),
+            &env,
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_shell_output_content_length_combined_with_line_truncation() {
+        // Test case where both content length and line truncation apply
+        let mut lines = Vec::new();
+        for i in 1..=15 {
+            // Each line is about 100 chars, so 15 lines = ~1500 chars (exceeds 1000)
+            lines.push(format!("This is a very long line number {} with lots of content to make it exceed character limits", i));
+        }
+        let stdout = lines.join("\n");
+
+        let fixture = Operation::Shell {
+            output: ShellOutput {
+                output: forge_domain::CommandOutput {
+                    command: "combined_truncation_test".to_string(),
+                    stdout,
+                    stderr: "".to_string(),
+                    exit_code: Some(0),
+                },
+                shell: "/bin/bash".to_string(),
+            },
+        };
+
+        let env = fixture_environment();
+        let truncation_path =
+            TempContentFiles::default().stdout(PathBuf::from("/tmp/stdout_content.txt"));
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_process_shell"),
+            truncation_path,
             &env,
         );
 
