@@ -158,7 +158,9 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{ContextMessage, ModelId, ToolCallArguments, ToolCallFull, ToolCallId, ToolName, ToolResult};
+    use crate::{
+        ContextMessage, ModelId, ToolCallArguments, ToolCallFull, ToolCallId, ToolName, ToolResult,
+    };
 
     fn context_from_pattern(pattern: impl ToString) -> Context {
         let model_id = ModelId::new("gpt-4");

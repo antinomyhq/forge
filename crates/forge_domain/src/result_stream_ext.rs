@@ -160,7 +160,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{BoxStream, Content, TokenCount, ToolCall, ToolCallArguments, ToolCallId, ToolName};
+    use crate::{
+        BoxStream, Content, TokenCount, ToolCall, ToolCallArguments, ToolCallId, ToolName,
+    };
 
     #[tokio::test]
     async fn test_into_full_basic() {
