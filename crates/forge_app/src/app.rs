@@ -23,6 +23,7 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
+    workflow_coordinator: WorkflowCoordinator<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
