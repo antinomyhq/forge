@@ -28,3 +28,4 @@ insta.workspace = true
 pretty_assertions.workspace = true
 mockito.workspace = true
 forge_infra.workspace = true
+futures.workspace = true

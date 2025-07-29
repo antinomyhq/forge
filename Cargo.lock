@@ -1517,6 +1517,7 @@ dependencies = [
  "derive_setters",
  "forge_app",
  "forge_infra",
+ "futures",
  "insta",
  "mockito",
  "pretty_assertions",

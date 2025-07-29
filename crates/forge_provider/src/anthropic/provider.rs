@@ -148,26 +148,69 @@ impl<T: HttpClientService> Anthropic<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::pin::Pin;
+    use bytes::Bytes;
+    use forge_app::{HttpClientService, ServerSentEvent};
     use forge_app::domain::{
         Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
         ToolResult,
     };
-    use forge_infra::ForgeInfra;
+    use futures::Stream;
+    use reqwest::header::HeaderMap;
 
     use super::*;
     use crate::mock_server::{MockServer, normalize_ports};
 
-    fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic<T>> {
-        Ok(Anthropic::builder()
-            .http(Arc::new(ForgeInfra::new(
-                false,
-                std::env::current_dir().unwrap(),
-            )))
-            .base_url(base_url.to_string())
-            .anthropic_version("2023-06-01".to_string())
-            .api_key("sk-test-key".to_string())
-            .build()
-            .unwrap())
+    // Mock implementation of HttpClientService for testing
+    #[derive(Clone)]
+    struct MockHttpClient {
+        client: reqwest::Client,
+    }
+
+    impl MockHttpClient {
+        fn new() -> Self {
+            Self {
+                client: reqwest::Client::new(),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl HttpClientService for MockHttpClient {
+        async fn get(&self, url: &reqwest::Url, headers: Option<HeaderMap>) -> anyhow::Result<reqwest::Response> {
+            let mut request = self.client.get(url.clone());
+            if let Some(headers) = headers {
+                request = request.headers(headers);
+            }
+            Ok(request.send().await?)
+        }
+
+        async fn post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn eventsource(
+            &self,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
+            _body: Bytes,
+        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+            // For now, return an error since eventsource is not used in the failing tests
+            Err(anyhow::anyhow!("EventSource not implemented in mock"))
+        }
+    }
+
+    fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic<MockHttpClient>> {
+        Ok(Anthropic::new(
+            Arc::new(MockHttpClient::new()),
+            "sk-test-key".to_string(),
+            base_url.to_string(),
+            "2023-06-01".to_string(),
+        ))
     }
 
     fn create_mock_models_response() -> serde_json::Value {
@@ -209,22 +252,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_for_models() {
-        let anthropic = Anthropic::builder()
-            .http(Arc::new(ForgeInfra::new(
-                false,
-                std::env::current_dir().unwrap(),
-            )))
-            .base_url("https://api.anthropic.com/v1/".to_string())
-            .anthropic_version("v1".to_string())
-            .api_key("sk-some-key".to_string())
-            .build()
-            .unwrap();
+        let anthropic = Anthropic::new(
+            Arc::new(MockHttpClient::new()),
+            "sk-some-key".to_string(),
+            "https://api.anthropic.com/v1/".to_string(),
+            "v1".to_string(),
+        );
         assert_eq!(
-            anthropic
-                .http
-                .url("https://api.anthropic.com/v1/", "/models")
-                .unwrap()
-                .as_str(),
+            anthropic.url("/models").unwrap().as_str(),
             "https://api.anthropic.com/v1/models"
         );
     }

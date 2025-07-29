@@ -204,26 +204,68 @@ impl From<Model> for forge_app::domain::Model {
 
 #[cfg(test)]
 mod tests {
+    use std::pin::Pin;
     use anyhow::Context;
-    use forge_infra::ForgeInfra;
+    use bytes::Bytes;
+    use forge_app::{HttpClientService, ServerSentEvent};
+    use futures::Stream;
+    use reqwest::header::HeaderMap;
 
     use super::*;
     use crate::mock_server::{MockServer, normalize_ports};
 
-    fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider> {
+    // Mock implementation of HttpClientService for testing
+    #[derive(Clone)]
+    struct MockHttpClient {
+        client: reqwest::Client,
+    }
+
+    impl MockHttpClient {
+        fn new() -> Self {
+            Self {
+                client: reqwest::Client::new(),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl HttpClientService for MockHttpClient {
+        async fn get(&self, url: &reqwest::Url, headers: Option<HeaderMap>) -> anyhow::Result<reqwest::Response> {
+            let mut request = self.client.get(url.clone());
+            if let Some(headers) = headers {
+                request = request.headers(headers);
+            }
+            Ok(request.send().await?)
+        }
+
+        async fn post(&self, _url: &reqwest::Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn eventsource(
+            &self,
+            _url: &reqwest::Url,
+            _headers: Option<HeaderMap>,
+            _body: Bytes,
+        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+            unimplemented!()
+        }
+    }
+
+    fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider<MockHttpClient>> {
         let provider = Provider::OpenAI {
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
         };
 
-        Ok(OpenAIProvider::builder()
-            .http(Arc::new(ForgeInfra::new(
-                false,
-                std::env::current_dir().unwrap(),
-            )))
-            .provider(provider)
-            .build()
-            .unwrap())
+        Ok(OpenAIProvider::new(
+            provider,
+            Arc::new(MockHttpClient::new()),
+        ))
     }
 
     fn create_mock_models_response() -> serde_json::Value {

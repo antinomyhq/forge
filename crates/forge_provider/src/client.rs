@@ -180,11 +180,43 @@ pub fn create_headers(headers: Vec<(String, String)>) -> HeaderMap {
 
 #[cfg(test)]
 mod tests {
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use bytes::Bytes;
+    use forge_app::{HttpClientService, ServerSentEvent};
     use forge_app::domain::Provider;
-    use forge_infra::ForgeInfra;
+    use futures::Stream;
+    use reqwest::header::HeaderMap;
     use reqwest::Url;
 
     use super::*;
+
+    // Simple mock for testing client functionality
+    struct MockHttpClient;
+
+    #[async_trait::async_trait]
+    impl HttpClientService for MockHttpClient {
+        async fn get(&self, _url: &Url, _headers: Option<HeaderMap>) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+
+        async fn post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+
+        async fn delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+
+        async fn eventsource(
+            &self,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
+            _body: Bytes,
+        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+    }
 
     #[tokio::test]
     async fn test_cache_initialization() {
@@ -193,10 +225,7 @@ mod tests {
             key: Some("test-key".to_string()),
         };
         let client = ClientBuilder::new(provider, "dev")
-            .build(Arc::new(ForgeInfra::new(
-                false,
-                std::env::current_dir().unwrap(),
-            )))
+            .build(Arc::new(MockHttpClient))
             .unwrap();
 
         // Verify cache is initialized as empty
@@ -211,10 +240,7 @@ mod tests {
             key: Some("test-key".to_string()),
         };
         let client = ClientBuilder::new(provider, "dev")
-            .build(Arc::new(ForgeInfra::new(
-                false,
-                std::env::current_dir().unwrap(),
-            )))
+            .build(Arc::new(MockHttpClient))
             .unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
@@ -236,10 +262,7 @@ mod tests {
             .retry_config(Arc::new(RetryConfig::default()))
             .timeout_config(HttpConfig::default())
             .use_hickory(true)
-            .build(Arc::new(ForgeInfra::new(
-                false,
-                std::env::current_dir().unwrap(),
-            )))
+            .build(Arc::new(MockHttpClient))
             .unwrap();
 
         // Verify cache is initialized as empty
@@ -256,10 +279,7 @@ mod tests {
 
         // Test that ClientBuilder::new works with minimal parameters
         let client = ClientBuilder::new(provider, "dev")
-            .build(Arc::new(ForgeInfra::new(
-                false,
-                std::env::current_dir().unwrap(),
-            )))
+            .build(Arc::new(MockHttpClient))
             .unwrap();
 
         // Verify cache is initialized as empty
