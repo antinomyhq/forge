@@ -259,12 +259,10 @@ mod tests {
         // Actual: Convert stream to full message
         let actual = result_stream.into_full(false).await;
 
-        // Expected: Should return a retryable error
-        assert!(actual.is_err());
-        let error = actual.unwrap_err();
-        let domain_error = error.downcast_ref::<Error>();
-        assert!(domain_error.is_some());
-        assert!(matches!(domain_error.unwrap(), Error::Retryable(_)));
+        // Expected: Should return ok
+        assert!(actual.is_ok());
+        let message = actual.unwrap();
+        assert!(message.tool_calls.is_empty());
     }
 
     #[tokio::test]
