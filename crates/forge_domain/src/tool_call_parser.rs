@@ -112,13 +112,13 @@ fn tool_call_to_struct(parsed: ToolCallParsed) -> ToolCallFull {
     ToolCallFull {
         name: ToolName::new(parsed.name),
         call_id: None,
-        arguments: crate::ToolCallArguments::from_value(Value::Object(parsed.args.into_iter().fold(
+        arguments: crate::ToolCallArguments::from_map(parsed.args.into_iter().fold(
             serde_json::Map::new(),
             |mut map, (key, value)| {
                 map.insert(key, convert_string_to_value(&value));
                 map
             },
-        ))),
+        )),
     }
 }
 
@@ -199,16 +199,17 @@ mod tests {
         }
 
         fn build_expected(&self) -> ToolCallFull {
-            let mut args = Value::Object(Default::default());
-            for (key, value) in &self.args {
-                args.as_object_mut()
-                    .unwrap()
-                    .insert(key.clone(), convert_string_to_value(value));
-            }
+            let map = self
+                .args
+                .iter()
+                .fold(serde_json::Map::new(), |mut map, (key, value)| {
+                    map.insert(key.clone(), convert_string_to_value(value));
+                    map
+                });
             ToolCallFull {
                 name: ToolName::new(&self.name),
                 call_id: None,
-                arguments: crate::ToolCallArguments::from_value(args),
+                arguments: crate::ToolCallArguments::from_map(map),
             }
         }
     }

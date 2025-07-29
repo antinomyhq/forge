@@ -19,6 +19,13 @@ impl ToolCallArguments {
     pub fn from_value(value: Value) -> Self {
         ToolCallArguments(value.to_string())
     }
+    pub fn from_map(map: serde_json::Map<String, Value>) -> Self {
+        // Directly serialize the map to JSON string without creating intermediate Value
+        match serde_json::to_string(&map) {
+            Ok(json_string) => ToolCallArguments(json_string),
+            Err(_) => ToolCallArguments("{}".to_string()), // Fallback to empty object
+        }
+    }
 
     pub fn is_null(&self) -> bool {
         self.0.is_empty() || self.0 == "null"
@@ -143,7 +150,11 @@ pub struct ToolCallFull {
 
 impl ToolCallFull {
     pub fn new(tool_name: ToolName) -> Self {
-        Self { name: tool_name, call_id: None, arguments: ToolCallArguments::default() }
+        Self {
+            name: tool_name,
+            call_id: None,
+            arguments: ToolCallArguments::default(),
+        }
     }
 
     pub fn try_from_parts(parts: &[ToolCallPart]) -> Result<Vec<Self>> {
@@ -172,12 +183,12 @@ impl ToolCallFull {
                                 ToolCallArguments::default()
                             } else {
                                 // Validate JSON by parsing, but store as string
-                                serde_json::from_str::<Value>(&current_arguments).map_err(|error| {
-                                    Error::ToolCallArgument {
+                                serde_json::from_str::<Value>(&current_arguments).map_err(
+                                    |error| Error::ToolCallArgument {
                                         error,
                                         args: current_arguments.clone(),
-                                    }
-                                })?;
+                                    },
+                                )?;
                                 ToolCallArguments::new(current_arguments.clone())
                             },
                         });
@@ -219,22 +230,20 @@ impl ToolCallFull {
     /// Parse multiple tool calls from XML format.
     pub fn try_from_xml(input: &str) -> std::result::Result<Vec<ToolCallFull>, Error> {
         use serde::{Deserialize, Serialize};
-        
+
         #[derive(Deserialize, Serialize)]
         struct ToolCallTemp {
             name: ToolName,
             call_id: Option<ToolCallId>,
             arguments: serde_json::Value,
         }
-        
+
         match extract_tag_content(input, "forge_tool_call") {
             None => Ok(Default::default()),
             Some(content) => {
-                let temp: ToolCallTemp =
-                    serde_json::from_str(content).map_err(|error| Error::ToolCallArgument {
-                        error,
-                        args: content.to_string(),
-                    })?;
+                let temp: ToolCallTemp = serde_json::from_str(content).map_err(|error| {
+                    Error::ToolCallArgument { error, args: content.to_string() }
+                })?;
 
                 let mut tool_call = ToolCallFull {
                     name: temp.name,
@@ -300,7 +309,9 @@ mod tests {
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_1".to_string())),
-                arguments: ToolCallArguments::new(r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#),
+                arguments: ToolCallArguments::new(
+                    r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#,
+                ),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
@@ -310,7 +321,9 @@ mod tests {
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_3".to_string())),
-                arguments: ToolCallArguments::new(r#"{"path": "crates/forge_services/src/service/service.md"}"#),
+                arguments: ToolCallArguments::new(
+                    r#"{"path": "crates/forge_services/src/service/service.md"}"#,
+                ),
             },
         ];
 
@@ -379,6 +392,24 @@ mod tests {
     }
     #[test]
     fn test_try_from_parts_handles_empty_tool_names() {
+        #[test]
+        fn test_from_map_optimization() {
+            // Fixture: Create a map directly instead of going through Value
+            let mut map = serde_json::Map::new();
+            map.insert("key1".to_string(), Value::String("value1".to_string()));
+            map.insert(
+                "key2".to_string(),
+                Value::Number(serde_json::Number::from(42)),
+            );
+
+            let actual = ToolCallArguments::from_map(map.clone());
+
+            // Expected: Should produce the same result as from_value but more efficiently
+            let expected = ToolCallArguments::from_value(Value::Object(map));
+
+            assert_eq!(actual, expected);
+        }
+
         // Fixture: Tool call parts where empty names in subsequent parts should not
         // override valid names
         let input = [
