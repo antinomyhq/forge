@@ -446,7 +446,10 @@ impl<S: AgentService> Orchestrator<S> {
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
-            is_complete = tool_calls.iter().any(|call| Tools::is_complete(&call.name));
+            is_complete = tool_calls
+                .iter()
+                .filter_map(|call| call.as_ref().ok())
+                .any(|call| Tools::is_complete(&call.name));
 
             if !is_complete && !has_no_tool_calls {
                 // If task is completed we would have already displayed a message so we can
@@ -479,6 +482,29 @@ impl<S: AgentService> Orchestrator<S> {
             let mut allowed_limits_exceeded =
                 self.check_tool_call_failures(&tool_failure_attempts, &tool_calls);
 
+            // Check if the request contains invalid tool calls
+            let tool_call_parse_errors = tool_calls
+                .iter()
+                .filter_map(|call| match call {
+                    Ok(_) => None,
+                    Err(ToolCallFullError::Json { error, .. }) => {
+                        Some(Element::new("invalid_json_format").cdata(error.to_string()))
+                    }
+                    Err(ToolCallFullError::Xml { error }) => {
+                        Some(Element::new("invalid_xml_format").cdata(error.to_string()))
+                    }
+                })
+                .fold(None, |elm: Option<Element>, error_elm| match elm {
+                    Some(elm) => Some(elm.append(error_elm)),
+                    None => Some(Element::new("tool_call_error")),
+                });
+
+            // Extract actual tool calls
+            let tool_calls: Vec<ToolCallFull> = tool_calls
+                .into_iter()
+                .filter_map(|call| call.ok())
+                .collect::<Vec<_>>();
+
             // Process tool calls and update context
             let mut tool_call_records = self
                 .execute_tool_calls(&agent, &tool_calls, &mut tool_context)
@@ -506,6 +532,13 @@ impl<S: AgentService> Orchestrator<S> {
                         tool_failure_attempts.remove(&result.name);
                     }
                 });
+            }
+
+            if let Some(parse_errors) = tool_call_parse_errors {
+                context = context.add_message(ContextMessage::user(
+                    parse_errors.to_string(),
+                    Some(model_id.clone()),
+                ));
             }
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
@@ -604,13 +637,14 @@ impl<S: AgentService> Orchestrator<S> {
     fn check_tool_call_failures(
         &self,
         tool_failure_attempts: &HashMap<ToolName, usize>,
-        tool_calls: &[ToolCallFull],
+        tool_calls: &[std::result::Result<ToolCallFull, ToolCallFullError>],
     ) -> bool {
         self.conversation
             .max_tool_failure_per_turn
             .is_some_and(|limit| {
                 tool_calls
                     .iter()
+                    .filter_map(|call| call.as_ref().ok())
                     .map(|call| tool_failure_attempts.get(&call.name).unwrap_or(&0))
                     .any(|count| *count >= limit)
             })
