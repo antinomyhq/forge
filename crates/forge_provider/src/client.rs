@@ -58,7 +58,7 @@ impl ClientBuilder {
             .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
             .redirect(Policy::limited(timeout_config.max_redirects))
             .hickory_dns(true)
-            .use_native_tls()
+            .use_rustls_tls()
             .build()?;
 
         let inner = match &provider {
