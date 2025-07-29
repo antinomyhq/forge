@@ -1,6 +1,7 @@
 ---
 source: crates/forge_domain/src/transformer/mod.rs
 expression: snapshot
+snapshot_kind: text
 ---
 transformation: TransformToolCalls.pipe(ImageHandling)
 before:
@@ -17,8 +18,7 @@ before:
         tool_calls:
           - name: test_tool
             call_id: call_123
-            arguments:
-              param: value
+            arguments: "{\"param\":\"value\"}"
         model: ~
         reasoning_details: ~
     - tool:

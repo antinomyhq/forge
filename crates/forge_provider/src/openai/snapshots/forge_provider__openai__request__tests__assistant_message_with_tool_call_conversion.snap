@@ -12,7 +12,7 @@ snapshot_kind: text
       "type": "function",
       "function": {
         "name": "test_tool",
-        "arguments": "{\"key\":\"value\"}"
+        "arguments": "\"{\\\"key\\\":\\\"value\\\"}\""
       }
     }
   ]

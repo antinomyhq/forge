@@ -1,6 +1,7 @@
 ---
 source: crates/forge_provider/src/anthropic/provider.rs
 expression: "serde_json::to_string_pretty(&request).unwrap()"
+snapshot_kind: text
 ---
 {
   "max_tokens": 4000,
@@ -23,9 +24,7 @@ expression: "serde_json::to_string_pretty(&request).unwrap()"
         {
           "type": "tool_use",
           "id": "math-1",
-          "input": {
-            "expression": "2 + 2"
-          },
+          "input": "{\"expression\":\"2 + 2\"}",
           "name": "math"
         }
       ],

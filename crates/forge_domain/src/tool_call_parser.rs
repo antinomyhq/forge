@@ -112,7 +112,7 @@ fn tool_call_to_struct(parsed: ToolCallParsed) -> ToolCallFull {
     ToolCallFull {
         name: ToolName::new(parsed.name),
         call_id: None,
-        arguments: crate::ToolCallArguments::new(Value::Object(parsed.args.into_iter().fold(
+        arguments: crate::ToolCallArguments::from_value(Value::Object(parsed.args.into_iter().fold(
             serde_json::Map::new(),
             |mut map, (key, value)| {
                 map.insert(key, convert_string_to_value(&value));
@@ -208,7 +208,7 @@ mod tests {
             ToolCallFull {
                 name: ToolName::new(&self.name),
                 call_id: None,
-                arguments: crate::ToolCallArguments::new(args),
+                arguments: crate::ToolCallArguments::from_value(args),
             }
         }
     }
@@ -258,7 +258,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: None,
-            arguments: serde_json::from_str(r#"{"path":"/a/b/c.txt"}"#).unwrap(),
+            arguments: crate::ToolCallArguments::new(r#"{"path":"/a/b/c.txt"}"#),
         }];
         assert_eq!(action, expected);
     }
@@ -319,7 +319,7 @@ mod tests {
         let expected = vec![tool.build_expected()];
         assert_eq!(action, expected);
 
-        if let Value::Object(map) = action[0].arguments.as_value() {
+        if let Ok(Value::Object(map)) = action[0].arguments.as_value() {
             assert!(matches!(map["int_value"], Value::Number(_)));
             assert!(matches!(map["float_value"], Value::Number(_)));
             assert!(matches!(map["large_int"], Value::Number(_)));
@@ -340,7 +340,7 @@ mod tests {
         let expected = vec![tool.build_expected()];
         assert_eq!(action, expected);
 
-        if let Value::Object(map) = action[0].arguments.as_value() {
+        if let Ok(Value::Object(map)) = action[0].arguments.as_value() {
             assert_eq!(map["bool1"], Value::Bool(true));
             assert_eq!(map["bool2"], Value::Bool(false));
             assert_eq!(map["bool3"], Value::Bool(true));
@@ -361,7 +361,7 @@ mod tests {
         let expected = vec![tool.build_expected()];
         assert_eq!(action, expected);
 
-        if let Value::Object(map) = action[0].arguments.as_value() {
+        if let Ok(Value::Object(map)) = action[0].arguments.as_value() {
             assert!(matches!(map["text"], Value::String(_)));
             assert!(matches!(map["number"], Value::Number(_)));
             assert!(matches!(map["float"], Value::Number(_)));
@@ -413,7 +413,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_search"),
             call_id: None,
-            arguments: serde_json::from_str(r#"{"path":"/test/path","regex":"test"}"#).unwrap(),
+            arguments: crate::ToolCallArguments::new(r#"{"path":"/test/path","regex":"test"}"#),
         }];
         assert_eq!(action, expected);
     }
@@ -431,7 +431,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("foo"),
             call_id: None,
-            arguments: serde_json::from_str(r#"{"p1":"\nabc\n"}"#).unwrap(),
+            arguments: crate::ToolCallArguments::new(r#"{"p1":"\nabc\n"}"#),
         }];
         assert_eq!(action, expected);
     }

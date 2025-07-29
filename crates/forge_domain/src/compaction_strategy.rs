@@ -167,7 +167,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: crate::ToolCallArguments::new(json!({"path": "/test/path"})),
+            arguments: crate::ToolCallArguments::from_value(json!({"path": "/test/path"})),
         };
 
         let tool_result = ToolResult::new(ToolName::new("forge_tool_fs_read"))

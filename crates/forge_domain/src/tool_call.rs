@@ -9,41 +9,61 @@ use crate::{Error, Result, ToolName};
 /// Arguments that need to be passed to a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(transparent)]
-pub struct ToolCallArguments(Value);
+pub struct ToolCallArguments(String);
 
 impl ToolCallArguments {
-    pub fn new(value: Value) -> Self {
-        ToolCallArguments(value)
+    pub fn new(value: impl ToString) -> Self {
+        ToolCallArguments(value.to_string())
+    }
+
+    pub fn from_value(value: Value) -> Self {
+        ToolCallArguments(value.to_string())
     }
 
     pub fn is_null(&self) -> bool {
-        self.0.is_null()
+        self.0.is_empty() || self.0 == "null"
     }
 
-    pub fn as_value(&self) -> &Value {
+    pub fn as_str(&self) -> &str {
         &self.0
     }
 
-    pub fn into_value(self) -> Value {
-        self.0
+    pub fn into_value(self) -> std::result::Result<Value, serde_json::Error> {
+        serde_json::from_str(&self.0)
+    }
+
+    pub fn as_value(&self) -> std::result::Result<Value, serde_json::Error> {
+        serde_json::from_str(&self.0)
     }
 }
 
 impl Default for ToolCallArguments {
     fn default() -> Self {
-        ToolCallArguments(Value::default())
+        ToolCallArguments("{}".to_string())
     }
 }
 
 impl From<Value> for ToolCallArguments {
     fn from(value: Value) -> Self {
-        ToolCallArguments(value)
+        ToolCallArguments::from_value(value)
+    }
+}
+
+impl From<String> for ToolCallArguments {
+    fn from(s: String) -> Self {
+        ToolCallArguments(s)
+    }
+}
+
+impl From<&str> for ToolCallArguments {
+    fn from(s: &str) -> Self {
+        ToolCallArguments(s.to_string())
     }
 }
 
 impl From<ToolCallArguments> for Value {
     fn from(args: ToolCallArguments) -> Self {
-        args.0
+        args.into_value().unwrap_or(Value::Null)
     }
 }
 
@@ -151,12 +171,14 @@ impl ToolCallFull {
                             arguments: if current_arguments.is_empty() {
                                 ToolCallArguments::default()
                             } else {
-                                ToolCallArguments::new(serde_json::from_str(&current_arguments).map_err(|error| {
+                                // Validate JSON by parsing, but store as string
+                                serde_json::from_str::<Value>(&current_arguments).map_err(|error| {
                                     Error::ToolCallArgument {
                                         error,
                                         args: current_arguments.clone(),
                                     }
-                                })?)
+                                })?;
+                                ToolCallArguments::new(current_arguments.clone())
                             },
                         });
                     }
@@ -182,9 +204,11 @@ impl ToolCallFull {
                 arguments: if current_arguments.is_empty() {
                     ToolCallArguments::default()
                 } else {
-                    ToolCallArguments::new(serde_json::from_str(&current_arguments).map_err(|error| {
+                    // Validate JSON by parsing, but store as string
+                    serde_json::from_str::<Value>(&current_arguments).map_err(|error| {
                         Error::ToolCallArgument { error, args: current_arguments.clone() }
-                    })?)
+                    })?;
+                    ToolCallArguments::new(current_arguments.clone())
                 },
             });
         }
@@ -194,14 +218,29 @@ impl ToolCallFull {
 
     /// Parse multiple tool calls from XML format.
     pub fn try_from_xml(input: &str) -> std::result::Result<Vec<ToolCallFull>, Error> {
+        use serde::{Deserialize, Serialize};
+        
+        #[derive(Deserialize, Serialize)]
+        struct ToolCallTemp {
+            name: ToolName,
+            call_id: Option<ToolCallId>,
+            arguments: serde_json::Value,
+        }
+        
         match extract_tag_content(input, "forge_tool_call") {
             None => Ok(Default::default()),
             Some(content) => {
-                let mut tool_call: ToolCallFull =
+                let temp: ToolCallTemp =
                     serde_json::from_str(content).map_err(|error| Error::ToolCallArgument {
                         error,
                         args: content.to_string(),
                     })?;
+
+                let mut tool_call = ToolCallFull {
+                    name: temp.name,
+                    call_id: temp.call_id,
+                    arguments: ToolCallArguments::from_value(temp.arguments),
+                };
 
                 // User might switch the model from a tool unsupported to tool supported model
                 // leaving a lot of messages without tool calls
@@ -261,17 +300,17 @@ mod tests {
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_1".to_string())),
-                arguments: ToolCallArguments::new(serde_json::json!({"path": "crates/forge_services/src/fixtures/mascot.md"})),
+                arguments: ToolCallArguments::new(r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_2".to_string())),
-                arguments: ToolCallArguments::new(serde_json::json!({"path": "docs/onboarding.md"})),
+                arguments: ToolCallArguments::new(r#"{"path": "docs/onboarding.md"}"#),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_3".to_string())),
-                arguments: ToolCallArguments::new(serde_json::json!({"path": "crates/forge_services/src/service/service.md"})),
+                arguments: ToolCallArguments::new(r#"{"path": "crates/forge_services/src/service/service.md"}"#),
             },
         ];
 
@@ -290,7 +329,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("forge_tool_fs_read"),
-            arguments: ToolCallArguments::new(serde_json::json!({"path": "docs/onboarding.md"})),
+            arguments: ToolCallArguments::new(r#"{"path": "docs/onboarding.md"}"#),
         }];
 
         assert_eq!(actual, expected);
@@ -365,7 +404,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId("0".to_string())),
-            arguments: ToolCallArguments::new(serde_json::json!({"path": "/test/file.md"})),
+            arguments: ToolCallArguments::new(r#"{"path": "/test/file.md"}"#),
         }];
 
         assert_eq!(actual, expected);
