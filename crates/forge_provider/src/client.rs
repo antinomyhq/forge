@@ -182,12 +182,13 @@ pub fn create_headers(headers: Vec<(String, String)>) -> HeaderMap {
 mod tests {
     use std::pin::Pin;
     use std::sync::Arc;
+
     use bytes::Bytes;
-    use forge_app::{HttpClientService, ServerSentEvent};
     use forge_app::domain::Provider;
+    use forge_app::{HttpClientService, ServerSentEvent};
     use futures::Stream;
-    use reqwest::header::HeaderMap;
     use reqwest::Url;
+    use reqwest::header::HeaderMap;
 
     use super::*;
 
@@ -196,7 +197,11 @@ mod tests {
 
     #[async_trait::async_trait]
     impl HttpClientService for MockHttpClient {
-        async fn get(&self, _url: &Url, _headers: Option<HeaderMap>) -> anyhow::Result<reqwest::Response> {
+        async fn get(
+            &self,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
         }
 
@@ -213,7 +218,8 @@ mod tests {
             _url: &Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
-        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>
+        {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
         }
     }

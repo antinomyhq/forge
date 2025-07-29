@@ -205,6 +205,7 @@ impl From<Model> for forge_app::domain::Model {
 #[cfg(test)]
 mod tests {
     use std::pin::Pin;
+
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::{HttpClientService, ServerSentEvent};
@@ -222,15 +223,17 @@ mod tests {
 
     impl MockHttpClient {
         fn new() -> Self {
-            Self {
-                client: reqwest::Client::new(),
-            }
+            Self { client: reqwest::Client::new() }
         }
     }
 
     #[async_trait::async_trait]
     impl HttpClientService for MockHttpClient {
-        async fn get(&self, url: &reqwest::Url, headers: Option<HeaderMap>) -> anyhow::Result<reqwest::Response> {
+        async fn get(
+            &self,
+            url: &reqwest::Url,
+            headers: Option<HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
             let mut request = self.client.get(url.clone());
             if let Some(headers) = headers {
                 request = request.headers(headers);
@@ -238,7 +241,11 @@ mod tests {
             Ok(request.send().await?)
         }
 
-        async fn post(&self, _url: &reqwest::Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+        async fn post(
+            &self,
+            _url: &reqwest::Url,
+            _body: Bytes,
+        ) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 
@@ -251,7 +258,8 @@ mod tests {
             _url: &reqwest::Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
-        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>
+        {
             unimplemented!()
         }
     }

@@ -149,12 +149,13 @@ impl<T: HttpClientService> Anthropic<T> {
 #[cfg(test)]
 mod tests {
     use std::pin::Pin;
+
     use bytes::Bytes;
-    use forge_app::{HttpClientService, ServerSentEvent};
     use forge_app::domain::{
         Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
         ToolResult,
     };
+    use forge_app::{HttpClientService, ServerSentEvent};
     use futures::Stream;
     use reqwest::header::HeaderMap;
 
@@ -169,15 +170,17 @@ mod tests {
 
     impl MockHttpClient {
         fn new() -> Self {
-            Self {
-                client: reqwest::Client::new(),
-            }
+            Self { client: reqwest::Client::new() }
         }
     }
 
     #[async_trait::async_trait]
     impl HttpClientService for MockHttpClient {
-        async fn get(&self, url: &reqwest::Url, headers: Option<HeaderMap>) -> anyhow::Result<reqwest::Response> {
+        async fn get(
+            &self,
+            url: &reqwest::Url,
+            headers: Option<HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
             let mut request = self.client.get(url.clone());
             if let Some(headers) = headers {
                 request = request.headers(headers);
@@ -198,7 +201,8 @@ mod tests {
             _url: &Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
-        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>
+        {
             // For now, return an error since eventsource is not used in the failing tests
             Err(anyhow::anyhow!("EventSource not implemented in mock"))
         }
