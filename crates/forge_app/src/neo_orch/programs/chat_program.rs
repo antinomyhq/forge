@@ -12,6 +12,8 @@ pub struct ChatProgram {
     model_id: ModelId,
     #[builder(default)]
     waiting_for_response: bool,
+    #[builder(default)]
+    context_ready: bool,
 }
 
 impl Program for ChatProgram {
@@ -24,7 +26,7 @@ impl Program for ChatProgram {
         &self,
         action: &Self::Action,
         state: &mut Self::State,
-    ) -> std::result::Result<Self::Success, Self::Error> {
+    ) -> Result<Self::Success, Self::Error> {
         match action {
             // When we receive a ChatEvent and we're not already waiting for a response,
             // initiate a chat request
@@ -125,8 +127,8 @@ impl Program for ChatProgram {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        ChatCompletionMessageFull, ChatResponse, Event, ModelId, ReasoningFull, ToolCallFull,
-        ToolName, ToolOutput, ToolResult, Usage,
+        ChatCompletionMessageFull, ChatResponse, Event, ModelId, ReasoningFull, TemplateId,
+        ToolCallFull, ToolName, ToolOutput, ToolResult, Usage,
     };
     use pretty_assertions::assert_eq;
     use serde_json::json;
@@ -451,7 +453,7 @@ mod tests {
         let mut state = AgentState::default();
 
         let action = AgentAction::RenderResult {
-            id: forge_domain::TemplateId::new(100),
+            id: TemplateId::from_template("test_template"),
             content: "test".to_string(),
         };
 

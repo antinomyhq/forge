@@ -4,3 +4,9 @@ use forge_domain::Context;
 pub struct AgentState {
     pub context: Context,
 }
+
+impl AgentState {
+    pub fn new(context: Context) -> Self {
+        Self { context }
+    }
+}

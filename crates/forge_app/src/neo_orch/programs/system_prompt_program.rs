@@ -1,6 +1,6 @@
 use derive_builder::Builder;
 use derive_setters::Setters;
-use forge_domain::{SystemContext, Template};
+use forge_domain::{SystemContext, Template, TemplateId};
 
 use crate::neo_orch::events::{AgentAction, AgentCommand};
 use crate::neo_orch::program::Program;
@@ -44,7 +44,7 @@ impl Program for SystemPromptProgram {
         &self,
         action: &Self::Action,
         state: &mut Self::State,
-    ) -> std::result::Result<Self::Success, Self::Error> {
+    ) -> Result<Self::Success, Self::Error> {
         match action {
             // When receiving a ChatEvent and we have a template, trigger rendering
             AgentAction::ChatEvent(_) => {
@@ -53,7 +53,7 @@ impl Program for SystemPromptProgram {
                     let render_context = self.context.clone().unwrap_or_default();
 
                     return Ok(AgentCommand::Render {
-                        id: template.id(),
+                        id: TemplateId::from_template(&template.template),
                         template: template.template.clone(),
                         object: serde_json::to_value(render_context)?,
                     });
