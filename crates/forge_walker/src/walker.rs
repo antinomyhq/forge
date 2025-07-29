@@ -107,97 +107,132 @@ impl Walker {
     /// Blocking function to scan filesystem. Use this when you already have
     /// a runtime or want to avoid spawning a new one.
     pub fn get_blocking(&self) -> Result<Vec<File>> {
-        let mut files = Vec::new();
-        let mut total_size = 0u64;
-        let mut dir_entries: HashMap<String, usize> = HashMap::new();
-        let mut file_count = 0;
+        use std::sync::{Arc, Mutex};
 
-        // TODO: Convert to async and return a stream
+        let files = Arc::new(Mutex::new(Vec::new()));
+        let total_size = Arc::new(Mutex::new(0u64));
+        let dir_entries = Arc::new(Mutex::new(HashMap::<String, usize>::new()));
+        let file_count = Arc::new(Mutex::new(0usize));
+
+        // Use parallel walking for better performance
         let walk = WalkBuilder::new(&self.cwd)
             .standard_filters(true) // use standard ignore filters.
             .max_depth(Some(self.max_depth))
-            // TODO: use build_parallel() for better performance
-            .build();
+            .build_parallel();
 
-        'walk_loop: for entry in walk.flatten() {
-            let path = entry.path();
+        let max_depth = self.max_depth;
+        let max_breadth = self.max_breadth;
+        let max_file_size = self.max_file_size;
+        let max_files = self.max_files;
+        let max_total_size = self.max_total_size;
+        let skip_binary = self.skip_binary;
+        let cwd = self.cwd.clone();
 
-            // Calculate depth relative to base directory
-            let depth = path
-                .strip_prefix(&self.cwd)
-                .map(|p| p.components().count())
-                .unwrap_or(0);
+        walk.run(|| {
+            Box::new(|result| {
+                let entry = match result {
+                    Ok(entry) => entry,
+                    Err(_) => return ignore::WalkState::Continue,
+                };
 
-            if depth > self.max_depth {
-                continue;
-            }
+                let path = entry.path();
 
-            // Handle breadth limit
-            if let Some(parent) = path.parent() {
-                let parent_path = parent.to_string_lossy().to_string();
-                let entry_count = dir_entries.entry(parent_path).or_insert(0);
-                *entry_count += 1;
+                // Calculate depth relative to base directory
+                let depth = path
+                    .strip_prefix(&cwd)
+                    .map(|p| p.components().count())
+                    .unwrap_or(0);
 
-                if *entry_count > self.max_breadth {
-                    continue;
+                if depth > max_depth {
+                    return ignore::WalkState::Continue;
                 }
-            }
 
-            let is_dir = path.is_dir();
+                // Handle breadth limit
+                if let Some(parent) = path.parent() {
+                    let parent_path = parent.to_string_lossy().to_string();
+                    let mut dir_entries_guard = dir_entries.lock().unwrap();
+                    let entry_count = dir_entries_guard.entry(parent_path).or_insert(0);
+                    *entry_count += 1;
 
-            // Skip binary files if configured
-            if self.skip_binary && !is_dir && Self::is_likely_binary(path) {
-                continue;
-            }
-
-            let metadata = match path.metadata() {
-                Ok(meta) => meta,
-                Err(_) => continue, // Skip files we can't read metadata for
-            };
-
-            let file_size = metadata.len();
-
-            // Skip files that exceed size limit
-            if !is_dir && file_size > self.max_file_size {
-                continue;
-            }
-
-            // Check total size limit
-            if total_size + file_size > self.max_total_size {
-                break 'walk_loop;
-            }
-
-            // Check if we've hit the file count limit (only count non-directories)
-            if !is_dir {
-                file_count += 1;
-                if file_count > self.max_files {
-                    break 'walk_loop;
+                    if *entry_count > max_breadth {
+                        return ignore::WalkState::Continue;
+                    }
                 }
-            }
 
-            let relative_path = path
-                .strip_prefix(&self.cwd)
-                .with_context(|| format!("Failed to strip prefix from path: {}", path.display()))?;
-            let path_string = relative_path.to_string_lossy().to_string();
+                let is_dir = path.is_dir();
 
-            let file_name = path
-                .file_name()
-                .map(|name| name.to_string_lossy().to_string());
+                // Skip binary files if configured
+                if skip_binary && !is_dir && Self::is_likely_binary(path) {
+                    return ignore::WalkState::Continue;
+                }
 
-            // Ensure directory paths end with '/' for is_dir() function
-            let path_string = if is_dir {
-                format!("{path_string}/")
-            } else {
-                path_string
-            };
+                let metadata = match path.metadata() {
+                    Ok(meta) => meta,
+                    Err(_) => return ignore::WalkState::Continue, // Skip files we can't read metadata for
+                };
 
-            files.push(File { path: path_string, file_name, size: file_size });
+                let file_size = metadata.len();
 
-            if !is_dir {
-                total_size += file_size;
-            }
-        }
+                // Skip files that exceed size limit
+                if !is_dir && file_size > max_file_size {
+                    return ignore::WalkState::Continue;
+                }
 
+                // Check total size limit
+                {
+                    let total_size_guard = total_size.lock().unwrap();
+                    if *total_size_guard + file_size > max_total_size {
+                        return ignore::WalkState::Quit;
+                    }
+                }
+
+                // Check if we've hit the file count limit (only count non-directories)
+                if !is_dir {
+                    let mut file_count_guard = file_count.lock().unwrap();
+                    *file_count_guard += 1;
+                    if *file_count_guard > max_files {
+                        return ignore::WalkState::Quit;
+                    }
+                }
+
+                let relative_path = match path.strip_prefix(&cwd) {
+                    Ok(rp) => rp,
+                    Err(_) => return ignore::WalkState::Continue,
+                };
+                let path_string = relative_path.to_string_lossy().to_string();
+
+                let file_name = path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string());
+
+                // Ensure directory paths end with '/' for is_dir() function
+                let path_string = if is_dir {
+                    format!("{path_string}/")
+                } else {
+                    path_string
+                };
+
+                let file = File { path: path_string, file_name, size: file_size };
+
+                // Update total size and add file to results
+                {
+                    let mut files_guard = files.lock().unwrap();
+                    files_guard.push(file);
+
+                    if !is_dir {
+                        let mut total_size_guard = total_size.lock().unwrap();
+                        *total_size_guard += file_size;
+                    }
+                }
+
+                ignore::WalkState::Continue
+            })
+        });
+
+        let files = Arc::try_unwrap(files)
+            .map_err(|_| anyhow::anyhow!("Failed to extract files"))?
+            .into_inner()
+            .unwrap();
         Ok(files)
     }
 }
@@ -541,5 +576,27 @@ mod tests {
                 file
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_parallel_walker_performance() {
+        use std::time::Instant;
+
+        let fixture = fixtures::create_file_collection(50, "test_file").unwrap();
+
+        let start = Instant::now();
+        let _files = Walker::min_all().cwd(fixture.1).get().await.unwrap();
+        let duration = start.elapsed();
+
+        // The test should complete reasonably quickly
+        // This is not a strict performance test, just ensuring the parallel walker works
+        assert!(
+            duration.as_secs() < 5,
+            "Walker took too long: {:?}",
+            duration
+        );
+
+        // Verify we get some files
+        assert!(!_files.is_empty(), "Should find some files");
     }
 }
