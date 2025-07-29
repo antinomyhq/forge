@@ -106,6 +106,7 @@ rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a9791
     "transport-child-process",
     "transport-sse-server",
 ] }
+tokio-util = { version = "0.7.15", features = ["codec"] }
 open = "5.3.2"
 ansi-to-tui = "7.0.0"
 nucleo = "0.5.0"
