@@ -345,28 +345,21 @@ impl<S: AgentService> Orchestrator<S> {
         let attachments = event.attachments.clone();
 
         // Process each attachment and fold the results into the context
-        context = attachments
-            .into_iter()
-            .fold(context.clone(), |ctx, attachment| {
-                ctx.add_message(match attachment.content {
-                    AttachmentContent::Image(image) => ContextMessage::Image(image),
-                    AttachmentContent::FileContent {
-                        content,
-                        start_line,
-                        end_line,
-                        total_lines,
-                    } => {
-                        let elm = Element::new("file_content")
-                            .attr("path", attachment.path)
-                            .attr("start_line", start_line)
-                            .attr("end_line", end_line)
-                            .attr("total_lines", total_lines)
-                            .cdata(content);
+        context = attachments.into_iter().fold(context, |ctx, attachment| {
+            ctx.add_message(match attachment.content {
+                AttachmentContent::Image(image) => ContextMessage::Image(image),
+                AttachmentContent::FileContent { content, start_line, end_line, total_lines } => {
+                    let elm = Element::new("file_content")
+                        .attr("path", attachment.path)
+                        .attr("start_line", start_line)
+                        .attr("end_line", end_line)
+                        .attr("total_lines", total_lines)
+                        .cdata(content);
 
-                        ContextMessage::user(elm, model_id.clone().into())
-                    }
-                })
-            });
+                    ContextMessage::user(elm, model_id.clone().into())
+                }
+            })
+        });
 
         // Indicates whether the tool execution has been completed
         let mut is_complete = false;

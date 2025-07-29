@@ -32,6 +32,7 @@ convert_case.workspace = true
 backon.workspace = true
 eserde.workspace = true
 url.workspace = true
+derive_builder.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
