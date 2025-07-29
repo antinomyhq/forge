@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::{FileInfoInfra, FileReaderInfra, FileWriterInfra};
 use anyhow::{Context, Result};
 use forge_app::domain::{Agent, AgentId};
 use forge_domain::Environment;
@@ -8,14 +9,18 @@ use forge_walker::Walker;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 use serde::{Deserialize, Serialize};
-
-use crate::{FileInfoInfra, FileReaderInfra, FileWriterInfra};
+use tokio::sync::Mutex;
 
 /// A service for loading agent definitions from individual files in the
 /// forge/agent directory
 pub struct AgentLoaderService<F> {
     infra: Arc<F>,
     environment: Environment,
+
+    // Cache is used to maintain the loaded agents
+    // for this service instance.
+    // So that they could live till user starts a new session.
+    cache: Arc<Mutex<Option<Vec<Agent>>>>,
 }
 
 /// Represents the frontmatter structure of an agent definition file
@@ -34,7 +39,7 @@ struct InternalAgentDefinitionFile {
 
 impl<F> AgentLoaderService<F> {
     pub fn new(infra: Arc<F>, environment: Environment) -> Self {
-        Self { infra, environment }
+        Self { infra, environment, cache: Arc::new(Default::default()) }
     }
 }
 
@@ -44,6 +49,9 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra> forge_app::AgentLoade
 {
     /// Load all agent definitions from the forge/agent directory
     async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        if let Some(agents) = self.cache.lock().await.as_ref() {
+            return Ok(agents.clone());
+        }
         let agent_dir = self.environment.agent_path();
         if !self.infra.exists(&agent_dir).await? {
             return Ok(vec![]);
@@ -65,6 +73,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra> forge_app::AgentLoade
                 agents.push(agent_def.agent)
             }
         }
+
+        *self.cache.lock().await = Some(agents.clone());
 
         Ok(agents)
     }

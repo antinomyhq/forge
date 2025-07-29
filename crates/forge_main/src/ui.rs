@@ -81,17 +81,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
-
-        // Load and merge agents when creating a new conversation
-        let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-        let agents = self.api.load_agents().await?;
-        merge_agents_into_workflow(&mut workflow, agents);
-
-        // Write the updated workflow back
-        self.api
-            .write_workflow(self.cli.workflow.as_deref(), &workflow)
-            .await?;
-
         self.init_state(false).await?;
         banner::display()?;
         self.trace_user();
@@ -585,11 +574,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         let provider = self.init_provider().await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-
-        // Load and merge agents into the workflow
-        let agents = self.api.load_agents().await?;
-        merge_agents_into_workflow(&mut workflow, agents);
-
         if workflow.model.is_none() {
             workflow.model = Some(
                 self.select_model()
@@ -893,19 +877,7 @@ impl Display for CliModel {
         Ok(())
     }
 }
-/// Merge loaded agents into an existing workflow
-fn merge_agents_into_workflow(workflow: &mut Workflow, agent_definitions: Vec<Agent>) {
-    for agent_def in agent_definitions {
-        // Check if an agent with this ID already exists in the workflow
-        if let Some(existing_agent) = workflow.agents.iter_mut().find(|a| a.id == agent_def.id) {
-            // Merge the loaded agent into the existing one
-            existing_agent.merge(agent_def);
-        } else {
-            // Add the new agent to the workflow
-            workflow.agents.push(agent_def);
-        }
-    }
-}
+
 #[cfg(test)]
 mod tests {
     use console::strip_ansi_codes;

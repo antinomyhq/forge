@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{
-    AgentLoaderService, AppConfig, AppConfigService, AuthService, ConversationService,
+    AppConfig, AppConfigService, AuthService, ConversationService,
     EnvironmentService, FileDiscoveryService, ForgeApp, InitAuth, McpConfigManager,
     ProviderRegistry, ProviderService, Services, User, Walker, WorkflowService,
 };
@@ -86,7 +86,8 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.services.read_workflow(path).await
+        let app = ForgeApp::new(self.services.clone());
+        app.read_workflow(path).await
     }
 
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
@@ -172,9 +173,5 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             return Ok(Some(user_info));
         }
         Ok(None)
-    }
-
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.services.load_agents().await
     }
 }

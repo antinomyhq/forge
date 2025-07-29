@@ -52,12 +52,13 @@ strum.workspace = true
 bytes.workspace = true
 console.workspace = true
 serde_yml.workspace = true
-gray_matter = "0.3.2"
+gray_matter.workspace = true
 merge.workspace = true
 strip-ansi-escapes.workspace = true
 rmcp.workspace = true
 forge_app.workspace = true
 forge_domain.workspace = true
+forge_walker.workspace = true
 url.workspace = true
 
 [dev-dependencies]
