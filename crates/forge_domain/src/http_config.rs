@@ -1,8 +1,10 @@
+use derive_more::Display;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Display)]
 #[serde(rename_all = "camelCase")]
 pub enum TlsMode {
+    #[default]
     Rustls,
     NativeTls,
 }

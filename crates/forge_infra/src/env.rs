@@ -106,10 +106,10 @@ impl ForgeEnvironmentInfra {
         {
             config.max_redirects = parsed;
         }
-
-        if let Ok(val) = std::env::var("FORGE_HTTP_TLS_MODE") {
-            config.tls_mode = parse_tls_mode(&val);
-        }
+        config.tls_mode = std::env::var("FORGE_HTTP_TLS_MODE")
+            .map(|v| parse_tls_mode(&v))
+            .unwrap_or_default();
+        tracing::info!("TLS mode: {}", config.tls_mode);
 
         config
     }

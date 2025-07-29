@@ -61,11 +61,9 @@ impl ClientBuilder {
 
         match tls_mode {
             TlsMode::Rustls => {
-                tracing::info!("Using Rustls");
                 builder = builder.use_rustls_tls();
             }
             TlsMode::NativeTls => {
-                tracing::info!("Using Native TLS");
                 builder = builder.use_native_tls();
             }
         }
