@@ -48,6 +48,7 @@ impl ClientBuilder {
         let retry_config = self.retry_config;
 
         let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
             // .connect_timeout(std::time::Duration::from_secs(
             //     timeout_config.connect_timeout,
             // ))
