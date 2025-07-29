@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use derive_builder::Builder;
+use forge_app::HttpClientService;
 use forge_app::domain::{
-    HttpInfra, ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
+    ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
+use reqwest::Url;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
@@ -15,18 +17,17 @@ use crate::client::{create_headers, join_url};
 use crate::utils::format_http_context;
 
 #[derive(Clone, Builder)]
-pub struct Anthropic {
-    http: Arc<dyn HttpInfra>,
+pub struct Anthropic<T> {
+    http: T,
     api_key: String,
     base_url: String,
     anthropic_version: String,
 }
 
-impl Anthropic {
-    pub fn builder() -> AnthropicBuilder {
+impl<T: HttpClientService + Clone> Anthropic<T> {
+    pub fn builder() -> AnthropicBuilder<T> {
         AnthropicBuilder::default()
     }
-
     fn get_headers(&self) -> Vec<(String, String)> {
         vec![
             ("x-api-key".to_string(), self.api_key.clone()),
@@ -36,9 +37,13 @@ impl Anthropic {
             ),
         ]
     }
+
+    fn url(&self, path: &str) -> anyhow::Result<Url> {
+        join_url(&self.base_url, path)
+    }
 }
 
-impl Anthropic {
+impl<T: HttpClientService + Clone> Anthropic<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -54,7 +59,7 @@ impl Anthropic {
             .max_tokens(max_tokens as u64);
 
         let path = "/messages";
-        let url = join_url(&self.base_url, path)?;
+        let url = self.url(path)?;
         debug!(url = %url, model = %model, "Connecting Upstream");
 
         let json_bytes =

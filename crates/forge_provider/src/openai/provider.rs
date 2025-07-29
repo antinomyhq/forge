@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use derive_builder::Builder;
+use forge_app::HttpClientService;
 use forge_app::domain::{
-    HttpInfra, ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
+    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
 use reqwest::header::AUTHORIZATION;
 use tokio_stream::StreamExt;
@@ -17,16 +18,15 @@ use crate::openai::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
 
 #[derive(Clone, Builder)]
-pub struct ForgeProvider {
+pub struct OpenAIProvider<T> {
     provider: Provider,
-    http: Arc<dyn HttpInfra>,
+    http: T,
 }
 
-impl ForgeProvider {
-    pub fn builder() -> ForgeProviderBuilder {
-        ForgeProviderBuilder::default()
+impl<T: HttpClientService + Clone> OpenAIProvider<T> {
+    pub fn builder() -> OpenAIProviderBuilder<T> {
+        OpenAIProviderBuilder::default()
     }
-
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
     // - `HTTP-Referer`: Identifies your app on openrouter.ai
     // - `X-Title`: Sets/modifies your app's title
@@ -158,7 +158,7 @@ impl ForgeProvider {
     }
 }
 
-impl ForgeProvider {
+impl<T: HttpClientService + Clone> OpenAIProvider<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -210,13 +210,13 @@ mod tests {
     use super::*;
     use crate::mock_server::{MockServer, normalize_ports};
 
-    fn create_provider(base_url: &str) -> anyhow::Result<ForgeProvider> {
+    fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider> {
         let provider = Provider::OpenAI {
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
         };
 
-        Ok(ForgeProvider::builder()
+        Ok(OpenAIProvider::builder()
             .http(Arc::new(ForgeInfra::new(
                 false,
                 std::env::current_dir().unwrap(),

@@ -1,20 +1,21 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::ProviderService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, HttpConfig, HttpInfra, Model, ModelId, Provider,
+    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
     ResultStream, RetryConfig,
 };
+use forge_app::{HttpClientService, ProviderService};
 use forge_provider::{Client, ClientBuilder};
 use tokio::sync::Mutex;
 
 use crate::EnvironmentInfra;
-
+use crate::http::HttpClient;
+use crate::infra::HttpInfra;
 #[derive(Clone)]
 pub struct ForgeProviderService<I: HttpInfra> {
     retry_config: Arc<RetryConfig>,
-    cached_client: Arc<Mutex<Option<Client>>>,
+    cached_client: Arc<Mutex<Option<Client<HttpClient<I>>>>>,
     cached_models: Arc<Mutex<Option<Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
@@ -36,7 +37,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
         }
     }
 
-    async fn client(&self, provider: Provider) -> Result<Client> {
+    async fn client(&self, provider: Provider) -> Result<Client<HttpClient<I>>> {
         let mut client_guard = self.cached_client.lock().await;
 
         match client_guard.as_ref() {
@@ -46,7 +47,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
                     .retry_config(self.retry_config.clone())
                     .timeout_config(self.timeout_config.clone())
                     .use_hickory(false) // use native DNS resolver(GAI)
-                    .build(self.http_infra.clone() as Arc<dyn HttpInfra>)?;
+                    .build(HttpClient::new(self.http_infra.clone()))?;
 
                 // Cache the new client
                 *client_guard = Some(client.clone());

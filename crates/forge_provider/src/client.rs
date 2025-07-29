@@ -5,8 +5,9 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
+use forge_app::HttpClientService;
 use forge_app::domain::{
-    HttpInfra, ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
 use reqwest::Url;
 use reqwest::header::HeaderMap;
@@ -14,7 +15,7 @@ use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
 use crate::anthropic::Anthropic;
-use crate::openai::ForgeProvider;
+use crate::openai::OpenAIProvider;
 use crate::retry::into_retry;
 
 #[derive(Setters)]
@@ -41,13 +42,13 @@ impl ClientBuilder {
     }
 
     /// Build the client with the configured settings.
-    pub fn build(self, http: Arc<dyn HttpInfra>) -> Result<Client> {
+    pub fn build<T: HttpClientService + Clone>(self, http: T) -> Result<Client<T>> {
         let provider = self.provider;
         let retry_config = self.retry_config;
 
         let inner = match &provider {
             Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
-                ForgeProvider::builder()
+                OpenAIProvider::builder()
                     .http(http.clone())
                     .provider(provider.clone())
                     .build()
@@ -55,7 +56,7 @@ impl ClientBuilder {
             ),
 
             Provider::Anthropic { url, key } => InnerClient::Anthropic(
-                Anthropic::builder()
+                Anthropic::<T>::builder()
                     .http(http.clone())
                     .api_key(key.to_string())
                     .base_url(provider.to_base_url().to_string())
@@ -76,18 +77,18 @@ impl ClientBuilder {
 }
 
 #[derive(Clone)]
-pub struct Client {
+pub struct Client<T> {
     retry_config: Arc<RetryConfig>,
-    inner: Arc<InnerClient>,
+    inner: Arc<InnerClient<T>>,
     models_cache: Arc<RwLock<HashMap<ModelId, Model>>>,
 }
 
-enum InnerClient {
-    OpenAICompat(ForgeProvider),
-    Anthropic(Anthropic),
+enum InnerClient<T> {
+    OpenAICompat(OpenAIProvider<T>),
+    Anthropic(Anthropic<T>),
 }
 
-impl Client {
+impl<T: HttpClientService + Clone> Client<T> {
     fn retry<A>(&self, result: anyhow::Result<A>) -> anyhow::Result<A> {
         let retry_config = &self.retry_config;
         result.map_err(move |e| into_retry(e, retry_config))
@@ -112,7 +113,7 @@ impl Client {
     }
 }
 
-impl Client {
+impl<T: HttpClientService + Clone> Client<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
