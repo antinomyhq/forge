@@ -6,6 +6,7 @@ mod conversation;
 mod discovery;
 mod env;
 mod forge_services;
+mod http;
 mod infra;
 mod mcp;
 mod provider;

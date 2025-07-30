@@ -135,6 +135,7 @@ mod tests {
                 max_retry_attempts: 3,
                 retry_status_codes: vec![429, 500, 502, 503, 504],
                 max_delay: None,
+                suppress_retry_errors: false,
             },
             max_search_lines: 25,
             max_search_result_bytes: max_bytes.ceil() as usize,

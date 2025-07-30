@@ -1,0 +1,5 @@
+[build.env]
+passthrough = [
+    "APP_VERSION",
+    "POSTHOG_API_SECRET",
+]

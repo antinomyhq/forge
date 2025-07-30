@@ -1,6 +1,7 @@
 ---
-source: crates/forge_provider/src/forge_provider/request.rs
+source: crates/forge_provider/src/openai/request.rs
 expression: router_message
+snapshot_kind: text
 ---
 {
   "role": "assistant",

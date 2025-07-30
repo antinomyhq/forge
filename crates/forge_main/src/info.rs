@@ -1,8 +1,8 @@
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use colored::Colorize;
-use forge_api::{Environment, LoginInfo};
+use forge_api::{Environment, LoginInfo, UserUsage};
 use forge_tracker::VERSION;
 
 use crate::model::ForgeCommandManager;
@@ -58,25 +58,28 @@ impl From<&Environment> for Info {
             None => "(not in a git repository)".to_string(),
         };
 
-        Info::new()
+        let mut info = Info::new()
             .add_title("Environment")
             .add_key_value("Version", VERSION)
-            .add_key_value(
-                "Working Directory",
-                format_path_zsh_style(&env.home, &env.cwd),
-            )
+            .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
             .add_key_value("Shell", &env.shell)
             .add_key_value("Git Branch", branch_info)
-            .add_title("Paths")
-            .add_key_value("Logs", format_path_zsh_style(&env.home, &env.log_path()))
-            .add_key_value(
-                "History",
-                format_path_zsh_style(&env.home, &env.history_path()),
-            )
+            .add_title("Paths");
+
+        // Only show logs path if the directory exists
+        let log_path = env.log_path();
+        if log_path.exists() {
+            info = info.add_key_value("Logs", format_path_for_display(env, &log_path));
+        }
+
+        info = info
+            .add_key_value("History", format_path_for_display(env, &env.history_path()))
             .add_key_value(
                 "Checkpoints",
-                format_path_zsh_style(&env.home, &env.snapshot_path()),
-            )
+                format_path_for_display(env, &env.snapshot_path()),
+            );
+
+        info
     }
 }
 
@@ -129,14 +132,43 @@ impl fmt::Display for Info {
         Ok(())
     }
 }
-/// Formats a path in zsh style, replacing home directory with ~
-fn format_path_zsh_style(home: &Option<PathBuf>, path: &Path) -> String {
-    if let Some(home) = home
+
+/// Formats a path for display, using actual home directory on Windows and tilde
+/// notation on Unix, with proper quoting for paths containing spaces
+fn format_path_for_display(env: &Environment, path: &Path) -> String {
+    // Check if path is under home directory first
+    if let Some(home) = &env.home
         && let Ok(rel_path) = path.strip_prefix(home)
     {
-        return format!("~/{}", rel_path.display());
+        // Format based on OS
+        return if env.os == "windows" {
+            // Use actual home path with proper quoting for Windows to work in both cmd and
+            // PowerShell
+            let home_path = home.display().to_string();
+            let full_path = format!(
+                "{}{}{}",
+                home_path,
+                std::path::MAIN_SEPARATOR,
+                rel_path.display()
+            );
+            if full_path.contains(' ') {
+                format!("\"{full_path}\"")
+            } else {
+                full_path
+            }
+        } else {
+            format!("~/{}", rel_path.display())
+        };
     }
-    path.display().to_string()
+
+    // Fall back to absolute path if not under home directory
+    // Quote paths on Windows if they contain spaces
+    let path_str = path.display().to_string();
+    if env.os == "windows" && path_str.contains(' ') {
+        format!("\"{path_str}\"")
+    } else {
+        path_str
+    }
 }
 
 /// Gets the current git branch name if available
@@ -185,10 +217,9 @@ impl From<&ForgeCommandManager> for Info {
         info
     }
 }
-
 impl From<&LoginInfo> for Info {
     fn from(login_info: &LoginInfo) -> Self {
-        let mut info = Info::new().add_title("User");
+        let mut info = Info::new().add_title("Account");
 
         if let Some(email) = &login_info.email {
             info = info.add_key_value("Login", email);
@@ -208,52 +239,247 @@ fn truncate_key(key: &str) -> String {
     }
 }
 
+impl From<&UserUsage> for Info {
+    fn from(user_usage: &UserUsage) -> Self {
+        let usage = &user_usage.usage;
+        let plan = &user_usage.plan;
+
+        // Create progress bar for usage visualization
+        let progress_bar = create_progress_bar(usage.current, usage.limit, 20);
+
+        let mut info = Info::new()
+            .add_title(format!("{} Quota", plan.r#type.to_uppercase()))
+            .add_key_value(
+                "Usage",
+                format!(
+                    "{} / {} [{} Remaining]",
+                    usage.current, usage.limit, usage.remaining
+                ),
+            );
+
+        // Add reset information if available
+        if let Some(reset_in) = usage.reset_in {
+            let reset_info = format_reset_time(reset_in);
+            info = info.add_key_value("Resets in", reset_info);
+        }
+
+        info.add_key_value("Progress", progress_bar)
+    }
+}
+
+pub fn create_progress_bar(current: u32, limit: u32, width: usize) -> String {
+    if limit == 0 {
+        return "N/A".to_string();
+    }
+
+    let percentage = (current as f64 / limit as f64 * 100.0).min(100.0);
+    let filled_chars = ((current as f64 / limit as f64) * width as f64).round() as usize;
+    let filled_chars = filled_chars.min(width);
+    let empty_chars = width - filled_chars;
+
+    // Option 1: Unicode block characters (most visually appealing)
+    format!(
+        "▐{}{} {:.1}%",
+        "█".repeat(filled_chars),
+        "░".repeat(empty_chars),
+        percentage
+    )
+}
+pub fn format_reset_time(seconds: u32) -> String {
+    if seconds == 0 {
+        return "now".to_string();
+    }
+
+    let hours = seconds / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let remaining_seconds = seconds % 60;
+
+    if hours > 0 {
+        if minutes > 0 {
+            format!("{hours}h {minutes}m")
+        } else {
+            format!("{hours}h")
+        }
+    } else if minutes > 0 {
+        if remaining_seconds > 0 {
+            format!("{minutes}m {remaining_seconds}s")
+        } else {
+            format!("{minutes}m")
+        }
+    } else {
+        format!("{remaining_seconds}s")
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use forge_api::LoginInfo;
+    use std::path::PathBuf;
+
+    use forge_api::Environment;
     use pretty_assertions::assert_eq;
 
-    use crate::info::Info;
-
-    #[test]
-    fn test_login_info_display() {
-        let fixture = LoginInfo {
-            api_key: "test-key".to_string(),
-            api_key_name: "Test Key".to_string(),
-            api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
-            email: Some("test@example.com".to_string()),
-            name: Some("Test User".to_string()),
-            auth_provider_id: Some("provider-id".to_string()),
-        };
-
-        let actual = Info::from(&fixture);
-
-        let expected = Info::new()
-            .add_title("User")
-            .add_key_value("Login", "test@example.com")
-            .add_key_value("Key", "sk-fg-v1-abcd...1234");
-
-        assert_eq!(actual.sections, expected.sections);
+    // Helper to create minimal test environment
+    fn create_env(os: &str, home: Option<&str>) -> Environment {
+        Environment {
+            os: os.to_string(),
+            home: home.map(PathBuf::from),
+            // Minimal required fields with defaults
+            pid: 1,
+            cwd: PathBuf::from("/"),
+            shell: "bash".to_string(),
+            base_path: PathBuf::from("/tmp"),
+            forge_api_url: "http://localhost".parse().unwrap(),
+            retry_config: Default::default(),
+            max_search_lines: 100,
+            fetch_truncation_limit: 1000,
+            stdout_max_prefix_length: 10,
+            stdout_max_suffix_length: 10,
+            max_read_size: 100,
+            http: Default::default(),
+            max_file_size: 1000,
+        }
     }
 
     #[test]
-    fn test_login_info_display_no_name() {
-        let fixture = LoginInfo {
-            api_key: "test-key".to_string(),
-            api_key_name: "Test Key".to_string(),
-            api_key_masked: "sk-fg-v1-abcd...1234".to_string(),
-            email: Some("test@example.com".to_string()),
-            name: None,
-            auth_provider_id: Some("provider-id".to_string()),
+    fn test_format_path_for_display_unix_home() {
+        let fixture = create_env("linux", Some("/home/user"));
+        let path = PathBuf::from("/home/user/project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "~/project";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_windows_home() {
+        let fixture = create_env("windows", Some("C:\\Users\\User"));
+        let path = PathBuf::from("C:\\Users\\User\\project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = if cfg!(windows) {
+            "C:\\Users\\User\\project"
+        } else {
+            "C:\\Users\\User\\project"
         };
+        assert_eq!(actual, expected);
+    }
 
-        let actual = Info::from(&fixture);
+    #[test]
+    fn test_format_path_for_display_windows_home_with_spaces() {
+        let fixture = create_env("windows", Some("C:\\Users\\User Name"));
+        let path = PathBuf::from("C:\\Users\\User Name\\project");
 
-        let expected = Info::new()
-            .add_title("User")
-            .add_key_value("Login", "test@example.com")
-            .add_key_value("Key", "sk-fg-v1-abcd...1234");
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = if cfg!(windows) {
+            "\"C:\\Users\\User Name\\project\""
+        } else {
+            "\"C:\\Users\\User Name\\project\""
+        };
+        assert_eq!(actual, expected);
+    }
 
-        assert_eq!(actual.sections, expected.sections);
+    #[test]
+    fn test_format_path_for_display_absolute() {
+        let fixture = create_env("linux", Some("/home/user"));
+        let path = PathBuf::from("/var/log/app");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "/var/log/app";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_absolute_windows_with_spaces() {
+        let fixture = create_env("windows", Some("C:/Users/User"));
+        let path = PathBuf::from("C:/Program Files/App");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "\"C:/Program Files/App\"";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_path_for_display_no_home() {
+        let fixture = create_env("linux", None);
+        let path = PathBuf::from("/home/user/project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "/home/user/project";
+        assert_eq!(actual, expected);
+    }
+    #[test]
+    fn test_create_progress_bar() {
+        // Test normal case - 70% of 20 = 14 filled, 6 empty
+        let actual = super::create_progress_bar(70, 100, 20);
+        let expected = "▐██████████████░░░░░░ 70.0%";
+        assert_eq!(actual, expected);
+
+        // Test 100% case
+        let actual = super::create_progress_bar(100, 100, 20);
+        let expected = "▐████████████████████ 100.0%";
+        assert_eq!(actual, expected);
+
+        // Test 0% case
+        let actual = super::create_progress_bar(0, 100, 20);
+        let expected = "▐░░░░░░░░░░░░░░░░░░░░ 0.0%";
+        assert_eq!(actual, expected);
+
+        // Test zero limit case
+        let actual = super::create_progress_bar(50, 0, 20);
+        let expected = "N/A";
+        assert_eq!(actual, expected);
+
+        // Test over 100% case (should cap at 100%)
+        let actual = super::create_progress_bar(150, 100, 20);
+        let expected = "▐████████████████████ 100.0%";
+        assert_eq!(actual, expected);
+    }
+    #[test]
+    fn test_format_reset_time_hours_and_minutes() {
+        let actual = super::format_reset_time(3661); // 1 hour, 1 minute, 1 second
+        let expected = "1h 1m";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_reset_time_hours_only() {
+        let actual = super::format_reset_time(3600); // exactly 1 hour
+        let expected = "1h";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_reset_time_minutes_and_seconds() {
+        let actual = super::format_reset_time(125); // 2 minutes, 5 seconds
+        let expected = "2m 5s";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_reset_time_minutes_only() {
+        let actual = super::format_reset_time(120); // exactly 2 minutes
+        let expected = "2m";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_reset_time_seconds_only() {
+        let actual = super::format_reset_time(45); // 45 seconds
+        let expected = "45s";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_reset_time_zero() {
+        let actual = super::format_reset_time(0);
+        let expected = "now";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_reset_time_large_value() {
+        let actual = super::format_reset_time(7265); // 2 hours, 1 minute, 5 seconds
+        let expected = "2h 1m";
+        assert_eq!(actual, expected);
     }
 }

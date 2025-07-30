@@ -1,7 +1,6 @@
 use derive_setters::Setters;
 use gh_workflow_tailcall::*;
 
-use crate::jobs::apt_get_install;
 use crate::release_matrix::ReleaseMatrix;
 
 #[derive(Clone, Default, Setters)]
@@ -42,7 +41,8 @@ impl From<ReleaseBuilderJob> for Job {
             // Install Rust with cross-compilation target
             .add_step(
                 Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
-                    .with(("target", "${{ matrix.target }}")),
+                    .with(("target", "${{ matrix.target }}"))
+                    .if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
             )
             // Explicitly add the target to ensure it's available
             .add_step(Step::run("rustup target add ${{ matrix.target }}").name("Add Rust target"))
@@ -50,21 +50,10 @@ impl From<ReleaseBuilderJob> for Job {
             .add_step(
                 Step::run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
                     .if_condition(Expression::new(
-                        "!contains(matrix.target, '-unknown-linux-gnu')",
+                        "!contains(matrix.target, '-unknown-linux-')",
                     )),
             )
-            .add_step(
-                Step::run(apt_get_install(&[
-                    "gcc-aarch64-linux-gnu",
-                    "musl-tools",
-                    "musl-dev",
-                    "pkg-config",
-                    "libssl-dev",
-                ]))
-                .if_condition(Expression::new(
-                    "contains(matrix.target, '-unknown-linux-musl')",
-                )),
-            ) // Build release binary
+            // Build release binary
             .add_step(
                 Step::uses("ClementTsang", "cargo-action", "v0.0.6")
                     .add_with(("command", "build --release"))

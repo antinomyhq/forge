@@ -104,9 +104,9 @@ impl ToolCallFull {
                             arguments: if current_arguments.is_empty() {
                                 Value::default()
                             } else {
-                                serde_json::from_str(&current_arguments).map_err(|error| {
+                                json_repair_parse(&current_arguments).map_err(|repair_error| {
                                     Error::ToolCallArgument {
-                                        error,
+                                        error: repair_error,
                                         args: current_arguments.clone(),
                                     }
                                 })?
@@ -135,8 +135,11 @@ impl ToolCallFull {
                 arguments: if current_arguments.is_empty() {
                     Value::default()
                 } else {
-                    serde_json::from_str(&current_arguments).map_err(|error| {
-                        Error::ToolCallArgument { error, args: current_arguments.clone() }
+                    json_repair_parse(&current_arguments).map_err(|repair_error| {
+                        Error::ToolCallArgument {
+                            error: repair_error,
+                            args: current_arguments.clone(),
+                        }
                     })?
                 },
             });
@@ -151,8 +154,8 @@ impl ToolCallFull {
             None => Ok(Default::default()),
             Some(content) => {
                 let mut tool_call: ToolCallFull =
-                    serde_json::from_str(content).map_err(|error| Error::ToolCallArgument {
-                        error,
+                    json_repair_parse(content).map_err(|repair_error| Error::ToolCallArgument {
+                        error: repair_error,
                         args: content.to_string(),
                     })?;
 
@@ -164,6 +167,23 @@ impl ToolCallFull {
             }
         }
     }
+}
+
+fn json_repair_parse<T>(
+    json_str: &str,
+) -> std::result::Result<T, forge_json_repair::JsonRepairError>
+where
+    T: serde::de::DeserializeOwned,
+{
+    serde_json::from_str(json_str)
+        .map_err(forge_json_repair::JsonRepairError::JsonError)
+        .or_else(|_| {
+            let repaired = forge_json_repair::jsonrepair(json_str);
+            if repaired.is_ok() {
+                tracing::info!("Tool call was successfully repaired.");
+            }
+            repaired
+        })
 }
 
 #[cfg(test)]
