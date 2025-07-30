@@ -54,9 +54,6 @@ impl ForgeHttpInfra {
             TlsBackend::Rustls => {
                 client = client.use_rustls_tls();
             }
-            TlsBackend::Native => {
-                client = client.use_native_tls();
-            }
             TlsBackend::Default => {}
         }
 

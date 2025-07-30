@@ -502,7 +502,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST", "10");
                 env::set_var("FORGE_HTTP_MAX_REDIRECTS", "20");
                 env::set_var("FORGE_HTTP_USE_HICKORY", "true");
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "native");
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
             }
 
             let config = resolve_http_config();
@@ -513,7 +513,7 @@ mod tests {
             assert_eq!(config.pool_max_idle_per_host, 10);
             assert_eq!(config.max_redirects, 20);
             assert_eq!(config.hickory, true);
-            assert_eq!(config.tls_backend, TlsBackend::Native);
+            assert_eq!(config.tls_backend, TlsBackend::Rustls);
 
             // Clean up environment variables
             unsafe {
@@ -598,12 +598,12 @@ mod tests {
 
             // Test setting tls_backend to native
             unsafe {
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "native");
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
             }
 
             let config = resolve_http_config();
             assert_eq!(config.hickory, true); // Should remain from previous setting
-            assert_eq!(config.tls_backend, TlsBackend::Native);
+            assert_eq!(config.tls_backend, TlsBackend::Rustls);
 
             // Test setting tls_backend to default
             unsafe {
@@ -623,11 +623,11 @@ mod tests {
 
             // Test case insensitive parsing
             unsafe {
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "NATIVE");
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
             }
 
             let config = resolve_http_config();
-            assert_eq!(config.tls_backend, TlsBackend::Native);
+            assert_eq!(config.tls_backend, TlsBackend::Rustls);
 
             // Test invalid values (should use defaults)
             unsafe {
