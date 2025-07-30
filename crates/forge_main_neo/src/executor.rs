@@ -8,7 +8,7 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-use crate::domain::{Action, CancelId, Command, Timer};
+use crate::domain::{Action, CancelId, Command, SpotlightCommand, Timer};
 
 // Event type constants
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -34,6 +34,7 @@ impl<T: API + 'static> Executor<T> {
         message: String,
         conversation_id: Option<ConversationId>,
         is_first: bool,
+        current_agent: AgentId,
         tx: &Sender<anyhow::Result<Action>>,
     ) -> anyhow::Result<()> {
         let conversation = if let Some(conv_id) = conversation_id {
@@ -64,7 +65,7 @@ impl<T: API + 'static> Executor<T> {
         };
 
         let event = Event::new(
-            format!("{}/{}", AgentId::FORGE.as_str(), event_type),
+            format!("{}/{}", current_agent.as_str(), event_type),
             Some(Value::String(message.clone())),
         );
 
@@ -180,6 +181,36 @@ impl<T: API + 'static> Executor<T> {
         Ok(())
     }
 
+    async fn execute_spotlight_command(
+        &self,
+        spotlight_cmd: SpotlightCommand,
+        tx: &Sender<anyhow::Result<Action>>,
+    ) -> anyhow::Result<()> {
+        match spotlight_cmd {
+            SpotlightCommand::Agent(agent_id) => {
+                tx.send(Ok(Action::AgentSelected(agent_id))).await?;
+            }
+            SpotlightCommand::Model(_model_id) => {
+                // TODO: Implement model selection when needed
+            }
+        }
+        Ok(())
+    }
+
+    async fn execute_show_agent_selection(
+        &self,
+        tx: &Sender<anyhow::Result<Action>>,
+    ) -> anyhow::Result<()> {
+        // Read the current workflow to get available agents
+        let workflow = self.api.read_merged(None).await?;
+
+        // Send action to show agent selection with available agents
+        tx.send(Ok(Action::ShowAgentSelection(workflow.agents)))
+            .await?;
+
+        Ok(())
+    }
+
     /// Execute an interval command that emits IntervalTick actions at regular
     /// intervals
     ///
@@ -234,8 +265,8 @@ impl<T: API + 'static> Executor<T> {
         tx: Sender<anyhow::Result<Action>>,
     ) -> anyhow::Result<()> {
         match cmd {
-            Command::ChatMessage { message, conversation_id, is_first } => {
-                self.execute_chat_message(message, conversation_id, is_first, &tx)
+            Command::ChatMessage { message, conversation_id, is_first, agent } => {
+                self.execute_chat_message(message, conversation_id, is_first, agent, &tx)
                     .await?;
             }
             Command::ReadWorkspace => {
@@ -253,10 +284,15 @@ impl<T: API + 'static> Executor<T> {
             Command::Interval { duration } => {
                 self.execute_interval(duration, &tx).await?;
             }
-            Command::Spotlight(_) => todo!(),
+            Command::Spotlight(spotlight_cmd) => {
+                self.execute_spotlight_command(spotlight_cmd, &tx).await?;
+            }
             Command::InterruptStream => {
                 // Send InterruptStream action to trigger state update
                 tx.send(Ok(Action::InterruptStream)).await?;
+            }
+            Command::ShowAgentSelection => {
+                self.execute_show_agent_selection(&tx).await?;
             }
         }
         Ok(())

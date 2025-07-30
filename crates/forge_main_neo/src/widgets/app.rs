@@ -1,6 +1,7 @@
 use ratatui::widgets::StatefulWidget;
 
 use crate::domain::State;
+use crate::widgets::agent_selection::AgentSelectionWidget;
 use crate::widgets::chat::ChatWidget;
 
 #[derive(Clone, Default)]
@@ -17,5 +18,6 @@ impl StatefulWidget for App {
         Self: Sized,
     {
         ChatWidget.render(area, buf, state);
+        AgentSelectionWidget.render(area, buf, state);
     }
 }
