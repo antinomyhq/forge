@@ -13,6 +13,8 @@ mod http;
 mod inquire;
 mod mcp_client;
 mod mcp_server;
+mod tls_fallback;
+mod tls_retry;
 mod walker;
 
 pub use executor::ForgeCommandExecutorService;

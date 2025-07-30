@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use forge_domain::{Environment, Provider, RetryConfig, TlsBackend};
+use forge_domain::{Environment, Provider, RetryConfig, TlsBackend, TlsVersion};
 use forge_services::EnvironmentInfra;
 use reqwest::Url;
 
@@ -161,6 +161,15 @@ fn resolve_http_config() -> forge_domain::HttpConfig {
     }
     if let Some(parsed) = parse_env::<TlsBackend>("FORGE_HTTP_TLS_BACKEND") {
         config.tls_backend = parsed;
+    }
+    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MIN_TLS_VERSION") {
+        config.min_tls_version = parsed;
+    }
+    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MAX_TLS_VERSION") {
+        config.max_tls_version = parsed;
+    }
+    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_TLS_FALLBACK_ENABLED") {
+        config.tls_fallback_enabled = parsed;
     }
 
     config
