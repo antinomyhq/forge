@@ -1,3 +1,4 @@
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::pin::Pin;
 
 use anyhow::Context;
@@ -35,6 +36,15 @@ fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
 impl ForgeHttpInfra {
     pub fn new(config: HttpConfig) -> Self {
         let mut client = reqwest::Client::builder()
+            .resolve(
+                "api.forgecode.dev",
+                /**
+                 * !!! IMPORTANT !!!
+                 * Hardcoding IPs will break when we move away from the
+                 * service provider
+                 */
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(76, 76, 21, 21)), 443),
+            )
             .connect_timeout(std::time::Duration::from_secs(config.connect_timeout))
             .read_timeout(std::time::Duration::from_secs(config.read_timeout))
             .pool_idle_timeout(std::time::Duration::from_secs(config.pool_idle_timeout))
