@@ -44,28 +44,24 @@ impl Completer for InputCompleter {
                 .into_iter()
                 .filter(|file| !file.is_dir())
                 .filter_map(|file| {
-                    if let Some(file_name) = file.file_name.as_ref() {
-                        let mut haystack_buf = Vec::new();
-                        let haystack = Utf32Str::new(file_name, &mut haystack_buf);
-                        let pattern =
-                            Pattern::parse(query.term, CaseMatching::Ignore, Normalization::Smart);
+                    let mut haystack_buf = Vec::new();
+                    let haystack = Utf32Str::new(&file.path, &mut haystack_buf);
+                    let pattern =
+                        Pattern::parse(query.term, CaseMatching::Ignore, Normalization::Smart);
 
-                        if let Some(score) = pattern.score(haystack, &mut self.fuzzy_matcher) {
-                            let path_md_fmt = format!("[{}]", file.path);
-                            Some((
-                                score,
-                                Suggestion {
-                                    description: None,
-                                    value: path_md_fmt,
-                                    style: None,
-                                    extra: None,
-                                    span: query.span,
-                                    append_whitespace: true,
-                                },
-                            ))
-                        } else {
-                            None
-                        }
+                    if let Some(score) = pattern.score(haystack, &mut self.fuzzy_matcher) {
+                        let path_md_fmt = format!("[{}]", file.path);
+                        Some((
+                            score,
+                            Suggestion {
+                                description: None,
+                                value: path_md_fmt,
+                                style: None,
+                                extra: None,
+                                span: query.span,
+                                append_whitespace: true,
+                            },
+                        ))
                     } else {
                         None
                     }
