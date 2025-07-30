@@ -3,7 +3,7 @@ use std::pin::Pin;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::ServerSentEvent;
-use forge_domain::HttpConfig;
+use forge_domain::{HttpConfig, TlsBackend};
 use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
@@ -32,8 +32,14 @@ impl ForgeHttpInfra {
             .redirect(Policy::limited(config.max_redirects))
             .hickory_dns(config.hickory);
 
-        if config.rustls_tls {
-            client = client.use_rustls_tls();
+        match config.tls_backend {
+            TlsBackend::Rustls => {
+                client = client.use_rustls_tls();
+            }
+            TlsBackend::Native => {
+                client = client.use_native_tls();
+            }
+            TlsBackend::Default => {}
         }
 
         Self { client: client.build().unwrap() }
