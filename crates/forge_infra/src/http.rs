@@ -1,12 +1,13 @@
 use std::pin::Pin;
 
+use anyhow::Context;
 use bytes::Bytes;
 use forge_app::ServerSentEvent;
 use forge_domain::HttpConfig;
 use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
-use reqwest::{Client, Response, Url};
+use reqwest::{Client, Response, StatusCode, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::{Stream, StreamExt};
 use tracing::debug;
@@ -39,29 +40,52 @@ impl ForgeHttpInfra {
     }
 
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
-        Ok(self
-            .client
-            .get(url.clone())
-            .headers(self.headers(headers))
-            .send()
-            .await?)
+        self.execute_request("GET", url, |client| {
+            client.get(url.clone()).headers(self.headers(headers))
+        })
+        .await
     }
+
     async fn post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
-        Ok(self
-            .client
-            .post(url.clone())
-            .headers(self.headers(None))
-            .body(body)
-            .send()
-            .await?)
+        self.execute_request("POST", url, |client| {
+            client
+                .post(url.clone())
+                .headers(self.headers(None))
+                .body(body)
+        })
+        .await
     }
+
     async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
-        Ok(self
-            .client
-            .delete(url.clone())
-            .headers(self.headers(None))
+        self.execute_request("DELETE", url, |client| {
+            client.delete(url.clone()).headers(self.headers(None))
+        })
+        .await
+    }
+
+    /// Generic helper method to execute HTTP requests with consistent error
+    /// handling
+    async fn execute_request<F>(
+        &self,
+        method: &str,
+        url: &Url,
+        request_builder: F,
+    ) -> anyhow::Result<Response>
+    where
+        F: FnOnce(&Client) -> reqwest::RequestBuilder,
+    {
+        let response = request_builder(&self.client)
             .send()
-            .await?)
+            .await
+            .with_context(|| format_http_context(None, method, url))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(anyhow::anyhow!("HTTP request failed"))
+                .with_context(|| format_http_context(Some(status), method, url));
+        }
+
+        Ok(response)
     }
 
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
@@ -102,7 +126,8 @@ impl ForgeHttpInfra {
             .post(url.clone())
             .headers(request_headers)
             .body(body)
-            .eventsource()?;
+            .eventsource()
+            .with_context(|| format_http_context(None, "POST (EventSource)", url))?;
 
         let stream = es
             .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
@@ -137,6 +162,16 @@ impl ForgeHttpInfra {
                 (name.clone(), value_str)
             })
             .collect()
+    }
+}
+
+/// Helper function to format HTTP request/response context for logging and
+/// error reporting
+fn format_http_context<U: AsRef<str>>(status: Option<StatusCode>, method: &str, url: U) -> String {
+    if let Some(status) = status {
+        format!("{} {} {}", status.as_u16(), method, url.as_ref())
+    } else {
+        format!("{} {}", method, url.as_ref())
     }
 }
 
