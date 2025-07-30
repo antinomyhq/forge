@@ -90,17 +90,13 @@ impl JsonRepairParser {
     fn parse_whitespace(&mut self, skip_newline: bool) -> bool {
         let mut whitespace = String::new();
 
-        loop {
-            if let Some(ch) = self.current_char() {
-                if self.is_whitespace(ch, skip_newline) {
-                    whitespace.push(ch);
-                    self.i += 1;
-                } else if self.is_special_whitespace(ch) {
-                    whitespace.push(' ');
-                    self.i += 1;
-                } else {
-                    break;
-                }
+        while let Some(ch) = self.current_char() {
+            if self.is_whitespace(ch, skip_newline) {
+                whitespace.push(ch);
+                self.i += 1;
+            } else if self.is_special_whitespace(ch) {
+                whitespace.push(' ');
+                self.i += 1;
             } else {
                 break;
             }
