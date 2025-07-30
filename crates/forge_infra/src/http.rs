@@ -1,9 +1,10 @@
 use std::pin::Pin;
 
+use crate::tls_fallback::TlsClientBuilder;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::ServerSentEvent;
-use forge_domain::{HttpConfig, TlsBackend};
+use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
 use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
@@ -24,25 +25,17 @@ pub struct ForgeHttpInfra {
 
 impl ForgeHttpInfra {
     pub fn new(config: HttpConfig) -> Self {
-        let mut client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(config.connect_timeout))
-            .read_timeout(std::time::Duration::from_secs(config.read_timeout))
-            .pool_idle_timeout(std::time::Duration::from_secs(config.pool_idle_timeout))
-            .pool_max_idle_per_host(config.pool_max_idle_per_host)
-            .redirect(Policy::limited(config.max_redirects))
-            .hickory_dns(config.hickory);
+        // Use tokio's block_on to run the async builder
+        let client = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                TlsClientBuilder::new(config.clone())
+                    .build_with_fallback()
+                    .await
+                    .expect("Failed to build HTTP client with TLS fallback")
+            })
+        });
 
-        match config.tls_backend {
-            TlsBackend::Rustls => {
-                client = client.use_rustls_tls();
-            }
-            TlsBackend::Native => {
-                client = client.use_native_tls();
-            }
-            TlsBackend::Default => {}
-        }
-
-        Self { client: client.build().unwrap() }
+        Self { client }
     }
 
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
