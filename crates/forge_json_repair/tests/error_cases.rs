@@ -1,4 +1,4 @@
-use make_json_great_again::jsonrepair;
+use forge_json_repair::jsonrepair;
 
 #[test]
 fn test_error_cases() {

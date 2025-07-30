@@ -1342,12 +1342,12 @@ dependencies = [
  "derive_more",
  "derive_setters",
  "eserde",
+ "forge_json_repair",
  "forge_template",
  "forge_tool_macros",
  "insta",
  "is_ci",
  "lazy_static",
- "make_json_great_again",
  "merge",
  "nom 8.0.0",
  "pretty_assertions",
@@ -1422,6 +1422,17 @@ dependencies = [
  "serde_yml",
  "tokio",
  "tokio-stream",
+]
+
+[[package]]
+name = "forge_json_repair"
+version = "0.1.0"
+dependencies = [
+ "pretty_assertions",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -2846,17 +2857,6 @@ dependencies = [
  "whoami",
  "winreg 0.11.0",
  "wmi",
-]
-
-[[package]]
-name = "make_json_great_again"
-version = "0.1.0"
-dependencies = [
- "pretty_assertions",
- "regex",
- "serde",
- "serde_json",
- "thiserror 2.0.12",
 ]
 
 [[package]]

@@ -2,7 +2,7 @@ use std::pin::Pin;
 
 use crate::{AgentId, ConversationId};
 use derive_more::From;
-use make_json_great_again::JsonRepairError;
+use forge_json_repair::JsonRepairError;
 use thiserror::Error;
 
 // NOTE: Deriving From for error is a really bad idea. This is because you end
@@ -87,7 +87,7 @@ impl std::fmt::Display for ToolCallArgumentError {
 #[cfg(test)]
 mod test {
     use crate::Error;
-    use make_json_great_again::JsonRepairError;
+    use forge_json_repair::JsonRepairError;
     use serde_json::Value;
 
     #[test]

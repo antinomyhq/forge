@@ -1,5 +1,5 @@
 [package]
-name = "make_json_great_again"
+name = "forge_json_repair"
 version = "0.1.0"
 edition = "2021"
 

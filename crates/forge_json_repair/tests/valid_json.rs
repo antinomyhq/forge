@@ -1,4 +1,4 @@
-use make_json_great_again::jsonrepair;
+use forge_json_repair::jsonrepair;
 use pretty_assertions::assert_eq;
 
 #[test]
