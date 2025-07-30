@@ -63,9 +63,8 @@ impl<S: AgentService> Orchestrator<S> {
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
         for tool_call in tool_calls {
-            // Send the start notification
-            self.send(ChatResponse::ToolCallStart(tool_call.clone()))
-                .await?;
+            // Always send the start notification for all tools
+            self.send(ChatResponse::ToolCallStart(tool_call.clone())).await?;
 
             // Execute the tool
             let tool_result = self
@@ -83,9 +82,8 @@ impl<S: AgentService> Orchestrator<S> {
                 );
             }
 
-            // Send the end notification
-            self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
-                .await?;
+            // Always send the end notification for all tools
+            self.send(ChatResponse::ToolCallEnd(tool_result.clone())).await?;
 
             // Ensure all tool calls and results are recorded
             // Adding task completion records is critical for compaction to work correctly

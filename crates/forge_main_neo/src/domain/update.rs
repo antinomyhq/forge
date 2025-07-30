@@ -35,11 +35,23 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             ratatui::crossterm::event::Event::Resize(_, _) => Command::Empty,
         },
         Action::ChatResponse(response) => {
-            if let ChatResponse::Text { ref text, is_complete, .. } = response
-                && is_complete
-                && !text.trim().is_empty()
-            {
-                state.show_spinner = false
+            match &response {
+                ChatResponse::Text { text, is_complete, .. } if *is_complete && !text.trim().is_empty() => {
+                    state.show_spinner = false;
+                }
+                ChatResponse::ToolCallStart(tool_call) => {
+                    // Only show spinner if not shell tool
+                    if tool_call.name.as_str() != "forge_tool_process_shell" {
+                        state.show_spinner = true;
+                    }
+                }
+                ChatResponse::ToolCallEnd(tool_result) => {
+                    // Only hide spinner if not shell tool
+                    if tool_result.name.as_str() != "forge_tool_process_shell" {
+                        state.show_spinner = false;
+                    }
+                }
+                _ => {}
             }
             state.add_assistant_message(response);
             if let Some(ref timer) = state.timer
