@@ -276,7 +276,6 @@ mod tests {
             }
 
             // Verify that the environment service uses the same default as RetryConfig
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let retry_config_from_env = resolve_retry_config();
             let default_retry_config = RetryConfig::default();
 
@@ -327,7 +326,6 @@ mod tests {
                 env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "true");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_retry_config();
 
             assert_eq!(config.initial_backoff_ms, 500);
@@ -363,7 +361,6 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "503,504");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_retry_config();
             let default_config = RetryConfig::default();
 
@@ -401,7 +398,6 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes,here");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_retry_config();
             let default_config = RetryConfig::default();
 
@@ -429,7 +425,6 @@ mod tests {
             }
 
             // Test default value (false)
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_retry_config();
             assert_eq!(config.suppress_retry_errors, false);
 
@@ -438,7 +433,6 @@ mod tests {
                 env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "true");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_retry_config();
             assert_eq!(config.suppress_retry_errors, true);
 
@@ -447,7 +441,6 @@ mod tests {
                 env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "false");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_retry_config();
             assert_eq!(config.suppress_retry_errors, false);
 
@@ -456,7 +449,6 @@ mod tests {
                 env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "invalid");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_retry_config();
             assert_eq!(config.suppress_retry_errors, false); // Should fallback to default
 
@@ -480,7 +472,6 @@ mod tests {
 
         // Test default values
         {
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_http_config();
             let default_config = forge_domain::HttpConfig::default();
 
@@ -508,7 +499,6 @@ mod tests {
                 env::set_var("FORGE_HTTP_TLS_BACKEND", "native");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_http_config();
 
             assert_eq!(config.connect_timeout, 30);
@@ -537,7 +527,6 @@ mod tests {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "15");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_http_config();
             let default_config = forge_domain::HttpConfig::default();
 
@@ -565,7 +554,6 @@ mod tests {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "invalid");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
             let config = resolve_http_config();
             let default_config = forge_domain::HttpConfig::default();
 
@@ -587,7 +575,7 @@ mod tests {
             }
 
             // Test default values
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+
             let config = resolve_http_config();
             let default_config = forge_domain::HttpConfig::default();
             assert_eq!(config.hickory, default_config.hickory);
@@ -597,7 +585,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_HTTP_USE_HICKORY", "true");
             }
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+
             let config = resolve_http_config();
             assert_eq!(config.hickory, true);
             assert_eq!(config.tls_backend, default_config.tls_backend); // Should remain default
@@ -606,7 +594,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_HTTP_TLS_BACKEND", "native");
             }
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+
             let config = resolve_http_config();
             assert_eq!(config.hickory, true); // Should remain from previous setting
             assert_eq!(config.tls_backend, TlsBackend::Native);
@@ -615,7 +603,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_HTTP_TLS_BACKEND", "default");
             }
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+
             let config = resolve_http_config();
             assert_eq!(config.tls_backend, TlsBackend::Default);
 
@@ -623,7 +611,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
             }
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+
             let config = resolve_http_config();
             assert_eq!(config.tls_backend, TlsBackend::Rustls);
 
@@ -631,7 +619,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_HTTP_TLS_BACKEND", "NATIVE");
             }
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+
             let config = resolve_http_config();
             assert_eq!(config.tls_backend, TlsBackend::Native);
 
@@ -640,7 +628,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_USE_HICKORY", "invalid");
                 env::set_var("FORGE_HTTP_TLS_BACKEND", "invalid_backend");
             }
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
+
             let config = resolve_http_config();
             assert_eq!(config.hickory, default_config.hickory); // Should fallback to default
             assert_eq!(config.tls_backend, default_config.tls_backend); // Should fallback to default
