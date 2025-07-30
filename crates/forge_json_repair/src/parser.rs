@@ -474,6 +474,17 @@ impl JsonRepairParser {
                             );
                             self.i += 2;
                         }
+                        ',' if skip_escape_chars => {
+                            // Special case: escaped comma in escaped string should be treated as
+                            // delimiter This creates a new array element
+                            str_content =
+                                self.insert_before_last_whitespace_str(&str_content, "\"");
+                            self.output.push_str(&str_content);
+                            self.output.push(',');
+                            self.i += 2; // skip \,
+                            self.parse_whitespace_and_skip_comments(true);
+                            return Ok(true);
+                        }
                         'u' => {
                             let mut j = 2;
                             while j < 6
@@ -875,10 +886,13 @@ impl JsonRepairParser {
         match quote_char {
             '"' => |ch| ch == '"',
             '\'' => |ch| ch == '\'',
-            '\u{2018}' | '\u{2019}' | '`' | '\u{00b4}' => {
-                |ch| matches!(ch, '\u{2018}' | '\u{2019}' | '`' | '\u{00b4}')
-            }
-            _ => |ch| matches!(ch, '\u{201c}' | '\u{201d}'),
+            '\u{2018}' => |ch| matches!(ch, '\u{2018}' | '\u{2019}'),
+            '\u{2019}' => |ch| matches!(ch, '\u{2018}' | '\u{2019}'),
+            '\u{201c}' => |ch| matches!(ch, '\u{201c}' | '\u{201d}'),
+            '\u{201d}' => |ch| matches!(ch, '\u{201c}' | '\u{201d}'),
+            '`' => |ch| matches!(ch, '`' | '\u{00b4}' | '\''),
+            '\u{00b4}' => |ch| matches!(ch, '`' | '\u{00b4}' | '\''),
+            _ => |ch| ch == '"',
         }
     }
 
@@ -913,7 +927,7 @@ impl JsonRepairParser {
 
     fn repair_number_ending_with_numeric_symbol(&mut self, start: usize) {
         let num: String = self.chars[start..self.i].iter().collect();
-        self.output.push_str(&format!("{}0", num));
+        self.output.push_str(&format!("{num}0"));
     }
 
     fn ends_with_comma_or_newline(&self) -> bool {
@@ -968,7 +982,7 @@ impl JsonRepairParser {
         let chars: Vec<char> = text.chars().collect();
 
         if index == 0 || !self.is_whitespace(chars[index - 1], true) {
-            return format!("{}{}", text, text_to_insert);
+            return format!("{text}{text_to_insert}");
         }
 
         while index > 0 && self.is_whitespace(chars[index - 1], true) {
