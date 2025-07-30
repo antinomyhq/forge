@@ -175,22 +175,15 @@ fn json_repair_parse<T>(
 where
     T: serde::de::DeserializeOwned,
 {
-    let mut is_repaired = false;
-    let result = serde_json::from_str(json_str)
+    serde_json::from_str(json_str)
         .map_err(forge_json_repair::JsonRepairError::JsonError)
         .or_else(|_| {
-            is_repaired = true;
-            forge_json_repair::jsonrepair(json_str)
-        });
-    tracing::info!(
-        "The JSON was {}",
-        if is_repaired {
-            "repaired"
-        } else {
-            "not repaired"
-        }
-    );
-    result
+            let repaired = forge_json_repair::jsonrepair(json_str);
+            if repaired.is_ok() {
+                tracing::info!("Tool call was successfully repaired.");
+            }
+            repaired
+        })
 }
 
 #[cfg(test)]
