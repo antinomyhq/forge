@@ -3,7 +3,7 @@ use std::pin::Pin;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::ServerSentEvent;
-use forge_domain::{HttpConfig, TlsBackend};
+use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
 use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
@@ -22,6 +22,16 @@ pub struct ForgeHttpInfra {
     client: Client,
 }
 
+fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
+    use reqwest::tls::Version;
+    match tls {
+        TlsVersion::V1_0 => Version::TLS_1_0,
+        TlsVersion::V1_1 => Version::TLS_1_1,
+        TlsVersion::V1_2 => Version::TLS_1_2,
+        TlsVersion::V1_3 => Version::TLS_1_3,
+    }
+}
+
 impl ForgeHttpInfra {
     pub fn new(config: HttpConfig) -> Self {
         let mut client = reqwest::Client::builder()
@@ -31,6 +41,14 @@ impl ForgeHttpInfra {
             .pool_max_idle_per_host(config.pool_max_idle_per_host)
             .redirect(Policy::limited(config.max_redirects))
             .hickory_dns(config.hickory);
+
+        if let Some(version) = config.min_tls_version {
+            client = client.min_tls_version(to_reqwest_tls(version));
+        }
+
+        if let Some(version) = config.max_tls_version {
+            client = client.max_tls_version(to_reqwest_tls(version));
+        }
 
         match config.tls_backend {
             TlsBackend::Rustls => {
