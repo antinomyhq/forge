@@ -5,7 +5,6 @@ use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
 use reqwest::{Client, ClientBuilder};
 use tracing::{debug, warn};
 
-
 /// Builds an HTTP client with TLS version fallback support
 pub struct TlsClientBuilder {
     config: HttpConfig,
