@@ -1,9 +1,10 @@
-use crate::xml::extract_tag_content;
-use crate::{Error, Result, ToolName};
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use crate::xml::extract_tag_content;
+use crate::{Error, Result, ToolName};
 
 /// Unique identifier for a using a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -104,9 +105,7 @@ impl ToolCallFull {
                                 Value::default()
                             } else {
                                 serde_json::from_str(&current_arguments)
-                                    .or_else(|_| {
-                                        forge_json_repair::jsonrepair(&current_arguments)
-                                    })
+                                    .or_else(|_| forge_json_repair::jsonrepair(&current_arguments))
                                     .map_err(|error| Error::ToolCallArgument {
                                         error,
                                         args: current_arguments.clone(),

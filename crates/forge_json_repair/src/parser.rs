@@ -1,4 +1,5 @@
 use serde::Deserialize;
+
 use crate::error::{JsonRepairError, Result};
 
 pub struct JsonRepairParser {
@@ -9,11 +10,7 @@ pub struct JsonRepairParser {
 
 impl JsonRepairParser {
     pub fn new(text: String) -> Self {
-        Self {
-            chars: text.chars().collect(),
-            i: 0,
-            output: String::new(),
-        }
+        Self { chars: text.chars().collect(), i: 0, output: String::new() }
     }
 
     pub fn parse<De: for<'de> Deserialize<'de>>(mut self) -> Result<De> {
@@ -62,7 +59,7 @@ impl JsonRepairParser {
 
     fn parse_value(&mut self) -> Result<bool> {
         self.parse_whitespace_and_skip_comments(true);
-        
+
         let processed = self.parse_object()?
             || self.parse_array()?
             || self.parse_string(false, None)?
@@ -70,14 +67,14 @@ impl JsonRepairParser {
             || self.parse_keywords()
             || self.parse_unquoted_string(false)?
             || self.parse_regex()?;
-        
+
         self.parse_whitespace_and_skip_comments(true);
         Ok(processed)
     }
 
     fn parse_whitespace_and_skip_comments(&mut self, skip_newline: bool) -> bool {
         let start = self.i;
-        
+
         self.parse_whitespace(skip_newline);
         loop {
             if self.parse_comment() {
@@ -86,13 +83,13 @@ impl JsonRepairParser {
                 break;
             }
         }
-        
+
         self.i > start
     }
 
     fn parse_whitespace(&mut self, skip_newline: bool) -> bool {
         let mut whitespace = String::new();
-        
+
         loop {
             if let Some(ch) = self.current_char() {
                 if self.is_whitespace(ch, skip_newline) {
@@ -108,7 +105,7 @@ impl JsonRepairParser {
                 break;
             }
         }
-        
+
         if !whitespace.is_empty() {
             self.output.push_str(&whitespace);
             true
@@ -186,10 +183,11 @@ impl JsonRepairParser {
 
     fn skip_ellipsis(&mut self) -> bool {
         self.parse_whitespace_and_skip_comments(true);
-        
-        if self.current_char() == Some('.') 
+
+        if self.current_char() == Some('.')
             && self.chars.get(self.i + 1) == Some(&'.')
-            && self.chars.get(self.i + 2) == Some(&'.') {
+            && self.chars.get(self.i + 2) == Some(&'.')
+        {
             self.i += 3;
             self.parse_whitespace_and_skip_comments(true);
             self.skip_character(',');
@@ -229,7 +227,8 @@ impl JsonRepairParser {
 
             self.skip_ellipsis();
 
-            let processed_key = self.parse_string(false, None)? || self.parse_unquoted_string(true)?;
+            let processed_key =
+                self.parse_string(false, None)? || self.parse_unquoted_string(true)?;
             if !processed_key {
                 if matches!(self.current_char(), Some('}' | '{' | ']' | '[') | None) {
                     // repair trailing comma
@@ -243,7 +242,7 @@ impl JsonRepairParser {
             self.parse_whitespace_and_skip_comments(true);
             let processed_colon = self.parse_character(':');
             let truncated_text = self.i >= self.chars.len();
-            
+
             if !processed_colon {
                 if self.is_start_of_value(self.current_char()) || truncated_text {
                     // repair missing colon
@@ -252,7 +251,7 @@ impl JsonRepairParser {
                     return Err(JsonRepairError::ColonExpected { position: self.i });
                 }
             }
-            
+
             let processed_value = self.parse_value()?;
             if !processed_value {
                 if processed_colon || truncated_text {
@@ -325,7 +324,7 @@ impl JsonRepairParser {
     fn parse_newline_delimited_json(&mut self) -> Result<()> {
         let mut initial = true;
         let mut processed_value = true;
-        
+
         while processed_value {
             if !initial {
                 let processed_comma = self.parse_character(',');
@@ -350,7 +349,11 @@ impl JsonRepairParser {
         Ok(())
     }
 
-    fn parse_string(&mut self, stop_at_delimiter: bool, stop_at_index: Option<usize>) -> Result<bool> {
+    fn parse_string(
+        &mut self,
+        stop_at_delimiter: bool,
+        stop_at_index: Option<usize>,
+    ) -> Result<bool> {
         let skip_escape_chars = self.current_char() == Some('\\');
         if skip_escape_chars {
             // repair: remove the first escape character
@@ -363,10 +366,10 @@ impl JsonRepairParser {
 
         let quote_char = self.current_char().unwrap();
         let is_end_quote = self.get_end_quote_matcher(quote_char);
-        
+
         let i_before = self.i;
         let o_before = self.output.len();
-        
+
         let mut str_content = String::from("\"");
         self.i += 1;
 
@@ -396,7 +399,7 @@ impl JsonRepairParser {
             }
 
             let ch = self.current_char().unwrap();
-            
+
             if is_end_quote(ch) {
                 // end quote - verify if it's legit
                 let i_quote = self.i;
@@ -407,11 +410,12 @@ impl JsonRepairParser {
 
                 self.parse_whitespace_and_skip_comments(false);
 
-                if stop_at_delimiter 
+                if stop_at_delimiter
                     || self.i >= self.chars.len()
                     || self.is_delimiter(self.current_char())
                     || self.is_quote(self.current_char())
-                    || self.is_digit(self.current_char()) {
+                    || self.is_digit(self.current_char())
+                {
                     // legitimate end quote
                     self.parse_concatenated_string()?;
                     return Ok(true);
@@ -440,12 +444,16 @@ impl JsonRepairParser {
                 str_content = format!("{}\\\"", &str_content[..o_quote]);
             } else if stop_at_delimiter && self.is_unquoted_string_delimiter(ch) {
                 // stop at delimiter mode
-                
+
                 // test for URL like "https://..."
-                if self.chars.get(self.i - 1) == Some(&':') 
-                    && i_before + 1 < self.chars.len() && self.i + 2 <= self.chars.len()
-                    && self.is_url_start(&self.chars[i_before + 1..self.i + 2]) {
-                    while self.i < self.chars.len() && self.is_url_char(self.current_char().unwrap()) {
+                if self.chars.get(self.i - 1) == Some(&':')
+                    && i_before + 1 < self.chars.len()
+                    && self.i + 2 <= self.chars.len()
+                    && self.is_url_start(&self.chars[i_before + 1..self.i + 2])
+                {
+                    while self.i < self.chars.len()
+                        && self.is_url_char(self.current_char().unwrap())
+                    {
                         str_content.push(self.current_char().unwrap());
                         self.i += 1;
                     }
@@ -461,17 +469,24 @@ impl JsonRepairParser {
                 if let Some(next_ch) = self.chars.get(self.i + 1) {
                     match next_ch {
                         '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' => {
-                            str_content.push_str(&self.chars[self.i..self.i + 2].iter().collect::<String>());
+                            str_content.push_str(
+                                &self.chars[self.i..self.i + 2].iter().collect::<String>(),
+                            );
                             self.i += 2;
                         }
                         'u' => {
                             let mut j = 2;
-                            while j < 6 && self.i + j < self.chars.len() && self.is_hex(self.chars[self.i + j]) {
+                            while j < 6
+                                && self.i + j < self.chars.len()
+                                && self.is_hex(self.chars[self.i + j])
+                            {
                                 j += 1;
                             }
 
                             if j == 6 {
-                                str_content.push_str(&self.chars[self.i..self.i + 6].iter().collect::<String>());
+                                str_content.push_str(
+                                    &self.chars[self.i..self.i + 6].iter().collect::<String>(),
+                                );
                                 self.i += 6;
                             } else if self.i + j >= self.chars.len() {
                                 // repair invalid unicode at end
@@ -550,7 +565,7 @@ impl JsonRepairParser {
 
     fn parse_number(&mut self) -> Result<bool> {
         let start = self.i;
-        
+
         if self.current_char() == Some('-') {
             self.i += 1;
             if self.at_end_of_number() {
@@ -607,7 +622,9 @@ impl JsonRepairParser {
 
         if self.i > start {
             let num: String = self.chars[start..self.i].iter().collect();
-            let has_invalid_leading_zero = num.len() > 1 && num.starts_with('0') && self.is_digit(Some(num.chars().nth(1).unwrap()));
+            let has_invalid_leading_zero = num.len() > 1
+                && num.starts_with('0')
+                && self.is_digit(Some(num.chars().nth(1).unwrap()));
 
             if has_invalid_leading_zero {
                 self.output.push_str(&serde_json::to_string(&num).unwrap());
@@ -676,16 +693,20 @@ impl JsonRepairParser {
             let ch = self.current_char().unwrap();
             if self.is_unquoted_string_delimiter(ch)
                 || self.is_quote(Some(ch))
-                || (is_key && ch == ':') {
+                || (is_key && ch == ':')
+            {
                 break;
             }
             self.i += 1;
         }
 
         // test for URL
-        if self.i > 0 && self.chars.get(self.i - 1) == Some(&':') 
-            && start < self.chars.len() && self.i + 2 <= self.chars.len()
-            && self.is_url_start(&self.chars[start..self.i + 2]) {
+        if self.i > 0
+            && self.chars.get(self.i - 1) == Some(&':')
+            && start < self.chars.len()
+            && self.i + 2 <= self.chars.len()
+            && self.is_url_start(&self.chars[start..self.i + 2])
+        {
             while self.i < self.chars.len() && self.is_url_char(self.current_char().unwrap()) {
                 self.i += 1;
             }
@@ -698,12 +719,13 @@ impl JsonRepairParser {
             }
 
             let symbol: String = self.chars[start..self.i].iter().collect();
-            
+
             if symbol == "undefined" {
                 self.output.push_str("null");
             } else if is_key {
                 // Keys must always be strings in JSON
-                self.output.push_str(&serde_json::to_string(&symbol).unwrap());
+                self.output
+                    .push_str(&serde_json::to_string(&symbol).unwrap());
             } else {
                 // Try to parse as number first, if that fails, treat as string
                 if symbol.parse::<f64>().is_ok() {
@@ -711,7 +733,8 @@ impl JsonRepairParser {
                     self.output.push_str(&symbol);
                 } else {
                     // It's a string, so quote it using serde_json
-                    self.output.push_str(&serde_json::to_string(&symbol).unwrap());
+                    self.output
+                        .push_str(&serde_json::to_string(&symbol).unwrap());
                 }
             }
 
@@ -731,13 +754,16 @@ impl JsonRepairParser {
             let start = self.i;
             self.i += 1;
 
-            while self.i < self.chars.len() && (self.current_char() != Some('/') || self.chars.get(self.i - 1) == Some(&'\\')) {
+            while self.i < self.chars.len()
+                && (self.current_char() != Some('/') || self.chars.get(self.i - 1) == Some(&'\\'))
+            {
                 self.i += 1;
             }
             self.i += 1;
 
             let regex: String = self.chars[start..self.i].iter().collect();
-            self.output.push_str(&serde_json::to_string(&regex).unwrap());
+            self.output
+                .push_str(&serde_json::to_string(&regex).unwrap());
             return Ok(true);
         }
         Ok(false)
@@ -757,7 +783,10 @@ impl JsonRepairParser {
     }
 
     fn is_quote(&self, ch: Option<char>) -> bool {
-        matches!(ch, Some('"' | '\'' | '`' | '\u{2018}' | '\u{2019}' | '\u{201c}' | '\u{201d}' | '\u{00b4}'))
+        matches!(
+            ch,
+            Some('"' | '\'' | '`' | '\u{2018}' | '\u{2019}' | '\u{201c}' | '\u{201d}' | '\u{00b4}')
+        )
     }
 
     fn is_digit(&self, ch: Option<char>) -> bool {
@@ -777,7 +806,10 @@ impl JsonRepairParser {
     }
 
     fn is_delimiter(&self, ch: Option<char>) -> bool {
-        matches!(ch, Some(',' | ':' | '[' | ']' | '/' | '{' | '}' | '(' | ')' | '\n' | '+'))
+        matches!(
+            ch,
+            Some(',' | ':' | '[' | ']' | '/' | '{' | '}' | '(' | ')' | '\n' | '+')
+        )
     }
 
     fn is_unquoted_string_delimiter(&self, ch: char) -> bool {
@@ -785,7 +817,11 @@ impl JsonRepairParser {
     }
 
     fn is_start_of_value(&self, ch: Option<char>) -> bool {
-        self.is_quote(ch) || matches!(ch, Some('[' | '{' | 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-'))
+        self.is_quote(ch)
+            || matches!(
+                ch,
+                Some('[' | '{' | 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-')
+            )
     }
 
     fn is_control_character(&self, ch: char) -> bool {
@@ -801,20 +837,47 @@ impl JsonRepairParser {
             return false;
         }
         let s: String = chars.iter().collect();
-        s.starts_with("http://") || s.starts_with("https://") || s.starts_with("ftp://") 
-            || s.starts_with("mailto:") || s.starts_with("file://") || s.starts_with("data:")
+        s.starts_with("http://")
+            || s.starts_with("https://")
+            || s.starts_with("ftp://")
+            || s.starts_with("mailto:")
+            || s.starts_with("file://")
+            || s.starts_with("data:")
             || s.starts_with("irc://")
     }
 
     fn is_url_char(&self, ch: char) -> bool {
-        ch.is_ascii_alphanumeric() || matches!(ch, '-' | '.' | '_' | '~' | ':' | '/' | '?' | '#' | '@' | '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ';' | '=')
+        ch.is_ascii_alphanumeric()
+            || matches!(
+                ch,
+                '-' | '.'
+                    | '_'
+                    | '~'
+                    | ':'
+                    | '/'
+                    | '?'
+                    | '#'
+                    | '@'
+                    | '!'
+                    | '$'
+                    | '&'
+                    | '\''
+                    | '('
+                    | ')'
+                    | '*'
+                    | '+'
+                    | ';'
+                    | '='
+            )
     }
 
     fn get_end_quote_matcher(&self, quote_char: char) -> fn(char) -> bool {
         match quote_char {
             '"' => |ch| ch == '"',
             '\'' => |ch| ch == '\'',
-            '\u{2018}' | '\u{2019}' | '`' | '\u{00b4}' => |ch| matches!(ch, '\u{2018}' | '\u{2019}' | '`' | '\u{00b4}'),
+            '\u{2018}' | '\u{2019}' | '`' | '\u{00b4}' => {
+                |ch| matches!(ch, '\u{2018}' | '\u{2019}' | '`' | '\u{00b4}')
+            }
             _ => |ch| matches!(ch, '\u{201c}' | '\u{201d}'),
         }
     }
@@ -843,7 +906,9 @@ impl JsonRepairParser {
     }
 
     fn at_end_of_number(&self) -> bool {
-        self.i >= self.chars.len() || self.is_delimiter(self.current_char()) || self.is_whitespace(self.current_char().unwrap_or('\0'), true)
+        self.i >= self.chars.len()
+            || self.is_delimiter(self.current_char())
+            || self.is_whitespace(self.current_char().unwrap_or('\0'), true)
     }
 
     fn repair_number_ending_with_numeric_symbol(&mut self, start: usize) {
@@ -860,7 +925,11 @@ impl JsonRepairParser {
         self.strip_last_occurrence_with_remaining(text_to_strip, false)
     }
 
-    fn strip_last_occurrence_with_remaining(&self, text_to_strip: &str, strip_remaining: bool) -> String {
+    fn strip_last_occurrence_with_remaining(
+        &self,
+        text_to_strip: &str,
+        strip_remaining: bool,
+    ) -> String {
         if let Some(index) = self.output.rfind(text_to_strip) {
             let mut result = self.output[..index].to_string();
             if !strip_remaining {
@@ -875,7 +944,9 @@ impl JsonRepairParser {
     fn insert_before_last_whitespace(&self, text_to_insert: &str) -> String {
         let mut index = self.output.len();
 
-        if index == 0 || !self.is_whitespace(self.output.chars().nth(index - 1).unwrap_or('\0'), true) {
+        if index == 0
+            || !self.is_whitespace(self.output.chars().nth(index - 1).unwrap_or('\0'), true)
+        {
             return format!("{}{}", self.output, text_to_insert);
         }
 
@@ -884,7 +955,12 @@ impl JsonRepairParser {
             index -= 1;
         }
 
-        format!("{}{}{}", &self.output[..index], text_to_insert, &self.output[index..])
+        format!(
+            "{}{}{}",
+            &self.output[..index],
+            text_to_insert,
+            &self.output[index..]
+        )
     }
 
     fn insert_before_last_whitespace_str(&self, text: &str, text_to_insert: &str) -> String {

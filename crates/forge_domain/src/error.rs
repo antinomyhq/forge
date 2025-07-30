@@ -1,9 +1,10 @@
 use std::pin::Pin;
 
-use crate::{AgentId, ConversationId};
 use derive_more::From;
 use forge_json_repair::JsonRepairError;
 use thiserror::Error;
+
+use crate::{AgentId, ConversationId};
 
 // NOTE: Deriving From for error is a really bad idea. This is because you end
 // up converting errors incorrectly without much context. For eg: You don't want
@@ -86,9 +87,10 @@ impl std::fmt::Display for ToolCallArgumentError {
 
 #[cfg(test)]
 mod test {
-    use crate::Error;
     use forge_json_repair::JsonRepairError;
     use serde_json::Value;
+
+    use crate::Error;
 
     #[test]
     fn test_debug_serde_error() {
