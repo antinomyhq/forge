@@ -1,66 +1,49 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
-use derive_builder::Builder;
+use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
-use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest::{Client, Url};
-use reqwest_eventsource::{Event, RequestBuilderExt};
+use reqwest::Url;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
 use super::request::Request;
 use super::response::{EventData, ListModelResponse};
 use crate::anthropic::transforms::ReasoningTransform;
-use crate::error::Error;
+use crate::client::{create_headers, join_url};
 use crate::utils::format_http_context;
 
-#[derive(Clone, Builder)]
-pub struct Anthropic {
-    client: Client,
+#[derive(Clone)]
+pub struct Anthropic<T> {
+    http: Arc<T>,
     api_key: String,
-    base_url: Url,
+    base_url: String,
     anthropic_version: String,
 }
 
-impl Anthropic {
-    pub fn builder() -> AnthropicBuilder {
-        AnthropicBuilder::default()
+impl<H: HttpClientService> Anthropic<H> {
+    pub fn new(http: Arc<H>, api_key: String, base_url: String, version: String) -> Self {
+        Self { http, api_key, base_url, anthropic_version: version }
+    }
+
+    fn get_headers(&self) -> Vec<(String, String)> {
+        vec![
+            ("x-api-key".to_string(), self.api_key.clone()),
+            (
+                "anthropic-version".to_string(),
+                self.anthropic_version.clone(),
+            ),
+        ]
     }
 
     fn url(&self, path: &str) -> anyhow::Result<Url> {
-        // Validate the path doesn't contain certain patterns
-        if path.contains("://") || path.contains("..") {
-            anyhow::bail!("Invalid path: Contains forbidden patterns");
-        }
-
-        // Remove leading slash to avoid double slashes
-        let path = path.trim_start_matches('/');
-
-        self.base_url
-            .join(path)
-            .with_context(|| format!("Failed to append {} to base URL: {}", path, self.base_url))
-    }
-
-    fn headers(&self) -> HeaderMap {
-        let mut headers = HeaderMap::new();
-
-        // note: anthropic api requires the api key to be sent in `x-api-key` header.
-        headers.insert(
-            "x-api-key",
-            HeaderValue::from_str(self.api_key.as_str()).unwrap(),
-        );
-
-        // note: `anthropic-version` header is required by the API.
-        headers.insert(
-            "anthropic-version",
-            HeaderValue::from_str(&self.anthropic_version).unwrap(),
-        );
-        headers
+        join_url(&self.base_url, path)
     }
 }
 
-impl Anthropic {
+impl<T: HttpClientService> Anthropic<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -75,139 +58,163 @@ impl Anthropic {
             .stream(true)
             .max_tokens(max_tokens as u64);
 
-        let url = self.url("/messages")?;
+        let path = "/messages";
+        let url = self.url(path)?;
         debug!(url = %url, model = %model, "Connecting Upstream");
-        let es = self
-            .client
-            .post(url.clone())
-            .headers(self.headers())
-            .json(&request)
-            .eventsource()
+
+        let json_bytes =
+            serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
+
+        let stream = self
+            .http
+            .eventsource(
+                &url,
+                Some(create_headers(self.get_headers())),
+                json_bytes.into(),
+            )
+            .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
-        let stream = es
-            .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-            .then(|event| async {
+        let stream = stream
+            .then(|event| async move {
                 match event {
-                    Ok(event) => match event {
-                        Event::Open => None,
-                        Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
+                    Ok(event) => {
+                        if event.event_type == Some("open".to_string()) {
+                            None
+                        } else if ["[DONE]", ""].contains(&event.data.as_str()) {
                             debug!("Received completion from Upstream");
                             None
-                        }
-                        Event::Message(message) => Some(
-                            serde_json::from_str::<EventData>(&message.data)
-                                .with_context(|| "Failed to parse Anthropic event")
-                                .and_then(|event| {
-                                    ChatCompletionMessage::try_from(event).with_context(|| {
-                                        format!(
-                                            "Failed to create completion message: {}",
-                                            message.data
+                        } else {
+                            Some(
+                                serde_json::from_str::<EventData>(&event.data)
+                                    .with_context(|| "Failed to parse Anthropic event")
+                                    .and_then(|event_data| {
+                                        ChatCompletionMessage::try_from(event_data).with_context(
+                                            || {
+                                                format!(
+                                                    "Failed to create completion message: {}",
+                                                    event.data
+                                                )
+                                            },
                                         )
-                                    })
-                                }),
-                        ),
-                    },
-                    Err(error) => match error {
-                        reqwest_eventsource::Error::StreamEnded => None,
-                        reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
-                            let status = response.status();
-                            let body = response.text().await.ok();
-                            Some(Err(Error::InvalidStatusCode(status.as_u16())).with_context(
-                                || match body {
-                                    Some(body) => {
-                                        format!("Invalid status code: {status} Reason: {body}")
-                                    }
-                                    None => {
-                                        format!("Invalid status code: {status} Reason: [Unknown]")
-                                    }
-                                },
-                            ))
+                                    }),
+                            )
                         }
-                        reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
-                            let status_code = response.status();
-                            debug!(response = ?response, "Invalid content type");
-                            Some(Err(error).with_context(|| format!("Http Status: {status_code}")))
-                        }
-                        error => {
-                            tracing::error!(error = ?error, "Failed to receive chat completion event");
-                            Some(Err(error.into()))
-                        }
-                    },
+                    }
+                    Err(error) => {
+                        tracing::error!(error = ?error, "Failed to receive chat completion event");
+                        Some(Err(error))
+                    }
                 }
             })
-            .map(move |response| match response {
-                Some(Err(err)) => {
-                    Some(Err(err).with_context(|| format_http_context(None, "POST", &url)))
-                }
-                _ => response,
-            });
+            .filter_map(|response| response)
+            .map(move |result| result.with_context(|| format_http_context(None, "POST", &url)));
 
-        Ok(Box::pin(stream.filter_map(|x| x)))
+        Ok(Box::pin(stream))
     }
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        let url = self.url("models")?;
+        let url = join_url(&self.base_url, "models")?;
         debug!(url = %url, "Fetching models");
 
-        let result = self
-            .client
-            .get(url.clone())
-            .headers(self.headers())
-            .send()
-            .await;
+        let response = self
+            .http
+            .get(&url, Some(create_headers(self.get_headers())))
+            .await
+            .with_context(|| format_http_context(None, "GET", &url))
+            .with_context(|| "Failed to fetch models")?;
 
-        match result {
-            Err(error) => {
-                tracing::error!(error = ?error, "Failed to fetch models");
-                let ctx_msg = format_http_context(error.status(), "GET", &url);
-                Err(error)
-                    .with_context(|| ctx_msg)
-                    .with_context(|| "Failed to fetch models")
-            }
-            Ok(response) => {
-                let status = response.status();
-                let ctx_msg = format_http_context(Some(response.status()), "GET", &url);
-                let text = response
-                    .text()
-                    .await
-                    .with_context(|| ctx_msg.clone())
-                    .with_context(|| "Failed to decode response into text")?;
+        let status = response.status();
+        let ctx_msg = format_http_context(Some(status), "GET", &url);
+        let text = response
+            .text()
+            .await
+            .with_context(|| ctx_msg.clone())
+            .with_context(|| "Failed to decode response into text")?;
 
-                if status.is_success() {
-                    let response: ListModelResponse = serde_json::from_str(&text)
-                        .with_context(|| ctx_msg)
-                        .with_context(|| "Failed to deserialize models response")?;
-                    Ok(response.data.into_iter().map(Into::into).collect())
-                } else {
-                    // treat non 200 response as error.
-                    Err(anyhow::anyhow!(text))
-                        .with_context(|| ctx_msg)
-                        .with_context(|| "Failed to fetch the models")
-                }
-            }
+        if status.is_success() {
+            let response: ListModelResponse = serde_json::from_str(&text)
+                .with_context(|| ctx_msg)
+                .with_context(|| "Failed to deserialize models response")?;
+            Ok(response.data.into_iter().map(Into::into).collect())
+        } else {
+            // treat non 200 response as error.
+            Err(anyhow::anyhow!(text))
+                .with_context(|| ctx_msg)
+                .with_context(|| "Failed to fetch the models")
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::pin::Pin;
+
+    use bytes::Bytes;
     use forge_app::domain::{
         Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
         ToolResult,
     };
+    use forge_app::{HttpClientService, ServerSentEvent};
+    use futures::Stream;
+    use reqwest::header::HeaderMap;
 
     use super::*;
     use crate::mock_server::{MockServer, normalize_ports};
 
-    fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic> {
-        Ok(Anthropic::builder()
-            .client(Client::new())
-            .base_url(Url::parse(base_url)?)
-            .anthropic_version("2023-06-01".to_string())
-            .api_key("sk-test-key".to_string())
-            .build()
-            .unwrap())
+    // Mock implementation of HttpClientService for testing
+    #[derive(Clone)]
+    struct MockHttpClient {
+        client: reqwest::Client,
+    }
+
+    impl MockHttpClient {
+        fn new() -> Self {
+            Self { client: reqwest::Client::new() }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl HttpClientService for MockHttpClient {
+        async fn get(
+            &self,
+            url: &reqwest::Url,
+            headers: Option<HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
+            let mut request = self.client.get(url.clone());
+            if let Some(headers) = headers {
+                request = request.headers(headers);
+            }
+            Ok(request.send().await?)
+        }
+
+        async fn post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn eventsource(
+            &self,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
+            _body: Bytes,
+        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>
+        {
+            // For now, return an error since eventsource is not used in the failing tests
+            Err(anyhow::anyhow!("EventSource not implemented in mock"))
+        }
+    }
+
+    fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic<MockHttpClient>> {
+        Ok(Anthropic::new(
+            Arc::new(MockHttpClient::new()),
+            "sk-test-key".to_string(),
+            base_url.to_string(),
+            "2023-06-01".to_string(),
+        ))
     }
 
     fn create_mock_models_response() -> serde_json::Value {
@@ -249,13 +256,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_for_models() {
-        let anthropic = Anthropic::builder()
-            .client(Client::new())
-            .base_url(Url::parse("https://api.anthropic.com/v1/").unwrap())
-            .anthropic_version("v1".to_string())
-            .api_key("sk-some-key".to_string())
-            .build()
-            .unwrap();
+        let anthropic = Anthropic::new(
+            Arc::new(MockHttpClient::new()),
+            "sk-some-key".to_string(),
+            "https://api.anthropic.com/v1/".to_string(),
+            "v1".to_string(),
+        );
         assert_eq!(
             anthropic.url("/models").unwrap().as_str(),
             "https://api.anthropic.com/v1/models"

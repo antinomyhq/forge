@@ -21,8 +21,11 @@ forge_app.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
+bytes.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
 mockito.workspace = true
+forge_infra.workspace = true
+futures.workspace = true

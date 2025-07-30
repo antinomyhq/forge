@@ -1,8 +1,10 @@
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use forge_app::ServerSentEvent;
 use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
@@ -10,8 +12,9 @@ use forge_services::{
     FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
     WalkerInfra,
 };
-use reqwest::Response;
 use reqwest::header::HeaderMap;
+use reqwest::{Response, Url};
+use tokio_stream::Stream;
 
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -21,7 +24,7 @@ use crate::fs_read::ForgeFileReadService;
 use crate::fs_remove::ForgeFileRemoveService;
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fs_write::ForgeFileWriteService;
-use crate::http::ForgeHttpService;
+use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
@@ -29,6 +32,8 @@ use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
 pub struct ForgeInfra {
+    // TODO: Drop the "Service" suffix. Use names like ForgeFileReader, ForgeFileWriter,
+    // ForgeHttpClient etc.
     file_read_service: Arc<ForgeFileReadService>,
     file_write_service: Arc<ForgeFileWriteService<ForgeFileSnapshotService>>,
     environment_service: Arc<ForgeEnvironmentInfra>,
@@ -40,7 +45,7 @@ pub struct ForgeInfra {
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
-    http_service: Arc<ForgeHttpService>,
+    http_service: Arc<ForgeHttpInfra>,
 }
 
 impl ForgeInfra {
@@ -48,7 +53,7 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
-        let http_service = Arc::new(ForgeHttpService::new());
+        let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -231,15 +236,23 @@ impl WalkerInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl HttpInfra for ForgeInfra {
-    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
         self.http_service.get(url, headers).await
     }
 
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {
+    async fn post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
         self.http_service.post(url, body).await
     }
 
-    async fn delete(&self, url: &str) -> anyhow::Result<Response> {
+    async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
         self.http_service.delete(url).await
+    }
+    async fn eventsource(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+        self.http_service.eventsource(url, headers, body).await
     }
 }

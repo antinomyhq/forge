@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
-use forge_domain::{Environment, Provider, RetryConfig};
+use forge_domain::{Environment, Provider, RetryConfig, TlsBackend};
 use forge_services::EnvironmentInfra;
 use reqwest::Url;
 
@@ -35,84 +36,9 @@ impl ForgeEnvironmentInfra {
         }
     }
 
-    /// Resolves retry configuration from environment variables or returns
-    /// defaults
-    fn resolve_retry_config(&self) -> RetryConfig {
-        let mut config = RetryConfig::default();
-
-        // Override with environment variables if available
-        if let Ok(val) = std::env::var("FORGE_RETRY_INITIAL_BACKOFF_MS")
-            && let Ok(parsed) = val.parse::<u64>()
-        {
-            config.initial_backoff_ms = parsed;
-        }
-
-        if let Ok(val) = std::env::var("FORGE_RETRY_BACKOFF_FACTOR")
-            && let Ok(parsed) = val.parse::<u64>()
-        {
-            config.backoff_factor = parsed;
-        }
-
-        if let Ok(val) = std::env::var("FORGE_RETRY_MAX_ATTEMPTS")
-            && let Ok(parsed) = val.parse::<usize>()
-        {
-            config.max_retry_attempts = parsed;
-        }
-
-        if let Ok(val) = std::env::var("FORGE_RETRY_STATUS_CODES") {
-            let status_codes: Vec<u16> = val
-                .split(',')
-                .filter_map(|code| code.trim().parse::<u16>().ok())
-                .collect();
-            if !status_codes.is_empty() {
-                config.retry_status_codes = status_codes;
-            }
-        }
-
-        if let Some(parsed) = std::env::var("FORGE_SUPPRESS_RETRY_ERRORS")
-            .ok()
-            .and_then(|val| val.parse::<bool>().ok())
-        {
-            config.suppress_retry_errors = parsed;
-        }
-
-        config
-    }
-
-    fn resolve_timeout_config(&self) -> forge_domain::HttpConfig {
-        let mut config = forge_domain::HttpConfig::default();
-        if let Ok(val) = std::env::var("FORGE_HTTP_CONNECT_TIMEOUT")
-            && let Ok(parsed) = val.parse::<u64>()
-        {
-            config.connect_timeout = parsed;
-        }
-        if let Ok(val) = std::env::var("FORGE_HTTP_READ_TIMEOUT")
-            && let Ok(parsed) = val.parse::<u64>()
-        {
-            config.read_timeout = parsed;
-        }
-        if let Ok(val) = std::env::var("FORGE_HTTP_POOL_IDLE_TIMEOUT")
-            && let Ok(parsed) = val.parse::<u64>()
-        {
-            config.pool_idle_timeout = parsed;
-        }
-        if let Ok(val) = std::env::var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST")
-            && let Ok(parsed) = val.parse::<usize>()
-        {
-            config.pool_max_idle_per_host = parsed;
-        }
-        if let Ok(val) = std::env::var("FORGE_HTTP_MAX_REDIRECTS")
-            && let Ok(parsed) = val.parse::<usize>()
-        {
-            config.max_redirects = parsed;
-        }
-
-        config
-    }
-
     fn get(&self) -> Environment {
         let cwd = self.cwd.clone();
-        let retry_config = self.resolve_retry_config();
+        let retry_config = resolve_retry_config();
 
         let forge_api_url = self
             .get_env_var("FORGE_API_URL")
@@ -135,7 +61,7 @@ impl ForgeEnvironmentInfra {
             max_read_size: 500,
             stdout_max_prefix_length: 200,
             stdout_max_suffix_length: 200,
-            http: self.resolve_timeout_config(),
+            http: resolve_http_config(),
             max_file_size: 256 << 10, // 256 KiB
             forge_api_url,
         }
@@ -174,11 +100,78 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     }
 }
 
+fn parse_env<T: FromStr>(name: &str) -> Option<T> {
+    std::env::var(name)
+        .as_ref()
+        .ok()
+        .and_then(|var| T::from_str(var).ok())
+}
+
+/// Resolves retry configuration from environment variables or returns defaults
+fn resolve_retry_config() -> RetryConfig {
+    let mut config = RetryConfig::default();
+
+    if let Some(parsed) = parse_env::<u64>("FORGE_RETRY_INITIAL_BACKOFF_MS") {
+        config.initial_backoff_ms = parsed;
+    }
+    if let Some(parsed) = parse_env::<u64>("FORGE_RETRY_BACKOFF_FACTOR") {
+        config.backoff_factor = parsed;
+    }
+    if let Some(parsed) = parse_env::<usize>("FORGE_RETRY_MAX_ATTEMPTS") {
+        config.max_retry_attempts = parsed;
+    }
+    if let Some(parsed) = parse_env::<bool>("FORGE_SUPPRESS_RETRY_ERRORS") {
+        config.suppress_retry_errors = parsed;
+    }
+
+    // Special handling for comma-separated status codes
+    if let Ok(val) = std::env::var("FORGE_RETRY_STATUS_CODES") {
+        let status_codes: Vec<u16> = val
+            .split(',')
+            .filter_map(|code| code.trim().parse::<u16>().ok())
+            .collect();
+        if !status_codes.is_empty() {
+            config.retry_status_codes = status_codes;
+        }
+    }
+
+    config
+}
+
+fn resolve_http_config() -> forge_domain::HttpConfig {
+    let mut config = forge_domain::HttpConfig::default();
+
+    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_CONNECT_TIMEOUT") {
+        config.connect_timeout = parsed;
+    }
+    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_READ_TIMEOUT") {
+        config.read_timeout = parsed;
+    }
+    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_POOL_IDLE_TIMEOUT") {
+        config.pool_idle_timeout = parsed;
+    }
+    if let Some(parsed) = parse_env::<usize>("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST") {
+        config.pool_max_idle_per_host = parsed;
+    }
+    if let Some(parsed) = parse_env::<usize>("FORGE_HTTP_MAX_REDIRECTS") {
+        config.max_redirects = parsed;
+    }
+    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_USE_HICKORY") {
+        config.hickory = parsed;
+    }
+    if let Some(parsed) = parse_env::<TlsBackend>("FORGE_HTTP_TLS_BACKEND") {
+        config.tls_backend = parsed;
+    }
+
+    config
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
     use std::{env, fs};
 
+    use forge_domain::TlsBackend;
     use tempfile::{TempDir, tempdir};
 
     use super::*;
@@ -283,8 +276,7 @@ mod tests {
             }
 
             // Verify that the environment service uses the same default as RetryConfig
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let retry_config_from_env = env_service.resolve_retry_config();
+            let retry_config_from_env = resolve_retry_config();
             let default_retry_config = RetryConfig::default();
 
             assert_eq!(
@@ -334,8 +326,7 @@ mod tests {
                 env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "true");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_retry_config();
+            let config = resolve_retry_config();
 
             assert_eq!(config.initial_backoff_ms, 500);
             assert_eq!(config.backoff_factor, 3);
@@ -370,8 +361,7 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "503,504");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_retry_config();
+            let config = resolve_retry_config();
             let default_config = RetryConfig::default();
 
             // Overridden values
@@ -408,8 +398,7 @@ mod tests {
                 env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes,here");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_retry_config();
+            let config = resolve_retry_config();
             let default_config = RetryConfig::default();
 
             // Should fall back to defaults when parsing fails
@@ -436,8 +425,7 @@ mod tests {
             }
 
             // Test default value (false)
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_retry_config();
+            let config = resolve_retry_config();
             assert_eq!(config.suppress_retry_errors, false);
 
             // Test setting to true
@@ -445,8 +433,7 @@ mod tests {
                 env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "true");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_retry_config();
+            let config = resolve_retry_config();
             assert_eq!(config.suppress_retry_errors, true);
 
             // Test setting to false explicitly
@@ -454,8 +441,7 @@ mod tests {
                 env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "false");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_retry_config();
+            let config = resolve_retry_config();
             assert_eq!(config.suppress_retry_errors, false);
 
             // Test invalid value (should use default)
@@ -463,8 +449,7 @@ mod tests {
                 env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "invalid");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_retry_config();
+            let config = resolve_retry_config();
             assert_eq!(config.suppress_retry_errors, false); // Should fallback to default
 
             // Clean up environment variable
@@ -487,8 +472,7 @@ mod tests {
 
         // Test default values
         {
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_timeout_config();
+            let config = resolve_http_config();
             let default_config = forge_domain::HttpConfig::default();
 
             assert_eq!(config.connect_timeout, default_config.connect_timeout);
@@ -499,6 +483,8 @@ mod tests {
                 default_config.pool_max_idle_per_host
             );
             assert_eq!(config.max_redirects, default_config.max_redirects);
+            assert_eq!(config.hickory, default_config.hickory);
+            assert_eq!(config.tls_backend, default_config.tls_backend);
         }
 
         // Test environment variable overrides
@@ -509,16 +495,19 @@ mod tests {
                 env::set_var("FORGE_HTTP_POOL_IDLE_TIMEOUT", "180");
                 env::set_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST", "10");
                 env::set_var("FORGE_HTTP_MAX_REDIRECTS", "20");
+                env::set_var("FORGE_HTTP_USE_HICKORY", "true");
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "native");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_timeout_config();
+            let config = resolve_http_config();
 
             assert_eq!(config.connect_timeout, 30);
             assert_eq!(config.read_timeout, 120);
             assert_eq!(config.pool_idle_timeout, 180);
             assert_eq!(config.pool_max_idle_per_host, 10);
             assert_eq!(config.max_redirects, 20);
+            assert_eq!(config.hickory, true);
+            assert_eq!(config.tls_backend, TlsBackend::Native);
 
             // Clean up environment variables
             unsafe {
@@ -527,6 +516,8 @@ mod tests {
                 env::remove_var("FORGE_HTTP_POOL_IDLE_TIMEOUT");
                 env::remove_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST");
                 env::remove_var("FORGE_HTTP_MAX_REDIRECTS");
+                env::remove_var("FORGE_HTTP_USE_HICKORY");
+                env::remove_var("FORGE_HTTP_TLS_BACKEND");
             }
         }
 
@@ -536,8 +527,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "15");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_timeout_config();
+            let config = resolve_http_config();
             let default_config = forge_domain::HttpConfig::default();
 
             // Overridden value
@@ -564,8 +554,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "invalid");
             }
 
-            let env_service = ForgeEnvironmentInfra::new(false, PathBuf::from("."));
-            let config = env_service.resolve_timeout_config();
+            let config = resolve_http_config();
             let default_config = forge_domain::HttpConfig::default();
 
             // Should fall back to default when parsing fails
@@ -574,6 +563,80 @@ mod tests {
             // Clean up environment variables
             unsafe {
                 env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
+            }
+        }
+
+        // Test hickory and TLS backend configuration options specifically
+        {
+            // Clean up any existing environment variables first
+            unsafe {
+                env::remove_var("FORGE_HTTP_USE_HICKORY");
+                env::remove_var("FORGE_HTTP_TLS_BACKEND");
+            }
+
+            // Test default values
+
+            let config = resolve_http_config();
+            let default_config = forge_domain::HttpConfig::default();
+            assert_eq!(config.hickory, default_config.hickory);
+            assert_eq!(config.tls_backend, default_config.tls_backend);
+
+            // Test setting hickory to true
+            unsafe {
+                env::set_var("FORGE_HTTP_USE_HICKORY", "true");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.hickory, true);
+            assert_eq!(config.tls_backend, default_config.tls_backend); // Should remain default
+
+            // Test setting tls_backend to native
+            unsafe {
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "native");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.hickory, true); // Should remain from previous setting
+            assert_eq!(config.tls_backend, TlsBackend::Native);
+
+            // Test setting tls_backend to default
+            unsafe {
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "default");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.tls_backend, TlsBackend::Default);
+
+            // Test setting tls_backend to rustls
+            unsafe {
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.tls_backend, TlsBackend::Rustls);
+
+            // Test case insensitive parsing
+            unsafe {
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "NATIVE");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.tls_backend, TlsBackend::Native);
+
+            // Test invalid values (should use defaults)
+            unsafe {
+                env::set_var("FORGE_HTTP_USE_HICKORY", "invalid");
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "invalid_backend");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.hickory, default_config.hickory); // Should fallback to default
+            assert_eq!(config.tls_backend, default_config.tls_backend); // Should fallback to default
+
+            // Clean up environment variables
+            unsafe {
+                env::remove_var("FORGE_HTTP_USE_HICKORY");
+                env::remove_var("FORGE_HTTP_TLS_BACKEND");
             }
         }
     }
