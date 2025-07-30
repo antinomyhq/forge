@@ -1,9 +1,9 @@
 use std::pin::Pin;
 
-use derive_more::From;
-use thiserror::Error;
-
 use crate::{AgentId, ConversationId};
+use derive_more::From;
+use make_json_great_again::JsonRepairError;
+use thiserror::Error;
 
 // NOTE: Deriving From for error is a really bad idea. This is because you end
 // up converting errors incorrectly without much context. For eg: You don't want
@@ -20,7 +20,7 @@ pub enum Error {
     #[error("JSON deserialization error: {error}")]
     #[from(skip)]
     ToolCallArgument {
-        error: serde_json::Error,
+        error: JsonRepairError,
         args: String,
     },
 
@@ -86,15 +86,18 @@ impl std::fmt::Display for ToolCallArgumentError {
 
 #[cfg(test)]
 mod test {
-    use serde_json::Value;
-
     use crate::Error;
+    use make_json_great_again::JsonRepairError;
+    use serde_json::Value;
 
     #[test]
     fn test_debug_serde_error() {
         let args = "{a: 1}";
         let serde_error = serde_json::from_str::<Value>(&args).unwrap_err();
-        let a = Error::ToolCallArgument { error: serde_error, args: args.to_string() };
+        let a = Error::ToolCallArgument {
+            error: JsonRepairError::from(serde_error),
+            args: args.to_string(),
+        };
         let a = anyhow::anyhow!(a);
         eprintln!("{:?}", a.root_cause());
     }

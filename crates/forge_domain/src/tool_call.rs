@@ -1,10 +1,10 @@
-use derive_more::derive::From;
-use derive_setters::Setters;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
 use crate::xml::extract_tag_content;
 use crate::{Error, Result, ToolName};
+use derive_more::derive::From;
+use derive_setters::Setters;
+use make_json_great_again::JsonRepairError;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// Unique identifier for a using a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -104,12 +104,14 @@ impl ToolCallFull {
                             arguments: if current_arguments.is_empty() {
                                 Value::default()
                             } else {
-                                serde_json::from_str(&current_arguments).map_err(|error| {
-                                    Error::ToolCallArgument {
+                                serde_json::from_str(&current_arguments)
+                                    .or_else(|_| {
+                                        make_json_great_again::jsonrepair(&current_arguments)
+                                    })
+                                    .map_err(|error| Error::ToolCallArgument {
                                         error,
                                         args: current_arguments.clone(),
-                                    }
-                                })?
+                                    })?
                             },
                         });
                     }
@@ -135,9 +137,12 @@ impl ToolCallFull {
                 arguments: if current_arguments.is_empty() {
                     Value::default()
                 } else {
-                    serde_json::from_str(&current_arguments).map_err(|error| {
-                        Error::ToolCallArgument { error, args: current_arguments.clone() }
-                    })?
+                    serde_json::from_str(&current_arguments)
+                        .or_else(|_| make_json_great_again::jsonrepair::<Value>(&current_arguments))
+                        .map_err(|error| Error::ToolCallArgument {
+                            error,
+                            args: current_arguments.clone(),
+                        })?
                 },
             });
         }
@@ -150,8 +155,9 @@ impl ToolCallFull {
         match extract_tag_content(input, "forge_tool_call") {
             None => Ok(Default::default()),
             Some(content) => {
-                let mut tool_call: ToolCallFull =
-                    serde_json::from_str(content).map_err(|error| Error::ToolCallArgument {
+                let mut tool_call: ToolCallFull = serde_json::from_str(content)
+                    .or_else(|_| make_json_great_again::jsonrepair(content))
+                    .map_err(|error| Error::ToolCallArgument {
                         error,
                         args: content.to_string(),
                     })?;

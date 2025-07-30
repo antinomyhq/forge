@@ -1347,6 +1347,7 @@ dependencies = [
  "insta",
  "is_ci",
  "lazy_static",
+ "make_json_great_again",
  "merge",
  "nom 8.0.0",
  "pretty_assertions",
@@ -2845,6 +2846,17 @@ dependencies = [
  "whoami",
  "winreg 0.11.0",
  "wmi",
+]
+
+[[package]]
+name = "make_json_great_again"
+version = "0.1.0"
+dependencies = [
+ "pretty_assertions",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
 ]
 
 [[package]]

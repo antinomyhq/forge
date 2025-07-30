@@ -130,3 +130,4 @@ forge_template = { path = "crates/forge_template" }
 forge_tool_macros = { path = "crates/forge_tool_macros" }
 forge_tracker = { path = "crates/forge_tracker" }
 forge_walker = { path = "crates/forge_walker" }
+make_json_great_again = { path = "crates/make_json_great_again" }
