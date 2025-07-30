@@ -1,77 +1,40 @@
+use std::sync::Arc;
+
 use anyhow::{Context as _, Result};
-use derive_builder::Builder;
+use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
-use reqwest::{Client, Url};
-use reqwest_eventsource::{Event, RequestBuilderExt};
+use reqwest::header::AUTHORIZATION;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
 use super::model::{ListModelResponse, Model};
 use super::request::Request;
 use super::response::Response;
-use crate::error::Error;
+use crate::client::{create_headers, join_url};
 use crate::openai::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
 
-#[derive(Clone, Builder)]
-pub struct ForgeProvider {
-    client: Client,
+#[derive(Clone)]
+pub struct OpenAIProvider<H> {
     provider: Provider,
-    version: String,
+    http: Arc<H>,
 }
 
-impl ForgeProvider {
-    pub fn builder() -> ForgeProviderBuilder {
-        ForgeProviderBuilder::default()
-    }
-
-    fn url(&self, path: &str) -> anyhow::Result<Url> {
-        // Validate the path doesn't contain certain patterns
-        if path.contains("://") || path.contains("..") {
-            anyhow::bail!("Invalid path: Contains forbidden patterns");
-        }
-
-        // Remove leading slash to avoid double slashes
-        let path = path.trim_start_matches('/');
-
-        self.provider.to_base_url().join(path).with_context(|| {
-            format!(
-                "Failed to append {} to base URL: {}",
-                path,
-                self.provider.to_base_url()
-            )
-        })
+impl<H: HttpClientService> OpenAIProvider<H> {
+    pub fn new(provider: Provider, http: Arc<H>) -> Self {
+        Self { provider, http }
     }
 
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
     // - `HTTP-Referer`: Identifies your app on openrouter.ai
     // - `X-Title`: Sets/modifies your app's title
-    fn headers(&self) -> HeaderMap {
-        let mut headers = HeaderMap::new();
+    fn get_headers(&self) -> Vec<(String, String)> {
+        let mut headers = Vec::new();
         if let Some(ref api_key) = self.provider.key() {
-            headers.insert(
-                AUTHORIZATION,
-                HeaderValue::from_str(&format!("Bearer {api_key}")).unwrap(),
-            );
+            headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
         }
-        headers.insert("X-Title", HeaderValue::from_static("forge"));
-        headers.insert(
-            "x-app-version",
-            HeaderValue::from_str(format!("v{}", self.version).as_str())
-                .unwrap_or(HeaderValue::from_static("v0.1.0-dev")),
-        );
-        headers.insert(
-            "HTTP-Referer",
-            HeaderValue::from_static("https://github.com/antinomyhq/forge"),
-        );
-        headers.insert(
-            reqwest::header::CONNECTION,
-            HeaderValue::from_static("keep-alive"),
-        );
-        debug!(headers = ?sanitize_headers(&headers), "Request Headers");
         headers
     }
 
@@ -84,8 +47,8 @@ impl ForgeProvider {
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
-        let url = self.url("chat/completions")?;
-        let headers = self.headers();
+        let url = join_url(self.provider.to_base_url().as_str(), "chat/completions")?;
+        let headers = create_headers(self.get_headers());
 
         info!(
             url = %url,
@@ -96,84 +59,61 @@ impl ForgeProvider {
             "Connecting Upstream"
         );
 
-        let es = self
-            .client
-            .post(url.clone())
-            .headers(headers)
-            .json(&request)
-            .eventsource()
+        let json_bytes =
+            serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
+
+        let stream = self
+            .http
+            .eventsource(&url, Some(headers), json_bytes.into())
+            .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
-        let stream = es
-            .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-            .then(|event| async {
+        let stream = stream
+            .then(|event| async move {
                 match event {
-                    Ok(event) => match event {
-                        Event::Open => None,
-                        Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
+                    Ok(event) => {
+                        if event.event_type == Some("open".to_string()) {
+                            None
+                        } else if ["[DONE]", ""].contains(&event.data.as_str()) {
                             debug!("Received completion from Upstream");
                             None
+                        } else {
+                            Some(
+                                serde_json::from_str::<Response>(&event.data)
+                                    .with_context(|| {
+                                        format!(
+                                            "Failed to parse Forge Provider response: {}",
+                                            event.data
+                                        )
+                                    })
+                                    .and_then(|response| {
+                                        ChatCompletionMessage::try_from(response.clone())
+                                            .with_context(|| {
+                                                format!(
+                                                    "Failed to create completion message: {}",
+                                                    event.data
+                                                )
+                                            })
+                                    }),
+                            )
                         }
-                        Event::Message(message) => Some(
-                            serde_json::from_str::<Response>(&message.data)
-                                .with_context(|| {
-                                    format!(
-                                        "Failed to parse Forge Provider response: {}",
-                                        message.data
-                                    )
-                                })
-                                .and_then(|response| {
-                                    ChatCompletionMessage::try_from(response.clone()).with_context(
-                                        || {
-                                            format!(
-                                                "Failed to create completion message: {}",
-                                                message.data
-                                            )
-                                        },
-                                    )
-                                }),
-                        ),
-                    },
-                    Err(error) => match error {
-                        reqwest_eventsource::Error::StreamEnded => None,
-                        reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
-                            let status = response.status();
-                            let body = response.text().await.ok();
-                            Some(Err(Error::InvalidStatusCode(status.as_u16())).with_context(
-                                || match body {
-                                    Some(body) => {
-                                        format!("{status} Reason: {body}")
-                                    }
-                                    None => {
-                                        format!("{status} Reason: [Unknown]")
-                                    }
-                                },
-                            ))
-                        }
-                        reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
-                            let status_code = response.status();
-                            debug!(response = ?response, "Invalid content type");
-                            Some(Err(error).with_context(|| format!("Http Status: {status_code}")))
-                        }
-                        error => {
-                            tracing::error!(error = ?error, "Failed to receive chat completion event");
-                            Some(Err(error.into()))
-                        }
-                    },
+                    }
+                    Err(error) => {
+                        tracing::error!(error = ?error, "Failed to receive chat completion event");
+                        Some(Err(error))
+                    }
                 }
             })
-            .filter_map(move |response| {
-                response
-                    .map(|result| result.with_context(|| format_http_context(None, "POST", &url)))
-            });
+            .filter_map(|response| response)
+            .map(move |result| result.with_context(|| format_http_context(None, "POST", &url)));
 
         Ok(Box::pin(stream))
     }
 
     async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
-        let url = self.url("models")?;
+        let url = join_url(self.provider.to_base_url().as_str(), "models")?;
         debug!(url = %url, "Fetching models");
-        match self.fetch_models(url.clone()).await {
+        match self.fetch_models(url.as_str()).await {
             Err(error) => {
                 tracing::error!(error = ?error, "Failed to fetch models");
                 anyhow::bail!(error)
@@ -187,38 +127,38 @@ impl ForgeProvider {
         }
     }
 
-    async fn fetch_models(&self, url: Url) -> Result<String, anyhow::Error> {
-        let headers = self.headers();
+    async fn fetch_models(&self, url: &str) -> Result<String, anyhow::Error> {
+        let headers = create_headers(self.get_headers());
+        let url = join_url(url, "")?;
         info!(method = "GET", url = %url, headers = ?sanitize_headers(&headers), "Fetching Models");
-        match self.client.get(url.clone()).headers(headers).send().await {
-            Ok(response) => {
-                let status = response.status();
-                let ctx_message = format_http_context(Some(status), "GET", &url);
-                let response = response
-                    .text()
-                    .await
-                    .with_context(|| ctx_message.clone())
-                    .with_context(|| "Failed to decode response into text")?;
-                if status.is_success() {
-                    Ok(response)
-                } else {
-                    // treat non 200 response as error.
-                    Err(anyhow::anyhow!(response))
-                        .with_context(|| ctx_message)
-                        .with_context(|| "Failed to fetch the models")
-                }
-            }
-            Err(err) => {
-                let ctx_msg = format_http_context(err.status(), "GET", &url);
-                Err(err)
-                    .with_context(|| ctx_msg)
-                    .with_context(|| "Failed to fetch the models")
-            }
+
+        let response = self
+            .http
+            .get(&url, Some(headers))
+            .await
+            .with_context(|| format_http_context(None, "GET", &url))
+            .with_context(|| "Failed to fetch the models")?;
+
+        let status = response.status();
+        let ctx_message = format_http_context(Some(status), "GET", &url);
+
+        let response_text = response
+            .text()
+            .await
+            .with_context(|| ctx_message.clone())
+            .with_context(|| "Failed to decode response into text")?;
+
+        if status.is_success() {
+            Ok(response_text)
+        } else {
+            Err(anyhow::anyhow!(response_text))
+                .with_context(|| ctx_message)
+                .with_context(|| "Failed to fetch the models")
         }
     }
 }
 
-impl ForgeProvider {
+impl<T: HttpClientService> OpenAIProvider<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -264,24 +204,76 @@ impl From<Model> for forge_app::domain::Model {
 
 #[cfg(test)]
 mod tests {
+    use std::pin::Pin;
+
     use anyhow::Context;
-    use reqwest::Client;
+    use bytes::Bytes;
+    use forge_app::{HttpClientService, ServerSentEvent};
+    use futures::Stream;
+    use reqwest::header::HeaderMap;
 
     use super::*;
     use crate::mock_server::{MockServer, normalize_ports};
 
-    fn create_provider(base_url: &str) -> anyhow::Result<ForgeProvider> {
+    // Mock implementation of HttpClientService for testing
+    #[derive(Clone)]
+    struct MockHttpClient {
+        client: reqwest::Client,
+    }
+
+    impl MockHttpClient {
+        fn new() -> Self {
+            Self { client: reqwest::Client::new() }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl HttpClientService for MockHttpClient {
+        async fn get(
+            &self,
+            url: &reqwest::Url,
+            headers: Option<HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
+            let mut request = self.client.get(url.clone());
+            if let Some(headers) = headers {
+                request = request.headers(headers);
+            }
+            Ok(request.send().await?)
+        }
+
+        async fn post(
+            &self,
+            _url: &reqwest::Url,
+            _body: Bytes,
+        ) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn eventsource(
+            &self,
+            _url: &reqwest::Url,
+            _headers: Option<HeaderMap>,
+            _body: Bytes,
+        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>
+        {
+            unimplemented!()
+        }
+    }
+
+    fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider<MockHttpClient>> {
         let provider = Provider::OpenAI {
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
         };
 
-        Ok(ForgeProvider::builder()
-            .client(Client::new())
-            .provider(provider)
-            .version("1.0.0".to_string())
-            .build()
-            .unwrap())
+        Ok(OpenAIProvider::new(
+            provider,
+            Arc::new(MockHttpClient::new()),
+        ))
     }
 
     fn create_mock_models_response() -> serde_json::Value {

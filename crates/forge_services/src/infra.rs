@@ -1,14 +1,17 @@
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 
 use anyhow::Result;
 use bytes::Bytes;
 use forge_app::domain::{
     CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
-use forge_app::{WalkedFile, Walker};
+use forge_app::{ServerSentEvent, WalkedFile, Walker};
 use forge_snaps::Snapshot;
+use futures::Stream;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
+use url::Url;
 
 pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;
@@ -167,10 +170,18 @@ pub trait WalkerInfra: Send + Sync {
     async fn walk(&self, config: Walker) -> anyhow::Result<Vec<WalkedFile>>;
 }
 
-// TODO: rename me, add Infra suffix
+/// HTTP service trait for making HTTP requests
 #[async_trait::async_trait]
 pub trait HttpInfra: Send + Sync + 'static {
-    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response>;
-    async fn delete(&self, url: &str) -> anyhow::Result<Response>;
+    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
+    async fn post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
+    async fn delete(&self, url: &Url) -> anyhow::Result<Response>;
+
+    /// Posts JSON data and returns a server-sent events stream
+    async fn eventsource(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>;
 }

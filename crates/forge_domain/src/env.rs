@@ -42,6 +42,7 @@ pub struct Environment {
     pub stdout_max_suffix_length: usize,
     /// Maximum number of lines to read from a file
     pub max_read_size: u64,
+    /// Http configuration
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
     pub max_file_size: u64,

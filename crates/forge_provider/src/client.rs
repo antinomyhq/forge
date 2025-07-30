@@ -5,15 +5,17 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
+use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
-use reqwest::redirect::Policy;
+use reqwest::Url;
+use reqwest::header::HeaderMap;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
 use crate::anthropic::Anthropic;
-use crate::openai::ForgeProvider;
+use crate::openai::OpenAIProvider;
 use crate::retry::into_retry;
 
 #[derive(Setters)]
@@ -40,47 +42,22 @@ impl ClientBuilder {
     }
 
     /// Build the client with the configured settings.
-    pub fn build(self) -> Result<Client> {
+    pub fn build<T: HttpClientService>(self, http: Arc<T>) -> Result<Client<T>> {
         let provider = self.provider;
-        let version = self.version;
-
-        let timeout_config = self.timeout_config;
         let retry_config = self.retry_config;
 
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(
-                timeout_config.connect_timeout,
-            ))
-            .read_timeout(std::time::Duration::from_secs(timeout_config.read_timeout))
-            .pool_idle_timeout(std::time::Duration::from_secs(
-                timeout_config.pool_idle_timeout,
-            ))
-            .pool_max_idle_per_host(timeout_config.pool_max_idle_per_host)
-            .redirect(Policy::limited(timeout_config.max_redirects))
-            .hickory_dns(self.use_hickory)
-            .build()?;
-
         let inner = match &provider {
-            Provider::OpenAI { url, .. } => InnerClient::OpenAICompat(
-                ForgeProvider::builder()
-                    .client(client)
-                    .provider(provider.clone())
-                    .version(version.clone())
-                    .build()
-                    .with_context(|| format!("Failed to initialize: {url}"))?,
-            ),
+            Provider::OpenAI { .. } => {
+                // FIXME: pass key and url instead of provider
+                InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http.clone()))
+            }
 
-            Provider::Anthropic { url, key } => InnerClient::Anthropic(
-                Anthropic::builder()
-                    .client(client)
-                    .api_key(key.to_string())
-                    .base_url(url.clone())
-                    .anthropic_version("2023-06-01".to_string())
-                    .build()
-                    .with_context(|| {
-                        format!("Failed to initialize Anthropic client with URL: {url}")
-                    })?,
-            ),
+            Provider::Anthropic { key, .. } => InnerClient::Anthropic(Anthropic::new(
+                http.clone(),
+                key.to_string(),
+                provider.to_base_url().to_string(),
+                "2023-06-01".to_string(),
+            )),
         };
 
         Ok(Client {
@@ -91,19 +68,28 @@ impl ClientBuilder {
     }
 }
 
-#[derive(Clone)]
-pub struct Client {
+pub struct Client<T> {
     retry_config: Arc<RetryConfig>,
-    inner: Arc<InnerClient>,
+    inner: Arc<InnerClient<T>>,
     models_cache: Arc<RwLock<HashMap<ModelId, Model>>>,
 }
 
-enum InnerClient {
-    OpenAICompat(ForgeProvider),
-    Anthropic(Anthropic),
+impl<T> Clone for Client<T> {
+    fn clone(&self) -> Self {
+        Self {
+            retry_config: self.retry_config.clone(),
+            inner: self.inner.clone(),
+            models_cache: self.models_cache.clone(),
+        }
+    }
 }
 
-impl Client {
+enum InnerClient<T> {
+    OpenAICompat(OpenAIProvider<T>),
+    Anthropic(Anthropic<T>),
+}
+
+impl<T: HttpClientService> Client<T> {
     fn retry<A>(&self, result: anyhow::Result<A>) -> anyhow::Result<A> {
         let retry_config = &self.retry_config;
         result.map_err(move |e| into_retry(e, retry_config))
@@ -128,7 +114,7 @@ impl Client {
     }
 }
 
-impl Client {
+impl<T: HttpClientService> Client<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -139,7 +125,7 @@ impl Client {
             InnerClient::Anthropic(provider) => provider.chat(model, context).await,
         })?;
 
-        let this = self.clone();
+        let this: Client<T> = self.clone();
         Ok(Box::pin(
             chat_stream.map(move |item| this.clone().retry(item)),
         ))
@@ -165,12 +151,78 @@ impl Client {
     }
 }
 
+pub fn join_url(base_url: &str, path: &str) -> anyhow::Result<Url> {
+    // Validate the path doesn't contain certain patterns
+    if path.contains("://") || path.contains("..") {
+        anyhow::bail!("Invalid path: Contains forbidden patterns");
+    }
+
+    // Remove leading slash to avoid double slashes
+    let path = path.trim_start_matches('/');
+
+    let url = Url::parse(base_url)
+        .with_context(|| format!("Failed to parse base URL: {base_url}"))?
+        .join(path)
+        .with_context(|| format!("Failed to append {path} to base URL: {base_url}"))?;
+    Ok(url)
+}
+
+pub fn create_headers(headers: Vec<(String, String)>) -> HeaderMap {
+    let mut header_map = HeaderMap::new();
+    for (key, value) in headers {
+        let header_name =
+            reqwest::header::HeaderName::from_bytes(key.as_bytes()).expect("Invalid header name");
+        let header_value = value.parse().expect("Invalid header value");
+        header_map.insert(header_name, header_value);
+    }
+    header_map
+}
+
 #[cfg(test)]
 mod tests {
+    use std::pin::Pin;
+    use std::sync::Arc;
+
+    use bytes::Bytes;
     use forge_app::domain::Provider;
+    use forge_app::{HttpClientService, ServerSentEvent};
+    use futures::Stream;
     use reqwest::Url;
+    use reqwest::header::HeaderMap;
 
     use super::*;
+
+    // Simple mock for testing client functionality
+    struct MockHttpClient;
+
+    #[async_trait::async_trait]
+    impl HttpClientService for MockHttpClient {
+        async fn get(
+            &self,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+
+        async fn post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+
+        async fn delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+
+        async fn eventsource(
+            &self,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
+            _body: Bytes,
+        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>
+        {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+    }
 
     #[tokio::test]
     async fn test_cache_initialization() {
@@ -178,7 +230,9 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::new(provider, "dev").build().unwrap();
+        let client = ClientBuilder::new(provider, "dev")
+            .build(Arc::new(MockHttpClient))
+            .unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;
@@ -191,7 +245,9 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::new(provider, "dev").build().unwrap();
+        let client = ClientBuilder::new(provider, "dev")
+            .build(Arc::new(MockHttpClient))
+            .unwrap();
 
         // Verify refresh_models method is available (it will fail due to no actual API,
         // but that's expected)
@@ -212,7 +268,7 @@ mod tests {
             .retry_config(Arc::new(RetryConfig::default()))
             .timeout_config(HttpConfig::default())
             .use_hickory(true)
-            .build()
+            .build(Arc::new(MockHttpClient))
             .unwrap();
 
         // Verify cache is initialized as empty
@@ -228,7 +284,9 @@ mod tests {
         };
 
         // Test that ClientBuilder::new works with minimal parameters
-        let client = ClientBuilder::new(provider, "dev").build().unwrap();
+        let client = ClientBuilder::new(provider, "dev")
+            .build(Arc::new(MockHttpClient))
+            .unwrap();
 
         // Verify cache is initialized as empty
         let cache = client.models_cache.read().await;

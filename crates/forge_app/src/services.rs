@@ -1,11 +1,17 @@
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 
+use bytes::Bytes;
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
     ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
+use futures::Stream;
 use merge::Merge;
+use reqwest::Response;
+use reqwest::header::HeaderMap;
+use url::Url;
 
 use crate::user::{User, UserUsage};
 use crate::{AppConfig, InitAuth, LoginInfo, Walker};
@@ -605,4 +611,37 @@ impl<I: Services> AuthService for I {
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage> {
         self.auth_service().user_usage(api_key).await
     }
+}
+
+/// Represents a server-sent event
+#[derive(Debug, Clone)]
+pub struct ServerSentEvent {
+    pub event_type: Option<String>,
+    pub data: String,
+    pub id: Option<String>,
+}
+
+/// Event stream states
+#[derive(Debug)]
+pub enum EventStreamState {
+    Open,
+    Message(ServerSentEvent),
+    Done,
+    Error(anyhow::Error),
+}
+
+/// HTTP service trait for making HTTP requests
+#[async_trait::async_trait]
+pub trait HttpClientService: Send + Sync + 'static {
+    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
+    async fn post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
+    async fn delete(&self, url: &Url) -> anyhow::Result<Response>;
+
+    /// Posts JSON data and returns a server-sent events stream
+    async fn eventsource(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>;
 }

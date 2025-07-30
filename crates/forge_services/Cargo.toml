@@ -56,6 +56,7 @@ merge.workspace = true
 strip-ansi-escapes.workspace = true
 rmcp.workspace = true
 forge_app.workspace = true
+forge_domain.workspace = true
 url.workspace = true
 
 [dev-dependencies]

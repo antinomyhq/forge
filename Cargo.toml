@@ -1,7 +1,5 @@
 [workspace]
-members = [
-    "crates/*",
-]
+members = ["crates/*"]
 resolver = "2"
 
 [profile.release]
@@ -55,6 +53,7 @@ regex = "1.11.1"
 reqwest = { version = "0.12.22", features = [
     "json",
     "rustls-tls",
+    "native-tls",
     "hickory-dns",
 ], default-features = false }
 reqwest-eventsource = "0.6.0"
