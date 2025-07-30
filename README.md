@@ -369,7 +369,7 @@ FORGE_HTTP_POOL_IDLE_TIMEOUT=90        # Pool idle timeout in seconds (default: 
 FORGE_HTTP_POOL_MAX_IDLE_PER_HOST=32   # Max idle connections per host (default: 32)
 FORGE_HTTP_MAX_REDIRECTS=10            # Maximum redirects to follow (default: 10)
 FORGE_HTTP_USE_HICKORY=false           # Use Hickory DNS resolver (default: false)
-FORGE_HTTP_TLS_BACKEND=default         # TLS backend: default, native-tls, rustls (default: default)
+FORGE_HTTP_TLS_BACKEND=default         # TLS backend: default, rustls (default: default)
 FORGE_HTTP_MIN_TLS_VERSION=1.2         # Minimum TLS version: 1.0, 1.1, 1.2, 1.3 (default: 1.2)
 FORGE_HTTP_MAX_TLS_VERSION=1.3         # Maximum TLS version: 1.0, 1.1, 1.2, 1.3 (default: 1.3)
 ```
