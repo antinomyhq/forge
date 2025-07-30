@@ -44,9 +44,15 @@ expression: results
     },
     TermSpec {
         input: "@你好 [@世界 测试@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "你好 ",
+        ),
+        span_start: Some(
+            1,
+        ),
+        span_end: Some(
+            8,
+        ),
         pos: 8,
     },
     TermSpec {
@@ -90,23 +96,41 @@ expression: results
     },
     TermSpec {
         input: "@你好 @世界 [测试@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "世界 ",
+        ),
+        span_start: Some(
+            9,
+        ),
+        span_end: Some(
+            16,
+        ),
         pos: 16,
     },
     TermSpec {
         input: "@你好 @世界 测[试@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "世界 测",
+        ),
+        span_start: Some(
+            9,
+        ),
+        span_end: Some(
+            19,
+        ),
         pos: 19,
     },
     TermSpec {
         input: "@你好 @世界 测试[@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "世界 测试",
+        ),
+        span_start: Some(
+            9,
+        ),
+        span_end: Some(
+            22,
+        ),
         pos: 22,
     },
     TermSpec {
