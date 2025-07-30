@@ -10,11 +10,11 @@ mod fs_remove;
 mod fs_snap;
 mod fs_write;
 mod http;
-mod tls_fallback;
-mod tls_retry;
 mod inquire;
 mod mcp_client;
 mod mcp_server;
+mod tls_fallback;
+mod tls_retry;
 mod walker;
 
 pub use executor::ForgeCommandExecutorService;

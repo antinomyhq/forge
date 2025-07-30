@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
-use forge_domain::{HttpConfig, TlsVersion};
 use std::time::Duration;
+
+use anyhow::Result;
+use forge_domain::{HttpConfig, TlsVersion};
 use tracing::{debug, info, warn};
 
 /// Enhanced retry configuration for TLS fallback
@@ -87,11 +88,17 @@ impl TlsRetryHandler {
 
             match operation().await {
                 Ok(result) => {
-                    info!("Successfully connected with TLS version {} after {} attempts", version, attempt);
+                    info!(
+                        "Successfully connected with TLS version {} after {} attempts",
+                        version, attempt
+                    );
                     return Ok(result);
                 }
                 Err(e) => {
-                    warn!("TLS connection attempt {} failed with version {}: {}", attempt, version, e);
+                    warn!(
+                        "TLS connection attempt {} failed with version {}: {}",
+                        attempt, version, e
+                    );
                     last_error = Some(e);
 
                     if attempt < self.config.max_attempts_per_version {
@@ -132,7 +139,7 @@ pub mod diagnostics {
     /// Check if a TLS error is likely recoverable with a different version
     pub fn is_tls_version_error(error: &anyhow::Error) -> bool {
         let error_str = error.to_string().to_lowercase();
-        
+
         // Common TLS version mismatch error patterns
         let version_error_patterns = [
             "tls",
@@ -146,7 +153,9 @@ pub mod diagnostics {
             "incompatible",
         ];
 
-        version_error_patterns.iter().any(|pattern| error_str.contains(pattern))
+        version_error_patterns
+            .iter()
+            .any(|pattern| error_str.contains(pattern))
     }
 
     /// Suggest alternative TLS configuration based on error
@@ -166,7 +175,9 @@ pub mod diagnostics {
 
             // Suggest adjusting version constraints
             if current_config.min_tls_version != TlsVersion::Tls10 {
-                suggestions.push("Try allowing older TLS versions (security risk): Set min_tls_version to Tls10");
+                suggestions.push(
+                    "Try allowing older TLS versions (security risk): Set min_tls_version to Tls10",
+                );
             }
 
             if !current_config.tls_fallback_enabled {
@@ -184,8 +195,9 @@ pub mod diagnostics {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_retry_handler_success() {

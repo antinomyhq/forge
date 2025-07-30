@@ -40,7 +40,6 @@ impl std::str::FromStr for TlsVersion {
     }
 }
 
-
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TlsBackend {

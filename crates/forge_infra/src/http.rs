@@ -1,17 +1,17 @@
 use std::pin::Pin;
 
-use crate::tls_fallback::TlsClientBuilder;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::ServerSentEvent;
-use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
+use forge_domain::HttpConfig;
 use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
-use reqwest::redirect::Policy;
 use reqwest::{Client, Response, StatusCode, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::{Stream, StreamExt};
 use tracing::debug;
+
+use crate::tls_fallback::TlsClientBuilder;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
