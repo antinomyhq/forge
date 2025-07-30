@@ -2,8 +2,10 @@ use std::pin::Pin;
 
 use bytes::Bytes;
 use forge_app::ServerSentEvent;
+use forge_domain::HttpConfig;
 use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
+use reqwest::redirect::Policy;
 use reqwest::{Client, Response, Url};
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use tokio_stream::{Stream, StreamExt};
@@ -20,8 +22,20 @@ pub struct ForgeHttpInfra {
 }
 
 impl ForgeHttpInfra {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(config: HttpConfig) -> Self {
+        let mut client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(config.connect_timeout))
+            .read_timeout(std::time::Duration::from_secs(config.read_timeout))
+            .pool_idle_timeout(std::time::Duration::from_secs(config.pool_idle_timeout))
+            .pool_max_idle_per_host(config.pool_max_idle_per_host)
+            .redirect(Policy::limited(config.max_redirects))
+            .hickory_dns(config.hickory);
+
+        if config.rustls_tls {
+            client = client.use_rustls_tls();
+        }
+
+        Self { client: client.build().unwrap() }
     }
 
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {

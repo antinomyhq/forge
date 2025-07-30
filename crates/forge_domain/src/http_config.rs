@@ -8,6 +8,8 @@ pub struct HttpConfig {
     pub pool_idle_timeout: u64,
     pub pool_max_idle_per_host: usize,
     pub max_redirects: usize,
+    pub hickory: bool,
+    pub rustls_tls: bool,
 }
 
 impl Default for HttpConfig {
@@ -19,6 +21,8 @@ impl Default for HttpConfig {
             pool_idle_timeout: 90,
             pool_max_idle_per_host: 5,
             max_redirects: 10,
+            hickory: false,
+            rustls_tls: true,
         }
     }
 }
