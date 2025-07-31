@@ -17,4 +17,5 @@ pub enum Action {
     IntervalTick(Timer),
     InterruptStream,
     StartStream(CancelId),
+    New,
 }
