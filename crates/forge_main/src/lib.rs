@@ -5,6 +5,7 @@ mod editor;
 mod info;
 mod input;
 mod model;
+mod pretty_errors;
 mod prompt;
 mod select;
 mod state;
