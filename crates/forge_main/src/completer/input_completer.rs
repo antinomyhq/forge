@@ -22,7 +22,7 @@ impl InputCompleter {
         Self {
             walker,
             command: CommandCompleter::new(command_manager),
-            fuzzy_matcher: Matcher::new(Config::DEFAULT),
+            fuzzy_matcher: Matcher::new(Config::DEFAULT.match_paths()),
         }
     }
 }
