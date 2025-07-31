@@ -39,18 +39,14 @@ impl Completer for InputCompleter {
         }
 
         if let Some(query) = SearchTerm::new(line, pos).process() {
-            let query_term_string = escape_for_pattern_parse(query.term);
-            let query_term = query_term_string.as_str();
             let files = self.walker.get_blocking().unwrap_or_default();
+            let pattern = Pattern::parse(query.term, CaseMatching::Smart, Normalization::Smart);
             let mut scored_matches: Vec<(u32, Suggestion)> = files
                 .into_iter()
                 .filter(|file| !file.is_dir())
                 .filter_map(|file| {
                     let mut haystack_buf = Vec::new();
                     let haystack = Utf32Str::new(&file.path, &mut haystack_buf);
-                    let pattern =
-                        Pattern::parse(query_term, CaseMatching::Ignore, Normalization::Smart);
-
                     if let Some(score) = pattern.score(haystack, &mut self.fuzzy_matcher) {
                         let path_md_fmt = format!("[{}]", file.path);
                         Some((
@@ -82,18 +78,6 @@ impl Completer for InputCompleter {
             vec![]
         }
     }
-}
-
-fn escape_for_pattern_parse(term: &str) -> String {
-    let mut term_string = term.to_string();
-    if term_string.ends_with('$') {
-        term_string.insert(term_string.len() - 1, '\\');
-    }
-    if term_string.starts_with('\'') || term_string.starts_with('^') || term_string.starts_with('!')
-    {
-        term_string = format!("\\{term_string}");
-    }
-    term_string
 }
 
 #[cfg(test)]
