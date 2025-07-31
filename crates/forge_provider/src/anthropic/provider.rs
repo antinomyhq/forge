@@ -118,13 +118,11 @@ mod tests {
 
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::HttpClientService;
     use forge_app::domain::{
         Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
         ToolResult,
     };
     use reqwest::header::HeaderMap;
-    use reqwest_eventsource::EventSource;
     use reqwest_eventsource::EventSource;
 
     use super::*;
@@ -169,7 +167,6 @@ mod tests {
             _url: &Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
-        ) -> anyhow::Result<EventSource> {
         ) -> anyhow::Result<EventSource> {
             // For now, return an error since eventsource is not used in the failing tests
             Err(anyhow::anyhow!("EventSource not implemented in mock"))
