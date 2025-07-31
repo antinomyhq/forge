@@ -27,6 +27,7 @@ pub enum ChatResponse {
     Reasoning {
         content: String,
     },
+    ChatComplete,
 }
 
 #[derive(Debug, Clone)]

@@ -598,6 +598,10 @@ impl<S: AgentService> Orchestrator<S> {
             }
         }
 
+        if is_complete {
+            self.send(ChatResponse::ChatComplete).await?;
+        }
+
         Ok(())
     }
 

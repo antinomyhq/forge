@@ -814,6 +814,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln(content.dimmed())?;
                 }
             }
+            ChatResponse::ChatComplete => {
+                self.on_completion(None).await?;
+            }
         }
         Ok(())
     }
@@ -828,6 +831,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Box::pin(self.on_message(None)).await?;
         }
 
+        Ok(())
+    }
+
+    async fn on_completion(&mut self, summary_content: Option<String>) -> anyhow::Result<()> {
+        self.spinner.stop(None)?;
+
+        let should_start_new_chat = ForgeSelect::confirm("Do you want to start a new chat?")
+            .with_default(true)
+            .prompt()?;
+
+        if should_start_new_chat.unwrap_or(false) {
+            if let Some(content) = summary_content {
+                self.writeln(TitleFormat::action("Summary of previous chat:").sub_title(content))?;
+            }
+            self.writeln(Info::from(&self.state))?;
+            self.on_new().await?;
+        }
         Ok(())
     }
 
