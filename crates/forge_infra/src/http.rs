@@ -6,7 +6,6 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
 use reqwest::{Client, Response, StatusCode, Url};
 use reqwest_eventsource::{EventSource, RequestBuilderExt};
-use tokio_stream::StreamExt;
 use tracing::debug;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
