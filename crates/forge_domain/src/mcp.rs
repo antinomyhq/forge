@@ -87,6 +87,7 @@ impl Display for McpServerConfig {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Merge)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
+    #[serde(default)]
     #[merge(strategy = std::collections::BTreeMap::extend)]
     pub mcp_servers: BTreeMap<String, McpServerConfig>,
 }
