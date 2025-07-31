@@ -171,7 +171,6 @@ impl<T: HttpClientService> Anthropic<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::pin::Pin;
 
     use bytes::Bytes;
     use forge_app::HttpClientService;
@@ -179,7 +178,6 @@ mod tests {
         Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
         ToolResult,
     };
-    use futures::Stream;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 

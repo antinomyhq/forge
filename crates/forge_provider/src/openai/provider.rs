@@ -231,12 +231,10 @@ impl From<Model> for forge_app::domain::Model {
 
 #[cfg(test)]
 mod tests {
-    use std::pin::Pin;
 
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use futures::Stream;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 

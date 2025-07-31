@@ -180,13 +180,11 @@ pub fn create_headers(headers: Vec<(String, String)>) -> HeaderMap {
 
 #[cfg(test)]
 mod tests {
-    use std::pin::Pin;
     use std::sync::Arc;
 
     use bytes::Bytes;
     use forge_app::HttpClientService;
     use forge_app::domain::Provider;
-    use futures::Stream;
     use reqwest::Url;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
