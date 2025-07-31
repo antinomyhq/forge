@@ -34,6 +34,7 @@ eserde.workspace = true
 url.workspace = true
 reqwest.workspace = true
 bytes.workspace = true
+reqwest-eventsource.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

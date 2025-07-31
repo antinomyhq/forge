@@ -1,10 +1,8 @@
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
 use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::ServerSentEvent;
 use forge_domain::{CommandOutput, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
@@ -14,7 +12,7 @@ use forge_services::{
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
-use tokio_stream::Stream;
+use reqwest_eventsource::EventSource;
 
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -252,7 +250,7 @@ impl HttpInfra for ForgeInfra {
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
-    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+    ) -> anyhow::Result<EventSource> {
         self.http_service.eventsource(url, headers, body).await
     }
 }

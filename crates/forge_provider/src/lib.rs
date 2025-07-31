@@ -1,6 +1,7 @@
 mod anthropic;
 mod client;
 mod error;
+mod event;
 #[cfg(test)]
 mod mock_server;
 mod openai;

@@ -1,15 +1,11 @@
-use std::pin::Pin;
-
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::ServerSentEvent;
-use forge_domain::{HttpConfig, TlsBackend};
+use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
 use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
 use reqwest::{Client, Response, StatusCode, Url};
-use reqwest_eventsource::{Event, RequestBuilderExt};
-use tokio_stream::{Stream, StreamExt};
+use reqwest_eventsource::{EventSource, RequestBuilderExt};
 use tracing::debug;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
@@ -22,6 +18,16 @@ pub struct ForgeHttpInfra {
     client: Client,
 }
 
+fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
+    use reqwest::tls::Version;
+    match tls {
+        TlsVersion::V1_0 => Version::TLS_1_0,
+        TlsVersion::V1_1 => Version::TLS_1_1,
+        TlsVersion::V1_2 => Version::TLS_1_2,
+        TlsVersion::V1_3 => Version::TLS_1_3,
+    }
+}
+
 impl ForgeHttpInfra {
     pub fn new(config: HttpConfig) -> Self {
         let mut client = reqwest::Client::builder()
@@ -32,12 +38,17 @@ impl ForgeHttpInfra {
             .redirect(Policy::limited(config.max_redirects))
             .hickory_dns(config.hickory);
 
+        if let Some(version) = config.min_tls_version {
+            client = client.min_tls_version(to_reqwest_tls(version));
+        }
+
+        if let Some(version) = config.max_tls_version {
+            client = client.max_tls_version(to_reqwest_tls(version));
+        }
+
         match config.tls_backend {
             TlsBackend::Rustls => {
                 client = client.use_rustls_tls();
-            }
-            TlsBackend::Native => {
-                client = client.use_native_tls();
             }
             TlsBackend::Default => {}
         }
@@ -118,40 +129,21 @@ impl ForgeHttpInfra {
         headers
     }
 
-    async fn post_stream(
+    async fn eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
-    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+    ) -> anyhow::Result<EventSource> {
         let mut request_headers = self.headers(headers);
         request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
 
-        let es = self
-            .client
+        self.client
             .post(url.clone())
             .headers(request_headers)
             .body(body)
             .eventsource()
-            .with_context(|| format_http_context(None, "POST (EventSource)", url))?;
-
-        let stream = es
-            .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-            .map(|event| match event {
-                Ok(event) => match event {
-                    Event::Open => Ok(ServerSentEvent {
-                        event_type: Some("open".to_string()),
-                        data: "".to_string(),
-                        id: None,
-                    }),
-                    Event::Message(msg) => {
-                        Ok(ServerSentEvent { event_type: None, data: msg.data, id: Some(msg.id) })
-                    }
-                },
-                Err(err) => Err(err.into()),
-            });
-
-        Ok(Box::pin(stream))
+            .with_context(|| format_http_context(None, "POST (EventSource)", url))
     }
 
     fn sanitize_headers(headers: &HeaderMap) -> HeaderMap {
@@ -200,7 +192,7 @@ impl HttpInfra for ForgeHttpInfra {
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
-    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
-        self.post_stream(url, headers, body).await
+    ) -> anyhow::Result<EventSource> {
+        self.eventsource(url, headers, body).await
     }
 }

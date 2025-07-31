@@ -6,13 +6,13 @@ use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
 use reqwest::Url;
-use tokio_stream::StreamExt;
 use tracing::debug;
 
 use super::request::Request;
 use super::response::{EventData, ListModelResponse};
 use crate::anthropic::transforms::ReasoningTransform;
 use crate::client::{create_headers, join_url};
+use crate::event::into_chat_completion_message;
 use crate::utils::format_http_context;
 
 #[derive(Clone)]
@@ -65,7 +65,7 @@ impl<T: HttpClientService> Anthropic<T> {
         let json_bytes =
             serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
 
-        let stream = self
+        let source = self
             .http
             .eventsource(
                 &url,
@@ -75,40 +75,7 @@ impl<T: HttpClientService> Anthropic<T> {
             .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
-        let stream = stream
-            .then(|event| async move {
-                match event {
-                    Ok(event) => {
-                        if event.event_type == Some("open".to_string()) {
-                            None
-                        } else if ["[DONE]", ""].contains(&event.data.as_str()) {
-                            debug!("Received completion from Upstream");
-                            None
-                        } else {
-                            Some(
-                                serde_json::from_str::<EventData>(&event.data)
-                                    .with_context(|| "Failed to parse Anthropic event")
-                                    .and_then(|event_data| {
-                                        ChatCompletionMessage::try_from(event_data).with_context(
-                                            || {
-                                                format!(
-                                                    "Failed to create completion message: {}",
-                                                    event.data
-                                                )
-                                            },
-                                        )
-                                    }),
-                            )
-                        }
-                    }
-                    Err(error) => {
-                        tracing::error!(error = ?error, "Failed to receive chat completion event");
-                        Some(Err(error))
-                    }
-                }
-            })
-            .filter_map(|response| response)
-            .map(move |result| result.with_context(|| format_http_context(None, "POST", &url)));
+        let stream = into_chat_completion_message::<EventData>(url, source);
 
         Ok(Box::pin(stream))
     }
@@ -148,16 +115,15 @@ impl<T: HttpClientService> Anthropic<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::pin::Pin;
 
     use bytes::Bytes;
+    use forge_app::HttpClientService;
     use forge_app::domain::{
         Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
         ToolResult,
     };
-    use forge_app::{HttpClientService, ServerSentEvent};
-    use futures::Stream;
     use reqwest::header::HeaderMap;
+    use reqwest_eventsource::EventSource;
 
     use super::*;
     use crate::mock_server::{MockServer, normalize_ports};
@@ -201,8 +167,7 @@ mod tests {
             _url: &Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
-        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>
-        {
+        ) -> anyhow::Result<EventSource> {
             // For now, return an error since eventsource is not used in the failing tests
             Err(anyhow::anyhow!("EventSource not implemented in mock"))
         }

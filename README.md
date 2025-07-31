@@ -21,6 +21,7 @@
 - [Command-Line Options](#command-line-options)
 - [Advanced Configuration](#advanced-configuration)
   - [Provider Configuration](#provider-configuration)
+  - [Environment Variables](#environment-variables)
   - [forge.yaml Configuration Options](#forgeyaml-configuration-options)
   - [MCP Configuration](#mcp-configuration)
   - [Example Use Cases](#example-use-cases)
@@ -334,6 +335,72 @@ To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedroc
    </details>
 
 ### forge.yaml Configuration Options
+
+### Environment Variables
+
+Forge supports several environment variables for advanced configuration and fine-tuning. These can be set in your `.env` file or system environment.
+
+<details>
+<summary><strong>Retry Configuration</strong></summary>
+
+Control how Forge handles retry logic for failed requests:
+
+```bash
+# .env
+FORGE_RETRY_INITIAL_BACKOFF_MS=1000    # Initial backoff time in milliseconds (default: 1000)
+FORGE_RETRY_BACKOFF_FACTOR=2           # Multiplier for backoff time (default: 2)  
+FORGE_RETRY_MAX_ATTEMPTS=3             # Maximum retry attempts (default: 3)
+FORGE_SUPPRESS_RETRY_ERRORS=false      # Suppress retry error messages (default: false)
+FORGE_RETRY_STATUS_CODES=429,500,502   # HTTP status codes to retry (default: 429,500,502,503,504)
+```
+
+</details>
+
+<details>
+<summary><strong>HTTP Configuration</strong></summary>
+
+Fine-tune HTTP client behavior for API requests:
+
+```bash
+# .env
+FORGE_HTTP_CONNECT_TIMEOUT=30          # Connection timeout in seconds (default: 30)
+FORGE_HTTP_READ_TIMEOUT=60             # Read timeout in seconds (default: 60)
+FORGE_HTTP_POOL_IDLE_TIMEOUT=90        # Pool idle timeout in seconds (default: 90)
+FORGE_HTTP_POOL_MAX_IDLE_PER_HOST=32   # Max idle connections per host (default: 32)
+FORGE_HTTP_MAX_REDIRECTS=10            # Maximum redirects to follow (default: 10)
+FORGE_HTTP_USE_HICKORY=false           # Use Hickory DNS resolver (default: false)
+FORGE_HTTP_TLS_BACKEND=default         # TLS backend: default, rustls (default: default)
+FORGE_HTTP_MIN_TLS_VERSION=1.2         # Minimum TLS version: 1.0, 1.1, 1.2, 1.3 (default: 1.2)
+FORGE_HTTP_MAX_TLS_VERSION=1.3         # Maximum TLS version: 1.0, 1.1, 1.2, 1.3 (default: 1.3)
+```
+
+</details>
+
+<details>
+<summary><strong>API Configuration</strong></summary>
+
+Override default API endpoints:
+
+```bash
+# .env
+FORGE_API_URL=https://api.forgecode.dev  # Custom Forge API URL (default: https://api.forgecode.dev)
+```
+
+</details>
+
+<details>
+<summary><strong>System Configuration</strong></summary>
+
+System-level environment variables (usually set automatically):
+
+```bash
+# .env
+SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
+COMSPEC=cmd.exe                        # Command processor to use (Windows)
+```
+
+</details>
+
 
 The `forge.yaml` file supports several advanced configuration options that let you customize Forge's behavior.
 

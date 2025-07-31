@@ -6,13 +6,13 @@ use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
 use reqwest::header::AUTHORIZATION;
-use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
 use super::model::{ListModelResponse, Model};
 use super::request::Request;
 use super::response::Response;
 use crate::client::{create_headers, join_url};
+use crate::event::into_chat_completion_message;
 use crate::openai::transformers::{ProviderPipeline, Transformer};
 use crate::utils::{format_http_context, sanitize_headers};
 
@@ -62,50 +62,13 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         let json_bytes =
             serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
 
-        let stream = self
+        let es = self
             .http
             .eventsource(&url, Some(headers), json_bytes.into())
             .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
-        let stream = stream
-            .then(|event| async move {
-                match event {
-                    Ok(event) => {
-                        if event.event_type == Some("open".to_string()) {
-                            None
-                        } else if ["[DONE]", ""].contains(&event.data.as_str()) {
-                            debug!("Received completion from Upstream");
-                            None
-                        } else {
-                            Some(
-                                serde_json::from_str::<Response>(&event.data)
-                                    .with_context(|| {
-                                        format!(
-                                            "Failed to parse Forge Provider response: {}",
-                                            event.data
-                                        )
-                                    })
-                                    .and_then(|response| {
-                                        ChatCompletionMessage::try_from(response.clone())
-                                            .with_context(|| {
-                                                format!(
-                                                    "Failed to create completion message: {}",
-                                                    event.data
-                                                )
-                                            })
-                                    }),
-                            )
-                        }
-                    }
-                    Err(error) => {
-                        tracing::error!(error = ?error, "Failed to receive chat completion event");
-                        Some(Err(error))
-                    }
-                }
-            })
-            .filter_map(|response| response)
-            .map(move |result| result.with_context(|| format_http_context(None, "POST", &url)));
+        let stream = into_chat_completion_message::<Response>(url, es);
 
         Ok(Box::pin(stream))
     }
@@ -204,13 +167,12 @@ impl From<Model> for forge_app::domain::Model {
 
 #[cfg(test)]
 mod tests {
-    use std::pin::Pin;
 
     use anyhow::Context;
     use bytes::Bytes;
-    use forge_app::{HttpClientService, ServerSentEvent};
-    use futures::Stream;
+    use forge_app::HttpClientService;
     use reqwest::header::HeaderMap;
+    use reqwest_eventsource::EventSource;
 
     use super::*;
     use crate::mock_server::{MockServer, normalize_ports};
@@ -258,8 +220,7 @@ mod tests {
             _url: &reqwest::Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
-        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>
-        {
+        ) -> anyhow::Result<EventSource> {
             unimplemented!()
         }
     }

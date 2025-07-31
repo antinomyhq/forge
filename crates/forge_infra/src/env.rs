@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use forge_domain::{Environment, Provider, RetryConfig, TlsBackend};
+use forge_domain::{Environment, Provider, RetryConfig, TlsBackend, TlsVersion};
 use forge_services::EnvironmentInfra;
 use reqwest::Url;
 
@@ -162,6 +162,12 @@ fn resolve_http_config() -> forge_domain::HttpConfig {
     if let Some(parsed) = parse_env::<TlsBackend>("FORGE_HTTP_TLS_BACKEND") {
         config.tls_backend = parsed;
     }
+    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MIN_TLS_VERSION") {
+        config.min_tls_version = Some(parsed);
+    }
+    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MAX_TLS_VERSION") {
+        config.max_tls_version = Some(parsed);
+    }
 
     config
 }
@@ -171,7 +177,7 @@ mod tests {
     use std::path::PathBuf;
     use std::{env, fs};
 
-    use forge_domain::TlsBackend;
+    use forge_domain::{TlsBackend, TlsVersion};
     use tempfile::{TempDir, tempdir};
 
     use super::*;
@@ -496,7 +502,7 @@ mod tests {
                 env::set_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST", "10");
                 env::set_var("FORGE_HTTP_MAX_REDIRECTS", "20");
                 env::set_var("FORGE_HTTP_USE_HICKORY", "true");
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "native");
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
             }
 
             let config = resolve_http_config();
@@ -507,7 +513,7 @@ mod tests {
             assert_eq!(config.pool_max_idle_per_host, 10);
             assert_eq!(config.max_redirects, 20);
             assert_eq!(config.hickory, true);
-            assert_eq!(config.tls_backend, TlsBackend::Native);
+            assert_eq!(config.tls_backend, TlsBackend::Rustls);
 
             // Clean up environment variables
             unsafe {
@@ -592,12 +598,12 @@ mod tests {
 
             // Test setting tls_backend to native
             unsafe {
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "native");
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
             }
 
             let config = resolve_http_config();
             assert_eq!(config.hickory, true); // Should remain from previous setting
-            assert_eq!(config.tls_backend, TlsBackend::Native);
+            assert_eq!(config.tls_backend, TlsBackend::Rustls);
 
             // Test setting tls_backend to default
             unsafe {
@@ -617,11 +623,11 @@ mod tests {
 
             // Test case insensitive parsing
             unsafe {
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "NATIVE");
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
             }
 
             let config = resolve_http_config();
-            assert_eq!(config.tls_backend, TlsBackend::Native);
+            assert_eq!(config.tls_backend, TlsBackend::Rustls);
 
             // Test invalid values (should use defaults)
             unsafe {
@@ -637,6 +643,107 @@ mod tests {
             unsafe {
                 env::remove_var("FORGE_HTTP_USE_HICKORY");
                 env::remove_var("FORGE_HTTP_TLS_BACKEND");
+            }
+        }
+    }
+
+    #[test]
+    fn test_http_config_tls_version_environment_variables() {
+        // Clean up any existing environment variables first
+        unsafe {
+            env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
+            env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
+        }
+
+        // Test default values (should be None)
+        {
+            let config = resolve_http_config();
+            assert_eq!(config.min_tls_version, None);
+            assert_eq!(config.max_tls_version, None);
+        }
+
+        // Test setting min TLS version
+        {
+            unsafe {
+                env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "1.2");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.min_tls_version, Some(TlsVersion::V1_2));
+            assert_eq!(config.max_tls_version, None);
+
+            unsafe {
+                env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
+            }
+        }
+
+        // Test setting max TLS version
+        {
+            unsafe {
+                env::set_var("FORGE_HTTP_MAX_TLS_VERSION", "1.3");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.min_tls_version, None);
+            assert_eq!(config.max_tls_version, Some(TlsVersion::V1_3));
+
+            unsafe {
+                env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
+            }
+        }
+
+        // Test setting both min and max TLS versions
+        {
+            unsafe {
+                env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "1.2");
+                env::set_var("FORGE_HTTP_MAX_TLS_VERSION", "1.3");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.min_tls_version, Some(TlsVersion::V1_2));
+            assert_eq!(config.max_tls_version, Some(TlsVersion::V1_3));
+
+            unsafe {
+                env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
+                env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
+            }
+        }
+
+        // Test invalid TLS version values (should remain None)
+        {
+            unsafe {
+                env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "invalid");
+                env::set_var("FORGE_HTTP_MAX_TLS_VERSION", "2.0");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.min_tls_version, None); // Should remain None for invalid values
+            assert_eq!(config.max_tls_version, None); // Should remain None for invalid values
+
+            unsafe {
+                env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
+                env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
+            }
+        }
+
+        // Test all valid TLS version values
+        {
+            for (version_str, expected_version) in [
+                ("1.0", TlsVersion::V1_0),
+                ("1.1", TlsVersion::V1_1),
+                ("1.2", TlsVersion::V1_2),
+                ("1.3", TlsVersion::V1_3),
+            ] {
+                unsafe {
+                    env::set_var("FORGE_HTTP_MIN_TLS_VERSION", version_str);
+                }
+
+                let config = resolve_http_config();
+                assert_eq!(config.min_tls_version, Some(expected_version));
+
+                unsafe {
+                    env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
+                }
             }
         }
     }
