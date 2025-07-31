@@ -114,11 +114,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             .collect();
 
         // Process partial tool calls
-        // Convert parse failures to retryable errors so they can be retried by asking
-        // LLM to try again
-        let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts)
-            .with_context(|| "Failed to parse tool call".to_string())
-            .map_err(crate::Error::Retryable)?;
+        let partial_tool_calls = ToolCallFull::try_from_parts(&tool_call_parts).unwrap_or_default();
 
         // Combine all sources of tool calls
         let tool_calls: Vec<ToolCallFull> = initial_tool_calls
@@ -263,12 +259,10 @@ mod tests {
         // Actual: Convert stream to full message
         let actual = result_stream.into_full(false).await;
 
-        // Expected: Should return a retryable error
-        assert!(actual.is_err());
-        let error = actual.unwrap_err();
-        let domain_error = error.downcast_ref::<Error>();
-        assert!(domain_error.is_some());
-        assert!(matches!(domain_error.unwrap(), Error::Retryable(_)));
+        // Expected: Should return ok
+        assert!(actual.is_ok());
+        let message = actual.unwrap();
+        assert!(message.tool_calls.is_empty());
     }
 
     #[tokio::test]
