@@ -180,6 +180,84 @@ impl<T: API + 'static> Executor<T> {
         Ok(())
     }
 
+    async fn execute_shell_command(
+        &self,
+        command_str: String,
+        restricted: bool,
+        tx: &Sender<anyhow::Result<Action>>,
+    ) -> anyhow::Result<()> {
+        use tokio::process::Command;
+
+        // Execute the shell command using the environment's shell
+        let env = self.api.environment();
+        let is_windows = cfg!(target_os = "windows");
+        let shell = if restricted && !is_windows {
+            "rbash"
+        } else {
+            env.shell.as_str()
+        };
+        let mut command = Command::new(shell);
+
+        // Core color settings for general commands
+        command
+            .env("CLICOLOR_FORCE", "1")
+            .env("FORCE_COLOR", "true")
+            .env_remove("NO_COLOR");
+
+        // Language/program specific color settings
+        command
+            .env("SBT_OPTS", "-Dsbt.color=always")
+            .env("JAVA_OPTS", "-Dsbt.color=always");
+
+        // enabled Git colors
+        command.env("GIT_CONFIG_PARAMETERS", "'color.ui=always'");
+
+        // Other common tools
+        command.env("GREP_OPTIONS", "--color=always"); // GNU grep
+
+        let parameter = if is_windows { "/C" } else { "-c" };
+        command.arg(parameter);
+
+        #[cfg(windows)]
+        command.raw_arg(command_str);
+        #[cfg(unix)]
+        command.arg(&command_str[..]);
+
+        tracing::info!(command = command_str, "Executing command");
+
+        command.kill_on_drop(true);
+
+        // Set the working directory
+        command.current_dir(env.cwd.as_path());
+
+        let output = Command::new(shell)
+            .arg("-c")
+            .arg(&command_str)
+            .output()
+            .await?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+        // Combine stdout and stderr for the output
+        let combined_output = if stderr.is_empty() {
+            stdout
+        } else if stdout.is_empty() {
+            stderr
+        } else {
+            format!("{stdout}\n{stderr}")
+        };
+
+        let action = Action::ShellCommandResult {
+            command: command_str.to_owned(),
+            output: combined_output,
+            success: output.status.success(),
+        };
+
+        tx.send(Ok(action)).await?;
+        Ok(())
+    }
+
     /// Execute an interval command that emits IntervalTick actions at regular
     /// intervals
     ///
@@ -257,6 +335,9 @@ impl<T: API + 'static> Executor<T> {
             Command::InterruptStream => {
                 // Send InterruptStream action to trigger state update
                 tx.send(Ok(Action::InterruptStream)).await?;
+            }
+            Command::ShellCmd { command, restricted } => {
+                self.execute_shell_command(command, restricted, &tx).await?;
             }
         }
         Ok(())
