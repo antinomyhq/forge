@@ -346,7 +346,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_task_list_append",
+  "name": "forge_tool_task_append",
   "description": "Add a new task to the end of the task list. Tasks are stored in conversation\n state and persist across agent interactions. Use this tool to add individual\n work items that need to be tracked during development sessions. Task IDs are\n auto-generated integers starting from 1.",
   "input_schema": {
     "title": "TaskListAppend",
@@ -356,8 +356,23 @@ expression: tools
       "task"
     ],
     "properties": {
-      "explanation": {
-        "description": "One sentence explanation as to why this specific tool is being used, and how it contributes to the goal.",
+      "category": {
+        "description": "Optional category to group related tasks",
+        "default": null,
+        "type": "string",
+        "nullable": true
+      },
+      "files": {
+        "description": "List of files to refer",
+        "default": null,
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "nullable": true
+      },
+      "note": {
+        "description": "Detailed description of changes needed, with examples",
         "default": null,
         "type": "string",
         "nullable": true
@@ -370,15 +385,12 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_task_list_append_multiple",
+  "name": "forge_tool_task_append_multiple",
   "description": "Add multiple new tasks to the end of the task list. Tasks are stored in\n conversation state and persist across agent interactions. Use this tool to\n add several work items at once during development sessions. Task IDs are\n auto-generated integers starting from 1.",
   "input_schema": {
     "title": "TaskListAppendMultiple",
     "description": "Add multiple new tasks to the end of the task list. Tasks are stored in conversation state and persist across agent interactions. Use this tool to add several work items at once during development sessions. Task IDs are auto-generated integers starting from 1.",
     "type": "object",
-    "required": [
-      "tasks"
-    ],
     "properties": {
       "explanation": {
         "description": "One sentence explanation as to why this specific tool is being used, and how it contributes to the goal.",
@@ -387,21 +399,52 @@ expression: tools
         "nullable": true
       },
       "tasks": {
-        "description": "The list of task descriptions to add",
+        "description": "The list of tasks with detailed information to add",
+        "default": [],
         "type": "array",
         "items": {
-          "type": "string"
+          "type": "object",
+          "required": [
+            "task"
+          ],
+          "properties": {
+            "category": {
+              "description": "Optional category to group related tasks",
+              "default": null,
+              "type": "string",
+              "nullable": true
+            },
+            "files": {
+              "description": "List of files to refer",
+              "default": null,
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true
+            },
+            "note": {
+              "description": "Detailed description of changes needed, with examples",
+              "default": null,
+              "type": "string",
+              "nullable": true
+            },
+            "task": {
+              "description": "The task description to add to the list",
+              "type": "string"
+            }
+          }
         }
       }
     }
   }
 }
 {
-  "name": "forge_tool_task_list_update",
-  "description": "Update the status of a specific task in the task list. Use this when a\n task\\'s status changes (e.g., from Pending to InProgress, InProgress to Done,\n etc.). The task will remain in the list but with an updated status.",
+  "name": "forge_tool_task_update",
+  "description": "Update the status of a specific task in the task list. Use this when a\n task\\'s status changes (e.g., from Pending to InProgress, InProgress to Done,\n or simply Delete). The task will remain in the list but with an updated\n status.",
   "input_schema": {
     "title": "TaskListUpdate",
-    "description": "Update the status of a specific task in the task list. Use this when a task's status changes (e.g., from Pending to InProgress, InProgress to Done, etc.). The task will remain in the list but with an updated status.",
+    "description": "Update the status of a specific task in the task list. Use this when a task's status changes (e.g., from Pending to InProgress, InProgress to Done, or simply Delete). The task will remain in the list but with an updated status.",
     "type": "object",
     "required": [
       "status",
@@ -420,7 +463,8 @@ expression: tools
         "enum": [
           "Pending",
           "InProgress",
-          "Done"
+          "Done",
+          "Delete"
         ]
       },
       "task_id": {
@@ -432,7 +476,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_task_list_list",
+  "name": "forge_tool_task_list",
   "description": "Display the current task list with statistics. Shows all tasks with their\n IDs, descriptions, and status (PENDING, IN_PROGRESS, DONE), along with\n summary statistics. Use this tool to review current work items and track\n progress through development sessions.",
   "input_schema": {
     "title": "TaskListList",
@@ -449,7 +493,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_task_list_clear",
+  "name": "forge_tool_task_clear",
   "description": "Remove all tasks from the task list. This operation cannot be undone and\n will reset the task ID counter to 1. Use this tool when you want to start\n fresh with a clean task list.",
   "input_schema": {
     "title": "TaskListClear",

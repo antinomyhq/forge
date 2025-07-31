@@ -73,28 +73,31 @@ pub enum Operation {
     FollowUp {
         output: Option<String>,
     },
-    AttemptCompletion,
-    TaskListAppend {
+    AttemptCompletion {
+        tasks: TaskList,
+        task_supported: bool,
+    },
+    TaskAppend {
         _input: TaskListAppend,
         before: TaskList,
         after: TaskList,
     },
-    TaskListAppendMultiple {
+    TaskAppendMultiple {
         _input: TaskListAppendMultiple,
         before: TaskList,
         after: TaskList,
     },
-    TaskListUpdate {
+    TaskUpdate {
         _input: TaskListUpdate,
         before: TaskList,
         after: TaskList,
     },
-    TaskListList {
+    TaskList {
         _input: TaskListList,
         before: TaskList,
         after: TaskList,
     },
-    TaskListClear {
+    TaskClear {
         _input: TaskListClear,
         before: TaskList,
         after: TaskList,
@@ -369,15 +372,44 @@ impl Operation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
-            Operation::AttemptCompletion => forge_domain::ToolOutput::text(
-                Element::new("success")
-                    .text("[Task was completed successfully. Now wait for user feedback]"),
-            ),
-            Operation::TaskListAppend { _input: _, before: _, after }
-            | Operation::TaskListAppendMultiple { _input: _, before: _, after }
-            | Operation::TaskListUpdate { _input: _, before: _, after }
-            | Operation::TaskListList { _input: _, before: _, after }
-            | Operation::TaskListClear { _input: _, before: _, after } => {
+            Operation::AttemptCompletion { tasks, task_supported } => {
+                if tasks.all_tasks_done() || !task_supported {
+                    // All tasks are completed
+                    forge_domain::ToolOutput::text(
+                        Element::new("success")
+                            .text("[Task was completed successfully. Now wait for user feedback]"),
+                    )
+                } else {
+                    // There are still pending tasks, pick the next one
+                    if let Some(next_task) = tasks.next_pending_task() {
+                        let task_message = Element::new("task")
+                            .attr("id", next_task.id)
+                            .attr("status", next_task.status_name())
+                            .text(&next_task.task);
+
+                        let user_message = Element::new("success")
+                            .text( "[Task was completed successfully. Now continue with the next task]")
+                            .append(task_message)
+                            .append(Element::new("info").text(
+                                "On task completion mark it as done"
+                            ));
+
+                        forge_domain::ToolOutput::text(user_message)
+                    } else {
+                        // This shouldn't happen if all_tasks_done() returned false
+                        forge_domain::ToolOutput::text(
+                            Element::new("success").text(
+                                "[Task was completed successfully. Now wait for user feedback]",
+                            ),
+                        )
+                    }
+                }
+            }
+            Operation::TaskAppend { _input: _, before: _, after }
+            | Operation::TaskAppendMultiple { _input: _, before: _, after }
+            | Operation::TaskUpdate { _input: _, before: _, after }
+            | Operation::TaskList { _input: _, before: _, after }
+            | Operation::TaskClear { _input: _, before: _, after } => {
                 let stats = forge_domain::TaskStats::from(&after);
                 let elm = Element::new("task_list")
                     .attr("total_tasks", stats.total_tasks)
@@ -461,7 +493,7 @@ mod tests {
     use std::fmt::Write;
     use std::path::PathBuf;
 
-    use forge_domain::{FSRead, ToolValue};
+    use forge_domain::{FSRead, TaskList, ToolValue};
     use url::Url;
 
     use super::*;
@@ -538,6 +570,84 @@ mod tests {
             &env,
         );
 
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_attempt_completion_with_pending_tasks_can_execute_false() {
+        let mut task_list = TaskList::new();
+        task_list.append("First task");
+        let task2 = task_list.append("Second task");
+        task_list.append("Third task");
+
+        // Mark the second task as done, leaving first and third as pending
+        task_list.mark_done(task2.id);
+
+        let fixture = Operation::AttemptCompletion { tasks: task_list, task_supported: false };
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+
+        // Should return the next pending task (first task) as a user message
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_attempt_completion_with_pending_tasks_can_execute_true() {
+        let mut task_list = TaskList::new();
+        task_list.append("First task");
+        let task2 = task_list.append("Second task");
+        task_list.append("Third task");
+
+        // Mark the second task as done, leaving first and third as pending
+        task_list.mark_done(task2.id);
+
+        let fixture = Operation::AttemptCompletion { tasks: task_list, task_supported: true };
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+
+        // Should return the next pending task (first task) as a user message
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_attempt_completion_all_tasks_done_can_execute_false() {
+        let mut task_list = TaskList::new();
+        let task1 = task_list.append("First task");
+        let task2 = task_list.append("Second task");
+
+        // Mark all tasks as done
+        task_list.mark_done(task1.id);
+        task_list.mark_done(task2.id);
+
+        let fixture = Operation::AttemptCompletion { tasks: task_list, task_supported: false };
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+
+        // Should return success message since all tasks are done and can_execute is
+        // false
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_attempt_completion_all_tasks_done_can_execute_true() {
+        let mut task_list = TaskList::new();
+        let task1 = task_list.append("First task");
+        let task2 = task_list.append("Second task");
+
+        // Mark all tasks as done
+        task_list.mark_done(task1.id);
+        task_list.mark_done(task2.id);
+
+        let fixture = Operation::AttemptCompletion { tasks: task_list, task_supported: true };
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+
+        // Should return success message since all tasks are done (even though
+        // can_execute is true)
         insta::assert_snapshot!(to_value(actual));
     }
 
@@ -1030,7 +1140,7 @@ mod tests {
     }
     #[test]
     fn test_task_list_empty() {
-        let fixture = Operation::TaskListList {
+        let fixture = Operation::TaskList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List empty tasks".to_string()),
             },
@@ -1054,7 +1164,7 @@ mod tests {
         let mut task_list = TaskList::new();
         task_list.append("Write documentation");
 
-        let fixture = Operation::TaskListList {
+        let fixture = Operation::TaskList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List tasks with one pending".to_string()),
             },
@@ -1086,7 +1196,7 @@ mod tests {
         // Mark first task as in progress manually
         task_list.get_task_mut(0).unwrap().mark_in_progress();
 
-        let fixture = Operation::TaskListList {
+        let fixture = Operation::TaskList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List tasks with mixed statuses".to_string()),
             },
@@ -1121,7 +1231,7 @@ mod tests {
         task_list.get_task_mut(0).unwrap().mark_in_progress(); // Mark first task as in progress
         task_list.get_task_mut(4).unwrap().mark_in_progress(); // Mark last task as in progress
 
-        let fixture = Operation::TaskListList {
+        let fixture = Operation::TaskList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List complex task scenario".to_string()),
             },
@@ -1148,11 +1258,13 @@ mod tests {
         let mut after_task_list = before_task_list.clone();
         after_task_list.append("New task from append");
 
-        let fixture = Operation::TaskListAppend {
-            _input: forge_domain::TaskListAppend {
+        let fixture = Operation::TaskAppend {
+            _input: forge_domain::TaskListAppend(forge_domain::TaskInput {
                 task: "New task from append".to_string(),
-                explanation: Some("Append new task".to_string()),
-            },
+                category: None,
+                note: None,
+                files: None,
+            }),
             before: before_task_list,
             after: after_task_list,
         };
@@ -1177,7 +1289,7 @@ mod tests {
         let mut after_task_list = before_task_list.clone();
         after_task_list.update_status(task1.id, forge_domain::Status::Done);
 
-        let fixture = Operation::TaskListUpdate {
+        let fixture = Operation::TaskUpdate {
             _input: forge_domain::TaskListUpdate {
                 task_id: task1.id,
                 status: forge_domain::Status::Done,
@@ -1214,7 +1326,7 @@ mod tests {
         task_list.get_task_mut(1).unwrap().mark_in_progress(); // Mark task 2 as in progress
         task_list.get_task_mut(2).unwrap().mark_in_progress(); // Mark task 3 as in progress
 
-        let fixture = Operation::TaskListList {
+        let fixture = Operation::TaskList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List tasks with large numbers".to_string()),
             },
@@ -1618,7 +1730,8 @@ mod tests {
 
     #[test]
     fn test_attempt_completion() {
-        let fixture = Operation::AttemptCompletion;
+        let fixture =
+            Operation::AttemptCompletion { tasks: TaskList::new(), task_supported: false };
 
         let env = fixture_environment();
 
@@ -1651,6 +1764,42 @@ mod tests {
     #[test]
     fn test_follow_up_no_question() {
         let fixture = Operation::FollowUp { output: None };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(TempContentFiles::default(), &env);
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_task_list_append_with_category_and_description() {
+        let mut before_task_list = TaskList::new();
+        before_task_list.append("Existing task");
+
+        let mut after_task_list = before_task_list.clone();
+        after_task_list.append(forge_domain::TaskInput {
+            task: "New task with details".to_string(),
+            category: Some("Development".to_string()),
+            note: Some(
+                "Implement user authentication. Files: src/auth.rs, tests/auth_test.rs".to_string(),
+            ),
+            files: None,
+        });
+
+        let fixture = Operation::TaskAppend {
+            _input: forge_domain::TaskListAppend(forge_domain::TaskInput {
+                task: "New task with details".to_string(),
+                category: Some("Development".to_string()),
+                note: Some(
+                    "Implement user authentication. Files: src/auth.rs, tests/auth_test.rs"
+                        .to_string(),
+                ),
+                files: None,
+            }),
+            before: before_task_list,
+            after: after_task_list,
+        };
 
         let env = fixture_environment();
 

@@ -47,11 +47,11 @@ pub enum Tools {
     ForgeToolNetFetch(NetFetch),
     ForgeToolFollowup(Followup),
     ForgeToolAttemptCompletion(AttemptCompletion),
-    ForgeToolTaskListAppend(TaskListAppend),
-    ForgeToolTaskListAppendMultiple(TaskListAppendMultiple),
-    ForgeToolTaskListUpdate(TaskListUpdate),
-    ForgeToolTaskListList(TaskListList),
-    ForgeToolTaskListClear(TaskListClear),
+    ForgeToolTaskAppend(TaskListAppend),
+    ForgeToolTaskAppendMultiple(TaskListAppendMultiple),
+    ForgeToolTaskUpdate(TaskListUpdate),
+    ForgeToolTaskList(TaskListList),
+    ForgeToolTaskClear(TaskListClear),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -395,14 +395,39 @@ pub struct AttemptCompletion {
 /// state and persist across agent interactions. Use this tool to add individual
 /// work items that need to be tracked during development sessions. Task IDs are
 /// auto-generated integers starting from 1.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListAppend {
+#[derive(Default, Debug, Clone, JsonSchema, Serialize, Deserialize, ToolDescription, PartialEq)]
+pub struct TaskListAppend(pub TaskInput);
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct TaskInput {
     /// The task description to add to the list
     pub task: String,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
+    /// Optional category to group related tasks
     #[serde(default)]
-    pub explanation: Option<String>,
+    pub category: Option<String>,
+    /// Detailed description of changes needed, with examples
+    #[serde(default)]
+    pub note: Option<String>,
+    /// List of files to refer
+    #[serde(default)]
+    pub files: Option<Vec<String>>,
+}
+
+impl From<&str> for TaskInput {
+    fn from(task: &str) -> Self {
+        TaskInput {
+            task: task.to_string(),
+            category: None,
+            note: None,
+            files: None,
+        }
+    }
+}
+
+impl From<String> for TaskInput {
+    fn from(task: String) -> Self {
+        TaskInput { task, category: None, note: None, files: None }
+    }
 }
 
 /// Add multiple new tasks to the end of the task list. Tasks are stored in
@@ -411,8 +436,9 @@ pub struct TaskListAppend {
 /// auto-generated integers starting from 1.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct TaskListAppendMultiple {
-    /// The list of task descriptions to add
-    pub tasks: Vec<String>,
+    /// The list of tasks with detailed information to add
+    #[serde(default)]
+    pub tasks: Vec<TaskInput>,
     /// One sentence explanation as to why this specific tool is being used, and
     /// how it contributes to the goal.
     #[serde(default)]
@@ -421,7 +447,8 @@ pub struct TaskListAppendMultiple {
 
 /// Update the status of a specific task in the task list. Use this when a
 /// task's status changes (e.g., from Pending to InProgress, InProgress to Done,
-/// etc.). The task will remain in the list but with an updated status.
+/// or simply Delete). The task will remain in the list but with an updated
+/// status.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct TaskListUpdate {
     /// The ID of the task to update
@@ -578,14 +605,15 @@ impl ToolDescription for Tools {
             Tools::ForgeToolFsRemove(v) => v.description(),
             Tools::ForgeToolFsUndo(v) => v.description(),
             Tools::ForgeToolFsCreate(v) => v.description(),
-            Tools::ForgeToolTaskListAppend(v) => v.description(),
-            Tools::ForgeToolTaskListAppendMultiple(v) => v.description(),
-            Tools::ForgeToolTaskListUpdate(v) => v.description(),
-            Tools::ForgeToolTaskListList(v) => v.description(),
-            Tools::ForgeToolTaskListClear(v) => v.description(),
+            Tools::ForgeToolTaskAppend(v) => v.description(),
+            Tools::ForgeToolTaskAppendMultiple(v) => v.description(),
+            Tools::ForgeToolTaskUpdate(v) => v.description(),
+            Tools::ForgeToolTaskList(v) => v.description(),
+            Tools::ForgeToolTaskClear(v) => v.description(),
         }
     }
 }
+
 lazy_static::lazy_static! {
     // Cache of all tool names
     static ref FORGE_TOOLS: HashSet<ToolName> = Tools::iter()
@@ -619,13 +647,13 @@ impl Tools {
             Tools::ForgeToolFsRemove(_) => r#gen.into_root_schema_for::<FSRemove>(),
             Tools::ForgeToolFsUndo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             Tools::ForgeToolFsCreate(_) => r#gen.into_root_schema_for::<FSWrite>(),
-            Tools::ForgeToolTaskListAppend(_) => r#gen.into_root_schema_for::<TaskListAppend>(),
-            Tools::ForgeToolTaskListAppendMultiple(_) => {
+            Tools::ForgeToolTaskAppend(_) => r#gen.into_root_schema_for::<TaskListAppend>(),
+            Tools::ForgeToolTaskAppendMultiple(_) => {
                 r#gen.into_root_schema_for::<TaskListAppendMultiple>()
             }
-            Tools::ForgeToolTaskListUpdate(_) => r#gen.into_root_schema_for::<TaskListUpdate>(),
-            Tools::ForgeToolTaskListList(_) => r#gen.into_root_schema_for::<TaskListList>(),
-            Tools::ForgeToolTaskListClear(_) => r#gen.into_root_schema_for::<TaskListClear>(),
+            Tools::ForgeToolTaskUpdate(_) => r#gen.into_root_schema_for::<TaskListUpdate>(),
+            Tools::ForgeToolTaskList(_) => r#gen.into_root_schema_for::<TaskListList>(),
+            Tools::ForgeToolTaskClear(_) => r#gen.into_root_schema_for::<TaskListClear>(),
         }
     }
 
@@ -645,6 +673,13 @@ impl Tools {
         ]
         .iter()
         .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+    }
+
+    pub fn is_task_update(tool_name: &ToolName) -> bool {
+        // Tools that convey that the execution should yield
+        [ToolsDiscriminants::ForgeToolTaskUpdate]
+            .iter()
+            .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
 }
 

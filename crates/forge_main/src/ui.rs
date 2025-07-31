@@ -378,6 +378,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let output = format_tools(&tools);
                 self.writeln(output)?;
             }
+            Command::Tasks => {
+                self.spinner.start(Some("Loading tasks"))?;
+                self.on_tasks().await?;
+            }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
             }
@@ -438,6 +442,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 )
                 .prompt()?
                 {
+                    self.writeln("")?;
                     self.on_agent_change(selected_agent.id).await?;
                 }
             }
@@ -738,6 +743,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Err(anyhow::anyhow!("No conversation initiated yet"))
                 .context("Could not create dump");
         }
+        Ok(())
+    }
+
+    async fn on_tasks(&mut self) -> Result<()> {
+        use crate::tasks_display::format_tasks;
+
+        if let Some(conversation_id) = &self.state.conversation_id {
+            let tasks = self.api.tasks(conversation_id).await?;
+            let output = format_tasks(&tasks);
+            self.writeln(output)?;
+        } else {
+            self.writeln("No active conversation. Start a conversation first to see tasks.")?;
+        }
+
         Ok(())
     }
 

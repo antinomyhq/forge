@@ -1,0 +1,12 @@
+---
+source: crates/forge_app/src/operation.rs
+expression: to_value(actual)
+---
+<success>[Task was completed successfully. Now continue with the next task]
+<task
+  id="1"
+  status="PENDING"
+>First task
+</task>
+<info>On task completion mark it as done</info>
+</success>
