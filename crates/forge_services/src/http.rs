@@ -1,9 +1,7 @@
-use std::pin::Pin;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::{HttpClientService, ServerSentEvent};
-use futures::Stream;
+use forge_app::HttpClientService;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use url::Url;
@@ -37,7 +35,7 @@ impl<T: HttpInfra> HttpClientService for HttpClient<T> {
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
-    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+    ) -> anyhow::Result<reqwest_eventsource::EventSource> {
         self.0.eventsource(url, headers, body).await
     }
 }

@@ -31,9 +31,15 @@ expression: results
     },
     TermSpec {
         input: "@🚀 [@🌟 emoji@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "🚀 ",
+        ),
+        span_start: Some(
+            1,
+        ),
+        span_end: Some(
+            6,
+        ),
         pos: 6,
     },
     TermSpec {
@@ -64,44 +70,80 @@ expression: results
     },
     TermSpec {
         input: "@🚀 @🌟 [emoji@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "🌟 ",
+        ),
+        span_start: Some(
+            7,
+        ),
+        span_end: Some(
+            12,
+        ),
         pos: 12,
     },
     TermSpec {
         input: "@🚀 @🌟 e[moji@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "🌟 e",
+        ),
+        span_start: Some(
+            7,
+        ),
+        span_end: Some(
+            13,
+        ),
         pos: 13,
     },
     TermSpec {
         input: "@🚀 @🌟 em[oji@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "🌟 em",
+        ),
+        span_start: Some(
+            7,
+        ),
+        span_end: Some(
+            14,
+        ),
         pos: 14,
     },
     TermSpec {
         input: "@🚀 @🌟 emo[ji@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "🌟 emo",
+        ),
+        span_start: Some(
+            7,
+        ),
+        span_end: Some(
+            15,
+        ),
         pos: 15,
     },
     TermSpec {
         input: "@🚀 @🌟 emoj[i@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "🌟 emoj",
+        ),
+        span_start: Some(
+            7,
+        ),
+        span_end: Some(
+            16,
+        ),
         pos: 16,
     },
     TermSpec {
         input: "@🚀 @🌟 emoji[@",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "🌟 emoji",
+        ),
+        span_start: Some(
+            7,
+        ),
+        span_end: Some(
+            17,
+        ),
         pos: 17,
     },
     TermSpec {

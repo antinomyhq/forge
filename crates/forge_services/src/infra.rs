@@ -1,16 +1,15 @@
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
 
 use anyhow::Result;
 use bytes::Bytes;
 use forge_app::domain::{
     CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
-use forge_app::{ServerSentEvent, WalkedFile, Walker};
+use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
-use futures::Stream;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
+use reqwest_eventsource::EventSource;
 use url::Url;
 
 pub trait EnvironmentInfra: Send + Sync {
@@ -183,5 +182,5 @@ pub trait HttpInfra: Send + Sync + 'static {
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
-    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>;
+    ) -> anyhow::Result<EventSource>;
 }
