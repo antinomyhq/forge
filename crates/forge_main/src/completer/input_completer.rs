@@ -93,7 +93,7 @@ fn escape_for_pattern_parse(term: &str) -> String {
     {
         term_string = format!("\\{term_string}");
     }
-    term_string.replace(' ', "\\ ")
+    term_string
 }
 
 #[cfg(test)]
