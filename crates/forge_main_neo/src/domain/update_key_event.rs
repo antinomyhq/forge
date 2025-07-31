@@ -7,6 +7,7 @@ use edtui::{EditorEventHandler, EditorMode};
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::domain::spotlight::SpotlightState;
+use crate::domain::state::ToolsPopupState;
 use crate::domain::{Command, EditorStateExt, State};
 
 fn handle_spotlight_input_change(state: &mut State) {
@@ -71,6 +72,7 @@ fn handle_spotlight_navigation(
                         // For now, just hide spotlight - proper model selection would need more UI
                         Command::Empty
                     }
+                    crate::domain::slash_command::SlashCommand::Tools => Command::ShowTools,
                     _ => {
                         // For other commands, just hide spotlight for now
                         Command::Empty
@@ -81,6 +83,26 @@ fn handle_spotlight_navigation(
                 state.spotlight = SpotlightState::default();
                 return Some(command);
             }
+            Some(Command::Empty)
+        }
+        _ => None,
+    }
+}
+
+fn handle_tools_popup_navigation(
+    state: &mut State,
+    key_event: ratatui::crossterm::event::KeyEvent,
+) -> Option<Command> {
+    use ratatui::crossterm::event::KeyCode;
+
+    if !state.tools_popup.is_visible {
+        return None;
+    }
+
+    match key_event.code {
+        KeyCode::Enter | KeyCode::Esc => {
+            // Close the tools popup
+            state.tools_popup = ToolsPopupState::default();
             Some(Command::Empty)
         }
         _ => None,
@@ -266,6 +288,13 @@ pub fn handle_key_event(
         } else {
             // Spotlight navigation handled, return the command from navigation
             cmd.and(spotlight_nav_cmd.unwrap_or(Command::Empty))
+        }
+    } else if state.tools_popup.is_visible {
+        // When tools popup is visible, handle navigation
+        if let Some(tools_nav_cmd) = handle_tools_popup_navigation(state, key_event) {
+            tools_nav_cmd
+        } else {
+            Command::Empty
         }
     } else {
         // When spotlight is not visible, route events to main editor

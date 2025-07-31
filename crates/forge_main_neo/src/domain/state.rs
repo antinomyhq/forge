@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use edtui::EditorState;
-use forge_api::{ChatResponse, ConversationId};
+use forge_api::{ChatResponse, ConversationId, ToolDefinition};
 use throbber_widgets_tui::ThrobberState;
 use tui_scrollview::ScrollViewState;
 
@@ -21,6 +21,7 @@ pub struct State {
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
+    pub tools_popup: ToolsPopupState,
 }
 
 impl Default for State {
@@ -38,6 +39,7 @@ impl Default for State {
             conversation: Default::default(),
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
+            tools_popup: Default::default(),
         }
     }
 }
@@ -89,4 +91,10 @@ impl ConversationState {
         self.conversation_id = Some(conversation_id);
         self.is_first = false;
     }
+}
+
+#[derive(Clone, Default)]
+pub struct ToolsPopupState {
+    pub is_visible: bool,
+    pub tools: Vec<ToolDefinition>,
 }
