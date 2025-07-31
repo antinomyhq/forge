@@ -364,9 +364,11 @@
           "minimum": 0.0
         },
         "model": {
-          "description": "Model ID to use for compaction, useful when compacting with a cheaper/faster model",
-          "default": "gpt-4o",
-          "type": "string"
+          "description": "Model ID to use for compaction, useful when compacting with a cheaper/faster model. If not specified, the root level model will be used.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "on_turn_end": {
           "description": "Whether to trigger compaction when the last message is from a user",
