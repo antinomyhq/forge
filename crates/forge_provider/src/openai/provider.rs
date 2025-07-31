@@ -63,6 +63,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
             serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
 
         let es = self
+        let es = self
             .http
             .eventsource(&url, Some(headers), json_bytes.into())
             .await
@@ -171,7 +172,9 @@ mod tests {
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
+    use forge_app::HttpClientService;
     use reqwest::header::HeaderMap;
+    use reqwest_eventsource::EventSource;
     use reqwest_eventsource::EventSource;
 
     use super::*;
@@ -220,6 +223,7 @@ mod tests {
             _url: &reqwest::Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
+        ) -> anyhow::Result<EventSource> {
         ) -> anyhow::Result<EventSource> {
             unimplemented!()
         }
