@@ -1,4 +1,5 @@
 use anyhow::Context;
+use forge_app::domain::ChatCompletionMessage;
 use reqwest::Url;
 use reqwest_eventsource::{Event, EventSource};
 use serde::de::DeserializeOwned;
@@ -8,13 +9,14 @@ use tracing::debug;
 use crate::error::Error;
 use crate::utils::format_http_context;
 
-pub fn event_stream<
-    Response: DeserializeOwned + Clone,
-    ChatCompletionMessage: TryFrom<Response, Error = anyhow::Error>,
->(
-    url: &Url,
+pub fn into_chat_completion_message<Response>(
+    url: Url,
     source: EventSource,
-) -> impl Stream {
+) -> impl Stream<Item = anyhow::Result<ChatCompletionMessage>>
+where
+    Response: DeserializeOwned,
+    ChatCompletionMessage: TryFrom<Response, Error = anyhow::Error>,
+{
     source
             .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
             .then(|event| async {
@@ -30,12 +32,12 @@ pub fn event_stream<
                             serde_json::from_str::<Response>(&message.data)
                                 .with_context(|| {
                                     format!(
-                                        "Failed to parse Forge Provider response: {}",
+                                        "Failed to parse provider response: {}",
                                         message.data
                                     )
                                 })
                                 .and_then(|response| {
-                                    ChatCompletionMessage::try_from(response.clone()).with_context(
+                                    ChatCompletionMessage::try_from(response).with_context(
                                         || {
                                             format!(
                                                 "Failed to create completion message: {}",
@@ -76,6 +78,6 @@ pub fn event_stream<
             })
             .filter_map(move |response| {
                 response
-                    .map(|result| result.with_context(|| format_http_context(None, "POST", url)))
+                    .map(|result| result.with_context(|| format_http_context(None, "POST", url.clone())))
             })
 }

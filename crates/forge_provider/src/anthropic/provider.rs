@@ -6,15 +6,13 @@ use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
 use reqwest::Url;
-use reqwest_eventsource::Event;
-use tokio_stream::StreamExt;
 use tracing::debug;
 
 use super::request::Request;
 use super::response::{EventData, ListModelResponse};
 use crate::anthropic::transforms::ReasoningTransform;
 use crate::client::{create_headers, join_url};
-use crate::error::Error;
+use crate::event::into_chat_completion_message;
 use crate::utils::format_http_context;
 
 #[derive(Clone)]
@@ -67,7 +65,7 @@ impl<T: HttpClientService> Anthropic<T> {
         let json_bytes =
             serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
 
-        let stream = self
+        let source = self
             .http
             .eventsource(
                 &url,
@@ -75,63 +73,9 @@ impl<T: HttpClientService> Anthropic<T> {
                 json_bytes.into(),
             )
             .await
-            .with_context(|| format_http_context(None, "POST", &url))?
-            .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-            .then(|event| async {
-                match event {
-                    Ok(event) => match event {
-                        Event::Open => None,
-                        Event::Message(event) if ["[DONE]", ""].contains(&event.data.as_str()) => {
-                            debug!("Received completion from Upstream");
-                            None
-                        }
-                        Event::Message(message) => Some(
-                            serde_json::from_str::<EventData>(&message.data)
-                                .with_context(|| "Failed to parse Anthropic event")
-                                .and_then(|event| {
-                                    ChatCompletionMessage::try_from(event).with_context(|| {
-                                        format!(
-                                            "Failed to create completion message: {}",
-                                            message.data
-                                        )
-                                    })
-                                }),
-                        ),
-                    },
-                    Err(error) => match error {
-                        reqwest_eventsource::Error::StreamEnded => None,
-                        reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
-                            let status = response.status();
-                            let body = response.text().await.ok();
-                            Some(Err(Error::InvalidStatusCode(status.as_u16())).with_context(
-                                || match body {
-                                    Some(body) => {
-                                        format!("Invalid status code: {status} Reason: {body}")
-                                    }
-                                    None => {
-                                        format!("Invalid status code: {status} Reason: [Unknown]")
-                                    }
-                                },
-                            ))
-                        }
-                        reqwest_eventsource::Error::InvalidContentType(_, ref response) => {
-                            let status_code = response.status();
-                            debug!(response = ?response, "Invalid content type");
-                            Some(Err(error).with_context(|| format!("Http Status: {status_code}")))
-                        }
-                        error => {
-                            tracing::error!(error = ?error, "Failed to receive chat completion event");
-                            Some(Err(error.into()))
-                        }
-                    },
-                }
-            })
-            .filter_map(move |response| match response {
-                Some(Err(err)) => {
-                    Some(Err(err).with_context(|| format_http_context(None, "POST", &url)))
-                }
-                _ => response,
-            });
+            .with_context(|| format_http_context(None, "POST", &url))?;
+
+        let stream = into_chat_completion_message::<EventData>(url, source);
 
         Ok(Box::pin(stream))
     }
