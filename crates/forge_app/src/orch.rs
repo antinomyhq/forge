@@ -9,8 +9,11 @@ use forge_template::Element;
 use serde_json::Value;
 use tracing::{debug, info, warn};
 
+use crate::WorkflowService;
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+
+const DEFAULT_TOOL_CALL_TIMEOUT: u64 = 300;
 
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
@@ -27,7 +30,7 @@ pub struct Orchestrator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: AgentService> Orchestrator<S> {
+impl<S: AgentService + WorkflowService> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
         environment: Environment,
@@ -62,6 +65,14 @@ impl<S: AgentService> Orchestrator<S> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
+        let tool_timeout = self
+            .services
+            .read_workflow(None)
+            .await?
+            .tool_timeout_seconds
+            .map(Duration::from_secs)
+            .unwrap_or_else(|| Duration::from_secs(DEFAULT_TOOL_CALL_TIMEOUT));
+
         for tool_call in tool_calls {
             // Send the start notification
             self.send(ChatResponse::ToolCallStart(tool_call.clone()))
@@ -70,7 +81,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Execute the tool
             let tool_result = self
                 .services
-                .call(agent, tool_context, tool_call.clone())
+                .call(agent, tool_timeout, tool_context, tool_call.clone())
                 .await;
 
             if tool_result.is_error() {

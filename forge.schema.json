@@ -106,6 +106,15 @@
         "null"
       ]
     },
+    "tool_timeout_seconds": {
+      "description": "Maximum execution time in seconds for a single tool call. Controls how long a tool can run before being terminated. Default is 300 seconds.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "top_k": {
       "description": "Top-k used for all agents\n\nControls the number of highest probability vocabulary tokens to keep. - Lower values (e.g., 10) make responses more focused - Higher values (e.g., 100) make responses more diverse - Valid range is 1 to 1000 - If not specified, each agent's individual setting or the model provider's default will be used",
       "anyOf": [

@@ -128,6 +128,14 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::option)]
     pub max_tool_failure_per_turn: Option<usize>,
 
+    /// Maximum execution time in seconds for a single tool call.
+    /// Controls how long a tool can run before being terminated.
+    /// Default is 300 seconds.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub tool_timeout_seconds: Option<u64>,
+
     /// Maximum number of requests that can be made in a single turn
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -181,6 +189,7 @@ impl Workflow {
             updates: None,
             templates: None,
             max_tool_failure_per_turn: None,
+            tool_timeout_seconds: None,
             max_requests_per_turn: None,
             compact: None,
         }
@@ -221,6 +230,7 @@ mod tests {
         assert_eq!(actual.top_k, None);
         assert_eq!(actual.max_tokens, None);
         assert_eq!(actual.tool_supported, None);
+        assert_eq!(actual.tool_timeout_seconds, None);
         assert_eq!(actual.compact, None);
     }
 
