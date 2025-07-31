@@ -1,15 +1,12 @@
-use std::pin::Pin;
-
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::ServerSentEvent;
 use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
 use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
 use reqwest::{Client, Response, StatusCode, Url};
-use reqwest_eventsource::{Event, RequestBuilderExt};
-use tokio_stream::{Stream, StreamExt};
+use reqwest_eventsource::{EventSource, RequestBuilderExt};
+use tokio_stream::StreamExt;
 use tracing::debug;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
@@ -133,40 +130,21 @@ impl ForgeHttpInfra {
         headers
     }
 
-    async fn post_stream(
+    async fn eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
-    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
+    ) -> anyhow::Result<EventSource> {
         let mut request_headers = self.headers(headers);
         request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
 
-        let es = self
-            .client
+        self.client
             .post(url.clone())
             .headers(request_headers)
             .body(body)
             .eventsource()
-            .with_context(|| format_http_context(None, "POST (EventSource)", url))?;
-
-        let stream = es
-            .take_while(|message| !matches!(message, Err(reqwest_eventsource::Error::StreamEnded)))
-            .map(|event| match event {
-                Ok(event) => match event {
-                    Event::Open => Ok(ServerSentEvent {
-                        event_type: Some("open".to_string()),
-                        data: "".to_string(),
-                        id: None,
-                    }),
-                    Event::Message(msg) => {
-                        Ok(ServerSentEvent { event_type: None, data: msg.data, id: Some(msg.id) })
-                    }
-                },
-                Err(err) => Err(err.into()),
-            });
-
-        Ok(Box::pin(stream))
+            .with_context(|| format_http_context(None, "POST (EventSource)", url))
     }
 
     fn sanitize_headers(headers: &HeaderMap) -> HeaderMap {
@@ -215,7 +193,7 @@ impl HttpInfra for ForgeHttpInfra {
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
-    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>> {
-        self.post_stream(url, headers, body).await
+    ) -> anyhow::Result<EventSource> {
+        self.eventsource(url, headers, body).await
     }
 }

@@ -184,11 +184,12 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
+    use forge_app::HttpClientService;
     use forge_app::domain::Provider;
-    use forge_app::{HttpClientService, ServerSentEvent};
     use futures::Stream;
     use reqwest::Url;
     use reqwest::header::HeaderMap;
+    use reqwest_eventsource::EventSource;
 
     use super::*;
 
@@ -218,8 +219,7 @@ mod tests {
             _url: &Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
-        ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>
-        {
+        ) -> anyhow::Result<EventSource> {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
         }
     }
