@@ -174,7 +174,7 @@ mod tests {
                 overwrite: false,
                 explanation: Some("Create new file".to_string()),
             },
-            output: FsCreateOutput {
+            output: FsCreateOutput::Success {
                 path: "/home/user/project/new_file.txt".to_string(),
                 before: None,
                 warning: None,
@@ -197,7 +197,7 @@ mod tests {
                 overwrite: true,
                 explanation: Some("Overwrite existing file".to_string()),
             },
-            output: FsCreateOutput {
+            output: FsCreateOutput::Success {
                 path: "/home/user/project/existing_file.txt".to_string(),
                 before: Some("old content".to_string()),
                 warning: None,
@@ -220,7 +220,7 @@ mod tests {
                 overwrite: false,
                 explanation: Some("Create file".to_string()),
             },
-            output: FsCreateOutput {
+            output: FsCreateOutput::Success {
                 path: "/home/user/project/file.txt".to_string(),
                 before: None,
                 warning: Some("File created outside project directory".to_string()),
