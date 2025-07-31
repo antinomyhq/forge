@@ -4,6 +4,7 @@ expression: to_value(actual)
 ---
 <search_results
   path="/home/user/project"
+  max_bytes_allowed="256000"
   total_lines="50"
   display_lines="6-30"
   regex="search"
@@ -32,5 +33,6 @@ foo.txt:26:Match line 26: Test
 foo.txt:27:Match line 27: Test
 foo.txt:28:Match line 28: Test
 foo.txt:29:Match line 29: Test
-foo.txt:30:Match line 30: Test]]>
+foo.txt:30:Match line 30: Test
+[Results truncated due to exceeding the 25 lines limit. Please use a more specific search pattern.]]]>
 </search_results>
