@@ -120,14 +120,20 @@ impl<S: AgentService> Compactor<S> {
             )
             .await?;
 
-        let mut context = Context::default()
-            .add_message(ContextMessage::user(prompt, compact.model.clone().into()));
+        // Use compact.model if specified, otherwise fall back to the agent's model
+        let model = compact
+            .model
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No model specified for compaction"))?;
+
+        let mut context =
+            Context::default().add_message(ContextMessage::user(prompt, Some(model.clone())));
 
         if let Some(max_token) = compact.max_tokens {
             context = context.max_tokens(max_token);
         }
 
-        let response = self.services.chat_agent(&compact.model, context).await?;
+        let response = self.services.chat_agent(model, context).await?;
 
         self.collect_completion_stream_content(compact, response)
             .await

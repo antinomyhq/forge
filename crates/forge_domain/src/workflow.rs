@@ -278,7 +278,8 @@ mod tests {
         // Fixture
         let mut base = Workflow::new();
 
-        let compact = Compact::new(ModelId::new("test-model"))
+        let compact = Compact::new()
+            .model(ModelId::new("test-model"))
             .token_threshold(1000_usize)
             .turn_threshold(5_usize);
         let other = Workflow::new().compact(compact.clone());
@@ -293,11 +294,13 @@ mod tests {
     #[test]
     fn test_workflow_merge_compact_with_existing() {
         // Fixture
-        let existing_compact =
-            Compact::new(ModelId::new("existing-model")).token_threshold(500_usize);
+        let existing_compact = Compact::new()
+            .model(ModelId::new("existing-model"))
+            .token_threshold(500_usize);
         let mut base = Workflow::new().compact(existing_compact);
 
-        let new_compact = Compact::new(ModelId::new("new-model"))
+        let new_compact = Compact::new()
+            .model(ModelId::new("new-model"))
             .token_threshold(1000_usize)
             .turn_threshold(5_usize);
         let other = Workflow::new().compact(new_compact.clone());
