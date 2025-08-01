@@ -100,6 +100,18 @@ mod tests {
         fs::write(temp_path.join("lib.rs"), "").unwrap();
         fs::write(temp_path.join("test_file.txt"), "").unwrap();
         fs::write(temp_path.join("another_config.toml"), "").unwrap();
+        fs::write(temp_path.join("main$"), "").unwrap();
+        fs::write(temp_path.join("$main"), "").unwrap();
+        fs::write(temp_path.join("ma$in"), "").unwrap();
+        fs::write(temp_path.join("^main"), "").unwrap();
+        fs::write(temp_path.join("main^"), "").unwrap();
+        fs::write(temp_path.join("ma^in"), "").unwrap();
+        fs::write(temp_path.join("!test"), "").unwrap();
+        fs::write(temp_path.join("test!"), "").unwrap();
+        fs::write(temp_path.join("te!st"), "").unwrap();
+        fs::write(temp_path.join("'lib"), "").unwrap();
+        fs::write(temp_path.join("lib'"), "").unwrap();
+        fs::write(temp_path.join("li'b"), "").unwrap();
 
         let command_manager = Arc::new(ForgeCommandManager::default());
         let completer = InputCompleter::new(temp_path, command_manager);
@@ -154,4 +166,185 @@ mod tests {
             "Should find main.rs with literal matching"
         );
     }
+
+    #[test]
+    fn test_special_character_dollar_end() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test dollar '$' at the end
+        let actual = completer.complete("@main$", 6);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("main$"));
+        assert!(
+            match_found.is_some(),
+            "Should find main$ with literal matching in the end"
+        );
+    }
+
+    #[test]
+    fn test_special_character_dollar_start() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test dollar '$' at the start
+        let actual = completer.complete("@$main", 6);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("$main"));
+        assert!(
+            match_found.is_some(),
+            "Should find $main with literal matching at the start"
+        );
+    }
+
+    #[test]
+    fn test_special_character_dollar_middle() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test dollar '$' in the middle
+        let actual = completer.complete("@ma$in", 6);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("ma$in"));
+        assert!(
+            match_found.is_some(),
+            "Should find ma$in with literal matching in the middle"
+        );
+    }
+
+    #[test]
+    fn test_special_character_caret_start() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test caret '^' at the start
+        let actual = completer.complete("@^main", 6);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("^main"));
+        assert!(
+            match_found.is_some(),
+            "Should find ^main with literal matching"
+        );
+    }
+
+    #[test]
+    fn test_special_character_caret_end() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test caret '^' at the end
+        let actual = completer.complete("@main^", 6);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("main^"));
+        assert!(
+            match_found.is_some(),
+            "Should find main^ with literal matching"
+        );
+    }
+
+    #[test]
+    fn test_special_character_caret_middle() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test caret '^' in the middle
+        let actual = completer.complete("@ma^in", 6);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("ma^in"));
+        assert!(
+            match_found.is_some(),
+            "Should find ma^in with literal matching"
+        );
+    }
+
+    #[test]
+    fn test_special_character_exclamation_start() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test exclamation '!' at the start
+        let actual = completer.complete("@!test", 6);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("!test"));
+        assert!(
+            match_found.is_some(),
+            "Should find !test with literal matching"
+        );
+    }
+
+    #[test]
+    fn test_special_character_exclamation_end() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test exclamation '!' at the end
+        let actual = completer.complete("@test!", 6);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("test!"));
+        assert!(
+            match_found.is_some(),
+            "Should find test! with literal matching"
+        );
+    }
+
+    #[test]
+    fn test_special_character_exclamation_middle() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test exclamation '!' in the middle
+        let actual = completer.complete("@te!st", 6);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("te!st"));
+        assert!(
+            match_found.is_some(),
+            "Should find te!st with literal matching"
+        );
+    }
+
+    #[test]
+    fn test_special_character_single_quote_start() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test single quote '\'' at the start
+        let actual = completer.complete("@'lib", 5);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("'lib"));
+        assert!(
+            match_found.is_some(),
+            "Should find 'lib with literal matching"
+        );
+    }
+
+    #[test]
+    fn test_special_character_single_quote_end() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test single quote '\'' at the end
+        let actual = completer.complete("@lib'", 5);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("lib'"));
+        assert!(
+            match_found.is_some(),
+            "Should find lib' with literal matching"
+        );
+    }
+
+    #[test]
+    fn test_special_character_single_quote_middle() {
+        let (_temp_dir, mut completer) = create_test_fixture();
+
+        // Test single quote '\'' in the middle
+        let actual = completer.complete("@li'b", 5);
+
+        assert!(actual.len() >= 1);
+        let match_found = actual.iter().find(|s| s.value.contains("li'b"));
+        assert!(
+            match_found.is_some(),
+            "Should find li'b with literal matching"
+        );
+    }
+    
 }
