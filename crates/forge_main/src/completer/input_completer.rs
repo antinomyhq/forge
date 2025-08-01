@@ -22,7 +22,7 @@ impl InputCompleter {
         Self {
             walker,
             command: CommandCompleter::new(command_manager),
-            fuzzy_matcher: Matcher::new(Config::DEFAULT),
+            fuzzy_matcher: Matcher::new(Config::DEFAULT.match_paths()),
         }
     }
 }
@@ -40,32 +40,26 @@ impl Completer for InputCompleter {
 
         if let Some(query) = SearchTerm::new(line, pos).process() {
             let files = self.walker.get_blocking().unwrap_or_default();
+            let pattern = Pattern::parse(query.term, CaseMatching::Smart, Normalization::Smart);
             let mut scored_matches: Vec<(u32, Suggestion)> = files
                 .into_iter()
                 .filter(|file| !file.is_dir())
                 .filter_map(|file| {
-                    if let Some(file_name) = file.file_name.as_ref() {
-                        let mut haystack_buf = Vec::new();
-                        let haystack = Utf32Str::new(file_name, &mut haystack_buf);
-                        let pattern =
-                            Pattern::parse(query.term, CaseMatching::Ignore, Normalization::Smart);
-
-                        if let Some(score) = pattern.score(haystack, &mut self.fuzzy_matcher) {
-                            let path_md_fmt = format!("[{}]", file.path);
-                            Some((
-                                score,
-                                Suggestion {
-                                    description: None,
-                                    value: path_md_fmt,
-                                    style: None,
-                                    extra: None,
-                                    span: query.span,
-                                    append_whitespace: true,
-                                },
-                            ))
-                        } else {
-                            None
-                        }
+                    let mut haystack_buf = Vec::new();
+                    let haystack = Utf32Str::new(&file.path, &mut haystack_buf);
+                    if let Some(score) = pattern.score(haystack, &mut self.fuzzy_matcher) {
+                        let path_md_fmt = format!("[{}]", file.path);
+                        Some((
+                            score,
+                            Suggestion {
+                                description: None,
+                                value: path_md_fmt,
+                                style: None,
+                                extra: None,
+                                span: query.span,
+                                append_whitespace: true,
+                            },
+                        ))
                     } else {
                         None
                     }

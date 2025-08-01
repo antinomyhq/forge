@@ -15,6 +15,7 @@ pub struct Compact {
     /// eviction_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
     #[merge(strategy = crate::merge::std::overwrite)]
+    #[serde(default)]
     pub retention_window: usize,
 
     /// Maximum percentage of the context that can be summarized during
@@ -23,7 +24,7 @@ pub struct Compact {
     /// retention_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
     #[merge(strategy = crate::merge::std::overwrite)]
-    #[serde(deserialize_with = "deserialize_percentage")]
+    #[serde(default, deserialize_with = "deserialize_percentage")]
     pub eviction_window: f64,
 
     /// Maximum number of tokens to keep after compaction
@@ -51,9 +52,11 @@ pub struct Compact {
     pub prompt: Option<String>,
 
     /// Model ID to use for compaction, useful when compacting with a
-    /// cheaper/faster model
-    #[merge(strategy = crate::merge::std::overwrite)]
-    pub model: ModelId,
+    /// cheaper/faster model. If not specified, the root level model will be
+    /// used.
+    #[merge(strategy = crate::merge::option)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelId>,
     /// Optional tag name to extract content from when summarizing (e.g.,
     /// "summary")
     #[merge(strategy = crate::merge::std::overwrite)]
@@ -97,10 +100,16 @@ impl SummaryTag {
     }
 }
 
+impl Default for Compact {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Compact {
     /// Creates a new compaction configuration with the specified maximum token
     /// limit
-    pub fn new(model: ModelId) -> Self {
+    pub fn new() -> Self {
         Self {
             max_tokens: None,
             token_threshold: None,
@@ -108,7 +117,7 @@ impl Compact {
             message_threshold: None,
             prompt: None,
             summary_tag: None,
-            model,
+            model: None,
             eviction_window: 0.2, // Default to 20% compaction
             retention_window: 0,
             on_turn_end: None,
@@ -227,7 +236,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_tokens_exceeds_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model")).token_threshold(100_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .token_threshold(100_usize);
         let actual = fixture.should_compact_due_to_tokens(150);
         let expected = true;
         assert_eq!(actual, expected);
@@ -235,7 +246,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_tokens_under_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model")).token_threshold(100_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .token_threshold(100_usize);
         let actual = fixture.should_compact_due_to_tokens(50);
         let expected = false;
         assert_eq!(actual, expected);
@@ -243,7 +256,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_tokens_equals_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model")).token_threshold(100_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .token_threshold(100_usize);
         let actual = fixture.should_compact_due_to_tokens(100);
         let expected = true;
         assert_eq!(actual, expected);
@@ -251,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_tokens_no_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model"));
+        let fixture = Compact::new().model(ModelId::new("test-model"));
         let actual = fixture.should_compact_due_to_tokens(1000);
         let expected = false;
         assert_eq!(actual, expected);
@@ -259,7 +274,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_turns_exceeds_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model")).turn_threshold(2_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .turn_threshold(2_usize);
         let context = ctx("uauau");
 
         let actual = fixture.should_compact_due_to_turns(&context);
@@ -269,7 +286,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_turns_under_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model")).turn_threshold(3_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .turn_threshold(3_usize);
         let context = ctx("ua");
         let actual = fixture.should_compact_due_to_turns(&context);
         let expected = false;
@@ -278,7 +297,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_turns_equals_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model")).turn_threshold(2_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .turn_threshold(2_usize);
         let context = ctx("uau");
         let actual = fixture.should_compact_due_to_turns(&context);
         let expected = true;
@@ -287,7 +308,7 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_turns_no_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model"));
+        let fixture = Compact::new().model(ModelId::new("test-model"));
         let context = ctx("uuu");
         let actual = fixture.should_compact_due_to_turns(&context);
         let expected = false;
@@ -296,7 +317,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_turns_ignores_non_user_messages() {
-        let fixture = Compact::new(ModelId::new("test-model")).turn_threshold(2_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .turn_threshold(2_usize);
         let context = ctx("uasa");
         let actual = fixture.should_compact_due_to_turns(&context);
         let expected = false;
@@ -305,7 +328,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_messages_exceeds_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model")).message_threshold(3_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .message_threshold(3_usize);
         let context = ctx("uaua");
         let actual = fixture.should_compact_due_to_messages(&context);
         let expected = true;
@@ -314,7 +339,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_messages_under_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model")).message_threshold(5_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .message_threshold(5_usize);
         let context = ctx("ua");
         let actual = fixture.should_compact_due_to_messages(&context);
         let expected = false;
@@ -323,7 +350,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_messages_equals_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model")).message_threshold(3_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .message_threshold(3_usize);
         let context = ctx("uau");
         let actual = fixture.should_compact_due_to_messages(&context);
         let expected = true;
@@ -332,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_messages_no_threshold() {
-        let fixture = Compact::new(ModelId::new("test-model"));
+        let fixture = Compact::new().model(ModelId::new("test-model"));
         let context = ctx("uauau");
         let actual = fixture.should_compact_due_to_messages(&context);
         let expected = false;
@@ -341,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_should_compact_no_thresholds_set() {
-        let fixture = Compact::new(ModelId::new("test-model"));
+        let fixture = Compact::new().model(ModelId::new("test-model"));
         let context = ctx("ua");
         let actual = fixture.should_compact(&context, 1000);
         let expected = false;
@@ -350,7 +379,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_token_threshold_triggers() {
-        let fixture = Compact::new(ModelId::new("test-model")).token_threshold(100_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .token_threshold(100_usize);
         let context = ctx("u");
         let actual = fixture.should_compact(&context, 150);
         let expected = true;
@@ -359,7 +390,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_turn_threshold_triggers() {
-        let fixture = Compact::new(ModelId::new("test-model")).turn_threshold(1_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .turn_threshold(1_usize);
         let context = ctx("uau");
         let actual = fixture.should_compact(&context, 50);
         let expected = true;
@@ -368,7 +401,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_message_threshold_triggers() {
-        let fixture = Compact::new(ModelId::new("test-model")).message_threshold(2_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .message_threshold(2_usize);
         let context = ctx("uau");
         let actual = fixture.should_compact(&context, 50);
         let expected = true;
@@ -377,7 +412,8 @@ mod tests {
 
     #[test]
     fn test_should_compact_multiple_thresholds_any_triggers() {
-        let fixture = Compact::new(ModelId::new("test-model"))
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
             .token_threshold(200_usize)
             .turn_threshold(5_usize)
             .message_threshold(10_usize);
@@ -389,7 +425,8 @@ mod tests {
 
     #[test]
     fn test_should_compact_multiple_thresholds_none_trigger() {
-        let fixture = Compact::new(ModelId::new("test-model"))
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
             .token_threshold(200_usize)
             .turn_threshold(5_usize)
             .message_threshold(10_usize);
@@ -401,7 +438,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_empty_context() {
-        let fixture = Compact::new(ModelId::new("test-model")).message_threshold(1_usize);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .message_threshold(1_usize);
         let context = ctx("");
         let actual = fixture.should_compact(&context, 0);
         let expected = false;
@@ -410,7 +449,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_last_user_message_enabled_user_last() {
-        let fixture = Compact::new(ModelId::new("test-model")).on_turn_end(true);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .on_turn_end(true);
         let context = ctx("au");
         let actual = fixture.should_compact_on_turn_end(&context);
         let expected = true;
@@ -419,7 +460,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_last_user_message_enabled_assistant_last() {
-        let fixture = Compact::new(ModelId::new("test-model")).on_turn_end(true);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .on_turn_end(true);
         let context = ctx("ua");
         let actual = fixture.should_compact_on_turn_end(&context);
         let expected = false;
@@ -428,7 +471,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_last_user_message_enabled_system_last() {
-        let fixture = Compact::new(ModelId::new("test-model")).on_turn_end(true);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .on_turn_end(true);
         let context = ctx("us");
         let actual = fixture.should_compact_on_turn_end(&context);
         let expected = false;
@@ -437,7 +482,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_last_user_message_disabled() {
-        let fixture = Compact::new(ModelId::new("test-model")).on_turn_end(false);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .on_turn_end(false);
         let context = ctx("au");
         let actual = fixture.should_compact_on_turn_end(&context);
         let expected = false;
@@ -446,7 +493,7 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_last_user_message_not_configured() {
-        let fixture = Compact::new(ModelId::new("test-model")); // No configuration set
+        let fixture = Compact::new().model(ModelId::new("test-model")); // No configuration set
         let context = ctx("au");
         let actual = fixture.should_compact_on_turn_end(&context);
         let expected = false;
@@ -455,7 +502,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_due_to_last_user_message_empty_context() {
-        let fixture = Compact::new(ModelId::new("test-model")).on_turn_end(true);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .on_turn_end(true);
         let context = ctx("");
         let actual = fixture.should_compact_on_turn_end(&context);
         let expected = false;
@@ -464,7 +513,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_last_user_message_integration() {
-        let fixture = Compact::new(ModelId::new("test-model")).on_turn_end(true);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .on_turn_end(true);
         let context = ctx("au");
         let actual = fixture.should_compact(&context, 10); // Low token count, no other thresholds
         let expected = true;
@@ -473,7 +524,9 @@ mod tests {
 
     #[test]
     fn test_should_compact_last_user_message_integration_disabled() {
-        let fixture = Compact::new(ModelId::new("test-model")).on_turn_end(false);
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
+            .on_turn_end(false);
         let context = ctx("au");
         let actual = fixture.should_compact(&context, 10); // Low token count, no other thresholds
         let expected = false;
@@ -482,12 +535,26 @@ mod tests {
 
     #[test]
     fn test_should_compact_multiple_conditions_with_last_user_message() {
-        let fixture = Compact::new(ModelId::new("test-model"))
+        let fixture = Compact::new()
+            .model(ModelId::new("test-model"))
             .token_threshold(200_usize)
             .on_turn_end(true);
         let context = ctx("au");
         let actual = fixture.should_compact(&context, 50); // Token threshold not met, but last message is user
         let expected = true;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_compact_model_none_falls_back_to_agent_model() {
+        // Fixture
+        let compact = Compact::new()
+            .token_threshold(1000_usize)
+            .turn_threshold(5_usize);
+
+        // Assert
+        assert_eq!(compact.model, None);
+        assert_eq!(compact.token_threshold, Some(1000_usize));
+        assert_eq!(compact.turn_threshold, Some(5_usize));
     }
 }

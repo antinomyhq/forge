@@ -1273,6 +1273,7 @@ dependencies = [
  "async-recursion",
  "async-trait",
  "backon",
+ "bytes",
  "chrono",
  "console",
  "convert_case",
@@ -1290,6 +1291,8 @@ dependencies = [
  "merge",
  "pretty_assertions",
  "regex",
+ "reqwest 0.12.22",
+ "reqwest-eventsource",
  "rust-embed",
  "serde",
  "serde_json",
@@ -1342,6 +1345,7 @@ dependencies = [
  "derive_more",
  "derive_setters",
  "eserde",
+ "forge_json_repair",
  "forge_template",
  "forge_tool_macros",
  "insta",
@@ -1398,12 +1402,14 @@ dependencies = [
  "lazy_static",
  "pretty_assertions",
  "reqwest 0.12.22",
+ "reqwest-eventsource",
  "rmcp",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.12",
  "tokio",
+ "tokio-stream",
  "tracing",
 ]
 
@@ -1421,6 +1427,17 @@ dependencies = [
  "serde_yml",
  "tokio",
  "tokio-stream",
+]
+
+[[package]]
+name = "forge_json_repair"
+version = "0.1.0"
+dependencies = [
+ "pretty_assertions",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -1505,10 +1522,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bytes",
  "derive_builder",
  "derive_more",
  "derive_setters",
  "forge_app",
+ "forge_infra",
+ "futures",
  "insta",
  "mockito",
  "pretty_assertions",
@@ -1541,6 +1561,7 @@ dependencies = [
  "dissimilar",
  "forge_app",
  "forge_display",
+ "forge_domain",
  "forge_fs",
  "forge_provider",
  "forge_snaps",
@@ -1559,6 +1580,7 @@ dependencies = [
  "pretty_assertions",
  "regex",
  "reqwest 0.12.22",
+ "reqwest-eventsource",
  "rmcp",
  "rust-embed",
  "schemars",
