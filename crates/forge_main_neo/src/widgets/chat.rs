@@ -1,9 +1,10 @@
-use edtui::{EditorTheme, EditorView};
 use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::style::{Color, Style, Stylize};
+use ratatui::style::{Style, Stylize};
 use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
 
 use crate::domain::State;
+use crate::widgets::autocomplete::AutocompleteWidget;
+use crate::widgets::editor::EditorWidget;
 use crate::widgets::message_list::MessageList;
 use crate::widgets::spotlight::SpotlightWidget;
 use crate::widgets::status_bar::StatusBar;
@@ -40,8 +41,10 @@ impl StatefulWidget for ChatWidget {
             MessageList.render(message_block.inner(messages_area), buf, state);
         }
 
-        if state.spotlight.is_visible {
-            SpotlightWidget.render(messages_area, buf, state)
+        if state.layover_state.is_spotlight() {
+            SpotlightWidget.render(messages_area, buf, state);
+        } else if state.layover_state.is_autocomplete() {
+            AutocompleteWidget.render(messages_area, buf, state);
         }
 
         // User input area block with status bar (now at bottom)
@@ -54,15 +57,7 @@ impl StatefulWidget for ChatWidget {
                 state.workspace.clone(),
             ));
 
-        EditorView::new(&mut state.editor)
-            .theme(
-                EditorTheme::default()
-                    .base(Style::reset())
-                    .cursor_style(Style::default().fg(Color::Black).bg(Color::White))
-                    .hide_status_line(),
-            )
-            .wrap(true)
-            .render(user_block.inner(user_area), buf);
+        EditorWidget.render(user_block.inner(user_area), buf, state);
 
         // Render blocks
         message_block.render(messages_area, buf);

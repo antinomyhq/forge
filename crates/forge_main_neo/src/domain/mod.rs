@@ -1,4 +1,5 @@
 mod action;
+mod autocomplete;
 mod cancel;
 mod command;
 mod editor_helpers;

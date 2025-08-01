@@ -1,6 +1,8 @@
 mod app;
 // mod bordered_panel;
+mod autocomplete;
 mod chat;
+mod editor;
 mod message_list;
 mod spinner;
 mod spotlight;

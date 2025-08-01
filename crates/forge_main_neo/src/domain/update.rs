@@ -1,9 +1,13 @@
 use edtui::EditorEventHandler;
 use forge_api::ChatResponse;
+use forge_walker::Walker;
+use nucleo::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo::{Config, Matcher, Utf32Str};
 use ratatui::crossterm::event::KeyEventKind;
 
+use crate::domain::autocomplete::AutocompleteState;
 use crate::domain::update_key_event::handle_key_event;
-use crate::domain::{Action, Command, State};
+use crate::domain::{Action, Command, EditorStateExt, LayoverState, State};
 
 pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
     let action = action.into();
@@ -78,6 +82,48 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
         Action::StartStream(cancel_id) => {
             // Store the cancellation token for this stream
             state.chat_stream = Some(cancel_id);
+            Command::Empty
+        }
+        Action::Autocomplete => {
+            // Get text from '@' to cursor position
+            if let Some(search_term) = state.editor.get_text_from_at_to_cursor() {
+                let workspace_pathbuf = state.cwd.as_ref().expect("CWD should be set").clone();
+                let walker = Walker::max_all().cwd(workspace_pathbuf).skip_binary(true);
+                let files = walker.get_blocking().unwrap_or_default();
+                let mut fuzzy_matcher = Matcher::new(Config::DEFAULT);
+                let query = search_term.trim();
+                let mut haystack_buf = Vec::new();
+                let mut scored_matches: Vec<(u32, String)> = files
+                    .into_iter()
+                    .filter_map(|file| {
+                        if let Some(file_name) = file.file_name.as_ref() {
+                            let haystack = Utf32Str::new(file_name, &mut haystack_buf);
+                            let pattern =
+                                Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
+                            if let Some(score) = pattern.score(haystack, &mut fuzzy_matcher) {
+                                Some((score, file.path.clone()))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                scored_matches.sort_by(|a, b| b.0.cmp(&a.0));
+                let suggestions: Vec<String> =
+                    scored_matches.into_iter().map(|(_, path)| path).collect();
+
+                if !suggestions.is_empty() {
+                    let mut autocomplete_state = AutocompleteState::new(search_term);
+                    autocomplete_state.suggestions = suggestions;
+                    state.layover_state = LayoverState::Autocomplete(Box::new(autocomplete_state));
+                } else {
+                    state.layover_state = LayoverState::Editor;
+                }
+            } else {
+                state.layover_state = LayoverState::Editor;
+            }
             Command::Empty
         }
     }

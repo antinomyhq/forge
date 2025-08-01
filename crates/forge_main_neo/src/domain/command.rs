@@ -28,6 +28,7 @@ pub enum Command {
     Interval {
         duration: Duration,
     },
+    Autocomplete,
 }
 
 #[derive(Clone, From, PartialEq, Eq, Debug)]

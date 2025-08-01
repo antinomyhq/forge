@@ -16,9 +16,34 @@ pub trait EditorStateExt {
 
     /// Clear the editor content and reset cursor
     fn clear(&mut self);
+
+    /// Extract text from the first '@' before cursor to the cursor position
+    fn get_text_from_at_to_cursor(&self) -> Option<String>;
 }
 
 impl EditorStateExt for EditorState {
+    fn get_text_from_at_to_cursor(&self) -> Option<String> {
+        let current_row = self.cursor.row;
+
+        let row_string = self
+            .lines
+            .iter_row()
+            .nth(current_row)
+            .map(|row| row.iter().collect::<String>());
+
+        if let Some(row_string) = row_string {
+            let cursor_col = self.cursor.col;
+
+            if cursor_col <= row_string.len() {
+                let before_cursor = &row_string[..cursor_col];
+
+                if let Some(at_pos) = before_cursor.rfind('@') {
+                    return Some(before_cursor[at_pos + 1..].to_string());
+                }
+            }
+        }
+        None
+    }
     fn get_text(&self) -> String {
         self.lines
             .iter_row()

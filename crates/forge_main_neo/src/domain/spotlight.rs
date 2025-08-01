@@ -7,7 +7,6 @@ use crate::domain::slash_command::SlashCommand;
 
 #[derive(Clone)]
 pub struct SpotlightState {
-    pub is_visible: bool,
     pub editor: EditorState,
     pub selected_index: usize,
     pub list_state: ListState,
@@ -18,12 +17,7 @@ impl Default for SpotlightState {
         let mut editor = EditorState::default();
         editor.mode = EditorMode::Insert;
 
-        Self {
-            is_visible: false,
-            editor,
-            selected_index: 0,
-            list_state: ListState::default(),
-        }
+        Self { editor, selected_index: 0, list_state: ListState::default() }
     }
 }
 
