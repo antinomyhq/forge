@@ -21,6 +21,10 @@ pub enum ChatResponse {
         cause: Cause,
         duration: Duration,
     },
+    RetryExhausted {
+        cause: Cause,
+        attempts: usize,
+    },
     Interrupt {
         reason: InterruptionReason,
     },
