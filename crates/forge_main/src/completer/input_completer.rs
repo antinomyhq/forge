@@ -346,5 +346,4 @@ mod tests {
             "Should find li'b with literal matching"
         );
     }
-    
 }
