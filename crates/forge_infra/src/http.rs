@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Context;
 use bytes::Bytes;
 use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
@@ -6,7 +8,6 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
 use reqwest::{Client, Response, StatusCode, Url};
 use reqwest_eventsource::{EventSource, RequestBuilderExt};
-use std::time::Duration;
 use tracing::debug;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
@@ -104,8 +105,11 @@ impl ForgeHttpInfra {
 
         let status = response.status();
         if !status.is_success() {
-            return Err(anyhow::anyhow!("HTTP request failed with status: {}", status))
-                .with_context(|| format_http_context(Some(status), method, url));
+            return Err(anyhow::anyhow!(
+                "HTTP request failed with status: {}",
+                status
+            ))
+            .with_context(|| format_http_context(Some(status), method, url));
         }
 
         Ok(response)
@@ -144,7 +148,8 @@ impl ForgeHttpInfra {
         let mut request_headers = self.headers(headers);
         request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
 
-        let result = self.client
+        let result = self
+            .client
             .post(url.clone())
             .headers(request_headers)
             .body(body)
