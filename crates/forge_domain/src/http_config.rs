@@ -122,15 +122,15 @@ pub struct HttpConfig {
     /// Maximum TLS protocol version to use. When `None`, uses TLS library
     /// default.
     pub max_tls_version: Option<TlsVersion>,
-    /// Enable HTTP/2 adaptive window sizing for improved flow control.
-    pub http2_adaptive_window: bool,
-    /// HTTP/2 keep-alive interval in seconds. When `None`, keep-alive is
+    /// Adaptive window sizing for improved flow control.
+    pub adaptive_window: bool,
+    /// Keep-alive interval in seconds. When `None`, keep-alive is
     /// disabled.
-    pub http2_keep_alive_interval: Option<u64>,
-    /// HTTP/2 keep-alive timeout in seconds.
-    pub http2_keep_alive_timeout: u64,
-    /// Enable HTTP/2 keep-alive while connection is idle.
-    pub http2_keep_alive_while_idle: bool,
+    pub keep_alive_interval: Option<u64>,
+    /// Keep-alive timeout in seconds.
+    pub keep_alive_timeout: u64,
+    /// Keep-alive while connection is idle.
+    pub keep_alive_while_idle: bool,
 }
 
 impl Default for HttpConfig {
@@ -147,10 +147,10 @@ impl Default for HttpConfig {
             min_tls_version: None, // Use TLS library default
             max_tls_version: None, // Use TLS library default
             // HTTP/2 defaults - enable HTTP/2 with sensible keep-alive settings
-            http2_adaptive_window: true,
-            http2_keep_alive_interval: Some(60), // 60 seconds
-            http2_keep_alive_timeout: 10,        // 10 seconds
-            http2_keep_alive_while_idle: true,
+            adaptive_window: true,
+            keep_alive_interval: Some(60), // 60 seconds
+            keep_alive_timeout: 10,        // 10 seconds
+            keep_alive_while_idle: true,
         }
     }
 }
@@ -201,25 +201,25 @@ mod tests {
     fn test_http_config_http2_defaults() {
         let config = HttpConfig::default();
 
-        assert_eq!(config.http2_adaptive_window, true);
-        assert_eq!(config.http2_keep_alive_interval, Some(60));
-        assert_eq!(config.http2_keep_alive_timeout, 10);
-        assert_eq!(config.http2_keep_alive_while_idle, true);
+        assert_eq!(config.adaptive_window, true);
+        assert_eq!(config.keep_alive_interval, Some(60));
+        assert_eq!(config.keep_alive_timeout, 10);
+        assert_eq!(config.keep_alive_while_idle, true);
     }
 
     #[test]
     fn test_http_config_http2_custom_values() {
         let config = HttpConfig {
-            http2_adaptive_window: false,
-            http2_keep_alive_interval: None,
-            http2_keep_alive_timeout: 30,
-            http2_keep_alive_while_idle: false,
+            adaptive_window: false,
+            keep_alive_interval: None,
+            keep_alive_timeout: 30,
+            keep_alive_while_idle: false,
             ..HttpConfig::default()
         };
 
-        assert_eq!(config.http2_adaptive_window, false);
-        assert_eq!(config.http2_keep_alive_interval, None);
-        assert_eq!(config.http2_keep_alive_timeout, 30);
-        assert_eq!(config.http2_keep_alive_while_idle, false);
+        assert_eq!(config.adaptive_window, false);
+        assert_eq!(config.keep_alive_interval, None);
+        assert_eq!(config.keep_alive_timeout, 30);
+        assert_eq!(config.keep_alive_while_idle, false);
     }
 }

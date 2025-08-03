@@ -40,10 +40,10 @@ impl ForgeHttpInfra {
             .redirect(Policy::limited(config.max_redirects))
             .hickory_dns(config.hickory)
             // HTTP/2 configuration from config
-            .http2_adaptive_window(config.http2_adaptive_window)
-            .http2_keep_alive_interval(config.http2_keep_alive_interval.map(Duration::from_secs))
-            .http2_keep_alive_timeout(Duration::from_secs(config.http2_keep_alive_timeout))
-            .http2_keep_alive_while_idle(config.http2_keep_alive_while_idle);
+            .http2_adaptive_window(config.adaptive_window)
+            .http2_keep_alive_interval(config.keep_alive_interval.map(Duration::from_secs))
+            .http2_keep_alive_timeout(Duration::from_secs(config.keep_alive_timeout))
+            .http2_keep_alive_while_idle(config.keep_alive_while_idle);
 
         if let Some(version) = config.min_tls_version {
             client = client.min_tls_version(to_reqwest_tls(version));
@@ -105,10 +105,7 @@ impl ForgeHttpInfra {
 
         let status = response.status();
         if !status.is_success() {
-            return Err(anyhow::anyhow!(
-                "HTTP request failed with status: {}",
-                status
-            ))
+            return Err(anyhow::anyhow!("HTTP request failed"))
             .with_context(|| format_http_context(Some(status), method, url));
         }
 
@@ -148,18 +145,12 @@ impl ForgeHttpInfra {
         let mut request_headers = self.headers(headers);
         request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
 
-        let result = self
-            .client
+        self.client
             .post(url.clone())
             .headers(request_headers)
             .body(body)
-            .eventsource();
-
-        match result {
-            Ok(es) => Ok(es),
-            Err(e) => Err(anyhow::anyhow!("EventSource request failed: {}", e))
-                .with_context(|| format_http_context(None, "POST (EventSource)", url)),
-        }
+            .eventsource()
+            .with_context(|| format_http_context(None, "POST (EventSource)", url))
     }
 
     fn sanitize_headers(headers: &HeaderMap) -> HeaderMap {
