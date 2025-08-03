@@ -1,5 +1,5 @@
-use crate::orch_test_utils::new_orchestrator;
-use forge_domain::Event;
+use crate::orch_test_utils::run;
+use forge_domain::{ChatCompletionMessage, Content};
 
 mod orch_test_utils {
     use std::path::PathBuf;
@@ -23,15 +23,15 @@ mod orch_test_utils {
     struct Templates;
 
     #[derive(Setters, Debug)]
-    pub struct OrchestratorServices {
+    pub struct TestAgentServices {
         hb: Handlebars<'static>,
         history: Mutex<Vec<Conversation>>,
         test_tool_calls: Vec<(ToolCallFull, ToolResult)>,
         test_chat_responses: Vec<ChatCompletionMessage>,
     }
 
-    impl OrchestratorServices {
-        pub fn new() -> Self {
+    impl TestAgentServices {
+        pub fn new(messages: Vec<ChatCompletionMessage>) -> Self {
             let mut hb = Handlebars::new();
             hb.set_strict_mode(true);
             hb.register_escape_fn(no_escape);
@@ -42,19 +42,18 @@ mod orch_test_utils {
                 hb,
                 history: Mutex::new(Vec::new()),
                 test_tool_calls: Vec::new(),
-                test_chat_responses: Vec::new(),
+                test_chat_responses: messages,
             }
         }
 
-        pub fn add_test_tool_call(&mut self, tool_call: ToolCallFull, tool_result: ToolResult) {
-            // Logic to handle tool calls and results
-            // This is a placeholder for actual implementation
-            self.test_tool_calls.push((tool_call, tool_result));
+        pub async fn get_history(&self) -> Option<Conversation> {
+            let conversation = self.history.lock().await;
+            conversation.last().cloned()
         }
     }
 
     #[async_trait::async_trait]
-    impl AgentService for OrchestratorServices {
+    impl AgentService for TestAgentServices {
         async fn chat_agent(
             &self,
             _id: &forge_domain::ModelId,
@@ -92,21 +91,26 @@ mod orch_test_utils {
         }
     }
 
-    pub fn new_orchestrator() -> Orchestrator<OrchestratorServices> {
-        let services = new_service();
+    fn new_orchestrator(
+        messages: &[ChatCompletionMessage],
+    ) -> (Orchestrator<TestAgentServices>, Arc<TestAgentServices>) {
+        let services = new_service(messages.to_vec());
         let environment = new_env();
         let workflow = new_workflow();
         let conversation = new_conversation(workflow);
         let current_time = new_current_time();
-        Orchestrator::new(services, environment, conversation, current_time)
+        (
+            Orchestrator::new(services.clone(), environment, conversation, current_time),
+            services,
+        )
     }
 
     fn new_current_time() -> chrono::DateTime<Local> {
         Local::now()
     }
 
-    fn new_service() -> Arc<OrchestratorServices> {
-        Arc::new(OrchestratorServices::new())
+    fn new_service(messages: Vec<ChatCompletionMessage>) -> Arc<TestAgentServices> {
+        Arc::new(TestAgentServices::new(messages))
     }
 
     fn new_workflow() -> Workflow {
@@ -136,13 +140,25 @@ mod orch_test_utils {
             max_file_size: 1024 * 1024 * 5, // 5 MB
         }
     }
+
+    pub async fn run(messages: &[ChatCompletionMessage]) -> Arc<TestAgentServices> {
+        let (mut orch, services) = new_orchestrator(messages);
+        orch.chat(Event::new("user/task", Some("This is a test")))
+            .await
+            .expect("Failed to run chat");
+        services
+    }
 }
 
 #[tokio::test]
 async fn test_orchestrator_creation() {
-    let mut orch = new_orchestrator();
-    orch.chat(Event::new("user/task", Some("This is a test")))
-        .await
-        .unwrap();
+    let _ = run(&[]).await;
     assert!(true);
+}
+
+#[tokio::test]
+async fn test_history_is_saved() {
+    let service = run(&[ChatCompletionMessage::assistant(Content::full("Sure"))]).await;
+    let actual = service.get_history().await;
+    assert!(actual.is_some());
 }
