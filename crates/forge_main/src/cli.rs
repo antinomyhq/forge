@@ -73,6 +73,9 @@ pub struct Cli {
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
+
+    /// Print information about the environment
+    Info,
 }
 
 /// Group of MCP-related commands
