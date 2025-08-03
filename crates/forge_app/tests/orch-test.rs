@@ -1,5 +1,6 @@
-use crate::orch_test_utils::run;
 use forge_domain::{ChatCompletionMessage, Content};
+
+use crate::orch_test_utils::run;
 
 mod orch_test_utils {
     use std::path::PathBuf;
@@ -82,7 +83,7 @@ mod orch_test_utils {
             template: &str,
             object: &(impl serde::Serialize + Sync),
         ) -> anyhow::Result<String> {
-            Ok(self.hb.render(template, object)?)
+            Ok(self.hb.render_template(template, object)?)
         }
 
         async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
@@ -143,9 +144,9 @@ mod orch_test_utils {
 
     pub async fn run(messages: &[ChatCompletionMessage]) -> Arc<TestAgentServices> {
         let (mut orch, services) = new_orchestrator(messages);
-        orch.chat(Event::new("user/task", Some("This is a test")))
+        orch.chat(Event::new("forge/user_task_update", Some("This is a test")))
             .await
-            .expect("Failed to run chat");
+            .unwrap();
         services
     }
 }
