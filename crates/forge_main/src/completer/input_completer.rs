@@ -40,7 +40,7 @@ impl Completer for InputCompleter {
 
         if let Some(query) = SearchTerm::new(line, pos).process() {
             let files = self.walker.get_blocking().unwrap_or_default();
-            let pattern = Pattern::parse(query.term, CaseMatching::Smart, Normalization::Smart);
+            let pattern = Pattern::parse(escape_for_pattern_parse(query.term).as_str(), CaseMatching::Smart, Normalization::Smart);
             let mut scored_matches: Vec<(u32, Suggestion)> = files
                 .into_iter()
                 .filter(|file| !file.is_dir())
@@ -78,6 +78,18 @@ impl Completer for InputCompleter {
             vec![]
         }
     }
+}
+
+fn escape_for_pattern_parse(term: &str) -> String {
+    let mut term_string = term.to_string();
+    if term_string.ends_with('$') {
+        term_string.insert(term_string.len() - 1, '\\');
+    }
+    if term_string.starts_with('\'') || term_string.starts_with('^') || term_string.starts_with('!')
+    {
+        term_string = format!("\\{term_string}");
+    }
+    term_string
 }
 
 #[cfg(test)]
