@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools};
+use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
@@ -34,7 +34,12 @@ impl<
         Self { services }
     }
 
-    async fn call_internal(&self, input: Tools, tasks: &mut TaskList) -> anyhow::Result<Operation> {
+    async fn call_internal(
+        &self,
+        input: Tools,
+        ctx: &mut ToolCallContext,
+    ) -> anyhow::Result<Operation> {
+        let tasks = &mut ctx.tasks;
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 let output = self
@@ -121,34 +126,37 @@ impl<
                 output.into()
             }
             Tools::ForgeToolAttemptCompletion(_input) => {
-                crate::operation::Operation::AttemptCompletion
+                crate::operation::Operation::AttemptCompletion {
+                    tasks: tasks.clone(),
+                    task_supported: ctx.task_supported,
+                }
             }
-            Tools::ForgeToolTaskListAppend(input) => {
+            Tools::ForgeToolTaskAppend(input) => {
                 let before = tasks.clone();
-                tasks.append(&input.task);
-                Operation::TaskListAppend { _input: input, before, after: tasks.clone() }
+                tasks.append(input.0.clone());
+                Operation::TaskAppend { _input: input, before, after: tasks.clone() }
             }
-            Tools::ForgeToolTaskListAppendMultiple(input) => {
+            Tools::ForgeToolTaskAppendMultiple(input) => {
                 let before = tasks.clone();
                 tasks.append_multiple(input.tasks.clone());
-                Operation::TaskListAppendMultiple { _input: input, before, after: tasks.clone() }
+                Operation::TaskAppendMultiple { _input: input, before, after: tasks.clone() }
             }
-            Tools::ForgeToolTaskListUpdate(input) => {
+            Tools::ForgeToolTaskUpdate(input) => {
                 let before = tasks.clone();
                 tasks
                     .update_status(input.task_id, input.status.clone())
                     .context("Task not found")?;
-                Operation::TaskListUpdate { _input: input, before, after: tasks.clone() }
+                Operation::TaskUpdate { _input: input, before, after: tasks.clone() }
             }
-            Tools::ForgeToolTaskListList(input) => {
+            Tools::ForgeToolTaskList(input) => {
                 let before = tasks.clone();
                 // No operation needed, just return the current state
-                Operation::TaskListList { _input: input, before, after: tasks.clone() }
+                Operation::TaskList { _input: input, before, after: tasks.clone() }
             }
-            Tools::ForgeToolTaskListClear(input) => {
+            Tools::ForgeToolTaskClear(input) => {
                 let before = tasks.clone();
                 tasks.clear();
-                Operation::TaskListClear { _input: input, before, after: tasks.clone() }
+                Operation::TaskClear { _input: input, before, after: tasks.clone() }
             }
         })
     }
@@ -167,9 +175,7 @@ impl<
 
         // Send tool call information
 
-        let execution_result = self
-            .call_internal(tool_input.clone(), &mut context.tasks)
-            .await;
+        let execution_result = self.call_internal(tool_input.clone(), context).await;
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
         }

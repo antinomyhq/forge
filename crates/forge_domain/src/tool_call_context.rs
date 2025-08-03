@@ -13,12 +13,13 @@ type ArcSender = Arc<Sender<anyhow::Result<ChatResponse>>>;
 pub struct ToolCallContext {
     sender: Option<ArcSender>,
     pub tasks: TaskList,
+    pub task_supported: bool,
 }
 
 impl ToolCallContext {
     /// Creates a new ToolCallContext with default values
     pub fn new(task_list: TaskList) -> Self {
-        Self { sender: None, tasks: task_list }
+        Self { sender: None, tasks: task_list, task_supported: false }
     }
 
     /// Send a message through the sender if available
