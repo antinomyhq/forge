@@ -1,0 +1,13 @@
+---
+source: crates/forge_app/src/tool_result_transformer.rs
+expression: error_message
+---
+<error
+  type="file_exists_overwrite_required"
+  original_path="/original/path.txt"
+  temp_file_path="/tmp/temp_file.txt"
+>
+<message>File already exists at '/original/path.txt'. A temporary file has been created at '/tmp/temp_file.txt'.</message>
+<solution>To overwrite: move the file "/tmp/temp_file.txt" to "/original/path.txt"</solution>
+<alternative>Re-run the create operation with overwrite=true.</alternative>
+</error>
