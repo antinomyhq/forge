@@ -29,9 +29,9 @@ where
 
 /// Retry with exhaustion event sending.
 ///
-/// This function will retry the operation up to the configured maximum attempts.
-/// If all configured retries are exhausted and the operation still fails, it will
-/// send a RetryExhausted event through the provided sender.
+/// This function will retry the operation up to the configured maximum
+/// attempts. If all configured retries are exhausted and the operation still
+/// fails, it will send a RetryExhausted event through the provided sender.
 pub async fn retry_with_exhaustion_event<F, Fut, T, C>(
     config: &RetryConfig,
     operation: F,
@@ -57,11 +57,10 @@ where
                 Ok(result) => Ok(result),
                 Err(error) => {
                     // If the error is retryable, send exhaustion event
-                    if should_retry(&error) {
-                        if let Some(sender) = exhaustion_sender {
+                    if should_retry(&error)
+                        && let Some(sender) = exhaustion_sender {
                             sender(&error, config.max_retry_attempts);
                         }
-                    }
                     Err(error)
                 }
             }
@@ -71,11 +70,10 @@ where
                 Ok(result) => Ok(result),
                 Err(error) => {
                     // If the error is retryable, send exhaustion event
-                    if should_retry(&error) {
-                        if let Some(sender) = exhaustion_sender {
+                    if should_retry(&error)
+                        && let Some(sender) = exhaustion_sender {
                             sender(&error, config.max_retry_attempts);
                         }
-                    }
                     Err(error)
                 }
             }
@@ -95,9 +93,11 @@ fn should_retry(error: &anyhow::Error) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Arc;
+
     use tokio::sync::Mutex;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_retry_with_exhaustion_event() {
