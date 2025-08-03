@@ -106,7 +106,7 @@ impl ForgeHttpInfra {
         let status = response.status();
         if !status.is_success() {
             return Err(anyhow::anyhow!("HTTP request failed"))
-            .with_context(|| format_http_context(Some(status), method, url));
+                .with_context(|| format_http_context(Some(status), method, url));
         }
 
         Ok(response)
