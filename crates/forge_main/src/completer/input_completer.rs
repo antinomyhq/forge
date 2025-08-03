@@ -40,7 +40,11 @@ impl Completer for InputCompleter {
 
         if let Some(query) = SearchTerm::new(line, pos).process() {
             let files = self.walker.get_blocking().unwrap_or_default();
-            let pattern = Pattern::parse(escape_for_pattern_parse(query.term).as_str(), CaseMatching::Smart, Normalization::Smart);
+            let pattern = Pattern::parse(
+                escape_for_pattern_parse(query.term).as_str(),
+                CaseMatching::Smart,
+                Normalization::Smart,
+            );
             let mut scored_matches: Vec<(u32, Suggestion)> = files
                 .into_iter()
                 .filter(|file| !file.is_dir())
