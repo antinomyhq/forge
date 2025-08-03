@@ -64,7 +64,8 @@ impl<S: AgentService> Orchestrator<S> {
 
         for tool_call in tool_calls {
             // Always send the start notification for all tools
-            self.send(ChatResponse::ToolCallStart(tool_call.clone())).await?;
+            self.send(ChatResponse::ToolCallStart(tool_call.clone()))
+                .await?;
 
             // Execute the tool
             let tool_result = self
@@ -83,7 +84,8 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Always send the end notification for all tools
-            self.send(ChatResponse::ToolCallEnd(tool_result.clone())).await?;
+            self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
+                .await?;
 
             // Ensure all tool calls and results are recorded
             // Adding task completion records is critical for compaction to work correctly

@@ -36,7 +36,9 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
         },
         Action::ChatResponse(response) => {
             match &response {
-                ChatResponse::Text { text, is_complete, .. } if *is_complete && !text.trim().is_empty() => {
+                ChatResponse::Text { text, is_complete, .. }
+                    if *is_complete && !text.trim().is_empty() =>
+                {
                     state.show_spinner = false;
                 }
                 ChatResponse::ToolCallStart(tool_call) => {
