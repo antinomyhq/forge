@@ -79,9 +79,7 @@ impl AgentService for OrchestratorServices {
         template: &str,
         object: &(impl serde::Serialize + Sync),
     ) -> anyhow::Result<String> {
-        self.hb
-            .render(template, object)
-            .map_err(|e| anyhow::anyhow!(e))
+        Ok(self.hb.render(template, object)?)
     }
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
