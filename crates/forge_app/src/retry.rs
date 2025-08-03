@@ -58,9 +58,10 @@ where
                 Err(error) => {
                     // If the error is retryable, send exhaustion event
                     if should_retry(&error)
-                        && let Some(sender) = exhaustion_sender {
-                            sender(&error, config.max_retry_attempts);
-                        }
+                        && let Some(sender) = exhaustion_sender
+                    {
+                        sender(&error, config.max_retry_attempts);
+                    }
                     Err(error)
                 }
             }
@@ -71,9 +72,10 @@ where
                 Err(error) => {
                     // If the error is retryable, send exhaustion event
                     if should_retry(&error)
-                        && let Some(sender) = exhaustion_sender {
-                            sender(&error, config.max_retry_attempts);
-                        }
+                        && let Some(sender) = exhaustion_sender
+                    {
+                        sender(&error, config.max_retry_attempts);
+                    }
                     Err(error)
                 }
             }
