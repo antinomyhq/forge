@@ -54,6 +54,7 @@ reqwest = { version = "0.12.22", features = [
     "json",
     "rustls-tls",
     "hickory-dns",
+    "http2",
 ], default-features = false }
 reqwest-eventsource = "0.6.0"
 rust-embed = "8.5.0"

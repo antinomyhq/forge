@@ -82,6 +82,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
+        self.cli.conversation = None;
         banner::display()?;
         self.trace_user();
         Ok(())

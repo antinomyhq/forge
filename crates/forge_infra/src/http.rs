@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Context;
 use bytes::Bytes;
 use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
@@ -36,7 +38,12 @@ impl ForgeHttpInfra {
             .pool_idle_timeout(std::time::Duration::from_secs(config.pool_idle_timeout))
             .pool_max_idle_per_host(config.pool_max_idle_per_host)
             .redirect(Policy::limited(config.max_redirects))
-            .hickory_dns(config.hickory);
+            .hickory_dns(config.hickory)
+            // HTTP/2 configuration from config
+            .http2_adaptive_window(config.adaptive_window)
+            .http2_keep_alive_interval(config.keep_alive_interval.map(Duration::from_secs))
+            .http2_keep_alive_timeout(Duration::from_secs(config.keep_alive_timeout))
+            .http2_keep_alive_while_idle(config.keep_alive_while_idle);
 
         if let Some(version) = config.min_tls_version {
             client = client.min_tls_version(to_reqwest_tls(version));
