@@ -81,12 +81,16 @@ impl std::fmt::Display for TlsBackend {
 }
 
 /// HTTP client configuration with support for timeouts, connection pooling,
-/// redirects, DNS resolution, and TLS settings.
+/// redirects, DNS resolution, TLS settings, and HTTP/2 configuration.
 ///
 /// # TLS Configuration
 /// The `min_tls_version` and `max_tls_version` fields allow you to specify
 /// TLS protocol version constraints. These are optional and when `None`,
 /// the TLS library defaults will be used.
+///
+/// # HTTP/2 Configuration
+/// The HTTP/2 settings control adaptive window sizing, keep-alive behavior,
+/// and connection management for HTTP/2 connections.
 ///
 /// # Example
 /// ```
@@ -97,6 +101,8 @@ impl std::fmt::Display for TlsBackend {
 ///     min_tls_version: Some(TlsVersion::V1_2),
 ///     max_tls_version: Some(TlsVersion::V1_3),
 ///     tls_backend: TlsBackend::Rustls,
+///     http2_adaptive_window: true,
+///     http2_keep_alive_interval: Some(60),
 ///     ..HttpConfig::default()
 /// };
 /// ```
@@ -116,6 +122,15 @@ pub struct HttpConfig {
     /// Maximum TLS protocol version to use. When `None`, uses TLS library
     /// default.
     pub max_tls_version: Option<TlsVersion>,
+    /// Enable HTTP/2 adaptive window sizing for improved flow control.
+    pub http2_adaptive_window: bool,
+    /// HTTP/2 keep-alive interval in seconds. When `None`, keep-alive is
+    /// disabled.
+    pub http2_keep_alive_interval: Option<u64>,
+    /// HTTP/2 keep-alive timeout in seconds.
+    pub http2_keep_alive_timeout: u64,
+    /// Enable HTTP/2 keep-alive while connection is idle.
+    pub http2_keep_alive_while_idle: bool,
 }
 
 impl Default for HttpConfig {
@@ -131,6 +146,11 @@ impl Default for HttpConfig {
             tls_backend: TlsBackend::default(),
             min_tls_version: None, // Use TLS library default
             max_tls_version: None, // Use TLS library default
+            // HTTP/2 defaults - enable HTTP/2 with sensible keep-alive settings
+            http2_adaptive_window: true,
+            http2_keep_alive_interval: Some(60), // 60 seconds
+            http2_keep_alive_timeout: 10,        // 10 seconds
+            http2_keep_alive_while_idle: true,
         }
     }
 }
@@ -175,5 +195,31 @@ mod tests {
 
         assert_eq!(config.min_tls_version, Some(TlsVersion::V1_2));
         assert_eq!(config.max_tls_version, Some(TlsVersion::V1_3));
+    }
+
+    #[test]
+    fn test_http_config_http2_defaults() {
+        let config = HttpConfig::default();
+
+        assert_eq!(config.http2_adaptive_window, true);
+        assert_eq!(config.http2_keep_alive_interval, Some(60));
+        assert_eq!(config.http2_keep_alive_timeout, 10);
+        assert_eq!(config.http2_keep_alive_while_idle, true);
+    }
+
+    #[test]
+    fn test_http_config_http2_custom_values() {
+        let config = HttpConfig {
+            http2_adaptive_window: false,
+            http2_keep_alive_interval: None,
+            http2_keep_alive_timeout: 30,
+            http2_keep_alive_while_idle: false,
+            ..HttpConfig::default()
+        };
+
+        assert_eq!(config.http2_adaptive_window, false);
+        assert_eq!(config.http2_keep_alive_interval, None);
+        assert_eq!(config.http2_keep_alive_timeout, 30);
+        assert_eq!(config.http2_keep_alive_while_idle, false);
     }
 }

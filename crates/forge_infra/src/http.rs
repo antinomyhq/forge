@@ -39,11 +39,11 @@ impl ForgeHttpInfra {
             .pool_max_idle_per_host(config.pool_max_idle_per_host)
             .redirect(Policy::limited(config.max_redirects))
             .hickory_dns(config.hickory)
-            // Enable HTTP/2 support
-            .http2_adaptive_window(true)
-            .http2_keep_alive_interval(Some(Duration::from_secs(60)))
-            .http2_keep_alive_timeout(Duration::from_secs(10))
-            .http2_keep_alive_while_idle(true);
+            // HTTP/2 configuration from config
+            .http2_adaptive_window(config.http2_adaptive_window)
+            .http2_keep_alive_interval(config.http2_keep_alive_interval.map(Duration::from_secs))
+            .http2_keep_alive_timeout(Duration::from_secs(config.http2_keep_alive_timeout))
+            .http2_keep_alive_while_idle(config.http2_keep_alive_while_idle);
 
         if let Some(version) = config.min_tls_version {
             client = client.min_tls_version(to_reqwest_tls(version));
