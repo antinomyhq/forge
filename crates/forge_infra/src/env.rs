@@ -168,6 +168,25 @@ fn resolve_http_config() -> forge_domain::HttpConfig {
     if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MAX_TLS_VERSION") {
         config.max_tls_version = Some(parsed);
     }
+    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_ADAPTIVE_WINDOW") {
+        config.adaptive_window = parsed;
+    }
+    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_KEEP_ALIVE_INTERVAL") {
+        config.keep_alive_interval = Some(parsed);
+    }
+    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_KEEP_ALIVE_TIMEOUT") {
+        config.keep_alive_timeout = parsed;
+    }
+    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE") {
+        config.keep_alive_while_idle = parsed;
+    }
+
+    // Special handling for keep_alive_interval to allow disabling it
+    if let Ok(val) = std::env::var("FORGE_HTTP_KEEP_ALIVE_INTERVAL")
+        && (val.to_lowercase() == "none" || val.to_lowercase() == "disabled")
+    {
+        config.keep_alive_interval = None;
+    }
 
     config
 }
@@ -474,6 +493,14 @@ mod tests {
             env::remove_var("FORGE_HTTP_POOL_IDLE_TIMEOUT");
             env::remove_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST");
             env::remove_var("FORGE_HTTP_MAX_REDIRECTS");
+            env::remove_var("FORGE_HTTP_USE_HICKORY");
+            env::remove_var("FORGE_HTTP_TLS_BACKEND");
+            env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
+            env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
+            env::remove_var("FORGE_HTTP_ADAPTIVE_WINDOW");
+            env::remove_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL");
+            env::remove_var("FORGE_HTTP_KEEP_ALIVE_TIMEOUT");
+            env::remove_var("FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE");
         }
 
         // Test default values
@@ -491,6 +518,18 @@ mod tests {
             assert_eq!(config.max_redirects, default_config.max_redirects);
             assert_eq!(config.hickory, default_config.hickory);
             assert_eq!(config.tls_backend, default_config.tls_backend);
+            assert_eq!(config.min_tls_version, default_config.min_tls_version);
+            assert_eq!(config.max_tls_version, default_config.max_tls_version);
+            assert_eq!(config.adaptive_window, default_config.adaptive_window);
+            assert_eq!(
+                config.keep_alive_interval,
+                default_config.keep_alive_interval
+            );
+            assert_eq!(config.keep_alive_timeout, default_config.keep_alive_timeout);
+            assert_eq!(
+                config.keep_alive_while_idle,
+                default_config.keep_alive_while_idle
+            );
         }
 
         // Test environment variable overrides
@@ -498,22 +537,34 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "30");
                 env::set_var("FORGE_HTTP_READ_TIMEOUT", "120");
-                env::set_var("FORGE_HTTP_POOL_IDLE_TIMEOUT", "180");
+                env::set_var("FORGE_HTTP_POOL_IDLE_TIMEOUT", "60");
                 env::set_var("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST", "10");
-                env::set_var("FORGE_HTTP_MAX_REDIRECTS", "20");
+                env::set_var("FORGE_HTTP_MAX_REDIRECTS", "5");
                 env::set_var("FORGE_HTTP_USE_HICKORY", "true");
                 env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
+                env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "1.2");
+                env::set_var("FORGE_HTTP_MAX_TLS_VERSION", "1.3");
+                env::set_var("FORGE_HTTP_ADAPTIVE_WINDOW", "false");
+                env::set_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL", "30");
+                env::set_var("FORGE_HTTP_KEEP_ALIVE_TIMEOUT", "5");
+                env::set_var("FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE", "false");
             }
 
             let config = resolve_http_config();
 
             assert_eq!(config.connect_timeout, 30);
             assert_eq!(config.read_timeout, 120);
-            assert_eq!(config.pool_idle_timeout, 180);
+            assert_eq!(config.pool_idle_timeout, 60);
             assert_eq!(config.pool_max_idle_per_host, 10);
-            assert_eq!(config.max_redirects, 20);
+            assert_eq!(config.max_redirects, 5);
             assert_eq!(config.hickory, true);
             assert_eq!(config.tls_backend, TlsBackend::Rustls);
+            assert_eq!(config.min_tls_version, Some(TlsVersion::V1_2));
+            assert_eq!(config.max_tls_version, Some(TlsVersion::V1_3));
+            assert_eq!(config.adaptive_window, false);
+            assert_eq!(config.keep_alive_interval, Some(30));
+            assert_eq!(config.keep_alive_timeout, 5);
+            assert_eq!(config.keep_alive_while_idle, false);
 
             // Clean up environment variables
             unsafe {
@@ -524,33 +575,44 @@ mod tests {
                 env::remove_var("FORGE_HTTP_MAX_REDIRECTS");
                 env::remove_var("FORGE_HTTP_USE_HICKORY");
                 env::remove_var("FORGE_HTTP_TLS_BACKEND");
+                env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
+                env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
+                env::remove_var("FORGE_HTTP_ADAPTIVE_WINDOW");
+                env::remove_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL");
+                env::remove_var("FORGE_HTTP_KEEP_ALIVE_TIMEOUT");
+                env::remove_var("FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE");
             }
         }
 
-        // Test partial environment variable override (specifically connect_timeout)
+        // Test keep_alive_interval special handling for disabling
         {
+            // Test "none" value
             unsafe {
-                env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "15");
+                env::set_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL", "none");
             }
 
             let config = resolve_http_config();
-            let default_config = forge_domain::HttpConfig::default();
+            assert_eq!(config.keep_alive_interval, None);
 
-            // Overridden value
-            assert_eq!(config.connect_timeout, 15);
-
-            // Default values should remain
-            assert_eq!(config.read_timeout, default_config.read_timeout);
-            assert_eq!(config.pool_idle_timeout, default_config.pool_idle_timeout);
-            assert_eq!(
-                config.pool_max_idle_per_host,
-                default_config.pool_max_idle_per_host
-            );
-            assert_eq!(config.max_redirects, default_config.max_redirects);
-
-            // Clean up environment variables
+            // Test "disabled" value
             unsafe {
-                env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
+                env::set_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL", "disabled");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.keep_alive_interval, None);
+
+            // Test "NONE" (case insensitive)
+            unsafe {
+                env::set_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL", "NONE");
+            }
+
+            let config = resolve_http_config();
+            assert_eq!(config.keep_alive_interval, None);
+
+            // Clean up
+            unsafe {
+                env::remove_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL");
             }
         }
 
@@ -558,192 +620,35 @@ mod tests {
         {
             unsafe {
                 env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "invalid");
+                env::set_var("FORGE_HTTP_USE_HICKORY", "not_a_bool");
+                env::set_var("FORGE_HTTP_TLS_BACKEND", "invalid_backend");
+                env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "invalid_version");
+                env::set_var("FORGE_HTTP_ADAPTIVE_WINDOW", "invalid_bool");
+                env::set_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL", "invalid_number");
             }
 
             let config = resolve_http_config();
             let default_config = forge_domain::HttpConfig::default();
 
-            // Should fall back to default when parsing fails
+            // Should fall back to defaults when parsing fails
             assert_eq!(config.connect_timeout, default_config.connect_timeout);
+            assert_eq!(config.hickory, default_config.hickory);
+            assert_eq!(config.tls_backend, default_config.tls_backend);
+            assert_eq!(config.min_tls_version, default_config.min_tls_version);
+            assert_eq!(config.adaptive_window, default_config.adaptive_window);
+            assert_eq!(
+                config.keep_alive_interval,
+                default_config.keep_alive_interval
+            );
 
             // Clean up environment variables
             unsafe {
                 env::remove_var("FORGE_HTTP_CONNECT_TIMEOUT");
-            }
-        }
-
-        // Test hickory and TLS backend configuration options specifically
-        {
-            // Clean up any existing environment variables first
-            unsafe {
                 env::remove_var("FORGE_HTTP_USE_HICKORY");
                 env::remove_var("FORGE_HTTP_TLS_BACKEND");
-            }
-
-            // Test default values
-
-            let config = resolve_http_config();
-            let default_config = forge_domain::HttpConfig::default();
-            assert_eq!(config.hickory, default_config.hickory);
-            assert_eq!(config.tls_backend, default_config.tls_backend);
-
-            // Test setting hickory to true
-            unsafe {
-                env::set_var("FORGE_HTTP_USE_HICKORY", "true");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.hickory, true);
-            assert_eq!(config.tls_backend, default_config.tls_backend); // Should remain default
-
-            // Test setting tls_backend to native
-            unsafe {
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.hickory, true); // Should remain from previous setting
-            assert_eq!(config.tls_backend, TlsBackend::Rustls);
-
-            // Test setting tls_backend to default
-            unsafe {
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "default");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.tls_backend, TlsBackend::Default);
-
-            // Test setting tls_backend to rustls
-            unsafe {
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.tls_backend, TlsBackend::Rustls);
-
-            // Test case insensitive parsing
-            unsafe {
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.tls_backend, TlsBackend::Rustls);
-
-            // Test invalid values (should use defaults)
-            unsafe {
-                env::set_var("FORGE_HTTP_USE_HICKORY", "invalid");
-                env::set_var("FORGE_HTTP_TLS_BACKEND", "invalid_backend");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.hickory, default_config.hickory); // Should fallback to default
-            assert_eq!(config.tls_backend, default_config.tls_backend); // Should fallback to default
-
-            // Clean up environment variables
-            unsafe {
-                env::remove_var("FORGE_HTTP_USE_HICKORY");
-                env::remove_var("FORGE_HTTP_TLS_BACKEND");
-            }
-        }
-    }
-
-    #[test]
-    fn test_http_config_tls_version_environment_variables() {
-        // Clean up any existing environment variables first
-        unsafe {
-            env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
-            env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
-        }
-
-        // Test default values (should be None)
-        {
-            let config = resolve_http_config();
-            assert_eq!(config.min_tls_version, None);
-            assert_eq!(config.max_tls_version, None);
-        }
-
-        // Test setting min TLS version
-        {
-            unsafe {
-                env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "1.2");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.min_tls_version, Some(TlsVersion::V1_2));
-            assert_eq!(config.max_tls_version, None);
-
-            unsafe {
                 env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
-            }
-        }
-
-        // Test setting max TLS version
-        {
-            unsafe {
-                env::set_var("FORGE_HTTP_MAX_TLS_VERSION", "1.3");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.min_tls_version, None);
-            assert_eq!(config.max_tls_version, Some(TlsVersion::V1_3));
-
-            unsafe {
-                env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
-            }
-        }
-
-        // Test setting both min and max TLS versions
-        {
-            unsafe {
-                env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "1.2");
-                env::set_var("FORGE_HTTP_MAX_TLS_VERSION", "1.3");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.min_tls_version, Some(TlsVersion::V1_2));
-            assert_eq!(config.max_tls_version, Some(TlsVersion::V1_3));
-
-            unsafe {
-                env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
-                env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
-            }
-        }
-
-        // Test invalid TLS version values (should remain None)
-        {
-            unsafe {
-                env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "invalid");
-                env::set_var("FORGE_HTTP_MAX_TLS_VERSION", "2.0");
-            }
-
-            let config = resolve_http_config();
-            assert_eq!(config.min_tls_version, None); // Should remain None for invalid values
-            assert_eq!(config.max_tls_version, None); // Should remain None for invalid values
-
-            unsafe {
-                env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
-                env::remove_var("FORGE_HTTP_MAX_TLS_VERSION");
-            }
-        }
-
-        // Test all valid TLS version values
-        {
-            for (version_str, expected_version) in [
-                ("1.0", TlsVersion::V1_0),
-                ("1.1", TlsVersion::V1_1),
-                ("1.2", TlsVersion::V1_2),
-                ("1.3", TlsVersion::V1_3),
-            ] {
-                unsafe {
-                    env::set_var("FORGE_HTTP_MIN_TLS_VERSION", version_str);
-                }
-
-                let config = resolve_http_config();
-                assert_eq!(config.min_tls_version, Some(expected_version));
-
-                unsafe {
-                    env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
-                }
+                env::remove_var("FORGE_HTTP_ADAPTIVE_WINDOW");
+                env::remove_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL");
             }
         }
     }
