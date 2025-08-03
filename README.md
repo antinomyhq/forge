@@ -363,15 +363,19 @@ Fine-tune HTTP client behavior for API requests:
 
 ```bash
 # .env
-FORGE_HTTP_CONNECT_TIMEOUT=30          # Connection timeout in seconds (default: 30)
-FORGE_HTTP_READ_TIMEOUT=60             # Read timeout in seconds (default: 60)
-FORGE_HTTP_POOL_IDLE_TIMEOUT=90        # Pool idle timeout in seconds (default: 90)
-FORGE_HTTP_POOL_MAX_IDLE_PER_HOST=32   # Max idle connections per host (default: 32)
-FORGE_HTTP_MAX_REDIRECTS=10            # Maximum redirects to follow (default: 10)
-FORGE_HTTP_USE_HICKORY=false           # Use Hickory DNS resolver (default: false)
-FORGE_HTTP_TLS_BACKEND=default         # TLS backend: default, rustls (default: default)
-FORGE_HTTP_MIN_TLS_VERSION=1.2         # Minimum TLS version: 1.0, 1.1, 1.2, 1.3 (default: 1.2)
-FORGE_HTTP_MAX_TLS_VERSION=1.3         # Maximum TLS version: 1.0, 1.1, 1.2, 1.3 (default: 1.3)
+FORGE_HTTP_CONNECT_TIMEOUT=30              # Connection timeout in seconds (default: 30)
+FORGE_HTTP_READ_TIMEOUT=900                # Read timeout in seconds (default: 900)
+FORGE_HTTP_POOL_IDLE_TIMEOUT=90            # Pool idle timeout in seconds (default: 90)
+FORGE_HTTP_POOL_MAX_IDLE_PER_HOST=5        # Max idle connections per host (default: 5)
+FORGE_HTTP_MAX_REDIRECTS=10                # Maximum redirects to follow (default: 10)
+FORGE_HTTP_USE_HICKORY=false               # Use Hickory DNS resolver (default: false)
+FORGE_HTTP_TLS_BACKEND=default             # TLS backend: "default" or "rustls" (default: "default")
+FORGE_HTTP_MIN_TLS_VERSION=1.2             # Minimum TLS version: "1.0", "1.1", "1.2", "1.3"
+FORGE_HTTP_MAX_TLS_VERSION=1.3             # Maximum TLS version: "1.0", "1.1", "1.2", "1.3"
+FORGE_HTTP_ADAPTIVE_WINDOW=true            # Enable HTTP/2 adaptive window (default: true)
+FORGE_HTTP_KEEP_ALIVE_INTERVAL=60          # Keep-alive interval in seconds (default: 60, use "none"/"disabled" to disable)
+FORGE_HTTP_KEEP_ALIVE_TIMEOUT=10           # Keep-alive timeout in seconds (default: 10)
+FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE=true      # Keep-alive while idle (default: true)
 ```
 
 </details>
