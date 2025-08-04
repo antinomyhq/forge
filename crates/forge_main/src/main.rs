@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_display::TitleFormat;
-use forge_main::{Cli, UI, tracker};
+use forge_main::{Cli, TRACKER, UI, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -43,7 +43,9 @@ async fn main() -> Result<()> {
     if neo_ui {
         return forge_main_neo::main_neo(cwd).await;
     }
-    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
+    let mut ui = UI::init(cli, move || {
+        ForgeAPI::init(restricted, cwd.clone(), TRACKER.client_id())
+    })?;
     ui.run().await;
 
     Ok(())

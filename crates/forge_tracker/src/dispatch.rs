@@ -86,6 +86,10 @@ impl Tracker {
         });
     }
 
+    pub fn client_id(&self) -> String {
+        client_id()
+    }
+
     pub async fn dispatch(&self, event_kind: EventKind) -> Result<()> {
         if self.can_track {
             // Create a new event

@@ -20,10 +20,11 @@ pub struct ForgeProviderService<I: HttpInfra> {
     version: String,
     timeout_config: HttpConfig,
     http_infra: Arc<I>,
+    client_id: String,
 }
 
 impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
-    pub fn new(infra: Arc<I>) -> Self {
+    pub fn new(infra: Arc<I>, client_id: String) -> Self {
         let env = infra.get_environment();
         let version = env.version();
         let retry_config = Arc::new(env.retry_config);
@@ -34,6 +35,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
             version,
             timeout_config: env.http,
             http_infra: infra,
+            client_id,
         }
     }
 
@@ -44,7 +46,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
             Some(client) => Ok(client.clone()),
             None => {
                 let infra = self.http_infra.clone();
-                let client = ClientBuilder::new(provider, &self.version)
+                let client = ClientBuilder::new(provider, &self.version, &self.client_id)
                     .retry_config(self.retry_config.clone())
                     .timeout_config(self.timeout_config.clone())
                     .use_hickory(false) // use native DNS resolver(GAI)

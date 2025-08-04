@@ -67,7 +67,7 @@ impl<
         + WalkerInfra,
 > ForgeServices<F>
 {
-    pub fn new(infra: Arc<F>) -> Self {
+    pub fn new(infra: Arc<F>, client_id: String) -> Self {
         let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
         let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
         let template_service = Arc::new(ForgeTemplateService::new(infra.clone()));
@@ -78,7 +78,7 @@ impl<
         let conversation_service = Arc::new(ForgeConversationService::new(mcp_service.clone()));
         let config_service = Arc::new(ForgeConfigService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
-        let chat_service = Arc::new(ForgeProviderService::<F>::new(infra.clone()));
+        let chat_service = Arc::new(ForgeProviderService::<F>::new(infra.clone(), client_id));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));

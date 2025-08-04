@@ -42,6 +42,7 @@ impl Fixture {
         ForgeAPI::init(
             true,
             std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            "test-client-id".to_string(),
         )
     }
 

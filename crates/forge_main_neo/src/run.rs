@@ -18,7 +18,7 @@ pub async fn run(mut terminal: DefaultTerminal, cwd: PathBuf) -> anyhow::Result<
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel::<Command>(1024);
 
     let mut state = State::default();
-    let api = ForgeAPI::init(false, cwd);
+    let api = ForgeAPI::init(false, cwd, TRACKER.client_id());
 
     // Initialize forge_tracker using the API instance
     let env = api.environment();
