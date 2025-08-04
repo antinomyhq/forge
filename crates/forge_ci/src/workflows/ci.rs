@@ -43,7 +43,7 @@ pub fn generate_ci_workflow() {
                 .cond(Expression::new(
                     [
                         "github.event_name == 'pull_request'",
-                        "contains(github.event.pull_request.labels.*.name, 'build-all-targets')",
+                        "contains(github.event.pull_request.labels.*.name, 'ci: build all targets')",
                     ]
                     .join(" && "),
                 )),
