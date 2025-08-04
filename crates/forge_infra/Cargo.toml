@@ -29,3 +29,4 @@ forge_walker.workspace = true
 lazy_static.workspace = true
 tokio-stream.workspace = true
 reqwest-eventsource.workspace = true
+machineid-rs.workspace = true

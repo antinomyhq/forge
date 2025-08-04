@@ -5,11 +5,8 @@ mod executor;
 mod run;
 mod widgets;
 
-use lazy_static::lazy_static;
-
-lazy_static! {
-    pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
-}
+pub static TRACKER: OnceCell<forge_tracker::Tracker> = OnceCell::new();
 
 pub use entrypoint::main_neo;
+use once_cell::sync::OnceCell;
 pub use run::run;

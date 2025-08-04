@@ -5,17 +5,21 @@ use crate::TRACKER;
 /// Helper functions to eliminate duplication of tokio::spawn + TRACKER patterns
 /// Generic dispatcher for any event
 fn dispatch(event: EventKind) {
-    tokio::spawn(TRACKER.dispatch(event));
+    if let Some(tracker) = TRACKER.get().cloned() {
+        tokio::spawn(async move { tracker.dispatch(event).await });
+    }
 }
 
 /// Dispatches an event blockingly
 /// This is useful for events that are not expected to be dispatched in the
 /// background
 fn dispatch_blocking(event: EventKind) {
-    tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(TRACKER.dispatch(event))
-    })
-    .ok();
+    if let Some(tracker) = TRACKER.get().cloned() {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(tracker.dispatch(event))
+        })
+        .ok();
+    }
 }
 
 /// For error events with Debug formatting
@@ -44,9 +48,17 @@ pub fn prompt(text: String) {
 
 /// For model setting
 pub fn set_model(model: String) {
-    tokio::spawn(TRACKER.set_model(model));
+    if let Some(tracker) = TRACKER.get() {
+        tokio::spawn(async {
+            tracker.set_model(model).await;
+        });
+    }
 }
 
 pub fn login(login: String) {
-    tokio::spawn(TRACKER.login(login));
+    if let Some(tracker) = TRACKER.get() {
+        tokio::spawn(async {
+            tracker.login(login).await;
+        });
+    }
 }

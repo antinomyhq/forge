@@ -5,7 +5,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use forge_domain::Conversation;
-use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use sysinfo::System;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -27,10 +26,6 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-const PARAPHRASE: &str = "forge_key";
-
-const DEFAULT_CLIENT_ID: &str = "<anonymous>";
-
 #[derive(Clone)]
 pub struct Tracker {
     collectors: Arc<Vec<Box<dyn Collect>>>,
@@ -40,10 +35,11 @@ pub struct Tracker {
     model: Arc<Mutex<Option<String>>>,
     conversation: Arc<Mutex<Option<Conversation>>>,
     is_logged_in: Arc<AtomicBool>,
+    client_id: String,
 }
 
-impl Default for Tracker {
-    fn default() -> Self {
+impl Tracker {
+    pub fn new(client_id: String) -> Self {
         let posthog_tracker = Box::new(posthog::Tracker::new(POSTHOG_API_SECRET));
         let start_time = Utc::now();
         let can_track = can_track();
@@ -55,6 +51,7 @@ impl Default for Tracker {
             model: Arc::new(Mutex::new(None)),
             conversation: Arc::new(Mutex::new(None)),
             is_logged_in: Arc::new(AtomicBool::new(false)),
+            client_id,
         }
     }
 }
@@ -86,10 +83,6 @@ impl Tracker {
         });
     }
 
-    pub fn client_id(&self) -> String {
-        client_id()
-    }
-
     pub async fn dispatch(&self, event_kind: EventKind) -> Result<()> {
         if self.can_track {
             // Create a new event
@@ -99,7 +92,7 @@ impl Tracker {
                 event_value: event_kind.value(),
                 start_time: self.start_time,
                 cores: cores(),
-                client_id: client_id(),
+                client_id: self.client_id.clone(),
                 os_name: os_name(),
                 up_time: up_time(self.start_time),
                 args: args(),
@@ -192,17 +185,6 @@ async fn email() -> HashSet<String> {
         .collect::<HashSet<String>>()
 }
 
-// Generates a random client ID
-fn client_id() -> String {
-    let mut builder = IdBuilder::new(Encryption::SHA256);
-    builder
-        .add_component(HWIDComponent::SystemID)
-        .add_component(HWIDComponent::CPUCores);
-    builder
-        .build(PARAPHRASE)
-        .unwrap_or(DEFAULT_CLIENT_ID.to_string())
-}
-
 // Get the number of CPU cores
 fn cores() -> usize {
     System::physical_core_count().unwrap_or(0)
@@ -261,7 +243,7 @@ mod tests {
     use super::*;
 
     lazy_static! {
-        static ref TRACKER: Tracker = Tracker::default();
+        static ref TRACKER: Tracker = Tracker::new("test_client_id".to_string());
     }
 
     #[tokio::test]

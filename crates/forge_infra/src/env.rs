@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 
 use forge_domain::{Environment, Provider, RetryConfig, TlsBackend, TlsVersion};
 use forge_services::EnvironmentInfra;
@@ -64,6 +65,7 @@ impl ForgeEnvironmentInfra {
             http: resolve_http_config(),
             max_file_size: 256 << 10, // 256 KiB
             forge_api_url,
+            client_id: client_id(),
         }
     }
 
@@ -98,6 +100,20 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     fn get_env_var(&self, key: &str) -> Option<String> {
         std::env::var(key).ok()
     }
+}
+
+const PARAPHRASE: &str = "forge_key";
+const DEFAULT_CLIENT_ID: &str = "<anonymous>";
+
+// Generates a random client ID
+fn client_id() -> String {
+    let mut builder = IdBuilder::new(Encryption::SHA256);
+    builder
+        .add_component(HWIDComponent::SystemID)
+        .add_component(HWIDComponent::CPUCores);
+    builder
+        .build(PARAPHRASE)
+        .unwrap_or(DEFAULT_CLIENT_ID.to_string())
 }
 
 fn parse_env<T: FromStr>(name: &str) -> Option<T> {

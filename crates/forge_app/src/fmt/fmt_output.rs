@@ -114,6 +114,7 @@ mod tests {
             http: Default::default(),
             max_file_size: 0,
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
+            client_id: "test-client".to_string(),
         }
     }
 

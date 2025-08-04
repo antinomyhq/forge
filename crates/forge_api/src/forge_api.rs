@@ -26,8 +26,8 @@ impl<A, F> ForgeAPI<A, F> {
 }
 
 impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
-    pub fn init(restricted: bool, cwd: PathBuf, client_id: String) -> Self {
-        let infra = Arc::new(ForgeInfra::new(restricted, cwd, client_id));
+    pub fn init(restricted: bool, cwd: PathBuf) -> Self {
+        let infra = Arc::new(ForgeInfra::new(restricted, cwd));
         let app = Arc::new(ForgeServices::new(infra.clone()));
         ForgeAPI::new(app, infra)
     }

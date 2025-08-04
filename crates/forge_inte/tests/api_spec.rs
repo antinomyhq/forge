@@ -24,7 +24,7 @@ struct Fixture {
 }
 
 lazy_static::lazy_static! {
-    static ref tracker: Tracker = Tracker::default();
+    static ref tracker: Tracker = Tracker::new("test-client-id".into());
 }
 
 impl Fixture {
@@ -42,7 +42,6 @@ impl Fixture {
         ForgeAPI::init(
             true,
             std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            "test-client-id".to_string(),
         )
     }
 

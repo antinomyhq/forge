@@ -340,6 +340,7 @@ mod tests {
             max_read_size: 100,
             http: Default::default(),
             max_file_size: 1000,
+            client_id: "test-client".to_string(),
         }
     }
 

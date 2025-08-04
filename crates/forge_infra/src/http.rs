@@ -61,10 +61,8 @@ impl ForgeHttpInfra {
             TlsBackend::Default => {}
         }
 
-        // add default headers
         let mut headers = HeaderMap::new();
-        headers.insert("x-client-id", HeaderValue::from_str(&client_id).unwrap());
-
+        headers.insert("x-client-id", HeaderValue::from_str(&client_id).expect("Invalid client ID"));
         Self { client: client.build().unwrap(), headers }
     }
 

@@ -18,11 +18,12 @@ pub async fn run(mut terminal: DefaultTerminal, cwd: PathBuf) -> anyhow::Result<
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel::<Command>(1024);
 
     let mut state = State::default();
-    let api = ForgeAPI::init(false, cwd, TRACKER.client_id());
+    let api = ForgeAPI::init(false, cwd);
 
     // Initialize forge_tracker using the API instance
     let env = api.environment();
-    let _guard = forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?;
+    let tracker = TRACKER.get_or_init(|| forge_tracker::Tracker::new(env.client_id.clone()));
+    let _guard = forge_tracker::init_tracing(env.log_path(), tracker.clone())?;
 
     // Initialize Executor
     let executor = Executor::new(Arc::new(api));
