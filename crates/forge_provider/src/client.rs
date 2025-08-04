@@ -237,7 +237,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::new(provider, "dev")
+        let client = ClientBuilder::new(provider, "dev", "test-client-id")
             .build(Arc::new(MockHttpClient))
             .unwrap();
 
@@ -252,7 +252,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
-        let client = ClientBuilder::new(provider, "dev")
+        let client = ClientBuilder::new(provider, "dev", "test-client-id")
             .build(Arc::new(MockHttpClient))
             .unwrap();
 
@@ -271,7 +271,7 @@ mod tests {
         };
 
         // Test the builder pattern API
-        let client = ClientBuilder::new(provider, "dev")
+        let client = ClientBuilder::new(provider, "dev", "test-client-id")
             .retry_config(Arc::new(RetryConfig::default()))
             .timeout_config(HttpConfig::default())
             .use_hickory(true)
@@ -291,7 +291,7 @@ mod tests {
         };
 
         // Test that ClientBuilder::new works with minimal parameters
-        let client = ClientBuilder::new(provider, "dev")
+        let client = ClientBuilder::new(provider, "dev", "test-client-id")
             .build(Arc::new(MockHttpClient))
             .unwrap();
 
