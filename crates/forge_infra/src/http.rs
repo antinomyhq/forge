@@ -211,3 +211,20 @@ impl HttpInfra for ForgeHttpInfra {
         self.eventsource(url, headers, body).await
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_headers() {
+        let forge_infra = ForgeHttpInfra::new(HttpConfig::default(), "test-client-id".to_string());
+        let headers = forge_infra.headers(None);
+        assert_eq!(headers.get("User-Agent").unwrap(), "Forge");
+        assert_eq!(headers.get("X-Title").unwrap(), "forge");
+        assert_eq!(headers.get("x-app-version").unwrap(), VERSION);
+        assert_eq!(headers.get("x-client-id").unwrap(), "test-client-id");
+        assert_eq!(headers.get("HTTP-Referer").unwrap(), "https://forgecode.dev");
+    }
+}
