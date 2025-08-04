@@ -5,4 +5,4 @@ mod tool_choice;
 mod transformers;
 
 mod provider;
-pub use provider::ForgeProvider;
+pub use provider::OpenAIProvider;

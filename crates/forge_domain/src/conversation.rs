@@ -64,7 +64,7 @@ impl Conversation {
         for agent in self.agents.iter_mut() {
             agent.model = Some(model.clone());
             if let Some(ref mut compact) = agent.compact {
-                compact.model = model.clone();
+                compact.model = Some(model.clone());
             }
         }
 
@@ -114,10 +114,10 @@ impl Conversation {
                 // initialized with that model, creating the compact configuration if needed
                 if agent.compact.is_some() {
                     if let Some(ref mut compact) = agent.compact {
-                        compact.model = model;
+                        compact.model = Some(model);
                     }
                 } else {
-                    agent.compact = Some(Compact::new(model));
+                    agent.compact = Some(Compact::new().model(model));
                 }
             }
 
@@ -493,7 +493,8 @@ mod tests {
         let agent1 = Agent::new("agent1");
         let agent2 = Agent::new("agent2");
 
-        let compact = Compact::new(ModelId::new("compact-model"))
+        let compact = Compact::new()
+            .model(ModelId::new("compact-model"))
             .token_threshold(1500_usize)
             .turn_threshold(3_usize);
 
@@ -518,13 +519,15 @@ mod tests {
         // Arrange
         let id = super::ConversationId::generate();
         let mut agent1 = Agent::new("agent1");
-        let existing_compact =
-            Compact::new(ModelId::new("agent-model")).message_threshold(10_usize);
+        let existing_compact = Compact::new()
+            .model(ModelId::new("agent-model"))
+            .message_threshold(10_usize);
         agent1.compact = Some(existing_compact);
 
         let agent2 = Agent::new("agent2");
 
-        let workflow_compact = Compact::new(ModelId::new("workflow-model"))
+        let workflow_compact = Compact::new()
+            .model(ModelId::new("workflow-model"))
             .token_threshold(1500_usize)
             .turn_threshold(3_usize);
 
@@ -547,7 +550,7 @@ mod tests {
         let agent1_compact = agent1_result.compact.as_ref().unwrap();
 
         // Model uses overwrite strategy, but agent takes priority over workflow
-        assert_eq!(agent1_compact.model, ModelId::new("agent-model"));
+        assert_eq!(agent1_compact.model, Some(ModelId::new("agent-model")));
 
         // Token threshold uses option strategy, agent had None so gets workflow value
         assert_eq!(agent1_compact.token_threshold, Some(1500_usize));
@@ -575,14 +578,16 @@ mod tests {
 
         // Agent has compact config with specific values
         let mut agent = Agent::new("test-agent");
-        let agent_compact = Compact::new(ModelId::new("agent-priority-model"))
+        let agent_compact = Compact::new()
+            .model(ModelId::new("agent-priority-model"))
             .token_threshold(1000_usize)
             .message_threshold(5_usize)
             .turn_threshold(2_usize);
         agent.compact = Some(agent_compact);
 
         // Workflow has different compact config for the same fields
-        let workflow_compact = Compact::new(ModelId::new("workflow-model"))
+        let workflow_compact = Compact::new()
+            .model(ModelId::new("workflow-model"))
             .token_threshold(2000_usize)
             .message_threshold(20_usize)
             .turn_threshold(10_usize);
@@ -599,7 +604,10 @@ mod tests {
         let result_compact = result_agent.compact.as_ref().unwrap();
 
         // All agent values should take priority over workflow values
-        assert_eq!(result_compact.model, ModelId::new("agent-priority-model"));
+        assert_eq!(
+            result_compact.model,
+            Some(ModelId::new("agent-priority-model"))
+        );
         assert_eq!(result_compact.token_threshold, Some(1000_usize));
         assert_eq!(result_compact.message_threshold, Some(5_usize));
         assert_eq!(result_compact.turn_threshold, Some(2_usize));
@@ -774,8 +782,8 @@ mod tests {
         let id = super::ConversationId::generate();
 
         // Create an agent with compaction configured
-        let agent1 =
-            Agent::new("agent1").compact(Compact::new(ModelId::new("old-compaction-model")));
+        let agent1 = Agent::new("agent1")
+            .compact(Compact::new().model(ModelId::new("old-compaction-model")));
 
         // Create an agent without compaction
         let agent2 = Agent::new("agent2");
@@ -791,7 +799,7 @@ mod tests {
         // Check that agent1's compact.model was updated to the workflow model
         let agent1 = conversation.get_agent(&AgentId::new("agent1")).unwrap();
         let compact = agent1.compact.as_ref().unwrap();
-        assert_eq!(compact.model, ModelId::new("workflow-model"));
+        assert_eq!(compact.model, Some(ModelId::new("workflow-model")));
 
         // Regular agent model should also be updated
         assert_eq!(agent1.model, Some(ModelId::new("workflow-model")));
@@ -799,7 +807,7 @@ mod tests {
         // Check that agent2 still has no compaction
         let agent2 = conversation.get_agent(&AgentId::new("agent2")).unwrap();
         let compact = agent2.compact.as_ref().unwrap();
-        assert_eq!(compact.model, ModelId::new("workflow-model"));
+        assert_eq!(compact.model, Some(ModelId::new("workflow-model")));
         assert_eq!(agent2.model, Some(ModelId::new("workflow-model")));
     }
 
@@ -1100,7 +1108,7 @@ mod tests {
         let workflow = Workflow::new().agents(vec![
             Agent::new("agent-1")
                 .model(ModelId::new("sonnet-4"))
-                .compact(Compact::new(ModelId::new("gemini-1.5"))),
+                .compact(Compact::new().model(ModelId::new("gemini-1.5"))),
             Agent::new("agent-2").model(ModelId::new("sonnet-3.5")),
         ]);
 
@@ -1114,7 +1122,7 @@ mod tests {
         for agent in conversation.agents.iter_mut() {
             assert_eq!(agent.model, Some(model_id.clone()));
             if let Some(ref mut compact) = agent.compact {
-                assert_eq!(compact.model, model_id.clone());
+                assert_eq!(compact.model, Some(model_id.clone()));
             }
         }
     }

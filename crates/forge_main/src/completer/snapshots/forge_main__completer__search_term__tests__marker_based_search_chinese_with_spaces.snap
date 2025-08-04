@@ -31,23 +31,41 @@ expression: results
     },
     TermSpec {
         input: "@中 [文 @测试",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "中 ",
+        ),
+        span_start: Some(
+            1,
+        ),
+        span_end: Some(
+            5,
+        ),
         pos: 5,
     },
     TermSpec {
         input: "@中 文[ @测试",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "中 文",
+        ),
+        span_start: Some(
+            1,
+        ),
+        span_end: Some(
+            8,
+        ),
         pos: 8,
     },
     TermSpec {
         input: "@中 文 [@测试",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "中 文 ",
+        ),
+        span_start: Some(
+            1,
+        ),
+        span_end: Some(
+            9,
+        ),
         pos: 9,
     },
     TermSpec {
