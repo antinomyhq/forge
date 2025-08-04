@@ -144,7 +144,7 @@ mod orch_test_utils {
 
     pub async fn run(messages: &[ChatCompletionMessage]) -> Arc<TestAgentServices> {
         let (mut orch, services) = new_orchestrator(messages);
-        orch.chat(Event::new("forge/user_task_update", Some("This is a test")))
+        orch.chat(Event::new("forge/user_task_init", Some("This is a test")))
             .await
             .unwrap();
         services
