@@ -5,8 +5,8 @@ use crate::TRACKER;
 /// Helper functions to eliminate duplication of tokio::spawn + TRACKER patterns
 /// Generic dispatcher for any event
 fn dispatch(event: EventKind) {
-    if let Some(tracker) = TRACKER.get().cloned() {
-        tokio::spawn(async move { tracker.dispatch(event).await });
+    if let Some(tracker) = TRACKER.get() {
+        tokio::spawn(async { tracker.dispatch(event).await });
     }
 }
 
@@ -14,7 +14,7 @@ fn dispatch(event: EventKind) {
 /// This is useful for events that are not expected to be dispatched in the
 /// background
 fn dispatch_blocking(event: EventKind) {
-    if let Some(tracker) = TRACKER.get().cloned() {
+    if let Some(tracker) = TRACKER.get() {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(tracker.dispatch(event))
         })
