@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn test_format_reset_time_hours_and_minutes() {
         let actual = super::format_reset_time(3661); // 1 hour, 1 minute, 1 second
-        let expected = "1h 1m";
+        let expected = "1h 1m 1s";
         assert_eq!(actual, expected);
     }
 
@@ -465,7 +465,7 @@ mod tests {
     #[test]
     fn test_format_reset_time_large_value() {
         let actual = super::format_reset_time(7265); // 2 hours, 1 minute, 5 seconds
-        let expected = "2h 1m";
+        let expected = "2h 1m 5s";
         assert_eq!(actual, expected);
     }
 }
