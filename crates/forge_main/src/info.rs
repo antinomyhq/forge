@@ -93,6 +93,9 @@ impl From<&UIState> for Info {
 
         if let Some(provider) = &value.provider {
             info = info.add_key_value("Provider (URL)", provider.to_base_url());
+            if let Some(api_key) = &provider.key() {
+                info = info.add_key_value("API Key", truncate_key(api_key));
+            }
         }
 
         let usage = &value.usage;
