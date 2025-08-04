@@ -20,18 +20,11 @@ use crate::utils::{format_http_context, sanitize_headers};
 pub struct OpenAIProvider<H> {
     provider: Provider,
     http: Arc<H>,
-    distinct_id: Option<String>,
 }
 
 impl<H: HttpClientService> OpenAIProvider<H> {
     pub fn new(provider: Provider, http: Arc<H>) -> Self {
-        Self { provider, http, distinct_id: None }
-    }
-
-    // Sets a distinct ID for the provider
-    pub fn with_distinct_id(mut self, distinct_id: String) -> Self {
-        self.distinct_id = Some(distinct_id);
-        self
+        Self { provider, http }
     }
 
     // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
@@ -42,10 +35,6 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         if let Some(ref api_key) = self.provider.key() {
             headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
         }
-        if let Some(ref distinct_id) = self.distinct_id {
-            headers.push(("x-distinct-id".to_string(), distinct_id.clone()));
-        }
-
         headers
     }
 

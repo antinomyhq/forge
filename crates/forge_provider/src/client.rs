@@ -26,7 +26,6 @@ pub struct ClientBuilder {
     pub use_hickory: bool,
     pub provider: Provider,
     pub version: String,
-    pub client_id: String,
 }
 
 impl ClientBuilder {
@@ -35,7 +34,6 @@ impl ClientBuilder {
     pub fn new(
         provider: Provider,
         version: impl Into<String>,
-        client_id: impl Into<String>,
     ) -> Self {
         Self {
             retry_config: Arc::new(RetryConfig::default()),
@@ -43,7 +41,6 @@ impl ClientBuilder {
             use_hickory: false,
             provider,
             version: version.into(),
-            client_id: client_id.into(),
         }
     }
 
@@ -57,7 +54,6 @@ impl ClientBuilder {
                 // FIXME: pass key and url instead of provider
                 InnerClient::OpenAICompat(
                     OpenAIProvider::new(provider.clone(), http)
-                        .with_distinct_id(self.client_id.clone()),
                 )
             }
 
