@@ -6,9 +6,6 @@ messages:
   - text:
       role: System
       content: System message
-      tool_calls: ~
-      model: ~
-      reasoning_details: ~
   - tool:
       name: text_tool
       call_id: call1

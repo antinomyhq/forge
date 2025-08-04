@@ -8,7 +8,6 @@ before:
     - text:
         role: Assistant
         content: Assistant message
-        tool_calls: ~
         model: gpt-4
         reasoning_details:
           - text: Important reasoning
@@ -18,6 +17,4 @@ after:
     - text:
         role: Assistant
         content: Assistant message
-        tool_calls: ~
         model: gpt-4
-        reasoning_details: ~
