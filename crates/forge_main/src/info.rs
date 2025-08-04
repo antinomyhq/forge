@@ -288,29 +288,49 @@ pub fn create_progress_bar(current: u32, limit: u32, width: usize) -> String {
         percentage
     )
 }
-pub fn format_reset_time(seconds: u32) -> String {
+
+fn convert_seconds(seconds: u64) -> (u64, u64, u64, u64) {
+    let days = seconds / 86400;
+    let hours = (seconds % 86400) / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let secs = seconds % 60;
+    (days, hours, minutes, secs)
+}
+
+pub fn format_reset_time(seconds: u64) -> String {
     if seconds == 0 {
         return "now".to_string();
     }
 
-    let hours = seconds / 3600;
-    let minutes = (seconds % 3600) / 60;
-    let remaining_seconds = seconds % 60;
-
-    if hours > 0 {
+    let (days, hours, minutes, secs) = convert_seconds(seconds as u64);
+    if days > 0 {
+        if hours > 0 {
+            if minutes > 0 {
+                if secs > 0 {
+                    format!("{days}d {hours}h {minutes}m {secs}s")
+                } else {
+                    format!("{days}d {hours}h {minutes}m")
+                }
+            } else {
+                format!("{days}d {hours}h")
+            }
+        } else {
+            format!("{days}d")
+        }
+    } else if hours > 0 {
         if minutes > 0 {
             format!("{hours}h {minutes}m")
         } else {
             format!("{hours}h")
         }
     } else if minutes > 0 {
-        if remaining_seconds > 0 {
-            format!("{minutes}m {remaining_seconds}s")
+        if secs > 0 {
+            format!("{minutes}m {secs}s")
         } else {
             format!("{minutes}m")
         }
     } else {
-        format!("{remaining_seconds}s")
+        format!("{secs}s")
     }
 }
 
