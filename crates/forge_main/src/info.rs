@@ -302,7 +302,7 @@ pub fn format_reset_time(seconds: u64) -> String {
         return "now".to_string();
     }
 
-    let (days, hours, minutes, secs) = convert_seconds(seconds as u64);
+    let (days, hours, minutes, secs) = convert_seconds(seconds);
     if days > 0 {
         if hours > 0 {
             if minutes > 0 {
