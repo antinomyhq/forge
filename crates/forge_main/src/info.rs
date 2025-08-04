@@ -1,5 +1,6 @@
 use std::fmt;
 use std::path::Path;
+use std::time::Duration;
 
 use colored::Colorize;
 use forge_api::{Environment, LoginInfo, UserUsage};
@@ -289,49 +290,11 @@ pub fn create_progress_bar(current: u32, limit: u32, width: usize) -> String {
     )
 }
 
-fn convert_seconds(seconds: u64) -> (u64, u64, u64, u64) {
-    let days = seconds / 86400;
-    let hours = (seconds % 86400) / 3600;
-    let minutes = (seconds % 3600) / 60;
-    let secs = seconds % 60;
-    (days, hours, minutes, secs)
-}
-
 pub fn format_reset_time(seconds: u64) -> String {
     if seconds == 0 {
         return "now".to_string();
     }
-
-    let (days, hours, minutes, secs) = convert_seconds(seconds);
-    if days > 0 {
-        if hours > 0 {
-            if minutes > 0 {
-                if secs > 0 {
-                    format!("{days}d {hours}h {minutes}m {secs}s")
-                } else {
-                    format!("{days}d {hours}h {minutes}m")
-                }
-            } else {
-                format!("{days}d {hours}h")
-            }
-        } else {
-            format!("{days}d")
-        }
-    } else if hours > 0 {
-        if minutes > 0 {
-            format!("{hours}h {minutes}m")
-        } else {
-            format!("{hours}h")
-        }
-    } else if minutes > 0 {
-        if secs > 0 {
-            format!("{minutes}m {secs}s")
-        } else {
-            format!("{minutes}m")
-        }
-    } else {
-        format!("{secs}s")
-    }
+    humantime::format_duration(Duration::from_secs(seconds)).to_string()
 }
 
 #[cfg(test)]
