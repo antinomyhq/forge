@@ -20,15 +20,15 @@ use url::Url;
 struct Templates;
 
 #[derive(Setters, Debug)]
-pub struct TestAgentServices {
+pub struct Trace {
     hb: Handlebars<'static>,
     history: Mutex<Vec<Conversation>>,
     test_tool_calls: Vec<(ToolCallFull, ToolResult)>,
     test_chat_responses: Mutex<VecDeque<ChatCompletionMessage>>,
 }
 
-impl TestAgentServices {
-    pub fn new(messages: Vec<ChatCompletionMessage>) -> Self {
+impl Trace {
+    fn new(messages: Vec<ChatCompletionMessage>) -> Self {
         let mut hb = Handlebars::new();
         hb.set_strict_mode(true);
         hb.register_escape_fn(no_escape);
@@ -43,14 +43,13 @@ impl TestAgentServices {
         }
     }
 
-    pub async fn get_history(&self) -> Option<Conversation> {
-        let conversation = self.history.lock().await;
-        conversation.last().cloned()
+    pub async fn get_history(&self) -> Vec<Conversation> {
+        self.history.lock().await.clone()
     }
 }
 
 #[async_trait::async_trait]
-impl AgentService for TestAgentServices {
+impl AgentService for Trace {
     async fn chat_agent(
         &self,
         _id: &forge_domain::ModelId,
@@ -60,9 +59,7 @@ impl AgentService for TestAgentServices {
         if let Some(message) = responses.pop_front() {
             Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(message)))))
         } else {
-            Ok(Box::pin(tokio_stream::iter(std::iter::once(Err(
-                anyhow::anyhow!("No more test chat responses available"),
-            )))))
+            Ok(Box::pin(tokio_stream::iter(std::iter::empty())))
         }
     }
 
@@ -94,8 +91,8 @@ impl AgentService for TestAgentServices {
 }
 
 fn new_orchestrator(
-    messages: &[ChatCompletionMessage],
-) -> (Orchestrator<TestAgentServices>, Arc<TestAgentServices>) {
+    messages: Vec<ChatCompletionMessage>,
+) -> (Orchestrator<Trace>, Arc<Trace>) {
     let services = new_service(messages.to_vec());
     let environment = new_env();
     let workflow = new_workflow();
@@ -111,8 +108,8 @@ fn new_current_time() -> chrono::DateTime<Local> {
     Local::now()
 }
 
-fn new_service(messages: Vec<ChatCompletionMessage>) -> Arc<TestAgentServices> {
-    Arc::new(TestAgentServices::new(messages))
+fn new_service(messages: Vec<ChatCompletionMessage>) -> Arc<Trace> {
+    Arc::new(Trace::new(messages))
 }
 
 fn new_workflow() -> Workflow {
@@ -143,10 +140,21 @@ fn new_env() -> Environment {
     }
 }
 
-pub async fn run(messages: &[ChatCompletionMessage]) -> Arc<TestAgentServices> {
-    let (mut orch, services) = new_orchestrator(messages);
-    orch.chat(Event::new("forge/user_task_init", Some("This is a test")))
+async fn run(user: &str, assistant: Vec<ChatCompletionMessage>) -> Arc<Trace> {
+    let (mut orch, services) = new_orchestrator(assistant);
+    orch.chat(Event::new("forge/user_task_init", Some(user.to_string())))
         .await
         .unwrap();
     services
+}
+
+pub struct Setup {
+    pub user: &'static str,
+    pub assistant: Vec<ChatCompletionMessage>,
+}
+
+impl Setup {
+    pub async fn run(self) -> Arc<Trace> {
+        run(self.user, self.assistant).await
+    }
 }

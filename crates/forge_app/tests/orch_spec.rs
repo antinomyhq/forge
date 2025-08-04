@@ -1,17 +1,25 @@
 use forge_domain::{ChatCompletionMessage, Content};
 
 mod orchestrator_test_helpers;
-use orchestrator_test_helpers::run;
+
+use crate::orchestrator_test_helpers::Setup;
 
 #[tokio::test]
 async fn test_orchestrator_creation() {
-    let _ = run(&[]).await;
+    let _ = Setup { user: "This is a test", assistant: vec![] }
+        .run()
+        .await;
     assert!(true);
 }
 
 #[tokio::test]
 async fn test_history_is_saved() {
-    let service = run(&[ChatCompletionMessage::assistant(Content::full("Sure"))]).await;
-    let actual = service.get_history().await;
-    assert!(actual.is_some());
+    let traces = Setup {
+        user: "This is a test",
+        assistant: vec![ChatCompletionMessage::assistant(Content::full("Sure"))],
+    }
+    .run()
+    .await;
+    let actual = traces.get_history().await;
+    assert!(!actual.is_empty());
 }
