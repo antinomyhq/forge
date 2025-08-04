@@ -4,7 +4,7 @@ use anyhow::Context;
 use bytes::Bytes;
 use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
 use forge_services::HttpInfra;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
 use reqwest::{Client, Response, StatusCode, Url};
 use reqwest_eventsource::{EventSource, RequestBuilderExt};
@@ -212,7 +212,6 @@ impl HttpInfra for ForgeHttpInfra {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +224,9 @@ mod tests {
         assert_eq!(headers.get("X-Title").unwrap(), "forge");
         assert_eq!(headers.get("x-app-version").unwrap(), VERSION);
         assert_eq!(headers.get("x-client-id").unwrap(), "test-client-id");
-        assert_eq!(headers.get("HTTP-Referer").unwrap(), "https://forgecode.dev");
+        assert_eq!(
+            headers.get("HTTP-Referer").unwrap(),
+            "https://forgecode.dev"
+        );
     }
 }

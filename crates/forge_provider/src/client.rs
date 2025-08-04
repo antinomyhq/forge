@@ -31,10 +31,7 @@ pub struct ClientBuilder {
 impl ClientBuilder {
     /// Create a new ClientBuilder with required provider and version
     /// parameters.
-    pub fn new(
-        provider: Provider,
-        version: impl Into<String>,
-    ) -> Self {
+    pub fn new(provider: Provider, version: impl Into<String>) -> Self {
         Self {
             retry_config: Arc::new(RetryConfig::default()),
             timeout_config: HttpConfig::default(),
@@ -52,9 +49,7 @@ impl ClientBuilder {
         let inner = match &provider {
             Provider::OpenAI { .. } => {
                 // FIXME: pass key and url instead of provider
-                InnerClient::OpenAICompat(
-                    OpenAIProvider::new(provider.clone(), http)
-                )
+                InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http))
             }
 
             Provider::Anthropic { key, .. } => InnerClient::Anthropic(Anthropic::new(
