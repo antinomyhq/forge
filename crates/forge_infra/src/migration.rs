@@ -53,13 +53,14 @@ impl MigrationService {
 
         // Calculate backup action
         if let Some(legacy_dir) = &info.legacy_directory
-            && legacy_dir.exists() {
-                let backup_target = legacy_dir.with_extension("backup");
-                actions.push(MigrationAction::CreateBackup {
-                    source: legacy_dir.clone(),
-                    target: backup_target,
-                });
-            }
+            && legacy_dir.exists()
+        {
+            let backup_target = legacy_dir.with_extension("backup");
+            actions.push(MigrationAction::CreateBackup {
+                source: legacy_dir.clone(),
+                target: backup_target,
+            });
+        }
 
         // Calculate migration actions
         for (source, target) in &info.migration_mappings {

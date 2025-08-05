@@ -88,23 +88,24 @@ impl ForgeDirectories {
         let mut candidates = Vec::new();
 
         if let Some(legacy_dir) = self.legacy_base_dir()
-            && legacy_dir.exists() {
-                // Common directories and files that should be migrated
-                let items_to_check = [
-                    ".forge_history",
-                    "snapshots",
-                    ".mcp.json",
-                    "templates",
-                    "logs",
-                ];
+            && legacy_dir.exists()
+        {
+            // Common directories and files that should be migrated
+            let items_to_check = [
+                ".forge_history",
+                "snapshots",
+                ".mcp.json",
+                "templates",
+                "logs",
+            ];
 
-                for item in &items_to_check {
-                    let path = legacy_dir.join(item);
-                    if path.exists() {
-                        candidates.push(path);
-                    }
+            for item in &items_to_check {
+                let path = legacy_dir.join(item);
+                if path.exists() {
+                    candidates.push(path);
                 }
             }
+        }
 
         candidates
     }
@@ -203,27 +204,26 @@ impl ForgeDirectories {
 
     /// Creates a backup of the legacy directory before migration
     pub fn backup_legacy_directory(&self) -> Result<Option<PathBuf>, std::io::Error> {
-        
-
         if let Some(legacy_dir) = self.legacy_base_dir()
-            && legacy_dir.exists() {
-                let backup_path = legacy_dir.with_extension("backup");
-                let mut counter = 1;
-                let mut final_backup_path = backup_path.clone();
+            && legacy_dir.exists()
+        {
+            let backup_path = legacy_dir.with_extension("backup");
+            let mut counter = 1;
+            let mut final_backup_path = backup_path.clone();
 
-                // Find a unique backup name
-                while final_backup_path.exists() {
-                    final_backup_path = legacy_dir
-                        .parent()
-                        .unwrap()
-                        .join(format!("forge.backup.{counter}"));
-                    counter += 1;
-                }
-
-                // Copy the entire directory
-                self.copy_directory_recursive(&legacy_dir, &final_backup_path)?;
-                return Ok(Some(final_backup_path));
+            // Find a unique backup name
+            while final_backup_path.exists() {
+                final_backup_path = legacy_dir
+                    .parent()
+                    .unwrap()
+                    .join(format!("forge.backup.{counter}"));
+                counter += 1;
             }
+
+            // Copy the entire directory
+            self.copy_directory_recursive(&legacy_dir, &final_backup_path)?;
+            return Ok(Some(final_backup_path));
+        }
 
         Ok(None)
     }
@@ -272,9 +272,10 @@ impl ForgeDirectories {
         use std::fs;
 
         if let Some(legacy_dir) = self.legacy_base_dir()
-            && legacy_dir.exists() {
-                fs::remove_dir_all(legacy_dir)?;
-            }
+            && legacy_dir.exists()
+        {
+            fs::remove_dir_all(legacy_dir)?;
+        }
 
         Ok(())
     }
