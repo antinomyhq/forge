@@ -102,7 +102,7 @@ async fn test_render_system_prompt_with_custom_agent_template() {
 
 #[tokio::test]
 async fn test_render_system_prompt_default_agents() {
-    let system_prompt = async |agent_id:&str, tool_supported| -> String {
+    let system_prompt = async |agent_id: &str, tool_supported| -> String {
         let workflow = Workflow::default();
         let agent = workflow
             .get_agent(&AgentId::new(agent_id))
@@ -114,7 +114,10 @@ async fn test_render_system_prompt_default_agents() {
         let mut setup = Setup::default().add_agent(agent);
 
         // execute request with orchestrator
-        let _ = setup.chat("Hello".into(), agent_id.to_string()).await.unwrap();
+        let _ = setup
+            .chat("Hello".into(), agent_id.to_string())
+            .await
+            .unwrap();
 
         // get the system prompt from the latest context
         let system_prompt = setup.system_prompt().await.unwrap();
