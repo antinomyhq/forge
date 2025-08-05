@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use forge_domain::Workflow;
 
 use crate::utils::format_match;
-use crate::{FsCreateService, Match};
+use crate::{FsCreateService, Match, ServiceContext};
 
 pub async fn create_temp_file<S: FsCreateService>(
     services: &S,
@@ -21,6 +21,7 @@ pub async fn create_temp_file<S: FsCreateService>(
 
     // FIXME: Needs review.
     let temp_workflow = Workflow::new();
+    let context = ServiceContext::new(&temp_workflow);
 
     services
         .create(
@@ -28,7 +29,7 @@ pub async fn create_temp_file<S: FsCreateService>(
             content.to_string(),
             true,
             false,
-            &temp_workflow,
+            &context,
         )
         .await?;
     Ok(path)

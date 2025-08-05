@@ -7,7 +7,6 @@ use super::types::{Permission, Trace};
 
 /// Policy definitions with logical operators
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(untagged)]
 pub enum Policy {
     /// Simple policy with permission and rule
     Simple { permission: Permission, rule: Rule },

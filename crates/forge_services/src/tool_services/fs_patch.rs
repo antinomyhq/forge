@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::domain::PatchOperation;
-use forge_app::{FsPatchService, PatchOutput};
-use forge_domain::{PolicyEngine, Workflow};
+use forge_app::{FsPatchService, PatchOutput, ServiceContext};
+use forge_domain::PolicyEngine;
 use thiserror::Error;
 use tokio::fs;
 
@@ -210,13 +210,14 @@ impl<F: FileWriterInfra> FsPatchService for ForgeFsPatch<F> {
         search: Option<String>,
         operation: PatchOperation,
         content: String,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<PatchOutput> {
+        let workflow = context.workflow;
         let path = Path::new(&input_path);
         assert_absolute_path(path)?;
 
         let engine = PolicyEngine::new(workflow);
-        let permission_trace = engine.can_read(path);
+        let permission_trace = engine.can_patch(path);
 
         // Check permission and handle according to policy
         match permission_trace.value {
@@ -231,9 +232,23 @@ impl<F: FileWriterInfra> FsPatchService for ForgeFsPatch<F> {
                     permission_trace.line.unwrap_or(0),
                 ));
             }
-            forge_domain::Permission::Allow | forge_domain::Permission::Confirm => {
-                // For now, treat Confirm as Allow as requested
+            forge_domain::Permission::Allow => {
                 // Continue with the operation
+            }
+            forge_domain::Permission::Confirm => {
+                // Request user confirmation
+                match context.request_confirmation() {
+                    forge_domain::UserResponse::Accept
+                    | forge_domain::UserResponse::AcceptAndRemember => {
+                        // User accepted the operation, continue
+                    }
+                    forge_domain::UserResponse::Reject => {
+                        return Err(anyhow::anyhow!(
+                            "Operation rejected by user for file: {}",
+                            path.display()
+                        ));
+                    }
+                }
             }
         }
 

@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use forge_app::domain::Environment;
-use forge_app::{ShellOutput, ShellService};
-use forge_domain::{PolicyEngine, Workflow};
+use forge_app::{ServiceContext, ShellOutput, ShellService};
+use forge_domain::PolicyEngine;
 use strip_ansi_escapes::strip;
 
 use crate::{CommandInfra, EnvironmentInfra};
@@ -48,8 +48,9 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<ShellOutput> {
+        let workflow = context.workflow;
         Self::validate_command(&command)?;
 
         let engine = PolicyEngine::new(workflow);
@@ -69,9 +70,23 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
                     command
                 ));
             }
-            forge_domain::Permission::Allow | forge_domain::Permission::Confirm => {
-                // For now, treat Confirm as Allow as requested
+            forge_domain::Permission::Allow => {
                 // Continue with the operation
+            }
+            forge_domain::Permission::Confirm => {
+                // Request user confirmation
+                match context.request_confirmation() {
+                    forge_domain::UserResponse::Accept
+                    | forge_domain::UserResponse::AcceptAndRemember => {
+                        // User accepted the operation, continue
+                    }
+                    forge_domain::UserResponse::Reject => {
+                        return Err(anyhow::anyhow!(
+                            "Operation rejected by user for command: {}",
+                            command
+                        ));
+                    }
+                }
             }
         }
 

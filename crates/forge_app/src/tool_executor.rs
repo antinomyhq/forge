@@ -2,12 +2,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools};
+use forge_domain::{TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools, UserResponse};
 
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::operation::Operation;
-use crate::services::ShellService;
+use crate::services::{ServiceContext, ShellService};
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
@@ -42,7 +42,16 @@ impl<
         input: Tools,
         tasks: &mut TaskList,
         workflow_path: &Path,
+        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<Operation> {
+        let workflow = self
+            .services
+            // FIXME: we should not join here. The workflow path should point directly to the
+            // workflow file.
+            .read_workflow(Some(workflow_path.join("forge.yaml").as_path()))
+            .await?;
+        let context = ServiceContext::with_confirmation(&workflow, confirm_fn.as_ref());
+
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 let output = self
@@ -51,7 +60,7 @@ impl<
                         input.path.clone(),
                         input.start_line.map(|i| i as u64),
                         input.end_line.map(|i| i as u64),
-                        &self.services.read_workflow(Some(workflow_path)).await?,
+                        &context,
                     )
                     .await?;
                 (input, output).into()
@@ -64,7 +73,7 @@ impl<
                         input.content.clone(),
                         input.overwrite,
                         true,
-                        &self.services.read_workflow(Some(workflow_path)).await?,
+                        &context,
                     )
                     .await?;
                 (input, output).into()
@@ -76,19 +85,13 @@ impl<
                         input.path.clone(),
                         input.regex.clone(),
                         input.file_pattern.clone(),
-                        &self.services.read_workflow(Some(workflow_path)).await?,
+                        &context,
                     )
                     .await?;
                 (input, output).into()
             }
             Tools::ForgeToolFsRemove(input) => {
-                let _output = self
-                    .services
-                    .remove(
-                        input.path.clone(),
-                        &self.services.read_workflow(Some(workflow_path)).await?,
-                    )
-                    .await?;
+                let _output = self.services.remove(input.path.clone(), &context).await?;
                 input.into()
             }
             Tools::ForgeToolFsPatch(input) => {
@@ -99,7 +102,7 @@ impl<
                         input.search.clone(),
                         input.operation.clone(),
                         input.content.clone(),
-                        &self.services.read_workflow(Some(workflow_path)).await?,
+                        &context,
                     )
                     .await?;
                 (input, output).into()
@@ -115,7 +118,7 @@ impl<
                         input.command.clone(),
                         input.cwd.clone(),
                         input.keep_ansi,
-                        &self.services.read_workflow(Some(workflow_path)).await?,
+                        &context,
                     )
                     .await?;
                 output.into()
@@ -181,6 +184,7 @@ impl<
         input: ToolCallFull,
         context: &mut ToolCallContext,
         workflow_path: &Path,
+        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
         let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
@@ -192,8 +196,14 @@ impl<
         // Send tool call information
 
         let execution_result = self
-            .call_internal(tool_input.clone(), &mut context.tasks, workflow_path)
+            .call_internal(
+                tool_input.clone(),
+                &mut context.tasks,
+                workflow_path,
+                confirm_fn,
+            )
             .await;
+
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
         }

@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::{FsCreateOutput, FsCreateService};
-use forge_domain::{PolicyEngine, Workflow};
+use forge_app::{FsCreateOutput, FsCreateService, ServiceContext};
+use forge_domain::PolicyEngine;
 
 use crate::utils::assert_absolute_path;
 use crate::{FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, tool_services};
@@ -33,13 +33,14 @@ impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra +
         content: String,
         overwrite: bool,
         capture_snapshot: bool,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<FsCreateOutput> {
+        let workflow = context.workflow;
         let path = Path::new(&path);
         assert_absolute_path(path)?;
 
         let engine = PolicyEngine::new(workflow);
-        let permission_trace = engine.can_read(path);
+        let permission_trace = engine.can_write(path);
 
         // Check permission and handle according to policy
         match permission_trace.value {
@@ -55,9 +56,23 @@ impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra +
                     path.display()
                 ));
             }
-            forge_domain::Permission::Allow | forge_domain::Permission::Confirm => {
-                // For now, treat Confirm as Allow as requested
+            forge_domain::Permission::Allow => {
                 // Continue with the operation
+            }
+            forge_domain::Permission::Confirm => {
+                // Request user confirmation
+                match context.request_confirmation() {
+                    forge_domain::UserResponse::Accept
+                    | forge_domain::UserResponse::AcceptAndRemember => {
+                        // User accepted the operation, continue
+                    }
+                    forge_domain::UserResponse::Reject => {
+                        return Err(anyhow::anyhow!(
+                            "Operation rejected by user for file: {}",
+                            path.display()
+                        ));
+                    }
+                }
             }
         }
 

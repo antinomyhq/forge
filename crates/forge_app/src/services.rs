@@ -4,7 +4,7 @@ use bytes::Bytes;
 use forge_domain::{
     Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    ToolCallFull, ToolDefinition, ToolOutput, UserResponse, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -87,6 +87,36 @@ pub struct FsRemoveOutput {}
 pub struct FsUndoOutput {
     pub before_undo: Option<String>,
     pub after_undo: Option<String>,
+}
+
+/// Context wrapper for service operations that provides workflow and can be
+/// extended with additional context data in the future.
+pub struct ServiceContext<'a> {
+    pub workflow: &'a Workflow,
+    pub confirm_fn: Option<Box<dyn Fn() -> UserResponse + Send + Sync + 'a>>,
+}
+
+impl<'a> ServiceContext<'a> {
+    pub fn new(workflow: &'a Workflow) -> Self {
+        Self { workflow, confirm_fn: None }
+    }
+
+    pub fn with_confirmation<F>(workflow: &'a Workflow, confirm_fn: F) -> Self
+    where
+        F: Fn() -> UserResponse + Send + Sync + 'a,
+    {
+        Self { workflow, confirm_fn: Some(Box::new(confirm_fn)) }
+    }
+
+    /// Request user confirmation for an operation
+    pub fn request_confirmation(&self) -> UserResponse {
+        if let Some(ref confirm_fn) = self.confirm_fn {
+            confirm_fn()
+        } else {
+            // Default behavior when no confirmation function is provided
+            UserResponse::Accept
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -201,7 +231,7 @@ pub trait FsCreateService: Send + Sync {
         content: String,
         overwrite: bool,
         capture_snapshot: bool,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<FsCreateOutput>;
 }
 
@@ -214,7 +244,7 @@ pub trait FsPatchService: Send + Sync {
         search: Option<String>,
         operation: PatchOperation,
         content: String,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<PatchOutput>;
 }
 
@@ -226,14 +256,18 @@ pub trait FsReadService: Send + Sync {
         path: String,
         start_line: Option<u64>,
         end_line: Option<u64>,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<ReadOutput>;
 }
 
 #[async_trait::async_trait]
 pub trait FsRemoveService: Send + Sync {
     /// Removes a file at the specified path.
-    async fn remove(&self, path: String, workflow: &Workflow) -> anyhow::Result<FsRemoveOutput>;
+    async fn remove(
+        &self,
+        path: String,
+        context: &ServiceContext<'_>,
+    ) -> anyhow::Result<FsRemoveOutput>;
 }
 
 #[async_trait::async_trait]
@@ -244,7 +278,7 @@ pub trait FsSearchService: Send + Sync {
         path: String,
         regex: Option<String>,
         file_pattern: Option<String>,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<Option<SearchResult>>;
 }
 
@@ -282,7 +316,7 @@ pub trait ShellService: Send + Sync {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<ShellOutput>;
 }
 
@@ -477,10 +511,10 @@ impl<I: Services> FsCreateService for I {
         content: String,
         overwrite: bool,
         capture_snapshot: bool,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<FsCreateOutput> {
         self.fs_create_service()
-            .create(path, content, overwrite, capture_snapshot, workflow)
+            .create(path, content, overwrite, capture_snapshot, context)
             .await
     }
 }
@@ -493,10 +527,10 @@ impl<I: Services> FsPatchService for I {
         search: Option<String>,
         operation: PatchOperation,
         content: String,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<PatchOutput> {
         self.fs_patch_service()
-            .patch(path, search, operation, content, workflow)
+            .patch(path, search, operation, content, context)
             .await
     }
 }
@@ -508,18 +542,22 @@ impl<I: Services> FsReadService for I {
         path: String,
         start_line: Option<u64>,
         end_line: Option<u64>,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<ReadOutput> {
         self.fs_read_service()
-            .read(path, start_line, end_line, workflow)
+            .read(path, start_line, end_line, context)
             .await
     }
 }
 
 #[async_trait::async_trait]
 impl<I: Services> FsRemoveService for I {
-    async fn remove(&self, path: String, workflow: &Workflow) -> anyhow::Result<FsRemoveOutput> {
-        self.fs_remove_service().remove(path, workflow).await
+    async fn remove(
+        &self,
+        path: String,
+        context: &ServiceContext<'_>,
+    ) -> anyhow::Result<FsRemoveOutput> {
+        self.fs_remove_service().remove(path, context).await
     }
 }
 
@@ -530,10 +568,10 @@ impl<I: Services> FsSearchService for I {
         path: String,
         regex: Option<String>,
         file_pattern: Option<String>,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<Option<SearchResult>> {
         self.fs_search_service()
-            .search(path, regex, file_pattern, workflow)
+            .search(path, regex, file_pattern, context)
             .await
     }
 }
@@ -573,10 +611,10 @@ impl<I: Services> ShellService for I {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<ShellOutput> {
         self.shell_service()
-            .execute(command, cwd, keep_ansi, workflow)
+            .execute(command, cwd, keep_ansi, context)
             .await
     }
 }
@@ -638,4 +676,65 @@ pub trait HttpClientService: Send + Sync + 'static {
         headers: Option<HeaderMap>,
         body: Bytes,
     ) -> anyhow::Result<EventSource>;
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use forge_domain::Workflow;
+
+    use super::*;
+
+    #[test]
+    fn test_service_context_with_confirmation() {
+        let workflow = Workflow::new();
+        let was_called = Arc::new(AtomicBool::new(false));
+        let was_called_clone = was_called.clone();
+
+        let context = ServiceContext::with_confirmation(&workflow, move || {
+            was_called_clone.store(true, Ordering::SeqCst);
+            UserResponse::Accept
+        });
+
+        let response = context.request_confirmation();
+
+        assert_eq!(response, UserResponse::Accept);
+        assert!(was_called.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_service_context_without_confirmation() {
+        let workflow = Workflow::new();
+        let context = ServiceContext::new(&workflow);
+
+        let response = context.request_confirmation();
+
+        // Should default to Accept when no confirmation function is provided
+        assert_eq!(response, UserResponse::Accept);
+    }
+
+    #[test]
+    fn test_service_context_reject_response() {
+        let workflow = Workflow::new();
+
+        let context = ServiceContext::with_confirmation(&workflow, || UserResponse::Reject);
+
+        let response = context.request_confirmation();
+
+        assert_eq!(response, UserResponse::Reject);
+    }
+
+    #[test]
+    fn test_service_context_accept_and_remember_response() {
+        let workflow = Workflow::new();
+
+        let context =
+            ServiceContext::with_confirmation(&workflow, || UserResponse::AcceptAndRemember);
+
+        let response = context.request_confirmation();
+
+        assert_eq!(response, UserResponse::AcceptAndRemember);
+    }
 }

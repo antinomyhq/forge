@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Workflow,
+    InterruptionReason, Model, ModelId, UserResponse, Workflow,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
@@ -166,8 +166,50 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.console.prompt(self.state.clone().into()).await
     }
 
+    /// Request user confirmation for an operation
+    /// Returns the user's choice: Accept, Reject, or AcceptAndRemember
+    fn request_user_confirmation() -> UserResponse {
+        use crate::select::ForgeSelect;
+
+        #[derive(Clone, Debug)]
+        enum ConfirmationChoice {
+            Accept,
+            Reject,
+            AcceptAndRemember,
+        }
+
+        impl std::fmt::Display for ConfirmationChoice {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    ConfirmationChoice::Accept => write!(f, "Accept"),
+                    ConfirmationChoice::Reject => write!(f, "Reject"),
+                    ConfirmationChoice::AcceptAndRemember => write!(f, "Accept and Remember"),
+                }
+            }
+        }
+
+        let choices = vec![
+            ConfirmationChoice::Accept,
+            ConfirmationChoice::Reject,
+            ConfirmationChoice::AcceptAndRemember,
+        ];
+
+        match ForgeSelect::select(
+            "This operation requires confirmation. How would you like to proceed?",
+            choices,
+        )
+        .with_help_message("Use arrow keys to navigate, Enter to select")
+        .prompt()
+        {
+            Ok(Some(ConfirmationChoice::Accept)) => UserResponse::Accept,
+            Ok(Some(ConfirmationChoice::Reject)) => UserResponse::Reject,
+            Ok(Some(ConfirmationChoice::AcceptAndRemember)) => UserResponse::AcceptAndRemember,
+            Ok(None) | Err(_) => UserResponse::Reject, // Default to reject on error or cancellation
+        }
+    }
+
     pub async fn run(&mut self) {
-        match self.run_inner().await {
+        match self.inner_run().await {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
@@ -176,7 +218,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    async fn run_inner(&mut self) -> Result<()> {
+    async fn inner_run(&mut self) -> Result<()> {
         if let Some(mcp) = self.cli.subcommands.clone() {
             return self.handle_subcommands(mcp).await;
         }
@@ -570,7 +612,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         // Create the chat request with the event
-        let chat = ChatRequest::new(event.into(), conversation_id, workflow_path);
+        let chat = ChatRequest::new(
+            event.into(),
+            conversation_id,
+            workflow_path,
+            Arc::new(|| Self::request_user_confirmation()),
+        );
 
         self.on_chat(chat).await
     }
@@ -685,7 +732,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         // Create the chat request with the event
-        let chat = ChatRequest::new(event, conversation_id, workflow_path);
+        let chat = ChatRequest::new(
+            event,
+            conversation_id,
+            workflow_path,
+            Arc::new(|| Self::request_user_confirmation()),
+        );
 
         self.on_chat(chat).await
     }
@@ -858,7 +910,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .resolve_workflow_path(self.cli.workflow.clone())
             .await?;
 
-        let chat = ChatRequest::new(event, conversation_id, workflow_path);
+        let chat = ChatRequest::new(
+            event,
+            conversation_id,
+            workflow_path,
+            Arc::new(|| Self::request_user_confirmation()),
+        );
         self.on_chat(chat).await
     }
 

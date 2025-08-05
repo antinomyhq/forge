@@ -14,6 +14,8 @@ pub enum Rule {
     Write { pattern: String },
     /// Rule for read operations with a glob pattern
     Read { pattern: String },
+    /// Rule for patch operations with a glob pattern
+    Patch { pattern: String },
     /// Rule for execute operations with a command pattern
     Execute { command: String },
 }
@@ -24,6 +26,7 @@ impl Rule {
         match (self, operation) {
             (Rule::Write { pattern }, Operation::Write { path }) => match_pattern(pattern, path),
             (Rule::Read { pattern }, Operation::Read { path }) => match_pattern(pattern, path),
+            (Rule::Patch { pattern }, Operation::Patch { path }) => match_pattern(pattern, path),
             (Rule::Execute { command }, Operation::Execute { command: cmd }) => {
                 match_pattern(command, cmd)
             }
@@ -55,6 +58,10 @@ mod tests {
         Operation::Write { path: PathBuf::from("src/main.rs") }
     }
 
+    fn fixture_patch_operation() -> Operation {
+        Operation::Patch { path: PathBuf::from("src/main.rs") }
+    }
+
     fn fixture_read_operation() -> Operation {
         Operation::Read { path: PathBuf::from("config/dev.yml") }
     }
@@ -67,6 +74,16 @@ mod tests {
     fn test_rule_matches_write_operation() {
         let fixture = Rule::Write { pattern: "src/**/*.rs".to_string() };
         let operation = fixture_write_operation();
+
+        let actual = fixture.matches(&operation);
+
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_rule_matches_patch_operation() {
+        let fixture = Rule::Patch { pattern: "src/**/*.rs".to_string() };
+        let operation = fixture_patch_operation();
 
         let actual = fixture.matches(&operation);
 

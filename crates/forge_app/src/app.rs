@@ -99,6 +99,7 @@ impl<S: Services> ForgeApp<S> {
             conversation,
             Local::now(),
             chat.workflow_path.clone(),
+            chat.confirm_fn.clone(),
         )
         .tool_definitions(tool_definitions)
         .models(models)

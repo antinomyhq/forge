@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
-use forge_domain::*;
+use forge_domain::{UserResponse, *};
 use forge_template::Element;
 use serde_json::Value;
 use tracing::{debug, info, warn};
@@ -27,6 +27,7 @@ pub struct Orchestrator<S> {
     files: Vec<String>,
     current_time: chrono::DateTime<chrono::Local>,
     workflow_path: PathBuf,
+    confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -36,6 +37,7 @@ impl<S: AgentService> Orchestrator<S> {
         conversation: Conversation,
         current_time: chrono::DateTime<chrono::Local>,
         workflow_path: PathBuf,
+        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> Self {
         Self {
             conversation,
@@ -47,6 +49,7 @@ impl<S: AgentService> Orchestrator<S> {
             files: Default::default(),
             current_time,
             workflow_path,
+            confirm_fn,
         }
     }
 
@@ -74,7 +77,13 @@ impl<S: AgentService> Orchestrator<S> {
             // Execute the tool
             let tool_result = self
                 .services
-                .call(agent, tool_context, tool_call.clone(), &self.workflow_path)
+                .call(
+                    agent,
+                    tool_context,
+                    tool_call.clone(),
+                    &self.workflow_path,
+                    self.confirm_fn.clone(),
+                )
                 .await;
 
             if tool_result.is_error() {

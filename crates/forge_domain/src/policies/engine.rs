@@ -34,6 +34,13 @@ impl<'a> PolicyEngine<'a> {
         self.evaluate_policies(&operation)
     }
 
+    /// Check if a patch operation is allowed for the given path
+    /// Returns trace with permission result
+    pub fn can_patch<P: AsRef<Path>>(&self, path: P) -> Trace<Permission> {
+        let operation = Operation::Patch { path: path.as_ref().to_path_buf() };
+        self.evaluate_policies(&operation)
+    }
+
     /// Check if an execute operation is allowed for the given command
     /// Returns trace with permission result
     pub fn can_execute(&self, command: &str) -> Trace<Permission> {
@@ -103,6 +110,14 @@ mod tests {
         Workflow::new().policies(policies)
     }
 
+    fn fixture_workflow_with_patch_policy() -> Workflow {
+        let policies = Policies::new().add_policy(Policy::Simple {
+            permission: Permission::Confirm,
+            rule: Rule::Patch { pattern: "src/**/*.rs".to_string() },
+        });
+        Workflow::new().policies(policies)
+    }
+
     #[test]
     fn test_policy_engine_can_read() {
         let fixture_workflow = fixture_workflow_with_read_policy();
@@ -134,17 +149,29 @@ mod tests {
     }
 
     #[test]
+    fn test_policy_engine_can_patch() {
+        let fixture_workflow = fixture_workflow_with_patch_policy();
+        let fixture = PolicyEngine::new(&fixture_workflow);
+
+        let actual = fixture.can_patch("src/main.rs");
+
+        assert_eq!(actual.value, Permission::Confirm);
+    }
+
+    #[test]
     fn test_policy_engine_with_no_policies() {
         let fixture_workflow = Workflow::new(); // No policies
         let fixture = PolicyEngine::new(&fixture_workflow);
 
         let read_trace = fixture.can_read("src/main.rs");
         let write_trace = fixture.can_write("src/main.rs");
+        let patch_trace = fixture.can_patch("src/main.rs");
         let execute_trace = fixture.can_execute("cargo build");
 
         // All should return Confirm as default
         assert_eq!(read_trace.value, Permission::Confirm);
         assert_eq!(write_trace.value, Permission::Confirm);
+        assert_eq!(patch_trace.value, Permission::Confirm);
         assert_eq!(execute_trace.value, Permission::Confirm);
     }
 }

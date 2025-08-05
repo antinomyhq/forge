@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use forge_api::{API, AgentId, ChatRequest, ConversationId, Event};
+use forge_api::{API, AgentId, ChatRequest, ConversationId, Event, UserResponse};
 use serde_json::Value;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_stream::StreamExt;
@@ -72,7 +72,14 @@ impl<T: API + 'static> Executor<T> {
         );
 
         // Create chat request
-        let chat_request = ChatRequest::new(event, conversation.id, workflow_path);
+        // FIXME: Arc::new(|| UserResponse::Accept) must be replaced with actual user
+        // confirmation logic.
+        let chat_request = ChatRequest::new(
+            event,
+            conversation.id,
+            workflow_path,
+            Arc::new(|| UserResponse::Accept),
+        );
 
         // Create cancellation token for this stream
         let cancellation_token = CancellationToken::new();

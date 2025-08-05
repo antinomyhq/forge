@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use forge_app::{FsRemoveOutput, FsRemoveService};
-use forge_domain::{PolicyEngine, Workflow};
+use forge_app::{FsRemoveOutput, FsRemoveService, ServiceContext};
+use forge_domain::PolicyEngine;
 
 use crate::FileRemoverInfra;
 use crate::utils::assert_absolute_path;
@@ -23,13 +23,14 @@ impl<F: FileRemoverInfra> FsRemoveService for ForgeFsRemove<F> {
     async fn remove(
         &self,
         input_path: String,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<FsRemoveOutput> {
+        let workflow = context.workflow;
         let path = Path::new(&input_path);
         assert_absolute_path(path)?;
 
         let engine = PolicyEngine::new(workflow);
-        let permission_trace = engine.can_read(path);
+        let permission_trace = engine.can_write(path);
 
         // Check permission and handle according to policy
         match permission_trace.value {
@@ -45,9 +46,23 @@ impl<F: FileRemoverInfra> FsRemoveService for ForgeFsRemove<F> {
                     path.display()
                 ));
             }
-            forge_domain::Permission::Allow | forge_domain::Permission::Confirm => {
-                // For now, treat Confirm as Allow as requested
+            forge_domain::Permission::Allow => {
                 // Continue with the operation
+            }
+            forge_domain::Permission::Confirm => {
+                // Request user confirmation
+                match context.request_confirmation() {
+                    forge_domain::UserResponse::Accept
+                    | forge_domain::UserResponse::AcceptAndRemember => {
+                        // User accepted the operation, continue
+                    }
+                    forge_domain::UserResponse::Reject => {
+                        return Err(anyhow::anyhow!(
+                            "Operation rejected by user for file: {}",
+                            path.display()
+                        ));
+                    }
+                }
             }
         }
 

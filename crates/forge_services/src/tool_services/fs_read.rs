@@ -2,8 +2,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{Content, FsReadService, ReadOutput};
-use forge_domain::{PolicyEngine, Workflow};
+use forge_app::{Content, FsReadService, ReadOutput, ServiceContext};
+use forge_domain::{PolicyEngine, UserResponse};
 
 use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
@@ -60,13 +60,13 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         path: String,
         start_line: Option<u64>,
         end_line: Option<u64>,
-        workflow: &Workflow,
+        context: &ServiceContext<'_>,
     ) -> anyhow::Result<ReadOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
         let env = self.0.get_environment();
 
-        let engine = PolicyEngine::new(workflow);
+        let engine = PolicyEngine::new(context.workflow);
         let permission_trace = engine.can_read(path);
 
         // Check permission and handle according to policy
@@ -82,9 +82,22 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
                     permission_trace.line.unwrap_or(0),
                 ));
             }
-            forge_domain::Permission::Allow | forge_domain::Permission::Confirm => {
-                // For now, treat Confirm as Allow as requested
+            forge_domain::Permission::Allow => {
                 // Continue with the operation
+            }
+            forge_domain::Permission::Confirm => {
+                // Request user confirmation
+                match context.request_confirmation() {
+                    UserResponse::Accept | UserResponse::AcceptAndRemember => {
+                        // User accepted the operation, continue
+                    }
+                    UserResponse::Reject => {
+                        return Err(anyhow::anyhow!(
+                            "Operation rejected by user for file: {}",
+                            path.display()
+                        ));
+                    }
+                }
             }
         }
 

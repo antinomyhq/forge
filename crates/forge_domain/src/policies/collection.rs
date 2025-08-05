@@ -87,3 +87,51 @@ mod tests {
         assert_eq!(actual[1], None); // Second rule doesn't match
     }
 }
+
+#[cfg(test)]
+mod yaml_policies_tests {
+    use crate::policies::{Permission, Policies, Policy, Rule};
+
+    #[test]
+    fn test_yaml_policies_roundtrip() {
+        let yaml_content = r#"
+policies:
+  - !Simple
+    permission: Allow
+    rule: !read
+      pattern: "**/*.rs"
+  - !Simple
+    permission: Confirm
+    rule: !write
+      pattern: "src/**/*"
+  - !Simple
+    permission: Disallow
+    rule: !execute
+      command: "rm -rf /*"
+"#;
+
+        let policies: Policies =
+            serde_yml::from_str(yaml_content).expect("Failed to parse policies YAML");
+
+        assert_eq!(policies.policies.len(), 3);
+
+        // Test first policy
+        let first_policy = &policies.policies[0];
+        if let Policy::Simple { permission, rule } = first_policy {
+            assert_eq!(*permission, Permission::Allow);
+            if let Rule::Read { pattern } = rule {
+                assert_eq!(pattern, "**/*.rs");
+            } else {
+                panic!("Expected Read rule");
+            }
+        } else {
+            panic!("Expected Simple policy");
+        }
+
+        // Test round-trip serialization
+        let serialized = serde_yml::to_string(&policies).expect("Failed to serialize policies");
+        let deserialized: Policies =
+            serde_yml::from_str(&serialized).expect("Failed to deserialize policies");
+        assert_eq!(policies, deserialized);
+    }
+}
