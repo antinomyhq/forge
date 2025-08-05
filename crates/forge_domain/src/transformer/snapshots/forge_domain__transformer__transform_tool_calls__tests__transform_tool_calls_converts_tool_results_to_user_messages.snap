@@ -22,15 +22,9 @@ after:
     - text:
         role: User
         content: First text output
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - image:
         url: "data:image/png;base64,test_image_data"
         mime_type: image/png
     - text:
         role: User
         content: Second text output
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~

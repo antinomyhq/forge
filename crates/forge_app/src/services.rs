@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
 
 use bytes::Bytes;
 use forge_domain::{
@@ -7,10 +6,10 @@ use forge_domain::{
     Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
     ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
-use futures::Stream;
 use merge::Merge;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
+use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::user::{User, UserUsage};
@@ -613,23 +612,6 @@ impl<I: Services> AuthService for I {
     }
 }
 
-/// Represents a server-sent event
-#[derive(Debug, Clone)]
-pub struct ServerSentEvent {
-    pub event_type: Option<String>,
-    pub data: String,
-    pub id: Option<String>,
-}
-
-/// Event stream states
-#[derive(Debug)]
-pub enum EventStreamState {
-    Open,
-    Message(ServerSentEvent),
-    Done,
-    Error(anyhow::Error),
-}
-
 /// HTTP service trait for making HTTP requests
 #[async_trait::async_trait]
 pub trait HttpClientService: Send + Sync + 'static {
@@ -643,5 +625,5 @@ pub trait HttpClientService: Send + Sync + 'static {
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
-    ) -> anyhow::Result<Pin<Box<dyn Stream<Item = anyhow::Result<ServerSentEvent>> + Send>>>;
+    ) -> anyhow::Result<EventSource>;
 }

@@ -8,9 +8,6 @@ before:
     - text:
         role: System
         content: System message
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: "I'll help you"
@@ -19,8 +16,6 @@ before:
             call_id: call_123
             arguments:
               param: value
-        model: ~
-        reasoning_details: ~
     - tool:
         name: test_tool
         call_id: call_123
@@ -33,18 +28,9 @@ after:
     - text:
         role: System
         content: System message
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: "I'll help you"
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: User
         content: Tool result text
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~

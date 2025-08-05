@@ -8,29 +8,18 @@ before:
     - text:
         role: System
         content: System message
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: User
         content: User message with reasoning
-        tool_calls: ~
-        model: ~
         reasoning_details:
           - text: Complex reasoning process
             signature: ~
     - text:
         role: User
         content: User message without reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: Assistant response
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - tool:
         name: test_tool
         call_id: call_123
@@ -43,27 +32,15 @@ after:
     - text:
         role: System
         content: System message
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: User
         content: User message with reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: User
         content: User message without reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: Assistant response
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - tool:
         name: test_tool
         call_id: call_123

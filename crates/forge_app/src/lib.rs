@@ -1,4 +1,4 @@
-mod agent;
+pub mod agent;
 mod agent_executor;
 mod app;
 mod app_config;
@@ -8,8 +8,8 @@ mod error;
 pub mod fmt;
 mod mcp_executor;
 mod operation;
-mod orch;
-mod retry;
+pub mod orch;
+pub mod retry;
 mod services;
 mod tool_executor;
 mod tool_registry;
