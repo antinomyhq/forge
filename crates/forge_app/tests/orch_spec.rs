@@ -65,10 +65,18 @@ async fn test_render_system_prompt_with_custom_agent_template() {
 
     let mut setup = Setup::new(vec![ChatCompletionMessage::assistant(Content::full(
         "Hey, what's up?",
-    ))]).add_agent(custom_agent);
-    setup.services.register_template("custom-agent.hbs", custom_agent_content).await.unwrap();
+    ))])
+    .add_agent(custom_agent);
+    setup
+        .services
+        .register_template("custom-agent.hbs", custom_agent_content)
+        .await
+        .unwrap();
 
-    let _ = setup.chat("Hello".into(), "custom-agent".into()).await.unwrap();
+    let _ = setup
+        .chat("Hello".into(), "custom-agent".into())
+        .await
+        .unwrap();
     let history = setup.services.get_history().await;
     insta::assert_snapshot!(
         history

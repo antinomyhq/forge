@@ -171,7 +171,11 @@ impl Setup {
     }
 
     pub async fn chat(&mut self, input: String, agent_id: String) -> anyhow::Result<()> {
-        self.orch.chat(Event::new(format!("{}/user_task_init", agent_id), Some(input)))
+        self.orch
+            .chat(Event::new(
+                format!("{}/user_task_init", agent_id),
+                Some(input),
+            ))
             .await
     }
 }
