@@ -105,8 +105,11 @@ custom_rules: |-
   ## Verification:
   - Always verify the code by running the following commands to guarantee its working as expected:
     ```
-    cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
+    # run the tests first
     cargo insta test --accept --unreferenced=delete
+
+    # then run the formatting and linting commands
+    cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
     ```
 
   ## Writing Domain Types:
