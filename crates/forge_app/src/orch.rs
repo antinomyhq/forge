@@ -199,7 +199,7 @@ impl<S: AgentService> Orchestrator<S> {
                 false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)?).to_string()),
             };
 
-            let mut ctx = SystemContext {
+            let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
                 tool_supported,
@@ -207,25 +207,12 @@ impl<S: AgentService> Orchestrator<S> {
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
                 variables: variables.clone(),
                 supports_parallel_tool_calls,
-                custom_prompt: None,
+                agent_prompt: Some(self.services.render(&system_prompt.template, &()).await?),
             };
 
-            let rendered_prompt = if system_prompt.template.starts_with("{{> forge-") {
-                self.services.render(&system_prompt.template, &ctx).await?
-            } else {
-                // used for rendering the custom agent prompts
-                let rendered_prompt = if system_prompt.template.starts_with("{{>") {
-                    // user has written the hbs file.
-                    self.services.render(&system_prompt.template, &ctx).await?
-                } else {
-                    // user has given string literal agent prompt.
-                    system_prompt.template.clone()
-                };
-                ctx.custom_prompt = Some(rendered_prompt);
-                self.services
+            let rendered_prompt = self.services
                     .render("{{> forge-custom-agent-template.hbs }}", &ctx)
-                    .await?
-            };
+                    .await?;
 
             context.set_first_system_message(rendered_prompt)
         } else {

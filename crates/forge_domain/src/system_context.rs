@@ -40,5 +40,5 @@ pub struct SystemContext {
 
     /// Custom prompt to be used in the system context.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub custom_prompt: Option<String>,
+    pub agent_prompt: Option<String>,
 }
