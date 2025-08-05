@@ -165,14 +165,12 @@ impl Setup {
         self
     }
 
-    pub async fn latest_context(&self) -> Option<forge_domain::Context> {
+    pub async fn system_prompt(&self) -> Option<String> {
         let guard = self.services.history.lock().await;
-        guard.last().and_then(|conv| conv.context.clone())
-    }
-
-    pub fn new(messages: Vec<ChatCompletionMessage>) -> Self {
-        let (orch, services) = new_orchestrator(messages);
-        Self { orch, services }
+        guard
+            .last()
+            .and_then(|conv| conv.context.as_ref().and_then(|ctx| ctx.system_prompt()))
+            .map(|sp| sp.to_string())
     }
 
     pub async fn chat(&mut self, input: String, agent_id: String) -> anyhow::Result<()> {
