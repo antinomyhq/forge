@@ -107,7 +107,7 @@ custom_rules: |-
      ```
      cargo insta test --accept --unreferenced=delete
      ```
-  
+
   2. Run the formatting and linting commands to ensure code quality.
      ```
      cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
