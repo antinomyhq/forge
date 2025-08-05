@@ -31,7 +31,7 @@ fn clip_by_lines(
 }
 
 /// Represents formatted output with truncation metadata
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct FormattedOutput {
     head: String,
     tail: Option<String>,
@@ -41,7 +41,7 @@ struct FormattedOutput {
 }
 
 /// Represents the result of processing a stream
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct ProcessedStream {
     output: FormattedOutput,
     total_lines: usize,
@@ -138,6 +138,8 @@ pub fn truncate_shell_output(
     }
 }
 
+#[derive(Debug, PartialEq, derive_setters::Setters)]
+#[setters(strip_option, into)]
 pub struct Stdout {
     pub head: String,
     pub tail: Option<String>,
@@ -147,6 +149,8 @@ pub struct Stdout {
     pub tail_end_line: Option<usize>,
 }
 
+#[derive(Debug, PartialEq, derive_setters::Setters)]
+#[setters(strip_option, into)]
 pub struct Stderr {
     pub head: String,
     pub tail: Option<String>,
@@ -157,7 +161,150 @@ pub struct Stderr {
 }
 
 /// Result of shell output truncation
+#[derive(Debug, PartialEq, derive_setters::Setters)]
+#[setters(strip_option, into)]
 pub struct TruncatedShellOutput {
     pub stdout: Stdout,
     pub stderr: Stderr,
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    impl Stdout {
+        pub fn new(head: String, total_lines: usize, head_end_line: usize) -> Self {
+            Self {
+                head,
+                tail: None,
+                total_lines,
+                head_end_line,
+                tail_start_line: None,
+                tail_end_line: None,
+            }
+        }
+    }
+
+    impl Stderr {
+        pub fn new(head: String, total_lines: usize, head_end_line: usize) -> Self {
+            Self {
+                head,
+                tail: None,
+                total_lines,
+                head_end_line,
+                tail_start_line: None,
+                tail_end_line: None,
+            }
+        }
+    }
+
+    impl TruncatedShellOutput {
+        pub fn new(stdout: Stdout, stderr: Stderr) -> Self {
+            Self { stdout, stderr }
+        }
+    }
+
+    #[test]
+    fn test_no_truncation_needed() {
+        let stdout = "line 1\nline 2\nline 3";
+        let stderr = "error 1\nerror 2";
+
+        let actual = truncate_shell_output(stdout, stderr, 5, 5);
+        let expected = TruncatedShellOutput::new(
+            Stdout::new("line 1\nline 2\nline 3".to_string(), 3, 3),
+            Stderr::new("error 1\nerror 2".to_string(), 2, 2),
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_truncation_with_prefix_and_suffix() {
+        let stdout = "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7";
+        let stderr = "error 1\nerror 2\nerror 3\nerror 4\nerror 5";
+
+        let actual = truncate_shell_output(stdout, stderr, 2, 2);
+        let expected = TruncatedShellOutput::new(
+            Stdout::new("line 1\nline 2\n".to_string(), 7, 2)
+                .tail("line 6\nline 7\n")
+                .tail_start_line(6usize)
+                .tail_end_line(7usize),
+            Stderr::new("error 1\nerror 2\n".to_string(), 5, 2)
+                .tail("error 4\nerror 5\n")
+                .tail_start_line(4usize)
+                .tail_end_line(5usize),
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_empty_output() {
+        let stdout = "";
+        let stderr = "";
+
+        let actual = truncate_shell_output(stdout, stderr, 5, 5);
+        let expected = TruncatedShellOutput::new(
+            Stdout::new("".to_string(), 0, 0),
+            Stderr::new("".to_string(), 0, 0),
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_single_line_output() {
+        let stdout = "single line";
+        let stderr = "single error";
+
+        let actual = truncate_shell_output(stdout, stderr, 2, 2);
+        let expected = TruncatedShellOutput::new(
+            Stdout::new("single line".to_string(), 1, 1),
+            Stderr::new("single error".to_string(), 1, 1),
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_only_prefix_lines() {
+        let stdout = "line 1\nline 2\nline 3\nline 4\nline 5";
+        let stderr = "error 1\nerror 2\nerror 3";
+
+        let actual = truncate_shell_output(stdout, stderr, 2, 0);
+        let expected = TruncatedShellOutput::new(
+            Stdout::new("line 1\nline 2\n".to_string(), 5, 2)
+                .tail("")
+                .tail_start_line(6usize)
+                .tail_end_line(5usize),
+            Stderr::new("error 1\nerror 2\n".to_string(), 3, 2)
+                .tail("")
+                .tail_start_line(4usize)
+                .tail_end_line(3usize),
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_only_suffix_lines() {
+        let stdout = "line 1\nline 2\nline 3\nline 4\nline 5";
+        let stderr = "error 1\nerror 2\nerror 3";
+
+        let actual = truncate_shell_output(stdout, stderr, 0, 2);
+        let expected = TruncatedShellOutput::new(
+            Stdout::new("".to_string(), 5, 0)
+                .tail("line 4\nline 5\n")
+                .tail_start_line(4usize)
+                .tail_end_line(5usize),
+            Stderr::new("".to_string(), 3, 0)
+                .tail("error 2\nerror 3\n")
+                .tail_start_line(2usize)
+                .tail_end_line(3usize),
+        );
+
+        assert_eq!(actual, expected);
+    }
 }

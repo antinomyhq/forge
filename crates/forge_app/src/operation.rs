@@ -282,24 +282,24 @@ impl Operation {
                         search_dir,
                     );
 
-                    let display_lines = if truncated_output.start() < truncated_output.end() {
+                    let display_lines = if truncated_output.start < truncated_output.end {
                         // 1 Line based indexing
-                        let new_start = truncated_output.start().saturating_add(1);
-                        format!("{}-{}", new_start, truncated_output.end())
+                        let new_start = truncated_output.start.saturating_add(1);
+                        format!("{}-{}", new_start, truncated_output.end)
                     } else {
-                        format!("{}-{}", truncated_output.start(), truncated_output.end())
+                        format!("{}-{}", truncated_output.start, truncated_output.end)
                     };
 
                     let mut elm = Element::new("search_results")
                         .attr("path", &input.path)
                         .attr("max_bytes_allowed", env.max_search_result_bytes)
-                        .attr("total_lines", truncated_output.total())
+                        .attr("total_lines", truncated_output.total)
                         .attr("display_lines", display_lines);
 
                     elm = elm.attr_if_some("regex", input.regex);
                     elm = elm.attr_if_some("file_pattern", input.file_pattern);
 
-                    match truncated_output.strategy() {
+                    match truncated_output.strategy {
                         TruncationMode::Byte => {
                             let reason = format!(
                                 "Results truncated due to exceeding the {} bytes size limit. Please use a more specific search pattern",
