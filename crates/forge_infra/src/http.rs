@@ -18,6 +18,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 #[derive(Default)]
 pub struct ForgeHttpInfra {
     client: Client,
+    headers: HeaderMap,
 }
 
 fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
@@ -31,7 +32,7 @@ fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
 }
 
 impl ForgeHttpInfra {
-    pub fn new(config: HttpConfig) -> Self {
+    pub fn new(config: HttpConfig, client_id: String) -> Self {
         let mut client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(config.connect_timeout))
             .read_timeout(std::time::Duration::from_secs(config.read_timeout))
@@ -60,7 +61,12 @@ impl ForgeHttpInfra {
             TlsBackend::Default => {}
         }
 
-        Self { client: client.build().unwrap() }
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-client-id",
+            HeaderValue::from_str(&client_id).expect("Invalid client ID"),
+        );
+        Self { client: client.build().unwrap(), headers }
     }
 
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
@@ -121,7 +127,7 @@ impl ForgeHttpInfra {
         headers.insert("X-Title", HeaderValue::from_static("forge"));
         headers.insert(
             "x-app-version",
-            HeaderValue::from_str(format!("v{VERSION}").as_str())
+            HeaderValue::from_str(VERSION.to_string().as_str())
                 .unwrap_or(HeaderValue::from_static("v0.1.0-dev")),
         );
         headers.insert(
@@ -132,6 +138,9 @@ impl ForgeHttpInfra {
             reqwest::header::CONNECTION,
             HeaderValue::from_static("keep-alive"),
         );
+
+        headers.extend(self.headers.clone());
+
         debug!(headers = ?Self::sanitize_headers(&headers), "Request Headers");
         headers
     }
@@ -201,5 +210,24 @@ impl HttpInfra for ForgeHttpInfra {
         body: Bytes,
     ) -> anyhow::Result<EventSource> {
         self.eventsource(url, headers, body).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_headers() {
+        let forge_infra = ForgeHttpInfra::new(HttpConfig::default(), "test-client-id".to_string());
+        let headers = forge_infra.headers(None);
+        assert_eq!(headers.get("User-Agent").unwrap(), "Forge");
+        assert_eq!(headers.get("X-Title").unwrap(), "forge");
+        assert_eq!(headers.get("x-app-version").unwrap(), VERSION);
+        assert_eq!(headers.get("x-client-id").unwrap(), "test-client-id");
+        assert_eq!(
+            headers.get("HTTP-Referer").unwrap(),
+            "https://forgecode.dev"
+        );
     }
 }

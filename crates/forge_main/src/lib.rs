@@ -14,9 +14,7 @@ mod ui;
 mod update;
 
 pub use cli::Cli;
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 pub use ui::UI;
 
-lazy_static! {
-    pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
-}
+pub static TRACKER: OnceCell<forge_tracker::Tracker> = OnceCell::new();

@@ -51,7 +51,7 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
-        let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
+        let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone(), env.client_id.clone()));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),

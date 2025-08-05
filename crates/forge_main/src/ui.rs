@@ -147,6 +147,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Parse CLI arguments first to get flags
         let api = Arc::new(f());
         let env = api.environment();
+        // Initialize the tracker with the client ID
+        let tracker = TRACKER.get_or_init(|| forge_tracker::Tracker::new(env.client_id.clone()));
+
         let command = Arc::new(ForgeCommandManager::default());
         Ok(Self {
             state: Default::default(),
@@ -157,7 +160,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             command,
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
-            _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
+            _guard: forge_tracker::init_tracing(env.log_path(), tracker.clone())?,
         })
     }
 
@@ -214,9 +217,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         Ok(exit) => if exit {return Ok(())},
                         Err(error) => {
                             if let Some(conversation_id) = self.state.conversation_id.as_ref()
-                                && let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten() {
-                                    TRACKER.set_conversation(conversation).await;
-                                }
+                                && let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten()
+                                    && let Some(tracker)= TRACKER.get() {
+                                        tracker.set_conversation(conversation).await;
+                                    }
                             tracker::error(&error);
                             tracing::error!(error = ?error);
                             self.spinner.stop(None)?;

@@ -22,7 +22,8 @@ pub async fn run(mut terminal: DefaultTerminal, cwd: PathBuf) -> anyhow::Result<
 
     // Initialize forge_tracker using the API instance
     let env = api.environment();
-    let _guard = forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?;
+    let tracker = TRACKER.get_or_init(|| forge_tracker::Tracker::new(env.client_id.clone()));
+    let _guard = forge_tracker::init_tracing(env.log_path(), tracker.clone())?;
 
     // Initialize Executor
     let executor = Executor::new(Arc::new(api));

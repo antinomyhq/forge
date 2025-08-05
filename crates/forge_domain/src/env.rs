@@ -46,6 +46,8 @@ pub struct Environment {
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
     pub max_file_size: u64,
+    /// Client ID
+    pub client_id: String,
 }
 
 impl Environment {

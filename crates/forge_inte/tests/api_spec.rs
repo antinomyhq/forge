@@ -24,7 +24,7 @@ struct Fixture {
 }
 
 lazy_static::lazy_static! {
-    static ref tracker: Tracker = Tracker::default();
+    static ref tracker: Tracker = Tracker::new("test-client-id".into());
 }
 
 impl Fixture {

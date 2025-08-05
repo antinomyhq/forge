@@ -49,11 +49,11 @@ impl ClientBuilder {
         let inner = match &provider {
             Provider::OpenAI { .. } => {
                 // FIXME: pass key and url instead of provider
-                InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http.clone()))
+                InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http))
             }
 
             Provider::Anthropic { key, .. } => InnerClient::Anthropic(Anthropic::new(
-                http.clone(),
+                http,
                 key.to_string(),
                 provider.to_base_url().to_string(),
                 "2023-06-01".to_string(),
