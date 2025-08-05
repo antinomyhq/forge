@@ -351,7 +351,7 @@ impl TruncatedOutput {
         let mut total_bytes = 0;
         let mut truncated = Vec::new();
         for item in input.into_iter() {
-            let current_bytes = item.bytes().count();
+            let current_bytes = item.len();
             total_bytes += current_bytes;
             if total_bytes >= max_bytes {
                 break;
