@@ -82,7 +82,7 @@ fn tag_output(
 
             FormattedOutput {
                 head,
-                tail: Some(tail),
+                tail: if tail.is_empty() { None } else { Some(tail) },
                 suffix_start_line: Some(suffix_start_line),
                 suffix_end_line: Some(total_lines),
                 prefix_end_line: prefix_count,
@@ -118,24 +118,23 @@ pub fn truncate_shell_output(
     let stdout_result = process_stream(stdout, prefix_lines, suffix_lines);
     let stderr_result = process_stream(stderr, prefix_lines, suffix_lines);
 
-    TruncatedShellOutput {
-        stderr: Stderr {
+    TruncatedShellOutput::default()
+        .stderr(Stderr {
             head: stderr_result.output.head,
             tail: stderr_result.output.tail,
             total_lines: stderr_result.total_lines,
             head_end_line: stderr_result.output.prefix_end_line,
             tail_start_line: stderr_result.output.suffix_start_line,
             tail_end_line: stderr_result.output.suffix_end_line,
-        },
-        stdout: Stdout {
+        })
+        .stdout(Stdout {
             head: stdout_result.output.head,
             tail: stdout_result.output.tail,
             total_lines: stdout_result.total_lines,
             head_end_line: stdout_result.output.prefix_end_line,
             tail_start_line: stdout_result.output.suffix_start_line,
             tail_end_line: stdout_result.output.suffix_end_line,
-        },
-    }
+        })
 }
 
 #[derive(Debug, PartialEq, Default, derive_setters::Setters)]
@@ -161,7 +160,7 @@ pub struct Stderr {
 }
 
 /// Result of shell output truncation
-#[derive(Debug, PartialEq, derive_setters::Setters)]
+#[derive(Debug, PartialEq, Default, derive_setters::Setters)]
 #[setters(strip_option, into)]
 pub struct TruncatedShellOutput {
     pub stdout: Stdout,
@@ -174,28 +173,25 @@ mod tests {
 
     use super::*;
 
-    impl TruncatedShellOutput {
-        pub fn new(stdout: Stdout, stderr: Stderr) -> Self {
-            Self { stdout, stderr }
-        }
-    }
-
     #[test]
     fn test_no_truncation_needed() {
         let stdout = "line 1\nline 2\nline 3";
         let stderr = "error 1\nerror 2";
 
         let actual = truncate_shell_output(stdout, stderr, 5, 5);
-        let expected = TruncatedShellOutput::new(
-            Stdout::default()
-                .head("line 1\nline 2\nline 3")
-                .total_lines(3usize)
-                .head_end_line(3usize),
-            Stderr::default()
-                .head("error 1\nerror 2")
-                .total_lines(2usize)
-                .head_end_line(2usize),
-        );
+        let expected = TruncatedShellOutput::default()
+            .stdout(
+                Stdout::default()
+                    .head("line 1\nline 2\nline 3")
+                    .total_lines(3usize)
+                    .head_end_line(3usize),
+            )
+            .stderr(
+                Stderr::default()
+                    .head("error 1\nerror 2")
+                    .total_lines(2usize)
+                    .head_end_line(2usize),
+            );
 
         assert_eq!(actual, expected);
     }
@@ -206,22 +202,25 @@ mod tests {
         let stderr = "error 1\nerror 2\nerror 3\nerror 4\nerror 5";
 
         let actual = truncate_shell_output(stdout, stderr, 2, 2);
-        let expected = TruncatedShellOutput::new(
-            Stdout::default()
-                .head("line 1\nline 2\n")
-                .total_lines(7usize)
-                .head_end_line(2usize)
-                .tail("line 6\nline 7\n")
-                .tail_start_line(6usize)
-                .tail_end_line(7usize),
-            Stderr::default()
-                .head("error 1\nerror 2\n")
-                .total_lines(5usize)
-                .head_end_line(2usize)
-                .tail("error 4\nerror 5\n")
-                .tail_start_line(4usize)
-                .tail_end_line(5usize),
-        );
+        let expected = TruncatedShellOutput::default()
+            .stdout(
+                Stdout::default()
+                    .head("line 1\nline 2\n")
+                    .total_lines(7usize)
+                    .head_end_line(2usize)
+                    .tail("line 6\nline 7\n")
+                    .tail_start_line(6usize)
+                    .tail_end_line(7usize),
+            )
+            .stderr(
+                Stderr::default()
+                    .head("error 1\nerror 2\n")
+                    .total_lines(5usize)
+                    .head_end_line(2usize)
+                    .tail("error 4\nerror 5\n")
+                    .tail_start_line(4usize)
+                    .tail_end_line(5usize),
+            );
 
         assert_eq!(actual, expected);
     }
@@ -232,7 +231,7 @@ mod tests {
         let stderr = "";
 
         let actual = truncate_shell_output(stdout, stderr, 5, 5);
-        let expected = TruncatedShellOutput::new(Stdout::default(), Stderr::default());
+        let expected = TruncatedShellOutput::default();
 
         assert_eq!(actual, expected);
     }
@@ -243,16 +242,19 @@ mod tests {
         let stderr = "single error";
 
         let actual = truncate_shell_output(stdout, stderr, 2, 2);
-        let expected = TruncatedShellOutput::new(
-            Stdout::default()
-                .head("single line")
-                .total_lines(1usize)
-                .head_end_line(1usize),
-            Stderr::default()
-                .head("single error")
-                .total_lines(1usize)
-                .head_end_line(1usize),
-        );
+        let expected = TruncatedShellOutput::default()
+            .stdout(
+                Stdout::default()
+                    .head("single line")
+                    .total_lines(1usize)
+                    .head_end_line(1usize),
+            )
+            .stderr(
+                Stderr::default()
+                    .head("single error")
+                    .total_lines(1usize)
+                    .head_end_line(1usize),
+            );
 
         assert_eq!(actual, expected);
     }
@@ -263,20 +265,23 @@ mod tests {
         let stderr = "error 1\nerror 2\nerror 3";
 
         let actual = truncate_shell_output(stdout, stderr, 2, 0);
-        let expected = TruncatedShellOutput::new(
-            Stdout::default()
-                .head("line 1\nline 2\n")
-                .total_lines(5usize)
-                .head_end_line(2usize)
-                .tail_start_line(6usize)
-                .tail_end_line(5usize),
-            Stderr::default()
-                .head("error 1\nerror 2\n")
-                .total_lines(3usize)
-                .head_end_line(2usize)
-                .tail_start_line(4usize)
-                .tail_end_line(3usize),
-        );
+        let expected = TruncatedShellOutput::default()
+            .stdout(
+                Stdout::default()
+                    .head("line 1\nline 2\n")
+                    .total_lines(5usize)
+                    .head_end_line(2usize)
+                    .tail_start_line(6usize)
+                    .tail_end_line(5usize),
+            )
+            .stderr(
+                Stderr::default()
+                    .head("error 1\nerror 2\n")
+                    .total_lines(3usize)
+                    .head_end_line(2usize)
+                    .tail_start_line(4usize)
+                    .tail_end_line(3usize),
+            );
 
         assert_eq!(actual, expected);
     }
@@ -287,20 +292,23 @@ mod tests {
         let stderr = "error 1\nerror 2\nerror 3";
 
         let actual = truncate_shell_output(stdout, stderr, 0, 2);
-        let expected = TruncatedShellOutput::new(
-            Stdout::default()
-                .total_lines(5usize)
-                .head_end_line(0usize)
-                .tail("line 4\nline 5\n")
-                .tail_start_line(4usize)
-                .tail_end_line(5usize),
-            Stderr::default()
-                .total_lines(3usize)
-                .head_end_line(0usize)
-                .tail("error 2\nerror 3\n")
-                .tail_start_line(2usize)
-                .tail_end_line(3usize),
-        );
+        let expected = TruncatedShellOutput::default()
+            .stdout(
+                Stdout::default()
+                    .total_lines(5usize)
+                    .head_end_line(0usize)
+                    .tail("line 4\nline 5\n")
+                    .tail_start_line(4usize)
+                    .tail_end_line(5usize),
+            )
+            .stderr(
+                Stderr::default()
+                    .total_lines(3usize)
+                    .head_end_line(0usize)
+                    .tail("error 2\nerror 3\n")
+                    .tail_start_line(2usize)
+                    .tail_end_line(3usize),
+            );
 
         assert_eq!(actual, expected);
     }
@@ -310,12 +318,11 @@ mod tests {
         let stdout = "line 1 \nline abcdefghijklmnopqrstuvwxyz\nline 2\nline 3\nline 4\nline 5";
 
         let actual = truncate_shell_output(stdout, "", usize::max_value(), usize::max_value());
-        let expected = TruncatedShellOutput::new(
+        let expected = TruncatedShellOutput::default().stdout(
             Stdout::default()
                 .head("line 1 \nline abcdefghijklmnopqrstuvwxyz\nline 2\nline 3\nline 4\nline 5")
                 .total_lines(6usize)
                 .head_end_line(6usize),
-            Stderr::default(),
         );
 
         assert_eq!(actual, expected);
