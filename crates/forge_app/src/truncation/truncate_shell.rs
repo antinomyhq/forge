@@ -25,11 +25,7 @@ fn clip_by_lines(
 
     // If content fits within limits, return all lines
     if total_lines <= prefix_lines.saturating_add(suffix_lines) {
-        return (
-            lines.into_iter().collect(),
-            None,
-            truncated_lines_count,
-        );
+        return (lines.into_iter().collect(), None, truncated_lines_count);
     }
 
     // Collect prefix and suffix lines
