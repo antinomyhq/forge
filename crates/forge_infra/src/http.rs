@@ -105,8 +105,12 @@ impl ForgeHttpInfra {
 
         let status = response.status();
         if !status.is_success() {
-            return Err(anyhow::anyhow!("HTTP request failed"))
-                .with_context(|| format_http_context(Some(status), method, url));
+            let response = response
+                .json::<serde_json::Value>()
+                .await
+                .with_context(|| format_http_context(Some(status), method, url))
+                .with_context(|| "Failed to parse response into JSON")?;
+            return Err(anyhow::anyhow!(response));
         }
 
         Ok(response)
