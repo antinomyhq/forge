@@ -11,7 +11,7 @@ use forge_domain::{
 use forge_template::Element;
 
 use crate::truncation::{
-    StreamElement, TruncationMode, truncate_fetch_content, truncate_search_output,
+    Stderr, Stdout, TruncationMode, truncate_fetch_content, truncate_search_output,
     truncate_shell_output,
 };
 use crate::utils::format_display_path;
@@ -99,6 +99,77 @@ pub enum Operation {
         before: TaskList,
         after: TaskList,
     },
+}
+
+/// Trait for stream elements that can be converted to XML elements
+pub trait StreamElement {
+    fn stream_name(&self) -> &'static str;
+    fn head_content(&self) -> &str;
+    fn tail_content(&self) -> Option<&str>;
+    fn total_lines(&self) -> usize;
+    fn head_end_line(&self) -> usize;
+    fn tail_start_line(&self) -> Option<usize>;
+    fn tail_end_line(&self) -> Option<usize>;
+}
+
+impl StreamElement for Stdout {
+    fn stream_name(&self) -> &'static str {
+        "stdout"
+    }
+
+    fn head_content(&self) -> &str {
+        &self.head
+    }
+
+    fn tail_content(&self) -> Option<&str> {
+        self.tail.as_deref()
+    }
+
+    fn total_lines(&self) -> usize {
+        self.total_lines
+    }
+
+    fn head_end_line(&self) -> usize {
+        self.head_end_line
+    }
+
+    fn tail_start_line(&self) -> Option<usize> {
+        self.tail_start_line
+    }
+
+    fn tail_end_line(&self) -> Option<usize> {
+        self.tail_end_line
+    }
+}
+
+impl StreamElement for Stderr {
+    fn stream_name(&self) -> &'static str {
+        "stderr"
+    }
+
+    fn head_content(&self) -> &str {
+        &self.head
+    }
+
+    fn tail_content(&self) -> Option<&str> {
+        self.tail.as_deref()
+    }
+
+    fn total_lines(&self) -> usize {
+        self.total_lines
+    }
+
+    fn head_end_line(&self) -> usize {
+        self.head_end_line
+    }
+
+    fn tail_start_line(&self) -> Option<usize> {
+        self.tail_start_line
+    }
+
+    fn tail_end_line(&self) -> Option<usize> {
+        self.tail_end_line
+    }
 }
 
 /// Helper function to create stdout or stderr elements with consistent
