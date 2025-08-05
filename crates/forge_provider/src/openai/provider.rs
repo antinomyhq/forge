@@ -82,7 +82,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 anyhow::bail!(error)
             }
             Ok(response) => {
-                let data: ListModelResponse = serde_json::from_str(&response)
+                let data: ListModelResponse = serde_json::from_value(response)
                     .with_context(|| format_http_context(None, "GET", &url))
                     .with_context(|| "Failed to deserialize models response")?;
                 Ok(data.data.into_iter().map(Into::into).collect())
@@ -90,7 +90,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         }
     }
 
-    async fn fetch_models(&self, url: &str) -> Result<String, anyhow::Error> {
+    async fn fetch_models(&self, url: &str) -> Result<serde_json::Value, anyhow::Error> {
         let headers = create_headers(self.get_headers());
         let url = join_url(url, "")?;
         info!(method = "GET", url = %url, headers = ?sanitize_headers(&headers), "Fetching Models");
@@ -105,16 +105,16 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         let status = response.status();
         let ctx_message = format_http_context(Some(status), "GET", &url);
 
-        let response_text = response
-            .text()
+        let response_json = response
+            .json::<serde_json::Value>()
             .await
             .with_context(|| ctx_message.clone())
             .with_context(|| "Failed to decode response into text")?;
 
         if status.is_success() {
-            Ok(response_text)
+            Ok(response_json)
         } else {
-            Err(anyhow::anyhow!(response_text))
+            Err(anyhow::anyhow!(response_json))
                 .with_context(|| ctx_message)
                 .with_context(|| "Failed to fetch the models")
         }
@@ -276,6 +276,20 @@ mod tests {
         let mut fixture = MockServer::new().await;
         let mock = fixture
             .mock_models(create_mock_models_response(), 200)
+            .await;
+        let provider = create_provider(&fixture.url())?;
+        let actual = provider.models().await?;
+
+        mock.assert_async().await;
+        insta::assert_json_snapshot!(actual);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_models_error() -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+        let mock = fixture
+            .mock_models(create_error_response("Bad request", 400), 400)
             .await;
         let provider = create_provider(&fixture.url())?;
         let actual = provider.models().await?;
