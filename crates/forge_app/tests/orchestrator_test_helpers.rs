@@ -165,6 +165,11 @@ impl Setup {
         self
     }
 
+    pub async fn latest_context(&self) -> Option<forge_domain::Context> {
+        let guard = self.services.history.lock().await;
+        guard.last().and_then(|conv| conv.context.clone())
+    }
+
     pub fn new(messages: Vec<ChatCompletionMessage>) -> Self {
         let (orch, services) = new_orchestrator(messages);
         Self { orch, services }

@@ -40,17 +40,15 @@ async fn test_render_system_prompt_with_custom_agent() {
         .await
         .unwrap();
 
-    let history = setup.services.get_history().await;
-    insta::assert_snapshot!(
-        history
-            .last()
-            .as_ref()
-            .unwrap()
-            .context
-            .as_ref()
-            .unwrap()
-            .to_text()
-    );
+    // get the system prompt from the latest context
+    let system_prompt = setup
+        .latest_context()
+        .await
+        .and_then(|ctx| ctx.system_prompt().map(|sp| sp.to_string()))
+        .map(|sp| sp.to_string())
+        .unwrap();
+
+    insta::assert_snapshot!(system_prompt);
 }
 
 #[tokio::test]
@@ -67,25 +65,27 @@ async fn test_render_system_prompt_with_custom_agent_template() {
         "Hey, what's up?",
     ))])
     .add_agent(custom_agent);
+
+    // register custom agent template
     setup
         .services
         .register_template("custom-agent.hbs", custom_agent_content)
         .await
         .unwrap();
 
+    // execute request with orchestrator
     let _ = setup
         .chat("Hello".into(), "custom-agent".into())
         .await
         .unwrap();
-    let history = setup.services.get_history().await;
-    insta::assert_snapshot!(
-        history
-            .last()
-            .as_ref()
-            .unwrap()
-            .context
-            .as_ref()
-            .unwrap()
-            .to_text()
-    );
+
+    // get the system prompt from the latest context
+    let system_prompt = setup
+        .latest_context()
+        .await
+        .and_then(|ctx| ctx.system_prompt().map(|sp| sp.to_string()))
+        .map(|sp| sp.to_string())
+        .unwrap();
+
+    insta::assert_snapshot!(system_prompt);
 }
