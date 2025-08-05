@@ -13,10 +13,10 @@ pub enum TruncationMode {
 #[derive(PartialEq, Eq, Debug)]
 pub struct TruncatedOutput {
     pub data: Vec<String>,
-    start: usize,
-    total: usize,
-    end: usize,
-    strategy: TruncationMode,
+    pub start: usize,
+    pub total: usize,
+    pub end: usize,
+    pub strategy: TruncationMode,
 }
 
 impl From<Vec<String>> for TruncatedOutput {
