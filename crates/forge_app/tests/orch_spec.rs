@@ -1,4 +1,4 @@
-use forge_domain::{Agent, ChatCompletionMessage, Content, Template};
+use forge_domain::{Agent, Template};
 
 mod orchestrator_test_helpers;
 
@@ -29,10 +29,7 @@ async fn test_render_system_prompt_with_custom_agent() {
         .subscribe(vec!["custom-agent/user_task_init".into()]);
 
     // setup testing environment with the custom agent
-    let mut setup = Setup::new(vec![ChatCompletionMessage::assistant(Content::full(
-        "Hey, what's up?",
-    ))])
-    .add_agent(custom_agent);
+    let mut setup = Setup::default().add_agent(custom_agent);
 
     // run a chat with the custom agent
     let _ = setup
@@ -61,10 +58,7 @@ async fn test_render_system_prompt_with_custom_agent_template() {
         .subscribe(vec!["custom-agent/user_task_init".into()])
         .model("gpt-4.1");
 
-    let mut setup = Setup::new(vec![ChatCompletionMessage::assistant(Content::full(
-        "Hey, what's up?",
-    ))])
-    .add_agent(custom_agent);
+    let mut setup = Setup::default().add_agent(custom_agent);
 
     // register custom agent template
     setup
