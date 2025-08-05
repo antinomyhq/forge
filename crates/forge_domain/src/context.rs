@@ -205,9 +205,12 @@ fn reasoning_content_char_count(text_message: &TextMessage) -> usize {
 pub struct TextMessage {
     pub role: Role,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
     // note: this used to track model used for this message.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_details: Option<Vec<ReasoningFull>>,
 }
 

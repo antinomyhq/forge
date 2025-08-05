@@ -1,7 +1,6 @@
 ---
 source: crates/forge_provider/src/openai/request.rs
 expression: router_message
-snapshot_kind: text
 ---
 {
   "role": "user",
