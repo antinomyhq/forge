@@ -1,31 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+use crate::Match;
 use crate::utils::format_match;
-use crate::{FsCreateService, Match};
-
-pub async fn create_temp_file<S: FsCreateService>(
-    services: &S,
-    prefix: &str,
-    ext: &str,
-    content: &str,
-) -> anyhow::Result<PathBuf> {
-    let path = tempfile::Builder::new()
-        .disable_cleanup(true)
-        .prefix(prefix)
-        .suffix(ext)
-        .tempfile()?
-        .into_temp_path()
-        .to_path_buf();
-    services
-        .create(
-            path.to_string_lossy().to_string(),
-            content.to_string(),
-            true,
-            false,
-        )
-        .await?;
-    Ok(path)
-}
 
 /// Clips text content based on line count
 fn clip_by_lines(

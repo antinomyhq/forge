@@ -11,8 +11,8 @@ use forge_domain::{
 use forge_template::Element;
 
 use crate::truncation::{
-    StreamElement, TruncationMode, create_temp_file, truncate_fetch_content,
-    truncate_search_output, truncate_shell_output,
+    StreamElement, TruncationMode, truncate_fetch_content, truncate_search_output,
+    truncate_shell_output,
 };
 use crate::utils::format_display_path;
 use crate::{
@@ -139,6 +139,30 @@ fn create_stream_element<T: StreamElement>(
     Some(elem)
 }
 impl Operation {
+    async fn create_temp_file<S: FsCreateService>(
+        &self,
+        services: &S,
+        prefix: &str,
+        ext: &str,
+        content: &str,
+    ) -> anyhow::Result<PathBuf> {
+        let path = tempfile::Builder::new()
+            .disable_cleanup(true)
+            .prefix(prefix)
+            .suffix(ext)
+            .tempfile()?
+            .into_temp_path()
+            .to_path_buf();
+        services
+            .create(
+                path.to_string_lossy().to_string(),
+                content.to_string(),
+                true,
+                false,
+            )
+            .await?;
+        Ok(path)
+    }
     pub fn into_tool_output(
         self,
         tool_name: ToolName,
@@ -429,7 +453,8 @@ impl Operation {
 
                 if is_truncated {
                     files = files.stdout(
-                        create_temp_file(services, "forge_fetch_", ".txt", &output.content).await?,
+                        self.create_temp_file(services, "forge_fetch_", ".txt", &output.content)
+                            .await?,
                     );
                 }
 
@@ -448,7 +473,7 @@ impl Operation {
 
                 if stdout_truncated {
                     files = files.stdout(
-                        create_temp_file(
+                        self.create_temp_file(
                             services,
                             "forge_shell_stdout_",
                             ".txt",
@@ -459,7 +484,7 @@ impl Operation {
                 }
                 if stderr_truncated {
                     files = files.stderr(
-                        create_temp_file(
+                        self.create_temp_file(
                             services,
                             "forge_shell_stderr_",
                             ".txt",

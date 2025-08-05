@@ -174,17 +174,15 @@ impl<
             tracing::error!(error = ?error, "Tool execution failed");
         }
 
-        let execution_result = execution_result?;
+        let operation = execution_result?;
 
         // Send formatted output message
-        if let Some(output) = execution_result.to_content(&env) {
+        if let Some(output) = operation.to_content(&env) {
             context.send(output).await?;
         }
 
-        let truncation_path = execution_result
-            .to_create_temp(self.services.as_ref())
-            .await?;
+        let truncation_path = operation.to_create_temp(self.services.as_ref()).await?;
 
-        Ok(execution_result.into_tool_output(tool_name, truncation_path, &env))
+        Ok(operation.into_tool_output(tool_name, truncation_path, &env))
     }
 }
