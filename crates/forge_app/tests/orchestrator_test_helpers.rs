@@ -90,9 +90,7 @@ impl AgentService for Trace {
     }
 }
 
-fn new_orchestrator(
-    messages: Vec<ChatCompletionMessage>,
-) -> (Orchestrator<Trace>, Arc<Trace>) {
+fn new_orchestrator(messages: Vec<ChatCompletionMessage>) -> (Orchestrator<Trace>, Arc<Trace>) {
     let services = new_service(messages.to_vec());
     let environment = new_env();
     let workflow = new_workflow();
