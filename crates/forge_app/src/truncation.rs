@@ -281,135 +281,91 @@ pub fn truncate_fetch_content(content: &str, truncation_limit: usize) -> Truncat
     TruncatedFetchOutput { content: truncated_content }
 }
 
-/// Represents the result of fs_search truncation
-#[derive(Debug)]
-pub struct TruncatedSearchOutput {
-    pub output: Truncator<String>,
-    pub total_lines: usize,
-    pub start_line: usize,
-    pub end_line: usize,
+#[derive(PartialEq, Eq, Debug)]
+pub enum TruncationMode {
+    Line,
+    Byte,
+    Full,
 }
 
-/// Represents a truncation result for any collection type T.
-/// Can hold collections that have been truncated by line count, byte size, or
-/// not truncated at all.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Truncator<T> {
-    Line(T),
-    ByteSize(T),
-    Full(T),
+#[derive(PartialEq, Eq, Debug)]
+pub struct TruncatedOutput {
+    pub data: Vec<String>,
+    start: usize,
+    total: usize,
+    end: usize,
+    strategy: TruncationMode,
 }
 
-impl<T> From<T> for Truncator<T> {
-    fn from(value: T) -> Self {
-        Truncator::Full(value)
-    }
-}
-
-impl<T, I> Truncator<T>
-where
-    T: IntoIterator<Item = I> + FromIterator<I> + Clone,
-    T: AsRef<[I]>,
-    I: AsRef<str>,
-{
-    /// Helper method to extract variant constructor and data without cloning
-    fn into_parts(self) -> (fn(T) -> Self, T) {
-        match self {
-            Truncator::Line(data) => (Truncator::Line, data),
-            Truncator::ByteSize(data) => (Truncator::ByteSize, data),
-            Truncator::Full(data) => (Truncator::Full, data),
+impl From<Vec<String>> for TruncatedOutput {
+    fn from(value: Vec<String>) -> Self {
+        TruncatedOutput {
+            start: 0,
+            end: value.len(),
+            total: value.len(),
+            data: value,
+            strategy: TruncationMode::Full,
         }
     }
+}
 
-    /// Apply line truncation to any collection type T that can be iterated and
-    /// collected. Works with Vec<String>, Vec<&str>, or any other collection
-    /// implementing the required traits.
-    pub fn truncate_items(self, start: usize, max_items: usize) -> Self {
-        let (to_variant, input) = self.into_parts();
+impl TruncatedOutput {
+    pub fn start(&self) -> usize {
+        self.start
+    }
 
-        let total_items = input.as_ref().len();
-        let is_truncated = total_items > max_items;
+    pub fn end(&self) -> usize {
+        self.end
+    }
 
-        let truncated = if is_truncated {
-            input.into_iter().skip(start).take(max_items).collect()
+    pub fn total(&self) -> usize {
+        self.total
+    }
+
+    pub fn strategy(&self) -> &TruncationMode {
+        &self.strategy
+    }
+
+    pub fn truncate_items(mut self, start: usize, max_lines: usize) -> Self {
+        let total_lines = self.data.len();
+        let is_truncated = total_lines > max_lines;
+        self.data = if is_truncated {
+            self.data.into_iter().skip(start).take(max_lines).collect()
         } else {
-            input
+            self.data
         };
 
-        let truncated_len = truncated.as_ref().len();
-        if truncated_len != total_items {
-            Truncator::Line(truncated)
-        } else {
-            // preserve the original variant
-            to_variant(truncated)
+        if total_lines != self.data.len() {
+            self.start = start;
+            self.end = self.start.saturating_add(max_lines);
+            self.strategy = TruncationMode::Line;
         }
+
+        self
     }
 
-    /// Apply byte size truncation to any collection type T that can be
-    /// iterated. Ensures the total byte size does not exceed the specified
-    /// limit. Works with Vec<String>, Vec<&str>, or any other collection
-    /// implementing the required traits.
-    pub fn truncate_bytes(self, max_bytes: usize) -> Self {
-        let (to_variant, input) = self.into_parts();
-
-        let original_size = input.as_ref().len();
+    pub fn truncate_bytes(mut self, max_bytes: usize) -> Self {
+        let total_lines = self.data.len();
+        let input = self.data;
 
         let mut total_bytes = 0;
         let mut truncated = Vec::new();
         for item in input.into_iter() {
-            let current_bytes = item.as_ref().len();
+            let current_bytes = item.bytes().count();
             total_bytes += current_bytes;
             if total_bytes >= max_bytes {
                 break;
             }
             truncated.push(item);
         }
+        self.data = truncated;
 
-        let truncated_collection: T = truncated.into_iter().collect();
-        let truncated_size = truncated_collection.as_ref().len();
-        if original_size != truncated_size {
-            Truncator::ByteSize(truncated_collection)
-        } else {
-            // preserve the original variant
-            to_variant(truncated_collection)
+        if self.data.len() != total_lines {
+            self.end = self.start.saturating_add(self.data.len());
+            self.strategy = TruncationMode::Byte;
         }
-    }
-}
 
-impl<T> Truncator<T> {
-    /// Maps the contained value of type T to type U using the provided
-    /// function. Preserves the truncation variant (Line, ByteSize, or
-    /// Full).
-    pub fn map<F, U>(&self, f: F) -> Truncator<U>
-    where
-        F: FnOnce(&T) -> U,
-        U: Clone,
-    {
-        match self {
-            Truncator::Line(value) => Truncator::Line(f(value)),
-            Truncator::ByteSize(value) => Truncator::ByteSize(f(value)),
-            Truncator::Full(value) => Truncator::Full(f(value)),
-        }
-    }
-
-    /// Returns true if the content was truncated (Line or ByteSize variants),
-    /// false if the content is complete (Full variant).
-    pub fn is_truncated(&self) -> bool {
-        match self {
-            Truncator::Line(_) => true,
-            Truncator::ByteSize(_) => true,
-            Truncator::Full(_) => false,
-        }
-    }
-
-    /// Extracts the contained value of type T from the TruncationResult,
-    /// consuming the TruncationResult in the process.
-    pub fn unwrap(self) -> T {
-        match self {
-            Truncator::Line(value) => value,
-            Truncator::ByteSize(value) => value,
-            Truncator::Full(value) => value,
-        }
+        self
     }
 }
 
@@ -421,37 +377,16 @@ pub fn truncate_search_output(
     max_lines: usize,
     max_bytes: usize,
     search_dir: &Path,
-) -> TruncatedSearchOutput {
+) -> TruncatedOutput {
     let output = output
         .iter()
         .map(|v| format_match(v, search_dir))
         .collect::<Vec<_>>();
-    let total_lines = output.len();
 
     // Apply truncation strategies
-    let output = Truncator::from(output)
+    TruncatedOutput::from(output)
         .truncate_items(start_line, max_lines)
         .truncate_bytes(max_bytes)
-        .map(|lines| lines.join("\n"));
-    let total_lines_output = output.map(|out| out.lines().count()).unwrap();
-    let start_line = if total_lines_output > start_line {
-        start_line.saturating_add(1)
-    } else {
-        0
-    };
-
-    TruncatedSearchOutput {
-        end_line: if output.is_truncated() {
-            start_line
-                .saturating_add(total_lines_output)
-                .saturating_sub(1)
-        } else {
-            total_lines_output
-        },
-        output,
-        total_lines,
-        start_line,
-    }
 }
 
 #[cfg(test)]
@@ -459,6 +394,28 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    impl TruncatedOutput {
+        pub fn with_start(mut self, start: usize) -> Self {
+            self.start = start;
+            self
+        }
+
+        pub fn with_end(mut self, end: usize) -> Self {
+            self.end = end;
+            self
+        }
+
+        pub fn with_total(mut self, total: usize) -> Self {
+            self.total = total;
+            self
+        }
+
+        pub fn with_strategy(mut self, strategy: TruncationMode) -> Self {
+            self.strategy = strategy;
+            self
+        }
+    }
 
     #[test]
     fn test_line_based_truncation() {
@@ -470,8 +427,12 @@ mod tests {
             "line 5".to_string(),
         ];
 
-        let actual = Truncator::from(data.clone()).truncate_items(1, 3);
-        let expected = Truncator::Line(data.into_iter().skip(1).take(3).collect::<Vec<_>>());
+        let actual = TruncatedOutput::from(data.clone()).truncate_items(1, 3);
+        let expected = TruncatedOutput::from(data.into_iter().skip(1).take(3).collect::<Vec<_>>())
+            .with_start(1)
+            .with_end(4)
+            .with_total(5)
+            .with_strategy(TruncationMode::Line);
         assert_eq!(actual, expected);
     }
 
@@ -487,8 +448,12 @@ mod tests {
             "D".repeat(5),
             "E".repeat(5),
         ];
-        let actual = Truncator::from(data.clone()).truncate_bytes(20);
-        let expected = Truncator::ByteSize(data.into_iter().take(3).collect::<Vec<_>>());
+
+        let actual = TruncatedOutput::from(data.clone()).truncate_bytes(20);
+        let expected = TruncatedOutput::from(data.into_iter().take(3).collect::<Vec<_>>())
+            .with_end(3)
+            .with_total(5)
+            .with_strategy(TruncationMode::Byte);
         assert_eq!(actual, expected);
     }
 
@@ -501,11 +466,15 @@ mod tests {
             "D".repeat(35),
             "E".repeat(45),
         ];
-        let actual = Truncator::from(data.clone())
+        let actual = TruncatedOutput::from(data.clone())
             .truncate_items(0, 10)
             .truncate_bytes(925);
 
-        let expected = Truncator::ByteSize(data.into_iter().take(2).collect::<Vec<_>>());
+        let expected = TruncatedOutput::from(data.into_iter().take(2).collect::<Vec<_>>())
+            .with_end(2)
+            .with_total(5)
+            .with_strategy(TruncationMode::Byte);
+
         assert_eq!(actual, expected);
     }
 
@@ -518,10 +487,12 @@ mod tests {
             "D".repeat(35),
             "E".repeat(45),
         ];
-        let actual = Truncator::from(data.clone())
+        let actual = TruncatedOutput::from(data.clone())
             .truncate_items(0, 10)
             .truncate_bytes(120);
-        let expected = Truncator::ByteSize(vec![]);
+        let expected = TruncatedOutput::from(vec![])
+            .with_total(5)
+            .with_strategy(TruncationMode::Byte);
         assert_eq!(actual, expected);
     }
 }

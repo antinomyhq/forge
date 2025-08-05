@@ -9,6 +9,7 @@ expression: to_value(actual)
   display_lines="6-30"
   regex="search"
   file_pattern="*.txt"
+  reason="Results truncated due to exceeding the 25 lines limit. Please use a more specific search pattern"
 ><![CDATA[foo.txt:6:Match line 6: Test
 foo.txt:7:Match line 7: Test
 foo.txt:8:Match line 8: Test
@@ -33,6 +34,5 @@ foo.txt:26:Match line 26: Test
 foo.txt:27:Match line 27: Test
 foo.txt:28:Match line 28: Test
 foo.txt:29:Match line 29: Test
-foo.txt:30:Match line 30: Test
-[Results truncated due to exceeding the 25 lines limit. Please use a more specific search pattern.]]]>
+foo.txt:30:Match line 30: Test]]>
 </search_results>
