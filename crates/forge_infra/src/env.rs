@@ -67,7 +67,8 @@ impl ForgeEnvironmentInfra {
             max_read_size: 500,
             stdout_max_prefix_length: 200,
             stdout_max_suffix_length: 200,
-            stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH"),
+            stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")
+                .unwrap_or(2000),
             http: resolve_http_config(),
             max_file_size: 256 << 10, // 256 KiB
             forge_api_url,
