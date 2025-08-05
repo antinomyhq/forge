@@ -210,9 +210,10 @@ impl<S: AgentService> Orchestrator<S> {
                 agent_prompt: Some(self.services.render(&system_prompt.template, &()).await?),
             };
 
-            let rendered_prompt = self.services
-                    .render("{{> forge-custom-agent-template.hbs }}", &ctx)
-                    .await?;
+            let rendered_prompt = self
+                .services
+                .render("{{> forge-custom-agent-template.hbs }}", &ctx)
+                .await?;
 
             context.set_first_system_message(rendered_prompt)
         } else {
