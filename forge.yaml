@@ -103,14 +103,15 @@ custom_rules: |-
     assert_eq(actual.b, expected.b);
 
   ## Verification:
-  - Always verify the code by running the following commands to guarantee its working as expected:
-    ```
-    # run the tests first
-    cargo insta test --accept --unreferenced=delete
-
-    # then run the formatting and linting commands
-    cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
-    ```
+  1. Run all the tests to ensure they pass.
+     ```
+     cargo insta test --accept --unreferenced=delete
+     ```
+  
+  2. Run the formatting and linting commands to ensure code quality.
+     ```
+     cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
+     ```
 
   ## Writing Domain Types:
   - Use `derive_setters` to derive setters and use the `strip_option` and the `into` attributes on the struct types.
