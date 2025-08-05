@@ -3,7 +3,7 @@ use std::time::Instant;
 use anyhow::Result;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use tokio::task::JoinHandle;
 
 /// Manages spinner functionality for the UI
@@ -37,7 +37,7 @@ impl SpinnerManager {
 
         // Use a random word from the list
         let word = match message {
-            None => words.choose(&mut rand::thread_rng()).unwrap_or(&words[0]),
+            None => words.choose(&mut rand::rng()).unwrap_or(&words[0]),
             Some(msg) => msg,
         };
 
