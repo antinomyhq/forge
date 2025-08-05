@@ -19,6 +19,13 @@ use crate::{
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct AgentId(Cow<'static, str>);
+
+impl From<&str> for AgentId {
+    fn from(value: &str) -> Self {
+        AgentId(Cow::Owned(value.to_string()))
+    }
+}
+
 impl AgentId {
     // Creates a new agent ID from a string-like value
     pub fn new(id: impl ToString) -> Self {

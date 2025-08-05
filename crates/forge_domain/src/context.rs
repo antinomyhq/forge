@@ -215,6 +215,10 @@ pub struct TextMessage {
 }
 
 impl TextMessage {
+    pub fn has_role(&self, role: Role) -> bool {
+        self.role == role
+    }
+
     pub fn assistant(
         content: impl ToString,
         reasoning_details: Option<Vec<ReasoningFull>>,
