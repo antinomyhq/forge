@@ -24,6 +24,7 @@ derive_builder = "0.20.2"
 derive_more = { version = "2.0.1", features = ["full"] }
 derive_setters = "0.1.6"
 dirs = "6.0.0"
+directories = "5.0.1"
 dissimilar = "1.0.9"
 dotenv = "0.15.0"
 futures = "0.3.31"

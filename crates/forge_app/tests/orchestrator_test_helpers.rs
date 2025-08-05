@@ -126,6 +126,7 @@ fn new_env() -> Environment {
         home: Some(PathBuf::from("/Users/tushar")),
         shell: "bash".to_string(),
         base_path: PathBuf::from("/Users/tushar/projects"),
+        config_path: PathBuf::from("/Users/tushar/.config/forge"),
         forge_api_url: Url::parse("http://localhost:8000").unwrap(),
         retry_config: RetryConfig::default(),
         max_search_lines: 1000,

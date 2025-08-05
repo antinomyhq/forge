@@ -475,6 +475,7 @@ mod tests {
             home: Some(PathBuf::from("/home/user")),
             shell: "/bin/bash".to_string(),
             base_path: PathBuf::from("/home/user/project"),
+            config_path: PathBuf::from("/home/user/.config/forge"),
             retry_config: forge_domain::RetryConfig {
                 initial_backoff_ms: 1000,
                 min_delay_ms: 500,
