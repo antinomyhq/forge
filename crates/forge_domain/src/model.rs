@@ -48,7 +48,7 @@ impl From<&str> for ModelId {
     fn from(value: &str) -> Self {
         ModelId(value.to_string())
     }
-}   
+}
 
 impl ModelId {
     pub fn as_str(&self) -> &str {
