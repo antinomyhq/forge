@@ -1,0 +1,13 @@
+Here is the system information you should be aware of:
+{{> forge-partial-system-info.hbs }}
+
+{{#if custom_rules}}
+These rules must be followed under any circumstances:
+<custom_rules>
+{{custom_rules}}
+</custom_rules>
+{{/if}}
+
+{{> forge-partial-tool-information.hbs }}
+
+{{custom_prompt}}
