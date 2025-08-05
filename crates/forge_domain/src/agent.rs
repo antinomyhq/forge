@@ -315,12 +315,6 @@ mod tests {
 
     use super::*;
 
-    impl Into<AgentId> for &str {
-        fn into(self) -> AgentId {
-            AgentId::new(self)
-        }
-    }
-
     #[test]
     fn test_merge_model() {
         // Base has a value, should not be overwritten
