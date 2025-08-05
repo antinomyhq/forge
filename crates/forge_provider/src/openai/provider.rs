@@ -292,10 +292,10 @@ mod tests {
             .mock_models(create_error_response("Bad request", 400), 400)
             .await;
         let provider = create_provider(&fixture.url())?;
-        let actual = provider.models().await?;
+        let actual = provider.models().await;
 
         mock.assert_async().await;
-        insta::assert_json_snapshot!(actual);
+        insta::assert_snapshot!(normalize_ports(format!("{:#?}", actual)));
         Ok(())
     }
 
