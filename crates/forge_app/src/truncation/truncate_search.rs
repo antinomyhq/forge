@@ -5,8 +5,11 @@ use crate::utils::format_match;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum TruncationMode {
+    /// Truncation applied by number of lines
     Line,
+    /// Truncation applied by number of bytes
     Byte,
+    /// No truncation applied
     Full,
 }
 
@@ -32,23 +35,7 @@ impl From<Vec<String>> for TruncatedSearchOutput {
 }
 
 impl TruncatedSearchOutput {
-    pub fn start(&self) -> usize {
-        self.start
-    }
-
-    pub fn end(&self) -> usize {
-        self.end
-    }
-
-    pub fn total(&self) -> usize {
-        self.total
-    }
-
-    pub fn strategy(&self) -> &TruncationMode {
-        &self.strategy
-    }
-
-    pub fn truncate_items(mut self, start: usize, max_lines: usize) -> Self {
+    fn truncate_by_lines(mut self, start: usize, max_lines: usize) -> Self {
         let total_lines = self.data.len();
         let is_truncated = total_lines > max_lines;
         self.data = if is_truncated {
@@ -66,7 +53,7 @@ impl TruncatedSearchOutput {
         self
     }
 
-    pub fn truncate_bytes(mut self, max_bytes: usize) -> Self {
+    fn truncate_by_bytes(mut self, max_bytes: usize) -> Self {
         let total_lines = self.data.len();
         let input = self.data;
 
@@ -107,8 +94,8 @@ pub fn truncate_search_output(
 
     // Apply truncation strategies
     TruncatedSearchOutput::from(output)
-        .truncate_items(start_line, max_lines)
-        .truncate_bytes(max_bytes)
+        .truncate_by_lines(start_line, max_lines)
+        .truncate_by_bytes(max_bytes)
 }
 
 #[cfg(test)]
@@ -149,7 +136,7 @@ mod tests {
             "line 5".to_string(),
         ];
 
-        let actual = TruncatedSearchOutput::from(data.clone()).truncate_items(1, 3);
+        let actual = TruncatedSearchOutput::from(data.clone()).truncate_by_lines(1, 3);
         let expected =
             TruncatedSearchOutput::from(data.into_iter().skip(1).take(3).collect::<Vec<_>>())
                 .with_start(1)
@@ -172,7 +159,7 @@ mod tests {
             "E".repeat(5),
         ];
 
-        let actual = TruncatedSearchOutput::from(data.clone()).truncate_bytes(20);
+        let actual = TruncatedSearchOutput::from(data.clone()).truncate_by_bytes(20);
         let expected = TruncatedSearchOutput::from(data.into_iter().take(3).collect::<Vec<_>>())
             .with_end(3)
             .with_total(5)
@@ -190,8 +177,8 @@ mod tests {
             "E".repeat(45),
         ];
         let actual = TruncatedSearchOutput::from(data.clone())
-            .truncate_items(0, 10)
-            .truncate_bytes(925);
+            .truncate_by_lines(0, 10)
+            .truncate_by_bytes(925);
 
         let expected = TruncatedSearchOutput::from(data.into_iter().take(2).collect::<Vec<_>>())
             .with_end(2)
@@ -211,8 +198,8 @@ mod tests {
             "E".repeat(45),
         ];
         let actual = TruncatedSearchOutput::from(data.clone())
-            .truncate_items(0, 10)
-            .truncate_bytes(120);
+            .truncate_by_lines(0, 10)
+            .truncate_by_bytes(120);
         let expected = TruncatedSearchOutput::from(vec![])
             .with_total(5)
             .with_strategy(TruncationMode::Byte);
