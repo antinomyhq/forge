@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::bail;
 use forge_app::domain::Environment;
 use forge_app::{ShellOutput, ShellService};
+use forge_domain::{PolicyEngine, Workflow};
 use strip_ansi_escapes::strip;
 
 use crate::{CommandInfra, EnvironmentInfra};
@@ -47,8 +48,32 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
+        workflow: &Workflow,
     ) -> anyhow::Result<ShellOutput> {
         Self::validate_command(&command)?;
+
+        let engine = PolicyEngine::new(workflow);
+        let permission_trace = engine.can_execute(&command);
+
+        // Check permission and handle according to policy
+        match permission_trace.value {
+            forge_domain::Permission::Disallow => {
+                return Err(anyhow::anyhow!(
+                    "Operation denied by policy at {}:{}. Execute access to '{}' is not permitted.",
+                    permission_trace
+                        .file
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    permission_trace.line.unwrap_or(0),
+                    command
+                ));
+            }
+            forge_domain::Permission::Allow | forge_domain::Permission::Confirm => {
+                // For now, treat Confirm as Allow as requested
+                // Continue with the operation
+            }
+        }
 
         let mut output = self.infra.execute_command(command, cwd).await?;
 

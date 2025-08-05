@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{Content, FsReadService, ReadOutput};
+use forge_domain::{PolicyEngine, Workflow};
 
 use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
@@ -59,10 +60,33 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         path: String,
         start_line: Option<u64>,
         end_line: Option<u64>,
+        workflow: &Workflow,
     ) -> anyhow::Result<ReadOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
         let env = self.0.get_environment();
+
+        let engine = PolicyEngine::new(workflow);
+        let permission_trace = engine.can_read(path);
+
+        // Check permission and handle according to policy
+        match permission_trace.value {
+            forge_domain::Permission::Disallow => {
+                return Err(anyhow::anyhow!(
+                    "Operation denied by policy at {}:{}.",
+                    permission_trace
+                        .file
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    permission_trace.line.unwrap_or(0),
+                ));
+            }
+            forge_domain::Permission::Allow | forge_domain::Permission::Confirm => {
+                // For now, treat Confirm as Allow as requested
+                // Continue with the operation
+            }
+        }
 
         // Validate file size before reading content
         assert_file_size(&*self.0, path, env.max_file_size).await?;

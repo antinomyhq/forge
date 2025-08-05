@@ -40,6 +40,11 @@ pub trait API: Sync + Send {
     /// in the current directory or its parent directories
     async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow>;
 
+    /// Resolves the workflow path by finding the forge.yaml file
+    /// If no path is provided, it will traverse parent directories to find
+    /// forge.yaml
+    async fn resolve_workflow_path(&self, path: Option<PathBuf>) -> Result<PathBuf>;
+
     /// Reads the workflow from the given path and merges it with a default
     /// workflow. This provides a convenient way to get a complete workflow
     /// configuration without having to manually handle the merge logic.

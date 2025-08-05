@@ -28,6 +28,7 @@ pub trait AgentService: Send + Sync + 'static {
         agent: &Agent,
         context: &mut ToolCallContext,
         call: ToolCallFull,
+        workflow_path: &std::path::Path,
     ) -> ToolResult;
 
     /// Render a template with the provided object
@@ -59,9 +60,10 @@ impl<T: Services> AgentService for T {
         agent: &Agent,
         context: &mut ToolCallContext,
         call: ToolCallFull,
+        workflow_path: &std::path::Path,
     ) -> ToolResult {
         let registry = ToolRegistry::new(Arc::new(self.clone()));
-        registry.call(agent, context, call).await
+        registry.call(agent, context, call, workflow_path).await
     }
 
     async fn render(

@@ -56,6 +56,9 @@ impl<T: API + 'static> Executor<T> {
             new_conversation
         };
 
+        // Get the resolved workflow path
+        let workflow_path = self.api.resolve_workflow_path(None).await?;
+
         // Create event for the chat message with appropriate event type
         let event_type = if is_first {
             EVENT_USER_TASK_INIT
@@ -69,7 +72,7 @@ impl<T: API + 'static> Executor<T> {
         );
 
         // Create chat request
-        let chat_request = ChatRequest::new(event, conversation.id);
+        let chat_request = ChatRequest::new(event, conversation.id, workflow_path);
 
         // Create cancellation token for this stream
         let cancellation_token = CancellationToken::new();

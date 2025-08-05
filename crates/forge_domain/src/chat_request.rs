@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
@@ -8,10 +10,11 @@ use crate::{ConversationId, Event};
 pub struct ChatRequest {
     pub event: Event,
     pub conversation_id: ConversationId,
+    pub workflow_path: PathBuf,
 }
 
 impl ChatRequest {
-    pub fn new(content: Event, conversation_id: ConversationId) -> Self {
-        Self { event: content, conversation_id }
+    pub fn new(content: Event, conversation_id: ConversationId, workflow_path: PathBuf) -> Self {
+        Self { event: content, conversation_id, workflow_path }
     }
 }

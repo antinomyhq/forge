@@ -201,6 +201,7 @@ pub trait FsCreateService: Send + Sync {
         content: String,
         overwrite: bool,
         capture_snapshot: bool,
+        workflow: &Workflow,
     ) -> anyhow::Result<FsCreateOutput>;
 }
 
@@ -213,6 +214,7 @@ pub trait FsPatchService: Send + Sync {
         search: Option<String>,
         operation: PatchOperation,
         content: String,
+        workflow: &Workflow,
     ) -> anyhow::Result<PatchOutput>;
 }
 
@@ -224,13 +226,14 @@ pub trait FsReadService: Send + Sync {
         path: String,
         start_line: Option<u64>,
         end_line: Option<u64>,
+        workflow: &Workflow,
     ) -> anyhow::Result<ReadOutput>;
 }
 
 #[async_trait::async_trait]
 pub trait FsRemoveService: Send + Sync {
     /// Removes a file at the specified path.
-    async fn remove(&self, path: String) -> anyhow::Result<FsRemoveOutput>;
+    async fn remove(&self, path: String, workflow: &Workflow) -> anyhow::Result<FsRemoveOutput>;
 }
 
 #[async_trait::async_trait]
@@ -241,6 +244,7 @@ pub trait FsSearchService: Send + Sync {
         path: String,
         regex: Option<String>,
         file_pattern: Option<String>,
+        workflow: &Workflow,
     ) -> anyhow::Result<Option<SearchResult>>;
 }
 
@@ -278,6 +282,7 @@ pub trait ShellService: Send + Sync {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
+        workflow: &Workflow,
     ) -> anyhow::Result<ShellOutput>;
 }
 
@@ -472,9 +477,10 @@ impl<I: Services> FsCreateService for I {
         content: String,
         overwrite: bool,
         capture_snapshot: bool,
+        workflow: &Workflow,
     ) -> anyhow::Result<FsCreateOutput> {
         self.fs_create_service()
-            .create(path, content, overwrite, capture_snapshot)
+            .create(path, content, overwrite, capture_snapshot, workflow)
             .await
     }
 }
@@ -487,9 +493,10 @@ impl<I: Services> FsPatchService for I {
         search: Option<String>,
         operation: PatchOperation,
         content: String,
+        workflow: &Workflow,
     ) -> anyhow::Result<PatchOutput> {
         self.fs_patch_service()
-            .patch(path, search, operation, content)
+            .patch(path, search, operation, content, workflow)
             .await
     }
 }
@@ -501,17 +508,18 @@ impl<I: Services> FsReadService for I {
         path: String,
         start_line: Option<u64>,
         end_line: Option<u64>,
+        workflow: &Workflow,
     ) -> anyhow::Result<ReadOutput> {
         self.fs_read_service()
-            .read(path, start_line, end_line)
+            .read(path, start_line, end_line, workflow)
             .await
     }
 }
 
 #[async_trait::async_trait]
 impl<I: Services> FsRemoveService for I {
-    async fn remove(&self, path: String) -> anyhow::Result<FsRemoveOutput> {
-        self.fs_remove_service().remove(path).await
+    async fn remove(&self, path: String, workflow: &Workflow) -> anyhow::Result<FsRemoveOutput> {
+        self.fs_remove_service().remove(path, workflow).await
     }
 }
 
@@ -522,9 +530,10 @@ impl<I: Services> FsSearchService for I {
         path: String,
         regex: Option<String>,
         file_pattern: Option<String>,
+        workflow: &Workflow,
     ) -> anyhow::Result<Option<SearchResult>> {
         self.fs_search_service()
-            .search(path, regex, file_pattern)
+            .search(path, regex, file_pattern, workflow)
             .await
     }
 }
@@ -564,8 +573,11 @@ impl<I: Services> ShellService for I {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
+        workflow: &Workflow,
     ) -> anyhow::Result<ShellOutput> {
-        self.shell_service().execute(command, cwd, keep_ansi).await
+        self.shell_service()
+            .execute(command, cwd, keep_ansi, workflow)
+            .await
     }
 }
 

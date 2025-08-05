@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::{FsCreateOutput, FsCreateService};
+use forge_domain::{PolicyEngine, Workflow};
 
 use crate::utils::assert_absolute_path;
 use crate::{FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, tool_services};
@@ -32,9 +33,34 @@ impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra +
         content: String,
         overwrite: bool,
         capture_snapshot: bool,
+        workflow: &Workflow,
     ) -> anyhow::Result<FsCreateOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
+
+        let engine = PolicyEngine::new(workflow);
+        let permission_trace = engine.can_read(path);
+
+        // Check permission and handle according to policy
+        match permission_trace.value {
+            forge_domain::Permission::Disallow => {
+                return Err(anyhow::anyhow!(
+                    "Operation denied by policy at {}:{}. Read access to '{}' is not permitted.",
+                    permission_trace
+                        .file
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    permission_trace.line.unwrap_or(0),
+                    path.display()
+                ));
+            }
+            forge_domain::Permission::Allow | forge_domain::Permission::Confirm => {
+                // For now, treat Confirm as Allow as requested
+                // Continue with the operation
+            }
+        }
+
         // Validate file content if it's a supported language file
         let syntax_warning = tool_services::syn::validate(path, &content);
         if let Some(parent) = Path::new(&path).parent() {

@@ -6,6 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::policies::Policies;
 use crate::temperature::Temperature;
 use crate::update::Update;
 use crate::{Agent, AgentId, Compact, MaxTokens, ModelId, TopK, TopP};
@@ -140,6 +141,11 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
+    /// Policies that define access control rules for operations
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub policies: Option<Policies>,
 }
 
 impl Default for Workflow {
@@ -183,6 +189,7 @@ impl Workflow {
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
             compact: None,
+            policies: None,
         }
     }
 
@@ -222,6 +229,7 @@ mod tests {
         assert_eq!(actual.max_tokens, None);
         assert_eq!(actual.tool_supported, None);
         assert_eq!(actual.compact, None);
+        assert_eq!(actual.policies, None);
     }
 
     #[test]

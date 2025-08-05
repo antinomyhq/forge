@@ -53,6 +53,7 @@ impl<S: Services> AgentExecutor<S> {
 
         // Create a new conversation for agent execution
         let workflow = self.services.read_merged(None).await?;
+        let workflow_path = self.services.resolve(None).await;
         let conversation =
             ConversationService::create_conversation(self.services.as_ref(), workflow).await?;
 
@@ -62,6 +63,7 @@ impl<S: Services> AgentExecutor<S> {
             .chat(ChatRequest::new(
                 Event::new(format!("{agent_id}/user_task_init"), Some(task)),
                 conversation.id,
+                workflow_path,
             ))
             .await?;
 

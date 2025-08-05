@@ -55,6 +55,7 @@ impl<S: Services> ToolRegistry<S> {
         agent: &Agent,
         input: ToolCallFull,
         context: &mut ToolCallContext,
+        workflow_path: &std::path::Path,
     ) -> anyhow::Result<ToolOutput> {
         Self::validate_tool_call(agent, &input.name)?;
 
@@ -63,8 +64,10 @@ impl<S: Services> ToolRegistry<S> {
 
         // First, try to call a Forge tool
         if Tools::contains(&input.name) {
-            self.call_with_timeout(&tool_name, || self.tool_executor.execute(input, context))
-                .await
+            self.call_with_timeout(&tool_name, || {
+                self.tool_executor.execute(input, context, workflow_path)
+            })
+            .await
         } else if self.agent_executor.contains_tool(&input.name).await? {
             // Handle agent delegation tool calls
             let agent_input = AgentInput::try_from(&input)?;
@@ -102,10 +105,11 @@ impl<S: Services> ToolRegistry<S> {
         agent: &Agent,
         context: &mut ToolCallContext,
         call: ToolCallFull,
+        workflow_path: &std::path::Path,
     ) -> ToolResult {
         let call_id = call.call_id.clone();
         let tool_name = call.name.clone();
-        let output = self.call_inner(agent, call, context).await;
+        let output = self.call_inner(agent, call, context, workflow_path).await;
 
         ToolResult::new(tool_name).call_id(call_id).output(output)
     }

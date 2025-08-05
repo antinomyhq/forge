@@ -81,6 +81,17 @@
         "null"
       ]
     },
+    "policies": {
+      "description": "Policies that define access control rules for operations",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Policies"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "temperature": {
       "description": "Temperature used for all agents\n\nTemperature controls the randomness in the model's output. - Lower values (e.g., 0.1) make responses more focused, deterministic, and coherent - Higher values (e.g., 0.8) make responses more creative, diverse, and exploratory - Valid range is 0.0 to 2.0 - If not specified, each agent's individual setting or the model provider's default will be used",
       "anyOf": [
@@ -432,6 +443,109 @@
       "format": "uint32",
       "minimum": 0.0
     },
+    "Permission": {
+      "description": "Permission types that can be applied to operations",
+      "oneOf": [
+        {
+          "description": "Allow the operation without asking",
+          "type": "string",
+          "enum": [
+            "Allow"
+          ]
+        },
+        {
+          "description": "Disallow the operation without asking",
+          "type": "string",
+          "enum": [
+            "Disallow"
+          ]
+        },
+        {
+          "description": "Confirm with the user before allowing",
+          "type": "string",
+          "enum": [
+            "Confirm"
+          ]
+        }
+      ]
+    },
+    "Policies": {
+      "description": "Collection of policies",
+      "type": "object",
+      "properties": {
+        "policies": {
+          "description": "List of policies to evaluate",
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Policy"
+          }
+        }
+      }
+    },
+    "Policy": {
+      "description": "Policy definitions with logical operators",
+      "anyOf": [
+        {
+          "description": "Simple policy with permission and rule",
+          "type": "object",
+          "required": [
+            "permission",
+            "rule"
+          ],
+          "properties": {
+            "permission": {
+              "$ref": "#/definitions/Permission"
+            },
+            "rule": {
+              "$ref": "#/definitions/Rule"
+            }
+          }
+        },
+        {
+          "description": "Logical AND of two policies",
+          "type": "object",
+          "required": [
+            "and"
+          ],
+          "properties": {
+            "and": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Policy"
+              }
+            }
+          }
+        },
+        {
+          "description": "Logical OR of two policies",
+          "type": "object",
+          "required": [
+            "or"
+          ],
+          "properties": {
+            "or": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Policy"
+              }
+            }
+          }
+        },
+        {
+          "description": "Logical NOT of a policy",
+          "type": "object",
+          "required": [
+            "not"
+          ],
+          "properties": {
+            "not": {
+              "$ref": "#/definitions/Policy"
+            }
+          }
+        }
+      ]
+    },
     "ReasoningConfig": {
       "type": "object",
       "properties": {
@@ -470,6 +584,74 @@
           "minimum": 0.0
         }
       }
+    },
+    "Rule": {
+      "description": "Rules that define what operations are covered by a policy",
+      "oneOf": [
+        {
+          "description": "Rule for write operations with a glob pattern",
+          "type": "object",
+          "required": [
+            "write"
+          ],
+          "properties": {
+            "write": {
+              "type": "object",
+              "required": [
+                "pattern"
+              ],
+              "properties": {
+                "pattern": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Rule for read operations with a glob pattern",
+          "type": "object",
+          "required": [
+            "read"
+          ],
+          "properties": {
+            "read": {
+              "type": "object",
+              "required": [
+                "pattern"
+              ],
+              "properties": {
+                "pattern": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Rule for execute operations with a command pattern",
+          "type": "object",
+          "required": [
+            "execute"
+          ],
+          "properties": {
+            "execute": {
+              "type": "object",
+              "required": [
+                "command"
+              ],
+              "properties": {
+                "command": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "String": {
       "type": "string"

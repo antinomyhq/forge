@@ -563,8 +563,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Parse the JSON to determine the event name and value
         let event: PartialEvent = serde_json::from_str(&json)?;
 
+        // Get the resolved workflow path
+        let workflow_path = self
+            .api
+            .resolve_workflow_path(self.cli.workflow.clone())
+            .await?;
+
         // Create the chat request with the event
-        let chat = ChatRequest::new(event.into(), conversation_id);
+        let chat = ChatRequest::new(event.into(), conversation_id, workflow_path);
 
         self.on_chat(chat).await
     }
@@ -672,8 +678,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.create_task_event(content, EVENT_USER_TASK_UPDATE)?
         };
 
+        // Get the resolved workflow path
+        let workflow_path = self
+            .api
+            .resolve_workflow_path(self.cli.workflow.clone())
+            .await?;
+
         // Create the chat request with the event
-        let chat = ChatRequest::new(event, conversation_id);
+        let chat = ChatRequest::new(event, conversation_id, workflow_path);
 
         self.on_chat(chat).await
     }
@@ -839,7 +851,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
-        let chat = ChatRequest::new(event, conversation_id);
+
+        // Get the resolved workflow path
+        let workflow_path = self
+            .api
+            .resolve_workflow_path(self.cli.workflow.clone())
+            .await?;
+
+        let chat = ChatRequest::new(event, conversation_id, workflow_path);
         self.on_chat(chat).await
     }
 
