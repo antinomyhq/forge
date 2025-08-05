@@ -21,7 +21,7 @@ struct Templates;
 
 #[derive(Setters, Debug)]
 pub struct Trace {
-    hb: Handlebars<'static>,
+    hb: Mutex<Handlebars<'static>>,
     history: Mutex<Vec<Conversation>>,
     test_tool_calls: Vec<(ToolCallFull, ToolResult)>,
     test_chat_responses: Mutex<VecDeque<ChatCompletionMessage>>,
@@ -36,11 +36,17 @@ impl Trace {
         // Register all partial templates
         hb.register_embed_templates::<Templates>().unwrap();
         Self {
-            hb,
+            hb: Mutex::new(hb),
             history: Mutex::new(Vec::new()),
             test_tool_calls: Vec::new(),
             test_chat_responses: Mutex::new(VecDeque::from(messages)),
         }
+    }
+
+    pub async fn register_template(&self, name: &str, template: &str) -> anyhow::Result<()> {
+        let mut guard = self.hb.lock().await;
+        guard.register_template_string(name, template)?;
+        Ok(())
     }
 
     pub async fn get_history(&self) -> Vec<Conversation> {
@@ -81,7 +87,8 @@ impl AgentService for Trace {
         template: &str,
         object: &(impl serde::Serialize + Sync),
     ) -> anyhow::Result<String> {
-        Ok(self.hb.render_template(template, object)?)
+        let guard = self.hb.lock().await;
+        Ok(guard.render_template(template, object)?)
     }
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
@@ -138,21 +145,33 @@ fn new_env() -> Environment {
     }
 }
 
-async fn run(user: &str, assistant: Vec<ChatCompletionMessage>) -> Arc<Trace> {
-    let (mut orch, services) = new_orchestrator(assistant);
-    orch.chat(Event::new("forge/user_task_init", Some(user.to_string())))
-        .await
-        .unwrap();
-    services
+pub struct Setup {
+    pub orch: Orchestrator<Trace>,
+    pub services: Arc<Trace>,
 }
 
-pub struct Setup {
-    pub user: &'static str,
-    pub assistant: Vec<ChatCompletionMessage>,
+impl Default for Setup {
+    fn default() -> Self {
+        let (orch, services) = new_orchestrator(vec![]);
+        Self { orch, services }
+    }
 }
 
 impl Setup {
-    pub async fn run(self) -> Arc<Trace> {
-        run(self.user, self.assistant).await
+    pub fn add_agent(mut self, agent: forge_domain::Agent) -> Self {
+        let mut conversation = self.orch.get_conversation().clone();
+        conversation.agents.push(agent);
+        self.orch = self.orch.conversation(conversation);
+        self
+    }
+
+    pub fn new(messages: Vec<ChatCompletionMessage>) -> Self {
+        let (orch, services) = new_orchestrator(messages);
+        Self { orch, services }
+    }
+
+    pub async fn chat(&mut self, input: String, agent_id: String) -> anyhow::Result<()> {
+        self.orch.chat(Event::new(format!("{}/user_task_init", agent_id), Some(input)))
+            .await
     }
 }
