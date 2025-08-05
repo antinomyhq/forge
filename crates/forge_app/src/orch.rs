@@ -210,7 +210,7 @@ impl<S: AgentService> Orchestrator<S> {
                 custom_prompt: system_prompt.template.clone(),
             };
 
-            let template = if system_prompt.template.starts_with("{{> forge_") {
+            let rendered_prompt = if system_prompt.template.starts_with("{{> forge_") {
                 self.services.render(&system_prompt.template, &ctx).await?
             } else {
                 // used for rendering the custom agent prompts
@@ -219,7 +219,7 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?
             };
 
-            context.set_first_system_message(template)
+            context.set_first_system_message(rendered_prompt)
         } else {
             context
         })
