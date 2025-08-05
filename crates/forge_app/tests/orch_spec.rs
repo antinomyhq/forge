@@ -101,11 +101,11 @@ async fn test_render_system_prompt_with_custom_agent_template() {
 }
 
 #[tokio::test]
-async fn test_render_system_prompt_forge_agent() {
-    let system_prompt = async |tool_supported| -> String {
+async fn test_render_system_prompt_default_agents() {
+    let system_prompt = async |agent_id:&str, tool_supported| -> String {
         let workflow = Workflow::default();
         let agent = workflow
-            .get_agent(&AgentId::new("forge"))
+            .get_agent(&AgentId::new(agent_id))
             .unwrap()
             .clone()
             .tool_supported(tool_supported);
@@ -114,22 +114,32 @@ async fn test_render_system_prompt_forge_agent() {
         let mut setup = Setup::default().add_agent(agent);
 
         // execute request with orchestrator
-        let _ = setup.chat("Hello".into(), "forge".into()).await.unwrap();
+        let _ = setup.chat("Hello".into(), agent_id.to_string()).await.unwrap();
 
         // get the system prompt from the latest context
         let system_prompt = setup.system_prompt().await.unwrap();
         system_prompt
     };
 
-    let system_prompt_with_tool_supported = system_prompt(true).await;
-    let system_prompt_without_tool_supported = system_prompt(false).await;
-
+    let system_prompt_with_tool_supported = system_prompt("forge", true).await;
+    let system_prompt_without_tool_supported = system_prompt("forge", false).await;
     insta::assert_snapshot!(
         "system_prompt_without_tool_supported_forge_agent",
         system_prompt_without_tool_supported
     );
     insta::assert_snapshot!(
         "system_prompt_with_tool_supported_forge_agent",
+        system_prompt_with_tool_supported
+    );
+
+    let system_prompt_with_tool_supported = system_prompt("muse", true).await;
+    let system_prompt_without_tool_supported = system_prompt("muse", false).await;
+    insta::assert_snapshot!(
+        "system_prompt_without_tool_supported_muse_agent",
+        system_prompt_without_tool_supported
+    );
+    insta::assert_snapshot!(
+        "system_prompt_with_tool_supported_muse_agent",
         system_prompt_with_tool_supported
     );
 }
