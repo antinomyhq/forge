@@ -16,8 +16,8 @@ use crate::truncation::{
 };
 use crate::utils::format_display_path;
 use crate::{
-    Content, EnvironmentService, FsCreateOutput, FsCreateService, FsUndoOutput, HttpResponse,
-    PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    Content, FsCreateOutput, FsUndoOutput, HttpResponse, PatchOutput, ReadOutput, ResponseContext,
+    SearchResult, ShellOutput,
 };
 
 struct FileOperationStats {
@@ -139,30 +139,6 @@ fn create_stream_element<T: StreamElement>(
     Some(elem)
 }
 impl Operation {
-    async fn create_temp_file<S: FsCreateService>(
-        &self,
-        services: &S,
-        prefix: &str,
-        ext: &str,
-        content: &str,
-    ) -> anyhow::Result<PathBuf> {
-        let path = tempfile::Builder::new()
-            .disable_cleanup(true)
-            .prefix(prefix)
-            .suffix(ext)
-            .tempfile()?
-            .into_temp_path()
-            .to_path_buf();
-        services
-            .create(
-                path.to_string_lossy().to_string(),
-                content.to_string(),
-                true,
-                false,
-            )
-            .await?;
-        Ok(path)
-    }
     pub fn into_tool_output(
         self,
         tool_name: ToolName,
@@ -437,66 +413,6 @@ impl Operation {
                     }));
                 forge_domain::ToolOutput::text(elm)
             }
-        }
-    }
-
-    pub async fn to_create_temp<S: EnvironmentService + FsCreateService>(
-        &self,
-        services: &S,
-    ) -> anyhow::Result<TempContentFiles> {
-        match self {
-            Operation::NetFetch { input: _, output } => {
-                let original_length = output.content.len();
-                let is_truncated =
-                    original_length > services.get_environment().fetch_truncation_limit;
-                let mut files = TempContentFiles::default();
-
-                if is_truncated {
-                    files = files.stdout(
-                        self.create_temp_file(services, "forge_fetch_", ".txt", &output.content)
-                            .await?,
-                    );
-                }
-
-                Ok(files)
-            }
-            Operation::Shell { output } => {
-                let env = services.get_environment();
-                let stdout_lines = output.output.stdout.lines().count();
-                let stderr_lines = output.output.stderr.lines().count();
-                let stdout_truncated =
-                    stdout_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
-                let stderr_truncated =
-                    stderr_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
-
-                let mut files = TempContentFiles::default();
-
-                if stdout_truncated {
-                    files = files.stdout(
-                        self.create_temp_file(
-                            services,
-                            "forge_shell_stdout_",
-                            ".txt",
-                            &output.output.stdout,
-                        )
-                        .await?,
-                    );
-                }
-                if stderr_truncated {
-                    files = files.stderr(
-                        self.create_temp_file(
-                            services,
-                            "forge_shell_stderr_",
-                            ".txt",
-                            &output.output.stderr,
-                        )
-                        .await?,
-                    );
-                }
-
-                Ok(files)
-            }
-            _ => Ok(TempContentFiles::default()),
         }
     }
 }
