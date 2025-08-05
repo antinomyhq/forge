@@ -762,13 +762,15 @@ mod tests {
             .await
             .unwrap();
 
-        // assert
-        match context.messages.first() {
-            Some(ContextMessage::Text(message)) if message.has_role(Role::System) => {
-                assert!(message.content.ends_with(custom_prompt));
-            }
-            _ => panic!(),
-        }
+        let Some(ContextMessage::Text(message)) = context.messages.first() else {
+            panic!("Expected first message to be a text message");
+        };
+
+        assert!(message.has_role(Role::System), "Expected system role");
+        assert!(
+            message.content.ends_with(custom_prompt),
+            "Expected message match custom content"
+        );
     }
 
     #[tokio::test]
@@ -800,12 +802,14 @@ mod tests {
             .await
             .unwrap();
 
-        // assert
-        match context.messages.first() {
-            Some(ContextMessage::Text(message)) if message.has_role(Role::System) => {
-                assert!(message.content.ends_with(custom_agent_content));
-            }
-            _ => panic!(),
-        }
+        let Some(ContextMessage::Text(message)) = context.messages.first() else {
+            panic!("Expected first message to be a text message");
+        };
+
+        assert!(message.has_role(Role::System), "Expected system role");
+        assert!(
+            message.content.ends_with(custom_agent_content),
+            "Expected message match custom content"
+        );
     }
 }
