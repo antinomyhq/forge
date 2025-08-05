@@ -133,6 +133,7 @@ fn new_env() -> Environment {
         fetch_truncation_limit: 1024,
         stdout_max_prefix_length: 256,
         stdout_max_suffix_length: 256,
+        stdout_max_line_length: 2000,
         max_read_size: 4096,
         http: HttpConfig::default(),
         max_file_size: 1024 * 1024 * 5, // 5 MB

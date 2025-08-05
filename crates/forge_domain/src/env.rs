@@ -42,6 +42,8 @@ pub struct Environment {
     pub stdout_max_prefix_length: usize,
     /// Maximum lines for shell output suffix
     pub stdout_max_suffix_length: usize,
+    /// Maximum characters per line for shell output
+    pub stdout_max_line_length: usize,
     /// Maximum number of lines to read from a file
     pub max_read_size: u64,
     /// Http configuration

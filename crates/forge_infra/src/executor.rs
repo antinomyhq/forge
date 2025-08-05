@@ -190,6 +190,7 @@ mod tests {
             max_search_result_bytes: max_bytes.ceil() as usize, // 0.25 MB
             max_read_size: 0,
             stdout_max_suffix_length: 0,
+            stdout_max_line_length: 2000,
             http: Default::default(),
             max_file_size: 10_000_000,
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
