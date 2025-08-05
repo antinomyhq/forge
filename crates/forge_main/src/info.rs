@@ -1,5 +1,6 @@
 use std::fmt;
 use std::path::Path;
+use std::time::Duration;
 
 use colored::Colorize;
 use forge_api::{Environment, LoginInfo, UserUsage};
@@ -288,30 +289,12 @@ pub fn create_progress_bar(current: u32, limit: u32, width: usize) -> String {
         percentage
     )
 }
-pub fn format_reset_time(seconds: u32) -> String {
+
+pub fn format_reset_time(seconds: u64) -> String {
     if seconds == 0 {
         return "now".to_string();
     }
-
-    let hours = seconds / 3600;
-    let minutes = (seconds % 3600) / 60;
-    let remaining_seconds = seconds % 60;
-
-    if hours > 0 {
-        if minutes > 0 {
-            format!("{hours}h {minutes}m")
-        } else {
-            format!("{hours}h")
-        }
-    } else if minutes > 0 {
-        if remaining_seconds > 0 {
-            format!("{minutes}m {remaining_seconds}s")
-        } else {
-            format!("{minutes}m")
-        }
-    } else {
-        format!("{remaining_seconds}s")
-    }
+    humantime::format_duration(Duration::from_secs(seconds)).to_string()
 }
 
 #[cfg(test)]
@@ -440,7 +423,7 @@ mod tests {
     #[test]
     fn test_format_reset_time_hours_and_minutes() {
         let actual = super::format_reset_time(3661); // 1 hour, 1 minute, 1 second
-        let expected = "1h 1m";
+        let expected = "1h 1m 1s";
         assert_eq!(actual, expected);
     }
 
@@ -482,7 +465,7 @@ mod tests {
     #[test]
     fn test_format_reset_time_large_value() {
         let actual = super::format_reset_time(7265); // 2 hours, 1 minute, 5 seconds
-        let expected = "2h 1m";
+        let expected = "2h 1m 5s";
         assert_eq!(actual, expected);
     }
 }
