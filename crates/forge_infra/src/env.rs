@@ -46,8 +46,10 @@ impl ForgeEnvironmentInfra {
             .and_then(|url| Url::parse(url.as_str()).ok())
             .unwrap_or_else(|| Url::parse(Provider::FORGE_URL).unwrap());
 
-        // Convert 0.25 MB to bytes
-        let max_bytes: f64 = 0.25 * 1024.0 * 1024.0;
+        // Convert 10 KB to bytes as default
+        let default_max_bytes: f64 = 10.0 * 1024.0;
+        let max_bytes =
+            parse_env::<f64>("FORGE_MAX_SEARCH_RESULT_BYTES").unwrap_or(default_max_bytes);
 
         Environment {
             os: std::env::consts::OS.to_string(),
@@ -653,6 +655,116 @@ mod tests {
                 env::remove_var("FORGE_HTTP_MIN_TLS_VERSION");
                 env::remove_var("FORGE_HTTP_ADAPTIVE_WINDOW");
                 env::remove_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL");
+            }
+        }
+    }
+
+    #[test]
+    fn test_max_search_result_bytes_environment_variable() {
+        // Test 1: Default value when no environment variable is set
+        {
+            // Clean up any existing environment variable first
+            unsafe {
+                env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
+            }
+
+            let forge_env = ForgeEnvironmentInfra::new(false, PathBuf::from("/tmp"));
+            let environment = forge_env.get_environment();
+
+            // Default should be 10 KB in bytes
+            let expected_default = (10.0_f64 * 1024.0).ceil() as usize;
+            assert_eq!(environment.max_search_result_bytes, expected_default);
+        }
+
+        // Test 2: Environment variable override with valid value
+        {
+            // Set environment variable to 1 MB
+            unsafe {
+                env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "1048576"); // 1 MB in bytes
+            }
+
+            let forge_env = ForgeEnvironmentInfra::new(false, PathBuf::from("/tmp"));
+            let environment = forge_env.get_environment();
+
+            assert_eq!(environment.max_search_result_bytes, 1048576);
+
+            // Clean up environment variable
+            unsafe {
+                env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
+            }
+        }
+
+        // Test 3: Environment variable with fractional value
+        {
+            // Set environment variable to 0.5 MB
+            unsafe {
+                env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "524288.5"); // 0.5 MB + 0.5 bytes
+            }
+
+            let forge_env = ForgeEnvironmentInfra::new(false, PathBuf::from("/tmp"));
+            let environment = forge_env.get_environment();
+
+            assert_eq!(environment.max_search_result_bytes, 524289); // Should be ceiled
+
+            // Clean up environment variable
+            unsafe {
+                env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
+            }
+        }
+
+        // Test 4: Invalid environment variable value should use default
+        {
+            // Set invalid environment variable
+            unsafe {
+                env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "invalid_value");
+            }
+
+            let forge_env = ForgeEnvironmentInfra::new(false, PathBuf::from("/tmp"));
+            let environment = forge_env.get_environment();
+
+            // Should fall back to default
+            let expected_default = (10.0_f64 * 1024.0).ceil() as usize;
+            assert_eq!(environment.max_search_result_bytes, expected_default);
+
+            // Clean up environment variable
+            unsafe {
+                env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
+            }
+        }
+
+        // Test 5: Zero value
+        {
+            // Set environment variable to 0
+            unsafe {
+                env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "0");
+            }
+
+            let forge_env = ForgeEnvironmentInfra::new(false, PathBuf::from("/tmp"));
+            let environment = forge_env.get_environment();
+
+            assert_eq!(environment.max_search_result_bytes, 0);
+
+            // Clean up environment variable
+            unsafe {
+                env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
+            }
+        }
+
+        // Test 6: Large value
+        {
+            // Set environment variable to 10 MB
+            unsafe {
+                env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "10485760"); // 10 MB in bytes
+            }
+
+            let forge_env = ForgeEnvironmentInfra::new(false, PathBuf::from("/tmp"));
+            let environment = forge_env.get_environment();
+
+            assert_eq!(environment.max_search_result_bytes, 10485760);
+
+            // Clean up environment variable
+            unsafe {
+                env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
             }
         }
     }
