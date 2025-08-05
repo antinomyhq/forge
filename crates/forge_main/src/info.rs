@@ -317,9 +317,11 @@ mod tests {
             forge_api_url: "http://localhost".parse().unwrap(),
             retry_config: Default::default(),
             max_search_lines: 100,
+            max_search_result_bytes: 100, // 0.25 MB
             fetch_truncation_limit: 1000,
             stdout_max_prefix_length: 10,
             stdout_max_suffix_length: 10,
+            stdout_max_line_length: 2000,
             max_read_size: 100,
             http: Default::default(),
             max_file_size: 1000,
