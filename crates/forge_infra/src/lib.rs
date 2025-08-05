@@ -1,5 +1,6 @@
 pub mod executor;
 
+pub mod directories;
 mod env;
 mod error;
 mod forge_infra;
@@ -13,6 +14,7 @@ mod http;
 mod inquire;
 mod mcp_client;
 mod mcp_server;
+pub mod migration;
 mod walker;
 
 pub use executor::ForgeCommandExecutorService;

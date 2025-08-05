@@ -314,6 +314,7 @@ mod tests {
             cwd: PathBuf::from("/"),
             shell: "bash".to_string(),
             base_path: PathBuf::from("/tmp"),
+            config_path: PathBuf::from("/tmp/.config"),
             forge_api_url: "http://localhost".parse().unwrap(),
             retry_config: Default::default(),
             max_search_lines: 100,

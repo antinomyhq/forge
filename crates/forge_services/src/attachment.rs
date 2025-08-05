@@ -118,6 +118,7 @@ pub mod tests {
                 home: Some(PathBuf::from("/home/test")),
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/base"),
+                config_path: PathBuf::from("/config"),
                 retry_config: Default::default(),
                 max_search_lines: 25,
                 fetch_truncation_limit: 0,

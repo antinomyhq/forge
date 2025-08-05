@@ -5,6 +5,8 @@ use forge_domain::{Environment, Provider, RetryConfig, TlsBackend, TlsVersion};
 use forge_services::EnvironmentInfra;
 use reqwest::Url;
 
+use crate::directories::ForgeDirectories;
+
 #[derive(Clone)]
 pub struct ForgeEnvironmentInfra {
     restricted: bool,
@@ -39,6 +41,7 @@ impl ForgeEnvironmentInfra {
     fn get(&self) -> Environment {
         let cwd = self.cwd.clone();
         let retry_config = resolve_retry_config();
+        let forge_dirs = ForgeDirectories::new();
 
         let forge_api_url = self
             .get_env_var("FORGE_API_URL")
@@ -46,14 +49,26 @@ impl ForgeEnvironmentInfra {
             .and_then(|url| Url::parse(url.as_str()).ok())
             .unwrap_or_else(|| Url::parse(Provider::FORGE_URL).unwrap());
 
+        // Use XDG-compliant directories, with fallback to legacy location for backwards
+        // compatibility
+        let base_path = if forge_dirs.has_legacy_data() {
+            // If legacy directory exists, continue using it for now
+            // TODO: Add migration logic or warning to user
+            forge_dirs
+                .legacy_base_dir()
+                .unwrap_or_else(|| forge_dirs.data_dir())
+        } else {
+            // Use modern XDG-compliant data directory for new installations
+            forge_dirs.data_dir()
+        };
+
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
             cwd,
             shell: self.get_shell_path(),
-            base_path: dirs::home_dir()
-                .map(|a| a.join("forge"))
-                .unwrap_or(PathBuf::from(".").join("forge")),
+            base_path,
+            config_path: forge_dirs.config_dir(),
             home: dirs::home_dir(),
             retry_config,
             max_search_lines: 200,

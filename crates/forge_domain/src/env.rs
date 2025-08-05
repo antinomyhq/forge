@@ -28,6 +28,8 @@ pub struct Environment {
     pub shell: String,
     /// The base path relative to which everything else stored.
     pub base_path: PathBuf,
+    /// The configuration directory path (XDG-compliant)
+    pub config_path: PathBuf,
     /// Base URL for Forge's backend APIs
     pub forge_api_url: Url,
     /// Configuration for the retry mechanism
@@ -64,11 +66,11 @@ impl Environment {
         self.base_path.join("snapshots")
     }
     pub fn mcp_user_config(&self) -> PathBuf {
-        self.base_path.join(".mcp.json")
+        self.config_path.join(".mcp.json")
     }
 
     pub fn templates(&self) -> PathBuf {
-        self.base_path.join("templates")
+        self.config_path.join("templates")
     }
 
     pub fn mcp_local_config(&self) -> PathBuf {
