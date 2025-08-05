@@ -62,7 +62,10 @@ impl ForgeHttpInfra {
         }
 
         let mut headers = HeaderMap::new();
-        headers.insert("x-client-id", HeaderValue::from_str(&client_id).expect("Invalid client ID"));
+        headers.insert(
+            "x-client-id",
+            HeaderValue::from_str(&client_id).expect("Invalid client ID"),
+        );
         Self { client: client.build().unwrap(), headers }
     }
 

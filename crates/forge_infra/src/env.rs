@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 
 use forge_domain::{Environment, Provider, RetryConfig, TlsBackend, TlsVersion};
 use forge_services::EnvironmentInfra;
+use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use reqwest::Url;
 
 #[derive(Clone)]

@@ -26,7 +26,7 @@ use crate::model::{Command, ForgeCommandManager};
 use crate::select::ForgeSelect;
 use crate::state::UIState;
 use crate::update::on_update;
-use crate::{banner, tracker, TRACKER};
+use crate::{TRACKER, banner, tracker};
 
 // Event type constants moved to UI layer
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -149,7 +149,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let env = api.environment();
         // Initialize the tracker with the client ID
         let tracker = TRACKER.get_or_init(|| forge_tracker::Tracker::new(env.client_id.clone()));
-        
+
         let command = Arc::new(ForgeCommandManager::default());
         Ok(Self {
             state: Default::default(),
@@ -217,11 +217,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         Ok(exit) => if exit {return Ok(())},
                         Err(error) => {
                             if let Some(conversation_id) = self.state.conversation_id.as_ref()
-                                && let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten() {
-                                    if let Some(tracker)= TRACKER.get() {
+                                && let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten()
+                                    && let Some(tracker)= TRACKER.get() {
                                         tracker.set_conversation(conversation).await;
                                     }
-                                }
                             tracker::error(&error);
                             tracing::error!(error = ?error);
                             self.spinner.stop(None)?;
