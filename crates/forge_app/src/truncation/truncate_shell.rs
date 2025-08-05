@@ -8,7 +8,7 @@ fn clip_by_lines(
     let total_lines = lines.len();
 
     // If content fits within limits, return all lines
-    if total_lines <= prefix_lines + suffix_lines {
+    if total_lines <= prefix_lines.saturating_add(suffix_lines) {
         return (lines.into_iter().map(String::from).collect(), None);
     }
 
@@ -138,7 +138,7 @@ pub fn truncate_shell_output(
     }
 }
 
-#[derive(Debug, PartialEq, derive_setters::Setters)]
+#[derive(Debug, PartialEq, Default, derive_setters::Setters)]
 #[setters(strip_option, into)]
 pub struct Stdout {
     pub head: String,
@@ -149,7 +149,7 @@ pub struct Stdout {
     pub tail_end_line: Option<usize>,
 }
 
-#[derive(Debug, PartialEq, derive_setters::Setters)]
+#[derive(Debug, PartialEq, Default, derive_setters::Setters)]
 #[setters(strip_option, into)]
 pub struct Stderr {
     pub head: String,
@@ -174,32 +174,6 @@ mod tests {
 
     use super::*;
 
-    impl Stdout {
-        pub fn new(head: String, total_lines: usize, head_end_line: usize) -> Self {
-            Self {
-                head,
-                tail: None,
-                total_lines,
-                head_end_line,
-                tail_start_line: None,
-                tail_end_line: None,
-            }
-        }
-    }
-
-    impl Stderr {
-        pub fn new(head: String, total_lines: usize, head_end_line: usize) -> Self {
-            Self {
-                head,
-                tail: None,
-                total_lines,
-                head_end_line,
-                tail_start_line: None,
-                tail_end_line: None,
-            }
-        }
-    }
-
     impl TruncatedShellOutput {
         pub fn new(stdout: Stdout, stderr: Stderr) -> Self {
             Self { stdout, stderr }
@@ -213,8 +187,14 @@ mod tests {
 
         let actual = truncate_shell_output(stdout, stderr, 5, 5);
         let expected = TruncatedShellOutput::new(
-            Stdout::new("line 1\nline 2\nline 3".to_string(), 3, 3),
-            Stderr::new("error 1\nerror 2".to_string(), 2, 2),
+            Stdout::default()
+                .head("line 1\nline 2\nline 3")
+                .total_lines(3usize)
+                .head_end_line(3usize),
+            Stderr::default()
+                .head("error 1\nerror 2")
+                .total_lines(2usize)
+                .head_end_line(2usize),
         );
 
         assert_eq!(actual, expected);
@@ -227,11 +207,17 @@ mod tests {
 
         let actual = truncate_shell_output(stdout, stderr, 2, 2);
         let expected = TruncatedShellOutput::new(
-            Stdout::new("line 1\nline 2\n".to_string(), 7, 2)
+            Stdout::default()
+                .head("line 1\nline 2\n")
+                .total_lines(7usize)
+                .head_end_line(2usize)
                 .tail("line 6\nline 7\n")
                 .tail_start_line(6usize)
                 .tail_end_line(7usize),
-            Stderr::new("error 1\nerror 2\n".to_string(), 5, 2)
+            Stderr::default()
+                .head("error 1\nerror 2\n")
+                .total_lines(5usize)
+                .head_end_line(2usize)
                 .tail("error 4\nerror 5\n")
                 .tail_start_line(4usize)
                 .tail_end_line(5usize),
@@ -246,10 +232,7 @@ mod tests {
         let stderr = "";
 
         let actual = truncate_shell_output(stdout, stderr, 5, 5);
-        let expected = TruncatedShellOutput::new(
-            Stdout::new("".to_string(), 0, 0),
-            Stderr::new("".to_string(), 0, 0),
-        );
+        let expected = TruncatedShellOutput::new(Stdout::default(), Stderr::default());
 
         assert_eq!(actual, expected);
     }
@@ -261,8 +244,14 @@ mod tests {
 
         let actual = truncate_shell_output(stdout, stderr, 2, 2);
         let expected = TruncatedShellOutput::new(
-            Stdout::new("single line".to_string(), 1, 1),
-            Stderr::new("single error".to_string(), 1, 1),
+            Stdout::default()
+                .head("single line")
+                .total_lines(1usize)
+                .head_end_line(1usize),
+            Stderr::default()
+                .head("single error")
+                .total_lines(1usize)
+                .head_end_line(1usize),
         );
 
         assert_eq!(actual, expected);
@@ -275,12 +264,16 @@ mod tests {
 
         let actual = truncate_shell_output(stdout, stderr, 2, 0);
         let expected = TruncatedShellOutput::new(
-            Stdout::new("line 1\nline 2\n".to_string(), 5, 2)
-                .tail("")
+            Stdout::default()
+                .head("line 1\nline 2\n")
+                .total_lines(5usize)
+                .head_end_line(2usize)
                 .tail_start_line(6usize)
                 .tail_end_line(5usize),
-            Stderr::new("error 1\nerror 2\n".to_string(), 3, 2)
-                .tail("")
+            Stderr::default()
+                .head("error 1\nerror 2\n")
+                .total_lines(3usize)
+                .head_end_line(2usize)
                 .tail_start_line(4usize)
                 .tail_end_line(3usize),
         );
@@ -295,14 +288,34 @@ mod tests {
 
         let actual = truncate_shell_output(stdout, stderr, 0, 2);
         let expected = TruncatedShellOutput::new(
-            Stdout::new("".to_string(), 5, 0)
+            Stdout::default()
+                .total_lines(5usize)
+                .head_end_line(0usize)
                 .tail("line 4\nline 5\n")
                 .tail_start_line(4usize)
                 .tail_end_line(5usize),
-            Stderr::new("".to_string(), 3, 0)
+            Stderr::default()
+                .total_lines(3usize)
+                .head_end_line(0usize)
                 .tail("error 2\nerror 3\n")
                 .tail_start_line(2usize)
                 .tail_end_line(3usize),
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_long_line() {
+        let stdout = "line 1 \nline abcdefghijklmnopqrstuvwxyz\nline 2\nline 3\nline 4\nline 5";
+
+        let actual = truncate_shell_output(stdout, "", usize::max_value(), usize::max_value());
+        let expected = TruncatedShellOutput::new(
+            Stdout::default()
+                .head("line 1 \nline abcdefghijklmnopqrstuvwxyz\nline 2\nline 3\nline 4\nline 5")
+                .total_lines(6usize)
+                .head_end_line(6usize),
+            Stderr::default(),
         );
 
         assert_eq!(actual, expected);
