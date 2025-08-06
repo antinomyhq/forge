@@ -11,7 +11,6 @@ derive_more.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
 async-recursion.workspace = true
-forge_provider.workspace = true
 forge_tool_macros.workspace = true
 forge_display.workspace = true
 forge_snaps.workspace = true
@@ -59,6 +58,7 @@ forge_app.workspace = true
 forge_domain.workspace = true
 url.workspace = true
 reqwest-eventsource.workspace = true
+derive_builder.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

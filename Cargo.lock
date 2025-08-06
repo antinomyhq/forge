@@ -1540,35 +1540,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "forge_provider"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "bytes",
- "derive_builder",
- "derive_more",
- "derive_setters",
- "forge_app",
- "forge_infra",
- "futures",
- "insta",
- "mockito",
- "pretty_assertions",
- "regex",
- "reqwest 0.12.22",
- "reqwest-eventsource",
- "serde",
- "serde_json",
- "strum 0.27.2",
- "strum_macros 0.27.2",
- "thiserror 2.0.12",
- "tokio",
- "tokio-stream",
- "tracing",
-]
-
-[[package]]
 name = "forge_services"
 version = "0.1.0"
 dependencies = [
@@ -1579,6 +1550,7 @@ dependencies = [
  "bytes",
  "chrono",
  "console 0.16.0",
+ "derive_builder",
  "derive_more",
  "derive_setters",
  "dissimilar",
@@ -1586,7 +1558,6 @@ dependencies = [
  "forge_display",
  "forge_domain",
  "forge_fs",
- "forge_provider",
  "forge_snaps",
  "forge_tool_macros",
  "futures",

@@ -11,6 +11,7 @@ mod infra;
 mod mcp;
 mod provider;
 mod provider_registry;
+mod provider_service;
 mod range;
 mod template;
 mod tool_services;
