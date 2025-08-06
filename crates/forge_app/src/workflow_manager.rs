@@ -6,12 +6,12 @@ use merge::Merge;
 
 use crate::{AgentLoaderService, WorkflowService};
 
-pub struct WorkflowCoordinator<S> {
+pub struct WorkflowManager<S> {
     service: Arc<S>,
 }
 
-impl<S: WorkflowService + AgentLoaderService + Sized> WorkflowCoordinator<S> {
-    pub fn new(service: Arc<S>) -> WorkflowCoordinator<S> {
+impl<S: WorkflowService + AgentLoaderService + Sized> WorkflowManager<S> {
+    pub fn new(service: Arc<S>) -> WorkflowManager<S> {
         Self { service }
     }
     async fn extend_agents(&self, mut workflow: Workflow) -> Workflow {
