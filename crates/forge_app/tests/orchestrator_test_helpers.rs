@@ -8,7 +8,7 @@ use forge_app::agent::AgentService;
 use forge_app::orch::Orchestrator;
 use forge_domain::{
     ChatCompletionMessage, Conversation, ConversationId, Environment, Event, HttpConfig,
-    RetryConfig, ToolCallFull, ToolResult, Workflow,
+    RetryConfig, Role, ToolCallFull, ToolResult, Workflow,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -105,7 +105,8 @@ fn new_orchestrator(setup: &Setup) -> (Orchestrator<Runner>, Arc<Runner>) {
     let conversation = new_conversation(&setup.workflow);
     let current_time = new_current_time();
     (
-        Orchestrator::new(services.clone(), environment, conversation, current_time),
+        Orchestrator::new(services.clone(), environment, conversation, current_time)
+            .files(setup.files.clone()),
         services,
     )
 }
@@ -159,6 +160,16 @@ pub struct TestContext {
     pub conversation_history: Vec<Conversation>,
 }
 
+impl TestContext {
+    pub fn system_prompt(&self) -> Option<&str> {
+        self.conversation_history
+            .last()
+            .and_then(|c| c.context.as_ref())
+            .and_then(|c| c.messages.iter().find(|c| c.has_role(Role::System)))
+            .and_then(|c| c.content())
+    }
+}
+
 #[derive(Setters)]
 #[setters(into)]
 pub struct Setup {
@@ -166,6 +177,7 @@ pub struct Setup {
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
     pub workflow: Workflow,
     pub templates: HashMap<String, String>,
+    pub files: Vec<String>,
 }
 
 impl Setup {
@@ -179,6 +191,7 @@ impl Setup {
             mock_assistant_responses: Default::default(),
             workflow: Default::default(),
             templates: Default::default(),
+            files: Default::default(),
         }
     }
 

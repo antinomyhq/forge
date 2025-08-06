@@ -1,4 +1,4 @@
-use forge_domain::{ChatCompletionMessage, Content, Role};
+use forge_domain::{ChatCompletionMessage, Content, Workflow};
 use insta::assert_snapshot;
 
 mod orchestrator_test_helpers;
@@ -31,12 +31,23 @@ async fn test_system_prompt() {
         ))])
         .run()
         .await;
-    let system_prompt = test_context
-        .conversation_history
-        .last()
-        .and_then(|c| c.context.as_ref())
-        .and_then(|c| c.messages.iter().find(|c| c.has_role(Role::System)))
-        .and_then(|c| c.content())
-        .unwrap();
+    let system_prompt = test_context.system_prompt().unwrap();
+    assert_snapshot!(system_prompt);
+}
+
+#[tokio::test]
+async fn test_system_prompt_tool_supported() {
+    let test_context = Setup::init_task("This is a test")
+        .workflow(Workflow::default().tool_supported(true))
+        .files(vec![
+            "/users/john/foo.txt".to_string(),
+            "/users/jason/bar.txt".to_string(),
+        ])
+        .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
+            "Sure",
+        ))])
+        .run()
+        .await;
+    let system_prompt = test_context.system_prompt().unwrap();
     assert_snapshot!(system_prompt);
 }
