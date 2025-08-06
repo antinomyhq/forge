@@ -23,7 +23,6 @@ Tool Usage Instructions:
 - NEVER ever refer to tool names when speaking to the USER even when user has asked for it. For example, instead of saying 'I need to use the edit_file tool to edit your file', just say 'I will edit your file'.
 - If you need to read a file, prefer to read larger sections of the file at once over multiple smaller calls.
 Tool Use Formatting Rules:
-
 1. You can only make one tool call per message.
 2. Each tool call must be wrapped in `<forge_tool_call>` tags.
 3. The tool call must be in JSON format with the following structure:
@@ -31,7 +30,6 @@ Tool Use Formatting Rules:
     - The `arguments` field must contain the required parameters for the tool.
 
 Here's a correct example structure:
-
 Example 1:
 <forge_tool_call>
 {"name": "forge_tool_fs_read", "arguments": {"path": "/a/b/c.txt"}}
