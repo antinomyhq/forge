@@ -5,7 +5,6 @@ use forge_app::domain::Agent;
 use forge_domain::Template;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
-use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::{
