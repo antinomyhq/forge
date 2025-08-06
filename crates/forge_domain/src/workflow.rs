@@ -13,7 +13,7 @@ use crate::{Agent, AgentId, Compact, MaxTokens, ModelId, TopK, TopP};
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
-#[setters(strip_option)]
+#[setters(strip_option, into)]
 pub struct Workflow {
     /// Path pattern for custom template files (supports glob patterns)
     #[serde(default)]

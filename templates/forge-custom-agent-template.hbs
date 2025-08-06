@@ -16,10 +16,12 @@
 </tool_usage_instructions>
 
 {{#if custom_rules}}
-These rules must be followed under any circumstances:
-<custom_rules>
+<project_guidelines>
 {{custom_rules}}
-</custom_rules>
+</project_guidelines>
 {{/if}}
+
+Non Negotiable Rule: You must always cite or reference any part of code using this exact format: `filepath:startLine`. Do not use any other format, even for ranges.
+{{#if custom_rules}}Non Negotiable Rule: Always follow all the `project_guidelines` without exception.{{/if}}
 
 {{agent_prompt}}
