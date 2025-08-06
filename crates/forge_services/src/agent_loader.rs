@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::Agent;
-use gray_matter::engine::YAML;
 use gray_matter::Matter;
+use gray_matter::engine::YAML;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -136,7 +136,7 @@ mod tests {
         assert_eq!(actual.max_turns, Some(10));
         assert!(actual.reasoning.is_some());
     }
-    
+
     #[tokio::test]
     async fn test_parse_invalid_frontmatter() {
         let content = include_str!("fixtures/agents/invalid.md");
