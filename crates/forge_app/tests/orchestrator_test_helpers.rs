@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -20,42 +20,45 @@ use url::Url;
 struct Templates;
 
 #[derive(Setters, Debug)]
-pub struct Trace {
-    hb: Mutex<Handlebars<'static>>,
-    history: Mutex<Vec<Conversation>>,
+struct Runner {
+    hb: Handlebars<'static>,
+    // History of all the updates made to the conversation
+    conversation_history: Mutex<Vec<Conversation>>,
+
+    // Tool call requests and the mock responses
     test_tool_calls: Vec<(ToolCallFull, ToolResult)>,
+
+    // Mock responses from the LLM (Each value is produced as an event in the stream)
     test_chat_responses: Mutex<VecDeque<ChatCompletionMessage>>,
 }
 
-impl Trace {
-    fn new(messages: Vec<ChatCompletionMessage>) -> Self {
+impl Runner {
+    fn new(setup: &Setup) -> Self {
         let mut hb = Handlebars::new();
         hb.set_strict_mode(true);
         hb.register_escape_fn(no_escape);
 
         // Register all partial templates
         hb.register_embed_templates::<Templates>().unwrap();
+        for (name, tpl) in &setup.templates {
+            hb.register_template_string(name, tpl).unwrap();
+        }
+
         Self {
-            hb: Mutex::new(hb),
-            history: Mutex::new(Vec::new()),
+            hb,
+            conversation_history: Mutex::new(Vec::new()),
             test_tool_calls: Vec::new(),
-            test_chat_responses: Mutex::new(VecDeque::from(messages)),
+            test_chat_responses: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
         }
     }
 
-    pub async fn register_template(&self, name: &str, template: &str) -> anyhow::Result<()> {
-        let mut guard = self.hb.lock().await;
-        guard.register_template_string(name, template)?;
-        Ok(())
-    }
-
-    pub async fn get_history(&self) -> Vec<Conversation> {
-        self.history.lock().await.clone()
+    async fn get_history(&self) -> Vec<Conversation> {
+        self.conversation_history.lock().await.clone()
     }
 }
 
 #[async_trait::async_trait]
-impl AgentService for Trace {
+impl AgentService for Runner {
     async fn chat_agent(
         &self,
         _id: &forge_domain::ModelId,
@@ -87,21 +90,19 @@ impl AgentService for Trace {
         template: &str,
         object: &(impl serde::Serialize + Sync),
     ) -> anyhow::Result<String> {
-        let guard = self.hb.lock().await;
-        Ok(guard.render_template(template, object)?)
+        Ok(self.hb.render_template(template, object)?)
     }
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.history.lock().await.push(conversation);
+        self.conversation_history.lock().await.push(conversation);
         Ok(())
     }
 }
 
-fn new_orchestrator(messages: Vec<ChatCompletionMessage>) -> (Orchestrator<Trace>, Arc<Trace>) {
-    let services = new_service(messages.to_vec());
+fn new_orchestrator(setup: &Setup) -> (Orchestrator<Runner>, Arc<Runner>) {
+    let services = new_service(setup);
     let environment = new_env();
-    let workflow = new_workflow();
-    let conversation = new_conversation(workflow);
+    let conversation = new_conversation(&setup.workflow);
     let current_time = new_current_time();
     (
         Orchestrator::new(services.clone(), environment, conversation, current_time),
@@ -113,16 +114,16 @@ fn new_current_time() -> chrono::DateTime<Local> {
     Local::now()
 }
 
-fn new_service(messages: Vec<ChatCompletionMessage>) -> Arc<Trace> {
-    Arc::new(Trace::new(messages))
+fn new_service(setup: &Setup) -> Arc<Runner> {
+    Arc::new(Runner::new(setup))
 }
 
-fn new_workflow() -> Workflow {
-    Workflow::default()
-}
-
-fn new_conversation(workflow: Workflow) -> Conversation {
-    Conversation::new(ConversationId::generate(), workflow, Default::default())
+fn new_conversation(workflow: &Workflow) -> Conversation {
+    Conversation::new(
+        ConversationId::generate(),
+        workflow.clone(),
+        Default::default(),
+    )
 }
 
 fn new_env() -> Environment {
@@ -136,51 +137,52 @@ fn new_env() -> Environment {
         forge_api_url: Url::parse("http://localhost:8000").unwrap(),
         retry_config: RetryConfig::default(),
         max_search_lines: 1000,
-        max_search_result_bytes: 100,
         fetch_truncation_limit: 1024,
         stdout_max_prefix_length: 256,
         stdout_max_suffix_length: 256,
-        stdout_max_line_length: 2000,
         max_read_size: 4096,
         http: HttpConfig::default(),
-        max_file_size: 1024 * 1024 * 5, // 5 MB
+        max_file_size: 1024 * 1024 * 5,
+        max_search_result_bytes: 200,
+        stdout_max_line_length: 200, // 5 MB
     }
 }
 
+async fn run(setup: Setup) -> TestContext {
+    let (mut orch, services) = new_orchestrator(&setup);
+    orch.chat(setup.event).await.unwrap();
+    TestContext { conversation_history: services.get_history().await }
+}
+
+// The final output produced after running the orchestrator to completion
+pub struct TestContext {
+    pub conversation_history: Vec<Conversation>,
+}
+
+#[derive(Setters)]
+#[setters(into)]
 pub struct Setup {
-    pub orch: Orchestrator<Trace>,
-    pub services: Arc<Trace>,
-}
-
-impl Default for Setup {
-    fn default() -> Self {
-        let (orch, services) = new_orchestrator(vec![]);
-        Self { orch, services }
-    }
+    pub event: Event,
+    pub mock_assistant_responses: Vec<ChatCompletionMessage>,
+    pub workflow: Workflow,
+    pub templates: HashMap<String, String>,
 }
 
 impl Setup {
-    pub fn add_agent(mut self, agent: forge_domain::Agent) -> Self {
-        let mut conversation = self.orch.get_conversation().clone();
-        conversation.agents.push(agent);
-        self.orch = self.orch.conversation(conversation);
-        self
+    pub fn init_task(task: &str) -> Self {
+        Self::from_event(Event::new("forge/user_task_init", Some(task)))
     }
 
-    pub async fn system_prompt(&self) -> Option<String> {
-        let guard = self.services.history.lock().await;
-        guard
-            .last()
-            .and_then(|conv| conv.context.as_ref().and_then(|ctx| ctx.system_prompt()))
-            .map(|sp| sp.to_string())
+    pub fn from_event(event: Event) -> Self {
+        Self {
+            event,
+            mock_assistant_responses: Default::default(),
+            workflow: Default::default(),
+            templates: Default::default(),
+        }
     }
 
-    pub async fn chat(&mut self, input: String, agent_id: String) -> anyhow::Result<()> {
-        self.orch
-            .chat(Event::new(
-                format!("{}/user_task_init", agent_id),
-                Some(input),
-            ))
-            .await
+    pub async fn run(self) -> TestContext {
+        run(self).await
     }
 }
