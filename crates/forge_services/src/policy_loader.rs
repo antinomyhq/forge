@@ -84,11 +84,10 @@ fn parse_policy_file(content: &str) -> Result<Policies> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Permission, Policy, Rule};
+    use forge_domain::{Permission, Permission, Policy, Policy, Rule, Rule};
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use forge_domain::{Permission, Policy, Rule};
 
     #[tokio::test]
     async fn test_parse_basic_policies() {
