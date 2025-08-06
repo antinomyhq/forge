@@ -13,7 +13,6 @@ reasoning:
   enabled: true
   effort: "high"
   max_tokens: 1000
-system_prompt: "You are an advanced assistant with full tool access."
 ---
 
 # Advanced Test Agent

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::Agent;
+use forge_domain::Template;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 use serde::{Deserialize, Serialize};
@@ -67,8 +68,11 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             .await
             .with_context(|| "Failed to read agent directory")?;
 
-        for (_path, content) in files {
-            agents.push(parse_agent_file(&content).await?)
+        for (path, content) in files {
+            agents.push(
+                parse_agent_file(&content)
+                    .with_context(|| format!("Failed to parse agent {}", path.display()))?,
+            )
         }
 
         *self.cache.lock().await = Some(agents.clone());
@@ -78,17 +82,18 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 }
 
 /// Parse raw content into an Agent with YAML frontmatter
-async fn parse_agent_file(content: &str) -> Result<Agent> {
+fn parse_agent_file(content: &str) -> Result<Agent> {
     // Parse the frontmatter using gray_matter with type-safe deserialization
-    let matter = Matter::<YAML>::new();
-    let result = matter
-        .parse::<AgentFrontmatter>(content)
-        .with_context(|| "Failed to parse YAML frontmatter")?;
+    let gray_matter = Matter::<YAML>::new();
+    let result = gray_matter.parse::<Agent>(content)?;
 
     // Extract the frontmatter
-    let frontmatter = result.data.context("No YAML frontmatter found")?;
+    let agent = result
+        .data
+        .context("Could not parse agent details")?
+        .system_prompt(Template::new(result.content));
 
-    Ok(frontmatter.agent)
+    Ok(agent)
 }
 
 #[cfg(test)]
@@ -101,7 +106,7 @@ mod tests {
     async fn test_parse_basic_agent() {
         let content = include_str!("fixtures/agents/basic.md");
 
-        let actual = parse_agent_file(content).await.unwrap();
+        let actual = parse_agent_file(content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-basic");
         assert_eq!(actual.title.as_ref().unwrap(), "Basic Test Agent");
@@ -109,14 +114,17 @@ mod tests {
             actual.description.as_ref().unwrap(),
             "A simple test agent for basic functionality"
         );
-        assert!(actual.system_prompt.is_some());
+        assert_eq!(
+            actual.system_prompt.as_ref().unwrap().template,
+            "This is a basic test agent used for testing fundamental functionality."
+        );
     }
 
     #[tokio::test]
     async fn test_parse_advanced_agent() {
         let content = include_str!("fixtures/agents/advanced.md");
 
-        let actual = parse_agent_file(content).await.unwrap();
+        let actual = parse_agent_file(content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-advanced");
         assert_eq!(actual.title.as_ref().unwrap(), "Advanced Test Agent");
@@ -141,7 +149,7 @@ mod tests {
     async fn test_parse_invalid_frontmatter() {
         let content = include_str!("fixtures/agents/invalid.md");
 
-        let result = parse_agent_file(content).await;
+        let result = parse_agent_file(content);
         assert!(result.is_err());
     }
 }
