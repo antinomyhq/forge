@@ -20,129 +20,167 @@ async fn test_history_is_saved() {
 }
 
 #[tokio::test]
-async fn test_render_system_prompt_with_custom_agent() {
-    let system_prompt = async |tool_supported| -> String {
-        // create custom agent with a system prompt
-        let custom_prompt = "This is custom prompt for user";
-        let custom_agent = Agent::new("custom-agent")
-            .system_prompt(Template::new(custom_prompt))
-            .model("gpt-4.1")
-            .subscribe(vec!["custom-agent/user_task_init".into()])
-            .tool_supported(tool_supported);
+async fn test_render_system_prompt_with_custom_agent_tool_supported() {
+    let fixture = Agent::new("custom-agent")
+        .system_prompt(Template::new("This is custom prompt for user"))
+        .model("gpt-4.1")
+        .subscribe(vec!["custom-agent/user_task_init".into()])
+        .tool_supported(true);
 
-        // setup testing environment with the custom agent
-        let mut setup = Setup::default().add_agent(custom_agent);
+    let mut setup = Setup::default().add_agent(fixture);
+    let _ = setup
+        .chat("Hello".into(), "custom-agent".into())
+        .await
+        .unwrap();
 
-        // run a chat with the custom agent
-        let _ = setup
-            .chat("Hello".into(), "custom-agent".into())
-            .await
-            .unwrap();
-
-        // get the system prompt from the latest context
-        setup.system_prompt().await.unwrap()
-    };
-
-    let system_prompt_with_tool_supported = system_prompt(true).await;
-    let system_prompt_without_tool_supported = system_prompt(false).await;
-    insta::assert_snapshot!(
-        "system_prompt_without_tool_supported_literal_system_prompt",
-        system_prompt_without_tool_supported
-    );
+    let actual = setup.system_prompt().await.unwrap();
     insta::assert_snapshot!(
         "system_prompt_with_tool_supported_literal_system_prompt",
-        system_prompt_with_tool_supported
+        actual
     );
 }
 
 #[tokio::test]
-async fn test_render_system_prompt_with_custom_agent_template() {
-    let system_prompt = async |tool_supported| -> String {
-        // configure custom agent
-        let custom_prompt = "{{> custom-agent.hbs}}";
-        let custom_agent_content = "Testing custom agent";
-        let custom_agent = Agent::new("custom-agent")
-            .system_prompt(Template::new(custom_prompt))
-            .subscribe(vec!["custom-agent/user_task_init".into()])
-            .model("gpt-4.1")
-            .tool_supported(tool_supported);
+async fn test_render_system_prompt_with_custom_agent_tool_not_supported() {
+    let fixture = Agent::new("custom-agent")
+        .system_prompt(Template::new("This is custom prompt for user"))
+        .model("gpt-4.1")
+        .subscribe(vec!["custom-agent/user_task_init".into()])
+        .tool_supported(false);
 
-        let mut setup = Setup::default().add_agent(custom_agent);
+    let mut setup = Setup::default().add_agent(fixture);
+    let _ = setup
+        .chat("Hello".into(), "custom-agent".into())
+        .await
+        .unwrap();
 
-        // register custom agent template
-        setup
-            .services
-            .register_template("custom-agent.hbs", custom_agent_content)
-            .await
-            .unwrap();
-
-        // execute request with orchestrator
-        let _ = setup
-            .chat("Hello".into(), "custom-agent".into())
-            .await
-            .unwrap();
-
-        // get the system prompt from the latest context
-        let system_prompt = setup.system_prompt().await.unwrap();
-        system_prompt
-    };
-
-    let system_prompt_with_tool_supported = system_prompt(true).await;
-    let system_prompt_without_tool_supported = system_prompt(false).await;
-
+    let actual = setup.system_prompt().await.unwrap();
     insta::assert_snapshot!(
-        "system_prompt_without_tool_supported_hbs_template",
-        system_prompt_without_tool_supported
-    );
-    insta::assert_snapshot!(
-        "system_prompt_with_tool_supported_hbs_template",
-        system_prompt_with_tool_supported
+        "system_prompt_without_tool_supported_literal_system_prompt",
+        actual
     );
 }
 
 #[tokio::test]
-async fn test_render_system_prompt_default_agents() {
-    let system_prompt = async |agent_id: &str, tool_supported| -> String {
-        let workflow = Workflow::default();
-        let agent = workflow
-            .get_agent(&AgentId::new(agent_id))
-            .unwrap()
-            .clone()
-            .tool_supported(tool_supported);
+async fn test_render_system_prompt_with_custom_agent_template_tool_supported() {
+    let fixture = Agent::new("custom-agent")
+        .system_prompt(Template::new("{{> custom-agent.hbs}}"))
+        .subscribe(vec!["custom-agent/user_task_init".into()])
+        .model("gpt-4.1")
+        .tool_supported(true);
 
-        // configure custom agent
-        let mut setup = Setup::default().add_agent(agent);
+    let mut setup = Setup::default().add_agent(fixture);
+    setup
+        .services
+        .register_template("custom-agent.hbs", "Testing custom agent")
+        .await
+        .unwrap();
 
-        // execute request with orchestrator
-        let _ = setup
-            .chat("Hello".into(), agent_id.to_string())
-            .await
-            .unwrap();
+    let _ = setup
+        .chat("Hello".into(), "custom-agent".into())
+        .await
+        .unwrap();
 
-        // get the system prompt from the latest context
-        let system_prompt = setup.system_prompt().await.unwrap();
-        system_prompt
-    };
+    let actual = setup.system_prompt().await.unwrap();
+    insta::assert_snapshot!("system_prompt_with_tool_supported_hbs_template", actual);
+}
 
-    let system_prompt_with_tool_supported = system_prompt("forge", true).await;
-    let system_prompt_without_tool_supported = system_prompt("forge", false).await;
-    insta::assert_snapshot!(
-        "system_prompt_without_tool_supported_forge_agent",
-        system_prompt_without_tool_supported
-    );
-    insta::assert_snapshot!(
-        "system_prompt_with_tool_supported_forge_agent",
-        system_prompt_with_tool_supported
-    );
+#[tokio::test]
+async fn test_render_system_prompt_with_custom_agent_template_tool_not_supported() {
+    let fixture = Agent::new("custom-agent")
+        .system_prompt(Template::new("{{> custom-agent.hbs}}"))
+        .subscribe(vec!["custom-agent/user_task_init".into()])
+        .model("gpt-4.1")
+        .tool_supported(false);
 
-    let system_prompt_with_tool_supported = system_prompt("muse", true).await;
-    let system_prompt_without_tool_supported = system_prompt("muse", false).await;
-    insta::assert_snapshot!(
-        "system_prompt_without_tool_supported_muse_agent",
-        system_prompt_without_tool_supported
-    );
-    insta::assert_snapshot!(
-        "system_prompt_with_tool_supported_muse_agent",
-        system_prompt_with_tool_supported
-    );
+    let mut setup = Setup::default().add_agent(fixture);
+    setup
+        .services
+        .register_template("custom-agent.hbs", "Testing custom agent")
+        .await
+        .unwrap();
+
+    let _ = setup
+        .chat("Hello".into(), "custom-agent".into())
+        .await
+        .unwrap();
+
+    let actual = setup.system_prompt().await.unwrap();
+    insta::assert_snapshot!("system_prompt_without_tool_supported_hbs_template", actual);
+}
+
+#[tokio::test]
+async fn test_render_system_prompt_forge_agent_tool_supported() {
+    let workflow = Workflow::default();
+    let fixture = workflow
+        .get_agent(&AgentId::new("forge"))
+        .unwrap()
+        .clone()
+        .tool_supported(true);
+
+    let mut setup = Setup::default().add_agent(fixture);
+    let _ = setup
+        .chat("Hello".into(), "forge".to_string())
+        .await
+        .unwrap();
+
+    let actual = setup.system_prompt().await.unwrap();
+    insta::assert_snapshot!("system_prompt_with_tool_supported_forge_agent", actual);
+}
+
+#[tokio::test]
+async fn test_render_system_prompt_forge_agent_tool_not_supported() {
+    let workflow = Workflow::default();
+    let fixture = workflow
+        .get_agent(&AgentId::new("forge"))
+        .unwrap()
+        .clone()
+        .tool_supported(false);
+
+    let mut setup = Setup::default().add_agent(fixture);
+    let _ = setup
+        .chat("Hello".into(), "forge".to_string())
+        .await
+        .unwrap();
+
+    let actual = setup.system_prompt().await.unwrap();
+    insta::assert_snapshot!("system_prompt_without_tool_supported_forge_agent", actual);
+}
+
+#[tokio::test]
+async fn test_render_system_prompt_muse_agent_tool_supported() {
+    let workflow = Workflow::default();
+    let fixture = workflow
+        .get_agent(&AgentId::new("muse"))
+        .unwrap()
+        .clone()
+        .tool_supported(true);
+
+    let mut setup = Setup::default().add_agent(fixture);
+    let _ = setup
+        .chat("Hello".into(), "muse".to_string())
+        .await
+        .unwrap();
+
+    let actual = setup.system_prompt().await.unwrap();
+    insta::assert_snapshot!("system_prompt_with_tool_supported_muse_agent", actual);
+}
+
+#[tokio::test]
+async fn test_render_system_prompt_muse_agent_tool_not_supported() {
+    let workflow = Workflow::default();
+    let fixture = workflow
+        .get_agent(&AgentId::new("muse"))
+        .unwrap()
+        .clone()
+        .tool_supported(false);
+
+    let mut setup = Setup::default().add_agent(fixture);
+    let _ = setup
+        .chat("Hello".into(), "muse".to_string())
+        .await
+        .unwrap();
+
+    let actual = setup.system_prompt().await.unwrap();
+    insta::assert_snapshot!("system_prompt_without_tool_supported_muse_agent", actual);
 }
