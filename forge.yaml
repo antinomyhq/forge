@@ -103,14 +103,14 @@ custom_rules: |-
     assert_eq(actual.b, expected.b);
 
   ## Verification:
-  1. Run all the tests to ensure they pass.
+  1. Run crate specific tests to ensure they pass.
      ```
-     cargo insta test --accept --unreferenced=delete
+     cargo insta test --accept --unreferenced=delete -p <crate name>
      ```
 
-  2. Run the formatting and linting commands to ensure code quality.
+  2. Run all the tests to ensure nothing else is broken.
      ```
-     cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
+     cargo insta test --accept --unreferenced=delete
      ```
 
   ## Writing Domain Types:
