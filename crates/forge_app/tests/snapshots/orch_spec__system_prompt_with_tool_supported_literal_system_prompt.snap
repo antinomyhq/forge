@@ -1,6 +1,6 @@
 ---
 source: crates/forge_app/tests/orch_spec.rs
-expression: system_prompt_with_tool_supported
+expression: actual
 ---
 <system_information>
 <operating_system>MacOS</operating_system>
@@ -8,7 +8,6 @@ expression: system_prompt_with_tool_supported
 <default_shell>bash</default_shell>
 <home_directory>/Users/tushar</home_directory>
 </system_information>
-
 
 Tool Usage Instructions:
 - For maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools (for eg: `forge_tool_fs_patch`, `forge_tool_fs_read`) simultaneously rather than sequentially.
