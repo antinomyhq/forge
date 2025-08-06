@@ -192,11 +192,6 @@ impl<S: AgentService> Orchestrator<S> {
             let mut files = self.files.clone();
             files.sort();
 
-            let current_time = self
-                .current_time
-                .format("%Y-%m-%d %H:%M:%S %:z")
-                .to_string();
-
             let tool_supported = self.is_tool_supported(agent)?;
             let supports_parallel_tool_calls = self.is_parallel_tool_call_supported(agent);
             let tool_information = match tool_supported {
@@ -205,7 +200,6 @@ impl<S: AgentService> Orchestrator<S> {
             };
 
             let ctx = SystemContext {
-                current_time,
                 env: Some(env),
                 tool_information,
                 tool_supported,
@@ -213,14 +207,15 @@ impl<S: AgentService> Orchestrator<S> {
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
                 variables: variables.clone(),
                 supports_parallel_tool_calls,
+                agent_prompt: Some(self.services.render(&system_prompt.template, &()).await?),
             };
 
-            let system_message = self
+            let rendered_prompt = self
                 .services
-                .render(system_prompt.template.as_str(), &ctx)
+                .render("{{> forge-custom-agent-template.hbs }}", &ctx)
                 .await?;
 
-            context.set_first_system_message(system_message)
+            context.set_first_system_message(rendered_prompt)
         } else {
             context
         })

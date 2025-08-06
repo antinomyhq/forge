@@ -9,13 +9,11 @@ fn clip_by_lines(
     let lines = content
         .lines()
         .map(|line| {
-            if line.len() > max_line_length {
+            if line.chars().count() > max_line_length {
                 truncated_lines_count += 1;
-                let extra_chars = line.len() - max_line_length;
-                format!(
-                    "{}...[{extra_chars} more chars truncated]",
-                    &line[..max_line_length],
-                )
+                let truncated: String = line.chars().take(max_line_length).collect();
+                let extra_chars = line.chars().count() - max_line_length;
+                format!("{truncated}...[{extra_chars} more chars truncated]",)
             } else {
                 line.to_string()
             }
@@ -210,10 +208,10 @@ mod tests {
 
     #[test]
     fn test_no_truncation_needed() {
-        let stdout = "line 1\nline 2\nline 3";
-        let stderr = "error 1\nerror 2";
+        let stdout = vec!["line 1", "line 2", "line 3"].join("\n");
+        let stderr = vec!["error 1", "error 2"].join("\n");
 
-        let actual = truncate_shell_output(stdout, stderr, 5, 5, 2000);
+        let actual = truncate_shell_output(&stdout, &stderr, 5, 5, 2000);
         let expected = TruncatedShellOutput::default()
             .stdout(
                 Stdout::default()
@@ -233,10 +231,13 @@ mod tests {
 
     #[test]
     fn test_truncation_with_prefix_and_suffix() {
-        let stdout = "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7";
-        let stderr = "error 1\nerror 2\nerror 3\nerror 4\nerror 5";
+        let stdout = vec![
+            "line 1", "line 2", "line 3", "line 4", "line 5", "line 6", "line 7",
+        ]
+        .join("\n");
+        let stderr = vec!["error 1", "error 2", "error 3", "error 4", "error 5"].join("\n");
 
-        let actual = truncate_shell_output(stdout, stderr, 2, 2, 2000);
+        let actual = truncate_shell_output(&stdout, &stderr, 2, 2, 2000);
         let expected = TruncatedShellOutput::default()
             .stdout(
                 Stdout::default()
@@ -296,10 +297,10 @@ mod tests {
 
     #[test]
     fn test_only_prefix_lines() {
-        let stdout = "line 1\nline 2\nline 3\nline 4\nline 5";
-        let stderr = "error 1\nerror 2\nerror 3";
+        let stdout = vec!["line 1", "line 2", "line 3", "line 4", "line 5"].join("\n");
+        let stderr = vec!["error 1", "error 2", "error 3"].join("\n");
 
-        let actual = truncate_shell_output(stdout, stderr, 2, 0, 2000);
+        let actual = truncate_shell_output(&stdout, &stderr, 2, 0, 2000);
         let expected = TruncatedShellOutput::default()
             .stdout(
                 Stdout::default()
@@ -323,10 +324,10 @@ mod tests {
 
     #[test]
     fn test_only_suffix_lines() {
-        let stdout = "line 1\nline 2\nline 3\nline 4\nline 5";
-        let stderr = "error 1\nerror 2\nerror 3";
+        let stdout = vec!["line 1", "line 2", "line 3", "line 4", "line 5"].join("\n");
+        let stderr = vec!["error 1", "error 2", "error 3"].join("\n");
 
-        let actual = truncate_shell_output(stdout, stderr, 0, 2, 2000);
+        let actual = truncate_shell_output(&stdout, &stderr, 0, 2, 2000);
         let expected = TruncatedShellOutput::default()
             .stdout(
                 Stdout::default()
@@ -350,9 +351,17 @@ mod tests {
 
     #[test]
     fn test_long_line() {
-        let stdout = "line 1 \nline abcdefghijklmnopqrstuvwxyz\nline 2\nline 3\nline 4\nline 5";
+        let stdout = vec![
+            "line 1 ",
+            "line abcdefghijklmnopqrstuvwxyz",
+            "line 2",
+            "line 3",
+            "line 4",
+            "line 5",
+        ]
+        .join("\n");
 
-        let actual = truncate_shell_output(stdout, "", usize::max_value(), usize::max_value(), 10);
+        let actual = truncate_shell_output(&stdout, "", usize::max_value(), usize::max_value(), 10);
         let expected = TruncatedShellOutput::default().stdout(
             Stdout::default()
                 .head("line 1 \nline abcde...[21 more chars truncated]\nline 2\nline 3\nline 4\nline 5")
@@ -366,9 +375,15 @@ mod tests {
 
     #[test]
     fn test_line_truncation_with_multiple_long_lines() {
-        let stdout = "short\nthis is a very long line that exceeds limit\nanother very long line that also exceeds the limit\nshort again";
+        let stdout = vec![
+            "short",
+            "this is a very long line that exceeds limit",
+            "another very long line that also exceeds the limit",
+            "short again",
+        ]
+        .join("\n");
 
-        let actual = truncate_shell_output(stdout, "", usize::max_value(), usize::max_value(), 15);
+        let actual = truncate_shell_output(&stdout, "", usize::max_value(), usize::max_value(), 15);
         let expected = TruncatedShellOutput::default().stdout(
             Stdout::default()
                 .head("short\nthis is a very ...[28 more chars truncated]\nanother very lo...[35 more chars truncated]\nshort again")
@@ -382,10 +397,18 @@ mod tests {
 
     #[test]
     fn test_line_truncation_with_line_count_truncation() {
-        let stdout =
-            "line 1\nvery long line that will be truncated\nline 3\nline 4\nline 5\nline 6\nline 7";
+        let stdout = vec![
+            "line 1",
+            "very long line that will be truncated",
+            "line 3",
+            "line 4",
+            "line 5",
+            "line 6",
+            "line 7",
+        ]
+        .join("\n");
 
-        let actual = truncate_shell_output(stdout, "", 2, 2, 10);
+        let actual = truncate_shell_output(&stdout, "", 2, 2, 10);
         let expected = TruncatedShellOutput::default().stdout(
             Stdout::default()
                 .head("line 1\nvery long ...[27 more chars truncated]\n")
@@ -402,16 +425,46 @@ mod tests {
 
     #[test]
     fn test_no_line_truncation_when_limit_not_set() {
-        let stdout =
-            "line 1\nvery long line that will not be truncated because no limit is set\nline 3";
+        let stdout = vec![
+            "line 1",
+            "very long line that will not be truncated because no limit is set",
+            "line 3",
+        ]
+        .join("\n");
 
         let actual =
-            truncate_shell_output(stdout, "", usize::max_value(), usize::max_value(), 2000);
+            truncate_shell_output(&stdout, "", usize::max_value(), usize::max_value(), 2000);
         let expected = TruncatedShellOutput::default().stdout(
             Stdout::default()
                 .head("line 1\nvery long line that will not be truncated because no limit is set\nline 3")
                 .total_lines(3usize)
                 .head_end_line(3usize)
+        );
+
+        assert_eq!(actual, expected);
+    }
+    #[test]
+    fn test_clip_by_lines_with_unicode_chars() {
+        let fixture = vec![
+            "emoji 😀 line",
+            "Unicode café résumé naïve",
+            "Regular ASCII line",
+            "中文字符测试",
+            "Emojis: 🎉🚀💯",
+            "Another normal line",
+        ]
+        .join("\n");
+
+        let actual = clip_by_lines(&fixture, 2, 2, 15);
+        let expected = (
+            vec![
+                "emoji 😀 line".to_string(),
+                "Unicode café ré...[10 more chars truncated]".to_string(),
+                "Emojis: 🎉🚀💯".to_string(),
+                "Another normal ...[4 more chars truncated]".to_string(),
+            ],
+            Some((2, 2)),
+            3,
         );
 
         assert_eq!(actual, expected);
