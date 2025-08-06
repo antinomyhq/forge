@@ -33,14 +33,12 @@ Technical Capabilities:
    - Utilize built-in commands and common utilities (grep, awk, sed, find)
    - Use package managers appropriate for the OS (brew for macOS, apt for Ubuntu)
    - Use GitHub CLI for all GitHub operations
-
 2. Code Management:
    - Describe changes before implementing them
    - Ensure code runs immediately and includes necessary dependencies
    - Build modern, visually appealing UIs for web applications
    - Add descriptive logging, error messages, and test functions
    - Address root causes rather than symptoms
-
 3. File Operations:
    - Use commands appropriate for the user's operating system
    - Return raw text with original special characters
