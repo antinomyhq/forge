@@ -111,6 +111,7 @@ pub mod tests {
     #[async_trait::async_trait]
     impl EnvironmentInfra for MockEnvironmentInfra {
         fn get_environment(&self) -> Environment {
+            let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
             Environment {
                 os: "test".to_string(),
                 pid: 12345,
@@ -120,9 +121,11 @@ pub mod tests {
                 base_path: PathBuf::from("/base"),
                 retry_config: Default::default(),
                 max_search_lines: 25,
+                max_search_result_bytes: max_bytes.ceil() as usize, // 0.25 MB
                 fetch_truncation_limit: 0,
                 stdout_max_prefix_length: 0,
                 stdout_max_suffix_length: 0,
+                stdout_max_line_length: 2000,
                 max_read_size: 2000,
                 http: Default::default(),
                 max_file_size: 10_000_000,

@@ -38,6 +38,18 @@ impl ModelId {
     }
 }
 
+impl From<String> for ModelId {
+    fn from(value: String) -> Self {
+        ModelId(value)
+    }
+}
+
+impl From<&str> for ModelId {
+    fn from(value: &str) -> Self {
+        ModelId(value.to_string())
+    }
+}
+
 impl ModelId {
     pub fn as_str(&self) -> &str {
         &self.0
