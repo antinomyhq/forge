@@ -85,11 +85,12 @@ mod tests {
 
     use super::*;
     use crate::policies::{Permission, Policies, Policy, Rule};
+    use crate::{ExecuteRule, PatchRule, ReadRule, WriteRule};
 
     fn fixture_workflow_with_read_policy() -> Workflow {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Read { pattern: "src/**/*.rs".to_string() },
+            rule: Rule::Read(ReadRule { read_pattern: "src/**/*.rs".to_string() }),
         });
         Workflow::new().policies(policies)
     }
@@ -97,7 +98,7 @@ mod tests {
     fn fixture_workflow_with_write_policy() -> Workflow {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Disallow,
-            rule: Rule::Write { pattern: "**/*.rs".to_string() },
+            rule: Rule::Write(WriteRule { write_pattern: "**/*.rs".to_string() }),
         });
         Workflow::new().policies(policies)
     }
@@ -105,7 +106,7 @@ mod tests {
     fn fixture_workflow_with_execute_policy() -> Workflow {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute { command: "cargo *".to_string() },
+            rule: Rule::Execute(ExecuteRule { execute_command: "cargo *".to_string() }),
         });
         Workflow::new().policies(policies)
     }
@@ -113,7 +114,7 @@ mod tests {
     fn fixture_workflow_with_patch_policy() -> Workflow {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Confirm,
-            rule: Rule::Patch { pattern: "src/**/*.rs".to_string() },
+            rule: Rule::Patch(PatchRule { patch_pattern: "src/**/*.rs".to_string() }),
         });
         Workflow::new().policies(policies)
     }

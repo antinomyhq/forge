@@ -6,29 +6,57 @@ use serde::{Deserialize, Serialize};
 
 use super::operation::Operation;
 
+/// Rule for write operations with a glob pattern
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct WriteRule {
+    pub write_pattern: String,
+}
+
+/// Rule for read operations with a glob pattern
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReadRule {
+    pub read_pattern: String,
+}
+
+/// Rule for patch operations with a glob pattern
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct PatchRule {
+    pub patch_pattern: String,
+}
+
+/// Rule for execute operations with a command pattern
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ExecuteRule {
+    pub execute_command: String,
+}
+
 /// Rules that define what operations are covered by a policy
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "lowercase")]
+#[serde(untagged)]
 pub enum Rule {
     /// Rule for write operations with a glob pattern
-    Write { pattern: String },
+    Write(WriteRule),
     /// Rule for read operations with a glob pattern
-    Read { pattern: String },
+    Read(ReadRule),
     /// Rule for patch operations with a glob pattern
-    Patch { pattern: String },
+    Patch(PatchRule),
     /// Rule for execute operations with a command pattern
-    Execute { command: String },
+    Execute(ExecuteRule),
 }
 
 impl Rule {
     /// Check if this rule matches the given operation
     pub fn matches(&self, operation: &Operation) -> bool {
         match (self, operation) {
-            (Rule::Write { pattern }, Operation::Write { path }) => match_pattern(pattern, path),
-            (Rule::Read { pattern }, Operation::Read { path }) => match_pattern(pattern, path),
-            (Rule::Patch { pattern }, Operation::Patch { path }) => match_pattern(pattern, path),
-            (Rule::Execute { command }, Operation::Execute { command: cmd }) => {
-                match_pattern(command, cmd)
+            (Rule::Write(rule), Operation::Write { path }) => {
+                match_pattern(&rule.write_pattern, path)
+            }
+            (Rule::Read(rule), Operation::Read { path }) => match_pattern(&rule.read_pattern, path),
+            (Rule::Patch(rule), Operation::Patch { path }) => {
+                match_pattern(&rule.patch_pattern, path)
+            }
+            (Rule::Execute(rule), Operation::Execute { command: cmd }) => {
+                match_pattern(&rule.execute_command, cmd)
             }
             _ => false,
         }
@@ -72,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_rule_matches_write_operation() {
-        let fixture = Rule::Write { pattern: "src/**/*.rs".to_string() };
+        let fixture = Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string() });
         let operation = fixture_write_operation();
 
         let actual = fixture.matches(&operation);
@@ -82,7 +110,7 @@ mod tests {
 
     #[test]
     fn test_rule_matches_patch_operation() {
-        let fixture = Rule::Patch { pattern: "src/**/*.rs".to_string() };
+        let fixture = Rule::Patch(PatchRule { patch_pattern: "src/**/*.rs".to_string() });
         let operation = fixture_patch_operation();
 
         let actual = fixture.matches(&operation);
@@ -92,7 +120,7 @@ mod tests {
 
     #[test]
     fn test_rule_does_not_match_different_operation() {
-        let fixture = Rule::Read { pattern: "config/*.yml".to_string() };
+        let fixture = Rule::Read(ReadRule { read_pattern: "config/*.yml".to_string() });
         let operation = fixture_write_operation();
 
         let actual = fixture.matches(&operation);
@@ -123,7 +151,7 @@ mod tests {
 
     #[test]
     fn test_execute_command_pattern_match() {
-        let fixture = Rule::Execute { command: "cargo *".to_string() };
+        let fixture = Rule::Execute(ExecuteRule { execute_command: "cargo *".to_string() });
         let operation = fixture_execute_operation();
 
         let actual = fixture.matches(&operation);
@@ -133,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_read_config_pattern_match() {
-        let fixture = Rule::Read { pattern: "config/*.yml".to_string() };
+        let fixture = Rule::Read(ReadRule { read_pattern: "config/*.yml".to_string() });
         let operation = fixture_read_operation();
 
         let actual = fixture.matches(&operation);

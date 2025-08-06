@@ -59,6 +59,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::WriteRule;
 
     fn fixture_write_operation() -> Operation {
         Operation::Write { path: PathBuf::from("src/main.rs") }
@@ -69,11 +70,11 @@ mod tests {
         let fixture = Policies::new()
             .add_policy(Policy::Simple {
                 permission: Permission::Allow,
-                rule: Rule::Write { pattern: "src/**/*.rs".to_string() },
+                rule: Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string() }),
             })
             .add_policy(Policy::Simple {
                 permission: Permission::Disallow,
-                rule: Rule::Write { pattern: "**/*.py".to_string() },
+                rule: Rule::Write(WriteRule { write_pattern: "**/*.py".to_string() }),
             });
         let operation = fixture_write_operation();
         let file = Some(std::path::PathBuf::from("forge.yaml"));
@@ -96,18 +97,15 @@ mod yaml_policies_tests {
     fn test_yaml_policies_roundtrip() {
         let yaml_content = r#"
 policies:
-  - !Simple
-    permission: Allow
-    rule: !read
-      pattern: "**/*.rs"
-  - !Simple
-    permission: Confirm
-    rule: !write
-      pattern: "src/**/*"
-  - !Simple
-    permission: Disallow
-    rule: !execute
-      command: "rm -rf /*"
+  - permission: Allow
+    rule:
+      read_pattern: "**/*.rs"
+  - permission: Confirm
+    rule:
+      write_pattern: "src/**/*"
+  - permission: Disallow
+    rule:
+      execute_command: "rm -rf /*"
 "#;
 
         let policies: Policies =
@@ -119,8 +117,8 @@ policies:
         let first_policy = &policies.policies[0];
         if let Policy::Simple { permission, rule } = first_policy {
             assert_eq!(*permission, Permission::Allow);
-            if let Rule::Read { pattern } = rule {
-                assert_eq!(pattern, "**/*.rs");
+            if let Rule::Read(rule) = rule {
+                assert_eq!(rule.read_pattern, "**/*.rs");
             } else {
                 panic!("Expected Read rule");
             }

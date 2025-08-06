@@ -17,6 +17,7 @@ use forge_tracker::ToolCallPayload;
 use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
+use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
@@ -169,30 +170,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Request user confirmation for an operation
     /// Returns the user's choice: Accept, Reject, or AcceptAndRemember
     fn request_user_confirmation() -> UserResponse {
-        use crate::select::ForgeSelect;
-
-        #[derive(Clone, Debug)]
-        enum ConfirmationChoice {
-            Accept,
-            Reject,
-            AcceptAndRemember,
-        }
-
-        impl std::fmt::Display for ConfirmationChoice {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                match self {
-                    ConfirmationChoice::Accept => write!(f, "Accept"),
-                    ConfirmationChoice::Reject => write!(f, "Reject"),
-                    ConfirmationChoice::AcceptAndRemember => write!(f, "Accept and Remember"),
-                }
-            }
-        }
-
-        let choices = vec![
-            ConfirmationChoice::Accept,
-            ConfirmationChoice::Reject,
-            ConfirmationChoice::AcceptAndRemember,
-        ];
+        let choices: Vec<UserResponse> = UserResponse::iter().collect();
 
         match ForgeSelect::select(
             "This operation requires confirmation. How would you like to proceed?",
@@ -201,10 +179,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         .with_help_message("Use arrow keys to navigate, Enter to select")
         .prompt()
         {
-            Ok(Some(ConfirmationChoice::Accept)) => UserResponse::Accept,
-            Ok(Some(ConfirmationChoice::Reject)) => UserResponse::Reject,
-            Ok(Some(ConfirmationChoice::AcceptAndRemember)) => UserResponse::AcceptAndRemember,
-            Ok(None) | Err(_) => UserResponse::Reject, // Default to reject on error or cancellation
+            Ok(Some(choice)) => choice,
+            Ok(None) | Err(_) => UserResponse::Reject,
         }
     }
 
