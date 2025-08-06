@@ -1,3 +1,4 @@
+mod agent_loader;
 mod app_config;
 mod attachment;
 mod auth;
@@ -18,6 +19,7 @@ mod tool_services;
 mod utils;
 mod workflow;
 
+pub use agent_loader::*;
 pub use clipper::*;
 pub use discovery::*;
 pub use forge_services::*;

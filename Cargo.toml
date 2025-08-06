@@ -29,6 +29,7 @@ dotenv = "0.15.0"
 futures = "0.3.31"
 gh-workflow-tailcall = "0.5.2"
 glob = "0.3.2"
+globset = "0.4.15"
 grep-searcher = "0.1.14"
 grep-regex = "0.1.13"
 handlebars = { version = "6.2.0", features = ["rust-embed"] }
@@ -109,6 +110,7 @@ open = "5.3.2"
 ansi-to-tui = "7.0.0"
 nucleo = "0.5.0"
 humantime = "2.2.0"
+gray_matter = "0.3.2"
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }

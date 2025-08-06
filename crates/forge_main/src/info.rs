@@ -73,6 +73,9 @@ impl From<&Environment> for Info {
             info = info.add_key_value("Logs", format_path_for_display(env, &log_path));
         }
 
+        let agent_path = env.agent_path();
+        info = info.add_key_value("Agents", format_path_for_display(env, &agent_path));
+
         info = info
             .add_key_value("History", format_path_for_display(env, &env.history_path()))
             .add_key_value(
