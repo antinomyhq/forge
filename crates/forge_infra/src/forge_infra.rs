@@ -17,7 +17,7 @@ use reqwest_eventsource::EventSource;
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
-use crate::fs_directory_reader::ForgeDirectoryReaderService;
+use crate::fs_read_dir::ForgeDirectoryReaderService;
 use crate::fs_meta::ForgeFileMetaService;
 use crate::fs_read::ForgeFileReadService;
 use crate::fs_remove::ForgeFileRemoveService;

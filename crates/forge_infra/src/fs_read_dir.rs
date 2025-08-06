@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use forge_services::DirectoryReaderInfra;
 use futures::future::join_all;
 use globset::{Glob, GlobSetBuilder};
 use tokio::fs;
@@ -12,10 +13,10 @@ impl ForgeDirectoryReaderService {
     /// Reads all files in a directory that match the given filter pattern
     /// Returns a vector of tuples containing (file_path, file_content)
     /// Files are read asynchronously/in parallel for better performance
-    pub async fn read_directory_files(
+    async fn read_directory_files(
         &self,
         directory: &Path,
-        filter: Option<&str>,
+        pattern: Option<&str>,
     ) -> Result<Vec<(PathBuf, String)>> {
         // Check if directory exists
         if !directory.exists() || !directory.is_dir() {
@@ -23,7 +24,7 @@ impl ForgeDirectoryReaderService {
         }
 
         // Build glob matcher if filter is provided
-        let glob_set = if let Some(pattern) = filter {
+        let glob_set = if let Some(pattern) = pattern {
             let glob = Glob::new(pattern)?;
             let mut builder = GlobSetBuilder::new();
             builder.add(glob);
@@ -71,6 +72,17 @@ impl ForgeDirectoryReaderService {
         let files = results.into_iter().flatten().collect();
 
         Ok(files)
+    }
+}
+
+#[async_trait::async_trait]
+impl DirectoryReaderInfra for ForgeDirectoryReaderService {
+    async fn read_directory_files(
+        &self,
+        directory: &Path,
+        filter: Option<&str>,
+    ) -> Result<Vec<(PathBuf, String)>> {
+        self.read_directory_files(directory, filter).await
     }
 }
 

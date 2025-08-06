@@ -4,7 +4,7 @@ mod env;
 mod error;
 mod forge_infra;
 mod fs_create_dirs;
-mod fs_directory_reader;
+mod fs_read_dir;
 mod fs_meta;
 mod fs_read;
 mod fs_remove;
