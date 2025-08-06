@@ -420,11 +420,7 @@ mod test {
     #[tokio::test]
     async fn test_search_relative_path_error() {
         let result = ForgeFsSearch::new(Arc::new(MockInfra::default()))
-            .search(
-                "relative/path".to_string(),
-                Some("test".to_string()),
-                None,
-            )
+            .search("relative/path".to_string(), Some("test".to_string()), None)
             .await;
 
         assert!(result.is_err());

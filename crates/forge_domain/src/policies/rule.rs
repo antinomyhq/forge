@@ -186,7 +186,8 @@ mod tests {
 
     #[test]
     fn test_net_fetch_url_pattern_match() {
-        let fixture = Rule::NetFetch(NetFetchRule { url_pattern: "https://api.example.com/*".to_string() });
+        let fixture =
+            Rule::NetFetch(NetFetchRule { url_pattern: "https://api.example.com/*".to_string() });
         let operation = fixture_net_fetch_operation();
 
         let actual = fixture.matches(&operation);

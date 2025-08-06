@@ -19,10 +19,7 @@ impl<T> ForgeFsRemove<T> {
 
 #[async_trait::async_trait]
 impl<F: FileRemoverInfra> FsRemoveService for ForgeFsRemove<F> {
-    async fn remove(
-        &self,
-        input_path: String,
-    ) -> anyhow::Result<FsRemoveOutput> {
+    async fn remove(&self, input_path: String) -> anyhow::Result<FsRemoveOutput> {
         let path = Path::new(&input_path);
         assert_absolute_path(path)?;
 

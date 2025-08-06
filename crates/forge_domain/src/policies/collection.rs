@@ -177,26 +177,32 @@ fn test_policies_with_defaults_creates_expected_policies() {
                 } if url_pattern == "*"
             )
     });
-    assert!(has_net_fetch_all, "Should include NetFetch access to all URLs");
+    assert!(
+        has_net_fetch_all,
+        "Should include NetFetch access to all URLs"
+    );
 }
-    #[test]
-    fn test_default_policies_allow_all_net_fetch() {
-        let policies = Policies::with_defaults();
-        let operation = Operation::NetFetch { url: "https://example.com/api".to_string() };
+#[test]
+fn test_default_policies_allow_all_net_fetch() {
+    let policies = Policies::with_defaults();
+    let operation = Operation::NetFetch { url: "https://example.com/api".to_string() };
 
-        let traces = policies.eval(&operation, None);
-        
-        // Should find at least one Allow policy for NetFetch
-        let has_allow = traces.iter().any(|trace| {
-            if let Some(trace) = trace {
-                trace.value == Permission::Allow
-            } else {
-                false
-            }
-        });
-        
-        assert!(has_allow, "Default policies should allow NetFetch operations");
-    }
+    let traces = policies.eval(&operation, None);
+
+    // Should find at least one Allow policy for NetFetch
+    let has_allow = traces.iter().any(|trace| {
+        if let Some(trace) = trace {
+            trace.value == Permission::Allow
+        } else {
+            false
+        }
+    });
+
+    assert!(
+        has_allow,
+        "Default policies should allow NetFetch operations"
+    );
+}
 
 #[cfg(test)]
 mod yaml_policies_tests {

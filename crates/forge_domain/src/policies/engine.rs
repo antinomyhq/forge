@@ -97,7 +97,10 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{ExecuteRule, NetFetchRule, PatchRule, Permission, Policies, Policy, ReadRule, Rule, WriteRule};
+    use crate::{
+        ExecuteRule, NetFetchRule, PatchRule, Permission, Policies, Policy, ReadRule, Rule,
+        WriteRule,
+    };
 
     fn fixture_workflow_with_read_policy() -> Workflow {
         let policies = Policies::new().add_policy(Policy::Simple {
@@ -134,7 +137,9 @@ mod tests {
     fn fixture_workflow_with_net_fetch_policy() -> Workflow {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::NetFetch(NetFetchRule { url_pattern: "https://api.example.com/*".to_string() }),
+            rule: Rule::NetFetch(NetFetchRule {
+                url_pattern: "https://api.example.com/*".to_string(),
+            }),
         });
         Workflow::new().policies(policies)
     }
