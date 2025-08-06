@@ -1,0 +1,18 @@
+---
+source: crates/forge_provider/src/openai/provider.rs
+expression: "normalize_ports(format!(\"{:#?}\", actual))"
+---
+Err(
+    Error {
+        context: "Failed to fetch the models",
+        source: Error {
+            context: "400 GET http://127.0.0.1:<port>/models",
+            source: Object {
+                "error": Object {
+                    "code": Number(400),
+                    "message": String("Bad request"),
+                },
+            },
+        },
+    },
+)

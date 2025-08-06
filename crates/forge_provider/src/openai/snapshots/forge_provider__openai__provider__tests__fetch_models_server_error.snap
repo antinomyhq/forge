@@ -6,6 +6,11 @@ Error {
     context: "Failed to fetch the models",
     source: Error {
         context: "500 GET http://127.0.0.1:<port>/models",
-        source: "{\"error\":{\"code\":500,\"message\":\"Internal Server Error\"}}",
+        source: Object {
+            "error": Object {
+                "code": Number(500),
+                "message": String("Internal Server Error"),
+            },
+        },
     },
 }
