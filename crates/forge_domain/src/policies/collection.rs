@@ -10,7 +10,7 @@ use super::types::{Permission, Trace};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 pub struct Policies {
     /// List of policies to evaluate
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub policies: Vec<Policy>,
 }
 

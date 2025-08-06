@@ -142,8 +142,7 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
     /// Policies that define access control rules for operations
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", flatten)]
     #[merge(strategy = crate::merge::option)]
     pub policies: Option<Policies>,
 }
