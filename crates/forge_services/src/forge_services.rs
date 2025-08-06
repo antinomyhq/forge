@@ -252,7 +252,7 @@ impl<
     fn agent_loader_service(&self) -> &Self::AgentLoaderService {
         &self.agent_loader_service
     }
-    
+
     fn policy_loader_service(&self) -> &Self::PolicyLoaderService {
         &self.policy_loader_service
     }

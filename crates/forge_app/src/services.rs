@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Policies, Provider, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, UserResponse, Workflow,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation, Policies, Provider, ResultStream,
+    Scope, ToolCallFull, ToolDefinition, ToolOutput, UserResponse, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;

@@ -29,10 +29,10 @@ impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> Work
         }
         workflow
     }
-    
+
     async fn extend_policies(&self, mut workflow: Workflow) -> Workflow {
         let loaded_policies = self.service.load_policies().await.unwrap_or_default();
-        
+
         // If there are loaded policies, merge them with existing workflow policies
         if !loaded_policies.policies.is_empty() {
             if let Some(existing_policies) = workflow.policies.as_mut() {
@@ -45,7 +45,7 @@ impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> Work
                 workflow.policies = Some(loaded_policies);
             }
         }
-        
+
         workflow
     }
     pub async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {

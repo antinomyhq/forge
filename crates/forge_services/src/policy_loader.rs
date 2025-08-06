@@ -56,7 +56,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             .read_directory_files(&policies_dir, Some("*.yaml"))
             .await
             .with_context(|| "Failed to read policies directory for yaml files")?;
-            
+
         let yml_files = self
             .infra
             .read_directory_files(&policies_dir, Some("*.yml"))
@@ -70,7 +70,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         for (path, content) in files {
             let policy_collection = parse_policy_file(&content)
                 .with_context(|| format!("Failed to parse policy {}", path.display()))?;
-            
+
             // Merge the policies from this file into our collection
             for policy in policy_collection.policies {
                 all_policies = all_policies.add_policy(policy);
@@ -85,18 +85,18 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 
 /// Parse raw content into a Policies collection from YAML
 fn parse_policy_file(content: &str) -> Result<Policies> {
-    let policies: Policies = serde_yml::from_str(content)
-        .with_context(|| "Could not parse policies from YAML")?;
+    let policies: Policies =
+        serde_yml::from_str(content).with_context(|| "Could not parse policies from YAML")?;
 
     Ok(policies)
 }
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::{Permission, Policy, Rule};
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use forge_domain::{Policy, Rule, Permission};
 
     #[tokio::test]
     async fn test_parse_basic_policies() {
@@ -105,7 +105,7 @@ mod tests {
         let actual = parse_policy_file(content).unwrap();
 
         assert_eq!(actual.policies.len(), 2);
-        
+
         let first_policy = &actual.policies[0];
         if let Policy::Simple { permission, rule } = first_policy {
             assert_eq!(*permission, Permission::Allow);
@@ -135,7 +135,7 @@ mod tests {
         let actual = parse_policy_file(content).unwrap();
 
         assert_eq!(actual.policies.len(), 4);
-        
+
         // Test read policy
         let read_policy = &actual.policies[0];
         if let Policy::Simple { permission, rule } = read_policy {
@@ -148,7 +148,7 @@ mod tests {
         } else {
             panic!("Expected Simple policy");
         }
-        
+
         // Test write policy
         let write_policy = &actual.policies[1];
         if let Policy::Simple { permission, rule } = write_policy {
@@ -161,7 +161,7 @@ mod tests {
         } else {
             panic!("Expected Simple policy");
         }
-        
+
         // Test execute policy (disallow)
         let execute_policy_disallow = &actual.policies[2];
         if let Policy::Simple { permission, rule } = execute_policy_disallow {
@@ -174,7 +174,7 @@ mod tests {
         } else {
             panic!("Expected Simple policy");
         }
-        
+
         // Test execute policy (allow)
         let execute_policy_allow = &actual.policies[3];
         if let Policy::Simple { permission, rule } = execute_policy_allow {
