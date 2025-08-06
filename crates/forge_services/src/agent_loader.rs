@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{Agent, AgentId};
-use gray_matter::Matter;
+use forge_app::domain::Agent;
 use gray_matter::engine::YAML;
+use gray_matter::Matter;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -26,7 +26,7 @@ pub struct AgentLoaderService<F> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AgentFrontmatter {
     #[serde(flatten)]
-    agent_fields: serde_json::Value,
+    agent: Agent,
 }
 
 impl<F> AgentLoaderService<F> {
@@ -67,14 +67,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             .await
             .with_context(|| "Failed to read agent directory")?;
 
-        for (path, content) in files {
-            // Extract filename (without extension) as agent ID
-            let filename = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_string());
-
-            agents.push(parse_agent_file(&content, filename).await?)
+        for (_path, content) in files {
+            agents.push(parse_agent_file(&content).await?)
         }
 
         *self.cache.lock().await = Some(agents.clone());
@@ -84,7 +78,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 }
 
 /// Parse raw content into an Agent with YAML frontmatter
-async fn parse_agent_file(content: &str, agent_id: Option<String>) -> Result<Agent> {
+async fn parse_agent_file(content: &str) -> Result<Agent> {
     // Parse the frontmatter using gray_matter with type-safe deserialization
     let matter = Matter::<YAML>::new();
     let result = matter
@@ -94,22 +88,7 @@ async fn parse_agent_file(content: &str, agent_id: Option<String>) -> Result<Age
     // Extract the frontmatter
     let frontmatter = result.data.context("No YAML frontmatter found")?;
 
-    // Create agent from frontmatter fields with a temporary ID
-    let mut agent_value = frontmatter.agent_fields;
-    // Add a temporary ID to satisfy the Agent struct requirement
-    agent_value["id"] = serde_json::Value::String("temp".to_string());
-
-    let mut agent: Agent =
-        serde_json::from_value(agent_value).context("Failed to parse agent from frontmatter")?;
-
-    // Use the provided agent_id, frontmatter id, or keep the existing one
-    if let Some(id) = agent_id {
-        agent.id = AgentId::new(&id);
-    } else if let Some(id) = frontmatter.id {
-        agent.id = AgentId::new(&id);
-    }
-
-    Ok(agent)
+    Ok(frontmatter.agent)
 }
 
 #[cfg(test)]
@@ -122,7 +101,7 @@ mod tests {
     async fn test_parse_basic_agent() {
         let content = include_str!("fixtures/agents/basic.md");
 
-        let actual = parse_agent_file(content, None).await.unwrap();
+        let actual = parse_agent_file(content).await.unwrap();
 
         assert_eq!(actual.id.as_str(), "test-basic");
         assert_eq!(actual.title.as_ref().unwrap(), "Basic Test Agent");
@@ -137,7 +116,7 @@ mod tests {
     async fn test_parse_advanced_agent() {
         let content = include_str!("fixtures/agents/advanced.md");
 
-        let actual = parse_agent_file(content, None).await.unwrap();
+        let actual = parse_agent_file(content).await.unwrap();
 
         assert_eq!(actual.id.as_str(), "test-advanced");
         assert_eq!(actual.title.as_ref().unwrap(), "Advanced Test Agent");
@@ -157,24 +136,12 @@ mod tests {
         assert_eq!(actual.max_turns, Some(10));
         assert!(actual.reasoning.is_some());
     }
-
-    #[tokio::test]
-    async fn test_parse_agent_with_filename_id_override() {
-        let content = include_str!("fixtures/agents/no_id.md");
-
-        let actual = parse_agent_file(content, Some("custom-id".to_string()))
-            .await
-            .unwrap();
-
-        assert_eq!(actual.id.as_str(), "custom-id");
-        assert_eq!(actual.title.as_ref().unwrap(), "No ID Agent");
-    }
-
+    
     #[tokio::test]
     async fn test_parse_invalid_frontmatter() {
         let content = include_str!("fixtures/agents/invalid.md");
 
-        let result = parse_agent_file(content, None).await;
+        let result = parse_agent_file(content).await;
         assert!(result.is_err());
     }
 }
