@@ -94,7 +94,7 @@ mod tests {
         write_file(&fixture.path().join("test.txt"), "Text content");
         write_file(&fixture.path().join("test.rs"), "fn main() {}");
 
-        let actual = ForgeDirectoryReaderService::new()
+        let actual = ForgeDirectoryReaderService
             .read_directory_files(fixture.path(), Some("*.md"))
             .await
             .unwrap();
@@ -112,7 +112,7 @@ mod tests {
         write_file(&fixture.path().join("file1.txt"), "Content 1");
         write_file(&fixture.path().join("file2.md"), "Content 2");
 
-        let mut actual = ForgeDirectoryReaderService::new()
+        let mut actual = ForgeDirectoryReaderService
             .read_directory_files(fixture.path(), None)
             .await
             .unwrap();
@@ -127,7 +127,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_directory_files_nonexistent_directory() {
-        let actual = ForgeDirectoryReaderService::new()
+        let actual = ForgeDirectoryReaderService
             .read_directory_files(Path::new("/nonexistent"), None)
             .await
             .unwrap();
@@ -145,7 +145,7 @@ mod tests {
         fs::create_dir(&subdir).unwrap();
         write_file(&subdir.join("subfile.txt"), "Sub content");
 
-        let actual = ForgeDirectoryReaderService::new()
+        let actual = ForgeDirectoryReaderService
             .read_directory_files(fixture.path(), None)
             .await
             .unwrap();
