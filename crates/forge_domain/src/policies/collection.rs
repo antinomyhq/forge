@@ -94,7 +94,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{ExecuteRule, Operation, Permission, Policy, ReadRule, Rule, WriteRule};
+    use crate::{Operation, Permission, Policy, Rule, WriteRule};
 
     fn fixture_write_operation() -> Operation {
         Operation::Write { path: PathBuf::from("src/main.rs") }
