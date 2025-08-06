@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_domain::Policies;
-use tokio::sync::Mutex;
 
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
@@ -12,16 +11,11 @@ use crate::{
 /// forge/policies directory
 pub struct ForgePolicyLoader<F> {
     infra: Arc<F>,
-
-    // Cache is used to maintain the loaded policies
-    // for this service instance.
-    // So that they could live till user starts a new session.
-    cache: Arc<Mutex<Option<Policies>>>,
 }
 
 impl<F> ForgePolicyLoader<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Arc::new(Default::default()) }
+        Self { infra }
     }
 }
 
@@ -40,9 +34,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 {
     /// Load all policy definitions from the forge/policies directory
     async fn load_policies(&self) -> anyhow::Result<Policies> {
-        if let Some(policies) = self.cache.lock().await.as_ref() {
-            return Ok(policies.clone());
-        }
+        // NOTE: we must not cache policies, as they can change at runtime.
+
         let policies_dir = self.infra.get_environment().policies_path();
         if !self.infra.exists(&policies_dir).await? {
             return Ok(Policies::new());
@@ -77,8 +70,6 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             }
         }
 
-        *self.cache.lock().await = Some(all_policies.clone());
-
         Ok(all_policies)
     }
 }
@@ -97,6 +88,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use forge_domain::{Permission, Policy, Rule};
 
     #[tokio::test]
     async fn test_parse_basic_policies() {
