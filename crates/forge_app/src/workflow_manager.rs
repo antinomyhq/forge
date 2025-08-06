@@ -4,13 +4,13 @@ use std::sync::Arc;
 use forge_domain::Workflow;
 use merge::Merge;
 
-use crate::{AgentLoaderService, WorkflowService};
+use crate::{AgentLoaderService, PolicyLoaderService, WorkflowService};
 
 pub struct WorkflowManager<S> {
     service: Arc<S>,
 }
 
-impl<S: WorkflowService + AgentLoaderService + Sized> WorkflowManager<S> {
+impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> WorkflowManager<S> {
     pub fn new(service: Arc<S>) -> WorkflowManager<S> {
         Self { service }
     }
@@ -29,14 +29,35 @@ impl<S: WorkflowService + AgentLoaderService + Sized> WorkflowManager<S> {
         }
         workflow
     }
+    
+    async fn extend_policies(&self, mut workflow: Workflow) -> Workflow {
+        let loaded_policies = self.service.load_policies().await.unwrap_or_default();
+        
+        // If there are loaded policies, merge them with existing workflow policies
+        if !loaded_policies.policies.is_empty() {
+            if let Some(existing_policies) = workflow.policies.as_mut() {
+                // Merge the loaded policies into existing ones
+                for policy in loaded_policies.policies {
+                    *existing_policies = existing_policies.clone().add_policy(policy);
+                }
+            } else {
+                // No existing policies, just use the loaded ones
+                workflow.policies = Some(loaded_policies);
+            }
+        }
+        
+        workflow
+    }
     pub async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         let mut workflow = self.service.read_workflow(path).await?;
         workflow = self.extend_agents(workflow).await;
+        workflow = self.extend_policies(workflow).await;
         Ok(workflow)
     }
     pub async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         let mut workflow = self.service.read_merged(path).await?;
         workflow = self.extend_agents(workflow).await;
+        workflow = self.extend_policies(workflow).await;
         Ok(workflow)
     }
     pub async fn write_workflow(

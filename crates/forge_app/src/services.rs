@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation, Policies, Provider, ResultStream, Scope,
     ToolCallFull, ToolDefinition, ToolOutput, UserResponse, Workflow,
 };
 use merge::Merge;
@@ -357,6 +357,12 @@ pub trait AgentLoaderService: Send + Sync {
     async fn load_agents(&self) -> anyhow::Result<Vec<Agent>>;
 }
 
+#[async_trait::async_trait]
+pub trait PolicyLoaderService: Send + Sync {
+    /// Load all policy definitions from the forge/policies directory
+    async fn load_policies(&self) -> anyhow::Result<Policies>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -383,6 +389,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AppConfigService: AppConfigService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
+    type PolicyLoaderService: PolicyLoaderService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -406,6 +413,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
+    fn policy_loader_service(&self) -> &Self::PolicyLoaderService;
 }
 
 #[async_trait::async_trait]
@@ -703,5 +711,12 @@ pub trait HttpClientService: Send + Sync + 'static {
 impl<I: Services> AgentLoaderService for I {
     async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.agent_loader_service().load_agents().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> PolicyLoaderService for I {
+    async fn load_policies(&self) -> anyhow::Result<Policies> {
+        self.policy_loader_service().load_policies().await
     }
 }
