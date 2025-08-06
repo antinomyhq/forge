@@ -100,15 +100,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_basic_policies() {
-        let content = r#"
-policies:
-  - permission: allow
-    rule:
-      read_pattern: "**/*.rs"
-  - permission: disallow
-    rule:
-      read_pattern: "secrets/**/*"
-"#;
+        let content = include_str!("fixtures/policies/basic.yml");
 
         let actual = parse_policy_file(content).unwrap();
 
@@ -129,12 +121,79 @@ policies:
 
     #[tokio::test]
     async fn test_parse_empty_policies() {
-        let content = r#"
-policies: []
-"#;
+        let content = include_str!("fixtures/policies/empty.yml");
 
         let actual = parse_policy_file(content).unwrap();
 
         assert_eq!(actual.policies.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_parse_comprehensive_policies() {
+        let content = include_str!("fixtures/policies/comprehensive.yml");
+
+        let actual = parse_policy_file(content).unwrap();
+
+        assert_eq!(actual.policies.len(), 4);
+        
+        // Test read policy
+        let read_policy = &actual.policies[0];
+        if let Policy::Simple { permission, rule } = read_policy {
+            assert_eq!(*permission, Permission::Allow);
+            if let Rule::Read(read_rule) = rule {
+                assert_eq!(read_rule.read_pattern, "**/*.{rs,js,ts,py}");
+            } else {
+                panic!("Expected Read rule");
+            }
+        } else {
+            panic!("Expected Simple policy");
+        }
+        
+        // Test write policy
+        let write_policy = &actual.policies[1];
+        if let Policy::Simple { permission, rule } = write_policy {
+            assert_eq!(*permission, Permission::Confirm);
+            if let Rule::Write(write_rule) = rule {
+                assert_eq!(write_rule.write_pattern, "src/**/*");
+            } else {
+                panic!("Expected Write rule");
+            }
+        } else {
+            panic!("Expected Simple policy");
+        }
+        
+        // Test execute policy (disallow)
+        let execute_policy_disallow = &actual.policies[2];
+        if let Policy::Simple { permission, rule } = execute_policy_disallow {
+            assert_eq!(*permission, Permission::Disallow);
+            if let Rule::Execute(execute_rule) = rule {
+                assert_eq!(execute_rule.execute_command, "rm -rf /*");
+            } else {
+                panic!("Expected Execute rule");
+            }
+        } else {
+            panic!("Expected Simple policy");
+        }
+        
+        // Test execute policy (allow)
+        let execute_policy_allow = &actual.policies[3];
+        if let Policy::Simple { permission, rule } = execute_policy_allow {
+            assert_eq!(*permission, Permission::Allow);
+            if let Rule::Execute(execute_rule) = rule {
+                assert_eq!(execute_rule.execute_command, "cargo*");
+            } else {
+                panic!("Expected Execute rule");
+            }
+        } else {
+            panic!("Expected Simple policy");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_parse_invalid_yaml() {
+        let content = include_str!("fixtures/policies/invalid.yml");
+
+        let result = parse_policy_file(content);
+        assert!(result.is_err());
     }
 }
