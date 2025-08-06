@@ -80,9 +80,9 @@ impl DirectoryReaderInfra for ForgeDirectoryReaderService {
     async fn read_directory_files(
         &self,
         directory: &Path,
-        filter: Option<&str>,
+        pattern: Option<&str>,
     ) -> Result<Vec<(PathBuf, String)>> {
-        self.read_directory_files(directory, filter).await
+        self.read_directory_files(directory, pattern).await
     }
 }
 

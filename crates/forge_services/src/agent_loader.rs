@@ -208,7 +208,7 @@ mod tests {
         async fn read_directory_files(
             &self,
             directory: &Path,
-            filter: Option<&str>,
+            pattern: Option<&str>,
         ) -> anyhow::Result<Vec<(PathBuf, String)>> {
             let mut files = Vec::new();
 
@@ -216,7 +216,7 @@ mod tests {
                 if let Some(parent) = path.parent() {
                     if parent == directory {
                         // Apply filter if provided
-                        if let Some(pattern) = filter {
+                        if let Some(pattern) = pattern {
                             if pattern == "*.md" {
                                 if let Some(extension) = path.extension() {
                                     if extension == "md" {

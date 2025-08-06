@@ -262,10 +262,10 @@ impl DirectoryReaderInfra for ForgeInfra {
     async fn read_directory_files(
         &self,
         directory: &Path,
-        filter: Option<&str>,
+        pattern: Option<&str>,
     ) -> anyhow::Result<Vec<(PathBuf, String)>> {
         self.directory_reader_service
-            .read_directory_files(directory, filter)
+            .read_directory_files(directory, pattern)
             .await
     }
 }

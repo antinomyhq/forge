@@ -193,6 +193,6 @@ pub trait DirectoryReaderInfra: Send + Sync {
     async fn read_directory_files(
         &self,
         directory: &Path,
-        filter: Option<&str>, // Optional glob pattern like "*.md"
+        pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
 }
