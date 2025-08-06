@@ -7,13 +7,13 @@ use crate::orchestrator_test_helpers::Setup;
 
 #[tokio::test]
 async fn test_orchestrator_creation() {
-    let _ = Setup::init_task("This is a test").run().await;
+    let _ = Setup::init_forge_task("This is a test").run().await;
     assert!(true);
 }
 
 #[tokio::test]
 async fn test_history_is_saved() {
-    let test_context = Setup::init_task("This is a test")
+    let test_context = Setup::init_forge_task("This is a test")
         .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
             "Sure",
         ))])
@@ -25,7 +25,7 @@ async fn test_history_is_saved() {
 
 #[tokio::test]
 async fn test_system_prompt() {
-    let test_context = Setup::init_task("This is a test")
+    let test_context = Setup::init_forge_task("This is a test")
         .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
             "Sure",
         ))])
@@ -37,7 +37,7 @@ async fn test_system_prompt() {
 
 #[tokio::test]
 async fn test_system_prompt_tool_supported() {
-    let test_context = Setup::init_task("This is a test")
+    let test_context = Setup::init_forge_task("This is a test")
         .workflow(Workflow::default().tool_supported(true))
         .files(vec![
             "/users/john/foo.txt".to_string(),

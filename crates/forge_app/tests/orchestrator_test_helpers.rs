@@ -181,7 +181,7 @@ pub struct Setup {
 }
 
 impl Setup {
-    pub fn init_task(task: &str) -> Self {
+    pub fn init_forge_task(task: &str) -> Self {
         Self::from_event(Event::new("forge/user_task_init", Some(task)))
     }
 
