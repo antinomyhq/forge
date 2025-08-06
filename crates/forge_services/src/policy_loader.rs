@@ -84,7 +84,7 @@ fn parse_policy_file(content: &str) -> Result<Policies> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Permission, Policy, Policy, Rule, Rule};
+    use forge_domain::{Permission, Policy, Rule};
     use pretty_assertions::assert_eq;
 
     use super::*;
