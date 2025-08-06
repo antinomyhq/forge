@@ -591,7 +591,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let chat = ChatRequest::new(
             event.into(),
             conversation_id,
-            workflow_path,
+            workflow_path.join("forge.yaml"),
             Arc::new(|| Self::request_user_confirmation()),
         );
 
@@ -711,7 +711,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let chat = ChatRequest::new(
             event,
             conversation_id,
-            workflow_path,
+            workflow_path.join("forge.yaml"),
             Arc::new(|| Self::request_user_confirmation()),
         );
 
@@ -889,7 +889,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let chat = ChatRequest::new(
             event,
             conversation_id,
-            workflow_path,
+            workflow_path.join("forge.yaml"),
             Arc::new(|| Self::request_user_confirmation()),
         );
         self.on_chat(chat).await

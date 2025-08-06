@@ -1,10 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
+use crate::Rule;
 use super::operation::Operation;
 use super::policy::Policy;
-use super::rule::Rule;
 use super::types::{Permission, Trace};
+use super::rule::{ExecuteRule, ReadRule};
 
 /// Collection of policies
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
@@ -18,6 +18,46 @@ impl Policies {
     /// Create a new empty policies collection
     pub fn new() -> Self {
         Self { policies: Vec::new() }
+    }
+
+    /// Create a policies collection with sensible defaults
+    pub fn with_defaults() -> Self {
+        let mut policies = Self::new();
+
+        // Allow reading all files
+        policies = policies.add_policy(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Read(ReadRule {
+                read_pattern: "**/*".to_string(),
+            }),
+        });
+
+        // Allow common shell commands
+        let common_commands = [
+            "ls*", "cat*", "grep*", "find*", "head*", "tail*", "wc*", "sort*", "uniq*", "awk*",
+            "sed*",
+        ];
+        for command in common_commands {
+            policies = policies.add_policy(Policy::Simple {
+                permission: Permission::Allow,
+                rule: Rule::Execute(ExecuteRule {
+                    execute_command: command.to_string(),
+                }),
+            });
+        }
+
+        // Allow development tools
+        let dev_commands = ["cargo*", "npm*", "make*", "git*"];
+        for command in dev_commands {
+            policies = policies.add_policy(Policy::Simple {
+                permission: Permission::Allow,
+                rule: Rule::Execute(ExecuteRule {
+                    execute_command: command.to_string(),
+                }),
+            });
+        }
+
+        policies
     }
 
     /// Add a policy to the collection
@@ -59,7 +99,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::WriteRule;
+    use crate::{Operation, Policy, Rule, Permission, WriteRule, ReadRule, ExecuteRule};
 
     fn fixture_write_operation() -> Operation {
         Operation::Write { path: PathBuf::from("src/main.rs") }
@@ -88,6 +128,43 @@ mod tests {
         assert_eq!(actual[1], None); // Second rule doesn't match
     }
 }
+    #[test]
+    fn test_policies_with_defaults_creates_expected_policies() {
+        // Arrange
+
+        // Act
+        let actual = Policies::with_defaults();
+
+        // Assert
+        assert!(!actual.policies.is_empty());
+        // Should have at least the read policy and some execute policies
+        assert!(actual.policies.len() > 10);
+
+        // Check that it includes read access
+        let has_read_all = actual.policies.iter().any(|p| {
+            matches!(p.permission(), Some(Permission::Allow))
+                && matches!(
+                    p,
+                    Policy::Simple {
+                        rule: Rule::Read(ReadRule { read_pattern }),
+                        ..
+                    } if read_pattern == "**/*"
+                )
+        });
+        assert!(has_read_all, "Should include read access to all files");
+
+        // Check that it includes some common commands
+        let has_ls = actual.policies.iter().any(|p| {
+            matches!(
+                p,
+                Policy::Simple {
+                    rule: Rule::Execute(ExecuteRule { execute_command }),
+                    ..
+                } if execute_command == "ls*"
+            )
+        });
+        assert!(has_ls, "Should include ls command");
+    }
 
 #[cfg(test)]
 mod yaml_policies_tests {

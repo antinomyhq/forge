@@ -92,20 +92,33 @@ pub struct FsUndoOutput {
 /// Context wrapper for service operations that provides workflow and can be
 /// extended with additional context data in the future.
 pub struct ServiceContext<'a> {
+    pub workflow_path: PathBuf,
     pub workflow: &'a Workflow,
     pub confirm_fn: Option<Box<dyn Fn() -> UserResponse + Send + Sync + 'a>>,
 }
 
 impl<'a> ServiceContext<'a> {
     pub fn new(workflow: &'a Workflow) -> Self {
-        Self { workflow, confirm_fn: None }
+        Self {
+            workflow_path: Default::default(),
+            workflow,
+            confirm_fn: None,
+        }
     }
 
-    pub fn with_confirmation<F>(workflow: &'a Workflow, confirm_fn: F) -> Self
+    pub fn with_confirmation<F, P: AsRef<Path>>(
+        workflow: &'a Workflow,
+        confirm_fn: F,
+        workflow_path: P,
+    ) -> Self
     where
         F: Fn() -> UserResponse + Send + Sync + 'a,
     {
-        Self { workflow, confirm_fn: Some(Box::new(confirm_fn)) }
+        Self {
+            workflow_path: workflow_path.as_ref().to_path_buf(),
+            workflow,
+            confirm_fn: Some(Box::new(confirm_fn)),
+        }
     }
 
     /// Request user confirmation for an operation
@@ -693,10 +706,14 @@ mod tests {
         let was_called = Arc::new(AtomicBool::new(false));
         let was_called_clone = was_called.clone();
 
-        let context = ServiceContext::with_confirmation(&workflow, move || {
-            was_called_clone.store(true, Ordering::SeqCst);
-            UserResponse::Accept
-        });
+        let context = ServiceContext::with_confirmation(
+            &workflow,
+            move || {
+                was_called_clone.store(true, Ordering::SeqCst);
+                UserResponse::Accept
+            },
+            Path::new("."),
+        );
 
         let response = context.request_confirmation();
 
@@ -719,7 +736,7 @@ mod tests {
     fn test_service_context_reject_response() {
         let workflow = Workflow::new();
 
-        let context = ServiceContext::with_confirmation(&workflow, || UserResponse::Reject);
+        let context = ServiceContext::with_confirmation(&workflow, || UserResponse::Reject, Path::new("."));
 
         let response = context.request_confirmation();
 
@@ -731,7 +748,7 @@ mod tests {
         let workflow = Workflow::new();
 
         let context =
-            ServiceContext::with_confirmation(&workflow, || UserResponse::AcceptAndRemember);
+            ServiceContext::with_confirmation(&workflow, || UserResponse::AcceptAndRemember, Path::new("."));
 
         let response = context.request_confirmation();
 

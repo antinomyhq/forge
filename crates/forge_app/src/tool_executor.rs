@@ -117,11 +117,10 @@ impl<
     ) -> anyhow::Result<Operation> {
         let workflow = self
             .services
-            // FIXME: we should not join here. The workflow path should point directly to the
-            // workflow file.
-            .read_workflow(Some(workflow_path.join("forge.yaml").as_path()))
+            .read_workflow(Some(workflow_path))
             .await?;
-        let context = ServiceContext::with_confirmation(&workflow, confirm_fn.as_ref());
+        let context =
+            ServiceContext::with_confirmation(&workflow, confirm_fn.as_ref(), workflow_path);
 
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
