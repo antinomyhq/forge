@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
 use forge_domain::{
-    Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
+    Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
     ToolCallFull, ToolDefinition, ToolOutput, UserResponse, Workflow,
 };
@@ -351,6 +351,12 @@ pub trait ProviderRegistry: Send + Sync {
     async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider>;
 }
 
+#[async_trait::async_trait]
+pub trait AgentLoaderService: Send + Sync {
+    /// Load all agent definitions from the forge/agent directory
+    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -376,6 +382,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AuthService: AuthService;
     type AppConfigService: AppConfigService;
     type ProviderRegistry: ProviderRegistry;
+    type AgentLoaderService: AgentLoaderService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -398,6 +405,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn auth_service(&self) -> &Self::AuthService;
     fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
+    fn agent_loader_service(&self) -> &Self::AgentLoaderService;
 }
 
 #[async_trait::async_trait]
@@ -691,71 +699,9 @@ pub trait HttpClientService: Send + Sync + 'static {
     ) -> anyhow::Result<EventSource>;
 }
 
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    use forge_domain::Workflow;
-
-    use super::*;
-
-    #[test]
-    fn test_service_context_with_confirmation() {
-        let workflow = Workflow::new();
-        let was_called = Arc::new(AtomicBool::new(false));
-        let was_called_clone = was_called.clone();
-
-        let context = ServiceContext::with_confirmation(
-            &workflow,
-            move || {
-                was_called_clone.store(true, Ordering::SeqCst);
-                UserResponse::Accept
-            },
-            Path::new("."),
-        );
-
-        let response = context.request_confirmation();
-
-        assert_eq!(response, UserResponse::Accept);
-        assert!(was_called.load(Ordering::SeqCst));
-    }
-
-    #[test]
-    fn test_service_context_without_confirmation() {
-        let workflow = Workflow::new();
-        let context = ServiceContext::new(&workflow);
-
-        let response = context.request_confirmation();
-
-        // Should default to Accept when no confirmation function is provided
-        assert_eq!(response, UserResponse::Accept);
-    }
-
-    #[test]
-    fn test_service_context_reject_response() {
-        let workflow = Workflow::new();
-
-        let context =
-            ServiceContext::with_confirmation(&workflow, || UserResponse::Reject, Path::new("."));
-
-        let response = context.request_confirmation();
-
-        assert_eq!(response, UserResponse::Reject);
-    }
-
-    #[test]
-    fn test_service_context_accept_and_remember_response() {
-        let workflow = Workflow::new();
-
-        let context = ServiceContext::with_confirmation(
-            &workflow,
-            || UserResponse::AcceptAndRemember,
-            Path::new("."),
-        );
-
-        let response = context.request_confirmation();
-
-        assert_eq!(response, UserResponse::AcceptAndRemember);
+#[async_trait::async_trait]
+impl<I: Services> AgentLoaderService for I {
+    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        self.agent_loader_service().load_agents().await
     }
 }

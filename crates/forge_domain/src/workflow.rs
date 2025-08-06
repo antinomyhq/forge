@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use derive_setters::Setters;
+use lazy_static::lazy_static;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,7 @@ use crate::{Agent, AgentId, Compact, MaxTokens, ModelId, TopK, TopP};
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
-#[setters(strip_option)]
+#[setters(strip_option, into)]
 pub struct Workflow {
     /// Path pattern for custom template files (supports glob patterns)
     #[serde(default)]
@@ -147,9 +148,14 @@ pub struct Workflow {
     pub policies: Option<Policies>,
 }
 
+lazy_static! {
+    static ref DEFAULT_WORKFLOW: Workflow =
+        serde_yml::from_str(include_str!("../../../forge.default.yaml")).unwrap();
+}
+
 impl Default for Workflow {
     fn default() -> Self {
-        serde_yml::from_str(include_str!("../../../forge.default.yaml")).unwrap()
+        DEFAULT_WORKFLOW.clone()
     }
 }
 

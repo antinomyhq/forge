@@ -74,6 +74,9 @@ impl Environment {
     pub fn templates(&self) -> PathBuf {
         self.base_path.join("templates")
     }
+    pub fn agent_path(&self) -> PathBuf {
+        self.base_path.join("agents")
+    }
 
     pub fn mcp_local_config(&self) -> PathBuf {
         self.cwd.join(".mcp.json")

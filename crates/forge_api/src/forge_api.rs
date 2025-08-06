@@ -86,7 +86,8 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.services.read_workflow(path).await
+        let app = ForgeApp::new(self.services.clone());
+        app.read_workflow(path).await
     }
 
     async fn resolve_workflow_path(&self, path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
@@ -94,11 +95,13 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.services.read_merged(path).await
+        let app = ForgeApp::new(self.services.clone());
+        app.read_workflow_merged(path).await
     }
 
     async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        self.services.write_workflow(path, workflow).await
+        let app = ForgeApp::new(self.services.clone());
+        app.write_workflow(path, workflow).await
     }
 
     async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>

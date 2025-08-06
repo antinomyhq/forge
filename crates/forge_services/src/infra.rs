@@ -184,3 +184,15 @@ pub trait HttpInfra: Send + Sync + 'static {
         body: Bytes,
     ) -> anyhow::Result<EventSource>;
 }
+/// Service for reading multiple files from a directory asynchronously
+#[async_trait::async_trait]
+pub trait DirectoryReaderInfra: Send + Sync {
+    /// Reads all files in a directory that match the given filter pattern
+    /// Returns a vector of tuples containing (file_path, file_content)
+    /// Files are read asynchronously/in parallel for better performance
+    async fn read_directory_files(
+        &self,
+        directory: &Path,
+        pattern: Option<&str>, // Optional glob pattern like "*.md"
+    ) -> anyhow::Result<Vec<(PathBuf, String)>>;
+}
