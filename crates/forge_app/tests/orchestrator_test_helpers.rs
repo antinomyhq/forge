@@ -117,7 +117,7 @@ fn new_orchestrator(setup: &Setup) -> (Orchestrator<Runner>, Arc<Runner>) {
             workflow_path,
             confirm_fn,
         )
-            .files(setup.files.clone()),
+        .files(setup.files.clone()),
         services,
     )
 }
