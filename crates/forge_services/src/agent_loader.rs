@@ -23,13 +23,6 @@ pub struct AgentLoaderService<F> {
     cache: Arc<Mutex<Option<Vec<Agent>>>>,
 }
 
-/// Represents the frontmatter structure of an agent definition file
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct AgentFrontmatter {
-    #[serde(flatten)]
-    agent: Agent,
-}
-
 impl<F> AgentLoaderService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra, cache: Arc::new(Default::default()) }
