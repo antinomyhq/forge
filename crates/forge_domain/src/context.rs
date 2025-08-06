@@ -26,6 +26,14 @@ pub enum ContextMessage {
 }
 
 impl ContextMessage {
+    pub fn content(&self) -> Option<&str> {
+        match self {
+            ContextMessage::Text(text_message) => Some(&text_message.content),
+            ContextMessage::Tool(_) => None,
+            ContextMessage::Image(_) => None,
+        }
+    }
+
     /// Estimates the number of tokens in a message using character-based
     /// approximation.
     /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
@@ -215,6 +223,10 @@ pub struct TextMessage {
 }
 
 impl TextMessage {
+    pub fn has_role(&self, role: Role) -> bool {
+        self.role == role
+    }
+
     pub fn assistant(
         content: impl ToString,
         reasoning_details: Option<Vec<ReasoningFull>>,
@@ -265,6 +277,13 @@ pub struct Context {
 }
 
 impl Context {
+    pub fn system_prompt(&self) -> Option<&str> {
+        self.messages
+            .iter()
+            .find(|message| message.has_role(Role::System))
+            .and_then(|msg| msg.content())
+    }
+
     pub fn add_base64_url(mut self, image: Image) -> Self {
         self.messages.push(ContextMessage::Image(image));
         self

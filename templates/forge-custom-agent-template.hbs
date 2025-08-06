@@ -1,0 +1,25 @@
+<system_information>
+{{> forge-partial-system-info.hbs }}
+</system_information>
+
+{{#if (not tool_supported)}}
+<available_tools>
+{{tool_information}}</available_tools>
+
+<tool_usage_example>
+{{> forge-partial-tool-use-example.hbs }}
+</tool_usage_example>
+{{/if}}
+
+<tool_usage_instructions>
+{{> forge-partial-tool-instructions.hbs }}
+</tool_usage_instructions>
+
+{{#if custom_rules}}
+These rules must be followed under any circumstances:
+<custom_rules>
+{{custom_rules}}
+</custom_rules>
+{{/if}}
+
+{{agent_prompt}}
