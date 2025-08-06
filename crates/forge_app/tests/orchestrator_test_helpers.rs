@@ -160,10 +160,11 @@ impl Default for Setup {
 }
 
 impl Setup {
-    pub fn add_agent(mut self, agent: forge_domain::Agent) -> Self {
+    pub fn add_agent(mut self, mut agent: forge_domain::Agent) -> Self {
         let mut conversation = self.orch.get_conversation().clone();
         // if it's existing agent, remove it first.
         conversation.agents.retain(|a| a.id != agent.id);
+        agent.add_subscription(format!("{}", agent.id));
         conversation.agents.push(agent);
         self.orch = self.orch.conversation(conversation);
         self

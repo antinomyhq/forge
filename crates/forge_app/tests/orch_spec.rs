@@ -24,7 +24,6 @@ async fn test_render_system_prompt_with_custom_agent_tool_supported() {
     let fixture = Agent::new("custom-agent")
         .system_prompt(Template::new("This is custom prompt for user"))
         .model("gpt-4.1")
-        .subscribe(vec!["custom-agent/user_task_init".into()])
         .tool_supported(true);
 
     let mut setup = Setup::default().add_agent(fixture);
@@ -45,7 +44,6 @@ async fn test_render_system_prompt_with_custom_agent_tool_not_supported() {
     let fixture = Agent::new("custom-agent")
         .system_prompt(Template::new("This is custom prompt for user"))
         .model("gpt-4.1")
-        .subscribe(vec!["custom-agent/user_task_init".into()])
         .tool_supported(false);
 
     let mut setup = Setup::default().add_agent(fixture);
@@ -65,7 +63,6 @@ async fn test_render_system_prompt_with_custom_agent_tool_not_supported() {
 async fn test_render_system_prompt_with_custom_agent_template_tool_supported() {
     let fixture = Agent::new("custom-agent")
         .system_prompt(Template::new("{{> custom-agent.hbs}}"))
-        .subscribe(vec!["custom-agent/user_task_init".into()])
         .model("gpt-4.1")
         .tool_supported(true);
 
@@ -89,7 +86,6 @@ async fn test_render_system_prompt_with_custom_agent_template_tool_supported() {
 async fn test_render_system_prompt_with_custom_agent_template_tool_not_supported() {
     let fixture = Agent::new("custom-agent")
         .system_prompt(Template::new("{{> custom-agent.hbs}}"))
-        .subscribe(vec!["custom-agent/user_task_init".into()])
         .model("gpt-4.1")
         .tool_supported(false);
 
@@ -116,7 +112,6 @@ async fn test_render_system_prompt_forge_agent_tool_supported() {
         .get_agent(&AgentId::new("forge"))
         .unwrap()
         .clone()
-        .subscribe(vec!["forge/user_task_init".into()])
         .tool_supported(true);
 
     let mut setup = Setup::default().add_agent(fixture);
@@ -136,7 +131,6 @@ async fn test_render_system_prompt_forge_agent_tool_not_supported() {
         .get_agent(&AgentId::new("forge"))
         .unwrap()
         .clone()
-        .subscribe(vec!["forge/user_task_init".into()])
         .tool_supported(false);
 
     let mut setup = Setup::default().add_agent(fixture);
@@ -156,7 +150,6 @@ async fn test_render_system_prompt_muse_agent_tool_supported() {
         .get_agent(&AgentId::new("muse"))
         .unwrap()
         .clone()
-        .subscribe(vec!["muse/user_task_init".into()])
         .tool_supported(true);
 
     let mut setup = Setup::default().add_agent(fixture);
@@ -176,7 +169,6 @@ async fn test_render_system_prompt_muse_agent_tool_not_supported() {
         .get_agent(&AgentId::new("muse"))
         .unwrap()
         .clone()
-        .subscribe(vec!["muse/user_task_init".into()])
         .tool_supported(false);
 
     let mut setup = Setup::default().add_agent(fixture);
