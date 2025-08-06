@@ -8,8 +8,6 @@ before:
     - text:
         role: User
         content: User with reasoning
-        tool_calls: ~
-        model: ~
         reasoning_details:
           - text: User reasoning
             signature: ~
@@ -30,9 +28,6 @@ after:
     - text:
         role: User
         content: User with reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - image:
         url: "data:image/png;base64,image_data"
         mime_type: image/png

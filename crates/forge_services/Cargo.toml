@@ -60,6 +60,7 @@ forge_app.workspace = true
 forge_domain.workspace = true
 forge_walker.workspace = true
 url.workspace = true
+reqwest-eventsource.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

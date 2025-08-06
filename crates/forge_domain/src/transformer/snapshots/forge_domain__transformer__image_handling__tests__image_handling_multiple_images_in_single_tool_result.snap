@@ -36,18 +36,12 @@ after:
     - text:
         role: User
         content: "[Here is the image attachment for ID 0]"
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - image:
         url: "data:image/png;base64,image1_data"
         mime_type: image/png
     - text:
         role: User
         content: "[Here is the image attachment for ID 1]"
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - image:
         url: "data:image/jpeg;base64,image2_data"
         mime_type: image/jpeg

@@ -82,6 +82,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
+        self.cli.conversation = None;
         banner::display()?;
         self.trace_user();
         Ok(())
@@ -489,12 +490,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// canceled
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
         // Fetch available models
-        let models = self
+        let mut models = self
             .get_models()
             .await?
             .into_iter()
             .map(CliModel)
             .collect::<Vec<_>>();
+
+        // Sort the models by their names in ascending order
+        models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
 
         // Find the index of the current model
         let starting_cursor = self

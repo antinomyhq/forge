@@ -8,38 +8,24 @@ before:
     - text:
         role: User
         content: User message 1
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: User
         content: User message 2
-        tool_calls: ~
         model: claude-3
-        reasoning_details: ~
     - text:
         role: User
         content: User message 3
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
 after:
   messages:
     - text:
         role: User
         content: User message 1
-        tool_calls: ~
         model: gpt-4
-        reasoning_details: ~
     - text:
         role: User
         content: User message 2
-        tool_calls: ~
         model: claude-3
-        reasoning_details: ~
     - text:
         role: User
         content: User message 3
-        tool_calls: ~
         model: gpt-4
-        reasoning_details: ~
