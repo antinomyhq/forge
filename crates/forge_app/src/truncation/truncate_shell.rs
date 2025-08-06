@@ -9,13 +9,11 @@ fn clip_by_lines(
     let lines = content
         .lines()
         .map(|line| {
-            if line.len() > max_line_length {
+            if line.chars().count() > max_line_length {
                 truncated_lines_count += 1;
-                let extra_chars = line.len() - max_line_length;
-                format!(
-                    "{}...[{extra_chars} more chars truncated]",
-                    &line[..max_line_length],
-                )
+                let truncated: String = line.chars().take(max_line_length).collect();
+                let extra_chars = line.chars().count() - max_line_length;
+                format!("{truncated}...[{extra_chars} more chars truncated]",)
             } else {
                 line.to_string()
             }
@@ -412,6 +410,24 @@ mod tests {
                 .head("line 1\nvery long line that will not be truncated because no limit is set\nline 3")
                 .total_lines(3usize)
                 .head_end_line(3usize)
+        );
+
+        assert_eq!(actual, expected);
+    }
+    #[test]
+    fn test_clip_by_lines_with_unicode_chars() {
+        let fixture = "emoji 😀 line\nUnicode café résumé naïve\nRegular ASCII line\n中文字符测试\nEmojis: 🎉🚀💯\nAnother normal line";
+
+        let actual = clip_by_lines(fixture, 2, 2, 15);
+        let expected = (
+            vec![
+                "emoji 😀 line".to_string(),
+                "Unicode café ré...[10 more chars truncated]".to_string(),
+                "Emojis: 🎉🚀💯".to_string(),
+                "Another normal ...[4 more chars truncated]".to_string(),
+            ],
+            Some((2, 2)),
+            3,
         );
 
         assert_eq!(actual, expected);
