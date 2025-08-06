@@ -736,7 +736,8 @@ mod tests {
     fn test_service_context_reject_response() {
         let workflow = Workflow::new();
 
-        let context = ServiceContext::with_confirmation(&workflow, || UserResponse::Reject, Path::new("."));
+        let context =
+            ServiceContext::with_confirmation(&workflow, || UserResponse::Reject, Path::new("."));
 
         let response = context.request_confirmation();
 
@@ -747,8 +748,11 @@ mod tests {
     fn test_service_context_accept_and_remember_response() {
         let workflow = Workflow::new();
 
-        let context =
-            ServiceContext::with_confirmation(&workflow, || UserResponse::AcceptAndRemember, Path::new("."));
+        let context = ServiceContext::with_confirmation(
+            &workflow,
+            || UserResponse::AcceptAndRemember,
+            Path::new("."),
+        );
 
         let response = context.request_confirmation();
 

@@ -115,10 +115,7 @@ impl<
         workflow_path: &Path,
         confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<Operation> {
-        let workflow = self
-            .services
-            .read_workflow(Some(workflow_path))
-            .await?;
+        let workflow = self.services.read_workflow(Some(workflow_path)).await?;
         let context =
             ServiceContext::with_confirmation(&workflow, confirm_fn.as_ref(), workflow_path);
 
