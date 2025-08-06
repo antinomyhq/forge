@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use forge_fs::ForgeFS;
 use forge_services::DirectoryReaderInfra;
 use futures::future::join_all;
 use globset::{Glob, GlobSetBuilder};
-use tokio::fs;
 
 /// Service for reading multiple files from a directory asynchronously
 pub struct ForgeDirectoryReaderService;
@@ -19,7 +19,7 @@ impl ForgeDirectoryReaderService {
         pattern: Option<&str>,
     ) -> Result<Vec<(PathBuf, String)>> {
         // Check if directory exists
-        if !directory.exists() || !directory.is_dir() {
+        if !ForgeFS::exists(directory) || ForgeFS::is_file(directory) {
             return Ok(vec![]);
         }
 
@@ -34,14 +34,14 @@ impl ForgeDirectoryReaderService {
         };
 
         // Read directory entries
-        let mut dir = fs::read_dir(directory).await?;
+        let mut dir = ForgeFS::read_dir(directory).await?;
         let mut file_paths = Vec::new();
 
         while let Some(entry) = dir.next_entry().await? {
             let path = entry.path();
 
             // Only process files (not directories)
-            if path.is_file() {
+            if ForgeFS::is_file(&path) {
                 // Apply filter if provided
                 if let Some(ref glob_set) = glob_set {
                     if let Some(file_name) = path.file_name().and_then(|n| n.to_str())
@@ -59,7 +59,7 @@ impl ForgeDirectoryReaderService {
         let read_tasks = file_paths.into_iter().map(|path| {
             let path_clone = path.clone();
             async move {
-                match fs::read_to_string(&path).await {
+                match ForgeFS::read_to_string(&path).await {
                     Ok(content) => Some((path_clone, content)),
                     Err(_) => None, // Skip files that can't be read
                 }
