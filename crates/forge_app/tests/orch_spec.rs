@@ -38,7 +38,11 @@ async fn test_system_prompt() {
 #[tokio::test]
 async fn test_system_prompt_tool_supported() {
     let test_context = Setup::init_forge_task("This is a test")
-        .workflow(Workflow::default().tool_supported(true))
+        .workflow(
+            Workflow::default()
+                .tool_supported(true)
+                .custom_rules("Do it nicely"),
+        )
         .files(vec![
             "/users/john/foo.txt".to_string(),
             "/users/jason/bar.txt".to_string(),
