@@ -48,7 +48,6 @@ impl ClientBuilder {
 
         let inner = match &provider {
             Provider::OpenAI { .. } => {
-                // FIXME: pass key and url instead of provider
                 InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http.clone()))
             }
 

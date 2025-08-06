@@ -30,13 +30,13 @@ commands:
 model: anthropic/claude-sonnet-4
 max_walker_depth: 1024
 custom_rules: |-
-  Handling Errors:
+  ## Error Management:
 
   - Use `anyhow::Result` for error handling in services and repositories.
   - Create domain errors using `thiserror`.
   - Never implement `From` for converting domain errors, manually convert them
 
-  Writing Tests:
+  ## Writing Tests:
 
   - All tests should be written in three discrete steps:
 
@@ -52,34 +52,75 @@ custom_rules: |-
     ```
 
   - Use `pretty_assertions` for better error messages.
+
   - Use fixtures to create test data.
+
   - Use `assert_eq!` for equality checks.
+
   - Use `assert!(...)` for boolean checks.
+
   - Use unwraps in test functions and anyhow::Result in fixtures.
+
   - Keep the boilerplate to a minimum.
+
   - Use words like `fixture`, `actual` and `expected` in test functions.
+
   - Fixtures should be generic and reusable.
+
   - Test should always be written in the same file as the source code.
 
-  Running Tests:
   - We use `insta` to run tests:
-  ```
-  cargo insta test --accept --unreferenced=delete
-  ```
-
-  Verification:
-  - run the following command to format and validate if the code is working:
     ```
-    cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
+    cargo insta test --accept --unreferenced=delete
     ```
+  - Use `new`, Default and derive_setters::Setters to create `actual`, `expected` and specially `fixtures`. For eg:
+    Good
+    User::default().age(12).is_happy(true).name("John")
+    User::new("Job").age(12).is_happy()
+    User::test() // Special test constructor
 
-  Writing Domain Types:
+    Bad
+    Use {name: "John".to_string(), is_happy: true, age: 12}
+    User::with_name("Job") // Bad name, should stick to User::new() or User::test()
+
+  - Use unwrap() unless the error information is useful. Use `expect` instead of `panic!` when error message is useful for eg:
+    Good
+    users.first().expect("List should not be empty")
+
+    Bad
+    if let Some(user) = users.first() {
+      // ...
+    } else {
+      panic!("List should not be empty")
+    }
+
+  - Prefer using assert_eq on full objects instead of asserting each field
+    Good
+    assert_eq(actual, expected);
+
+    Bad
+    assert_eq(actual.a, expected.a);
+    assert_eq(actual.b, expected.b);
+
+  ## Verification:
+  1. Run all the tests to ensure they pass.
+     ```
+     cargo insta test --accept --unreferenced=delete
+     ```
+
+  2. Run the formatting and linting commands to ensure code quality.
+     ```
+     cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
+     ```
+
+  ## Writing Domain Types:
   - Use `derive_setters` to derive setters and use the `strip_option` and the `into` attributes on the struct types.
 
 
-  Refactoring:
+  ## Refactoring:
   - If asked to fix failing tests, always confirm whether to update the implementation or the tests.
-  Elm Architecture:
+
+  ## Elm Architecture (in forge_main_neo):
   - Command executors should ALWAYS return Option<Action>, never send them directly through channels
   - Actions are the only way to update application state
   - State updates trigger UI changes through the unidirectional data flow
