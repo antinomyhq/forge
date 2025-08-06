@@ -83,8 +83,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
             }
             Ok(response) => {
                 let data: ListModelResponse = serde_json::from_value(response)
-                    .with_context(|| format_http_context(None, "GET", &url))
-                    .with_context(|| "Failed to deserialize models response")?;
+                    .with_context(|| format_http_context(None, "GET", &url))?;
                 Ok(data.data.into_iter().map(Into::into).collect())
             }
         }
@@ -108,8 +107,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         let response_json = response
             .json::<serde_json::Value>()
             .await
-            .with_context(|| ctx_message.clone())
-            .with_context(|| "Failed to decode response into text")?;
+            .with_context(|| ctx_message.clone())?;
 
         if status.is_success() {
             Ok(response_json)
