@@ -214,8 +214,6 @@ impl<S: Services> ForgeApp<S> {
         self.workflow_manager.read_workflow(path).await
     }
     pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
-        self.workflow_manager
-            .write_workflow(path, workflow)
-            .await
+        self.workflow_manager.write_workflow(path, workflow).await
     }
 }
