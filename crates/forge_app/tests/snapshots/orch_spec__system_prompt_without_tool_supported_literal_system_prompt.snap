@@ -2,11 +2,12 @@
 source: crates/forge_app/tests/orch_spec.rs
 expression: system_prompt_without_tool_supported
 ---
-Here is the system information you should be aware of:
+<system_information>
 <operating_system>MacOS</operating_system>
 <current_working_directory>/Users/tushar</current_working_directory>
 <default_shell>bash</default_shell>
 <home_directory>/Users/tushar</home_directory>
+</system_information>
 
 
 <available_tools>
