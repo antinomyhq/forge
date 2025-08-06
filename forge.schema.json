@@ -437,11 +437,35 @@
         "low"
       ]
     },
+    "ExecuteRule": {
+      "description": "Rule for execute operations with a command pattern",
+      "type": "object",
+      "required": [
+        "execute_command"
+      ],
+      "properties": {
+        "execute_command": {
+          "type": "string"
+        }
+      }
+    },
     "MaxTokens": {
       "description": "A newtype for max_tokens values with built-in validation\n\nMax tokens controls the maximum number of tokens the model can generate: - Lower values (e.g., 100) limit response length for concise outputs - Higher values (e.g., 4000) allow for longer, more detailed responses - Valid range is 1 to 100,000 (reasonable upper bound for most models) - If not specified, the model provider's default will be used",
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
+    },
+    "PatchRule": {
+      "description": "Rule for patch operations with a glob pattern",
+      "type": "object",
+      "required": [
+        "patch_pattern"
+      ],
+      "properties": {
+        "patch_pattern": {
+          "type": "string"
+        }
+      }
     },
     "Permission": {
       "description": "Permission types that can be applied to operations",
@@ -450,21 +474,21 @@
           "description": "Allow the operation without asking",
           "type": "string",
           "enum": [
-            "Allow"
+            "allow"
           ]
         },
         {
           "description": "Disallow the operation without asking",
           "type": "string",
           "enum": [
-            "Disallow"
+            "disallow"
           ]
         },
         {
           "description": "Confirm with the user before allowing",
           "type": "string",
           "enum": [
-            "Confirm"
+            "confirm"
           ]
         }
       ]
@@ -546,6 +570,18 @@
         }
       ]
     },
+    "ReadRule": {
+      "description": "Rule for read operations with a glob pattern",
+      "type": "object",
+      "required": [
+        "read_pattern"
+      ],
+      "properties": {
+        "read_pattern": {
+          "type": "string"
+        }
+      }
+    },
     "ReasoningConfig": {
       "type": "object",
       "properties": {
@@ -587,69 +623,38 @@
     },
     "Rule": {
       "description": "Rules that define what operations are covered by a policy",
-      "oneOf": [
+      "anyOf": [
         {
           "description": "Rule for write operations with a glob pattern",
-          "type": "object",
-          "required": [
-            "write"
-          ],
-          "properties": {
-            "write": {
-              "type": "object",
-              "required": [
-                "pattern"
-              ],
-              "properties": {
-                "pattern": {
-                  "type": "string"
-                }
-              }
+          "allOf": [
+            {
+              "$ref": "#/definitions/WriteRule"
             }
-          },
-          "additionalProperties": false
+          ]
         },
         {
           "description": "Rule for read operations with a glob pattern",
-          "type": "object",
-          "required": [
-            "read"
-          ],
-          "properties": {
-            "read": {
-              "type": "object",
-              "required": [
-                "pattern"
-              ],
-              "properties": {
-                "pattern": {
-                  "type": "string"
-                }
-              }
+          "allOf": [
+            {
+              "$ref": "#/definitions/ReadRule"
             }
-          },
-          "additionalProperties": false
+          ]
+        },
+        {
+          "description": "Rule for patch operations with a glob pattern",
+          "allOf": [
+            {
+              "$ref": "#/definitions/PatchRule"
+            }
+          ]
         },
         {
           "description": "Rule for execute operations with a command pattern",
-          "type": "object",
-          "required": [
-            "execute"
-          ],
-          "properties": {
-            "execute": {
-              "type": "object",
-              "required": [
-                "command"
-              ],
-              "properties": {
-                "command": {
-                  "type": "string"
-                }
-              }
+          "allOf": [
+            {
+              "$ref": "#/definitions/ExecuteRule"
             }
-          },
-          "additionalProperties": false
+          ]
         }
       ]
     },
@@ -700,6 +705,18 @@
         "weekly",
         "always"
       ]
+    },
+    "WriteRule": {
+      "description": "Rule for write operations with a glob pattern",
+      "type": "object",
+      "required": [
+        "write_pattern"
+      ],
+      "properties": {
+        "write_pattern": {
+          "type": "string"
+        }
+      }
     }
   }
 }

@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::Local;
@@ -8,7 +8,7 @@ use forge_app::agent::AgentService;
 use forge_app::orch::Orchestrator;
 use forge_domain::{
     ChatCompletionMessage, Conversation, ConversationId, Environment, Event, HttpConfig,
-    RetryConfig, ToolCallFull, ToolResult, Workflow,
+    RetryConfig, ToolCallFull, ToolResult, UserResponse, Workflow,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -67,8 +67,10 @@ impl AgentService for Trace {
         &self,
         _agent: &forge_domain::Agent,
         _context: &mut forge_domain::ToolCallContext,
-        test_call: forge_domain::ToolCallFull,
-    ) -> forge_domain::ToolResult {
+        test_call: ToolCallFull,
+        _workflow_path: &Path,
+        _confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
+    ) -> ToolResult {
         self.test_tool_calls
             .iter()
             .find(|(call, _)| call.call_id == test_call.call_id)
@@ -96,8 +98,17 @@ fn new_orchestrator(messages: Vec<ChatCompletionMessage>) -> (Orchestrator<Trace
     let workflow = new_workflow();
     let conversation = new_conversation(workflow);
     let current_time = new_current_time();
+    let workflow_path = PathBuf::from("/tmp/test_workflow.yml");
+    let confirm_fn = Arc::new(|| UserResponse::Accept);
     (
-        Orchestrator::new(services.clone(), environment, conversation, current_time),
+        Orchestrator::new(
+            services.clone(),
+            environment,
+            conversation,
+            current_time,
+            workflow_path,
+            confirm_fn,
+        ),
         services,
     )
 }

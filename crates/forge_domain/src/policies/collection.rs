@@ -95,18 +95,7 @@ mod yaml_policies_tests {
 
     #[test]
     fn test_yaml_policies_roundtrip() {
-        let yaml_content = r#"
-policies:
-  - permission: Allow
-    rule:
-      read_pattern: "**/*.rs"
-  - permission: Confirm
-    rule:
-      write_pattern: "src/**/*"
-  - permission: Disallow
-    rule:
-      execute_command: "rm -rf /*"
-"#;
+        let yaml_content = include_str!("../fixtures/policies_test.yml");
 
         let policies: Policies =
             serde_yml::from_str(yaml_content).expect("Failed to parse policies YAML");

@@ -102,6 +102,7 @@ impl<
                 content.to_string(),
                 true,
                 false,
+                &ServiceContext::new(&Default::default()),
             )
             .await?;
         Ok(path)
