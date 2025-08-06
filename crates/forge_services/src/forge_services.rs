@@ -92,10 +92,7 @@ impl<
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
-        let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(
-            infra.clone(),
-            infra.get_environment(),
-        ));
+        let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         Self {
             conversation_service,
             attachment_service,

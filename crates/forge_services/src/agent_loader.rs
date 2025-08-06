@@ -1,22 +1,19 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::{Agent, AgentId};
-use forge_domain::Environment;
 use forge_walker::Walker;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{FileInfoInfra, FileReaderInfra, FileWriterInfra};
+use crate::{EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra};
 
 /// A service for loading agent definitions from individual files in the
 /// forge/agent directory
 pub struct AgentLoaderService<F> {
     infra: Arc<F>,
-    environment: Environment,
 
     // Cache is used to maintain the loaded agents
     // for this service instance.
@@ -31,29 +28,22 @@ struct AgentFrontmatter {
     agent: Agent,
 }
 
-/// Internal representation of a complete agent definition with frontmatter and
-/// markdown content
-#[derive(Debug, Clone)]
-struct InternalAgentDefinitionFile {
-    pub agent: Agent,
-}
-
 impl<F> AgentLoaderService<F> {
-    pub fn new(infra: Arc<F>, environment: Environment) -> Self {
-        Self { infra, environment, cache: Arc::new(Default::default()) }
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra, cache: Arc::new(Default::default()) }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra> forge_app::AgentLoaderService
-    for AgentLoaderService<F>
+impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra>
+    forge_app::AgentLoaderService for AgentLoaderService<F>
 {
     /// Load all agent definitions from the forge/agent directory
     async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
         if let Some(agents) = self.cache.lock().await.as_ref() {
             return Ok(agents.clone());
         }
-        let agent_dir = self.environment.agent_path();
+        let agent_dir = self.infra.get_environment().agent_path();
         if !self.infra.exists(&agent_dir).await? {
             return Ok(vec![]);
         }
@@ -70,8 +60,18 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra> forge_app::AgentLoade
 
             // Only process .md files
             if entry.file_name.map(|v| v.ends_with(".md")).unwrap_or(false) {
-                let agent_def = self.parse_agent_file(path).await?;
-                agents.push(agent_def.agent)
+                let content =
+                    self.infra.read_utf8(&path).await.with_context(|| {
+                        format!("Failed to read agent file: {}", path.display())
+                    })?;
+
+                // Extract filename (without extension) as agent ID
+                let filename = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.to_string());
+
+                agents.push(self.parse_agent_file(&content, filename).await?)
             }
         }
 
@@ -81,36 +81,26 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra> forge_app::AgentLoade
     }
 }
 
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra> AgentLoaderService<F> {
-    /// Parse an individual agent definition file with YAML frontmatter
-    async fn parse_agent_file(&self, path: PathBuf) -> Result<InternalAgentDefinitionFile> {
-        let content = self
-            .infra
-            .read_utf8(&path)
-            .await
-            .with_context(|| format!("Failed to read agent file: {}", path.display()))?;
-
+impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra>
+    AgentLoaderService<F>
+{
+    /// Parse raw content into an Agent with YAML frontmatter
+    async fn parse_agent_file(&self, content: &str, agent_id: Option<String>) -> Result<Agent> {
         // Parse the frontmatter using gray_matter with type-safe deserialization
         let matter = Matter::<YAML>::new();
         let result = matter
-            .parse::<AgentFrontmatter>(&content)
-            .with_context(|| format!("Failed to parse YAML frontmatter in {}", path.display()))?;
+            .parse::<AgentFrontmatter>(content)
+            .with_context(|| "Failed to parse YAML frontmatter")?;
 
         // Extract the frontmatter
-        let frontmatter = result
-            .data
-            .context(format!("No YAML frontmatter found in {}", path.display()))?;
+        let frontmatter = result.data.context("No YAML frontmatter found")?;
 
-        // Use the filename (without extension) as the agent ID if not specified
+        // Use the provided agent_id or keep the existing one
         let mut agent = frontmatter.agent;
-        if agent.id == AgentId::default() {
-            let filename = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .ok_or_else(|| anyhow::anyhow!("Invalid filename: {}", path.display()))?;
-            agent.id = AgentId::new(filename);
+        if let Some(id) = agent_id {
+            agent.id = AgentId::new(&id);
         }
 
-        Ok(InternalAgentDefinitionFile { agent })
+        Ok(agent)
     }
 }
