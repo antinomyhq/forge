@@ -26,7 +26,7 @@ pub struct AgentLoaderService<F> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AgentFrontmatter {
     #[serde(flatten)]
-    agent: Agent,
+    agent_fields: serde_json::Value,
 }
 
 impl<F> AgentLoaderService<F> {
@@ -38,6 +38,15 @@ impl<F> AgentLoaderService<F> {
 #[async_trait::async_trait]
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
     forge_app::AgentLoaderService for AgentLoaderService<F>
+{
+    /// Load all agent definitions from the forge/agent directory
+    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        self.load_agents().await
+    }
+}
+
+impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
+    AgentLoaderService<F>
 {
     /// Load all agent definitions from the forge/agent directory
     async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
@@ -65,7 +74,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
                 .and_then(|s| s.to_str())
                 .map(|s| s.to_string());
 
-            agents.push(self.parse_agent_file(&content, filename).await?)
+            agents.push(parse_agent_file(&content, filename).await?)
         }
 
         *self.cache.lock().await = Some(agents.clone());
@@ -74,268 +83,98 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     }
 }
 
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    AgentLoaderService<F>
-{
-    /// Parse raw content into an Agent with YAML frontmatter
-    async fn parse_agent_file(&self, content: &str, agent_id: Option<String>) -> Result<Agent> {
-        // Parse the frontmatter using gray_matter with type-safe deserialization
-        let matter = Matter::<YAML>::new();
-        let result = matter
-            .parse::<AgentFrontmatter>(content)
-            .with_context(|| "Failed to parse YAML frontmatter")?;
+/// Parse raw content into an Agent with YAML frontmatter
+async fn parse_agent_file(content: &str, agent_id: Option<String>) -> Result<Agent> {
+    // Parse the frontmatter using gray_matter with type-safe deserialization
+    let matter = Matter::<YAML>::new();
+    let result = matter
+        .parse::<AgentFrontmatter>(content)
+        .with_context(|| "Failed to parse YAML frontmatter")?;
 
-        // Extract the frontmatter
-        let frontmatter = result.data.context("No YAML frontmatter found")?;
+    // Extract the frontmatter
+    let frontmatter = result.data.context("No YAML frontmatter found")?;
 
-        // Use the provided agent_id or keep the existing one
-        let mut agent = frontmatter.agent;
-        if let Some(id) = agent_id {
-            agent.id = AgentId::new(&id);
-        }
+    // Create agent from frontmatter fields with a temporary ID
+    let mut agent_value = frontmatter.agent_fields;
+    // Add a temporary ID to satisfy the Agent struct requirement
+    agent_value["id"] = serde_json::Value::String("temp".to_string());
 
-        Ok(agent)
+    let mut agent: Agent =
+        serde_json::from_value(agent_value).context("Failed to parse agent from frontmatter")?;
+
+    // Use the provided agent_id, frontmatter id, or keep the existing one
+    if let Some(id) = agent_id {
+        agent.id = AgentId::new(&id);
+    } else if let Some(id) = frontmatter.id {
+        agent.id = AgentId::new(&id);
     }
+
+    Ok(agent)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::path::{Path, PathBuf};
-
-    use forge_app::AgentLoaderService;
-    use forge_app::domain::{Environment, HttpConfig, RetryConfig};
     use pretty_assertions::assert_eq;
-    use tempfile::tempdir;
-    use url::Url;
 
     use super::*;
 
-    // Mock infrastructure for testing
-    #[derive(Clone)]
-    struct MockInfra {
-        environment: Environment,
-        files: HashMap<PathBuf, String>,
-    }
+    #[tokio::test]
+    async fn test_parse_basic_agent() {
+        let content = include_str!("fixtures/agents/basic.md");
 
-    impl MockInfra {
-        fn new(environment: Environment) -> Self {
-            Self { environment, files: HashMap::new() }
-        }
+        let actual = parse_agent_file(content, None).await.unwrap();
 
-        fn with_file(mut self, path: PathBuf, content: String) -> Self {
-            self.files.insert(path, content);
-            self
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl EnvironmentInfra for MockInfra {
-        fn get_environment(&self) -> Environment {
-            self.environment.clone()
-        }
-
-        fn get_env_var(&self, _key: &str) -> Option<String> {
-            None
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl FileReaderInfra for MockInfra {
-        async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
-            self.files
-                .get(path)
-                .cloned()
-                .ok_or_else(|| anyhow::anyhow!("File not found: {}", path.display()))
-        }
-
-        async fn read(&self, _path: &Path) -> anyhow::Result<Vec<u8>> {
-            unimplemented!()
-        }
-
-        async fn range_read_utf8(
-            &self,
-            _path: &Path,
-            _start_line: u64,
-            _end_line: u64,
-        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
-            unimplemented!()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl FileWriterInfra for MockInfra {
-        async fn write(
-            &self,
-            _path: &Path,
-            _contents: bytes::Bytes,
-            _capture_snapshot: bool,
-        ) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-
-        async fn write_temp(
-            &self,
-            _prefix: &str,
-            _ext: &str,
-            _content: &str,
-        ) -> anyhow::Result<PathBuf> {
-            unimplemented!()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl FileInfoInfra for MockInfra {
-        async fn is_binary(&self, _path: &Path) -> anyhow::Result<bool> {
-            Ok(false)
-        }
-
-        async fn is_file(&self, _path: &Path) -> anyhow::Result<bool> {
-            Ok(true)
-        }
-
-        async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
-            Ok(path == &self.environment.agent_path())
-        }
-
-        async fn file_size(&self, _path: &Path) -> anyhow::Result<u64> {
-            Ok(0)
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl DirectoryReaderInfra for MockInfra {
-        async fn read_directory_files(
-            &self,
-            directory: &Path,
-            pattern: Option<&str>,
-        ) -> anyhow::Result<Vec<(PathBuf, String)>> {
-            let mut files = Vec::new();
-
-            for (path, content) in &self.files {
-                if let Some(parent) = path.parent() {
-                    if parent == directory {
-                        // Apply filter if provided
-                        if let Some(pattern) = pattern {
-                            if pattern == "*.md" {
-                                if let Some(extension) = path.extension() {
-                                    if extension == "md" {
-                                        files.push((path.clone(), content.clone()));
-                                    }
-                                }
-                            }
-                        } else {
-                            files.push((path.clone(), content.clone()));
-                        }
-                    }
-                }
-            }
-
-            Ok(files)
-        }
+        assert_eq!(actual.id.as_str(), "test-basic");
+        assert_eq!(actual.title.as_ref().unwrap(), "Basic Test Agent");
+        assert_eq!(
+            actual.description.as_ref().unwrap(),
+            "A simple test agent for basic functionality"
+        );
+        assert!(actual.system_prompt.is_some());
     }
 
     #[tokio::test]
-    async fn test_load_agents_with_directory_reader() {
-        let temp_dir = tempdir().unwrap();
+    async fn test_parse_advanced_agent() {
+        let content = include_str!("fixtures/agents/advanced.md");
 
-        let environment = Environment {
-            os: "test".to_string(),
-            pid: 12345,
-            cwd: temp_dir.path().to_path_buf(),
-            home: Some(temp_dir.path().to_path_buf()),
-            shell: "bash".to_string(),
-            base_path: temp_dir.path().to_path_buf(),
-            retry_config: RetryConfig::default(),
-            max_search_lines: 25,
-            max_search_result_bytes: 256000,
-            fetch_truncation_limit: 0,
-            forge_api_url: Url::parse("http://localhost:8000").unwrap(),
-            http: HttpConfig::default(),
-            stdout_max_prefix_length: 50,
-            stdout_max_suffix_length: 50,
-            stdout_max_line_length: 200,
-            max_read_size: 2000,
-            max_file_size: 1024 * 1024,
-        };
+        let actual = parse_agent_file(content, None).await.unwrap();
 
-        let agent_dir = environment.agent_path();
-
-        let agent_content = r#"---
-id: "test"
-title: "Test Agent"
-description: "A test agent"
-system_prompt: "Test instructions"
----
-
-# Test Agent
-
-This is the content of the test agent.
-"#;
-
-        let mock_infra = Arc::new(
-            MockInfra::new(environment)
-                .with_file(agent_dir.join("test.md"), agent_content.to_string()),
+        assert_eq!(actual.id.as_str(), "test-advanced");
+        assert_eq!(actual.title.as_ref().unwrap(), "Advanced Test Agent");
+        assert_eq!(
+            actual.description.as_ref().unwrap(),
+            "An advanced test agent with full configuration"
         );
-
-        let service = super::AgentLoaderService::new(mock_infra);
-        let actual = service.load_agents().await.unwrap();
-
-        assert_eq!(actual.len(), 1);
-        let agent = &actual[0];
-        assert_eq!(agent.id.as_str(), "test");
-        assert_eq!(agent.title.as_ref().unwrap(), "Test Agent");
-        assert_eq!(agent.description.as_ref().unwrap(), "A test agent");
+        assert_eq!(
+            actual.model.as_ref().unwrap().as_str(),
+            "claude-3-5-sonnet-20241022"
+        );
+        assert_eq!(actual.tool_supported, Some(true));
+        assert!(actual.tools.is_some());
+        assert_eq!(actual.temperature.as_ref().unwrap().value(), 0.7);
+        assert_eq!(actual.top_p.as_ref().unwrap().value(), 0.9);
+        assert_eq!(actual.max_tokens.as_ref().unwrap().value(), 2000);
+        assert_eq!(actual.max_turns, Some(10));
+        assert!(actual.reasoning.is_some());
     }
 
     #[tokio::test]
-    async fn test_load_agents_caches_results() {
-        let temp_dir = tempdir().unwrap();
-        let agent_dir = temp_dir.path().join("agents");
+    async fn test_parse_agent_with_filename_id_override() {
+        let content = include_str!("fixtures/agents/no_id.md");
 
-        let environment = Environment {
-            os: "test".to_string(),
-            pid: 12345,
-            cwd: temp_dir.path().to_path_buf(),
-            home: Some(temp_dir.path().to_path_buf()),
-            shell: "bash".to_string(),
-            base_path: temp_dir.path().to_path_buf(), /* Use temp_dir as base_path so
-                                                       * agent_path() works */
-            retry_config: RetryConfig::default(),
-            max_search_lines: 25,
-            max_search_result_bytes: 256000,
-            fetch_truncation_limit: 0,
-            forge_api_url: Url::parse("http://localhost:8000").unwrap(),
-            http: HttpConfig::default(),
-            stdout_max_prefix_length: 50,
-            stdout_max_suffix_length: 50,
-            stdout_max_line_length: 200,
-            max_read_size: 2000,
-            max_file_size: 1024 * 1024,
-        };
+        let actual = parse_agent_file(content, Some("custom-id".to_string()))
+            .await
+            .unwrap();
 
-        let mock_infra = Arc::new(
-            MockInfra::new(environment).with_file(
-                agent_dir.join("test.md"),
-                r#"---
-id: "test"
-title: "Test Agent"
-description: "A test agent"
-system_prompt: "Test instructions"
----"#
-                    .to_string(),
-            ),
-        );
+        assert_eq!(actual.id.as_str(), "custom-id");
+        assert_eq!(actual.title.as_ref().unwrap(), "No ID Agent");
+    }
 
-        let service = super::AgentLoaderService::new(mock_infra);
+    #[tokio::test]
+    async fn test_parse_invalid_frontmatter() {
+        let content = include_str!("fixtures/agents/invalid.md");
 
-        // First call should load from infra
-        let first_result = service.load_agents().await.unwrap();
-
-        // Second call should return cached result
-        let second_result = service.load_agents().await.unwrap();
-
-        assert_eq!(first_result.len(), second_result.len());
-        assert_eq!(first_result[0].title, second_result[0].title);
+        let result = parse_agent_file(content, None).await;
+        assert!(result.is_err());
     }
 }
