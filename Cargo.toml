@@ -29,6 +29,7 @@ dotenv = "0.15.0"
 futures = "0.3.31"
 gh-workflow-tailcall = "0.5.2"
 glob = "0.3.2"
+globset = "0.4.15"
 grep-searcher = "0.1.14"
 grep-regex = "0.1.13"
 handlebars = { version = "6.2.0", features = ["rust-embed"] }

@@ -1426,6 +1426,8 @@ dependencies = [
  "forge_services",
  "forge_snaps",
  "forge_walker",
+ "futures",
+ "globset",
  "inquire",
  "lazy_static",
  "pretty_assertions",
