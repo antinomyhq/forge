@@ -1,0 +1,10 @@
+policies:
+  - permission: allow
+    rule:
+      read_pattern: "**/*.rs"
+  - permission: confirm
+    rule:
+      write_pattern: "src/**/*"
+  - permission: disallow
+    rule:
+      execute_command: "rm -rf /*"
