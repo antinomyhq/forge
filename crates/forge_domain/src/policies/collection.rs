@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::operation::Operation;
 use super::policy::Policy;
-use super::rule::{ExecuteRule, ReadRule};
+use super::rule::{ExecuteRule, NetFetchRule, ReadRule};
 use super::types::{Permission, Trace};
 use crate::Rule;
 
@@ -31,6 +31,12 @@ impl Policies {
             rule: Rule::Read(ReadRule { read_pattern: "**/*".to_string() }),
         });
 
+        // Allow all network fetch operations
+        policies = policies.add_policy(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::NetFetch(NetFetchRule { url_pattern: "*".to_string() }),
+        });
+
         // Allow common shell commands
         let common_commands = [
             "ls*", "cat*", "grep*", "find*", "head*", "tail*", "wc*", "sort*", "uniq*", "awk*",
@@ -39,7 +45,7 @@ impl Policies {
         for command in common_commands {
             policies = policies.add_policy(Policy::Simple {
                 permission: Permission::Allow,
-                rule: Rule::Execute(ExecuteRule { execute_command: command.to_string() }),
+                rule: Rule::Execute(ExecuteRule { command_pattern: command.to_string() }),
             });
         }
 
@@ -48,7 +54,7 @@ impl Policies {
         for command in dev_commands {
             policies = policies.add_policy(Policy::Simple {
                 permission: Permission::Allow,
-                rule: Rule::Execute(ExecuteRule { execute_command: command.to_string() }),
+                rule: Rule::Execute(ExecuteRule { command_pattern: command.to_string() }),
             });
         }
 
@@ -153,13 +159,44 @@ fn test_policies_with_defaults_creates_expected_policies() {
         matches!(
             p,
             Policy::Simple {
-                rule: Rule::Execute(ExecuteRule { execute_command }),
+                rule: Rule::Execute(ExecuteRule { command_pattern }),
                 ..
-            } if execute_command == "ls*"
+            } if command_pattern == "ls*"
         )
     });
     assert!(has_ls, "Should include ls command");
+
+    // Check that it includes NetFetch access
+    let has_net_fetch_all = actual.policies.iter().any(|p| {
+        matches!(p.permission(), Some(Permission::Allow))
+            && matches!(
+                p,
+                Policy::Simple {
+                    rule: Rule::NetFetch(NetFetchRule { url_pattern }),
+                    ..
+                } if url_pattern == "*"
+            )
+    });
+    assert!(has_net_fetch_all, "Should include NetFetch access to all URLs");
 }
+    #[test]
+    fn test_default_policies_allow_all_net_fetch() {
+        let policies = Policies::with_defaults();
+        let operation = Operation::NetFetch { url: "https://example.com/api".to_string() };
+
+        let traces = policies.eval(&operation, None);
+        
+        // Should find at least one Allow policy for NetFetch
+        let has_allow = traces.iter().any(|trace| {
+            if let Some(trace) = trace {
+                trace.value == Permission::Allow
+            } else {
+                false
+            }
+        });
+        
+        assert!(has_allow, "Default policies should allow NetFetch operations");
+    }
 
 #[cfg(test)]
 mod yaml_policies_tests {

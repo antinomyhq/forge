@@ -158,7 +158,7 @@ mod tests {
         if let Policy::Simple { permission, rule } = execute_policy_disallow {
             assert_eq!(*permission, Permission::Disallow);
             if let Rule::Execute(execute_rule) = rule {
-                assert_eq!(execute_rule.execute_command, "rm -rf /*");
+                assert_eq!(execute_rule.command_pattern, "rm -rf /*");
             } else {
                 panic!("Expected Execute rule");
             }
@@ -171,7 +171,7 @@ mod tests {
         if let Policy::Simple { permission, rule } = execute_policy_allow {
             assert_eq!(*permission, Permission::Allow);
             if let Rule::Execute(execute_rule) = rule {
-                assert_eq!(execute_rule.execute_command, "cargo*");
+                assert_eq!(execute_rule.command_pattern, "cargo*");
             } else {
                 panic!("Expected Execute rule");
             }

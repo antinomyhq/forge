@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use forge_app::domain::Environment;
-use forge_app::{ServiceContext, ShellOutput, ShellService};
-use forge_domain::PolicyEngine;
+use forge_app::{ShellOutput, ShellService};
 use strip_ansi_escapes::strip;
 
 use crate::{CommandInfra, EnvironmentInfra};
@@ -48,47 +47,8 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
-        context: &ServiceContext<'_>,
     ) -> anyhow::Result<ShellOutput> {
-        let workflow = context.workflow;
         Self::validate_command(&command)?;
-
-        let engine = PolicyEngine::new(workflow);
-        let permission_trace = engine.can_execute(&command);
-
-        // Check permission and handle according to policy
-        match permission_trace.value {
-            forge_domain::Permission::Disallow => {
-                return Err(anyhow::anyhow!(
-                    "Operation denied by policy at {}:{}. Execute access to '{}' is not permitted.",
-                    permission_trace
-                        .file
-                        .as_ref()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    permission_trace.line.unwrap_or(0),
-                    command
-                ));
-            }
-            forge_domain::Permission::Allow => {
-                // Continue with the operation
-            }
-            forge_domain::Permission::Confirm => {
-                // Request user confirmation
-                match context.request_confirmation() {
-                    forge_domain::UserResponse::Accept
-                    | forge_domain::UserResponse::AcceptAndRemember => {
-                        // User accepted the operation, continue
-                    }
-                    forge_domain::UserResponse::Reject => {
-                        return Err(anyhow::anyhow!(
-                            "Operation rejected by user for command: {}",
-                            command
-                        ));
-                    }
-                }
-            }
-        }
 
         let mut output = self.infra.execute_command(command, cwd).await?;
 

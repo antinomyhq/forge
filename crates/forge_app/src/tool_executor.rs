@@ -2,12 +2,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools, UserResponse};
+use forge_domain::{
+    Permission, PolicyEngine, TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools,
+    UserResponse,
+};
 
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
-use crate::services::{ServiceContext, ShellService};
+use crate::services::ShellService;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
@@ -36,6 +39,53 @@ impl<
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
+
+    /// Check if a file operation is allowed based on the workflow policies
+    fn check_operation_permission(
+        &self,
+        operation: &forge_domain::Operation,
+        workflow: &forge_domain::Workflow,
+        confirm_fn: &dyn Fn() -> UserResponse,
+    ) -> anyhow::Result<()> {
+        let engine = PolicyEngine::new(workflow);
+        let permission_trace = engine.can_perform(operation);
+
+        match permission_trace.value {
+            Permission::Disallow => {
+                return Err(anyhow::anyhow!(
+                    "Operation denied by policy at {}:{}.",
+                    permission_trace
+                        .file
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    permission_trace.line.unwrap_or(0),
+                ));
+            }
+            Permission::Allow => {
+                // Continue with the operation
+            }
+            Permission::Confirm => {
+                // Request user confirmation
+                match confirm_fn() {
+                    UserResponse::Accept => {
+                        // User accepted the operation, continue
+                    }
+                    UserResponse::AcceptAndRemember => {
+                        todo!()
+                    }
+                    UserResponse::Reject => {
+                        return Err(anyhow::anyhow!(
+                            "Operation rejected by user for operation: {:?}",
+                            operation
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     async fn dump_operation(&self, operation: &Operation) -> anyhow::Result<TempContentFiles> {
         match operation {
             Operation::NetFetch { input: _, output } => {
@@ -102,7 +152,6 @@ impl<
                 content.to_string(),
                 true,
                 false,
-                &ServiceContext::new(&Default::default()),
             )
             .await?;
         Ok(path)
@@ -116,23 +165,30 @@ impl<
         confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<Operation> {
         let workflow = self.services.read_workflow(Some(workflow_path)).await?;
-        let context =
-            ServiceContext::with_confirmation(&workflow, confirm_fn.as_ref(), workflow_path);
 
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
+                // Check policy before performing the operation
+                let operation =
+                    forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
+                self.check_operation_permission(&operation, &workflow, confirm_fn.as_ref())?;
+
                 let output = self
                     .services
                     .read(
                         input.path.clone(),
                         input.start_line.map(|i| i as u64),
                         input.end_line.map(|i| i as u64),
-                        &context,
                     )
                     .await?;
                 (input, output).into()
             }
             Tools::ForgeToolFsCreate(input) => {
+                // Check policy before performing the operation
+                let operation =
+                    forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
+                self.check_operation_permission(&operation, &workflow, confirm_fn.as_ref())?;
+
                 let output = self
                     .services
                     .create(
@@ -140,28 +196,41 @@ impl<
                         input.content.clone(),
                         input.overwrite,
                         true,
-                        &context,
                     )
                     .await?;
                 (input, output).into()
             }
             Tools::ForgeToolFsSearch(input) => {
+                // Check policy before performing the operation
+                let operation =
+                    forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
+                self.check_operation_permission(&operation, &workflow, confirm_fn.as_ref())?;
+
                 let output = self
                     .services
                     .search(
                         input.path.clone(),
                         input.regex.clone(),
                         input.file_pattern.clone(),
-                        &context,
                     )
                     .await?;
                 (input, output).into()
             }
             Tools::ForgeToolFsRemove(input) => {
-                let _output = self.services.remove(input.path.clone(), &context).await?;
+                // Check policy before performing the operation
+                let operation =
+                    forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
+                self.check_operation_permission(&operation, &workflow, confirm_fn.as_ref())?;
+
+                let _output = self.services.remove(input.path.clone()).await?;
                 input.into()
             }
             Tools::ForgeToolFsPatch(input) => {
+                // Check policy before performing the operation
+                let operation =
+                    forge_domain::Operation::Patch { path: std::path::PathBuf::from(&input.path) };
+                self.check_operation_permission(&operation, &workflow, confirm_fn.as_ref())?;
+
                 let output = self
                     .services
                     .patch(
@@ -169,28 +238,31 @@ impl<
                         input.search.clone(),
                         input.operation.clone(),
                         input.content.clone(),
-                        &context,
                     )
                     .await?;
                 (input, output).into()
             }
             Tools::ForgeToolFsUndo(input) => {
+                // Note: Undo operations are always allowed as they revert changes
                 let output = self.services.undo(input.path.clone()).await?;
                 (input, output).into()
             }
             Tools::ForgeToolProcessShell(input) => {
+                // Check policy before performing the operation
+                let operation = forge_domain::Operation::Execute { command: input.command.clone() };
+                self.check_operation_permission(&operation, &workflow, confirm_fn.as_ref())?;
+
                 let output = self
                     .services
-                    .execute(
-                        input.command.clone(),
-                        input.cwd.clone(),
-                        input.keep_ansi,
-                        &context,
-                    )
+                    .execute(input.command.clone(), input.cwd.clone(), input.keep_ansi)
                     .await?;
                 output.into()
             }
             Tools::ForgeToolNetFetch(input) => {
+                // Check policy before performing the operation
+                let operation = forge_domain::Operation::NetFetch { url: input.url.clone() };
+                self.check_operation_permission(&operation, &workflow, confirm_fn.as_ref())?;
+
                 let output = self.services.fetch(input.url.clone(), input.raw).await?;
                 (input, output).into()
             }

@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::{FsCreateOutput, FsCreateService, ServiceContext};
-use forge_domain::PolicyEngine;
+use forge_app::{FsCreateOutput, FsCreateService};
 
 use crate::utils::assert_absolute_path;
 use crate::{FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, tool_services};
@@ -33,48 +32,9 @@ impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra +
         content: String,
         overwrite: bool,
         capture_snapshot: bool,
-        context: &ServiceContext<'_>,
     ) -> anyhow::Result<FsCreateOutput> {
-        let workflow = context.workflow;
         let path = Path::new(&path);
         assert_absolute_path(path)?;
-
-        let engine = PolicyEngine::new(workflow);
-        let permission_trace = engine.can_write(path);
-
-        // Check permission and handle according to policy
-        match permission_trace.value {
-            forge_domain::Permission::Disallow => {
-                return Err(anyhow::anyhow!(
-                    "Operation denied by policy at {}:{}. Read access to '{}' is not permitted.",
-                    permission_trace
-                        .file
-                        .as_ref()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    permission_trace.line.unwrap_or(0),
-                    path.display()
-                ));
-            }
-            forge_domain::Permission::Allow => {
-                // Continue with the operation
-            }
-            forge_domain::Permission::Confirm => {
-                // Request user confirmation
-                match context.request_confirmation() {
-                    forge_domain::UserResponse::Accept
-                    | forge_domain::UserResponse::AcceptAndRemember => {
-                        // User accepted the operation, continue
-                    }
-                    forge_domain::UserResponse::Reject => {
-                        return Err(anyhow::anyhow!(
-                            "Operation rejected by user for file: {}",
-                            path.display()
-                        ));
-                    }
-                }
-            }
-        }
 
         // Validate file content if it's a supported language file
         let syntax_warning = tool_services::syn::validate(path, &content);

@@ -11,4 +11,6 @@ pub enum Operation {
     Patch { path: PathBuf },
     /// Execute operation with a command string
     Execute { command: String },
+    /// Network fetch operation with a URL
+    NetFetch { url: String },
 }

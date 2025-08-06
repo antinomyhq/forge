@@ -20,32 +20,45 @@ impl<'a> PolicyEngine<'a> {
         Self { workflow }
     }
 
+    /// Check if an operation is allowed
+    /// Returns trace with permission result
+    pub fn can_perform(&self, operation: &Operation) -> Trace<Permission> {
+        self.evaluate_policies(operation)
+    }
+
     /// Check if a read operation is allowed for the given path
     /// Returns trace with permission result
     pub fn can_read<P: AsRef<Path>>(&self, path: P) -> Trace<Permission> {
         let operation = Operation::Read { path: path.as_ref().to_path_buf() };
-        self.evaluate_policies(&operation)
+        self.can_perform(&operation)
     }
 
     /// Check if a write operation is allowed for the given path  
     /// Returns trace with permission result
     pub fn can_write<P: AsRef<Path>>(&self, path: P) -> Trace<Permission> {
         let operation = Operation::Write { path: path.as_ref().to_path_buf() };
-        self.evaluate_policies(&operation)
+        self.can_perform(&operation)
     }
 
     /// Check if a patch operation is allowed for the given path
     /// Returns trace with permission result
     pub fn can_patch<P: AsRef<Path>>(&self, path: P) -> Trace<Permission> {
         let operation = Operation::Patch { path: path.as_ref().to_path_buf() };
-        self.evaluate_policies(&operation)
+        self.can_perform(&operation)
     }
 
     /// Check if an execute operation is allowed for the given command
     /// Returns trace with permission result
     pub fn can_execute(&self, command: &str) -> Trace<Permission> {
         let operation = Operation::Execute { command: command.to_string() };
-        self.evaluate_policies(&operation)
+        self.can_perform(&operation)
+    }
+
+    /// Check if a network fetch operation is allowed for the given URL
+    /// Returns trace with permission result
+    pub fn can_net_fetch(&self, url: &str) -> Trace<Permission> {
+        let operation = Operation::NetFetch { url: url.to_string() };
+        self.can_perform(&operation)
     }
 
     /// Internal helper function to evaluate policies for a given operation
@@ -84,7 +97,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{ExecuteRule, PatchRule, Permission, Policies, Policy, ReadRule, Rule, WriteRule};
+    use crate::{ExecuteRule, NetFetchRule, PatchRule, Permission, Policies, Policy, ReadRule, Rule, WriteRule};
 
     fn fixture_workflow_with_read_policy() -> Workflow {
         let policies = Policies::new().add_policy(Policy::Simple {
@@ -105,7 +118,7 @@ mod tests {
     fn fixture_workflow_with_execute_policy() -> Workflow {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule { execute_command: "cargo *".to_string() }),
+            rule: Rule::Execute(ExecuteRule { command_pattern: "cargo *".to_string() }),
         });
         Workflow::new().policies(policies)
     }
@@ -114,6 +127,14 @@ mod tests {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Confirm,
             rule: Rule::Patch(PatchRule { patch_pattern: "src/**/*.rs".to_string() }),
+        });
+        Workflow::new().policies(policies)
+    }
+
+    fn fixture_workflow_with_net_fetch_policy() -> Workflow {
+        let policies = Policies::new().add_policy(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::NetFetch(NetFetchRule { url_pattern: "https://api.example.com/*".to_string() }),
         });
         Workflow::new().policies(policies)
     }
@@ -159,6 +180,16 @@ mod tests {
     }
 
     #[test]
+    fn test_policy_engine_can_net_fetch() {
+        let fixture_workflow = fixture_workflow_with_net_fetch_policy();
+        let fixture = PolicyEngine::new(&fixture_workflow);
+
+        let actual = fixture.can_net_fetch("https://api.example.com/data");
+
+        assert_eq!(actual.value, Permission::Allow);
+    }
+
+    #[test]
     fn test_policy_engine_with_no_policies() {
         let fixture_workflow = Workflow::new(); // No policies
         let fixture = PolicyEngine::new(&fixture_workflow);
@@ -167,11 +198,67 @@ mod tests {
         let write_trace = fixture.can_write("src/main.rs");
         let patch_trace = fixture.can_patch("src/main.rs");
         let execute_trace = fixture.can_execute("cargo build");
+        let net_fetch_trace = fixture.can_net_fetch("https://api.example.com/data");
 
         // All should return Confirm as default
         assert_eq!(read_trace.value, Permission::Confirm);
         assert_eq!(write_trace.value, Permission::Confirm);
         assert_eq!(patch_trace.value, Permission::Confirm);
         assert_eq!(execute_trace.value, Permission::Confirm);
+        assert_eq!(net_fetch_trace.value, Permission::Confirm);
+    }
+    #[test]
+    fn test_policy_engine_can_perform_read() {
+        let fixture_workflow = fixture_workflow_with_read_policy();
+        let fixture = PolicyEngine::new(&fixture_workflow);
+        let operation = Operation::Read { path: std::path::PathBuf::from("src/main.rs") };
+
+        let actual = fixture.can_perform(&operation);
+
+        assert_eq!(actual.value, Permission::Allow);
+    }
+
+    #[test]
+    fn test_policy_engine_can_perform_write() {
+        let fixture_workflow = fixture_workflow_with_write_policy();
+        let fixture = PolicyEngine::new(&fixture_workflow);
+        let operation = Operation::Write { path: std::path::PathBuf::from("src/main.rs") };
+
+        let actual = fixture.can_perform(&operation);
+
+        assert_eq!(actual.value, Permission::Disallow);
+    }
+
+    #[test]
+    fn test_policy_engine_can_perform_patch() {
+        let fixture_workflow = fixture_workflow_with_patch_policy();
+        let fixture = PolicyEngine::new(&fixture_workflow);
+        let operation = Operation::Patch { path: std::path::PathBuf::from("src/main.rs") };
+
+        let actual = fixture.can_perform(&operation);
+
+        assert_eq!(actual.value, Permission::Confirm);
+    }
+
+    #[test]
+    fn test_policy_engine_can_perform_execute() {
+        let fixture_workflow = fixture_workflow_with_execute_policy();
+        let fixture = PolicyEngine::new(&fixture_workflow);
+        let operation = Operation::Execute { command: "cargo build".to_string() };
+
+        let actual = fixture.can_perform(&operation);
+
+        assert_eq!(actual.value, Permission::Allow);
+    }
+
+    #[test]
+    fn test_policy_engine_can_perform_net_fetch() {
+        let fixture_workflow = fixture_workflow_with_net_fetch_policy();
+        let fixture = PolicyEngine::new(&fixture_workflow);
+        let operation = Operation::NetFetch { url: "https://api.example.com/data".to_string() };
+
+        let actual = fixture.can_perform(&operation);
+
+        assert_eq!(actual.value, Permission::Allow);
     }
 }

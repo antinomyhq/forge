@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::domain::PatchOperation;
-use forge_app::{FsPatchService, PatchOutput, ServiceContext};
-use forge_domain::PolicyEngine;
+use forge_app::{FsPatchService, PatchOutput};
 use thiserror::Error;
 use tokio::fs;
 
@@ -210,47 +209,9 @@ impl<F: FileWriterInfra> FsPatchService for ForgeFsPatch<F> {
         search: Option<String>,
         operation: PatchOperation,
         content: String,
-        context: &ServiceContext<'_>,
     ) -> anyhow::Result<PatchOutput> {
-        let workflow = context.workflow;
         let path = Path::new(&input_path);
         assert_absolute_path(path)?;
-
-        let engine = PolicyEngine::new(workflow);
-        let permission_trace = engine.can_patch(path);
-
-        // Check permission and handle according to policy
-        match permission_trace.value {
-            forge_domain::Permission::Disallow => {
-                return Err(anyhow::anyhow!(
-                    "Operation denied by policy at {}:{}.",
-                    permission_trace
-                        .file
-                        .as_ref()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    permission_trace.line.unwrap_or(0),
-                ));
-            }
-            forge_domain::Permission::Allow => {
-                // Continue with the operation
-            }
-            forge_domain::Permission::Confirm => {
-                // Request user confirmation
-                match context.request_confirmation() {
-                    forge_domain::UserResponse::Accept
-                    | forge_domain::UserResponse::AcceptAndRemember => {
-                        // User accepted the operation, continue
-                    }
-                    forge_domain::UserResponse::Reject => {
-                        return Err(anyhow::anyhow!(
-                            "Operation rejected by user for file: {}",
-                            path.display()
-                        ));
-                    }
-                }
-            }
-        }
 
         // Read the original content once
         // TODO: use forge_fs

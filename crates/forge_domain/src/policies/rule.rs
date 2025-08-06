@@ -27,7 +27,13 @@ pub struct PatchRule {
 /// Rule for execute operations with a command pattern
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ExecuteRule {
-    pub execute_command: String,
+    pub command_pattern: String,
+}
+
+/// Rule for network fetch operations with a URL pattern
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct NetFetchRule {
+    pub url_pattern: String,
 }
 
 /// Rules that define what operations are covered by a policy
@@ -42,6 +48,8 @@ pub enum Rule {
     Patch(PatchRule),
     /// Rule for execute operations with a command pattern
     Execute(ExecuteRule),
+    /// Rule for network fetch operations with a URL pattern
+    NetFetch(NetFetchRule),
 }
 
 impl Rule {
@@ -56,7 +64,10 @@ impl Rule {
                 match_pattern(&rule.patch_pattern, path)
             }
             (Rule::Execute(rule), Operation::Execute { command: cmd }) => {
-                match_pattern(&rule.execute_command, cmd)
+                match_pattern(&rule.command_pattern, cmd)
+            }
+            (Rule::NetFetch(rule), Operation::NetFetch { url }) => {
+                match_pattern(&rule.url_pattern, url)
             }
             _ => false,
         }
@@ -96,6 +107,10 @@ mod tests {
 
     fn fixture_execute_operation() -> Operation {
         Operation::Execute { command: "cargo build".to_string() }
+    }
+
+    fn fixture_net_fetch_operation() -> Operation {
+        Operation::NetFetch { url: "https://api.example.com/data".to_string() }
     }
 
     #[test]
@@ -151,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_execute_command_pattern_match() {
-        let fixture = Rule::Execute(ExecuteRule { execute_command: "cargo *".to_string() });
+        let fixture = Rule::Execute(ExecuteRule { command_pattern: "cargo *".to_string() });
         let operation = fixture_execute_operation();
 
         let actual = fixture.matches(&operation);
@@ -163,6 +178,16 @@ mod tests {
     fn test_read_config_pattern_match() {
         let fixture = Rule::Read(ReadRule { read_pattern: "config/*.yml".to_string() });
         let operation = fixture_read_operation();
+
+        let actual = fixture.matches(&operation);
+
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_net_fetch_url_pattern_match() {
+        let fixture = Rule::NetFetch(NetFetchRule { url_pattern: "https://api.example.com/*".to_string() });
+        let operation = fixture_net_fetch_operation();
 
         let actual = fixture.matches(&operation);
 

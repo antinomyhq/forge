@@ -2,8 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{Content, FsReadService, ReadOutput, ServiceContext};
-use forge_domain::{PolicyEngine, UserResponse};
+use forge_app::{Content, FsReadService, ReadOutput};
 
 use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
@@ -60,46 +59,10 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         path: String,
         start_line: Option<u64>,
         end_line: Option<u64>,
-        context: &ServiceContext<'_>,
     ) -> anyhow::Result<ReadOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
         let env = self.0.get_environment();
-
-        let engine = PolicyEngine::new(context.workflow);
-        let permission_trace = engine.can_read(path);
-
-        // Check permission and handle according to policy
-        match permission_trace.value {
-            forge_domain::Permission::Disallow => {
-                return Err(anyhow::anyhow!(
-                    "Operation denied by policy at {}:{}.",
-                    permission_trace
-                        .file
-                        .as_ref()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    permission_trace.line.unwrap_or(0),
-                ));
-            }
-            forge_domain::Permission::Allow => {
-                // Continue with the operation
-            }
-            forge_domain::Permission::Confirm => {
-                // Request user confirmation
-                match context.request_confirmation() {
-                    UserResponse::Accept | UserResponse::AcceptAndRemember => {
-                        // User accepted the operation, continue
-                    }
-                    UserResponse::Reject => {
-                        return Err(anyhow::anyhow!(
-                            "Operation rejected by user for file: {}",
-                            path.display()
-                        ));
-                    }
-                }
-            }
-        }
 
         // Validate file size before reading content
         assert_file_size(&*self.0, path, env.max_file_size).await?;

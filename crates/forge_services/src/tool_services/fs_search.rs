@@ -3,8 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{FsSearchService, Match, MatchResult, SearchResult, ServiceContext, Walker};
-use forge_domain::PolicyEngine;
+use forge_app::{FsSearchService, Match, MatchResult, SearchResult, Walker};
 use grep_searcher::sinks::UTF8;
 
 use crate::infra::WalkerInfra;
@@ -86,9 +85,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
         input_path: String,
         input_regex: Option<String>,
         file_pattern: Option<String>,
-        context: &ServiceContext<'_>,
     ) -> anyhow::Result<Option<SearchResult>> {
-        let workflow = context.workflow;
         let helper = FSSearchHelper {
             path: &input_path,
             content_pattern_regex: input_regex.as_ref(),
@@ -98,43 +95,6 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
 
         let path = Path::new(helper.path());
         assert_absolute_path(path)?;
-
-        let engine = PolicyEngine::new(workflow);
-        let permission_trace = engine.can_read(path);
-
-        // Check permission and handle according to policy
-        match permission_trace.value {
-            forge_domain::Permission::Disallow => {
-                return Err(anyhow::anyhow!(
-                    "Operation denied by policy at {}:{}. Read access to '{}' is not permitted.",
-                    permission_trace
-                        .file
-                        .as_ref()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    permission_trace.line.unwrap_or(0),
-                    path.display()
-                ));
-            }
-            forge_domain::Permission::Allow => {
-                // Continue with the operation
-            }
-            forge_domain::Permission::Confirm => {
-                // Request user confirmation
-                match context.request_confirmation() {
-                    forge_domain::UserResponse::Accept
-                    | forge_domain::UserResponse::AcceptAndRemember => {
-                        // User accepted the operation, continue
-                    }
-                    forge_domain::UserResponse::Reject => {
-                        return Err(anyhow::anyhow!(
-                            "Operation rejected by user for path: {}",
-                            path.display()
-                        ));
-                    }
-                }
-            }
-        }
 
         let content_pattern = match helper.regex() {
             Some(regex) => {
@@ -242,16 +202,11 @@ mod test {
     use std::sync::Arc;
 
     use forge_app::{WalkedFile, Walker};
-    use forge_domain::Workflow;
     use forge_fs::FileInfo;
     use tokio::fs;
 
     use super::*;
     use crate::utils::TempDir;
-
-    fn create_test_workflow() -> Workflow {
-        Workflow::default()
-    }
 
     // Mock WalkerInfra for testing
     struct MockInfra {
@@ -355,14 +310,11 @@ mod test {
     #[tokio::test]
     async fn test_search_content_with_regex() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("test".to_string()),
                 None,
-                &context,
             )
             .await
             .unwrap();
@@ -373,14 +325,11 @@ mod test {
     #[tokio::test]
     async fn test_search_file_pattern_only() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 None,
                 Some("*.rs".to_string()),
-                &context,
             )
             .await
             .unwrap();
@@ -394,14 +343,11 @@ mod test {
     #[tokio::test]
     async fn test_search_combined_pattern_and_content() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("test".to_string()),
                 Some("*.rs".to_string()),
-                &context,
             )
             .await
             .unwrap();
@@ -416,14 +362,11 @@ mod test {
     async fn test_search_single_file() {
         let fixture = create_simple_test_directory().await.unwrap();
         let file_path = fixture.path().join("test.txt");
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 file_path.to_string_lossy().to_string(),
                 Some("hello".to_string()),
                 None,
-                &context,
             )
             .await
             .unwrap();
@@ -434,14 +377,11 @@ mod test {
     #[tokio::test]
     async fn test_search_no_matches() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("nonexistent".to_string()),
                 None,
-                &context,
             )
             .await
             .unwrap();
@@ -452,14 +392,11 @@ mod test {
     #[tokio::test]
     async fn test_search_pattern_no_matches() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 None,
                 Some("*.cpp".to_string()),
-                &context,
             )
             .await
             .unwrap();
@@ -469,14 +406,11 @@ mod test {
 
     #[tokio::test]
     async fn test_search_nonexistent_path() {
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let result = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 "/nonexistent/path".to_string(),
                 Some("test".to_string()),
                 None,
-                &context,
             )
             .await;
 
@@ -485,14 +419,11 @@ mod test {
 
     #[tokio::test]
     async fn test_search_relative_path_error() {
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let result = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 "relative/path".to_string(),
                 Some("test".to_string()),
                 None,
-                &context,
             )
             .await;
 
@@ -513,14 +444,11 @@ mod test {
             .await
             .unwrap();
 
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("Hello".to_string()),
                 None,
-                &context,
             )
             .await
             .unwrap();
@@ -546,14 +474,11 @@ mod test {
             .await
             .unwrap();
 
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 None,
                 Some("*.exe".to_string()),
-                &context,
             )
             .await
             .unwrap();
@@ -584,14 +509,11 @@ mod test {
             .await
             .unwrap();
 
-        let workflow = create_test_workflow();
-        let context = ServiceContext::new(&workflow);
         let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("Hello".to_string()),
                 Some("*.exe".to_string()),
-                &context,
             )
             .await
             .unwrap();
