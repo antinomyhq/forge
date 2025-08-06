@@ -1,7 +1,6 @@
 ---
 source: crates/forge_app/tests/orch_spec.rs
 expression: system_prompt
-snapshot_kind: text
 ---
 <system_information>
 <operating_system>MacOS</operating_system>
