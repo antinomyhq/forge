@@ -100,14 +100,16 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
-    use forge_app::domain::{Environment, RetryConfig, HttpConfig};
+
     use forge_app::AgentLoaderService;
+    use forge_app::domain::{Environment, HttpConfig, RetryConfig};
     use pretty_assertions::assert_eq;
     use tempfile::tempdir;
     use url::Url;
+
+    use super::*;
 
     // Mock infrastructure for testing
     #[derive(Clone)]
@@ -118,10 +120,7 @@ mod tests {
 
     impl MockInfra {
         fn new(environment: Environment) -> Self {
-            Self {
-                environment,
-                files: HashMap::new(),
-            }
+            Self { environment, files: HashMap::new() }
         }
 
         fn with_file(mut self, path: PathBuf, content: String) -> Self {
@@ -175,7 +174,12 @@ mod tests {
             unimplemented!()
         }
 
-        async fn write_temp(&self, _prefix: &str, _ext: &str, _content: &str) -> anyhow::Result<PathBuf> {
+        async fn write_temp(
+            &self,
+            _prefix: &str,
+            _ext: &str,
+            _content: &str,
+        ) -> anyhow::Result<PathBuf> {
             unimplemented!()
         }
     }
@@ -207,7 +211,7 @@ mod tests {
             filter: Option<&str>,
         ) -> anyhow::Result<Vec<(PathBuf, String)>> {
             let mut files = Vec::new();
-            
+
             for (path, content) in &self.files {
                 if let Some(parent) = path.parent() {
                     if parent == directory {
@@ -226,7 +230,7 @@ mod tests {
                     }
                 }
             }
-            
+
             Ok(files)
         }
     }
@@ -234,7 +238,7 @@ mod tests {
     #[tokio::test]
     async fn test_load_agents_with_directory_reader() {
         let temp_dir = tempdir().unwrap();
-        
+
         let environment = Environment {
             os: "test".to_string(),
             pid: 12345,
@@ -256,7 +260,7 @@ mod tests {
         };
 
         let agent_dir = environment.agent_path();
-        
+
         let agent_content = r#"---
 id: "test"
 title: "Test Agent"
@@ -271,7 +275,7 @@ This is the content of the test agent.
 
         let mock_infra = Arc::new(
             MockInfra::new(environment)
-                .with_file(agent_dir.join("test.md"), agent_content.to_string())
+                .with_file(agent_dir.join("test.md"), agent_content.to_string()),
         );
 
         let service = super::AgentLoaderService::new(mock_infra);
@@ -288,14 +292,15 @@ This is the content of the test agent.
     async fn test_load_agents_caches_results() {
         let temp_dir = tempdir().unwrap();
         let agent_dir = temp_dir.path().join("agents");
-        
+
         let environment = Environment {
             os: "test".to_string(),
             pid: 12345,
             cwd: temp_dir.path().to_path_buf(),
             home: Some(temp_dir.path().to_path_buf()),
             shell: "bash".to_string(),
-            base_path: temp_dir.path().to_path_buf(), // Use temp_dir as base_path so agent_path() works
+            base_path: temp_dir.path().to_path_buf(), /* Use temp_dir as base_path so
+                                                       * agent_path() works */
             retry_config: RetryConfig::default(),
             max_search_lines: 25,
             max_search_result_bytes: 256000,
@@ -308,25 +313,28 @@ This is the content of the test agent.
             max_read_size: 2000,
             max_file_size: 1024 * 1024,
         };
-        
+
         let mock_infra = Arc::new(
-            MockInfra::new(environment)
-                .with_file(agent_dir.join("test.md"), r#"---
+            MockInfra::new(environment).with_file(
+                agent_dir.join("test.md"),
+                r#"---
 id: "test"
 title: "Test Agent"
 description: "A test agent"
 system_prompt: "Test instructions"
----"#.to_string())
+---"#
+                    .to_string(),
+            ),
         );
 
         let service = super::AgentLoaderService::new(mock_infra);
-        
+
         // First call should load from infra
         let first_result = service.load_agents().await.unwrap();
-        
+
         // Second call should return cached result
         let second_result = service.load_agents().await.unwrap();
-        
+
         assert_eq!(first_result.len(), second_result.len());
         assert_eq!(first_result[0].title, second_result[0].title);
     }

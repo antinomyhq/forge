@@ -44,9 +44,10 @@ impl ForgeDirectoryReaderService {
                 // Apply filter if provided
                 if let Some(ref glob_set) = glob_set {
                     if let Some(file_name) = path.file_name().and_then(|n| n.to_str())
-                        && glob_set.is_match(file_name) {
-                            file_paths.push(path);
-                        }
+                        && glob_set.is_match(file_name)
+                    {
+                        file_paths.push(path);
+                    }
                 } else {
                     file_paths.push(path);
                 }
@@ -98,7 +99,10 @@ mod tests {
             .await
             .unwrap();
 
-        let expected = vec![(fixture.path().join("test.md"), "# Markdown content".to_string())];
+        let expected = vec![(
+            fixture.path().join("test.md"),
+            "# Markdown content".to_string(),
+        )];
         assert_eq!(actual, expected);
     }
 
@@ -136,7 +140,7 @@ mod tests {
     async fn test_read_directory_files_ignores_subdirectories() {
         let fixture = tempdir().unwrap();
         write_file(&fixture.path().join("test.txt"), "File content");
-        
+
         let subdir = fixture.path().join("subdir");
         fs::create_dir(&subdir).unwrap();
         write_file(&subdir.join("subfile.txt"), "Sub content");
