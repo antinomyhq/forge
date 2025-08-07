@@ -1,10 +1,10 @@
-mod orchestrator_test_helpers;
+mod orch_runner;
 
 use forge_domain::{ChatCompletionMessage, Content, Role, Workflow};
 use insta::assert_snapshot;
 use pretty_assertions::assert_eq;
 
-use crate::orchestrator_test_helpers::Setup;
+use crate::orch_runner::Setup;
 
 #[tokio::test]
 async fn test_orchestrator_creation() {
