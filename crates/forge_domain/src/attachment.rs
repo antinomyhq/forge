@@ -352,7 +352,7 @@ mod tests {
         assert_eq!(actual, &expected);
     }
 
-      #[test]
+    #[test]
     fn test_attachment_parse_location_duplicate_entries() {
         let text = String::from("Check @[/file.txt:12#main()] and @[/file.txt:12#main()]");
         let paths = Attachment::parse_all(text);
