@@ -51,15 +51,6 @@ impl Policies {
             });
         }
 
-        // Allow development tools
-        let dev_commands = ["cargo*", "npm*", "make*", "git*"];
-        for command in dev_commands {
-            policies = policies.add_policy(Policy::Simple {
-                permission: Permission::Allow,
-                rule: Rule::Execute(ExecuteRule { command_pattern: command.to_string() }),
-            });
-        }
-
         policies
     }
 

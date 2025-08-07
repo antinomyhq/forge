@@ -127,56 +127,43 @@ custom_rules: |-
   - Commands represent intent to perform side effects
   - Actions represent the result of those side effects
   - The executor pattern: Command -> Side Effect -> Action -> State Update -> UI Update
-
 policies:
-  - permission: allow
-    rule:
-      read_pattern: '**/*'
-  - permission: allow
-    rule:
-      command_pattern: awk*
-  - permission: allow
-    rule:
-      command_pattern: cargo*
-  - permission: allow
-    rule:
-      command_pattern: cat*
-  - permission: allow
-    rule:
-      command_pattern: find*
-  - permission: allow
-    rule:
-      command_pattern: git*
-  - permission: allow
-    rule:
-      command_pattern: grep*
-  - permission: allow
-    rule:
-      command_pattern: head*
-  - permission: allow
-    rule:
-      command_pattern: ls*
-  - permission: allow
-    rule:
-      command_pattern: make*
-  - permission: allow
-    rule:
-      command_pattern: npm*
-  - permission: allow
-    rule:
-      command_pattern: sed*
-  - permission: allow
-    rule:
-      command_pattern: sort*
-  - permission: allow
-    rule:
-      command_pattern: tail*
-  - permission: allow
-    rule:
-      command_pattern: uniq*
-  - permission: allow
-    rule:
-      command_pattern: wc*
-  - permission: allow
-    rule:
-      url_pattern: '*'
+- permission: allow
+  rule:
+    read_pattern: '**/*'
+- permission: allow
+  rule:
+    command_pattern: awk*
+- permission: allow
+  rule:
+    command_pattern: cat*
+- permission: allow
+  rule:
+    command_pattern: find*
+- permission: allow
+  rule:
+    command_pattern: grep*
+- permission: allow
+  rule:
+    command_pattern: head*
+- permission: allow
+  rule:
+    command_pattern: ls*
+- permission: allow
+  rule:
+    command_pattern: sed*
+- permission: allow
+  rule:
+    command_pattern: sort*
+- permission: allow
+  rule:
+    command_pattern: tail*
+- permission: allow
+  rule:
+    command_pattern: uniq*
+- permission: allow
+  rule:
+    command_pattern: wc*
+- permission: allow
+  rule:
+    url_pattern: '*'
