@@ -14,10 +14,7 @@ pub struct WorkflowManager<S> {
 
 impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> WorkflowManager<S> {
     pub fn new(service: Arc<S>) -> WorkflowManager<S> {
-        Self { 
-            service,
-            extended_policies: Arc::new(Mutex::new(Vec::new())),
-        }
+        Self { service, extended_policies: Arc::new(Mutex::new(Vec::new())) }
     }
     async fn extend_agents(&self, mut workflow: Workflow) -> Workflow {
         let agents = self.service.load_agents().await.unwrap_or_default();
@@ -96,7 +93,7 @@ impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> Work
                 policies.policies.remove(extended_policy);
             }
             extended_policies.clear();
-            
+
             // If no policies remain, set to None
             if policies.policies.is_empty() {
                 workflow_to_write.policies = None;
