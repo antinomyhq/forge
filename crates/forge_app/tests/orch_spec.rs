@@ -14,25 +14,25 @@ async fn test_orchestrator_creation() {
 
 #[tokio::test]
 async fn test_history_is_saved() {
-    let test_context = Setup::init_forge_task("This is a test")
+    let ctx = Setup::init_forge_task("This is a test")
         .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
             "Sure",
         ))])
         .run()
         .await;
-    let actual = test_context.conversation_history;
+    let actual = ctx.conversation_history;
     assert!(!actual.is_empty());
 }
 
 #[tokio::test]
 async fn test_attempt_completion_requirement() {
-    let test_context = Setup::init_forge_task("Hi")
+    let ctx = Setup::init_forge_task("Hi")
         .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
             "Hello!",
         ))])
         .run()
         .await;
-    let messages = test_context.messages();
+    let messages = ctx.messages();
 
     let message_count = messages
         .iter()
@@ -51,24 +51,24 @@ async fn test_attempt_completion_requirement() {
 
 #[tokio::test]
 async fn test_attempt_completion_content() {
-    let test_context = Setup::init_forge_task("Hi")
+    let ctx = Setup::init_forge_task("Hi")
         .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
             "Hello!",
         ))])
         .run()
         .await;
-    let response_len = test_context.chat_responses.len();
+    let response_len = ctx.chat_responses.len();
 
     assert_eq!(response_len, 2, "Response length should be 2");
 
-    let first_text_response = test_context
-        .chat_responses
-        .iter()
-        .flatten()
-        .find_map(|response| match response {
-            forge_domain::ChatResponse::Text { text, .. } => Some(text.as_str()),
-            _ => None,
-        });
+    let first_text_response =
+        ctx.chat_responses
+            .iter()
+            .flatten()
+            .find_map(|response| match response {
+                forge_domain::ChatResponse::Text { text, .. } => Some(text.as_str()),
+                _ => None,
+            });
 
     assert_eq!(
         first_text_response,
@@ -79,20 +79,20 @@ async fn test_attempt_completion_content() {
 
 #[tokio::test]
 async fn test_system_prompt() {
-    let test_context = Setup::init_forge_task("This is a test")
+    let ctx = Setup::init_forge_task("This is a test")
         .workflow(Workflow::default())
         .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
             "Sure",
         ))])
         .run()
         .await;
-    let system_prompt = test_context.system_prompt().unwrap();
+    let system_prompt = ctx.system_prompt().unwrap();
     assert_snapshot!(system_prompt);
 }
 
 #[tokio::test]
 async fn test_system_prompt_tool_supported() {
-    let test_context = Setup::init_forge_task("This is a test")
+    let ctx = Setup::init_forge_task("This is a test")
         .workflow(
             Workflow::default()
                 .tool_supported(true)
@@ -107,6 +107,6 @@ async fn test_system_prompt_tool_supported() {
         ))])
         .run()
         .await;
-    let system_prompt = test_context.system_prompt().unwrap();
+    let system_prompt = ctx.system_prompt().unwrap();
     assert_snapshot!(system_prompt);
 }
