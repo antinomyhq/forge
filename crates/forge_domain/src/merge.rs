@@ -9,16 +9,27 @@ pub mod std {
 
 pub mod vec {
 
+    use std::collections::HashMap;
+
     use merge::Merge;
     pub use merge::vec::*;
 
     use super::Key;
 
-    pub fn unify_by_key<T: Merge + Key>(base: &mut Vec<T>, other: Vec<T>) {
+    pub fn unify_by_key<T: Merge + Key>(base: &mut Vec<T>, other: Vec<T>)
+    where
+        T::Id: Clone + std::hash::Hash + Eq,
+    {
+        // Create a HashMap for O(1) lookup of base agents by their key
+        let mut base_map: HashMap<T::Id, usize> = HashMap::new();
+        for (index, agent) in base.iter().enumerate() {
+            base_map.insert(agent.key().clone(), index);
+        }
+
         for other_agent in other {
-            if let Some(base_agent) = base.iter_mut().find(|a| a.key() == other_agent.key()) {
+            if let Some(&index) = base_map.get(other_agent.key()) {
                 // If the base contains an agent with the same Key, merge them
-                base_agent.merge(other_agent);
+                base[index].merge(other_agent);
             } else {
                 // Otherwise, append the other agent to the base list
                 base.push(other_agent);

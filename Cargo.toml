@@ -15,11 +15,11 @@ async-trait = "0.1.86"
 base64 = "0.22.1"
 bytes = "1.10.0"
 chrono = { version = "0.4.39", features = ["serde"] }
-clap = { version = "4.5.23", features = ["derive"] }
+clap = { version = "4.5.42", features = ["derive"] }
 colored = "3.0.0"
-console = "0.15.7"
+console = "0.16.0"
 inquire = "0.7.5"
-convert_case = "0.7.1"
+convert_case = "0.8.0"
 derive_builder = "0.20.2"
 derive_more = { version = "2.0.1", features = ["full"] }
 derive_setters = "0.1.6"
@@ -29,6 +29,7 @@ dotenv = "0.15.0"
 futures = "0.3.31"
 gh-workflow-tailcall = "0.5.2"
 glob = "0.3.2"
+globset = "0.4.15"
 grep-searcher = "0.1.14"
 grep-regex = "0.1.13"
 handlebars = { version = "6.2.0", features = ["rust-embed"] }
@@ -48,46 +49,47 @@ posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0"
 quote = "1.0"
-reedline = "0.40.0"
+reedline = "0.41.0"
 regex = "1.11.1"
 reqwest = { version = "0.12.22", features = [
     "json",
     "rustls-tls",
     "hickory-dns",
+    "http2",
 ], default-features = false }
 reqwest-eventsource = "0.6.0"
 rust-embed = "8.5.0"
 schemars = "0.8.21"
 serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.138"
+serde_json = "1.0.142"
 serde_yml = "0.0.12"
 similar = { version = "2.4", features = ["inline"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.27.1"
 strum_macros = "0.27.1"
 syn = { version = "2.0.98", features = ["full"] }
-sysinfo = "0.33.1"
+sysinfo = "0.36.1"
 tempfile = "3.10.1"
-termimad = "0.31.2"
+termimad = "0.33.0"
 thiserror = "2.0.11"
-tokio = { version = "1.44.2", features = ["full", "test-util"] }
+tokio = { version = "1.47.1", features = ["full", "test-util"] }
 tokio-stream = "0.1.17"
 tokio-util = "0.7"
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 tree-sitter = "0.25.1"
-tree-sitter-rust = "0.23"
+tree-sitter-rust = "0.24"
 tree-sitter-python = "0.23"
 tree-sitter-typescript = { version = "0.23" }
 tree-sitter-css = "0.23"
 tree-sitter-java = "0.23"
-tree-sitter-scala = "0.23"
+tree-sitter-scala = "0.24"
 tree-sitter-go = "0.23"
 tree-sitter-cpp = "0.23"
 tree-sitter-ruby = "0.23"
 url = { version = "2.5.4", features = ["serde"] }
-backon = "1.5.0"
+backon = "1.5.2"
 eserde = "0.1.7"
 uuid = { version = "1.11.0", features = [
     "v4",
@@ -97,7 +99,7 @@ uuid = { version = "1.11.0", features = [
 ] }
 whoami = "1.5.2"
 fnv_rs = "0.4.3"
-merge = { version = "0.1", features = ["derive"] }
+merge = { version = "0.2", features = ["derive"] }
 rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a97917cd7584c4220815194bcb28b648147a3d8", features = [
     "client",
     "transport-sse",
@@ -107,6 +109,8 @@ rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a9791
 open = "5.3.2"
 ansi-to-tui = "7.0.0"
 nucleo = "0.5.0"
+humantime = "2.2.0"
+gray_matter = "0.3.2"
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }
@@ -119,7 +123,6 @@ forge_infra = { path = "crates/forge_infra" }
 forge_inte = { path = "crates/forge_inte" }
 forge_main = { path = "crates/forge_main" }
 forge_main_neo = { path = "crates/forge_main_neo" }
-forge_provider = { path = "crates/forge_provider" }
 forge_services = { path = "crates/forge_services" }
 forge_snaps = { path = "crates/forge_snaps" }
 forge_spinner = { path = "crates/forge_spinner" }

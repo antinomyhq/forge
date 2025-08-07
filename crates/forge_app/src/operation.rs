@@ -11,13 +11,13 @@ use forge_domain::{
 use forge_template::Element;
 
 use crate::truncation::{
-    StreamElement, create_temp_file, truncate_fetch_content, truncate_search_output,
+    Stderr, Stdout, TruncationMode, truncate_fetch_content, truncate_search_output,
     truncate_shell_output,
 };
 use crate::utils::format_display_path;
 use crate::{
-    Content, EnvironmentService, FsCreateOutput, FsCreateService, FsUndoOutput, HttpResponse,
-    PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    Content, FsCreateOutput, FsUndoOutput, HttpResponse, PatchOutput, ReadOutput, ResponseContext,
+    SearchResult, ShellOutput,
 };
 
 struct FileOperationStats {
@@ -99,6 +99,77 @@ pub enum Operation {
         before: TaskList,
         after: TaskList,
     },
+}
+
+/// Trait for stream elements that can be converted to XML elements
+pub trait StreamElement {
+    fn stream_name(&self) -> &'static str;
+    fn head_content(&self) -> &str;
+    fn tail_content(&self) -> Option<&str>;
+    fn total_lines(&self) -> usize;
+    fn head_end_line(&self) -> usize;
+    fn tail_start_line(&self) -> Option<usize>;
+    fn tail_end_line(&self) -> Option<usize>;
+}
+
+impl StreamElement for Stdout {
+    fn stream_name(&self) -> &'static str {
+        "stdout"
+    }
+
+    fn head_content(&self) -> &str {
+        &self.head
+    }
+
+    fn tail_content(&self) -> Option<&str> {
+        self.tail.as_deref()
+    }
+
+    fn total_lines(&self) -> usize {
+        self.total_lines
+    }
+
+    fn head_end_line(&self) -> usize {
+        self.head_end_line
+    }
+
+    fn tail_start_line(&self) -> Option<usize> {
+        self.tail_start_line
+    }
+
+    fn tail_end_line(&self) -> Option<usize> {
+        self.tail_end_line
+    }
+}
+
+impl StreamElement for Stderr {
+    fn stream_name(&self) -> &'static str {
+        "stderr"
+    }
+
+    fn head_content(&self) -> &str {
+        &self.head
+    }
+
+    fn tail_content(&self) -> Option<&str> {
+        self.tail.as_deref()
+    }
+
+    fn total_lines(&self) -> usize {
+        self.total_lines
+    }
+
+    fn head_end_line(&self) -> usize {
+        self.head_end_line
+    }
+
+    fn tail_start_line(&self) -> Option<usize> {
+        self.tail_start_line
+    }
+
+    fn tail_end_line(&self) -> Option<usize> {
+        self.tail_end_line
+    }
 }
 
 /// Helper function to create stdout or stderr elements with consistent
@@ -198,33 +269,53 @@ impl Operation {
                 Some(out) => {
                     let max_lines = min(
                         env.max_search_lines,
-                        input.max_search_lines.unwrap_or(i32::MAX) as u64,
+                        input.max_search_lines.unwrap_or(i32::MAX) as usize,
                     );
                     let start_index = input.start_index.unwrap_or(1);
                     let start_index = if start_index > 0 { start_index - 1 } else { 0 };
                     let search_dir = Path::new(&input.path);
                     let truncated_output = truncate_search_output(
                         &out.matches,
-                        start_index as u64,
+                        start_index as usize,
                         max_lines,
+                        env.max_search_result_bytes,
                         search_dir,
                     );
 
+                    let display_lines = if truncated_output.start < truncated_output.end {
+                        // 1 Line based indexing
+                        let new_start = truncated_output.start.saturating_add(1);
+                        format!("{}-{}", new_start, truncated_output.end)
+                    } else {
+                        format!("{}-{}", truncated_output.start, truncated_output.end)
+                    };
+
                     let mut elm = Element::new("search_results")
                         .attr("path", &input.path)
-                        .attr("total_lines", truncated_output.total_lines)
-                        .attr(
-                            "display_lines",
-                            format!(
-                                "{}-{}",
-                                truncated_output.start_line, truncated_output.end_line
-                            ),
-                        );
+                        .attr("max_bytes_allowed", env.max_search_result_bytes)
+                        .attr("total_lines", truncated_output.total)
+                        .attr("display_lines", display_lines);
 
                     elm = elm.attr_if_some("regex", input.regex);
                     elm = elm.attr_if_some("file_pattern", input.file_pattern);
 
-                    elm = elm.cdata(truncated_output.output.trim());
+                    match truncated_output.strategy {
+                        TruncationMode::Byte => {
+                            let reason = format!(
+                                "Results truncated due to exceeding the {} bytes size limit. Please use a more specific search pattern",
+                                env.max_search_result_bytes
+                            );
+                            elm = elm.attr("reason", reason);
+                        }
+                        TruncationMode::Line => {
+                            let reason = format!(
+                                "Results truncated due to exceeding the {max_lines} lines limit. Please use a more specific search pattern"
+                            );
+                            elm = elm.attr("reason", reason);
+                        }
+                        TruncationMode::Full => {}
+                    };
+                    elm = elm.cdata(truncated_output.data.join("\n"));
 
                     forge_domain::ToolOutput::text(elm)
                 }
@@ -342,6 +433,7 @@ impl Operation {
                     &output.output.stderr,
                     env.stdout_max_prefix_length,
                     env.stdout_max_suffix_length,
+                    env.stdout_max_line_length,
                 );
 
                 let stdout_elem = create_stream_element(
@@ -395,65 +487,6 @@ impl Operation {
             }
         }
     }
-
-    pub async fn to_create_temp<S: EnvironmentService + FsCreateService>(
-        &self,
-        services: &S,
-    ) -> anyhow::Result<TempContentFiles> {
-        match self {
-            Operation::NetFetch { input: _, output } => {
-                let original_length = output.content.len();
-                let is_truncated =
-                    original_length > services.get_environment().fetch_truncation_limit;
-                let mut files = TempContentFiles::default();
-
-                if is_truncated {
-                    files = files.stdout(
-                        create_temp_file(services, "forge_fetch_", ".txt", &output.content).await?,
-                    );
-                }
-
-                Ok(files)
-            }
-            Operation::Shell { output } => {
-                let env = services.get_environment();
-                let stdout_lines = output.output.stdout.lines().count();
-                let stderr_lines = output.output.stderr.lines().count();
-                let stdout_truncated =
-                    stdout_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
-                let stderr_truncated =
-                    stderr_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
-
-                let mut files = TempContentFiles::default();
-
-                if stdout_truncated {
-                    files = files.stdout(
-                        create_temp_file(
-                            services,
-                            "forge_shell_stdout_",
-                            ".txt",
-                            &output.output.stdout,
-                        )
-                        .await?,
-                    );
-                }
-                if stderr_truncated {
-                    files = files.stderr(
-                        create_temp_file(
-                            services,
-                            "forge_shell_stderr_",
-                            ".txt",
-                            &output.output.stderr,
-                        )
-                        .await?,
-                    );
-                }
-
-                Ok(files)
-            }
-            _ => Ok(TempContentFiles::default()),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -468,6 +501,7 @@ mod tests {
     use crate::{Match, MatchResult};
 
     fn fixture_environment() -> Environment {
+        let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
         Environment {
             os: "linux".to_string(),
             pid: 12345,
@@ -485,10 +519,12 @@ mod tests {
                 suppress_retry_errors: false,
             },
             max_search_lines: 25,
+            max_search_result_bytes: max_bytes.ceil() as usize,
             fetch_truncation_limit: 55,
             max_read_size: 10,
             stdout_max_prefix_length: 10,
             stdout_max_suffix_length: 10,
+            stdout_max_line_length: 2000,
             http: Default::default(),
             max_file_size: 256 << 10, // 256 KiB
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
@@ -994,6 +1030,93 @@ mod tests {
         let mut env = fixture_environment();
         // Total lines found are 50, but we limit to 10 for this test
         env.max_search_lines = 10;
+
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_search"),
+            TempContentFiles::default(),
+            &env,
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_min_lines_but_max_line_length() {
+        // Create a large number of search matches to trigger truncation
+        let mut matches = Vec::new();
+        let total_lines = 50; // Total lines found.
+        for i in 1..=total_lines {
+            matches.push(Match {
+                path: "/home/user/project/foo.txt".to_string(),
+                result: Some(MatchResult::Found {
+                    line: format!("Match line {}: {}", i, "AB".repeat(50)),
+                    line_number: i,
+                }),
+            });
+        }
+
+        let fixture = Operation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: "/home/user/project".to_string(),
+                regex: Some("search".to_string()),
+                start_index: Some(6),
+                max_search_lines: Some(30), // This will be limited by env.max_search_lines (20)
+                file_pattern: Some("*.txt".to_string()),
+                explanation: Some("Testing truncated search output".to_string()),
+            },
+            output: Some(SearchResult { matches }),
+        };
+
+        let mut env = fixture_environment();
+        // Total lines found are 50, but we limit to 20 for this test
+        env.max_search_lines = 20;
+        let max_bytes: f64 = 0.001 * 1024.0 * 1024.0;
+        env.max_search_result_bytes = max_bytes.ceil() as usize; // limit to 0.001 MB
+
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_search"),
+            TempContentFiles::default(),
+            &env,
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_very_lengthy_one_line_match() {
+        let mut matches = Vec::new();
+        let total_lines = 1; // Total lines found.
+        for i in 1..=total_lines {
+            matches.push(Match {
+                path: "/home/user/project/foo.txt".to_string(),
+                result: Some(MatchResult::Found {
+                    line: format!(
+                        "Match line {}: {}",
+                        i,
+                        "abcdefghijklmnopqrstuvwxyz".repeat(40)
+                    ),
+                    line_number: i,
+                }),
+            });
+        }
+
+        let fixture = Operation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: "/home/user/project".to_string(),
+                regex: Some("search".to_string()),
+                start_index: Some(6),
+                max_search_lines: Some(30), // This will be limited by env.max_search_lines (20)
+                file_pattern: Some("*.txt".to_string()),
+                explanation: Some("Testing truncated search output".to_string()),
+            },
+            output: Some(SearchResult { matches }),
+        };
+
+        let mut env = fixture_environment();
+        // Total lines found are 50, but we limit to 20 for this test
+        env.max_search_lines = 20;
+        let max_bytes: f64 = 0.001 * 1024.0 * 1024.0;
+        env.max_search_result_bytes = max_bytes.ceil() as usize; // limit to 0.001 MB
 
         let actual = fixture.into_tool_output(
             ToolName::new("forge_tool_fs_search"),

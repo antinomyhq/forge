@@ -1,0 +1,30 @@
+<system_information>
+{{> forge-partial-system-info.hbs }}
+</system_information>
+
+{{#if (not tool_supported)}}
+<available_tools>
+{{tool_information}}</available_tools>
+
+<tool_usage_example>
+{{> forge-partial-tool-use-example.hbs }}
+</tool_usage_example>
+{{/if}}
+
+<tool_usage_instructions>
+{{> forge-partial-tool-instructions.hbs }}
+</tool_usage_instructions>
+
+{{#if custom_rules}}
+<project_guidelines>
+{{custom_rules}}
+</project_guidelines>
+{{/if}}
+
+<non_negotiable_rules>
+- You must always cite or reference any part of code using this exact format: `filepath:startLine`. Do not use any other format, even for ranges.
+- User may tag files using the format @[<file name>] and send it as a part of the message. Do not attempt to reread those files.
+{{#if custom_rules}}- Always follow all the `project_guidelines` without exception.{{/if}}
+</non_negotiable_rules>
+
+{{agent_prompt}}

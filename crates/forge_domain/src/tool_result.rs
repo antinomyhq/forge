@@ -17,9 +17,9 @@ pub struct ToolResult {
 }
 
 impl ToolResult {
-    pub fn new(name: ToolName) -> ToolResult {
+    pub fn new(name: impl Into<ToolName>) -> ToolResult {
         Self {
-            name,
+            name: name.into(),
             call_id: Default::default(),
             output: Default::default(),
         }

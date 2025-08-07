@@ -235,5 +235,11 @@
     "name": "onlydust-wave",
     "color": "FF6D00",
     "description": "Related to OnlyDust Wave Hackathon"
+  },
+  {
+    "name": "ci: build all targets",
+    "color": "F9D0C4",
+    "description": "Build release binaries for all target platforms in CI",
+    "aliases": ["ci:build-all-targets", "build-all-targets"]
   }
 ]

@@ -26,6 +26,14 @@ pub enum ContextMessage {
 }
 
 impl ContextMessage {
+    pub fn content(&self) -> Option<&str> {
+        match self {
+            ContextMessage::Text(text_message) => Some(&text_message.content),
+            ContextMessage::Tool(_) => None,
+            ContextMessage::Image(_) => None,
+        }
+    }
+
     /// Estimates the number of tokens in a message using character-based
     /// approximation.
     /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
@@ -205,13 +213,20 @@ fn reasoning_content_char_count(text_message: &TextMessage) -> usize {
 pub struct TextMessage {
     pub role: Role,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
     // note: this used to track model used for this message.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_details: Option<Vec<ReasoningFull>>,
 }
 
 impl TextMessage {
+    pub fn has_role(&self, role: Role) -> bool {
+        self.role == role
+    }
+
     pub fn assistant(
         content: impl ToString,
         reasoning_details: Option<Vec<ReasoningFull>>,
@@ -262,6 +277,13 @@ pub struct Context {
 }
 
 impl Context {
+    pub fn system_prompt(&self) -> Option<&str> {
+        self.messages
+            .iter()
+            .find(|message| message.has_role(Role::System))
+            .and_then(|msg| msg.content())
+    }
+
     pub fn add_base64_url(mut self, image: Image) -> Self {
         self.messages.push(ContextMessage::Image(image));
         self

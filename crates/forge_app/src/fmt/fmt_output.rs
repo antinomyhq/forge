@@ -90,6 +90,7 @@ mod tests {
     }
 
     fn fixture_environment() -> Environment {
+        let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
         Environment {
             os: "linux".to_string(),
             pid: 12345,
@@ -107,10 +108,12 @@ mod tests {
                 suppress_retry_errors: false,
             },
             max_search_lines: 25,
+            max_search_result_bytes: max_bytes.ceil() as usize,
             fetch_truncation_limit: 55,
             max_read_size: 10,
             stdout_max_prefix_length: 10,
             stdout_max_suffix_length: 10,
+            stdout_max_line_length: 2000,
             http: Default::default(),
             max_file_size: 0,
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),

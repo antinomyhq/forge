@@ -50,6 +50,7 @@ update-informer = { version = "1.2.0", default-features = false, features = [
     "rustls-tls",
 ] }
 open.workspace = true
+humantime.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

@@ -82,6 +82,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
+        self.cli.conversation = None;
         banner::display()?;
         self.trace_user();
         Ok(())
@@ -197,6 +198,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.init_state(true).await?;
         self.trace_user();
 
+        // Hydrate the models cache
+        self.hydrate_caches();
+
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
             Some(path) => self.console.upload(path).await?,
@@ -230,6 +234,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Centralized prompt call at the end of the loop
             command = self.prompt().await?;
         }
+    }
+
+    // Improve startup time by hydrating caches
+    fn hydrate_caches(&self) {
+        let api = self.api.clone();
+        tokio::spawn(async move { api.models().await });
+        let api = self.api.clone();
+        tokio::spawn(async move { api.tools().await });
     }
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {

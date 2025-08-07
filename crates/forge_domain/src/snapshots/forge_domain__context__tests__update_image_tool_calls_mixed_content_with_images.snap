@@ -6,21 +6,12 @@ messages:
   - text:
       role: System
       content: System message
-      tool_calls: ~
-      model: ~
-      reasoning_details: ~
   - text:
       role: User
       content: User question
-      tool_calls: ~
-      model: ~
-      reasoning_details: ~
   - text:
       role: Assistant
       content: Assistant response
-      tool_calls: ~
-      model: ~
-      reasoning_details: ~
   - tool:
       name: mixed_tool
       call_id: call1
@@ -34,9 +25,6 @@ messages:
   - text:
       role: User
       content: "[Here is the image attachment for ID 0]"
-      tool_calls: ~
-      model: ~
-      reasoning_details: ~
   - image:
       url: "data:image/png;base64,test123"
       mime_type: image/png
