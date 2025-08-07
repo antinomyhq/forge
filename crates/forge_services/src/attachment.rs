@@ -1,9 +1,9 @@
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_app::AttachmentService;
 use forge_app::domain::{Attachment, AttachmentContent, Image};
+use forge_domain::FileTag;
 
 use crate::range::resolve_range;
 use crate::{EnvironmentInfra, FileReaderInfra};
@@ -18,22 +18,18 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
         Self { infra }
     }
 
-    async fn prepare_attachments<T: AsRef<Path>>(
+    async fn prepare_attachments(
         &self,
-        paths: HashSet<T>,
+        paths: HashSet<FileTag>,
     ) -> anyhow::Result<Vec<Attachment>> {
-        futures::future::join_all(
-            paths
-                .into_iter()
-                .map(|v| v.as_ref().to_path_buf())
-                .map(|v| self.populate_attachments(v)),
-        )
-        .await
-        .into_iter()
-        .collect::<anyhow::Result<Vec<_>>>()
+        futures::future::join_all(paths.into_iter().map(|v| self.populate_attachments(v)))
+            .await
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()
     }
 
-    async fn populate_attachments(&self, mut path: PathBuf) -> anyhow::Result<Attachment> {
+    async fn populate_attachments(&self, tag: FileTag) -> anyhow::Result<Attachment> {
+        let mut path = tag.as_ref().to_path_buf();
         let extension = path.extension().map(|v| v.to_string_lossy().to_string());
 
         if !path.is_absolute() {
@@ -55,7 +51,10 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
             }
             None => {
                 let env = self.infra.get_environment();
-                let (start_line, end_line) = resolve_range(None, None, env.max_read_size);
+
+                let start = tag.loc.as_ref().and_then(|loc| loc.start).map(|v| v as u64);
+                let end = tag.loc.as_ref().and_then(|loc| loc.end).map(|v| v as u64);
+                let (start_line, end_line) = resolve_range(start, end, env.max_read_size);
 
                 let (file_content, file_info) = self
                     .infra
