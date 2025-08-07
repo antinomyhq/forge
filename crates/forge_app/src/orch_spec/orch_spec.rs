@@ -1,6 +1,4 @@
-use forge_domain::{
-    ChatCompletionMessage, Content, Role, ToolCallFull, ToolName, ToolOutput, ToolResult,
-};
+use forge_domain::{ChatCompletionMessage, Content, Role, ToolCallFull, ToolOutput, ToolResult};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
