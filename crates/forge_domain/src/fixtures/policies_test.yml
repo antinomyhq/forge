@@ -7,4 +7,4 @@ policies:
       write_pattern: "src/**/*"
   - permission: disallow
     rule:
-      execute_command: "rm -rf /*"
+      command_pattern: "rm -rf /*"

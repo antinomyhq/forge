@@ -7,7 +7,7 @@ policies:
       write_pattern: "src/**/*"
   - permission: disallow
     rule:
-      execute_command: "rm -rf /*"
+      command_pattern: "rm -rf /*"
   - permission: allow
     rule:
-      execute_command: "cargo*"
+      command_pattern: "cargo*"

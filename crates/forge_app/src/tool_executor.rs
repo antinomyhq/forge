@@ -148,8 +148,25 @@ impl<
                             None
                         }
                     }
-                    forge_domain::Operation::Execute { command: _ } => {
-                        todo!("Handle execute operation policies")
+                    forge_domain::Operation::Execute { command } => {
+                        let parts: Vec<&str> = command.split_whitespace().collect();
+                        if parts.len() > 1 {
+                            Some(forge_domain::Policy::Simple {
+                                permission: Permission::Allow,
+                                rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
+                                    command_pattern: format!("{} {}*", parts[0], parts[1]),
+                                }),
+                            })
+                        } else if parts.len() > 0 {
+                            Some(forge_domain::Policy::Simple {
+                                permission: Permission::Allow,
+                                rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
+                                    command_pattern: format!("{}*", parts[0]),
+                                }),
+                            })
+                        } else {
+                            None
+                        }
                     }
                 };
 
@@ -440,52 +457,5 @@ impl<
         let truncation_path = self.dump_operation(&operation).await?;
 
         Ok(operation.into_tool_output(tool_name, truncation_path, &env))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use forge_domain::Operation;
-
-    #[test]
-    fn test_add_policy_for_read_operation() {
-        let operation = Operation::Read { path: PathBuf::from("/test/file.rs") };
-
-        // Test that a read operation creates the expected pattern
-        assert!(matches!(operation, Operation::Read { .. }));
-    }
-
-    #[test]
-    fn test_add_policy_for_write_operation() {
-        let operation = Operation::Write { path: PathBuf::from("/test/file.js") };
-
-        // Test that a write operation creates the expected pattern
-        assert!(matches!(operation, Operation::Write { .. }));
-    }
-
-    #[test]
-    fn test_add_policy_for_patch_operation() {
-        let operation = Operation::Patch { path: PathBuf::from("/test/file.py") };
-
-        // Test that a patch operation creates the expected pattern
-        assert!(matches!(operation, Operation::Patch { .. }));
-    }
-
-    #[test]
-    fn test_add_policy_for_netfetch_operation() {
-        let operation = Operation::NetFetch { url: "https://example.com/api".to_string() };
-
-        // Test that a netfetch operation creates the expected pattern
-        assert!(matches!(operation, Operation::NetFetch { .. }));
-    }
-
-    #[test]
-    fn test_add_policy_for_execute_operation() {
-        let operation = Operation::Execute { command: "echo hello".to_string() };
-
-        // Test that an execute operation is recognized (but not auto-ruled)
-        assert!(matches!(operation, Operation::Execute { .. }));
     }
 }
