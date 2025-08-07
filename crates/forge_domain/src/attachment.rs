@@ -351,4 +351,19 @@ mod tests {
         let actual = paths.iter().next().unwrap();
         assert_eq!(actual, &expected);
     }
+
+      #[test]
+    fn test_attachment_parse_location_duplicate_entries() {
+        let text = String::from("Check @[/file.txt:12#main()] and @[/file.txt:12#main()]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "/file.txt".to_string(),
+            loc: Some(Location { start: Some(12), end: None }),
+            symbol: Some("main()".to_string()),
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
 }
