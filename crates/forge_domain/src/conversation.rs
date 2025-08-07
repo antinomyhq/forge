@@ -72,11 +72,7 @@ impl Conversation {
     }
 
     pub fn new(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
-        // Merge the workflow with the default workflow
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow);
-
-        Self::new_inner(id, base_workflow, additional_tools)
+        Self::new_inner(id, workflow, additional_tools)
     }
 
     fn new_inner(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {

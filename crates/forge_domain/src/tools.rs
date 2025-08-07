@@ -743,14 +743,14 @@ mod tests {
 
     #[test]
     fn test_tool_deser_failure() {
-        let tool_call = ToolCallFull::new("forge_tool_fs_create".into());
+        let tool_call = ToolCallFull::new("forge_tool_fs_create");
         let result = Tools::try_from(tool_call);
         insta::assert_snapshot!(result.unwrap_err().to_string());
     }
 
     #[test]
     fn test_correct_deser() {
-        let tool_call = ToolCallFull::new("forge_tool_fs_create".into()).arguments(json!({
+        let tool_call = ToolCallFull::new("forge_tool_fs_create").arguments(json!({
             "path": "/some/path/foo.txt",
             "content": "Hello, World!",
         }));
