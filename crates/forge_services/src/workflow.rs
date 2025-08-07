@@ -67,8 +67,8 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
         if !path.exists() {
             let mut workflow = Workflow::new();
             // Add default policies if none are defined
-            if workflow.policies.is_none() {
-                workflow.policies = Some(Policies::with_defaults());
+            if workflow.policies.policies.is_empty() {
+                workflow.policies = Policies::with_defaults();
             }
             self.infra
                 .write(path, self.serialize_workflow(&workflow)?.into(), false)

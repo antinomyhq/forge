@@ -143,9 +143,13 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
     /// Policies that define access control rules for operations
-    #[serde(default, skip_serializing_if = "Option::is_none", flatten)]
-    #[merge(strategy = crate::merge::option)]
-    pub policies: Option<Policies>,
+    #[serde(default, skip_serializing_if = "has_policies", flatten)]
+    #[merge(strategy = crate::merge::policies)]
+    pub policies: Policies,
+}
+
+fn has_policies(policies: &Policies) -> bool {
+    policies.policies.is_empty()
 }
 
 lazy_static! {
@@ -194,7 +198,7 @@ impl Workflow {
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
             compact: None,
-            policies: None,
+            policies: Default::default(),
         }
     }
 
@@ -234,7 +238,7 @@ mod tests {
         assert_eq!(actual.max_tokens, None);
         assert_eq!(actual.tool_supported, None);
         assert_eq!(actual.compact, None);
-        assert_eq!(actual.policies, None);
+        assert_eq!(actual.policies, Policies::default());
     }
 
     #[test]

@@ -10,7 +10,7 @@ use super::types::{Permission, Trace};
 use crate::Rule;
 
 /// Collection of policies
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Policies {
     /// Set of policies to evaluate
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]

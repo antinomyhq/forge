@@ -100,14 +100,8 @@ impl<
             self.services
                 .update_workflow(Some(workflow_path), |workflow| {
                     // Get or create policies
-                    let mut policies = workflow
-                        .policies
-                        .take()
-                        .unwrap_or_else(forge_domain::Policies::new);
-
                     // Add the policy
-                    policies = policies.add_policy(new_policy);
-                    workflow.policies = Some(policies);
+                    workflow.policies.policies.insert(new_policy);
                 })
                 .await?;
         }

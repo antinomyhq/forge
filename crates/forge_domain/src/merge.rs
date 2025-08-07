@@ -1,3 +1,4 @@
+use crate::Policies;
 use ::std::collections::HashMap;
 use ::std::hash::Hash;
 
@@ -8,11 +9,10 @@ pub mod std {
 }
 
 pub mod vec {
-
     use std::collections::HashMap;
 
-    use merge::Merge;
     pub use merge::vec::*;
+    use merge::Merge;
 
     use super::Key;
 
@@ -42,6 +42,10 @@ pub fn option<A>(base: &mut Option<A>, other: Option<A>) {
     if other.is_some() {
         *base = other;
     }
+}
+
+pub fn policies(a: &mut Policies, b: Policies) {
+    a.policies.extend(b.policies);
 }
 
 pub trait Key {

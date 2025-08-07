@@ -65,14 +65,14 @@ impl<'a> PolicyEngine<'a> {
     /// Returns trace with permission result, defaults to Confirm if no policies
     /// match
     fn evaluate_policies(&self, operation: &Operation) -> Trace<Permission> {
-        let policies = match self.workflow.policies.as_ref() {
-            Some(policies) => policies,
-            None => return Trace::new(Permission::Confirm),
+        let policies = match self.workflow.policies.policies.is_empty() {
+            false => &self.workflow.policies.policies,
+            true => return Trace::new(Permission::Confirm),
         };
 
         let mut last_allow: Option<Trace<Permission>> = None;
 
-        for (index, policy) in policies.policies.iter().enumerate() {
+        for (index, policy) in policies.iter().enumerate() {
             if let Some(trace) = policy.eval(operation, None, Some((index + 1) as u64)) {
                 match &trace.value {
                     Permission::Disallow | Permission::Confirm => {

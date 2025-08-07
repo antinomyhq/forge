@@ -42,14 +42,8 @@ impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> Work
 
         // If there are loaded policies, merge them with existing workflow policies
         if !loaded_policies.policies.is_empty() {
-            if let Some(existing_policies) = workflow.policies.as_mut() {
-                // Merge the loaded policies into existing ones
-                for policy in loaded_policies.policies {
-                    *existing_policies = existing_policies.clone().add_policy(policy);
-                }
-            } else {
-                // No existing policies, just use the loaded ones
-                workflow.policies = Some(loaded_policies);
+            for policy in loaded_policies.policies {
+                workflow.policies.policies.insert(policy);
             }
         }
 
@@ -86,19 +80,12 @@ impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> Work
         });
 
         // Remove policies that were extended from external sources
-        if let Some(ref mut policies) = workflow_to_write.policies {
-            let mut extended_policies = self.extended_policies.lock().await;
-            // Remove policies that match those from extended_policies
-            for extended_policy in extended_policies.iter() {
-                policies.policies.remove(extended_policy);
-            }
-            extended_policies.clear();
-
-            // If no policies remain, set to None
-            if policies.policies.is_empty() {
-                workflow_to_write.policies = None;
-            }
+        let mut extended_policies = self.extended_policies.lock().await;
+        // Remove policies that match those from extended_policies
+        for extended_policy in extended_policies.iter() {
+            workflow_to_write.policies.policies.remove(extended_policy);
         }
+        extended_policies.clear();
 
         self.service.write_workflow(path, &workflow_to_write).await
     }
