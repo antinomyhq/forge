@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context as AnyhowContext, Result};
 use forge_app::domain::{Conversation, ConversationId, Workflow};
 use forge_app::{ConversationService, McpService};
+use merge::Merge;
 use tokio::sync::Mutex;
 
 /// Service for managing conversations, including creation, retrieval, and
@@ -44,7 +45,9 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
         Ok(())
     }
 
-    async fn create_conversation(&self, workflow: Workflow) -> Result<Conversation> {
+    async fn create_conversation(&self, given_workflow: Workflow) -> Result<Conversation> {
+        let mut workflow = Workflow::default();
+        workflow.merge(given_workflow);
         let id = ConversationId::generate();
         let conversation = Conversation::new(
             id,
