@@ -1,7 +1,8 @@
 use edtui::{EditorTheme, EditorView};
 use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::style::{Color, Style, Stylize};
+use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::symbols::{border, line};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
 use strum::IntoEnumIterator;
 
@@ -31,12 +32,25 @@ impl StatefulWidget for ChatWidget {
         // Create chat layout with messages area at top and user input area at bottom
         let chat_layout = Layout::new(
             Direction::Vertical,
-            [Constraint::Fill(0), Constraint::Max(5)],
+            [Constraint::Fill(1), Constraint::Max(5), Constraint::Max(1)],
         );
-        let [messages_area, user_area] = chat_layout.areas(area);
 
-        // Messages area block (now at top)
-        let message_block = Block::new();
+        let [messages_area, user_area, status_area] = chat_layout.areas(area);
+        let forge_title = Span::styled(
+            " Messages ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
+        // Messages area block
+        let message_block = if state.menu_visible {
+            Block::bordered()
+                .borders(ratatui::widgets::Borders::ALL - ratatui::widgets::Borders::BOTTOM)
+        } else {
+            Block::bordered()
+        }
+        .padding(Padding::new(1, 1, 1, 1))
+        .title(forge_title);
 
         // Render welcome widget if no messages, otherwise render message list
         if state.messages.is_empty() {
@@ -61,9 +75,15 @@ impl StatefulWidget for ChatWidget {
             }
         }
 
-        // User input area block with status bar (now at bottom)
+        let title = Span::styled(
+            " Input ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
+        // User input area block
         let user_block = Block::bordered()
-            .padding(Padding::new(0, 0, 0, 1))
+            .padding(Padding::new(1, 0, 0, 1))
             .border_style(Style::default().dark_gray())
             .border_set(if state.menu_visible {
                 border::Set {
@@ -74,11 +94,7 @@ impl StatefulWidget for ChatWidget {
             } else {
                 border::PLAIN
             })
-            .title_bottom(StatusBar::new(
-                "FORGE",
-                state.editor.mode.name(),
-                state.workspace.clone(),
-            ));
+            .title(title);
 
         EditorView::new(&mut state.editor)
             .theme(
@@ -92,6 +108,11 @@ impl StatefulWidget for ChatWidget {
 
         // Render blocks
         message_block.render(messages_area, buf);
+
+        // Render Status Bar
+        let status_bar = StatusBar::new("FORGE", state.editor.mode.name(), state.workspace.clone());
+
         user_block.render(user_area, buf);
+        ratatui::widgets::Paragraph::new(Line::from(status_bar)).render(status_area, buf);
     }
 }

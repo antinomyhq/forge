@@ -1,6 +1,6 @@
 use ratatui::layout::*;
 use ratatui::style::{Color, Style, Stylize};
-use ratatui::symbols::{border, line, scrollbar};
+use ratatui::symbols::{border, line};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::*;
 
@@ -149,15 +149,13 @@ where
         StatefulWidget::render(menu_list, menu_area, buf, &mut state.menu.list);
 
         // Add scrollbar if there are more items than can fit in the area
-        let scrollbar_area = menu_area.inner(Margin { horizontal: 0, vertical: 1 });
+        let scrollbar_area = menu_area.inner(Margin { horizontal: 1, vertical: 1 });
         // TODO: not sure if this is best way to check if scrollbar is needed.
         if items_len > scrollbar_area.height as usize {
             let mut scrollbar_state = ScrollbarState::new(items_len).position(selected_index);
 
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                .symbols(scrollbar::Set { ..scrollbar::VERTICAL })
                 .style(Style::default().fg(Color::DarkGray))
-                .thumb_style(Style::default().dark_gray())
                 .render(scrollbar_area, buf, &mut scrollbar_state);
         }
 

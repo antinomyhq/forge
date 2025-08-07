@@ -1,5 +1,5 @@
 use ratatui::layout::Alignment;
-use ratatui::style::{Color, Stylize};
+use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Span};
 
 use crate::domain::Workspace;
@@ -24,6 +24,7 @@ impl StatusBar {
 impl<'a> From<StatusBar> for Line<'a> {
     fn from(value: StatusBar) -> Self {
         let space = Span::from(" ");
+        let separator = Span::styled(" | ", Style::default().fg(Color::DarkGray));
         let mut spans = vec![space.clone()];
 
         // Add editor status if available
@@ -33,31 +34,40 @@ impl<'a> From<StatusBar> for Line<'a> {
             } else {
                 Color::White
             };
-            spans.push(Span::from(format!(" {} ", editor_status.to_uppercase())).bg(bg_color));
-            spans.push(space.clone());
+            spans.push(
+                Span::from(format!(" {} ", editor_status.to_uppercase()))
+                    .bg(bg_color)
+                    .fg(Color::Black),
+            );
+            if !spans.is_empty() {
+                spans.push(separator.clone());
+            }
         }
 
         // Add agent if available
         if let Some(agent) = value.agent {
-            spans.push(Span::from(format!(" {} ", agent.to_uppercase())).bg(Color::White));
-            spans.push(space.clone());
+            spans.push(
+                Span::from(format!(" {} ", agent.to_uppercase()))
+                    .bg(Color::White)
+                    .fg(Color::Black),
+            );
+            if !spans.is_empty() {
+                spans.push(separator.clone());
+            }
         }
-
-        // Check if we have both branch and directory for spacing logic
-        let has_branch = value.workspace.current_branch.is_some();
 
         // Add branch information if available
         if let Some(branch) = value.workspace.current_branch {
             spans.push(Span::from(branch.to_string()).fg(Color::LightGreen));
+            if !spans.is_empty() {
+                spans.push(separator.clone());
+            }
         }
 
         // Add directory information if available (show only the directory name, not
         // full path)
         if let Some(dir) = value.workspace.current_dir {
             // Add space before directory if branch was added
-            if has_branch {
-                spans.push(space.clone());
-            }
             let dir_name = std::path::Path::new(&dir)
                 .file_name()
                 .and_then(|name| name.to_str())

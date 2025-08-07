@@ -110,8 +110,7 @@ impl StatefulWidget for MessageList {
 
         // Render the paragraph into the scroll view's buffer
         let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
-        paragraph.render(scroll_view.area(), scroll_view.buf_mut());
-
+        scroll_view.render_widget(paragraph, scroll_view.area());
         // Render the scroll view into the main buffer
         scroll_view.render(area, buf, &mut state.message_scroll_state);
     }

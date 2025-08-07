@@ -235,11 +235,6 @@ fn handle_message_scroll(
 ) -> bool {
     use ratatui::crossterm::event::KeyCode;
 
-    // Only handle message scroll when editor is in normal mode
-    if state.editor.mode != EditorMode::Normal {
-        return false;
-    }
-
     // Check if there are no messages to scroll (menu should be visible and take
     // precedence)
     if state.messages.is_empty() {
