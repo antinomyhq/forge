@@ -453,13 +453,15 @@ fn create_policy_for_operation(
                         command_pattern: format!("{} {}*", parts[0], parts[1]),
                     }),
                 })
-            } else {
+            } else if !command.is_empty() && parts.len() > 0 {
                 Some(forge_domain::Policy::Simple {
-                    permission: forge_domain::Permission::Allow,
+                    permission: Permission::Allow,
                     rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
                         command_pattern: format!("{}*", parts[0]),
                     }),
                 })
+            } else {
+                None
             }
         }
     }
@@ -585,7 +587,10 @@ mod tests {
 
         let actual = create_policy_for_operation(&operation);
 
-        let expected = None;
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::NetFetch(NetFetchRule { url_pattern: "not-a-valid-url".to_string() }),
+        });
 
         assert_eq!(actual, expected);
     }
