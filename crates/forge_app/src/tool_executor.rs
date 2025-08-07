@@ -75,7 +75,8 @@ impl<
                     UserResponse::AcceptAndRemember => {
                         // User accepted and wants to remember this choice
                         self.add_policy_for_operation(operation, workflow_path)
-                            .await?;
+                            .await
+                            .ok();
                     }
                     UserResponse::Reject => {
                         return Err(anyhow::anyhow!(
@@ -95,89 +96,21 @@ impl<
         operation: &forge_domain::Operation,
         workflow_path: &Path,
     ) -> anyhow::Result<()> {
-        self.services
-            .update_workflow(Some(workflow_path), |workflow| {
-                // Get or create policies
-                let mut policies = workflow
-                    .policies
-                    .take()
-                    .unwrap_or_else(forge_domain::Policies::new);
+        if let Some(new_policy) = create_policy_for_operation(operation) {
+            self.services
+                .update_workflow(Some(workflow_path), |workflow| {
+                    // Get or create policies
+                    let mut policies = workflow
+                        .policies
+                        .take()
+                        .unwrap_or_else(forge_domain::Policies::new);
 
-                // Create policy based on operation type
-                let new_policy = match operation {
-                    forge_domain::Operation::Read { path } => path
-                        .extension()
-                        .and_then(|ext| ext.to_str())
-                        .map(|extension| forge_domain::Policy::Simple {
-                            permission: Permission::Allow,
-                            rule: forge_domain::Rule::Read(forge_domain::ReadRule {
-                                read_pattern: format!("*.{}", extension),
-                            }),
-                        }),
-                    forge_domain::Operation::Write { path } => path
-                        .extension()
-                        .and_then(|ext| ext.to_str())
-                        .map(|extension| forge_domain::Policy::Simple {
-                            permission: Permission::Allow,
-                            rule: forge_domain::Rule::Write(forge_domain::WriteRule {
-                                write_pattern: format!("*.{}", extension),
-                            }),
-                        }),
-                    forge_domain::Operation::Patch { path } => path
-                        .extension()
-                        .and_then(|ext| ext.to_str())
-                        .map(|extension| forge_domain::Policy::Simple {
-                            permission: Permission::Allow,
-                            rule: forge_domain::Rule::Patch(forge_domain::PatchRule {
-                                patch_pattern: format!("*.{}", extension),
-                            }),
-                        }),
-                    forge_domain::Operation::NetFetch { url } => {
-                        if let Ok(parsed_url) = url::Url::parse(url) {
-                            parsed_url
-                                .host_str()
-                                .map(|host| forge_domain::Policy::Simple {
-                                    permission: Permission::Allow,
-                                    rule: forge_domain::Rule::NetFetch(
-                                        forge_domain::NetFetchRule {
-                                            url_pattern: format!("{}*", host),
-                                        },
-                                    ),
-                                })
-                        } else {
-                            None
-                        }
-                    }
-                    forge_domain::Operation::Execute { command } => {
-                        let parts: Vec<&str> = command.split_whitespace().collect();
-                        if parts.len() > 1 {
-                            Some(forge_domain::Policy::Simple {
-                                permission: Permission::Allow,
-                                rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
-                                    command_pattern: format!("{} {}*", parts[0], parts[1]),
-                                }),
-                            })
-                        } else if !parts.is_empty() {
-                            Some(forge_domain::Policy::Simple {
-                                permission: Permission::Allow,
-                                rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
-                                    command_pattern: format!("{}*", parts[0]),
-                                }),
-                            })
-                        } else {
-                            None
-                        }
-                    }
-                };
-
-                // Add the policy if we created one
-                if let Some(policy) = new_policy {
-                    policies = policies.add_policy(policy);
+                    // Add the policy
+                    policies = policies.add_policy(new_policy);
                     workflow.policies = Some(policies);
-                }
-            })
-            .await?;
-
+                })
+                .await?;
+        }
         Ok(())
     }
 
@@ -457,5 +390,213 @@ impl<
         let truncation_path = self.dump_operation(&operation).await?;
 
         Ok(operation.into_tool_output(tool_name, truncation_path, &env))
+    }
+}
+
+/// Create a policy for an operation based on its type
+fn create_policy_for_operation(
+    operation: &forge_domain::Operation,
+) -> Option<forge_domain::Policy> {
+    match operation {
+        forge_domain::Operation::Read { path } => path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|extension| forge_domain::Policy::Simple {
+                permission: Permission::Allow,
+                rule: forge_domain::Rule::Read(forge_domain::ReadRule {
+                    read_pattern: format!("*.{}", extension),
+                }),
+            }),
+        forge_domain::Operation::Write { path } => path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|extension| forge_domain::Policy::Simple {
+                permission: Permission::Allow,
+                rule: forge_domain::Rule::Write(forge_domain::WriteRule {
+                    write_pattern: format!("*.{}", extension),
+                }),
+            }),
+        forge_domain::Operation::Patch { path } => path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|extension| forge_domain::Policy::Simple {
+                permission: Permission::Allow,
+                rule: forge_domain::Rule::Patch(forge_domain::PatchRule {
+                    patch_pattern: format!("*.{}", extension),
+                }),
+            }),
+        forge_domain::Operation::NetFetch { url } => {
+            if let Ok(parsed_url) = url::Url::parse(url) {
+                parsed_url
+                    .host_str()
+                    .map(|host| forge_domain::Policy::Simple {
+                        permission: forge_domain::Permission::Allow,
+                        rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
+                            url_pattern: format!("{}*", host),
+                        }),
+                    })
+            } else {
+                Some(forge_domain::Policy::Simple {
+                    permission: forge_domain::Permission::Allow,
+                    rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
+                        url_pattern: format!("{}", url),
+                    }),
+                })
+            }
+        }
+        forge_domain::Operation::Execute { command } => {
+            let parts: Vec<&str> = command.split_whitespace().collect();
+            if parts.len() >= 2 {
+                Some(forge_domain::Policy::Simple {
+                    permission: forge_domain::Permission::Allow,
+                    rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
+                        command_pattern: format!("{} {}*", parts[0], parts[1]),
+                    }),
+                })
+            } else {
+                Some(forge_domain::Policy::Simple {
+                    permission: forge_domain::Permission::Allow,
+                    rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
+                        command_pattern: format!("{}*", parts[0]),
+                    }),
+                })
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tool_executor::create_policy_for_operation;
+    use forge_domain::{
+        ExecuteRule, NetFetchRule, PatchRule, Permission, Policy, ReadRule, Rule, WriteRule,
+    };
+    use pretty_assertions::assert_eq;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_create_policy_for_read_operation() {
+        let path = PathBuf::from("/path/to/file.rs");
+        let operation = forge_domain::Operation::Read { path };
+
+        let actual = create_policy_for_operation(&operation);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Read(ReadRule { read_pattern: "*.rs".to_string() }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_write_operation() {
+        let path = PathBuf::from("/path/to/file.json");
+        let operation = forge_domain::Operation::Write { path };
+
+        let actual = create_policy_for_operation(&operation);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Write(WriteRule { write_pattern: "*.json".to_string() }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_patch_operation() {
+        let path = PathBuf::from("/path/to/file.toml");
+        let operation = forge_domain::Operation::Patch { path };
+
+        let actual = create_policy_for_operation(&operation);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Patch(PatchRule { patch_pattern: "*.toml".to_string() }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_net_fetch_operation() {
+        let url = "https://example.com/api/data".to_string();
+        let operation = forge_domain::Operation::NetFetch { url };
+
+        let actual = create_policy_for_operation(&operation);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::NetFetch(NetFetchRule { url_pattern: "example.com*".to_string() }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_execute_operation_with_subcommand() {
+        let command = "git push origin main".to_string();
+        let operation = forge_domain::Operation::Execute { command };
+
+        let actual = create_policy_for_operation(&operation);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Execute(ExecuteRule { command_pattern: "git push*".to_string() }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_execute_operation_single_command() {
+        let command = "ls".to_string();
+        let operation = forge_domain::Operation::Execute { command };
+
+        let actual = create_policy_for_operation(&operation);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Execute(ExecuteRule { command_pattern: "ls*".to_string() }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_file_without_extension() {
+        let path = PathBuf::from("/path/to/file");
+        let operation = forge_domain::Operation::Read { path };
+
+        let actual = create_policy_for_operation(&operation);
+
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_invalid_url() {
+        let url = "not-a-valid-url".to_string();
+        let operation = forge_domain::Operation::NetFetch { url };
+
+        let actual = create_policy_for_operation(&operation);
+
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_empty_execute_command() {
+        let command = "".to_string();
+        let operation = forge_domain::Operation::Execute { command };
+
+        let actual = create_policy_for_operation(&operation);
+
+        let expected = None;
+
+        assert_eq!(actual, expected);
     }
 }
