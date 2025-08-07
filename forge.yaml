@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json
+# yaml-language-server: $schema=./forge.schema.json
 agents:
 - id: forge
   tools:
@@ -108,9 +108,9 @@ custom_rules: |-
      cargo insta test --accept --unreferenced=delete -p <crate name>
      ```
 
-  2. Run all the tests to ensure nothing else is broken.
+  2. Lint and format the codebase.
      ```
-     cargo insta test --accept --unreferenced=delete
+     cargo +nightly fmt --all && cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
      ```
 
   ## Writing Domain Types:

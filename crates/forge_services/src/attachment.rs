@@ -48,8 +48,8 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
             None => {
                 let env = self.infra.get_environment();
 
-                let start = tag.loc.as_ref().and_then(|loc| loc.start).map(|v| v as u64);
-                let end = tag.loc.as_ref().and_then(|loc| loc.end).map(|v| v as u64);
+                let start = tag.loc.as_ref().and_then(|loc| loc.start);
+                let end = tag.loc.as_ref().and_then(|loc| loc.end);
                 let (start_line, end_line) = resolve_range(start, end, env.max_read_size);
 
                 let (file_content, file_info) = self

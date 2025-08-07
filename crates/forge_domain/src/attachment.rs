@@ -92,8 +92,8 @@ impl Attachment {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Location {
-    pub start: Option<usize>,
-    pub end: Option<usize>,
+    pub start: Option<u64>,
+    pub end: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -110,14 +110,14 @@ impl FileTag {
         use nom::combinator::{map_res, opt};
         use nom::sequence::{delimited, preceded};
 
-        let parse_usize = || map_res(digit1, str::parse::<usize>);
+        let parse_u64 = || map_res(digit1, str::parse::<u64>);
         let parse_symbol = preceded(char('#'), take_while1(|c: char| c != ']'));
 
         let parse_location_full = (
-            preceded(char(':'), parse_usize()),
-            preceded(char(':'), parse_usize()),
+            preceded(char(':'), parse_u64()),
+            preceded(char(':'), parse_u64()),
         );
-        let parse_location_start_only = preceded(char(':'), parse_usize());
+        let parse_location_start_only = preceded(char(':'), parse_u64());
 
         let parse_location = nom::branch::alt((
             nom::combinator::map(parse_location_full, |(start, end)| (Some(start), Some(end))),
