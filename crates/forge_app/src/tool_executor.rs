@@ -439,7 +439,7 @@ fn create_policy_for_operation(
                 Some(forge_domain::Policy::Simple {
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
-                        url_pattern: format!("{}", url),
+                        url_pattern: url.to_string(),
                     }),
                 })
             }
@@ -467,12 +467,14 @@ fn create_policy_for_operation(
 
 #[cfg(test)]
 mod tests {
-    use crate::tool_executor::create_policy_for_operation;
+    use std::path::PathBuf;
+
     use forge_domain::{
         ExecuteRule, NetFetchRule, PatchRule, Permission, Policy, ReadRule, Rule, WriteRule,
     };
     use pretty_assertions::assert_eq;
-    use std::path::PathBuf;
+
+    use crate::tool_executor::create_policy_for_operation;
 
     #[test]
     fn test_create_policy_for_read_operation() {
