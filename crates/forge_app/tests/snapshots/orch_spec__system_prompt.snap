@@ -56,7 +56,6 @@ If any required arguments are missing, do not attempt to use the tool.
 <non_negotiable_rules>
 - You must always cite or reference any part of code using this exact format: `filepath:startLine`. Do not use any other format, even for ranges.
 - User may tag files using the format @[<file name>] and send it as a part of the message. Do not attempt to reread those files.
-- For simple tasks immediately respond with the result using the `forge_tool_attempt_completion` tool. Do not supply any additional content.
 
 </non_negotiable_rules>
 
