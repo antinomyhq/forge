@@ -397,34 +397,40 @@ impl<
 fn create_policy_for_operation(
     operation: &forge_domain::Operation,
 ) -> Option<forge_domain::Policy> {
+    fn create_file_policy(
+        path: &std::path::Path,
+        rule_constructor: fn(String) -> forge_domain::Rule,
+    ) -> Option<forge_domain::Policy> {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|extension| forge_domain::Policy::Simple {
+                permission: forge_domain::Permission::Allow,
+                rule: rule_constructor(format!("*.{}", extension)),
+            })
+    }
+
     match operation {
-        forge_domain::Operation::Read { path } => path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(|extension| forge_domain::Policy::Simple {
-                permission: Permission::Allow,
-                rule: forge_domain::Rule::Read(forge_domain::ReadRule {
-                    read_pattern: format!("*.{}", extension),
-                }),
-            }),
-        forge_domain::Operation::Write { path } => path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(|extension| forge_domain::Policy::Simple {
-                permission: Permission::Allow,
-                rule: forge_domain::Rule::Write(forge_domain::WriteRule {
-                    write_pattern: format!("*.{}", extension),
-                }),
-            }),
-        forge_domain::Operation::Patch { path } => path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(|extension| forge_domain::Policy::Simple {
-                permission: Permission::Allow,
-                rule: forge_domain::Rule::Patch(forge_domain::PatchRule {
-                    patch_pattern: format!("*.{}", extension),
-                }),
-            }),
+        forge_domain::Operation::Read { path } => {
+            create_file_policy(path, |pattern| {
+                forge_domain::Rule::Read(forge_domain::ReadRule {
+                    read_pattern: pattern,
+                })
+            })
+        }
+        forge_domain::Operation::Write { path } => {
+            create_file_policy(path, |pattern| {
+                forge_domain::Rule::Write(forge_domain::WriteRule {
+                    write_pattern: pattern,
+                })
+            })
+        }
+        forge_domain::Operation::Patch { path } => {
+            create_file_policy(path, |pattern| {
+                forge_domain::Rule::Patch(forge_domain::PatchRule {
+                    patch_pattern: pattern,
+                })
+            })
+        }
         forge_domain::Operation::NetFetch { url } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 parsed_url
@@ -446,22 +452,20 @@ fn create_policy_for_operation(
         }
         forge_domain::Operation::Execute { command } => {
             let parts: Vec<&str> = command.split_whitespace().collect();
-            if parts.len() >= 2 {
-                Some(forge_domain::Policy::Simple {
+            match parts.as_slice() {
+                [] => None,
+                [cmd] => Some(forge_domain::Policy::Simple {
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
-                        command_pattern: format!("{} {}*", parts[0], parts[1]),
+                        command_pattern: format!("{}*", cmd),
                     }),
-                })
-            } else if !command.is_empty() && parts.len() > 0 {
-                Some(forge_domain::Policy::Simple {
-                    permission: Permission::Allow,
+                }),
+                [cmd, subcmd, ..] => Some(forge_domain::Policy::Simple {
+                    permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
-                        command_pattern: format!("{}*", parts[0]),
+                        command_pattern: format!("{} {}*", cmd, subcmd),
                     }),
-                })
-            } else {
-                None
+                }),
             }
         }
     }
