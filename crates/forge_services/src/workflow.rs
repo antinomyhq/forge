@@ -71,7 +71,7 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
                 workflow.policies = Some(Policies::with_defaults());
             }
             self.infra
-                .write(path, self.serialize_workflow(&workflow)?.into(), true)
+                .write(path, self.serialize_workflow(&workflow)?.into(), false)
                 .await?;
 
             Ok(workflow)
