@@ -17,10 +17,7 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
         Self { infra }
     }
 
-    async fn prepare_attachments(
-        &self,
-        paths: Vec<FileTag>,
-    ) -> anyhow::Result<Vec<Attachment>> {
+    async fn prepare_attachments(&self, paths: Vec<FileTag>) -> anyhow::Result<Vec<Attachment>> {
         futures::future::join_all(paths.into_iter().map(|v| self.populate_attachments(v)))
             .await
             .into_iter()
