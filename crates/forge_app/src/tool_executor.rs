@@ -410,27 +410,15 @@ fn create_policy_for_operation(
     }
 
     match operation {
-        forge_domain::Operation::Read { path } => {
-            create_file_policy(path, |pattern| {
-                forge_domain::Rule::Read(forge_domain::ReadRule {
-                    read_pattern: pattern,
-                })
-            })
-        }
-        forge_domain::Operation::Write { path } => {
-            create_file_policy(path, |pattern| {
-                forge_domain::Rule::Write(forge_domain::WriteRule {
-                    write_pattern: pattern,
-                })
-            })
-        }
-        forge_domain::Operation::Patch { path } => {
-            create_file_policy(path, |pattern| {
-                forge_domain::Rule::Patch(forge_domain::PatchRule {
-                    patch_pattern: pattern,
-                })
-            })
-        }
+        forge_domain::Operation::Read { path } => create_file_policy(path, |pattern| {
+            forge_domain::Rule::Read(forge_domain::ReadRule { read_pattern: pattern })
+        }),
+        forge_domain::Operation::Write { path } => create_file_policy(path, |pattern| {
+            forge_domain::Rule::Write(forge_domain::WriteRule { write_pattern: pattern })
+        }),
+        forge_domain::Operation::Patch { path } => create_file_policy(path, |pattern| {
+            forge_domain::Rule::Patch(forge_domain::PatchRule { patch_pattern: pattern })
+        }),
         forge_domain::Operation::NetFetch { url } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 parsed_url
