@@ -117,12 +117,12 @@ impl FileTag {
             preceded(char(':'), parse_usize()),
         );
         let parse_location_start_only = preceded(char(':'), parse_usize());
-        
+
         let parse_location = nom::branch::alt((
             nom::combinator::map(parse_location_full, |(start, end)| (Some(start), Some(end))),
             nom::combinator::map(parse_location_start_only, |start| (Some(start), None)),
         ));
-        
+
         let parse_path = take_while1(|c: char| c != ':' && c != '#' && c != ']');
         let mut parser = delimited(
             tag("@["),
@@ -277,17 +277,13 @@ mod tests {
     #[test]
     fn test_attachment_parse_multiple_with_mixed_features() {
         let text = String::from(
-            "Check @[/file1.txt] and @[/file2.rs:10:20] and @[/file3.py#function] and @[/file4.js:1:5#init]"
+            "Check @[/file1.txt] and @[/file2.rs:10:20] and @[/file3.py#function] and @[/file4.js:1:5#init]",
         );
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 4);
 
         let expected = vec![
-            FileTag {
-                path: "/file1.txt".to_string(),
-                loc: None,
-                symbol: None,
-            },
+            FileTag { path: "/file1.txt".to_string(), loc: None, symbol: None },
             FileTag {
                 path: "/file2.rs".to_string(),
                 loc: Some(Location { start: Some(10), end: Some(20) }),
