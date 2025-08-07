@@ -105,33 +105,38 @@ impl<
 
                 // Create policy based on operation type
                 let new_policy = match operation {
-                    forge_domain::Operation::Read { path } => {
-                        path.extension().and_then(|ext| ext.to_str()).map(|extension| forge_domain::Policy::Simple {
-                                permission: Permission::Allow,
-                                rule: forge_domain::Rule::Read(forge_domain::ReadRule {
-                                    read_pattern: format!("*.{}", extension),
-                                }),
-                            })
-                    }
-                    forge_domain::Operation::Write { path } => {
-                        path.extension().and_then(|ext| ext.to_str()).map(|extension| forge_domain::Policy::Simple {
-                                permission: Permission::Allow,
-                                rule: forge_domain::Rule::Write(forge_domain::WriteRule {
-                                    write_pattern: format!("*.{}", extension),
-                                }),
-                            })
-                    }
-                    forge_domain::Operation::Patch { path } => {
-                        path.extension().and_then(|ext| ext.to_str()).map(|extension| forge_domain::Policy::Simple {
-                                permission: Permission::Allow,
-                                rule: forge_domain::Rule::Patch(forge_domain::PatchRule {
-                                    patch_pattern: format!("*.{}", extension),
-                                }),
-                            })
-                    }
+                    forge_domain::Operation::Read { path } => path
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .map(|extension| forge_domain::Policy::Simple {
+                            permission: Permission::Allow,
+                            rule: forge_domain::Rule::Read(forge_domain::ReadRule {
+                                read_pattern: format!("*.{}", extension),
+                            }),
+                        }),
+                    forge_domain::Operation::Write { path } => path
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .map(|extension| forge_domain::Policy::Simple {
+                            permission: Permission::Allow,
+                            rule: forge_domain::Rule::Write(forge_domain::WriteRule {
+                                write_pattern: format!("*.{}", extension),
+                            }),
+                        }),
+                    forge_domain::Operation::Patch { path } => path
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .map(|extension| forge_domain::Policy::Simple {
+                            permission: Permission::Allow,
+                            rule: forge_domain::Rule::Patch(forge_domain::PatchRule {
+                                patch_pattern: format!("*.{}", extension),
+                            }),
+                        }),
                     forge_domain::Operation::NetFetch { url } => {
                         if let Ok(parsed_url) = url::Url::parse(url) {
-                            parsed_url.host_str().map(|host| forge_domain::Policy::Simple {
+                            parsed_url
+                                .host_str()
+                                .map(|host| forge_domain::Policy::Simple {
                                     permission: Permission::Allow,
                                     rule: forge_domain::Rule::NetFetch(
                                         forge_domain::NetFetchRule {
