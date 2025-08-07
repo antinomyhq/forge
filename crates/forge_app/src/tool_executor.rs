@@ -74,7 +74,8 @@ impl<
                     }
                     UserResponse::AcceptAndRemember => {
                         // User accepted and wants to remember this choice
-                        self.add_policy_for_operation(operation, workflow_path).await?;
+                        self.add_policy_for_operation(operation, workflow_path)
+                            .await?;
                     }
                     UserResponse::Reject => {
                         return Err(anyhow::anyhow!(
@@ -97,60 +98,47 @@ impl<
         self.services
             .update_workflow(Some(workflow_path), |workflow| {
                 // Get or create policies
-                let mut policies = workflow.policies.take().unwrap_or_else(|| {
-                    forge_domain::Policies::new()
-                });
+                let mut policies = workflow
+                    .policies
+                    .take()
+                    .unwrap_or_else(forge_domain::Policies::new);
 
                 // Create policy based on operation type
                 let new_policy = match operation {
                     forge_domain::Operation::Read { path } => {
-                        if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
-                            Some(forge_domain::Policy::Simple {
+                        path.extension().and_then(|ext| ext.to_str()).map(|extension| forge_domain::Policy::Simple {
                                 permission: Permission::Allow,
                                 rule: forge_domain::Rule::Read(forge_domain::ReadRule {
                                     read_pattern: format!("*.{}", extension),
                                 }),
                             })
-                        } else {
-                            None
-                        }
                     }
                     forge_domain::Operation::Write { path } => {
-                        if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
-                            Some(forge_domain::Policy::Simple {
+                        path.extension().and_then(|ext| ext.to_str()).map(|extension| forge_domain::Policy::Simple {
                                 permission: Permission::Allow,
                                 rule: forge_domain::Rule::Write(forge_domain::WriteRule {
                                     write_pattern: format!("*.{}", extension),
                                 }),
                             })
-                        } else {
-                            None
-                        }
                     }
                     forge_domain::Operation::Patch { path } => {
-                        if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
-                            Some(forge_domain::Policy::Simple {
+                        path.extension().and_then(|ext| ext.to_str()).map(|extension| forge_domain::Policy::Simple {
                                 permission: Permission::Allow,
                                 rule: forge_domain::Rule::Patch(forge_domain::PatchRule {
                                     patch_pattern: format!("*.{}", extension),
                                 }),
                             })
-                        } else {
-                            None
-                        }
                     }
                     forge_domain::Operation::NetFetch { url } => {
                         if let Ok(parsed_url) = url::Url::parse(url) {
-                            if let Some(host) = parsed_url.host_str() {
-                                Some(forge_domain::Policy::Simple {
+                            parsed_url.host_str().map(|host| forge_domain::Policy::Simple {
                                     permission: Permission::Allow,
-                                    rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
-                                        url_pattern: format!("{}*", host),
-                                    }),
+                                    rule: forge_domain::Rule::NetFetch(
+                                        forge_domain::NetFetchRule {
+                                            url_pattern: format!("{}*", host),
+                                        },
+                                    ),
                                 })
-                            } else {
-                                None
-                            }
                         } else {
                             None
                         }
@@ -249,13 +237,13 @@ impl<
         workflow_path: &Path,
         confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<Operation> {
-
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref()).await?;
+                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                    .await?;
 
                 let output = self
                     .services
@@ -271,7 +259,8 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref()).await?;
+                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                    .await?;
 
                 let output = self
                     .services
@@ -288,7 +277,8 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref()).await?;
+                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                    .await?;
 
                 let output = self
                     .services
@@ -304,7 +294,8 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref()).await?;
+                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                    .await?;
 
                 let _output = self.services.remove(input.path.clone()).await?;
                 input.into()
@@ -313,7 +304,8 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Patch { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref()).await?;
+                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                    .await?;
 
                 let output = self
                     .services
@@ -334,7 +326,8 @@ impl<
             Tools::ForgeToolProcessShell(input) => {
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::Execute { command: input.command.clone() };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref()).await?;
+                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                    .await?;
 
                 let output = self
                     .services
@@ -345,7 +338,8 @@ impl<
             Tools::ForgeToolNetFetch(input) => {
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::NetFetch { url: input.url.clone() };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref()).await?;
+                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                    .await?;
 
                 let output = self.services.fetch(input.url.clone(), input.raw).await?;
                 (input, output).into()
@@ -447,13 +441,12 @@ impl<
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+
     use forge_domain::Operation;
 
     #[test]
     fn test_add_policy_for_read_operation() {
-        let operation = Operation::Read {
-            path: PathBuf::from("/test/file.rs"),
-        };
+        let operation = Operation::Read { path: PathBuf::from("/test/file.rs") };
 
         // Test that a read operation creates the expected pattern
         assert!(matches!(operation, Operation::Read { .. }));
@@ -461,9 +454,7 @@ mod tests {
 
     #[test]
     fn test_add_policy_for_write_operation() {
-        let operation = Operation::Write {
-            path: PathBuf::from("/test/file.js"),
-        };
+        let operation = Operation::Write { path: PathBuf::from("/test/file.js") };
 
         // Test that a write operation creates the expected pattern
         assert!(matches!(operation, Operation::Write { .. }));
@@ -471,9 +462,7 @@ mod tests {
 
     #[test]
     fn test_add_policy_for_patch_operation() {
-        let operation = Operation::Patch {
-            path: PathBuf::from("/test/file.py"),
-        };
+        let operation = Operation::Patch { path: PathBuf::from("/test/file.py") };
 
         // Test that a patch operation creates the expected pattern
         assert!(matches!(operation, Operation::Patch { .. }));
@@ -481,9 +470,7 @@ mod tests {
 
     #[test]
     fn test_add_policy_for_netfetch_operation() {
-        let operation = Operation::NetFetch {
-            url: "https://example.com/api".to_string(),
-        };
+        let operation = Operation::NetFetch { url: "https://example.com/api".to_string() };
 
         // Test that a netfetch operation creates the expected pattern
         assert!(matches!(operation, Operation::NetFetch { .. }));
@@ -491,9 +478,7 @@ mod tests {
 
     #[test]
     fn test_add_policy_for_execute_operation() {
-        let operation = Operation::Execute {
-            command: "echo hello".to_string(),
-        };
+        let operation = Operation::Execute { command: "echo hello".to_string() };
 
         // Test that an execute operation is recognized (but not auto-ruled)
         assert!(matches!(operation, Operation::Execute { .. }));
