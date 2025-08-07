@@ -128,112 +128,113 @@ mod tests {
         assert_eq!(actual[0].as_ref().unwrap().line, Some(1));
         assert_eq!(actual[1], None); // Second rule doesn't match
     }
-}
-#[test]
-fn test_policies_with_defaults_creates_expected_policies() {
-    // Arrange
-
-    // Act
-    let actual = Policies::with_defaults();
-
-    // Assert
-    assert!(!actual.policies.is_empty());
-    // Should have at least the read policy and some execute policies
-    assert!(actual.policies.len() > 10);
-
-    // Check that it includes read access
-    let has_read_all = actual.policies.iter().any(|p| {
-        matches!(p.permission(), Some(Permission::Allow))
-            && matches!(
-                p,
-                Policy::Simple {
-                    rule: Rule::Read(ReadRule { read_pattern }),
-                    ..
-                } if read_pattern == "**/*"
-            )
-    });
-    assert!(has_read_all, "Should include read access to all files");
-
-    // Check that it includes some common commands
-    let has_ls = actual.policies.iter().any(|p| {
-        matches!(
-            p,
-            Policy::Simple {
-                rule: Rule::Execute(ExecuteRule { command_pattern }),
-                ..
-            } if command_pattern == "ls*"
-        )
-    });
-    assert!(has_ls, "Should include ls command");
-
-    // Check that it includes NetFetch access
-    let has_net_fetch_all = actual.policies.iter().any(|p| {
-        matches!(p.permission(), Some(Permission::Allow))
-            && matches!(
-                p,
-                Policy::Simple {
-                    rule: Rule::NetFetch(NetFetchRule { url_pattern }),
-                    ..
-                } if url_pattern == "*"
-            )
-    });
-    assert!(
-        has_net_fetch_all,
-        "Should include NetFetch access to all URLs"
-    );
-}
-#[test]
-fn test_default_policies_allow_all_net_fetch() {
-    let policies = Policies::with_defaults();
-    let operation = Operation::NetFetch { url: "https://example.com/api".to_string() };
-
-    let traces = policies.eval(&operation, None);
-
-    // Should find at least one Allow policy for NetFetch
-    let has_allow = traces.iter().any(|trace| {
-        if let Some(trace) = trace {
-            trace.value == Permission::Allow
-        } else {
-            false
-        }
-    });
-
-    assert!(
-        has_allow,
-        "Default policies should allow NetFetch operations"
-    );
-}
-
-#[cfg(test)]
-mod yaml_policies_tests {
-    use crate::policies::{Permission, Policies, Policy, Rule};
 
     #[test]
-    fn test_yaml_policies_roundtrip() {
-        let yaml_content = include_str!("../fixtures/policies_test.yml");
+    fn test_policies_with_defaults_creates_expected_policies() {
+        // Arrange
 
-        let policies: Policies =
-            serde_yml::from_str(yaml_content).expect("Failed to parse policies YAML");
+        // Act
+        let actual = Policies::with_defaults();
 
-        assert_eq!(policies.policies.len(), 3);
+        // Assert
+        assert!(!actual.policies.is_empty());
+        // Should have at least the read policy and some execute policies
+        assert!(actual.policies.len() > 10);
 
-        // Test first policy
-        let first_policy = &policies.policies[0];
-        if let Policy::Simple { permission, rule } = first_policy {
-            assert_eq!(*permission, Permission::Allow);
-            if let Rule::Read(rule) = rule {
-                assert_eq!(rule.read_pattern, "**/*.rs");
+        // Check that it includes read access
+        let has_read_all = actual.policies.iter().any(|p| {
+            matches!(p.permission(), Some(Permission::Allow))
+                && matches!(
+                    p,
+                    Policy::Simple {
+                        rule: Rule::Read(ReadRule { read_pattern }),
+                        ..
+                    } if read_pattern == "**/*"
+                )
+        });
+        assert!(has_read_all, "Should include read access to all files");
+
+        // Check that it includes some common commands
+        let has_ls = actual.policies.iter().any(|p| {
+            matches!(
+                p,
+                Policy::Simple {
+                    rule: Rule::Execute(ExecuteRule { command_pattern }),
+                    ..
+                } if command_pattern == "ls*"
+            )
+        });
+        assert!(has_ls, "Should include ls command");
+
+        // Check that it includes NetFetch access
+        let has_net_fetch_all = actual.policies.iter().any(|p| {
+            matches!(p.permission(), Some(Permission::Allow))
+                && matches!(
+                    p,
+                    Policy::Simple {
+                        rule: Rule::NetFetch(NetFetchRule { url_pattern }),
+                        ..
+                    } if url_pattern == "*"
+                )
+        });
+        assert!(
+            has_net_fetch_all,
+            "Should include NetFetch access to all URLs"
+        );
+    }
+    #[test]
+    fn test_default_policies_allow_all_net_fetch() {
+        let policies = Policies::with_defaults();
+        let operation = Operation::NetFetch { url: "https://example.com/api".to_string() };
+
+        let traces = policies.eval(&operation, None);
+
+        // Should find at least one Allow policy for NetFetch
+        let has_allow = traces.iter().any(|trace| {
+            if let Some(trace) = trace {
+                trace.value == Permission::Allow
             } else {
-                panic!("Expected Read rule");
+                false
             }
-        } else {
-            panic!("Expected Simple policy");
-        }
+        });
 
-        // Test round-trip serialization
-        let serialized = serde_yml::to_string(&policies).expect("Failed to serialize policies");
-        let deserialized: Policies =
-            serde_yml::from_str(&serialized).expect("Failed to deserialize policies");
-        assert_eq!(policies, deserialized);
+        assert!(
+            has_allow,
+            "Default policies should allow NetFetch operations"
+        );
+    }
+
+    #[cfg(test)]
+    mod yaml_policies_tests {
+        use crate::policies::{Permission, Policies, Policy, Rule};
+
+        #[test]
+        fn test_yaml_policies_roundtrip() {
+            let yaml_content = include_str!("../fixtures/policies_test.yml");
+
+            let policies: Policies =
+                serde_yml::from_str(yaml_content).expect("Failed to parse policies YAML");
+
+            assert_eq!(policies.policies.len(), 3);
+
+            // Test first policy
+            let first_policy = &policies.policies[0];
+            if let Policy::Simple { permission, rule } = first_policy {
+                assert_eq!(*permission, Permission::Allow);
+                if let Rule::Read(rule) = rule {
+                    assert_eq!(rule.read_pattern, "**/*.rs");
+                } else {
+                    panic!("Expected Read rule");
+                }
+            } else {
+                panic!("Expected Simple policy");
+            }
+
+            // Test round-trip serialization
+            let serialized = serde_yml::to_string(&policies).expect("Failed to serialize policies");
+            let deserialized: Policies =
+                serde_yml::from_str(&serialized).expect("Failed to deserialize policies");
+            assert_eq!(policies, deserialized);
+        }
     }
 }
