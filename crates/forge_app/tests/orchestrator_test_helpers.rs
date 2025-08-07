@@ -7,19 +7,20 @@ use derive_setters::Setters;
 use forge_app::agent::AgentService;
 use forge_app::orch::Orchestrator;
 use forge_domain::{
-    ChatCompletionMessage, Conversation, ConversationId, Environment, Event, HttpConfig,
-    RetryConfig, Role, ToolCallFull, ToolResult, Workflow,
+    Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
+    ConversationId, Environment, Event, HttpConfig, ModelId, RetryConfig, Role, Template,
+    ToolCallFull, ToolResult, Workflow,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
 struct Templates;
 
-#[derive(Setters, Debug)]
 struct Runner {
     hb: Handlebars<'static>,
     // History of all the updates made to the conversation
@@ -28,8 +29,8 @@ struct Runner {
     // Tool call requests and the mock responses
     test_tool_calls: Vec<(ToolCallFull, ToolResult)>,
 
-    // Mock responses from the LLM (Each value is produced as an event in the stream)
-    test_chat_responses: Mutex<VecDeque<ChatCompletionMessage>>,
+    // Mock completions from the LLM (Each value is produced as an event in the stream)
+    test_completions: Mutex<VecDeque<ChatCompletionMessage>>,
 }
 
 impl Runner {
@@ -48,10 +49,11 @@ impl Runner {
             hb,
             conversation_history: Mutex::new(Vec::new()),
             test_tool_calls: Vec::new(),
-            test_chat_responses: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
+            test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
         }
     }
 
+    // Returns the conversation history
     async fn get_history(&self) -> Vec<Conversation> {
         self.conversation_history.lock().await.clone()
     }
@@ -64,7 +66,7 @@ impl AgentService for Runner {
         _id: &forge_domain::ModelId,
         _context: forge_domain::Context,
     ) -> forge_domain::ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let mut responses = self.test_chat_responses.lock().await;
+        let mut responses = self.test_completions.lock().await;
         if let Some(message) = responses.pop_front() {
             Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(message)))))
         } else {
@@ -99,32 +101,25 @@ impl AgentService for Runner {
     }
 }
 
-fn new_orchestrator(setup: &Setup) -> (Orchestrator<Runner>, Arc<Runner>) {
-    let services = new_service(setup);
+fn new_orchestrator(
+    setup: &Setup,
+    tx: Sender<anyhow::Result<ChatResponse>>,
+) -> (Orchestrator<Runner>, Arc<Runner>) {
+    let services = Arc::new(Runner::new(setup));
     let environment = new_env();
-    let conversation = new_conversation(&setup.workflow);
-    let current_time = new_current_time();
-    (
-        Orchestrator::new(services.clone(), environment, conversation, current_time)
-            .files(setup.files.clone()),
-        services,
-    )
-}
-
-fn new_current_time() -> chrono::DateTime<Local> {
-    Local::now()
-}
-
-fn new_service(setup: &Setup) -> Arc<Runner> {
-    Arc::new(Runner::new(setup))
-}
-
-fn new_conversation(workflow: &Workflow) -> Conversation {
-    Conversation::new(
+    let conversation = Conversation::new(
         ConversationId::generate(),
-        workflow.clone(),
+        setup.workflow.clone(),
         Default::default(),
-    )
+    );
+    let current_time = Local::now();
+
+    let orch = Orchestrator::new(services.clone(), environment, conversation, current_time)
+        .sender(Arc::new(tx))
+        .files(setup.files.clone());
+
+    // Return setup
+    (orch, services)
 }
 
 fn new_env() -> Environment {
@@ -150,14 +145,26 @@ fn new_env() -> Environment {
 }
 
 async fn run(setup: Setup) -> TestContext {
-    let (mut orch, services) = new_orchestrator(&setup);
-    orch.chat(setup.event).await.unwrap();
-    TestContext { conversation_history: services.get_history().await }
+    const LIMIT: usize = 1024;
+    let mut chat_responses = Vec::new();
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
+    let (mut orch, runner) = new_orchestrator(&setup, tx);
+
+    tokio::join!(
+        async { orch.chat(setup.event).await.unwrap() },
+        rx.recv_many(&mut chat_responses, LIMIT)
+    );
+    TestContext {
+        conversation_history: runner.get_history().await,
+        chat_responses,
+    }
 }
 
 // The final output produced after running the orchestrator to completion
+#[derive(Debug)]
 pub struct TestContext {
     pub conversation_history: Vec<Conversation>,
+    pub chat_responses: Vec<anyhow::Result<ChatResponse>>,
 }
 
 impl TestContext {
@@ -167,6 +174,15 @@ impl TestContext {
             .and_then(|c| c.context.as_ref())
             .and_then(|c| c.messages.iter().find(|c| c.has_role(Role::System)))
             .and_then(|c| c.content())
+    }
+
+    pub fn messages(&self) -> Vec<ContextMessage> {
+        self.conversation_history
+            .last()
+            .and_then(|c| c.context.as_ref())
+            .map(|c| c.messages.clone())
+            .clone()
+            .unwrap_or_default()
     }
 }
 
@@ -189,7 +205,13 @@ impl Setup {
         Self {
             event,
             mock_assistant_responses: Default::default(),
-            workflow: Default::default(),
+            workflow: Workflow::new()
+                .model(ModelId::new("openai/gpt-1"))
+                .agents(vec![
+                    Agent::new(AgentId::new("forge")).system_prompt(Template::new("You are Forge")),
+                    Agent::new(AgentId::new("must")).system_prompt(Template::new("You are Muse")),
+                ])
+                .tool_supported(true),
             templates: Default::default(),
             files: Default::default(),
         }

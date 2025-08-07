@@ -372,6 +372,9 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.conversation.max_requests_per_turn;
 
+        // Store tool calls at turn level
+        let mut turn_has_tool_calls = false;
+
         while !is_complete {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
@@ -437,13 +440,13 @@ impl<S: AgentService> Orchestrator<S> {
 
             context = context.usage(usage);
 
-            let has_no_tool_calls = tool_calls.is_empty();
+            let has_tool_calls = !tool_calls.is_empty();
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
             is_complete = tool_calls.iter().any(|call| Tools::is_complete(&call.name));
 
-            if !is_complete && !has_no_tool_calls {
+            if !is_complete && has_tool_calls {
                 // If task is completed we would have already displayed a message so we can
                 // ignore the content that's collected from the stream
                 // NOTE: Important to send the content messages before the tool call happens
@@ -505,9 +508,22 @@ impl<S: AgentService> Orchestrator<S> {
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
 
-            if has_no_tool_calls {
-                // No tool calls present, which doesn't mean task is complete so reprompt the
-                // agent to ensure the task complete.
+            if !(turn_has_tool_calls || has_tool_calls) {
+                // No tools were called in the previous turn nor were they called in this step;
+                // Means that this is conversation.
+
+                self.send(ChatResponse::Text {
+                    text: remove_tag_with_prefix(&content, "forge_")
+                        .as_str()
+                        .to_string(),
+                    is_complete: true,
+                    is_md: true,
+                })
+                .await?;
+                is_complete = true
+            } else if turn_has_tool_calls && !has_tool_calls {
+                // Since no tool calls are present, which doesn't mean task is complete so
+                // re-prompt the agent to ensure the task complete.
                 let content = self
                     .services
                     .render(
@@ -591,6 +607,9 @@ impl<S: AgentService> Orchestrator<S> {
                     is_complete = true;
                 }
             }
+
+            // Update if turn has tool calls
+            turn_has_tool_calls = turn_has_tool_calls || has_tool_calls;
         }
 
         Ok(())
