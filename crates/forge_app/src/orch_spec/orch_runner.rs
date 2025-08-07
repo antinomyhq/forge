@@ -28,7 +28,7 @@ struct Runner {
     conversation_history: Mutex<Vec<Conversation>>,
 
     // Tool call requests and the mock responses
-    test_tool_calls: Vec<(ToolCallFull, ToolResult)>,
+    test_tool_calls: Mutex<VecDeque<(ToolCallFull, ToolResult)>>,
 
     // Mock completions from the LLM (Each value is produced as an event in the stream)
     test_completions: Mutex<VecDeque<ChatCompletionMessage>>,
@@ -49,7 +49,7 @@ impl Runner {
         Self {
             hb,
             conversation_history: Mutex::new(Vec::new()),
-            test_tool_calls: Vec::new(),
+            test_tool_calls: Mutex::new(VecDeque::from(setup.mock_tool_call_responses.clone())),
             test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
         }
     }
@@ -81,11 +81,15 @@ impl AgentService for Runner {
         _context: &mut forge_domain::ToolCallContext,
         test_call: forge_domain::ToolCallFull,
     ) -> forge_domain::ToolResult {
-        self.test_tool_calls
-            .iter()
-            .find(|(call, _)| call.call_id == test_call.call_id)
-            .map(|(_, result)| result.clone())
-            .expect("Tool call not found")
+        let mut guard = self.test_tool_calls.lock().await;
+        for (id, (call, result)) in guard.iter().enumerate() {
+            if call.call_id == test_call.call_id {
+                let result = result.clone();
+                guard.remove(id);
+                return result;
+            }
+        }
+        panic!("Tool call not found")
     }
 
     async fn render(
@@ -177,7 +181,7 @@ impl TestContext {
             .and_then(|c| c.content())
     }
 
-    pub fn messages(&self) -> Vec<ContextMessage> {
+    pub fn context_messages(&self) -> Vec<ContextMessage> {
         self.conversation_history
             .last()
             .and_then(|c| c.context.as_ref())
@@ -191,6 +195,7 @@ impl TestContext {
 #[setters(into)]
 pub struct Setup {
     pub event: Event,
+    pub mock_tool_call_responses: Vec<(ToolCallFull, ToolResult)>,
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
     pub workflow: Workflow,
     pub templates: HashMap<String, String>,
@@ -206,11 +211,16 @@ impl Setup {
         Self {
             event,
             mock_assistant_responses: Default::default(),
+            mock_tool_call_responses: Default::default(),
             workflow: Workflow::new()
                 .model(ModelId::new("openai/gpt-1"))
                 .agents(vec![
-                    Agent::new(AgentId::new("forge")).system_prompt(Template::new("You are Forge")),
-                    Agent::new(AgentId::new("must")).system_prompt(Template::new("You are Muse")),
+                    Agent::new(AgentId::new("forge"))
+                        .system_prompt(Template::new("You are Forge"))
+                        .tools(vec![("fs_read").into(), ("fs_write").into()]),
+                    Agent::new(AgentId::new("must"))
+                        .system_prompt(Template::new("You are Muse"))
+                        .tools(vec![("fs_read").into()]),
                 ])
                 .tool_supported(true),
             templates: Default::default(),

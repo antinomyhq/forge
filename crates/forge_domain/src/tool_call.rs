@@ -75,8 +75,12 @@ pub struct ToolCallFull {
 }
 
 impl ToolCallFull {
-    pub fn new(tool_name: ToolName) -> Self {
-        Self { name: tool_name, call_id: None, arguments: Value::default() }
+    pub fn new(tool_name: impl Into<ToolName>) -> Self {
+        Self {
+            name: tool_name.into(),
+            call_id: None,
+            arguments: Value::default(),
+        }
     }
 
     pub fn try_from_parts(parts: &[ToolCallPart]) -> Result<Vec<Self>> {

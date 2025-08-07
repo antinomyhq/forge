@@ -545,7 +545,8 @@ impl<S: AgentService> Orchestrator<S> {
                 );
 
                 empty_tool_call_count += 1;
-                if empty_tool_call_count > 3 {
+                // TODO: Move the hard coded limit into env
+                if empty_tool_call_count >= 3 {
                     warn!(
                         agent_id = %agent.id,
                         model_id = %model_id,

@@ -1,5 +1,8 @@
-use forge_domain::{ChatCompletionMessage, Content, Role};
+use forge_domain::{
+    ChatCompletionMessage, Content, Role, ToolCallFull, ToolName, ToolOutput, ToolResult,
+};
 use pretty_assertions::assert_eq;
+use serde_json::json;
 
 use crate::orch_spec::orch_runner::Setup;
 
@@ -29,7 +32,7 @@ async fn test_attempt_completion_requirement() {
         ))])
         .run()
         .await;
-    let messages = ctx.messages();
+    let messages = ctx.context_messages();
 
     let message_count = messages
         .iter()
@@ -72,4 +75,31 @@ async fn test_attempt_completion_content() {
         Some("Hello!"),
         "Should contain assistant message"
     )
+}
+
+#[tokio::test]
+async fn test_attempt_completion_with_task() {
+    let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "abc.txt"}));
+
+    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Greetings")));
+
+    let ctx = Setup::init_forge_task("Read a file")
+        .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result)])
+        .mock_assistant_responses(vec![
+            // First message, issues a tool call
+            ChatCompletionMessage::assistant("Reading abc.txt").tool_calls(vec![tool_call.into()]),
+            // Second message without any attempt completion
+            ChatCompletionMessage::assistant("Successfully read the file"),
+        ])
+        .run()
+        .await;
+
+    let tool_call_error_count = ctx
+        .context_messages()
+        .iter()
+        .filter_map(|message| message.content())
+        .filter(|content| content.contains("<tool_call_error>"))
+        .count();
+
+    assert_eq!(tool_call_error_count, 3, "Respond with the error thrice");
 }
