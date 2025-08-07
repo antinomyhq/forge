@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use forge_app::AttachmentService;
@@ -20,7 +19,7 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
 
     async fn prepare_attachments(
         &self,
-        paths: HashSet<FileTag>,
+        paths: Vec<FileTag>,
     ) -> anyhow::Result<Vec<Attachment>> {
         futures::future::join_all(paths.into_iter().map(|v| self.populate_attachments(v)))
             .await

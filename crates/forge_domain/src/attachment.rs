@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use nom::Parser;
 use nom::bytes::complete::tag;
 
@@ -59,10 +57,10 @@ impl Attachment {
     /// @[path/to/file]. File paths can contain spaces and are considered to
     /// extend until the closing bracket. If the closing bracket is missing,
     /// consider everything until the end of the string as the path.
-    pub fn parse_all<T: ToString>(text: T) -> HashSet<FileTag> {
+    pub fn parse_all<T: ToString>(text: T) -> Vec<FileTag> {
         let input = text.to_string();
         let mut remaining = input.as_str();
-        let mut paths = HashSet::new();
+        let mut tags = Vec::new();
 
         while !remaining.is_empty() {
             // Find the next "@[" pattern
@@ -71,7 +69,7 @@ impl Attachment {
                 remaining = &remaining[start_pos..];
                 match FileTag::parse(remaining) {
                     Ok((next_remaining, file_tag)) => {
-                        paths.insert(file_tag);
+                        tags.push(file_tag);
                         remaining = next_remaining;
                     }
                     Err(_e) => {
@@ -85,7 +83,10 @@ impl Attachment {
             }
         }
 
-        paths
+        let mut seen = std::collections::HashSet::new();
+        tags.retain(|tag| seen.insert((tag.path.clone(), tag.loc.clone(), tag.symbol.clone())));
+
+        tags
     }
 }
 
@@ -191,12 +192,12 @@ mod tests {
         let paths = paths
             .iter()
             .map(|tag| tag.path.as_str())
-            .collect::<HashSet<_>>();
+            .collect::<Vec<_>>();
         assert_eq!(paths.len(), 3);
 
-        assert!(paths.contains("/file1.txt"));
-        assert!(paths.contains("/path/with spaces/file2.txt"));
-        assert!(paths.contains("/file3.txt"));
+        assert!(paths.contains(&"/file1.txt"));
+        assert!(paths.contains(&"/path/with spaces/file2.txt"));
+        assert!(paths.contains(&"/file3.txt"));
     }
 
     #[test]
@@ -222,11 +223,11 @@ mod tests {
         let paths = paths
             .iter()
             .map(|tag| tag.path.as_str())
-            .collect::<HashSet<_>>();
+            .collect::<Vec<_>>();
         assert_eq!(paths.len(), 2);
 
-        assert!(paths.contains("🚀/path/with spaces/file.txt🔥"));
-        assert!(paths.contains("🌟simple_path"));
+        assert!(paths.contains(&"🚀/path/with spaces/file.txt🔥"));
+        assert!(paths.contains(&"🌟simple_path"));
     }
 
     #[test]
