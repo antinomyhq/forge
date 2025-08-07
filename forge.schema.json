@@ -437,10 +437,10 @@
       "description": "Rule for execute operations with a command pattern",
       "type": "object",
       "required": [
-        "execute_command"
+        "command_pattern"
       ],
       "properties": {
-        "execute_command": {
+        "command_pattern": {
           "type": "string"
         }
       }
@@ -450,6 +450,18 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
+    },
+    "NetFetchRule": {
+      "description": "Rule for network fetch operations with a URL pattern",
+      "type": "object",
+      "required": [
+        "url_pattern"
+      ],
+      "properties": {
+        "url_pattern": {
+          "type": "string"
+        }
+      }
     },
     "PatchRule": {
       "description": "Rule for patch operations with a glob pattern",
@@ -635,6 +647,14 @@
           "allOf": [
             {
               "$ref": "#/definitions/ExecuteRule"
+            }
+          ]
+        },
+        {
+          "description": "Rule for network fetch operations with a URL pattern",
+          "allOf": [
+            {
+              "$ref": "#/definitions/NetFetchRule"
             }
           ]
         }
