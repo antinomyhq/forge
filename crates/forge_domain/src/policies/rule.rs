@@ -7,37 +7,37 @@ use serde::{Deserialize, Serialize};
 use super::operation::Operation;
 
 /// Rule for write operations with a glob pattern
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct WriteRule {
     pub write_pattern: String,
 }
 
 /// Rule for read operations with a glob pattern
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct ReadRule {
     pub read_pattern: String,
 }
 
 /// Rule for patch operations with a glob pattern
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct PatchRule {
     pub patch_pattern: String,
 }
 
 /// Rule for execute operations with a command pattern
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct ExecuteRule {
     pub command_pattern: String,
 }
 
 /// Rule for network fetch operations with a URL pattern
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct NetFetchRule {
     pub url_pattern: String,
 }
 
 /// Rules that define what operations are covered by a policy
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum Rule {
     /// Rule for write operations with a glob pattern

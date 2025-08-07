@@ -25,7 +25,7 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
     /// Returns the path to the first found config file, or the original path if
     /// none is found.
     pub async fn resolve_path(&self, path: Option<PathBuf>) -> PathBuf {
-        let path = path.unwrap_or(PathBuf::from("."));
+        let path = path.unwrap_or(PathBuf::from(".").join("forge.yaml"));
         // If the path exists or this is an explicitly provided path, return it as is
         if path.exists() || path.to_string_lossy() != "forge.yaml" {
             return path.to_path_buf();

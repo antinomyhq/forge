@@ -6,7 +6,7 @@ use super::rule::Rule;
 use super::types::{Permission, Trace};
 
 /// Policy definitions with logical operators
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 #[serde(rename_all = "camelCase")]
 pub enum Policy {

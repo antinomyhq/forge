@@ -97,9 +97,9 @@ mod tests {
 
         assert_eq!(actual.policies.len(), 2);
 
-        let first_policy = &actual.policies[0];
+        let first_policy = actual.policies.iter().next().unwrap();
         if let Policy::Simple { permission, rule } = first_policy {
-            assert_eq!(*permission, Permission::Allow);
+            assert_eq!(permission, &Permission::Allow);
             if let Rule::Read(read_rule) = rule {
                 assert_eq!(read_rule.read_pattern, "**/*.rs");
             } else {
@@ -127,10 +127,19 @@ mod tests {
 
         assert_eq!(actual.policies.len(), 4);
 
-        // Test read policy
-        let read_policy = &actual.policies[0];
+        let policies_vec: Vec<_> = actual.policies.iter().collect();
+
+        // Find the read policy (Allow permission with read rule)
+        let read_policy = policies_vec.iter().find(|policy| {
+            if let Policy::Simple { permission, rule } = policy {
+                permission == &Permission::Allow && matches!(rule, Rule::Read(_))
+            } else {
+                false
+            }
+        }).expect("Should find read policy");
+        
         if let Policy::Simple { permission, rule } = read_policy {
-            assert_eq!(*permission, Permission::Allow);
+            assert_eq!(permission, &Permission::Allow);
             if let Rule::Read(read_rule) = rule {
                 assert_eq!(read_rule.read_pattern, "**/*.{rs,js,ts,py}");
             } else {
@@ -140,10 +149,17 @@ mod tests {
             panic!("Expected Simple policy");
         }
 
-        // Test write policy
-        let write_policy = &actual.policies[1];
+        // Find the write policy (Confirm permission with write rule)
+        let write_policy = policies_vec.iter().find(|policy| {
+            if let Policy::Simple { permission, rule } = policy {
+                permission == &Permission::Confirm && matches!(rule, Rule::Write(_))
+            } else {
+                false
+            }
+        }).expect("Should find write policy");
+        
         if let Policy::Simple { permission, rule } = write_policy {
-            assert_eq!(*permission, Permission::Confirm);
+            assert_eq!(permission, &Permission::Confirm);
             if let Rule::Write(write_rule) = rule {
                 assert_eq!(write_rule.write_pattern, "src/**/*");
             } else {
@@ -153,10 +169,17 @@ mod tests {
             panic!("Expected Simple policy");
         }
 
-        // Test execute policy (disallow)
-        let execute_policy_disallow = &actual.policies[2];
+        // Find the execute disallow policy 
+        let execute_policy_disallow = policies_vec.iter().find(|policy| {
+            if let Policy::Simple { permission, rule } = policy {
+                permission == &Permission::Disallow && matches!(rule, Rule::Execute(_))
+            } else {
+                false
+            }
+        }).expect("Should find execute disallow policy");
+        
         if let Policy::Simple { permission, rule } = execute_policy_disallow {
-            assert_eq!(*permission, Permission::Disallow);
+            assert_eq!(permission, &Permission::Disallow);
             if let Rule::Execute(execute_rule) = rule {
                 assert_eq!(execute_rule.command_pattern, "rm -rf /*");
             } else {
@@ -166,10 +189,22 @@ mod tests {
             panic!("Expected Simple policy");
         }
 
-        // Test execute policy (allow)
-        let execute_policy_allow = &actual.policies[3];
+        // Find the execute allow policy (Allow permission with "cargo*" pattern)
+        let execute_policy_allow = policies_vec.iter().find(|policy| {
+            if let Policy::Simple { permission, rule } = policy {
+                permission == &Permission::Allow && 
+                if let Rule::Execute(exec_rule) = rule {
+                    exec_rule.command_pattern == "cargo*"
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }).expect("Should find execute allow policy");
+        
         if let Policy::Simple { permission, rule } = execute_policy_allow {
-            assert_eq!(*permission, Permission::Allow);
+            assert_eq!(permission, &Permission::Allow);
             if let Rule::Execute(execute_rule) = rule {
                 assert_eq!(execute_rule.command_pattern, "cargo*");
             } else {

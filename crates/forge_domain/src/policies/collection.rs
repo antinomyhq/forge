@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,15 +12,15 @@ use crate::Rule;
 /// Collection of policies
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 pub struct Policies {
-    /// List of policies to evaluate
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub policies: Vec<Policy>,
+    /// Set of policies to evaluate
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub policies: BTreeSet<Policy>,
 }
 
 impl Policies {
     /// Create a new empty policies collection
     pub fn new() -> Self {
-        Self { policies: Vec::new() }
+        Self { policies: BTreeSet::new() }
     }
 
     /// Create a policies collection with sensible defaults
@@ -63,7 +65,7 @@ impl Policies {
 
     /// Add a policy to the collection
     pub fn add_policy(mut self, policy: Policy) -> Self {
-        self.policies.push(policy);
+        self.policies.insert(policy);
         self
     }
 
@@ -217,10 +219,10 @@ mod tests {
 
             assert_eq!(policies.policies.len(), 3);
 
-            // Test first policy
-            let first_policy = &policies.policies[0];
+            // Test first policy - get first policy from the set
+            let first_policy = policies.policies.iter().next().unwrap();
             if let Policy::Simple { permission, rule } = first_policy {
-                assert_eq!(*permission, Permission::Allow);
+                assert_eq!(permission, &Permission::Allow);
                 if let Rule::Read(rule) = rule {
                     assert_eq!(rule.read_pattern, "**/*.rs");
                 } else {
