@@ -157,7 +157,7 @@ impl<
                                     command_pattern: format!("{} {}*", parts[0], parts[1]),
                                 }),
                             })
-                        } else if parts.len() > 0 {
+                        } else if !parts.is_empty() {
                             Some(forge_domain::Policy::Simple {
                                 permission: Permission::Allow,
                                 rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
