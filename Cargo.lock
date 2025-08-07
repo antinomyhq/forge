@@ -1522,6 +1522,7 @@ dependencies = [
  "edtui",
  "forge_api",
  "forge_display",
+ "forge_domain",
  "forge_tracker",
  "futures",
  "lazy_static",

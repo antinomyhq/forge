@@ -99,4 +99,13 @@ pub trait API: Sync + Send {
     async fn app_config(&self) -> anyhow::Result<AppConfig>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
+
+    // GCC (Git Context Controller) operations
+    async fn gcc_init(&self) -> anyhow::Result<()>;
+    async fn gcc_commit(&self, message: &str) -> anyhow::Result<String>;
+    async fn gcc_create_branch(&self, name: &str) -> anyhow::Result<()>;
+    async fn gcc_read_context(&self, level: &str) -> anyhow::Result<String>;
+    async fn gcc_auto_manage(&self, conversation: &Conversation) -> anyhow::Result<String>;
+    async fn gcc_analyze_conversation(&self, conversation: &Conversation)
+    -> anyhow::Result<String>;
 }

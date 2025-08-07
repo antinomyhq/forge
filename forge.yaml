@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json
+# yaml-language-server: $schema=./forge.schema.json
 agents:
 - id: forge
   tools:
@@ -127,3 +127,5 @@ custom_rules: |-
   - Commands represent intent to perform side effects
   - Actions represent the result of those side effects
   - The executor pattern: Command -> Side Effect -> Action -> State Update -> UI Update
+max_tool_failure_per_turn: 10
+max_requests_per_turn: 1000

@@ -469,6 +469,76 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
             }
+            Command::GccCommit(message) => {
+                self.spinner.start(Some("Creating GCC commit"))?;
+                match self.api.gcc_commit(&message).await {
+                    Ok(commit_id) => {
+                        self.writeln(TitleFormat::action(format!(
+                            "Created GCC commit: {commit_id}"
+                        )))?;
+                    }
+                    Err(error) => {
+                        return Err(error);
+                    }
+                }
+            }
+            Command::GccBranch(name) => {
+                self.spinner.start(Some("Creating GCC branch"))?;
+                match self.api.gcc_create_branch(&name).await {
+                    Ok(_) => {
+                        self.writeln(TitleFormat::action(format!("Created GCC branch: {name}")))?;
+                    }
+                    Err(error) => {
+                        return Err(error);
+                    }
+                }
+            }
+            Command::GccContext(level) => {
+                self.spinner.start(Some("Reading GCC context"))?;
+                match self.api.gcc_read_context(&level).await {
+                    Ok(content) => {
+                        self.writeln(TitleFormat::info(format!("GCC Context ({level})")))?;
+                        self.writeln(content)?;
+                    }
+                    Err(error) => {
+                        return Err(error);
+                    }
+                }
+            }
+            Command::GccAuto => {
+                self.spinner.start(Some("Running GCC auto management"))?;
+                let conversation_id = self.init_conversation().await?;
+                if let Some(conversation) = self.api.conversation(&conversation_id).await? {
+                    match self.api.gcc_auto_manage(&conversation).await {
+                        Ok(result) => {
+                            self.writeln(TitleFormat::action("GCC Auto Management".to_string()))?;
+                            self.writeln(result)?;
+                        }
+                        Err(error) => {
+                            return Err(error);
+                        }
+                    }
+                } else {
+                    self.writeln(TitleFormat::error("No conversation found".to_string()))?;
+                }
+            }
+            Command::GccAnalyze => {
+                self.spinner.start(Some("Analyzing conversation"))?;
+                let conversation_id = self.init_conversation().await?;
+                if let Some(conversation) = self.api.conversation(&conversation_id).await? {
+                    match self.api.gcc_analyze_conversation(&conversation).await {
+                        Ok(analysis) => {
+                            self.writeln(TitleFormat::info("Conversation Analysis".to_string()))?;
+                            self.writeln(analysis)?;
+                        }
+                        Err(error) => {
+                            return Err(error);
+                        }
+                    }
+                } else {
+                    self.writeln(TitleFormat::error("No conversation found".to_string()))?;
+                }
+            }
         }
 
         Ok(false)

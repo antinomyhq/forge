@@ -6,6 +6,8 @@ mod authenticator;
 mod compact;
 mod error;
 pub mod fmt;
+#[cfg(test)]
+mod gcc_integration_test;
 mod mcp_executor;
 mod operation;
 pub mod orch;

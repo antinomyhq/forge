@@ -39,4 +39,19 @@ pub struct SystemContext {
     /// Indicates whether the agent supports parallel tool calls.
     #[serde(default)]
     pub supports_parallel_tool_calls: bool,
+
+    // GCC (Git Context Controller) information
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gcc_context: Option<GccSystemContext>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GccSystemContext {
+    pub is_initialized: bool,
+    pub current_branch: Option<String>,
+    pub available_branches: Vec<String>,
+    pub latest_commit: Option<String>,
+    pub project_context: Option<String>,
+    pub branch_context: Option<String>,
+    pub commit_context: Option<String>,
 }

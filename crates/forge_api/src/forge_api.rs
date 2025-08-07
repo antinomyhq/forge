@@ -9,6 +9,8 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
+use forge_services::gcc::auto_manager::GccAutoManager;
+use forge_services::gcc::storage::Storage as GccStorage;
 use forge_services::{CommandInfra, ForgeServices};
 use forge_stream::MpscStream;
 
@@ -181,5 +183,178 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             return Ok(Some(user_usage));
         }
         Ok(None)
+    }
+
+    // GCC (Git Context Controller) operations
+    async fn gcc_init(&self) -> anyhow::Result<()> {
+        let cwd = self.environment().cwd;
+        GccStorage::init(&cwd).map_err(|e| anyhow::anyhow!("GCC init failed: {}", e))?;
+
+        // Create main branch if it doesn't exist
+        let main_branch_path = cwd.join(".GCC/branches/main");
+        if !main_branch_path.exists() {
+            GccStorage::create_branch(&cwd, "main")
+                .map_err(|e| anyhow::anyhow!("Failed to create main branch: {}", e))?;
+        }
+
+        Ok(())
+    }
+
+    async fn gcc_commit(&self, message: &str) -> anyhow::Result<String> {
+        let cwd = self.environment().cwd;
+
+        // Initialize GCC if not already initialized
+        self.gcc_init().await?;
+
+        // Generate a unique commit ID using timestamp and hash
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let commit_id = format!(
+            "{}-{}",
+            timestamp,
+            message
+                .chars()
+                .take(8)
+                .collect::<String>()
+                .replace(' ', "_")
+        );
+
+        // For now, use "main" as default branch - could be made configurable
+        let branch = "main";
+
+        // Create the commit content with message and timestamp
+        let commit_content = format!(
+            "# Commit: {commit_id}\n\nMessage: {message}\nTimestamp: {timestamp}\nBranch: {branch}\n"
+        );
+
+        // Write the commit
+        GccStorage::write_commit(&cwd, branch, &commit_id, &commit_content)
+            .map_err(|e| anyhow::anyhow!("GCC commit failed: {}", e))?;
+
+        Ok(commit_id)
+    }
+
+    async fn gcc_create_branch(&self, name: &str) -> anyhow::Result<()> {
+        let cwd = self.environment().cwd;
+
+        // Initialize GCC if not already initialized
+        self.gcc_init().await?;
+
+        // Create the branch
+        GccStorage::create_branch(&cwd, name)
+            .map_err(|e| anyhow::anyhow!("GCC branch creation failed: {}", e))?;
+
+        Ok(())
+    }
+
+    async fn gcc_read_context(&self, level: &str) -> anyhow::Result<String> {
+        let cwd = self.environment().cwd;
+
+        // Parse the level string into a ContextLevel
+        let context_level = match level.trim() {
+            "project" => forge_domain::ContextLevel::Project,
+            level if level.contains('/') => {
+                // Handle commit level like "branch/commit"
+                forge_domain::ContextLevel::Commit(level.to_string())
+            }
+            branch_name => forge_domain::ContextLevel::Branch(branch_name.to_string()),
+        };
+
+        // Read the context
+        let content = GccStorage::read_context(&cwd, &context_level)
+            .map_err(|e| anyhow::anyhow!("GCC context read failed: {}", e))?;
+
+        Ok(content)
+    }
+
+    /// Automatically manage GCC state based on conversation analysis
+    async fn gcc_auto_manage(&self, conversation: &Conversation) -> anyhow::Result<String> {
+        let cwd = self.environment().cwd;
+        let auto_manager = GccAutoManager::new(&cwd);
+
+        let actions = auto_manager
+            .auto_manage(conversation)
+            .await
+            .map_err(|e| anyhow::anyhow!("GCC auto management failed: {}", e))?;
+
+        // Format the result message
+        let mut result_parts = Vec::new();
+
+        if let Some(branch) = actions.branch_created {
+            result_parts.push(format!("Created branch: {branch}"));
+        }
+
+        if let Some(branch) = actions.active_branch {
+            result_parts.push(format!("Active branch: {branch}"));
+        }
+
+        if let Some(commit) = actions.commit_created {
+            result_parts.push(format!("Created commit: {commit}"));
+        }
+
+        if actions.context_updated {
+            result_parts.push("Updated context documentation".to_string());
+        }
+
+        let result = if result_parts.is_empty() {
+            "GCC auto management completed (no actions taken)".to_string()
+        } else {
+            format!("GCC auto management completed: {}", result_parts.join(", "))
+        };
+
+        Ok(result)
+    }
+
+    /// Analyze a conversation for GCC insights without taking action
+    async fn gcc_analyze_conversation(
+        &self,
+        conversation: &Conversation,
+    ) -> anyhow::Result<String> {
+        let cwd = self.environment().cwd;
+        let auto_manager = GccAutoManager::new(&cwd);
+
+        let analysis = auto_manager
+            .analyze_conversation(conversation)
+            .map_err(|e| anyhow::anyhow!("Conversation analysis failed: {}", e))?;
+
+        // Format the analysis result
+        let intent_desc = match &analysis.intent {
+            forge_services::gcc::auto_manager::ConversationIntent::Feature { name } => {
+                format!("Feature: {name}")
+            }
+            forge_services::gcc::auto_manager::ConversationIntent::BugFix { description } => {
+                format!("Bug Fix: {description}")
+            }
+            forge_services::gcc::auto_manager::ConversationIntent::Refactoring { scope } => {
+                format!("Refactoring: {scope}")
+            }
+            forge_services::gcc::auto_manager::ConversationIntent::Documentation { area } => {
+                format!("Documentation: {area}")
+            }
+            forge_services::gcc::auto_manager::ConversationIntent::Exploration => {
+                "Exploration".to_string()
+            }
+            forge_services::gcc::auto_manager::ConversationIntent::Mixed { primary: _ } => {
+                "Mixed conversation".to_string()
+            }
+        };
+
+        let result = format!(
+            "Conversation Analysis:\n\
+             Intent: {}\n\
+             Complexity: {}/10\n\
+             Suggested Branch: {}\n\
+             Key Topics: {}\n\
+             Summary: {}",
+            intent_desc,
+            analysis.complexity_score,
+            analysis.suggested_branch_name,
+            analysis.key_topics.join(", "),
+            analysis.summary.chars().take(200).collect::<String>()
+        );
+
+        Ok(result)
     }
 }

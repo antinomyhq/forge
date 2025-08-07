@@ -598,7 +598,7 @@ mod tests {
         assert_eq!(state.spotlight.selected_index, 0); // Should stay at 0
 
         // Move to bottom
-        state.spotlight.selected_index = 14; // Max index for 15 commands
+        state.spotlight.selected_index = 15; // Max index for 16 commands
 
         // Test down navigation at bottom boundary
         let key_event = KeyEvent::new(KeyCode::Down, KeyModifiers::NONE);
@@ -606,7 +606,7 @@ mod tests {
         let expected_command = Command::Empty;
 
         assert_eq!(actual_command, expected_command);
-        assert_eq!(state.spotlight.selected_index, 14); // Should stay at 14
+        assert_eq!(state.spotlight.selected_index, 15); // Should stay at 15
     }
 
     #[test]
@@ -631,7 +631,7 @@ mod tests {
 
         // Test that spotlight shows all slash commands
         let filtered_commands = state.spotlight.filtered_commands();
-        assert_eq!(filtered_commands.len(), 12); // All 12 slash commands
+        assert_eq!(filtered_commands.len(), 16); // All 16 slash commands
 
         // Test that filtering works
         state

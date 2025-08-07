@@ -42,6 +42,19 @@ pub enum SlashCommand {
 
     #[strum(message = "Updates to the latest compatible version of forge")]
     Update,
+
+    // GCC slash commands
+    #[strum(message = "Create a new branch")]
+    GccBranch,
+
+    #[strum(message = "Commit changes to a branch")]
+    GccCommit,
+
+    #[strum(message = "Merge branches")]
+    GccMerge,
+
+    #[strum(message = "Show context at a specific level")]
+    GccContext,
 }
 
 impl SlashCommand {
@@ -88,7 +101,7 @@ mod tests {
     fn test_enum_iteration() {
         let fixture = SlashCommand::iter().collect::<Vec<_>>();
         let actual = fixture.len();
-        let expected = 12;
+        let expected = 16;
         assert_eq!(actual, expected);
     }
 

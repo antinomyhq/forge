@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::run;
+use crate::run::run;
 
 pub async fn main_neo(cwd: PathBuf) -> anyhow::Result<()> {
     color_eyre::install().unwrap();

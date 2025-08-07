@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -181,6 +182,102 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(reasoning_supported)
     }
 
+    pub async fn create_gcc_context(&self, base_path: &Path) -> Option<GccSystemContext> {
+        // Check if GCC is initialized
+        let gcc_dir = base_path.join(".GCC");
+        if !gcc_dir.exists() {
+            return None;
+        }
+
+        let mut context = GccSystemContext {
+            is_initialized: true,
+            current_branch: None,
+            available_branches: vec![],
+            latest_commit: None,
+            project_context: None,
+            branch_context: None,
+            commit_context: None,
+        };
+
+        // Get available branches
+        let branches_dir = gcc_dir.join("branches");
+        if branches_dir.exists()
+            && let Ok(entries) = std::fs::read_dir(&branches_dir)
+        {
+            let mut branches = Vec::new();
+            for entry in entries.flatten() {
+                if entry.path().is_dir()
+                    && let Some(name) = entry.file_name().to_str()
+                {
+                    branches.push(name.to_string());
+                }
+            }
+            context.available_branches = branches.clone();
+
+            // Use "main" as default branch if it exists, otherwise use first branch
+            if let Some(current_branch) = branches
+                .iter()
+                .find(|&b| b == "main")
+                .or_else(|| branches.first())
+            {
+                context.current_branch = Some(current_branch.clone());
+
+                // Get latest commit for the current branch
+                let branch_path = branches_dir.join(current_branch);
+                if branch_path.exists()
+                    && let Ok(entries) = std::fs::read_dir(&branch_path)
+                {
+                    let mut commits = Vec::new();
+                    for entry in entries.flatten() {
+                        if entry.path().is_file()
+                            && let Some(ext) = entry.path().extension()
+                            && ext == "md"
+                            && let Some(stem) = entry.path().file_stem()
+                            && let Some(id) = stem.to_str()
+                        {
+                            // Skip the context.md file
+                            if id != "context" {
+                                commits.push(id.to_string());
+                            }
+                        }
+                    }
+                    if !commits.is_empty() {
+                        commits.sort();
+                        if let Some(latest) = commits.last() {
+                            context.latest_commit = Some(latest.clone());
+                        }
+                    }
+                }
+
+                // Read context at different levels
+                let project_file = gcc_dir.join("project.md");
+                if project_file.exists()
+                    && let Ok(content) = std::fs::read_to_string(&project_file)
+                {
+                    context.project_context = Some(content);
+                }
+
+                let branch_file = branches_dir.join(format!("{current_branch}/context.md"));
+                if branch_file.exists()
+                    && let Ok(content) = std::fs::read_to_string(&branch_file)
+                {
+                    context.branch_context = Some(content);
+                }
+
+                if let Some(commit_id) = &context.latest_commit {
+                    let commit_file = branches_dir.join(format!("{current_branch}/{commit_id}.md"));
+                    if commit_file.exists()
+                        && let Ok(content) = std::fs::read_to_string(&commit_file)
+                    {
+                        context.commit_context = Some(content);
+                    }
+                }
+            }
+        }
+
+        Some(context)
+    }
+
     async fn set_system_prompt(
         &mut self,
         context: Context,
@@ -204,6 +301,9 @@ impl<S: AgentService> Orchestrator<S> {
                 false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)?).to_string()),
             };
 
+            // Create GCC context using the current working directory
+            let gcc_context = self.create_gcc_context(&env.cwd).await;
+
             let ctx = SystemContext {
                 current_time,
                 env: Some(env),
@@ -213,6 +313,7 @@ impl<S: AgentService> Orchestrator<S> {
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
                 variables: variables.clone(),
                 supports_parallel_tool_calls,
+                gcc_context,
             };
 
             let system_message = self

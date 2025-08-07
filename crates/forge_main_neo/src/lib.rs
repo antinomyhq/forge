@@ -12,4 +12,5 @@ lazy_static! {
 }
 
 pub use entrypoint::main_neo;
+pub use forge_domain::gcc::*;
 pub use run::run;

@@ -186,6 +186,30 @@ impl ForgeCommandManager {
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
             "/retry" => Ok(Command::Retry),
+            "/gcc-commit" => {
+                if parameters.is_empty() {
+                    Err(anyhow::anyhow!("GCC commit requires a message"))
+                } else {
+                    Ok(Command::GccCommit(parameters.join(" ")))
+                }
+            }
+            "/gcc-branch" => {
+                if parameters.is_empty() {
+                    Err(anyhow::anyhow!("GCC branch requires a branch name"))
+                } else {
+                    Ok(Command::GccBranch(parameters.join(" ")))
+                }
+            }
+            "/gcc-context" => {
+                let level = if parameters.is_empty() {
+                    "project".to_string()
+                } else {
+                    parameters.join(" ")
+                };
+                Ok(Command::GccContext(level))
+            }
+            "/gcc-auto" => Ok(Command::GccAuto),
+            "/gcc-analyze" => Ok(Command::GccAnalyze),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -285,6 +309,25 @@ pub enum Command {
     /// Retry without modifying model context
     #[strum(props(usage = "Retry the last command"))]
     Retry,
+    /// GCC (Git Context Controller) commit operation
+    #[strum(props(usage = "Create a GCC commit with a message"))]
+    GccCommit(String),
+    /// GCC (Git Context Controller) branch creation
+    #[strum(props(usage = "Create a GCC branch from current state"))]
+    GccBranch(String),
+    /// GCC (Git Context Controller) context reading
+    #[strum(props(usage = "Read GCC context at different levels (project/branch/commit)"))]
+    GccContext(String),
+    /// GCC (Git Context Controller) auto management - analyze and manage
+    /// conversation automatically
+    #[strum(props(
+        usage = "Automatically analyze conversation and manage GCC state with smart branching"
+    ))]
+    GccAuto,
+    /// GCC (Git Context Controller) conversation analysis - analyze without
+    /// taking action
+    #[strum(props(usage = "Analyze current conversation for GCC insights without taking action"))]
+    GccAnalyze,
 }
 
 impl Command {
@@ -308,6 +351,11 @@ impl Command {
             Command::Login => "/login",
             Command::Logout => "/logout",
             Command::Retry => "/retry",
+            Command::GccCommit(_) => "/gcc-commit",
+            Command::GccBranch(_) => "/gcc-branch",
+            Command::GccContext(_) => "/gcc-context",
+            Command::GccAuto => "/gcc-auto",
+            Command::GccAnalyze => "/gcc-analyze",
         }
     }
 
