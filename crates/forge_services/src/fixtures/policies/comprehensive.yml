@@ -1,0 +1,13 @@
+policies:
+  - permission: allow
+    rule:
+      read_pattern: "**/*.{rs,js,ts,py}"
+  - permission: confirm
+    rule:
+      write_pattern: "src/**/*"
+  - permission: disallow
+    rule:
+      execute_command: "rm -rf /*"
+  - permission: allow
+    rule:
+      execute_command: "cargo*"
