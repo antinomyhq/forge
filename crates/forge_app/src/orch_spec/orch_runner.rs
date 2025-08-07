@@ -4,8 +4,6 @@ use std::sync::Arc;
 
 use chrono::Local;
 use derive_setters::Setters;
-use forge_app::agent::AgentService;
-use forge_app::orch::Orchestrator;
 use forge_domain::{
     Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
     ConversationId, Environment, Event, HttpConfig, ModelId, RetryConfig, Role, Template,
@@ -14,8 +12,11 @@ use forge_domain::{
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
 use tokio::sync::Mutex;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::Sender;
 use url::Url;
+
+use crate::AgentService;
+use crate::orch::Orchestrator;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
