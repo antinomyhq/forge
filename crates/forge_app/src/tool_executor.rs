@@ -49,6 +49,7 @@ impl<
         confirm_fn: &(dyn Fn() -> UserResponse + Send + Sync),
     ) -> anyhow::Result<()> {
         let mut workflow = self.services.read_workflow(Some(workflow_path)).await?;
+        // Load extended policies
         workflow.extended_policies = self.services.load_policies().await.unwrap_or_default();
 
         let engine = PolicyEngine::new(&workflow);
