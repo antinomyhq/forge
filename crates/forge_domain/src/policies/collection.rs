@@ -107,7 +107,7 @@ mod tests {
                 rule: Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string() }),
             })
             .add_policy(Policy::Simple {
-                permission: Permission::Disallow,
+                permission: Permission::Deny,
                 rule: Rule::Write(WriteRule { write_pattern: "**/*.py".to_string() }),
             });
         let operation = fixture_write_operation();

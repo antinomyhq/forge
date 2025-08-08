@@ -4,7 +4,6 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_app::WorkflowService;
 use forge_app::domain::Workflow;
-use forge_domain::Policies;
 
 use crate::{FileReaderInfra, FileWriterInfra};
 
@@ -65,13 +64,9 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
         let path = &self.resolve_path(Some(path.into())).await;
 
         if !path.exists() {
-            let mut workflow = Workflow::new();
-            // Add default policies if none are defined
-            if workflow.policies.policies.is_empty() {
-                workflow.policies = Policies::with_defaults();
-            }
+            let workflow = Workflow::new();
             self.infra
-                .write(path, self.serialize_workflow(&workflow)?.into(), false)
+                .write(path, self.serialize_workflow(&workflow)?.into(), true)
                 .await?;
 
             Ok(workflow)

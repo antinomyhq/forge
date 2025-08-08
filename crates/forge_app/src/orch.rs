@@ -1,6 +1,5 @@
 // Tests for this module can be found in: tests/orch_*.rs
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,7 +26,6 @@ pub struct Orchestrator<S> {
     models: Vec<Model>,
     files: Vec<String>,
     current_time: chrono::DateTime<chrono::Local>,
-    workflow_path: PathBuf,
     confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
 }
 
@@ -37,7 +35,6 @@ impl<S: AgentService> Orchestrator<S> {
         environment: Environment,
         conversation: Conversation,
         current_time: chrono::DateTime<chrono::Local>,
-        workflow_path: PathBuf,
         confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> Self {
         Self {
@@ -49,7 +46,6 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             current_time,
-            workflow_path,
             confirm_fn,
         }
     }
@@ -82,7 +78,6 @@ impl<S: AgentService> Orchestrator<S> {
                     agent,
                     tool_context,
                     tool_call.clone(),
-                    &self.workflow_path,
                     self.confirm_fn.clone(),
                 )
                 .await;

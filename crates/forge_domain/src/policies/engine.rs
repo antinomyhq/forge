@@ -1,8 +1,6 @@
-use std::path::Path;
-
 use super::operation::Operation;
 use super::policy::Policy;
-use crate::Workflow;
+use crate::Policies;
 use crate::policies::{Permission, Trace};
 
 /// High-level policy engine that provides convenient methods for checking
@@ -12,13 +10,13 @@ use crate::policies::{Permission, Trace};
 /// check if operations are allowed without having to construct Operation enums
 /// manually.
 pub struct PolicyEngine<'a> {
-    workflow: &'a Workflow,
+    policies: &'a Policies,
 }
 
 impl<'a> PolicyEngine<'a> {
     /// Create a new PolicyEngine from a workflow
-    pub fn new(workflow: &'a Workflow) -> Self {
-        Self { workflow }
+    pub fn new(policies: &'a Policies) -> Self {
+        Self { policies }
     }
 
     /// Check if an operation is allowed
@@ -27,49 +25,13 @@ impl<'a> PolicyEngine<'a> {
         self.evaluate_policies(operation)
     }
 
-    /// Check if a read operation is allowed for the given path
-    /// Returns trace with permission result
-    pub fn can_read<P: AsRef<Path>>(&self, path: P) -> Trace<Permission> {
-        let operation = Operation::Read { path: path.as_ref().to_path_buf() };
-        self.can_perform(&operation)
-    }
-
-    /// Check if a write operation is allowed for the given path  
-    /// Returns trace with permission result
-    pub fn can_write<P: AsRef<Path>>(&self, path: P) -> Trace<Permission> {
-        let operation = Operation::Write { path: path.as_ref().to_path_buf() };
-        self.can_perform(&operation)
-    }
-
-    /// Check if a patch operation is allowed for the given path
-    /// Returns trace with permission result
-    pub fn can_patch<P: AsRef<Path>>(&self, path: P) -> Trace<Permission> {
-        let operation = Operation::Patch { path: path.as_ref().to_path_buf() };
-        self.can_perform(&operation)
-    }
-
-    /// Check if an execute operation is allowed for the given command
-    /// Returns trace with permission result
-    pub fn can_execute(&self, command: &str) -> Trace<Permission> {
-        let operation = Operation::Execute { command: command.to_string() };
-        self.can_perform(&operation)
-    }
-
-    /// Check if a network fetch operation is allowed for the given URL
-    /// Returns trace with permission result
-    pub fn can_net_fetch(&self, url: &str) -> Trace<Permission> {
-        let operation = Operation::NetFetch { url: url.to_string() };
-        self.can_perform(&operation)
-    }
-
     /// Internal helper function to evaluate policies for a given operation
     /// Returns trace with permission result, defaults to Confirm if no policies
     /// match
     fn evaluate_policies(&self, operation: &Operation) -> Trace<Permission> {
-        let has_workflow_policies = !self.workflow.policies.policies.is_empty();
-        let has_extended_policies = !self.workflow.extended_policies.policies.is_empty();
+        let has_policies = !self.policies.policies.is_empty();
 
-        if !has_workflow_policies && !has_extended_policies {
+        if !has_policies {
             return Trace::new(Permission::Confirm);
         }
 
@@ -78,17 +40,12 @@ impl<'a> PolicyEngine<'a> {
 
         // Evaluate all policies in order: workflow policies first, then extended
         // policies
-        let policies = self
-            .workflow
-            .policies
-            .policies
-            .iter()
-            .chain(self.workflow.extended_policies.policies.iter());
-        println!("{:?}", self.workflow.extended_policies.policies);
 
-        if let Some(trace) = self.evaluate_policy_set(policies, operation, &mut policy_index) {
+        if let Some(trace) =
+            self.evaluate_policy_set(self.policies.policies.iter(), operation, &mut policy_index)
+        {
             match &trace.value {
-                Permission::Disallow | Permission::Confirm => {
+                Permission::Deny | Permission::Confirm => {
                     // Return immediately for denials or confirmations
                     return trace;
                 }
@@ -119,7 +76,7 @@ impl<'a> PolicyEngine<'a> {
             // index of the policy in the yaml workflow file
             if let Some(trace) = policy.eval(operation, None, Some(*policy_index)) {
                 match &trace.value {
-                    Permission::Disallow | Permission::Confirm => {
+                    Permission::Deny | Permission::Confirm => {
                         // Return immediately for denials or confirmations
                         return Some(trace);
                     }
@@ -146,116 +103,48 @@ mod tests {
         WriteRule,
     };
 
-    fn fixture_workflow_with_read_policy() -> Workflow {
+    fn fixture_workflow_with_read_policy() -> Policies {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::Read(ReadRule { read_pattern: "src/**/*.rs".to_string() }),
         });
-        Workflow::new().policies(policies)
+        policies
     }
 
-    fn fixture_workflow_with_write_policy() -> Workflow {
+    fn fixture_workflow_with_write_policy() -> Policies {
         let policies = Policies::new().add_policy(Policy::Simple {
-            permission: Permission::Disallow,
+            permission: Permission::Deny,
             rule: Rule::Write(WriteRule { write_pattern: "**/*.rs".to_string() }),
         });
-        Workflow::new().policies(policies)
+        policies
     }
 
-    fn fixture_workflow_with_execute_policy() -> Workflow {
+    fn fixture_workflow_with_execute_policy() -> Policies {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::Execute(ExecuteRule { command_pattern: "cargo *".to_string() }),
         });
-        Workflow::new().policies(policies)
+        policies
     }
 
-    fn fixture_workflow_with_patch_policy() -> Workflow {
+    fn fixture_workflow_with_patch_policy() -> Policies {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Confirm,
             rule: Rule::Patch(PatchRule { patch_pattern: "src/**/*.rs".to_string() }),
         });
-        Workflow::new().policies(policies)
+        policies
     }
 
-    fn fixture_workflow_with_net_fetch_policy() -> Workflow {
+    fn fixture_workflow_with_net_fetch_policy() -> Policies {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::NetFetch(NetFetchRule {
                 url_pattern: "https://api.example.com/*".to_string(),
             }),
         });
-        Workflow::new().policies(policies)
+        policies
     }
 
-    #[test]
-    fn test_policy_engine_can_read() {
-        let fixture_workflow = fixture_workflow_with_read_policy();
-        let fixture = PolicyEngine::new(&fixture_workflow);
-
-        let actual = fixture.can_read("src/main.rs");
-
-        assert_eq!(actual.value, Permission::Allow);
-    }
-
-    #[test]
-    fn test_policy_engine_can_write() {
-        let fixture_workflow = fixture_workflow_with_write_policy();
-        let fixture = PolicyEngine::new(&fixture_workflow);
-
-        let actual = fixture.can_write("src/main.rs");
-
-        assert_eq!(actual.value, Permission::Disallow);
-    }
-
-    #[test]
-    fn test_policy_engine_can_execute() {
-        let fixture_workflow = fixture_workflow_with_execute_policy();
-        let fixture = PolicyEngine::new(&fixture_workflow);
-
-        let actual = fixture.can_execute("cargo build");
-
-        assert_eq!(actual.value, Permission::Allow);
-    }
-
-    #[test]
-    fn test_policy_engine_can_patch() {
-        let fixture_workflow = fixture_workflow_with_patch_policy();
-        let fixture = PolicyEngine::new(&fixture_workflow);
-
-        let actual = fixture.can_patch("src/main.rs");
-
-        assert_eq!(actual.value, Permission::Confirm);
-    }
-
-    #[test]
-    fn test_policy_engine_can_net_fetch() {
-        let fixture_workflow = fixture_workflow_with_net_fetch_policy();
-        let fixture = PolicyEngine::new(&fixture_workflow);
-
-        let actual = fixture.can_net_fetch("https://api.example.com/data");
-
-        assert_eq!(actual.value, Permission::Allow);
-    }
-
-    #[test]
-    fn test_policy_engine_with_no_policies() {
-        let fixture_workflow = Workflow::new(); // No policies
-        let fixture = PolicyEngine::new(&fixture_workflow);
-
-        let read_trace = fixture.can_read("src/main.rs");
-        let write_trace = fixture.can_write("src/main.rs");
-        let patch_trace = fixture.can_patch("src/main.rs");
-        let execute_trace = fixture.can_execute("cargo build");
-        let net_fetch_trace = fixture.can_net_fetch("https://api.example.com/data");
-
-        // All should return Confirm as default
-        assert_eq!(read_trace.value, Permission::Confirm);
-        assert_eq!(write_trace.value, Permission::Confirm);
-        assert_eq!(patch_trace.value, Permission::Confirm);
-        assert_eq!(execute_trace.value, Permission::Confirm);
-        assert_eq!(net_fetch_trace.value, Permission::Confirm);
-    }
     #[test]
     fn test_policy_engine_can_perform_read() {
         let fixture_workflow = fixture_workflow_with_read_policy();
@@ -275,7 +164,7 @@ mod tests {
 
         let actual = fixture.can_perform(&operation);
 
-        assert_eq!(actual.value, Permission::Disallow);
+        assert_eq!(actual.value, Permission::Deny);
     }
 
     #[test]

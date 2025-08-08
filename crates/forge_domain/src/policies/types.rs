@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 pub enum Permission {
     /// Allow the operation without asking
     Allow,
-    /// Disallow the operation without asking
-    Disallow,
+    /// Deny the operation without asking
+    Deny,
     /// Confirm with the user before allowing
     Confirm,
 }

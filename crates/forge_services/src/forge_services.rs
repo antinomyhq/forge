@@ -11,7 +11,7 @@ use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::infra::HttpInfra;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
-use crate::policy_loader::ForgePolicyLoader;
+use crate::policy_service::ForgePolicyLoader;
 use crate::provider_registry::ForgeProviderRegistry;
 use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;

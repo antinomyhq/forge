@@ -28,7 +28,6 @@ pub trait AgentService: Send + Sync + 'static {
         agent: &Agent,
         context: &mut ToolCallContext,
         call: ToolCallFull,
-        workflow_path: &std::path::Path,
         confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> ToolResult;
 
@@ -61,13 +60,10 @@ impl<T: Services> AgentService for T {
         agent: &Agent,
         context: &mut ToolCallContext,
         call: ToolCallFull,
-        workflow_path: &std::path::Path,
         confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> ToolResult {
         let registry = ToolRegistry::new(Arc::new(self.clone()));
-        registry
-            .call(agent, context, call, workflow_path, confirm_fn)
-            .await
+        registry.call(agent, context, call, confirm_fn).await
     }
 
     async fn render(

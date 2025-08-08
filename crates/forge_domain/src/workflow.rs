@@ -7,7 +7,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::policies::Policies;
 use crate::temperature::Temperature;
 use crate::update::Update;
 use crate::{Agent, AgentId, Compact, MaxTokens, ModelId, TopK, TopP};
@@ -142,19 +141,6 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
-    /// Policies that define access control rules for operations
-    #[serde(default, skip_serializing_if = "has_policies", flatten)]
-    #[merge(strategy = crate::merge::policies)]
-    pub policies: Policies,
-
-    /// Extended policies loaded from external sources (not serialized)
-    #[serde(skip)]
-    #[merge(strategy = crate::merge::policies)]
-    pub extended_policies: Policies,
-}
-
-fn has_policies(policies: &Policies) -> bool {
-    policies.policies.is_empty()
 }
 
 lazy_static! {
@@ -203,8 +189,6 @@ impl Workflow {
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
             compact: None,
-            policies: Default::default(),
-            extended_policies: Default::default(),
         }
     }
 
@@ -244,8 +228,6 @@ mod tests {
         assert_eq!(actual.max_tokens, None);
         assert_eq!(actual.tool_supported, None);
         assert_eq!(actual.compact, None);
-        assert_eq!(actual.policies, Policies::default());
-        assert_eq!(actual.extended_policies, Policies::default());
     }
 
     #[test]

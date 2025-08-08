@@ -1,10 +1,8 @@
-use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
 use forge_domain::{
-    Permission, PolicyEngine, TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools,
-    UserResponse,
+    Permission, PolicyEngine, ToolCallContext, ToolCallFull, ToolOutput, Tools, UserResponse,
 };
 
 use crate::error::Error;
@@ -45,18 +43,17 @@ impl<
     async fn check_operation_permission(
         &self,
         operation: &forge_domain::Operation,
-        workflow_path: &Path,
+        context: &mut ToolCallContext,
         confirm_fn: &(dyn Fn() -> UserResponse + Send + Sync),
     ) -> anyhow::Result<()> {
-        let mut workflow = self.services.read_workflow(Some(workflow_path)).await?;
         // Load extended policies
-        workflow.extended_policies = self.services.load_policies().await.unwrap_or_default();
+        let policies = self.services.load_policies().await.unwrap_or_default();
 
-        let engine = PolicyEngine::new(&workflow);
+        let engine = PolicyEngine::new(&policies);
         let permission_trace = engine.can_perform(operation);
 
         match permission_trace.value {
-            Permission::Disallow => {
+            Permission::Deny => {
                 return Err(anyhow::anyhow!(
                     "Operation denied by policy at {}:{}.",
                     permission_trace
@@ -78,9 +75,7 @@ impl<
                     }
                     UserResponse::AcceptAndRemember => {
                         // User accepted and wants to remember this choice
-                        self.add_policy_for_operation(operation, workflow_path)
-                            .await
-                            .ok();
+                        self.add_policy_for_operation(operation, context).await.ok();
                     }
                     UserResponse::Reject => {
                         return Err(anyhow::anyhow!(
@@ -98,16 +93,17 @@ impl<
     async fn add_policy_for_operation(
         &self,
         operation: &forge_domain::Operation,
-        workflow_path: &Path,
+        context: &mut ToolCallContext,
     ) -> anyhow::Result<()> {
         if let Some(new_policy) = create_policy_for_operation(operation) {
-            self.services
-                .update_workflow(Some(workflow_path), |workflow| {
-                    // Get or create policies
-                    // Add the policy
-                    workflow.policies.policies.insert(new_policy);
-                })
-                .await?;
+            let diff = self.services.modify_policy(new_policy).await?;
+
+            // Notify user about the policy modification
+            let content_format = crate::fmt::content::ContentFormat::Markdown(format!(
+                "Policy added:\n\n```yaml\n{}\n```",
+                diff
+            ));
+            context.send(content_format).await?;
         }
         Ok(())
     }
@@ -186,8 +182,7 @@ impl<
     async fn call_internal(
         &self,
         input: Tools,
-        tasks: &mut TaskList,
-        workflow_path: &Path,
+        context: &mut ToolCallContext,
         confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<Operation> {
         Ok(match input {
@@ -195,7 +190,7 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
                     .await?;
 
                 let output = self
@@ -212,7 +207,7 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
                     .await?;
 
                 let output = self
@@ -230,7 +225,7 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
                     .await?;
 
                 let output = self
@@ -247,7 +242,7 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
                     .await?;
 
                 let _output = self.services.remove(input.path.clone()).await?;
@@ -257,7 +252,7 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Patch { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
                     .await?;
 
                 let output = self
@@ -279,7 +274,7 @@ impl<
             Tools::ForgeToolProcessShell(input) => {
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::Execute { command: input.command.clone() };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
                     .await?;
 
                 let output = self
@@ -291,7 +286,7 @@ impl<
             Tools::ForgeToolNetFetch(input) => {
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::NetFetch { url: input.url.clone() };
-                self.check_operation_permission(&operation, workflow_path, confirm_fn.as_ref())
+                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
                     .await?;
 
                 let output = self.services.fetch(input.url.clone(), input.raw).await?;
@@ -320,31 +315,36 @@ impl<
                 crate::operation::Operation::AttemptCompletion
             }
             Tools::ForgeToolTaskListAppend(input) => {
-                let before = tasks.clone();
-                tasks.append(&input.task);
-                Operation::TaskListAppend { _input: input, before, after: tasks.clone() }
+                let before = context.tasks.clone();
+                context.tasks.append(&input.task);
+                Operation::TaskListAppend { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolTaskListAppendMultiple(input) => {
-                let before = tasks.clone();
-                tasks.append_multiple(input.tasks.clone());
-                Operation::TaskListAppendMultiple { _input: input, before, after: tasks.clone() }
+                let before = context.tasks.clone();
+                context.tasks.append_multiple(input.tasks.clone());
+                Operation::TaskListAppendMultiple {
+                    _input: input,
+                    before,
+                    after: context.tasks.clone(),
+                }
             }
             Tools::ForgeToolTaskListUpdate(input) => {
-                let before = tasks.clone();
-                tasks
+                let before = context.tasks.clone();
+                context
+                    .tasks
                     .update_status(input.task_id, input.status.clone())
                     .context("Task not found")?;
-                Operation::TaskListUpdate { _input: input, before, after: tasks.clone() }
+                Operation::TaskListUpdate { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolTaskListList(input) => {
-                let before = tasks.clone();
+                let before = context.tasks.clone();
                 // No operation needed, just return the current state
-                Operation::TaskListList { _input: input, before, after: tasks.clone() }
+                Operation::TaskListList { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolTaskListClear(input) => {
-                let before = tasks.clone();
-                tasks.clear();
-                Operation::TaskListClear { _input: input, before, after: tasks.clone() }
+                let before = context.tasks.clone();
+                context.tasks.clear();
+                Operation::TaskListClear { _input: input, before, after: context.tasks.clone() }
             }
         })
     }
@@ -353,7 +353,6 @@ impl<
         &self,
         input: ToolCallFull,
         context: &mut ToolCallContext,
-        workflow_path: &Path,
         confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
@@ -366,12 +365,7 @@ impl<
         // Send tool call information
 
         let execution_result = self
-            .call_internal(
-                tool_input.clone(),
-                &mut context.tasks,
-                workflow_path,
-                confirm_fn,
-            )
+            .call_internal(tool_input.clone(), context, confirm_fn)
             .await;
 
         if let Err(ref error) = execution_result {

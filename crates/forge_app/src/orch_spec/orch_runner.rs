@@ -80,7 +80,6 @@ impl AgentService for Runner {
         _agent: &forge_domain::Agent,
         _context: &mut forge_domain::ToolCallContext,
         test_call: ToolCallFull,
-        _workflow_path: &Path,
         _confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> ToolResult {
         let mut guard = self.test_tool_calls.lock().await;
@@ -120,7 +119,6 @@ fn new_orchestrator(
         Default::default(),
     );
     let current_time = Local::now();
-    let workflow_path = PathBuf::from("/tmp/test_workflow.yml");
     let confirm_fn = Arc::new(|| UserResponse::Accept);
 
     let orch = Orchestrator::new(
@@ -128,7 +126,6 @@ fn new_orchestrator(
         environment,
         conversation,
         current_time,
-        workflow_path,
         confirm_fn,
     )
     .sender(Arc::new(tx))

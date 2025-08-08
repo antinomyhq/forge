@@ -1,8 +1,6 @@
 use ::std::collections::HashMap;
 use ::std::hash::Hash;
 
-use crate::Policies;
-
 pub mod std {
     pub fn overwrite<T>(base: &mut T, other: T) {
         *base = other;
@@ -43,10 +41,6 @@ pub fn option<A>(base: &mut Option<A>, other: Option<A>) {
     if other.is_some() {
         *base = other;
     }
-}
-
-pub fn policies(a: &mut Policies, b: Policies) {
-    a.policies.extend(b.policies);
 }
 
 pub trait Key {

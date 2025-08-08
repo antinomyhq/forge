@@ -67,9 +67,9 @@ impl Policy {
                 match inner_trace {
                     Some(trace) => {
                         let inverted_permission = match &trace.value {
-                            Permission::Disallow => Permission::Allow,
-                            Permission::Allow => Permission::Disallow,
-                            Permission::Confirm => Permission::Disallow,
+                            Permission::Deny => Permission::Allow,
+                            Permission::Allow => Permission::Deny,
+                            Permission::Confirm => Permission::Deny,
                         };
 
                         let mut new_trace = Trace::new(inverted_permission);

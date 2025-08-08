@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_domain::Policies;
+use bytes::Bytes;
+use forge_display::DiffFormat;
+use forge_domain::{Policies, Policy};
 
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
@@ -27,50 +29,74 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     async fn load_policies(&self) -> anyhow::Result<Policies> {
         self.load_policies().await
     }
+
+    async fn modify_policy(&self, policy: Policy) -> Result<String> {
+        self.modify_policy(policy).await
+    }
 }
 
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    ForgePolicyLoader<F>
-{
+impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> ForgePolicyLoader<F> {
     /// Load all policy definitions from the forge/policies directory
     async fn load_policies(&self) -> anyhow::Result<Policies> {
         // NOTE: we must not cache policies, as they can change at runtime.
 
-        let policies_dir = self.infra.get_environment().policies_path();
-        if !self.infra.exists(&policies_dir).await? {
-            return Ok(Policies::new());
+        let policies_path = self.infra.get_environment().policies_path();
+        if !self.infra.exists(&policies_path).await? {
+            // if the policies file does not exist, create it with default policies.
+            let default_policies = Policies::with_defaults();
+            let content = serde_yml::to_string(&default_policies)
+                .with_context(|| "Failed to serialize default policies to YAML")?;
+            self.infra
+                .write(&policies_path, Bytes::from(content), false)
+                .await?;
+            return Ok(default_policies);
         }
 
-        let mut all_policies = Policies::new();
+        let content = self.infra.read_utf8(&policies_path).await?;
 
-        // Use DirectoryReaderInfra to read all .yml and .yaml files in parallel
-        let yaml_files = self
-            .infra
-            .read_directory_files(&policies_dir, Some("*.yaml"))
-            .await
-            .with_context(|| "Failed to read policies directory for yaml files")?;
+        Ok(parse_policy_file(&content)
+            .with_context(|| format!("Failed to parse policy {}", policies_path.display()))?)
+    }
+    /// Add or modify a policy in the policies file and return a diff of the
+    /// changes
+    async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String> {
+        let policies_path = self.infra.get_environment().policies_path();
 
-        let yml_files = self
-            .infra
-            .read_directory_files(&policies_dir, Some("*.yml"))
-            .await
-            .with_context(|| "Failed to read policies directory for yml files")?;
+        // Read current content (if file exists)
+        let old_content = if self.infra.exists(&policies_path).await? {
+            self.infra.read_utf8(&policies_path).await?
+        } else {
+            String::new()
+        };
 
-        // Combine both yaml and yml files
-        let mut files = yaml_files;
-        files.extend(yml_files);
+        // Load current policies or create empty collection
+        let mut policies = if old_content.is_empty() {
+            // If the file is empty or does not exist, start with default policies
+            Policies::with_defaults()
+        } else {
+            parse_policy_file(&old_content).with_context(|| {
+                format!(
+                    "Failed to parse existing policies {}",
+                    policies_path.display()
+                )
+            })?
+        };
 
-        for (path, content) in files {
-            let policy_collection = parse_policy_file(&content)
-                .with_context(|| format!("Failed to parse policy {}", path.display()))?;
+        // Add the new policy to the collection
+        policies = policies.add_policy(policy);
 
-            // Merge the policies from this file into our collection
-            for policy in policy_collection.policies {
-                all_policies = all_policies.add_policy(policy);
-            }
-        }
+        // Serialize the updated policies to YAML
+        let new_content = serde_yml::to_string(&policies)
+            .with_context(|| "Failed to serialize policies to YAML")?;
 
-        Ok(all_policies)
+        // Write the updated content
+        self.infra
+            .write(&policies_path, Bytes::from(new_content.to_owned()), true)
+            .await?;
+
+        // Generate and return the diff
+        let diff_result = DiffFormat::format(&old_content, &new_content);
+        Ok(diff_result.diff().to_string())
     }
 }
 
@@ -180,7 +206,7 @@ mod tests {
             .iter()
             .find(|policy| {
                 if let Policy::Simple { permission, rule } = policy {
-                    permission == &Permission::Disallow && matches!(rule, Rule::Execute(_))
+                    permission == &Permission::Deny && matches!(rule, Rule::Execute(_))
                 } else {
                     false
                 }
@@ -188,7 +214,7 @@ mod tests {
             .expect("Should find execute disallow policy");
 
         if let Policy::Simple { permission, rule } = execute_policy_disallow {
-            assert_eq!(permission, &Permission::Disallow);
+            assert_eq!(permission, &Permission::Deny);
             if let Rule::Execute(execute_rule) = rule {
                 assert_eq!(execute_rule.command_pattern, "rm -rf /*");
             } else {
@@ -233,5 +259,31 @@ mod tests {
 
         let result = parse_policy_file(content);
         assert!(result.is_err());
+    }
+    #[tokio::test]
+    async fn test_modify_policy_logic() {
+        use forge_domain::{Permission, Rule, WriteRule};
+
+        // Test the core logic by parsing existing policies and adding a new one
+        let existing_content = "policies: []";
+        let mut policies = parse_policy_file(existing_content).unwrap();
+
+        let new_policy = Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string() }),
+        };
+
+        policies = policies.add_policy(new_policy.clone());
+
+        // Serialize back to YAML
+        let new_content = serde_yml::to_string(&policies).unwrap();
+
+        // Generate diff
+        let diff_result = DiffFormat::format(existing_content, &new_content);
+        let actual = diff_result.diff();
+
+        // Should contain the new policy
+        assert!(actual.contains("permission: Allow"));
+        assert!(actual.contains("src/**/*.rs"));
     }
 }
