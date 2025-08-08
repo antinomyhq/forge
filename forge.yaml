@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./forge.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json
 agents:
 - id: forge
   tools:

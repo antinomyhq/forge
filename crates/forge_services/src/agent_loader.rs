@@ -63,7 +63,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         for (path, content) in files {
             agents.push(
                 parse_agent_file(&content)
-                    .with_context(|| format!("Failed to parse agent {}", path.display()))?,
+                    .with_context(|| format!("Failed to parse agent: {}", path.display()))?,
             )
         }
 
@@ -82,7 +82,7 @@ fn parse_agent_file(content: &str) -> Result<Agent> {
     // Extract the frontmatter
     let agent = result
         .data
-        .context("Could not parse agent details")?
+        .context("Empty system prompt content")?
         .system_prompt(Template::new(result.content));
 
     Ok(agent)
