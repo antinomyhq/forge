@@ -76,7 +76,8 @@ impl<'a> PolicyEngine<'a> {
         let mut last_allow: Option<Trace<Permission>> = None;
         let mut policy_index = 1u64;
 
-        // Evaluate all policies in order: workflow policies first, then extended policies
+        // Evaluate all policies in order: workflow policies first, then extended
+        // policies
         let policies = self
             .workflow
             .policies
@@ -103,7 +104,8 @@ impl<'a> PolicyEngine<'a> {
     }
 
     /// Helper function to evaluate a set of policies
-    /// Returns the first non-Allow result, or the last Allow result if all are Allow
+    /// Returns the first non-Allow result, or the last Allow result if all are
+    /// Allow
     fn evaluate_policy_set<'p, I: IntoIterator<Item = &'p Policy>>(
         &self,
         policies: I,
@@ -113,7 +115,8 @@ impl<'a> PolicyEngine<'a> {
         let mut last_allow: Option<Trace<Permission>> = None;
 
         for policy in policies {
-            // FIXME: The policy index logic is incorrect, it should point to the related to index of the policy in the yaml workflow file
+            // FIXME: The policy index logic is incorrect, it should point to the related to
+            // index of the policy in the yaml workflow file
             if let Some(trace) = policy.eval(operation, None, Some(*policy_index)) {
                 match &trace.value {
                     Permission::Disallow | Permission::Confirm => {

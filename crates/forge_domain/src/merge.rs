@@ -1,6 +1,7 @@
-use crate::Policies;
 use ::std::collections::HashMap;
 use ::std::hash::Hash;
+
+use crate::Policies;
 
 pub mod std {
     pub fn overwrite<T>(base: &mut T, other: T) {
@@ -11,8 +12,8 @@ pub mod std {
 pub mod vec {
     use std::collections::HashMap;
 
-    pub use merge::vec::*;
     use merge::Merge;
+    pub use merge::vec::*;
 
     use super::Key;
 
