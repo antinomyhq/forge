@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -190,6 +191,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
             self.on_message(Some(prompt)).await?;
+
+            // Dump conversation if experimental mode path is provided
+            if let Some(dump_path) = self.cli.experiment_mode_dump_path.clone() {
+                self.on_experimental_mode_dump(Some(dump_path)).await?;
+            }
+
             return Ok(());
         }
 
@@ -749,6 +756,36 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         } else {
             return Err(anyhow::anyhow!("No conversation initiated yet"))
                 .context("Could not create dump");
+        }
+        Ok(())
+    }
+
+    /// Dump conversation for experimental mode with custom path support
+    async fn on_experimental_mode_dump(&mut self, custom_path: Option<PathBuf>) -> Result<()> {
+        if let Some(conversation_id) = self.state.conversation_id {
+            let conversation = self.api.conversation(&conversation_id).await?;
+            if let Some(conversation) = conversation {
+                let path = if let Some(custom_path) = custom_path {
+                    custom_path
+                } else {
+                    let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+                    PathBuf::from(format!("{timestamp}-experimental-dump.json"))
+                };
+
+                let content = serde_json::to_string_pretty(&conversation)?;
+                tokio::fs::write(&path, content).await?;
+
+                self.writeln(
+                    TitleFormat::action("Experimental mode conversation dump created".to_string())
+                        .sub_title(path.display().to_string()),
+                )?;
+            } else {
+                return Err(anyhow::anyhow!("Could not create experimental dump"))
+                    .context(format!("Conversation: {conversation_id} was not found"));
+            }
+        } else {
+            return Err(anyhow::anyhow!("No conversation initiated yet"))
+                .context("Could not create experimental dump");
         }
         Ok(())
     }

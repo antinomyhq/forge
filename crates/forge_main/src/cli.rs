@@ -68,6 +68,12 @@ pub struct Cli {
     /// If provided, the application will change to this directory before
     /// starting. This allows running forge from a different directory.
     pub directory: Option<PathBuf>,
+
+    /// Path for experimental mode conversation dump in non-interactive mode
+    /// When provided, enables experimental mode and dumps conversation to
+    /// specified path
+    #[arg(long)]
+    pub experiment_mode_dump_path: Option<PathBuf>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
