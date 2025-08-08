@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use super::operation::Operation;
+use super::policy::Policy;
 use crate::Workflow;
 use crate::policies::{Permission, Trace};
 
@@ -65,19 +66,59 @@ impl<'a> PolicyEngine<'a> {
     /// Returns trace with permission result, defaults to Confirm if no policies
     /// match
     fn evaluate_policies(&self, operation: &Operation) -> Trace<Permission> {
-        let policies = match self.workflow.policies.policies.is_empty() {
-            false => &self.workflow.policies.policies,
-            true => return Trace::new(Permission::Confirm),
-        };
+        let has_workflow_policies = !self.workflow.policies.policies.is_empty();
+        let has_extended_policies = !self.workflow.extended_policies.policies.is_empty();
+
+        if !has_workflow_policies && !has_extended_policies {
+            return Trace::new(Permission::Confirm);
+        }
 
         let mut last_allow: Option<Trace<Permission>> = None;
+        let mut policy_index = 1u64;
 
-        for (index, policy) in policies.iter().enumerate() {
-            if let Some(trace) = policy.eval(operation, None, Some((index + 1) as u64)) {
+        // Evaluate all policies in order: workflow policies first, then extended policies
+        let policies = self
+            .workflow
+            .policies
+            .policies
+            .iter()
+            .chain(self.workflow.extended_policies.policies.iter());
+        println!("{:?}", self.workflow.extended_policies.policies);
+
+        if let Some(trace) = self.evaluate_policy_set(policies, operation, &mut policy_index) {
+            match &trace.value {
+                Permission::Disallow | Permission::Confirm => {
+                    // Return immediately for denials or confirmations
+                    return trace;
+                }
+                Permission::Allow => {
+                    // Keep track of the last allow
+                    last_allow = Some(trace);
+                }
+            }
+        }
+
+        // Return last allow if found, otherwise default to Confirm
+        last_allow.unwrap_or(Trace::new(Permission::Confirm))
+    }
+
+    /// Helper function to evaluate a set of policies
+    /// Returns the first non-Allow result, or the last Allow result if all are Allow
+    fn evaluate_policy_set<'p, I: IntoIterator<Item = &'p Policy>>(
+        &self,
+        policies: I,
+        operation: &Operation,
+        policy_index: &mut u64,
+    ) -> Option<Trace<Permission>> {
+        let mut last_allow: Option<Trace<Permission>> = None;
+
+        for policy in policies {
+            // FIXME: The policy index logic is incorrect, it should point to the related to index of the policy in the yaml workflow file
+            if let Some(trace) = policy.eval(operation, None, Some(*policy_index)) {
                 match &trace.value {
                     Permission::Disallow | Permission::Confirm => {
                         // Return immediately for denials or confirmations
-                        return trace;
+                        return Some(trace);
                     }
                     Permission::Allow => {
                         // Keep track of the last allow
@@ -85,10 +126,10 @@ impl<'a> PolicyEngine<'a> {
                     }
                 }
             }
+            *policy_index += 1;
         }
 
-        // Return last allow if found, otherwise default to Confirm
-        last_allow.unwrap_or(Trace::new(Permission::Confirm))
+        last_allow
     }
 }
 

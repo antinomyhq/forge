@@ -1,20 +1,18 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use forge_domain::{Policy, Workflow};
+use forge_domain::{Workflow};
 use merge::Merge;
-use tokio::sync::Mutex;
 
 use crate::{AgentLoaderService, PolicyLoaderService, WorkflowService};
 
 pub struct WorkflowManager<S> {
     service: Arc<S>,
-    extended_policies: Arc<Mutex<Vec<Policy>>>,
 }
 
 impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> WorkflowManager<S> {
     pub fn new(service: Arc<S>) -> WorkflowManager<S> {
-        Self { service, extended_policies: Arc::new(Mutex::new(Vec::new())) }
+        Self { service }
     }
     async fn extend_agents(&self, mut workflow: Workflow) -> Workflow {
         let agents = self.service.load_agents().await.unwrap_or_default();
@@ -33,20 +31,8 @@ impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> Work
     }
 
     async fn extend_policies(&self, mut workflow: Workflow) -> Workflow {
-        let loaded_policies = self.service.load_policies().await.unwrap_or_default();
-
-        {
-            let mut extended = self.extended_policies.lock().await;
-            extended.extend(loaded_policies.policies.iter().cloned());
-        }
-
-        // If there are loaded policies, merge them with existing workflow policies
-        if !loaded_policies.policies.is_empty() {
-            for policy in loaded_policies.policies {
-                workflow.policies.policies.insert(policy);
-            }
-        }
-
+        // Set extended policies directly on the workflow
+        workflow.extended_policies = self.service.load_policies().await.unwrap_or_default();
         workflow
     }
     pub async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
@@ -78,14 +64,6 @@ impl<S: WorkflowService + AgentLoaderService + PolicyLoaderService + Sized> Work
                 .iter()
                 .any(|loaded_agent| loaded_agent.id == agent.id)
         });
-
-        // Remove policies that were extended from external sources
-        let mut extended_policies = self.extended_policies.lock().await;
-        // Remove policies that match those from extended_policies
-        for extended_policy in extended_policies.iter() {
-            workflow_to_write.policies.policies.remove(extended_policy);
-        }
-        extended_policies.clear();
 
         self.service.write_workflow(path, &workflow_to_write).await
     }

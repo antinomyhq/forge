@@ -14,7 +14,7 @@ use crate::services::ShellService;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
-    WorkflowService,
+    PolicyLoaderService, WorkflowService,
 };
 
 pub struct ToolExecutor<S> {
@@ -33,6 +33,7 @@ impl<
         + FollowUpService
         + ConversationService
         + WorkflowService
+        + PolicyLoaderService
         + EnvironmentService,
 > ToolExecutor<S>
 {
@@ -47,7 +48,9 @@ impl<
         workflow_path: &Path,
         confirm_fn: &(dyn Fn() -> UserResponse + Send + Sync),
     ) -> anyhow::Result<()> {
-        let workflow = self.services.read_workflow(Some(workflow_path)).await?;
+        let mut workflow = self.services.read_workflow(Some(workflow_path)).await?;
+        workflow.extended_policies = self.services.load_policies().await.unwrap_or_default();
+
         let engine = PolicyEngine::new(&workflow);
         let permission_trace = engine.can_perform(operation);
 

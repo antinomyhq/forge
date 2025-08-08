@@ -146,6 +146,11 @@ pub struct Workflow {
     #[serde(default, skip_serializing_if = "has_policies", flatten)]
     #[merge(strategy = crate::merge::policies)]
     pub policies: Policies,
+
+    /// Extended policies loaded from external sources (not serialized)
+    #[serde(skip)]
+    #[merge(strategy = crate::merge::policies)]
+    pub extended_policies: Policies,
 }
 
 fn has_policies(policies: &Policies) -> bool {
@@ -199,6 +204,7 @@ impl Workflow {
             max_requests_per_turn: None,
             compact: None,
             policies: Default::default(),
+            extended_policies: Default::default(),
         }
     }
 
@@ -239,6 +245,7 @@ mod tests {
         assert_eq!(actual.tool_supported, None);
         assert_eq!(actual.compact, None);
         assert_eq!(actual.policies, Policies::default());
+        assert_eq!(actual.extended_policies, Policies::default());
     }
 
     #[test]
