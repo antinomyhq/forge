@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use forge_app::AttachmentService;
 use forge_app::domain::{Attachment, AttachmentContent, Image};
+use forge_app::AttachmentService;
 use forge_domain::FileTag;
 
 use crate::range::resolve_range;
@@ -85,18 +85,17 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_app::AttachmentService;
     use forge_app::domain::{
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
-    use forge_snaps::Snapshot;
+    use forge_app::AttachmentService;
     use serde_json::Value;
     use url::Url;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
         CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, SnapshotInfra,
+        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra,
         UserInfra,
     };
 
@@ -294,20 +293,6 @@ pub mod tests {
             self.write(&path, content.to_string().into(), false).await?;
 
             Ok(path)
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct MockSnapService;
-
-    #[async_trait::async_trait]
-    impl SnapshotInfra for MockSnapService {
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
-            unimplemented!()
-        }
-
-        async fn undo_snapshot(&self, _: &Path) -> anyhow::Result<()> {
-            unimplemented!()
         }
     }
 
