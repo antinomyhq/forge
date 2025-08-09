@@ -196,7 +196,7 @@ impl<
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::Read {
                     path: std::path::PathBuf::from(&input.path),
-                    cwd: self.services.get_environment().cwd.clone(),
+                    cwd: self.services.get_environment().cwd,
                 };
                 self.check_operation_permission(&operation, context).await?;
 
@@ -214,7 +214,7 @@ impl<
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::Write {
                     path: std::path::PathBuf::from(&input.path),
-                    cwd: self.services.get_environment().cwd.clone(),
+                    cwd: self.services.get_environment().cwd,
                 };
                 self.check_operation_permission(&operation, context).await?;
 
@@ -233,7 +233,7 @@ impl<
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::Read {
                     path: std::path::PathBuf::from(&input.path),
-                    cwd: self.services.get_environment().cwd.clone(),
+                    cwd: self.services.get_environment().cwd,
                 };
                 self.check_operation_permission(&operation, context).await?;
 
@@ -251,7 +251,7 @@ impl<
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::Write {
                     path: std::path::PathBuf::from(&input.path),
-                    cwd: self.services.get_environment().cwd.clone(),
+                    cwd: self.services.get_environment().cwd,
                 };
                 self.check_operation_permission(&operation, context).await?;
 
@@ -262,7 +262,7 @@ impl<
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::Patch {
                     path: std::path::PathBuf::from(&input.path),
-                    cwd: self.services.get_environment().cwd.clone(),
+                    cwd: self.services.get_environment().cwd,
                 };
                 self.check_operation_permission(&operation, context).await?;
 
@@ -286,7 +286,7 @@ impl<
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::Execute {
                     command: input.command.clone(),
-                    cwd: self.services.get_environment().cwd.clone(),
+                    cwd: self.services.get_environment().cwd,
                 };
                 self.check_operation_permission(&operation, context).await?;
 
@@ -300,7 +300,7 @@ impl<
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::NetFetch {
                     url: input.url.clone(),
-                    cwd: self.services.get_environment().cwd.clone(),
+                    cwd: self.services.get_environment().cwd,
                 };
                 self.check_operation_permission(&operation, context).await?;
 
