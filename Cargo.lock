@@ -1545,6 +1545,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tui-scrollview",
+ "url",
 ]
 
 [[package]]

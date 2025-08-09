@@ -71,6 +71,7 @@ fn handle_spotlight_navigation(
                         // For now, just hide spotlight - proper model selection would need more UI
                         Command::Empty
                     }
+                    crate::domain::slash_command::SlashCommand::Info => Command::Info,
                     _ => {
                         // For other commands, just hide spotlight for now
                         Command::Empty
@@ -180,7 +181,10 @@ fn handle_spotlight_toggle(
     use ratatui::crossterm::event::KeyCode;
 
     if key_event.code == KeyCode::Esc {
-        if !state.spotlight.is_visible && original_editor_mode == EditorMode::Normal {
+        if state.show_info {
+            // Close info popup if it's open
+            state.show_info = false;
+        } else if !state.spotlight.is_visible && original_editor_mode == EditorMode::Normal {
             // Open spotlight when it's closed and editor was originally in normal mode
             state.spotlight.is_visible = true;
         } else {
@@ -300,16 +304,45 @@ pub fn handle_key_event(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use edtui::Index2;
+    use forge_api::Environment;
     use pretty_assertions::assert_eq;
     use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use url::Url;
 
     use super::*;
     use crate::domain::State;
     use crate::domain::slash_command::SlashCommand;
 
+    fn test_env() -> Environment {
+        Environment {
+            os: "test".to_string(),
+            pid: 12345,
+            cwd: PathBuf::from("/test"),
+            home: Some(PathBuf::from("/home/test")),
+            shell: if cfg!(target_os = "windows") {
+                "cmd"
+            } else {
+                "bash"
+            }
+            .to_string(),
+            base_path: PathBuf::from("/base"),
+            retry_config: Default::default(),
+            fetch_truncation_limit: 0,
+            stdout_max_prefix_length: 0,
+            max_search_lines: 0,
+            max_read_size: 0,
+            stdout_max_suffix_length: 0,
+            http: Default::default(),
+            max_file_size: 10_000_000,
+            forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
+        }
+    }
+
     fn create_test_state_with_text() -> State {
-        let mut state = State::default();
+        let mut state = State::default(test_env());
         // Set up some text content for testing cursor movement
         state.editor.set_text_with_cursor_at_end(
             "hello world this is a test\nsecond line here".to_string(),
@@ -626,7 +659,7 @@ mod tests {
 
     #[test]
     fn test_spotlight_shows_slash_commands() {
-        let mut state = State::default();
+        let mut state = State::default(test_env());
         state.spotlight.is_visible = true;
 
         // Test that spotlight shows all slash commands
@@ -649,7 +682,7 @@ mod tests {
 
     #[test]
     fn test_spotlight_command_execution() {
-        let mut state = State::default();
+        let mut state = State::default(test_env());
         state.spotlight.is_visible = true;
 
         // Set up to select the exit command
@@ -671,7 +704,7 @@ mod tests {
 
     #[test]
     fn test_handle_prompt_submit_with_empty_input() {
-        let mut fixture = State::default();
+        let mut fixture = State::default(test_env());
         fixture.editor.mode = EditorMode::Normal;
         fixture.editor.clear();
 
@@ -683,5 +716,18 @@ mod tests {
         assert_eq!(actual, expected);
         assert_eq!(fixture.messages.len(), 0);
         assert!(!fixture.show_spinner);
+    }
+
+    #[test]
+    fn test_escape_closes_info_popup_when_open() {
+        let mut fixture = State::default(test_env());
+        fixture.show_info = true;
+
+        let key_event = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+        let actual = handle_key_event(&mut fixture, key_event);
+
+        // Info popup should be closed
+        assert_eq!(fixture.show_info, false);
+        assert_eq!(actual, Command::Empty);
     }
 }
