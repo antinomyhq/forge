@@ -35,7 +35,6 @@ impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra +
     ) -> anyhow::Result<FsCreateOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
-
         // Validate file content if it's a supported language file
         let syntax_warning = tool_services::syn::validate(path, &content);
         if let Some(parent) = Path::new(&path).parent() {
