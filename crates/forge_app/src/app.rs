@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -10,10 +10,10 @@ use crate::authenticator::Authenticator;
 use crate::orch::Orchestrator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
+use crate::workflow_manager::WorkflowManager;
 use crate::{
     AppConfigService, AttachmentService, ConversationService, EnvironmentService,
     FileDiscoveryService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -23,6 +23,7 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
+    workflow_manager: WorkflowManager<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -31,6 +32,7 @@ impl<S: Services> ForgeApp<S> {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
+            workflow_manager: WorkflowManager::new(services.clone()),
             services,
         }
     }
@@ -60,7 +62,11 @@ impl<S: Services> ForgeApp<S> {
         let models = services.models(provider).await?;
 
         // Discover files using the discovery service
-        let workflow = services.read_merged(None).await.unwrap_or_default();
+        let workflow = self
+            .workflow_manager
+            .read_merged(None)
+            .await
+            .unwrap_or_default();
         let max_depth = workflow.max_walker_depth;
         let environment = services.get_environment();
 
@@ -203,5 +209,15 @@ impl<S: Services> ForgeApp<S> {
     }
     pub async fn logout(&self) -> Result<()> {
         self.authenticator.logout().await
+    }
+    pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
+        self.workflow_manager.read_workflow(path).await
+    }
+
+    pub async fn read_workflow_merged(&self, path: Option<&Path>) -> Result<Workflow> {
+        self.workflow_manager.read_merged(path).await
+    }
+    pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
+        self.workflow_manager.write_workflow(path, workflow).await
     }
 }

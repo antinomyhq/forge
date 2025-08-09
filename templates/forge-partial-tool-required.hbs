@@ -7,9 +7,8 @@ Please retry with correct tool use
 {{> forge-partial-tool-use-example.hbs }}
 {{/if}}
 
-Next Steps: 
-If you have completed the user's task, use the `forge_tool_attempt_completion`
-tool with a message. 
-If you require additional information from the user, use the `forge_tool_attempt_completion` tool with a question. 
-Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task.
+NEXT STEPS:
+Option 1: If you have completed the user's task, use the `forge_tool_attempt_completion` tool with a message. 
+Option 2: If you require additional information from the user, use the `forge_tool_attempt_completion` tool with a question.
+Option 3: Proceed with making more tool calls to continue with the task.
 [This is an automated message, so do not apologize, appreciate or be conversational]

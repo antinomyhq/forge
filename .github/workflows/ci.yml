@@ -174,7 +174,7 @@ jobs:
   build_release_pr:
     needs:
     - draft_release
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'build-all-targets')
+    if: 'github.event_name == ''pull_request'' && contains(github.event.pull_request.labels.*.name, ''ci: build all targets'')'
     name: build-release
     runs-on: ${{ matrix.os }}
     permissions:

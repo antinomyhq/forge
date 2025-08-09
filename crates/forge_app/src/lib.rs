@@ -5,10 +5,12 @@ mod app_config;
 mod authenticator;
 mod compact;
 mod error;
-pub mod fmt;
+mod fmt;
 mod mcp_executor;
 mod operation;
 mod orch;
+#[cfg(test)]
+mod orch_spec;
 mod retry;
 mod services;
 mod tool_executor;
@@ -17,7 +19,9 @@ mod truncation;
 mod user;
 mod utils;
 mod walker;
+mod workflow_manager;
 
+pub use agent::*;
 pub use app::*;
 pub use app_config::*;
 pub use error::*;

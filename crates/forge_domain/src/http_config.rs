@@ -124,8 +124,8 @@ impl std::fmt::Display for TlsBackend {
 ///     min_tls_version: Some(TlsVersion::V1_2),
 ///     max_tls_version: Some(TlsVersion::V1_3),
 ///     tls_backend: TlsBackend::Rustls,
-///     http2_adaptive_window: true,
-///     http2_keep_alive_interval: Some(60),
+///     adaptive_window: true,
+///     keep_alive_interval: Some(60),
 ///     ..HttpConfig::default()
 /// };
 /// ```

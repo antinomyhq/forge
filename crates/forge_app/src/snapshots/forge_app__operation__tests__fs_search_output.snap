@@ -4,10 +4,12 @@ expression: to_value(actual)
 ---
 <search_results
   path="/home/user/project"
+  max_bytes_allowed="256000"
   total_lines="50"
   display_lines="6-30"
   regex="search"
   file_pattern="*.txt"
+  reason="Results truncated due to exceeding the 25 lines limit. Please use a more specific search pattern"
 ><![CDATA[foo.txt:6:Match line 6: Test
 foo.txt:7:Match line 7: Test
 foo.txt:8:Match line 8: Test

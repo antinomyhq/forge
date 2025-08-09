@@ -72,11 +72,7 @@ impl Conversation {
     }
 
     pub fn new(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
-        // Merge the workflow with the default workflow
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow);
-
-        Self::new_inner(id, base_workflow, additional_tools)
+        Self::new_inner(id, workflow, additional_tools)
     }
 
     fn new_inner(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
@@ -333,7 +329,7 @@ mod tests {
         let workflow = Workflow::new()
             .agents(vec![agent1, agent2])
             .model(ModelId::new("test-model"))
-            .max_walker_depth(5)
+            .max_walker_depth(5usize)
             .custom_rules("Be helpful".to_string())
             .temperature(Temperature::new(0.7).unwrap())
             .max_tokens(MaxTokens::new(4000).unwrap())
@@ -376,7 +372,7 @@ mod tests {
         let workflow = Workflow::new()
             .agents(vec![agent1, agent2])
             .model(ModelId::new("default-model"))
-            .max_walker_depth(5)
+            .max_walker_depth(5usize)
             .custom_rules("Default rules".to_string())
             .temperature(Temperature::new(0.7).unwrap())
             .max_tokens(MaxTokens::new(4000).unwrap())
