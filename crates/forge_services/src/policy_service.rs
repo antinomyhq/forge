@@ -270,7 +270,7 @@ mod tests {
 
         let new_policy = Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string() }),
+            rule: Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string(), working_directory: None }),
         };
 
         policies = policies.add_policy(new_policy.clone());

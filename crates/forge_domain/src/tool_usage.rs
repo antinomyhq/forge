@@ -102,7 +102,7 @@ mod tests {
     use strum::IntoEnumIterator;
 
     use super::*;
-    use crate::{NamedTool, ToolDescription, ToolName, Tools};
+    use crate::Tools;
 
     #[derive(Default)]
     #[allow(dead_code)]

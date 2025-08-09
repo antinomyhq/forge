@@ -91,12 +91,9 @@ pub mod tests {
     };
     use serde_json::Value;
     use url::Url;
-
+    use forge_snaps::Snapshot;
     use crate::attachment::ForgeChatRequest;
-    use crate::{
-        CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, UserInfra,
-    };
+    use crate::{CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, SnapshotInfra, UserInfra};
 
     #[derive(Debug)]
     pub struct MockEnvironmentInfra {}
