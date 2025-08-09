@@ -102,7 +102,11 @@ mod tests {
     use strum::IntoEnumIterator;
 
     use super::*;
-    use crate::Tools;
+    use crate::{NamedTool, ToolDescription, ToolName, Tools};
+
+    #[derive(Default)]
+    #[allow(dead_code)]
+    pub struct MangoTool;
 
     #[derive(JsonSchema, Deserialize)]
     pub struct ToolInput {

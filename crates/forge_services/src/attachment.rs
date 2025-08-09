@@ -295,6 +295,21 @@ pub mod tests {
         }
     }
 
+    #[derive(Debug)]
+    #[allow(dead_code)]
+    pub struct MockSnapService;
+
+    #[async_trait::async_trait]
+    impl SnapshotInfra for MockSnapService {
+        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
+            unimplemented!()
+        }
+
+        async fn undo_snapshot(&self, _: &Path) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+    }
+
     #[async_trait::async_trait]
     impl FileInfoInfra for MockFileService {
         async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
