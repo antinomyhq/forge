@@ -1,0 +1,7 @@
+policies:
+  - permission: allow
+    rule:
+      read_pattern: "**/*.rs"
+  - permission: deny
+    rule:
+      read_pattern: "secrets/**/*"

@@ -61,6 +61,7 @@ forge_walker.workspace = true
 url.workspace = true
 reqwest-eventsource.workspace = true
 derive_builder.workspace = true
+inquire.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

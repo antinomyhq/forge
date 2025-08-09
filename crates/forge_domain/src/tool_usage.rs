@@ -102,7 +102,7 @@ mod tests {
     use strum::IntoEnumIterator;
 
     use super::*;
-    use crate::{NamedTool, ToolDescription, ToolName, Tools};
+    use crate::Tools;
 
     #[derive(Default)]
     #[allow(dead_code)]
@@ -117,18 +117,6 @@ mod tests {
         /// This is parameter 2
         #[allow(dead_code)]
         param2: Option<String>,
-    }
-
-    impl ToolDescription for MangoTool {
-        fn description(&self) -> String {
-            "This is a mango tool".to_string()
-        }
-    }
-
-    impl NamedTool for MangoTool {
-        fn tool_name() -> ToolName {
-            ToolName::new("forge_tool_mango")
-        }
     }
 
     #[test]
