@@ -16,5 +16,6 @@ pub enum Action {
     ConversationInitialized(ConversationId),
     IntervalTick(Timer),
     InterruptStream,
+    ClearScreen,
     StartStream(CancelId),
 }

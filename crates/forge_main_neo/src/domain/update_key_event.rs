@@ -63,6 +63,7 @@ fn handle_spotlight_navigation(
                 // Convert SlashCommand to appropriate Command
                 let command = match selected_cmd {
                     crate::domain::slash_command::SlashCommand::Exit => Command::Exit,
+                    crate::domain::slash_command::SlashCommand::Clear => Command::ClearScreen,
                     crate::domain::slash_command::SlashCommand::Agent => {
                         // For now, just hide spotlight - proper agent selection would need more UI
                         Command::Empty
@@ -236,6 +237,10 @@ pub fn handle_key_event(
     // Handle Ctrl+C interrupt (stop current LLM output stream)
     if key_event.code == KeyCode::Char('c') && key_event.modifiers.contains(KeyModifiers::CONTROL) {
         return Command::InterruptStream;
+    }
+
+    if key_event.code == KeyCode::Char('l') && key_event.modifiers.contains(KeyModifiers::CONTROL) {
+        return Command::ClearScreen;
     }
 
     if state.spotlight.is_visible {
@@ -631,7 +636,7 @@ mod tests {
 
         // Test that spotlight shows all slash commands
         let filtered_commands = state.spotlight.filtered_commands();
-        assert_eq!(filtered_commands.len(), 12); // All 12 slash commands
+        assert_eq!(filtered_commands.len(), 13); // All 13 slash commands
 
         // Test that filtering works
         state
@@ -683,5 +688,23 @@ mod tests {
         assert_eq!(actual, expected);
         assert_eq!(fixture.messages.len(), 0);
         assert!(!fixture.show_spinner);
+    }
+
+    #[test]
+    fn test_spotlight_clear_command_returns_clear_screen() {
+        let mut state = create_test_state_with_text();
+        state.spotlight.is_visible = true;
+        state
+            .spotlight
+            .editor
+            .set_text_insert_mode("clear".to_string());
+        state.spotlight.selected_index = 0;
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::ClearScreen;
+
+        assert_eq!(actual_command, expected_command);
+        assert!(!state.spotlight.is_visible);
     }
 }
