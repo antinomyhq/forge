@@ -1,7 +1,6 @@
 use std::time::Duration;
 
-use derive_more::From;
-use forge_api::{AgentId, ConversationId, ModelId};
+use forge_api::ConversationId;
 
 /// Unified application commands
 ///
@@ -23,17 +22,9 @@ pub enum Command {
         is_first: bool,
     },
     InterruptStream,
-    #[allow(unused)]
-    Spotlight(SpotlightCommand),
     Interval {
         duration: Duration,
     },
-}
-
-#[derive(Clone, From, PartialEq, Eq, Debug)]
-pub enum SpotlightCommand {
-    Model(ModelId),
-    Agent(AgentId),
 }
 
 impl Command {

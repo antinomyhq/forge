@@ -253,7 +253,6 @@ impl<T: API + 'static> Executor<T> {
             Command::Interval { duration } => {
                 self.execute_interval(duration, &tx).await?;
             }
-            Command::Spotlight(_) => todo!(),
             Command::InterruptStream => {
                 // Send InterruptStream action to trigger state update
                 tx.send(Ok(Action::InterruptStream)).await?;
