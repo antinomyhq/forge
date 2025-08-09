@@ -73,6 +73,18 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                 ChatResponse::RetryAttempt { cause: _, duration: _ } => {
                     todo!()
                 }
+                &ChatResponse::RetryExhausted { ref cause, attempts } => {
+                    let error_text = format!(
+                        "Network error after {} retry attempts: {}",
+                        attempts,
+                        cause.as_str()
+                    );
+                    let styled_text = error_text.red().to_string();
+                    match styled_text.into_text() {
+                        Ok(text) => text.lines.into_iter(),
+                        Err(_) => vec![Line::raw(styled_text)].into_iter(),
+                    }
+                }
             },
         })
         .collect()

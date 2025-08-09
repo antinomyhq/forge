@@ -382,7 +382,7 @@ impl<S: AgentService> Orchestrator<S> {
             self.services.update(self.conversation.clone()).await?;
 
             // Run the main chat request and compaction check in parallel
-            let main_request = crate::retry::retry_with_config(
+            let main_request = crate::retry::retry_with_exhaustion_event(
                 &self.environment.retry_config,
                 || self.execute_chat_turn(&model_id, context.clone(), tool_supported, reasoning_supported),
                 self.sender.as_ref().map(|sender| {
@@ -397,6 +397,16 @@ impl<S: AgentService> Orchestrator<S> {
                             duration,
                         };
                         let _ = sender.try_send(Ok(retry_event));
+                    }
+                }),
+                self.sender.as_ref().map(|sender| {
+                    let sender = sender.clone();
+                    move |error: &anyhow::Error, attempts: usize| {
+                        let retry_exhausted_event = ChatResponse::RetryExhausted {
+                            cause: error.into(),
+                            attempts,
+                        };
+                        let _ = sender.try_send(Ok(retry_exhausted_event));
                     }
                 }),
             );
