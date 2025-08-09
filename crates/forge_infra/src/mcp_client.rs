@@ -1,6 +1,9 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::ffi::OsString;
 use std::future::Future;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
@@ -8,12 +11,11 @@ use forge_services::McpClientInfra;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::schemars::schema::RootSchema;
 use rmcp::service::RunningService;
-use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceExt};
 use serde_json::Value;
-use tokio::process::Command;
 
 use crate::error::Error;
+use crate::mcp_stdio_client::McpClient;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -23,8 +25,14 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 type RmcpClient = RunningService<RoleClient, InitializeRequestParam>;
 
 #[derive(Clone)]
+enum ClientType {
+    Stdio(Arc<McpClient>),
+    Sse(Arc<RmcpClient>),
+}
+
+#[derive(Clone)]
 pub struct ForgeMcpClient {
-    client: Arc<RwLock<Option<Arc<RmcpClient>>>>,
+    client: Arc<RwLock<Option<ClientType>>>,
     config: McpServerConfig,
 }
 
@@ -41,56 +49,73 @@ impl ForgeMcpClient {
         }
     }
 
-    /// Connects to the MCP server. If `force` is true, it will reconnect even
-    /// if already connected.
-    async fn connect(&self) -> anyhow::Result<Arc<RmcpClient>> {
+    async fn connect(&self) -> anyhow::Result<ClientType> {
         if let Some(client) = self.get_client() {
-            Ok(client.clone())
+            Ok(client)
         } else {
             let client = self.create_connection().await?;
             self.set_client(client.clone());
-            Ok(client.clone())
+            Ok(client)
         }
     }
 
-    fn get_client(&self) -> Option<Arc<RmcpClient>> {
+    fn get_client(&self) -> Option<ClientType> {
         let guard = self.client.read().unwrap();
         guard.clone()
     }
 
-    fn set_client(&self, client: Arc<RmcpClient>) {
+    fn set_client(&self, client: ClientType) {
         let mut guard = self.client.write().unwrap();
         *guard = Some(client);
     }
 
-    async fn create_connection(&self) -> anyhow::Result<Arc<RmcpClient>> {
-        let client = match &self.config {
+    async fn create_connection(&self) -> anyhow::Result<ClientType> {
+        match &self.config {
             McpServerConfig::Stdio(stdio) => {
-                let mut cmd = Command::new(stdio.command.clone());
+                let program = OsString::from(&stdio.command);
+                let args: Vec<OsString> = stdio.args.iter().map(OsString::from).collect();
+                let env: HashMap<String, String> = stdio
+                    .env
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
 
-                for (key, value) in &stdio.env {
-                    cmd.env(key, value);
-                }
+                let mcp_client = McpClient::new_stdio_client(program, args, Some(env)).await?;
 
-                cmd.stdin(std::process::Stdio::inherit())
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped());
-                self.client_info()
-                    .serve(TokioChildProcess::new(cmd.args(&stdio.args))?)
-                    .await?
+                let init_params = InitializeRequestParam {
+                    protocol_version: Default::default(),
+                    capabilities: Default::default(),
+                    client_info: Implementation {
+                        name: "Forge".to_string(),
+                        version: VERSION.to_string(),
+                    },
+                };
+
+                mcp_client
+                    .initialize(init_params, None, Some(Duration::from_secs(30)))
+                    .await?;
+
+                Ok(ClientType::Stdio(Arc::new(mcp_client)))
             }
             McpServerConfig::Sse(sse) => {
                 let transport = rmcp::transport::SseTransport::start(sse.url.clone()).await?;
-                self.client_info().serve(transport).await?
+                let client = self.client_info().serve(transport).await?;
+                Ok(ClientType::Sse(Arc::new(client)))
             }
-        };
-
-        Ok(Arc::new(client))
+        }
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         let client = self.connect().await?;
-        let tools = client.list_tools(None).await?;
+        let tools = match client {
+            ClientType::Stdio(stdio_client) => {
+                stdio_client
+                    .list_tools(None, Some(Duration::from_secs(30)))
+                    .await?
+            }
+            ClientType::Sse(sse_client) => sse_client.list_tools(None).await?,
+        };
+
         Ok(tools
             .tools
             .into_iter()
@@ -111,16 +136,34 @@ impl ForgeMcpClient {
 
     async fn call(&self, tool_name: &ToolName, input: &Value) -> anyhow::Result<ToolOutput> {
         let client = self.connect().await?;
-        let result = client
-            .call_tool(CallToolRequestParam {
-                name: Cow::Owned(tool_name.to_string()),
-                arguments: if let Value::Object(args) = input {
-                    Some(args.clone())
+        let result = match client {
+            ClientType::Stdio(stdio_client) => {
+                let arguments = if let Value::Object(args) = input {
+                    Some(serde_json::Value::Object(args.clone()))
                 } else {
                     None
-                },
-            })
-            .await?;
+                };
+                stdio_client
+                    .call_tool(
+                        tool_name.to_string(),
+                        arguments,
+                        Some(Duration::from_secs(30)),
+                    )
+                    .await?
+            }
+            ClientType::Sse(sse_client) => {
+                sse_client
+                    .call_tool(CallToolRequestParam {
+                        name: Cow::Owned(tool_name.to_string()),
+                        arguments: if let Value::Object(args) = input {
+                            Some(args.clone())
+                        } else {
+                            None
+                        },
+                    })
+                    .await?
+            }
+        };
 
         let tool_contents: Vec<ToolOutput> = result
             .content
@@ -161,11 +204,17 @@ impl ForgeMcpClient {
                 .map(|e| matches!(e, rmcp::ServiceError::Transport(_)))
                 .unwrap_or(false);
 
-            if is_transport {
+            let is_stdio_error = err
+                .to_string()
+                .contains("failed to send message to writer task")
+                || err.to_string().contains("response channel closed")
+                || err.to_string().contains("request timed out");
+
+            if is_transport || is_stdio_error {
                 self.client.write().unwrap().take();
             }
 
-            is_transport
+            is_transport || is_stdio_error
         })
         .await
     }
