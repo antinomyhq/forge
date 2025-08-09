@@ -17,4 +17,9 @@ pub enum Action {
     IntervalTick(Timer),
     InterruptStream,
     StartStream(CancelId),
+    ShellCommandResult {
+        command: String,
+        output: String,
+        success: bool,
+    },
 }
