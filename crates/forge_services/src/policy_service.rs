@@ -286,7 +286,7 @@ mod tests {
         let actual = diff_result.diff();
 
         // Should contain the new policy
-        assert!(actual.contains("permission: Allow"));
+        assert!(actual.contains("permission: allow"));
         assert!(actual.contains("src/**/*.rs"));
     }
 }
