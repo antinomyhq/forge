@@ -63,8 +63,6 @@ impl Fixture {
                 Some("There is a cat hidden in the codebase. What is its name?"),
             ),
             conversation_id,
-            std::path::PathBuf::from("forge.yaml"), // Default path for tests
-            std::sync::Arc::new(|| forge_domain::UserResponse::Accept),
         );
 
         api.chat(request)

@@ -14,6 +14,21 @@ use url::Url;
 
 use crate::user::{User, UserUsage};
 use crate::{AppConfig, InitAuth, LoginInfo, Walker};
+use strum_macros::{Display, EnumIter};
+
+/// User response for permission confirmation requests
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter)]
+pub enum UserResponse {
+    /// Accept the operation
+    #[strum(to_string = "Accept")]
+    Accept,
+    /// Reject the operation
+    #[strum(to_string = "Reject")]
+    Reject,
+    /// Accept the operation and remember this choice for similar operations
+    #[strum(to_string = "Accept and Remember")]
+    AcceptAndRemember,
+}
 
 #[derive(Debug)]
 pub struct ShellOutput {
@@ -314,6 +329,12 @@ pub trait PolicyLoaderService: Send + Sync {
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String>;
 }
 
+pub trait ConfirmationService: Send + Sync {
+    /// Request user confirmation for an operation
+    /// Returns the user's choice.
+    fn request_user_confirmation(&self) -> UserResponse;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -341,6 +362,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
     type PolicyLoaderService: PolicyLoaderService;
+    type ConfirmationService: ConfirmationService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -365,6 +387,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
     fn policy_loader_service(&self) -> &Self::PolicyLoaderService;
+    fn confirmation_service(&self) -> &Self::ConfirmationService;
 }
 
 #[async_trait::async_trait]
@@ -662,5 +685,11 @@ impl<I: Services> PolicyLoaderService for I {
 
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String> {
         self.policy_loader_service().modify_policy(policy).await
+    }
+}
+
+impl<I: Services> ConfirmationService for I {
+    fn request_user_confirmation(&self) -> UserResponse {
+        self.confirmation_service().request_user_confirmation()
     }
 }

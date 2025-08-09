@@ -6,6 +6,7 @@ use crate::agent_loader::AgentLoaderService as ForgeAgentLoaderService;
 use crate::app_config::ForgeConfigService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
+use crate::confirmation::ForgeConfirmation;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
@@ -60,6 +61,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     provider_service: Arc<ForgeProviderRegistry<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
     policy_loader_service: Arc<ForgePolicyLoader<F>>,
+    confirmation_service: Arc<ForgeConfirmation>,
 }
 
 impl<
@@ -97,6 +99,7 @@ impl<
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         let policy_loader_service = Arc::new(ForgePolicyLoader::new(infra.clone()));
+        let confirmation_service = Arc::new(ForgeConfirmation);
         Self {
             conversation_service,
             attachment_service,
@@ -121,6 +124,7 @@ impl<
             provider_service,
             agent_loader_service,
             policy_loader_service,
+            confirmation_service,
         }
     }
 }
@@ -165,6 +169,7 @@ impl<
     type ProviderRegistry = ForgeProviderRegistry<F>;
     type AgentLoaderService = ForgeAgentLoaderService<F>;
     type PolicyLoaderService = ForgePolicyLoader<F>;
+    type ConfirmationService = ForgeConfirmation;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -255,5 +260,9 @@ impl<
 
     fn policy_loader_service(&self) -> &Self::PolicyLoaderService {
         &self.policy_loader_service
+    }
+
+    fn confirmation_service(&self) -> &Self::ConfirmationService {
+        &self.confirmation_service
     }
 }

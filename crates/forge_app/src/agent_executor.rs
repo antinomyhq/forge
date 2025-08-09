@@ -4,7 +4,6 @@ use convert_case::{Case, Casing};
 use forge_display::TitleFormat;
 use forge_domain::{
     ChatRequest, ChatResponse, Event, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
-    UserResponse,
 };
 use futures::StreamExt;
 use tokio::sync::RwLock;
@@ -41,7 +40,6 @@ impl<S: Services> AgentExecutor<S> {
         agent_id: String,
         task: String,
         context: &mut ToolCallContext,
-        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<ToolOutput> {
         context
             .send_text(
@@ -55,7 +53,6 @@ impl<S: Services> AgentExecutor<S> {
 
         // Create a new conversation for agent execution
         let workflow = self.services.read_merged(None).await?;
-        let workflow_path = self.services.resolve(None).await;
         let conversation =
             ConversationService::create_conversation(self.services.as_ref(), workflow).await?;
 
@@ -65,8 +62,6 @@ impl<S: Services> AgentExecutor<S> {
             .chat(ChatRequest::new(
                 Event::new(format!("{agent_id}/user_task_init"), Some(task)),
                 conversation.id,
-                workflow_path,
-                confirm_fn,
             ))
             .await?;
 

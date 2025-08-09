@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_domain::{
     Agent, ChatCompletionMessage, Context, Conversation, ModelId, ResultStream, ToolCallContext,
-    ToolCallFull, ToolResult, UserResponse,
+    ToolCallFull, ToolResult,
 };
 
 use crate::tool_registry::ToolRegistry;
@@ -28,7 +28,6 @@ pub trait AgentService: Send + Sync + 'static {
         agent: &Agent,
         context: &mut ToolCallContext,
         call: ToolCallFull,
-        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> ToolResult;
 
     /// Render a template with the provided object
@@ -60,10 +59,9 @@ impl<T: Services> AgentService for T {
         agent: &Agent,
         context: &mut ToolCallContext,
         call: ToolCallFull,
-        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> ToolResult {
         let registry = ToolRegistry::new(Arc::new(self.clone()));
-        registry.call(agent, context, call, confirm_fn).await
+        registry.call(agent, context, call).await
     }
 
     async fn render(

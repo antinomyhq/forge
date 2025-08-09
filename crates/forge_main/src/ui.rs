@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, UserResponse, Workflow,
+    InterruptionReason, Model, ModelId, Workflow,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
 use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
@@ -17,7 +17,6 @@ use forge_tracker::ToolCallPayload;
 use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
-use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
@@ -167,25 +166,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.console.prompt(self.state.clone().into()).await
     }
 
-    /// Request user confirmation for an operation
-    /// Returns the user's choice: Accept, Reject, or AcceptAndRemember
-    fn request_user_confirmation() -> UserResponse {
-        let choices: Vec<UserResponse> = UserResponse::iter().collect();
-
-        match ForgeSelect::select(
-            "This operation requires confirmation. How would you like to proceed?",
-            choices,
-        )
-        .with_help_message("Use arrow keys to navigate, Enter to select")
-        .prompt()
-        {
-            Ok(Some(choice)) => choice,
-            Ok(None) | Err(_) => UserResponse::Reject,
-        }
-    }
-
     pub async fn run(&mut self) {
-        match self.inner_run().await {
+        match self.run_inner().await {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
@@ -194,7 +176,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    async fn inner_run(&mut self) -> Result<()> {
+    async fn run_inner(&mut self) -> Result<()> {
         if let Some(mcp) = self.cli.subcommands.clone() {
             return self.handle_subcommands(mcp).await;
         }
@@ -592,19 +574,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Parse the JSON to determine the event name and value
         let event: PartialEvent = serde_json::from_str(&json)?;
 
-        // Get the resolved workflow path
-        let workflow_path = self
-            .api
-            .resolve_workflow_path(self.cli.workflow.clone())
-            .await?;
-
         // Create the chat request with the event
-        let chat = ChatRequest::new(
-            event.into(),
-            conversation_id,
-            workflow_path.join("forge.yaml"),
-            Arc::new(|| Self::request_user_confirmation()),
-        );
+        let chat = ChatRequest::new(event.into(), conversation_id);
 
         self.on_chat(chat).await
     }
@@ -712,19 +683,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.create_task_event(content, EVENT_USER_TASK_UPDATE)?
         };
 
-        // Get the resolved workflow path
-        let workflow_path = self
-            .api
-            .resolve_workflow_path(self.cli.workflow.clone())
-            .await?;
-
         // Create the chat request with the event
-        let chat = ChatRequest::new(
-            event,
-            conversation_id,
-            workflow_path.join("forge.yaml"),
-            Arc::new(|| Self::request_user_confirmation()),
-        );
+        let chat = ChatRequest::new(event, conversation_id);
 
         self.on_chat(chat).await
     }
@@ -890,19 +850,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
-
-        // Get the resolved workflow path
-        let workflow_path = self
-            .api
-            .resolve_workflow_path(self.cli.workflow.clone())
-            .await?;
-
-        let chat = ChatRequest::new(
-            event,
-            conversation_id,
-            workflow_path.join("forge.yaml"),
-            Arc::new(|| Self::request_user_confirmation()),
-        );
+        let chat = ChatRequest::new(event, conversation_id);
         self.on_chat(chat).await
     }
 

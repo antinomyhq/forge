@@ -5,7 +5,7 @@ use anyhow::Context;
 use console::style;
 use forge_domain::{
     Agent, AgentInput, ChatResponse, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
-    ToolOutput, ToolResult, Tools, ToolsDiscriminants, UserResponse,
+    ToolOutput, ToolResult, Tools, ToolsDiscriminants,
 };
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
@@ -55,7 +55,6 @@ impl<S: Services> ToolRegistry<S> {
         agent: &Agent,
         input: ToolCallFull,
         context: &mut ToolCallContext,
-        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<ToolOutput> {
         Self::validate_tool_call(agent, &input.name)?;
 
@@ -64,22 +63,14 @@ impl<S: Services> ToolRegistry<S> {
 
         // First, try to call a Forge tool
         if Tools::contains(&input.name) {
-            self.call_with_timeout(&tool_name, || {
-                self.tool_executor
-                    .execute(input, context, confirm_fn.clone())
-            })
-            .await
+            self.call_with_timeout(&tool_name, || self.tool_executor.execute(input, context))
+                .await
         } else if self.agent_executor.contains_tool(&input.name).await? {
             // Handle agent delegation tool calls
             let agent_input = AgentInput::try_from(&input)?;
             // NOTE: Agents should not timeout
             self.agent_executor
-                .execute(
-                    input.name.to_string(),
-                    agent_input.task,
-                    context,
-                    confirm_fn,
-                )
+                .execute(input.name.to_string(), agent_input.task, context)
                 .await
         } else if self.mcp_executor.contains_tool(&input.name).await? {
             let output = self
@@ -111,11 +102,10 @@ impl<S: Services> ToolRegistry<S> {
         agent: &Agent,
         context: &mut ToolCallContext,
         call: ToolCallFull,
-        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> ToolResult {
         let call_id = call.call_id.clone();
         let tool_name = call.name.clone();
-        let output = self.call_inner(agent, call, context, confirm_fn).await;
+        let output = self.call_inner(agent, call, context).await;
 
         ToolResult::new(tool_name).call_id(call_id).output(output)
     }

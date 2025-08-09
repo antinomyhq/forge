@@ -1,19 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{
-    Permission, PolicyEngine, ToolCallContext, ToolCallFull, ToolOutput, Tools, UserResponse,
-};
+use forge_domain::{Permission, PolicyEngine, ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
 use crate::services::ShellService;
-use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
-    PolicyLoaderService, WorkflowService,
-};
+use crate::{ConfirmationService, ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PolicyLoaderService, UserResponse, WorkflowService};
 
 pub struct ToolExecutor<S> {
     services: Arc<S>,
@@ -32,7 +26,8 @@ impl<
         + ConversationService
         + WorkflowService
         + PolicyLoaderService
-        + EnvironmentService,
+        + EnvironmentService
+        + ConfirmationService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -44,7 +39,6 @@ impl<
         &self,
         operation: &forge_domain::Operation,
         context: &mut ToolCallContext,
-        confirm_fn: &(dyn Fn() -> UserResponse + Send + Sync),
     ) -> anyhow::Result<()> {
         // Load extended policies
         let policies = self.services.load_policies().await.unwrap_or_default();
@@ -69,7 +63,7 @@ impl<
             }
             Permission::Confirm => {
                 // Request user confirmation
-                match confirm_fn() {
+                match self.services.request_user_confirmation() {
                     UserResponse::Accept => {
                         // User accepted the operation, continue
                     }
@@ -100,8 +94,7 @@ impl<
 
             // Notify user about the policy modification
             let content_format = crate::fmt::content::ContentFormat::Markdown(format!(
-                "Policy added:\n\n```yaml\n{}\n```",
-                diff
+                "Policy added:\n\n```yaml\n{diff}\n```"
             ));
             context.send(content_format).await?;
         }
@@ -183,15 +176,13 @@ impl<
         &self,
         input: Tools,
         context: &mut ToolCallContext,
-        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<Operation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
-                    .await?;
+                self.check_operation_permission(&operation, context).await?;
 
                 let output = self
                     .services
@@ -207,8 +198,7 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
-                    .await?;
+                self.check_operation_permission(&operation, context).await?;
 
                 let output = self
                     .services
@@ -225,8 +215,7 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
-                    .await?;
+                self.check_operation_permission(&operation, context).await?;
 
                 let output = self
                     .services
@@ -242,8 +231,7 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
-                    .await?;
+                self.check_operation_permission(&operation, context).await?;
 
                 let _output = self.services.remove(input.path.clone()).await?;
                 input.into()
@@ -252,8 +240,7 @@ impl<
                 // Check policy before performing the operation
                 let operation =
                     forge_domain::Operation::Patch { path: std::path::PathBuf::from(&input.path) };
-                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
-                    .await?;
+                self.check_operation_permission(&operation, context).await?;
 
                 let output = self
                     .services
@@ -274,8 +261,7 @@ impl<
             Tools::ForgeToolProcessShell(input) => {
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::Execute { command: input.command.clone() };
-                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
-                    .await?;
+                self.check_operation_permission(&operation, context).await?;
 
                 let output = self
                     .services
@@ -286,8 +272,7 @@ impl<
             Tools::ForgeToolNetFetch(input) => {
                 // Check policy before performing the operation
                 let operation = forge_domain::Operation::NetFetch { url: input.url.clone() };
-                self.check_operation_permission(&operation, context, confirm_fn.as_ref())
-                    .await?;
+                self.check_operation_permission(&operation, context).await?;
 
                 let output = self.services.fetch(input.url.clone(), input.raw).await?;
                 (input, output).into()
@@ -353,7 +338,6 @@ impl<
         &self,
         input: ToolCallFull,
         context: &mut ToolCallContext,
-        confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
         let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
@@ -364,9 +348,7 @@ impl<
 
         // Send tool call information
 
-        let execution_result = self
-            .call_internal(tool_input.clone(), context, confirm_fn)
-            .await;
+        let execution_result = self.call_internal(tool_input.clone(), context).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
@@ -397,7 +379,7 @@ fn create_policy_for_operation(
             .and_then(|ext| ext.to_str())
             .map(|extension| forge_domain::Policy::Simple {
                 permission: forge_domain::Permission::Allow,
-                rule: rule_constructor(format!("*.{}", extension)),
+                rule: rule_constructor(format!("*.{extension}")),
             })
     }
 
@@ -418,7 +400,7 @@ fn create_policy_for_operation(
                     .map(|host| forge_domain::Policy::Simple {
                         permission: forge_domain::Permission::Allow,
                         rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
-                            url_pattern: format!("{}*", host),
+                            url_pattern: format!("{host}*"),
                         }),
                     })
             } else {
@@ -437,13 +419,13 @@ fn create_policy_for_operation(
                 [cmd] => Some(forge_domain::Policy::Simple {
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
-                        command_pattern: format!("{}*", cmd),
+                        command_pattern: format!("{cmd}*"),
                     }),
                 }),
                 [cmd, subcmd, ..] => Some(forge_domain::Policy::Simple {
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
-                        command_pattern: format!("{} {}*", cmd, subcmd),
+                        command_pattern: format!("{cmd} {subcmd}*"),
                     }),
                 }),
             }

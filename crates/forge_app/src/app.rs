@@ -104,7 +104,6 @@ impl<S: Services> ForgeApp<S> {
             environment.clone(),
             conversation,
             Local::now(),
-            chat.confirm_fn.clone(),
         )
         .tool_definitions(tool_definitions)
         .models(models)

@@ -19,6 +19,7 @@ mod template;
 mod tool_services;
 mod utils;
 mod workflow;
+mod confirmation;
 
 pub use agent_loader::*;
 pub use clipper::*;

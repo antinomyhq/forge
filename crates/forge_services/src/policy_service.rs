@@ -54,8 +54,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
 
         let content = self.infra.read_utf8(&policies_path).await?;
 
-        Ok(parse_policy_file(&content)
-            .with_context(|| format!("Failed to parse policy {}", policies_path.display()))?)
+        parse_policy_file(&content)
+            .with_context(|| format!("Failed to parse policy {}", policies_path.display()))
     }
     /// Add or modify a policy in the policies file and return a diff of the
     /// changes

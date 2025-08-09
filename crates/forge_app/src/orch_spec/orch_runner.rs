@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::Local;
@@ -7,7 +7,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
     ConversationId, Environment, Event, HttpConfig, ModelId, RetryConfig, Role, Template,
-    ToolCallFull, ToolResult, UserResponse, Workflow,
+    ToolCallFull, ToolResult, Workflow,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -79,9 +79,8 @@ impl AgentService for Runner {
         &self,
         _agent: &forge_domain::Agent,
         _context: &mut forge_domain::ToolCallContext,
-        test_call: ToolCallFull,
-        _confirm_fn: Arc<dyn Fn() -> UserResponse + Send + Sync>,
-    ) -> ToolResult {
+        test_call: forge_domain::ToolCallFull,
+    ) -> forge_domain::ToolResult {
         let mut guard = self.test_tool_calls.lock().await;
         for (id, (call, result)) in guard.iter().enumerate() {
             if call.call_id == test_call.call_id {
@@ -119,17 +118,10 @@ fn new_orchestrator(
         Default::default(),
     );
     let current_time = Local::now();
-    let confirm_fn = Arc::new(|| UserResponse::Accept);
 
-    let orch = Orchestrator::new(
-        services.clone(),
-        environment,
-        conversation,
-        current_time,
-        confirm_fn,
-    )
-    .sender(Arc::new(tx))
-    .files(setup.files.clone());
+    let orch = Orchestrator::new(services.clone(), environment, conversation, current_time)
+        .sender(Arc::new(tx))
+        .files(setup.files.clone());
 
     // Return setup
     (orch, services)
