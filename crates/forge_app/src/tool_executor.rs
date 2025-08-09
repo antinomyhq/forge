@@ -193,6 +193,9 @@ impl<
             Tools::ForgeToolAttemptCompletion(_input) => {
                 crate::operation::Operation::AttemptCompletion
             }
+            Tools::ForgeToolPartialCompletion(_input) => {
+                crate::operation::Operation::PartialCompletion
+            }
             Tools::ForgeToolTaskListAppend(input) => {
                 let before = tasks.clone();
                 tasks.append(&input.task);
@@ -226,7 +229,7 @@ impl<
     pub async fn execute(
         &self,
         input: ToolCallFull,
-        context: &mut ToolCallContext,
+        context: &mut ToolCallContext<'_>,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
         let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
@@ -253,6 +256,13 @@ impl<
 
         let truncation_path = self.dump_operation(&operation).await?;
 
-        Ok(operation.into_tool_output(tool_name, truncation_path, &env))
+        Ok(
+            operation.into_tool_output(
+                tool_name,
+                truncation_path,
+                &env,
+                Some(&mut context.metrics),
+            ),
+        )
     }
 }

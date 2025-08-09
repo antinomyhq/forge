@@ -10,7 +10,7 @@ use forge_api::{
     InterruptionReason, Model, ModelId, Workflow,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
+use forge_domain::{McpConfig, McpServerConfig, Provider, Scope, SessionSummary};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -826,6 +826,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln(content.dimmed())?;
                 }
             }
+            ChatResponse::ChatComplete(summary) => {
+                self.on_completion(summary).await?;
+            }
         }
         Ok(())
     }
@@ -838,6 +841,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
             Box::pin(self.on_message(None)).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn on_completion(&mut self, summary: Option<SessionSummary>) -> anyhow::Result<()> {
+        self.spinner.stop(None)?;
+
+        let should_start_new_chat = ForgeSelect::confirm("Do you want to start a new chat?")
+            .with_default(true)
+            .prompt()?;
+
+        // if conversation is over
+        if should_start_new_chat.unwrap_or(false) {
+            // Show usage info
+            self.writeln(Info::from(&self.state))?;
+
+            // Show summary
+            if let Some(s) = summary {
+                self.writeln(s)?;
+            }
+            self.on_new().await?;
         }
 
         Ok(())

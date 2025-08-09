@@ -5,7 +5,7 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, NetFetch, TaskList,
+    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, Metrics, NetFetch, TaskList,
     TaskListAppend, TaskListAppendMultiple, TaskListClear, TaskListList, TaskListUpdate, ToolName,
 };
 use forge_template::Element;
@@ -27,8 +27,17 @@ struct FileOperationStats {
     lines_removed: u64,
 }
 
-fn file_change_stats(operation: FileOperationStats) {
+fn file_change_stats(operation: FileOperationStats, metrics: Option<&mut Metrics>) {
     tracing::info!(path = %operation.path, type = %operation.tool_name, lines_added = %operation.lines_added, lines_removed = %operation.lines_removed, "File change stats");
+
+    // Record metrics if available
+    if let Some(metrics) = metrics {
+        metrics.record_file_operation(
+            operation.path,
+            operation.lines_added,
+            operation.lines_removed,
+        );
+    }
 }
 
 #[derive(Debug, Default, Setters)]
@@ -74,6 +83,7 @@ pub enum Operation {
         output: Option<String>,
     },
     AttemptCompletion,
+    PartialCompletion,
     TaskListAppend {
         _input: TaskListAppend,
         before: TaskList,
@@ -215,6 +225,7 @@ impl Operation {
         tool_name: ToolName,
         content_files: TempContentFiles,
         env: &Environment,
+        metrics: Option<&mut Metrics>,
     ) -> forge_domain::ToolOutput {
         match self {
             Operation::FsRead { input, output } => match &output.content {
@@ -236,12 +247,15 @@ impl Operation {
                     let diff_result = DiffFormat::format(before, &input.content);
                     let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
                     // Log file change stats
-                    file_change_stats(FileOperationStats {
-                        path: input.path.clone(),
-                        tool_name,
-                        lines_added: diff_result.lines_added(),
-                        lines_removed: diff_result.lines_removed(),
-                    });
+                    file_change_stats(
+                        FileOperationStats {
+                            path: input.path.clone(),
+                            tool_name,
+                            lines_added: diff_result.lines_added(),
+                            lines_removed: diff_result.lines_removed(),
+                        },
+                        metrics,
+                    );
 
                     Element::new("file_overwritten").append(Element::new("file_diff").cdata(diff))
                 } else {
@@ -265,6 +279,7 @@ impl Operation {
                     .attr("status", "completed");
                 forge_domain::ToolOutput::text(elem)
             }
+
             Operation::FsSearch { input, output } => match output {
                 Some(out) => {
                     let max_lines = min(
@@ -339,12 +354,15 @@ impl Operation {
                     elm = elm.append(Element::new("warning").text(warning));
                 }
 
-                file_change_stats(FileOperationStats {
-                    path: input.path,
-                    tool_name,
-                    lines_added: diff_result.lines_added(),
-                    lines_removed: diff_result.lines_removed(),
-                });
+                file_change_stats(
+                    FileOperationStats {
+                        path: input.path.clone(),
+                        tool_name,
+                        lines_added: diff_result.lines_added(),
+                        lines_removed: diff_result.lines_removed(),
+                    },
+                    metrics,
+                );
 
                 forge_domain::ToolOutput::text(elm)
             }
@@ -374,12 +392,15 @@ impl Operation {
                     }
                     (Some(after), Some(before)) => {
                         let diff = DiffFormat::format(before, after);
-                        file_change_stats(FileOperationStats {
-                            path: input.path.clone(),
-                            tool_name,
-                            lines_added: diff.lines_added(),
-                            lines_removed: diff.lines_removed(),
-                        });
+                        file_change_stats(
+                            FileOperationStats {
+                                path: input.path.clone(),
+                                tool_name,
+                                lines_added: diff.lines_added(),
+                                lines_removed: diff.lines_removed(),
+                            },
+                            metrics,
+                        );
 
                         let elm = Element::new("file_undo")
                             .attr("path", input.path)
@@ -465,6 +486,11 @@ impl Operation {
                 Element::new("success")
                     .text("[Task was completed successfully. Now wait for user feedback]"),
             ),
+            Operation::PartialCompletion => {
+                forge_domain::ToolOutput::text(Element::new("partial_success").text(
+                    "[Task was partially completed. Waiting for further instructions or feedback]",
+                ))
+            }
             Operation::TaskListAppend { _input: _, before: _, after }
             | Operation::TaskListAppendMultiple { _input: _, before: _, after }
             | Operation::TaskListUpdate { _input: _, before: _, after }
@@ -572,6 +598,7 @@ mod tests {
             ToolName::new("forge_tool_fs_read"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -600,6 +627,7 @@ mod tests {
             ToolName::new("forge_tool_fs_read"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -628,6 +656,7 @@ mod tests {
             ToolName::new("forge_tool_fs_read"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -654,8 +683,12 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/truncated_content.txt"));
 
-        let actual =
-            fixture.into_tool_output(ToolName::new("forge_tool_fs_read"), truncation_path, &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_read"),
+            truncation_path,
+            &env,
+            None,
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -682,6 +715,7 @@ mod tests {
             ToolName::new("forge_tool_fs_create"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -708,6 +742,7 @@ mod tests {
             ToolName::new("forge_tool_fs_create"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -732,6 +767,7 @@ mod tests {
             ToolName::new("forge_tool_fs_create"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -765,6 +801,7 @@ mod tests {
             ToolName::new("forge_tool_process_shell"),
             truncation_path,
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -798,6 +835,7 @@ mod tests {
             ToolName::new("forge_tool_process_shell"),
             truncation_path,
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -838,6 +876,7 @@ mod tests {
             ToolName::new("forge_tool_process_shell"),
             truncation_path,
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -869,6 +908,7 @@ mod tests {
             ToolName::new("forge_tool_process_shell"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -893,6 +933,7 @@ mod tests {
             ToolName::new("forge_tool_process_shell"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -917,6 +958,7 @@ mod tests {
             ToolName::new("forge_tool_process_shell"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -957,6 +999,7 @@ mod tests {
             ToolName::new("forge_tool_process_shell"),
             truncation_path,
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -995,6 +1038,7 @@ mod tests {
             ToolName::new("forge_tool_fs_search"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1035,6 +1079,7 @@ mod tests {
             ToolName::new("forge_tool_fs_search"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1077,6 +1122,7 @@ mod tests {
             ToolName::new("forge_tool_fs_search"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1122,6 +1168,7 @@ mod tests {
             ToolName::new("forge_tool_fs_search"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1147,6 +1194,7 @@ mod tests {
             ToolName::new("forge_tool_fs_search"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1167,6 +1215,7 @@ mod tests {
             ToolName::new("forge_tool_task_list_list"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1191,6 +1240,7 @@ mod tests {
             ToolName::new("forge_tool_task_list_list"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1223,6 +1273,7 @@ mod tests {
             ToolName::new("forge_tool_task_list_list"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1258,6 +1309,7 @@ mod tests {
             ToolName::new("forge_tool_task_list_list"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1286,6 +1338,7 @@ mod tests {
             ToolName::new("forge_tool_task_list_append"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1316,6 +1369,7 @@ mod tests {
             ToolName::new("forge_tool_task_list_update"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1351,6 +1405,7 @@ mod tests {
             ToolName::new("forge_tool_task_list_list"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1378,6 +1433,7 @@ mod tests {
             ToolName::new("forge_tool_fs_create"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1398,6 +1454,7 @@ mod tests {
             ToolName::new("forge_tool_fs_remove"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1440,6 +1497,7 @@ mod tests {
             ToolName::new("forge_tool_fs_search"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1465,6 +1523,7 @@ mod tests {
             ToolName::new("forge_tool_fs_search"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1493,6 +1552,7 @@ mod tests {
             ToolName::new("forge_tool_fs_patch"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1521,6 +1581,7 @@ mod tests {
             ToolName::new("forge_tool_fs_patch"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1542,6 +1603,7 @@ mod tests {
             ToolName::new("forge_tool_fs_undo"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1566,6 +1628,7 @@ mod tests {
             ToolName::new("forge_tool_fs_undo"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1592,6 +1655,7 @@ mod tests {
             ToolName::new("forge_tool_fs_undo"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1616,6 +1680,7 @@ mod tests {
             ToolName::new("forge_tool_fs_undo"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1640,6 +1705,7 @@ mod tests {
             ToolName::new("forge_tool_fs_undo"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1667,6 +1733,7 @@ mod tests {
             ToolName::new("forge_tool_net_fetch"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1698,8 +1765,12 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/forge_fetch_abc123.txt"));
 
-        let actual =
-            fixture.into_tool_output(ToolName::new("forge_tool_net_fetch"), truncation_path, &env);
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_net_fetch"),
+            truncation_path,
+            &env,
+            None,
+        );
 
         // make sure that the content is truncated
         assert!(
@@ -1734,6 +1805,7 @@ mod tests {
             ToolName::new("forge_tool_process_shell"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1749,6 +1821,7 @@ mod tests {
             ToolName::new("forge_tool_attempt_completion"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1766,6 +1839,7 @@ mod tests {
             ToolName::new("forge_tool_followup"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1781,6 +1855,7 @@ mod tests {
             ToolName::new("forge_tool_followup"),
             TempContentFiles::default(),
             &env,
+            None,
         );
 
         insta::assert_snapshot!(to_value(actual));

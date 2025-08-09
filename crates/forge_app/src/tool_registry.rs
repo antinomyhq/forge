@@ -54,7 +54,7 @@ impl<S: Services> ToolRegistry<S> {
         &self,
         agent: &Agent,
         input: ToolCallFull,
-        context: &mut ToolCallContext,
+        context: &mut ToolCallContext<'_>,
     ) -> anyhow::Result<ToolOutput> {
         Self::validate_tool_call(agent, &input.name)?;
 
@@ -100,7 +100,7 @@ impl<S: Services> ToolRegistry<S> {
     pub async fn call(
         &self,
         agent: &Agent,
-        context: &mut ToolCallContext,
+        context: &mut ToolCallContext<'_>,
         call: ToolCallFull,
     ) -> ToolResult {
         let call_id = call.call_id.clone();
@@ -139,6 +139,7 @@ impl<S> ToolRegistry<S> {
 
         if !agent_tools.contains(&tool_name.as_str())
             && *tool_name != ToolsDiscriminants::ForgeToolAttemptCompletion.name()
+            && *tool_name != ToolsDiscriminants::ForgeToolPartialCompletion.name()
         {
             tracing::error!(tool_name = %tool_name, "No tool with name");
 

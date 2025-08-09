@@ -134,7 +134,7 @@ impl<T: HttpClientService> OpenAIProvider<T> {
         self.inner_models().await
     }
 }
-
+use tracing::warn;
 impl From<Model> for forge_app::domain::Model {
     fn from(value: Model) -> Self {
         let tools_supported = value
@@ -142,6 +142,7 @@ impl From<Model> for forge_app::domain::Model {
             .iter()
             .flatten()
             .any(|param| param == "tools");
+        warn!("sort {tools_supported}");
         let supports_parallel_tool_calls = value
             .supported_parameters
             .iter()

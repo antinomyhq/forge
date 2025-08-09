@@ -54,16 +54,18 @@ impl<S: AgentService> Orchestrator<S> {
 
     // Helper function to get all tool results from a vector of tool calls
     #[async_recursion]
-    async fn execute_tool_calls(
+    async fn execute_tool_calls<'a>(
         &self,
         agent: &Agent,
         tool_calls: &[ToolCallFull],
-        tool_context: &mut ToolCallContext,
+        tool_context: &mut ToolCallContext<'a>,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
+        // get tiemout from env
         for tool_call in tool_calls {
+            info!(agent_id = %agent.id, tool_name = %tool_call.name, "Executing tool");
             // Send the start notification
             self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                 .await?;
@@ -366,6 +368,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Indicates whether the tool execution has been completed
         let mut is_complete = false;
+        let mut has_attempted_completion = false;
 
         let mut empty_tool_call_count = 0;
         let mut request_count = 0;
@@ -373,10 +376,14 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.conversation.max_requests_per_turn;
 
+        let mut metrics = self.conversation.metrics.clone();
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
 
         while !is_complete {
+            let mut tool_context =
+                ToolCallContext::new(self.conversation.tasks.clone(), &mut metrics)
+                    .sender(self.sender.clone());
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
@@ -445,7 +452,11 @@ impl<S: AgentService> Orchestrator<S> {
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
-            is_complete = tool_calls.iter().any(|call| Tools::is_complete(&call.name));
+            has_attempted_completion = tool_calls.iter().any(|call| Tools::is_complete(&call.name));
+
+            is_complete = tool_calls
+                .iter()
+                .any(|call| Tools::should_yeild(&call.name));
 
             if !is_complete && has_tool_calls {
                 // If task is completed we would have already displayed a message so we can
@@ -469,9 +480,6 @@ impl<S: AgentService> Orchestrator<S> {
                 self.send(ChatResponse::Reasoning { content: reasoning.to_string() })
                     .await?;
             }
-
-            let mut tool_context =
-                ToolCallContext::new(self.conversation.tasks.clone()).sender(self.sender.clone());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
@@ -583,7 +591,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Update context in the conversation
             context = SetModel::new(model_id.clone()).transform(context);
-            self.conversation.tasks = tool_context.tasks;
+            self.conversation.tasks = tool_context.tasks.clone();
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
@@ -613,6 +621,13 @@ impl<S: AgentService> Orchestrator<S> {
             // Update if turn has tool calls
             turn_has_tool_calls = turn_has_tool_calls || has_tool_calls;
         }
+
+        if has_attempted_completion {
+            let summary = SessionSummary::from(&metrics);
+            self.send(ChatResponse::ChatComplete(Some(summary))).await?;
+        }
+
+        self.conversation.metrics = metrics;
 
         Ok(())
     }
