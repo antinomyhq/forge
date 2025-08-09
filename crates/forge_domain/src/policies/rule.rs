@@ -10,6 +10,7 @@ use super::operation::Operation;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct WriteRule {
     pub write_pattern: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
 
@@ -17,6 +18,7 @@ pub struct WriteRule {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct ReadRule {
     pub read_pattern: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
 
@@ -24,6 +26,7 @@ pub struct ReadRule {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct PatchRule {
     pub patch_pattern: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
 
@@ -31,6 +34,7 @@ pub struct PatchRule {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct ExecuteRule {
     pub command_pattern: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
 
@@ -38,6 +42,7 @@ pub struct ExecuteRule {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct NetFetchRule {
     pub url_pattern: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
 
