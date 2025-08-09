@@ -3,6 +3,7 @@ mod app_config;
 mod attachment;
 mod auth;
 mod clipper;
+mod confirmation;
 mod conversation;
 mod discovery;
 mod env;
@@ -19,7 +20,6 @@ mod template;
 mod tool_services;
 mod utils;
 mod workflow;
-mod confirmation;
 
 pub use agent_loader::*;
 pub use clipper::*;

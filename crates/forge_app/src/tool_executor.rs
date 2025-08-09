@@ -7,7 +7,11 @@ use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
 use crate::services::ShellService;
-use crate::{ConfirmationService, ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService, PolicyLoaderService, UserResponse, WorkflowService};
+use crate::{
+    ConfirmationService, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    NetFetchService, PolicyLoaderService, UserResponse, WorkflowService,
+};
 
 pub struct ToolExecutor<S> {
     services: Arc<S>,

@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use super::operation::Operation;
 use super::policy::Policy;
-use super::rule::{ExecuteRule, NetFetchRule, ReadRule};
 use super::types::{Permission, Trace};
 use crate::Rule;
 
@@ -24,34 +23,11 @@ impl Policies {
     }
 
     /// Create a policies collection with sensible defaults
+    /// Loads from default_policies.yml for easier debugging and maintenance
     pub fn with_defaults() -> Self {
-        let mut policies = Self::new();
-
-        // Allow reading all files
-        policies = policies.add_policy(Policy::Simple {
-            permission: Permission::Allow,
-            rule: Rule::Read(ReadRule { read_pattern: "**/*".to_string() }),
-        });
-
-        // Allow all network fetch operations
-        policies = policies.add_policy(Policy::Simple {
-            permission: Permission::Allow,
-            rule: Rule::NetFetch(NetFetchRule { url_pattern: "*".to_string() }),
-        });
-
-        // Allow common shell commands
-        let common_commands = [
-            "ls*", "cat*", "grep*", "find*", "head*", "tail*", "wc*", "sort*", "uniq*", "awk*",
-            "sed*",
-        ];
-        for command in common_commands {
-            policies = policies.add_policy(Policy::Simple {
-                permission: Permission::Allow,
-                rule: Rule::Execute(ExecuteRule { command_pattern: command.to_string() }),
-            });
-        }
-
-        policies
+        let yaml_content = include_str!("./default_policies.yml");
+        serde_yml::from_str(yaml_content)
+            .expect("Failed to parse default policies YAML. This should never happen as the YAML is embedded.")
     }
 
     /// Add a policy to the collection
@@ -93,7 +69,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{Operation, Permission, Policy, Rule, WriteRule};
+    use crate::{
+        ExecuteRule, NetFetchRule, Operation, Permission, Policy, ReadRule, Rule, WriteRule,
+    };
 
     fn fixture_write_operation() -> Operation {
         Operation::Write { path: PathBuf::from("src/main.rs") }

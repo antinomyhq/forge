@@ -5,6 +5,6 @@ policies:
   - permission: confirm
     rule:
       write_pattern: "src/**/*"
-  - permission: disallow
+  - permission: deny
     rule:
       command_pattern: "rm -rf /*"

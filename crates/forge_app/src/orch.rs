@@ -71,11 +71,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Execute the tool
             let tool_result = self
                 .services
-                .call(
-                    agent,
-                    tool_context,
-                    tool_call.clone(),
-                )
+                .call(agent, tool_context, tool_call.clone())
                 .await;
 
             if tool_result.is_error() {

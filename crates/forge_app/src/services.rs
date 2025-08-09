@@ -10,11 +10,11 @@ use merge::Merge;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
+use strum_macros::{Display, EnumIter};
 use url::Url;
 
 use crate::user::{User, UserUsage};
 use crate::{AppConfig, InitAuth, LoginInfo, Walker};
-use strum_macros::{Display, EnumIter};
 
 /// User response for permission confirmation requests
 #[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter)]

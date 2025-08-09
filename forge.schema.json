@@ -81,14 +81,6 @@
         "null"
       ]
     },
-    "policies": {
-      "description": "Set of policies to evaluate",
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/Policy"
-      },
-      "uniqueItems": true
-    },
     "temperature": {
       "description": "Temperature used for all agents\n\nTemperature controls the randomness in the model's output. - Lower values (e.g., 0.1) make responses more focused, deterministic, and coherent - Higher values (e.g., 0.8) make responses more creative, diverse, and exploratory - Valid range is 0.0 to 2.0 - If not specified, each agent's individual setting or the model provider's default will be used",
       "anyOf": [
@@ -434,148 +426,11 @@
         "low"
       ]
     },
-    "ExecuteRule": {
-      "description": "Rule for execute operations with a command pattern",
-      "type": "object",
-      "required": [
-        "command_pattern"
-      ],
-      "properties": {
-        "command_pattern": {
-          "type": "string"
-        }
-      }
-    },
     "MaxTokens": {
       "description": "A newtype for max_tokens values with built-in validation\n\nMax tokens controls the maximum number of tokens the model can generate: - Lower values (e.g., 100) limit response length for concise outputs - Higher values (e.g., 4000) allow for longer, more detailed responses - Valid range is 1 to 100,000 (reasonable upper bound for most models) - If not specified, the model provider's default will be used",
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
-    },
-    "NetFetchRule": {
-      "description": "Rule for network fetch operations with a URL pattern",
-      "type": "object",
-      "required": [
-        "url_pattern"
-      ],
-      "properties": {
-        "url_pattern": {
-          "type": "string"
-        }
-      }
-    },
-    "PatchRule": {
-      "description": "Rule for patch operations with a glob pattern",
-      "type": "object",
-      "required": [
-        "patch_pattern"
-      ],
-      "properties": {
-        "patch_pattern": {
-          "type": "string"
-        }
-      }
-    },
-    "Permission": {
-      "description": "Permission types that can be applied to operations",
-      "oneOf": [
-        {
-          "description": "Allow the operation without asking",
-          "type": "string",
-          "enum": [
-            "allow"
-          ]
-        },
-        {
-          "description": "Disallow the operation without asking",
-          "type": "string",
-          "enum": [
-            "disallow"
-          ]
-        },
-        {
-          "description": "Confirm with the user before allowing",
-          "type": "string",
-          "enum": [
-            "confirm"
-          ]
-        }
-      ]
-    },
-    "Policy": {
-      "description": "Policy definitions with logical operators",
-      "anyOf": [
-        {
-          "description": "Simple policy with permission and rule",
-          "type": "object",
-          "required": [
-            "permission",
-            "rule"
-          ],
-          "properties": {
-            "permission": {
-              "$ref": "#/definitions/Permission"
-            },
-            "rule": {
-              "$ref": "#/definitions/Rule"
-            }
-          }
-        },
-        {
-          "description": "Logical AND of two policies",
-          "type": "object",
-          "required": [
-            "and"
-          ],
-          "properties": {
-            "and": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/Policy"
-              }
-            }
-          }
-        },
-        {
-          "description": "Logical OR of two policies",
-          "type": "object",
-          "required": [
-            "or"
-          ],
-          "properties": {
-            "or": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/Policy"
-              }
-            }
-          }
-        },
-        {
-          "description": "Logical NOT of a policy",
-          "type": "object",
-          "required": [
-            "not"
-          ],
-          "properties": {
-            "not": {
-              "$ref": "#/definitions/Policy"
-            }
-          }
-        }
-      ]
-    },
-    "ReadRule": {
-      "description": "Rule for read operations with a glob pattern",
-      "type": "object",
-      "required": [
-        "read_pattern"
-      ],
-      "properties": {
-        "read_pattern": {
-          "type": "string"
-        }
-      }
     },
     "ReasoningConfig": {
       "type": "object",
@@ -615,51 +470,6 @@
           "minimum": 0.0
         }
       }
-    },
-    "Rule": {
-      "description": "Rules that define what operations are covered by a policy",
-      "anyOf": [
-        {
-          "description": "Rule for write operations with a glob pattern",
-          "allOf": [
-            {
-              "$ref": "#/definitions/WriteRule"
-            }
-          ]
-        },
-        {
-          "description": "Rule for read operations with a glob pattern",
-          "allOf": [
-            {
-              "$ref": "#/definitions/ReadRule"
-            }
-          ]
-        },
-        {
-          "description": "Rule for patch operations with a glob pattern",
-          "allOf": [
-            {
-              "$ref": "#/definitions/PatchRule"
-            }
-          ]
-        },
-        {
-          "description": "Rule for execute operations with a command pattern",
-          "allOf": [
-            {
-              "$ref": "#/definitions/ExecuteRule"
-            }
-          ]
-        },
-        {
-          "description": "Rule for network fetch operations with a URL pattern",
-          "allOf": [
-            {
-              "$ref": "#/definitions/NetFetchRule"
-            }
-          ]
-        }
-      ]
     },
     "String": {
       "type": "string"
@@ -708,18 +518,6 @@
         "weekly",
         "always"
       ]
-    },
-    "WriteRule": {
-      "description": "Rule for write operations with a glob pattern",
-      "type": "object",
-      "required": [
-        "write_pattern"
-      ],
-      "properties": {
-        "write_pattern": {
-          "type": "string"
-        }
-      }
     }
   }
 }
