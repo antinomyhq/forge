@@ -1,6 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use chrono::Local;
 use derive_setters::Setters;
@@ -78,6 +79,7 @@ impl AgentService for Runner {
     async fn call(
         &self,
         _agent: &forge_domain::Agent,
+        _timeout: Duration,
         _context: &mut forge_domain::ToolCallContext,
         test_call: forge_domain::ToolCallFull,
     ) -> forge_domain::ToolResult {
@@ -141,6 +143,7 @@ fn new_env() -> Environment {
         fetch_truncation_limit: 1024,
         stdout_max_prefix_length: 256,
         stdout_max_suffix_length: 256,
+        tool_timeout: 300,
         max_read_size: 4096,
         http: HttpConfig::default(),
         max_file_size: 1024 * 1024 * 5,

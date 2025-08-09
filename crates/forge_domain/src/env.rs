@@ -50,6 +50,9 @@ pub struct Environment {
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
     pub max_file_size: u64,
+    /// Maximum execution time in seconds for a single tool call.
+    /// Controls how long a tool can run before being terminated.
+    pub tool_timeout: u64,
 }
 
 impl Environment {

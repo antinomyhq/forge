@@ -63,6 +63,8 @@ impl<S: AgentService> Orchestrator<S> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
+        let tool_timeout = Duration::from_secs(self.environment.tool_timeout);
+
         for tool_call in tool_calls {
             // Send the start notification
             self.send(ChatResponse::ToolCallStart(tool_call.clone()))
@@ -71,7 +73,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Execute the tool
             let tool_result = self
                 .services
-                .call(agent, tool_context, tool_call.clone())
+                .call(agent, tool_timeout, tool_context, tool_call.clone())
                 .await;
 
             if tool_result.is_error() {

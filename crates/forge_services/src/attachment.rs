@@ -122,6 +122,7 @@ pub mod tests {
                 stdout_max_suffix_length: 0,
                 stdout_max_line_length: 2000,
                 max_read_size: 2000,
+                tool_timeout: 2,
                 http: Default::default(),
                 max_file_size: 10_000_000,
                 forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
