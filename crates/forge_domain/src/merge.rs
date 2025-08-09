@@ -8,6 +8,7 @@ pub mod std {
 }
 
 pub mod vec {
+
     use std::collections::HashMap;
 
     use merge::Merge;
