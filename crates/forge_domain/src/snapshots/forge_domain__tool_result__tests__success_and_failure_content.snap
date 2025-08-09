@@ -2,7 +2,7 @@
 source: crates/forge_domain/src/tool_result.rs
 expression: failure.output.as_str().unwrap()
 ---
-<error>
+<tool_call_error>
 <cause><![CDATA[error 3
 
 Caused by:
@@ -14,4 +14,4 @@ Caused by:
 3. Make the correct tool call as it should have been made.
 
 Do NOT skip this reflection.</reflection>
-</error>
+</tool_call_error>

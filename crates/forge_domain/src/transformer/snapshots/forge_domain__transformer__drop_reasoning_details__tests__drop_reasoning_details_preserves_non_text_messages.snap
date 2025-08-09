@@ -8,8 +8,6 @@ before:
     - text:
         role: User
         content: User with reasoning
-        tool_calls: ~
-        model: ~
         reasoning_details:
           - text: User reasoning
             signature: ~
@@ -23,14 +21,13 @@ before:
           is_error: false
           values:
             - text: Tool output
+  reasoning:
+    enabled: true
 after:
   messages:
     - text:
         role: User
         content: User with reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - image:
         url: "data:image/png;base64,image_data"
         mime_type: image/png

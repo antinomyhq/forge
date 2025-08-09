@@ -12,6 +12,9 @@ impl Transformer for DropReasoningDetails {
             }
         });
 
+        // Drop reasoning configuration
+        context.reasoning = None;
+
         context
     }
 }
@@ -23,8 +26,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        ContextMessage, ReasoningFull, Role, TextMessage, ToolCallId, ToolName, ToolOutput,
-        ToolResult,
+        ContextMessage, ReasoningConfig, ReasoningFull, Role, TextMessage, ToolCallId, ToolName,
+        ToolOutput, ToolResult,
     };
 
     #[derive(Serialize)]
@@ -151,6 +154,7 @@ mod tests {
             vec![ReasoningFull { text: Some("User reasoning".to_string()), signature: None }];
 
         let fixture = Context::default()
+            .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::User,
                 content: "User with reasoning".to_string(),

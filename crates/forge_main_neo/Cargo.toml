@@ -13,8 +13,7 @@ derive_more.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
-# FIXME: add to workspace dependency
-tokio-util = "0.7"
+tokio-util.workspace = true
 forge_display.workspace = true
 chrono.workspace = true
 derive_setters.workspace = true

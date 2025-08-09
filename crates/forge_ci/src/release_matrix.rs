@@ -23,14 +23,14 @@ impl Default for ReleaseMatrix {
                 target: "x86_64-unknown-linux-musl",
                 binary_name: "forge-x86_64-unknown-linux-musl",
                 binary_path: "target/x86_64-unknown-linux-musl/release/forge",
-                cross: "false",
+                cross: "true",
             },
             MatrixEntry {
                 os: "ubuntu-latest",
                 target: "aarch64-unknown-linux-musl",
                 binary_name: "forge-aarch64-unknown-linux-musl",
                 binary_path: "target/aarch64-unknown-linux-musl/release/forge",
-                cross: "false",
+                cross: "true",
             },
             MatrixEntry {
                 os: "ubuntu-latest",

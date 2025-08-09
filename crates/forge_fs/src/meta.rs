@@ -2,9 +2,15 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
+use crate::is_binary;
+
 impl crate::ForgeFS {
     pub fn exists<T: AsRef<Path>>(path: T) -> bool {
         path.as_ref().exists()
+    }
+
+    pub async fn is_binary_file<T: AsRef<Path>>(path: T) -> anyhow::Result<bool> {
+        is_binary(path).await
     }
 
     pub fn is_file<T: AsRef<Path>>(path: T) -> bool {

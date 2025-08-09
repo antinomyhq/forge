@@ -43,7 +43,8 @@ impl CompactionStrategy {
             CompactionStrategy::Evict(percentage) => {
                 let percentage = percentage.min(1.0);
                 let total_tokens = context.token_count();
-                let mut eviction_budget: usize = (percentage * total_tokens as f64).ceil() as usize;
+                let mut eviction_budget: usize =
+                    (percentage * (*total_tokens) as f64).ceil() as usize;
 
                 let range = context
                     .messages
@@ -52,7 +53,7 @@ impl CompactionStrategy {
                     // Skip system message
                     .filter(|m| !m.1.has_role(Role::System))
                     .find(|(_, m)| {
-                        eviction_budget = eviction_budget.saturating_sub(m.token_count());
+                        eviction_budget = eviction_budget.saturating_sub(m.token_count_approx());
                         eviction_budget == 0
                     });
 

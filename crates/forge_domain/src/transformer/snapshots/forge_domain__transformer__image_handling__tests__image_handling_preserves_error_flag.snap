@@ -28,9 +28,6 @@ after:
     - text:
         role: User
         content: "[Here is the image attachment for ID 0]"
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - image:
         url: "data:image/png;base64,error_image_data"
         mime_type: image/png

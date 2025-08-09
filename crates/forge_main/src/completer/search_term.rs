@@ -38,11 +38,6 @@ impl SearchTerm {
         let start_pos = at_pos + 1;
         let term = &self.line[start_pos..safe_position];
 
-        // Reject terms containing spaces
-        if term.contains(' ') {
-            return None;
-        }
-
         Some(TermResult { span: Span::new(start_pos, safe_position), term })
     }
 }

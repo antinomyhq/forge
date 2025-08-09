@@ -1,6 +1,7 @@
 use std::pin::Pin;
 
 use derive_more::From;
+use forge_json_repair::JsonRepairError;
 use thiserror::Error;
 
 use crate::{AgentId, ConversationId};
@@ -20,7 +21,7 @@ pub enum Error {
     #[error("JSON deserialization error: {error}")]
     #[from(skip)]
     ToolCallArgument {
-        error: serde_json::Error,
+        error: JsonRepairError,
         args: String,
     },
 
@@ -86,6 +87,7 @@ impl std::fmt::Display for ToolCallArgumentError {
 
 #[cfg(test)]
 mod test {
+    use forge_json_repair::JsonRepairError;
     use serde_json::Value;
 
     use crate::Error;
@@ -94,7 +96,10 @@ mod test {
     fn test_debug_serde_error() {
         let args = "{a: 1}";
         let serde_error = serde_json::from_str::<Value>(&args).unwrap_err();
-        let a = Error::ToolCallArgument { error: serde_error, args: args.to_string() };
+        let a = Error::ToolCallArgument {
+            error: JsonRepairError::from(serde_error),
+            args: args.to_string(),
+        };
         let a = anyhow::anyhow!(a);
         eprintln!("{:?}", a.root_cause());
     }

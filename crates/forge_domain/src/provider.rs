@@ -113,7 +113,7 @@ impl Provider {
     pub const XAI_URL: &str = "https://api.x.ai/v1/";
     pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
     pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
-    pub const FORGE_URL: &str = "https://api.forgecode.dev/api/v1/";
+    pub const FORGE_URL: &str = "https://antinomy.ai/api/v1/";
 
     /// Converts the provider to it's base URL
     pub fn to_base_url(&self) -> Url {

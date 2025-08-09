@@ -82,6 +82,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
+        self.cli.conversation = None;
         banner::display()?;
         self.trace_user();
         Ok(())
@@ -197,6 +198,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.init_state(true).await?;
         self.trace_user();
 
+        // Hydrate the models cache
+        self.hydrate_caches();
+
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
             Some(path) => self.console.upload(path).await?,
@@ -230,6 +234,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Centralized prompt call at the end of the loop
             command = self.prompt().await?;
         }
+    }
+
+    // Improve startup time by hydrating caches
+    fn hydrate_caches(&self) {
+        let api = self.api.clone();
+        tokio::spawn(async move { api.models().await });
+        let api = self.api.clone();
+        tokio::spawn(async move { api.tools().await });
     }
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
@@ -307,7 +319,36 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     )))?;
                 }
             },
+            TopLevelCommand::Info => {
+                // Make sure to init model
+                self.on_new().await?;
+
+                self.on_info().await?;
+                return Ok(());
+            }
         }
+        Ok(())
+    }
+
+    async fn on_info(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading Info"))?;
+        let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+
+        // Add user information if available
+        if let Ok(config) = self.api.app_config().await
+            && let Some(login_info) = &config.key_info
+        {
+            info = info.extend(Info::from(login_info));
+        }
+
+        // Add usage information
+        if let Ok(Some(user_usage)) = self.api.user_usage().await {
+            info = info.extend(Info::from(&user_usage));
+        }
+
+        self.writeln(info)?;
+        self.spinner.stop(None)?;
+
         Ok(())
     }
 
@@ -325,16 +366,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
-
-                // Add user information if available
-                if let Ok(config) = self.api.app_config().await
-                    && let Some(login_info) = &config.key_info
-                {
-                    info = info.extend(Info::from(login_info));
-                }
-
-                self.writeln(info)?;
+                self.on_info().await?;
             }
             Command::Message(ref content) => {
                 self.spinner.start(None)?;
@@ -433,6 +465,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
+                let provider = self.api.provider().await?;
+                self.state.provider = Some(provider);
             }
             Command::Logout => {
                 self.spinner.start(Some("Logging out"))?;
@@ -441,6 +475,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln(TitleFormat::info("Logged out"))?;
                 // Exit the UI after logout
                 return Ok(true);
+            }
+            Command::Retry => {
+                self.spinner.start(None)?;
+                self.on_message(None).await?;
             }
         }
 
@@ -463,12 +501,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// canceled
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
         // Fetch available models
-        let models = self
+        let mut models = self
             .get_models()
             .await?
             .into_iter()
             .map(CliModel)
             .collect::<Vec<_>>();
+
+        // Sort the models by their names in ascending order
+        models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
 
         // Find the index of the current model
         let starting_cursor = self
@@ -592,7 +633,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(base_workflow).provider(provider);
+        self.state = UIState::new(self.api.environment(), base_workflow).provider(provider);
 
         Ok(workflow)
     }
@@ -760,8 +801,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.usage = usage;
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
-                self.spinner.start(Some("Retrying"))?;
-                self.writeln(TitleFormat::error(cause.as_str()))?;
+                if !self.api.environment().retry_config.suppress_retry_errors {
+                    self.spinner.start(Some("Retrying"))?;
+                    self.writeln(TitleFormat::error(cause.as_str()))?;
+                }
             }
             ChatResponse::Interrupt { reason } => {
                 self.spinner.stop(None)?;
@@ -789,7 +832,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn should_continue(&mut self) -> anyhow::Result<()> {
         let should_continue = ForgeSelect::confirm("Do you want to continue anyway?")
-            .with_default(false)
+            .with_default(true)
             .prompt()?;
 
         if should_continue.unwrap_or(false) {

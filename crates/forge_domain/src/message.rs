@@ -4,15 +4,15 @@ use serde::{Deserialize, Serialize};
 use strum_macros::EnumString;
 
 use super::{ToolCall, ToolCallFull};
+use crate::TokenCount;
 use crate::reasoning::{Reasoning, ReasoningFull};
 
-#[derive(Default, Clone, Debug, Serialize, PartialEq)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Usage {
-    pub prompt_tokens: usize,
-    pub completion_tokens: usize,
-    pub total_tokens: usize,
-    pub estimated_tokens: usize,
-    pub cached_tokens: usize,
+    pub prompt_tokens: TokenCount,
+    pub completion_tokens: TokenCount,
+    pub total_tokens: TokenCount,
+    pub cached_tokens: TokenCount,
     pub cost: Option<f64>,
 }
 
@@ -71,6 +71,12 @@ pub struct ContentPart(String);
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ContentFull(String);
+
+impl<T: AsRef<str>> From<T> for Content {
+    fn from(value: T) -> Self {
+        Content::Full(ContentFull(value.as_ref().to_string()))
+    }
+}
 
 /// The reason why the model stopped generating output.
 /// Read more: https://platform.openai.com/docs/guides/function-calling#edge-cases

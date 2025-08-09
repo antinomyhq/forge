@@ -8,54 +8,34 @@ before:
     - text:
         role: User
         content: User message
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: First assistant without reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: Second assistant with reasoning
-        tool_calls: ~
-        model: ~
         reasoning_details:
           - text: Complex reasoning process
             signature: ~
     - text:
         role: Assistant
         content: Third assistant with reasoning
-        tool_calls: ~
-        model: ~
         reasoning_details:
           - text: Complex reasoning process
             signature: ~
+  reasoning:
+    enabled: true
 after:
   messages:
     - text:
         role: User
         content: User message
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: First assistant without reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: Second assistant with reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: Third assistant with reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~

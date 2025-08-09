@@ -5,7 +5,7 @@ use forge_domain::{TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
-use crate::operation::Operation;
+use crate::operation::{Operation, TempContentFiles};
 use crate::services::ShellService;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
@@ -32,6 +32,76 @@ impl<
 {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
+    }
+    async fn dump_operation(&self, operation: &Operation) -> anyhow::Result<TempContentFiles> {
+        match operation {
+            Operation::NetFetch { input: _, output } => {
+                let original_length = output.content.len();
+                let is_truncated =
+                    original_length > self.services.get_environment().fetch_truncation_limit;
+                let mut files = TempContentFiles::default();
+
+                if is_truncated {
+                    files = files.stdout(
+                        self.create_temp_file("forge_fetch_", ".txt", &output.content)
+                            .await?,
+                    );
+                }
+
+                Ok(files)
+            }
+            Operation::Shell { output } => {
+                let env = self.services.get_environment();
+                let stdout_lines = output.output.stdout.lines().count();
+                let stderr_lines = output.output.stderr.lines().count();
+                let stdout_truncated =
+                    stdout_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
+                let stderr_truncated =
+                    stderr_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
+
+                let mut files = TempContentFiles::default();
+
+                if stdout_truncated {
+                    files = files.stdout(
+                        self.create_temp_file("forge_shell_stdout_", ".txt", &output.output.stdout)
+                            .await?,
+                    );
+                }
+                if stderr_truncated {
+                    files = files.stderr(
+                        self.create_temp_file("forge_shell_stderr_", ".txt", &output.output.stderr)
+                            .await?,
+                    );
+                }
+
+                Ok(files)
+            }
+            _ => Ok(TempContentFiles::default()),
+        }
+    }
+
+    async fn create_temp_file(
+        &self,
+        prefix: &str,
+        ext: &str,
+        content: &str,
+    ) -> anyhow::Result<std::path::PathBuf> {
+        let path = tempfile::Builder::new()
+            .disable_cleanup(true)
+            .prefix(prefix)
+            .suffix(ext)
+            .tempfile()?
+            .into_temp_path()
+            .to_path_buf();
+        self.services
+            .create(
+                path.to_string_lossy().to_string(),
+                content.to_string(),
+                true,
+                false,
+            )
+            .await?;
+        Ok(path)
     }
 
     async fn call_internal(&self, input: Tools, tasks: &mut TaskList) -> anyhow::Result<Operation> {
@@ -174,17 +244,15 @@ impl<
             tracing::error!(error = ?error, "Tool execution failed");
         }
 
-        let execution_result = execution_result?;
+        let operation = execution_result?;
 
         // Send formatted output message
-        if let Some(output) = execution_result.to_content(&env) {
+        if let Some(output) = operation.to_content(&env) {
             context.send(output).await?;
         }
 
-        let truncation_path = execution_result
-            .to_create_temp(self.services.as_ref())
-            .await?;
+        let truncation_path = self.dump_operation(&operation).await?;
 
-        Ok(execution_result.into_tool_output(tool_name, truncation_path, &env))
+        Ok(operation.into_tool_output(tool_name, truncation_path, &env))
     }
 }

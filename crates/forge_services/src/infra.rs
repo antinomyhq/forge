@@ -9,6 +9,8 @@ use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
+use reqwest_eventsource::EventSource;
+use url::Url;
 
 pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;
@@ -82,6 +84,7 @@ pub trait FileRemoverInfra: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FileInfoInfra: Send + Sync {
+    async fn is_binary(&self, path: &Path) -> Result<bool>;
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool>;
     async fn exists(&self, path: &Path) -> anyhow::Result<bool>;
     async fn file_size(&self, path: &Path) -> anyhow::Result<u64>;
@@ -113,7 +116,11 @@ pub trait CommandInfra: Send + Sync {
     ) -> anyhow::Result<CommandOutput>;
 
     /// execute the shell command on present stdio.
-    async fn execute_command_raw(&self, command: &str) -> anyhow::Result<std::process::ExitStatus>;
+    async fn execute_command_raw(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<std::process::ExitStatus>;
 }
 
 #[async_trait::async_trait]
@@ -162,10 +169,30 @@ pub trait WalkerInfra: Send + Sync {
     async fn walk(&self, config: Walker) -> anyhow::Result<Vec<WalkedFile>>;
 }
 
-// TODO: rename me, add Infra suffix
+/// HTTP service trait for making HTTP requests
 #[async_trait::async_trait]
 pub trait HttpInfra: Send + Sync + 'static {
-    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response>;
-    async fn delete(&self, url: &str) -> anyhow::Result<Response>;
+    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
+    async fn post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
+    async fn delete(&self, url: &Url) -> anyhow::Result<Response>;
+
+    /// Posts JSON data and returns a server-sent events stream
+    async fn eventsource(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<EventSource>;
+}
+/// Service for reading multiple files from a directory asynchronously
+#[async_trait::async_trait]
+pub trait DirectoryReaderInfra: Send + Sync {
+    /// Reads all files in a directory that match the given filter pattern
+    /// Returns a vector of tuples containing (file_path, file_content)
+    /// Files are read asynchronously/in parallel for better performance
+    async fn read_directory_files(
+        &self,
+        directory: &Path,
+        pattern: Option<&str>, // Optional glob pattern like "*.md"
+    ) -> anyhow::Result<Vec<(PathBuf, String)>>;
 }

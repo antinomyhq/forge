@@ -17,9 +17,9 @@ pub struct ToolResult {
 }
 
 impl ToolResult {
-    pub fn new(name: ToolName) -> ToolResult {
+    pub fn new(name: impl Into<ToolName>) -> ToolResult {
         Self {
-            name,
+            name: name.into(),
             call_id: Default::default(),
             output: Default::default(),
         }
@@ -58,7 +58,7 @@ impl ToolResult {
                 }
 
                 self.output = ToolOutput::text(
-                    Element::new("error")
+                    Element::new("tool_call_error")
                         .append(Element::new("cause").cdata(message.join("\n")))
                         .append(Element::new("reflection").text(REFLECTION_PROMPT)),
                 )

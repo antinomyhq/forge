@@ -15,7 +15,7 @@ use crate::{FileInfoInfra, FileReaderInfra};
 // Helper to handle FSSearchInput functionality
 struct FSSearchHelper<'a, T> {
     path: &'a str,
-    regex: Option<&'a String>,
+    content_pattern_regex: Option<&'a String>,
     file_pattern: Option<&'a String>,
     infra: &'a T,
 }
@@ -26,7 +26,7 @@ impl<T: FileInfoInfra> FSSearchHelper<'_, T> {
     }
 
     fn regex(&self) -> Option<&String> {
-        self.regex
+        self.content_pattern_regex
     }
 
     fn get_file_pattern(&self) -> anyhow::Result<Option<glob::Pattern>> {
@@ -88,7 +88,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
     ) -> anyhow::Result<Option<SearchResult>> {
         let helper = FSSearchHelper {
             path: &input_path,
-            regex: input_regex.as_ref(),
+            content_pattern_regex: input_regex.as_ref(),
             file_pattern: file_pattern.as_ref(),
             infra: self.infra.as_ref(),
         };
@@ -96,7 +96,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
         let path = Path::new(helper.path());
         assert_absolute_path(path)?;
 
-        let regex = match helper.regex() {
+        let content_pattern = match helper.regex() {
             Some(regex) => {
                 let pattern = format!("(?i){regex}"); // Case-insensitive by default
                 Some(
@@ -116,13 +116,18 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
             }
 
             // File name only search mode
-            if regex.is_none() {
+            if content_pattern.is_none() {
                 matches.push(Match { path: path.to_string_lossy().to_string(), result: None });
                 continue;
             }
 
+            // Skip binary files
+            if self.infra.is_binary(&path).await? {
+                continue;
+            }
+
             // Process the file line by line to find content matches
-            if let Some(regex) = &regex {
+            if let Some(regex) = &content_pattern {
                 let mut searcher = grep_searcher::Searcher::new();
                 let path_string = path.to_string_lossy().to_string();
 
@@ -194,7 +199,6 @@ impl<W: WalkerInfra + FileInfoInfra> ForgeFsSearch<W> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashSet;
     use std::sync::Arc;
 
     use forge_app::{WalkedFile, Walker};
@@ -205,7 +209,23 @@ mod test {
     use crate::utils::TempDir;
 
     // Mock WalkerInfra for testing
-    struct MockInfra;
+    struct MockInfra {
+        binary_exts: HashSet<String>,
+    }
+
+    impl Default for MockInfra {
+        fn default() -> Self {
+            let binary_exts = [
+                "exe", "dll", "so", "dylib", "bin", "obj", "o", "class", "pyc", "jar", "war",
+                "ear", "zip", "tar", "gz", "rar", "7z", "iso", "img", "pdf", "doc", "docx", "xls",
+                "xlsx", "ppt", "pptx", "bmp", "ico", "mp3", "mp4", "avi", "mov", "sqlite", "db",
+                "bin",
+            ];
+            Self {
+                binary_exts: HashSet::from_iter(binary_exts.into_iter().map(|ext| ext.to_string())),
+            }
+        }
+    }
 
     #[async_trait::async_trait]
     impl FileReaderInfra for MockInfra {
@@ -237,6 +257,11 @@ mod test {
                 Ok(meta) => Ok(meta.is_file()),
                 Err(_) => Ok(false), // If the file doesn't exist, return false
             }
+        }
+
+        async fn is_binary(&self, _path: &Path) -> anyhow::Result<bool> {
+            let ext = _path.extension().and_then(|s| s.to_str());
+            Ok(self.binary_exts.contains(ext.unwrap_or("")))
         }
 
         async fn exists(&self, _path: &Path) -> anyhow::Result<bool> {
@@ -285,7 +310,7 @@ mod test {
     #[tokio::test]
     async fn test_search_content_with_regex() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("test".to_string()),
@@ -300,7 +325,7 @@ mod test {
     #[tokio::test]
     async fn test_search_file_pattern_only() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 None,
@@ -318,7 +343,7 @@ mod test {
     #[tokio::test]
     async fn test_search_combined_pattern_and_content() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("test".to_string()),
@@ -337,7 +362,7 @@ mod test {
     async fn test_search_single_file() {
         let fixture = create_simple_test_directory().await.unwrap();
         let file_path = fixture.path().join("test.txt");
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 file_path.to_string_lossy().to_string(),
                 Some("hello".to_string()),
@@ -352,7 +377,7 @@ mod test {
     #[tokio::test]
     async fn test_search_no_matches() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("nonexistent".to_string()),
@@ -367,7 +392,7 @@ mod test {
     #[tokio::test]
     async fn test_search_pattern_no_matches() {
         let fixture = create_simple_test_directory().await.unwrap();
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 None,
@@ -381,7 +406,7 @@ mod test {
 
     #[tokio::test]
     async fn test_search_nonexistent_path() {
-        let result = ForgeFsSearch::new(Arc::new(MockInfra))
+        let result = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 "/nonexistent/path".to_string(),
                 Some("test".to_string()),
@@ -394,14 +419,15 @@ mod test {
 
     #[tokio::test]
     async fn test_search_relative_path_error() {
-        let result = ForgeFsSearch::new(Arc::new(MockInfra))
+        let result = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search("relative/path".to_string(), Some("test".to_string()), None)
             .await;
 
         assert!(result.is_err());
     }
+
     #[tokio::test]
-    async fn test_search_converts_binary_files_in_directory() {
+    async fn test_search_skips_binary_files_in_directory() {
         let fixture = TempDir::new().unwrap();
 
         // Create a valid UTF-8 file
@@ -409,15 +435,12 @@ mod test {
             .await
             .unwrap();
 
-        // Create a binary file with invalid UTF-8 sequence
-        let mut data = b"Hello ".to_vec();
-        data.extend_from_slice(&[0xC0, 0x80]); // Invalid UTF-8 sequence
-        data.extend_from_slice(b" World");
-        tokio::fs::write(fixture.path().join("binary.bin"), &data)
+        // Create a binary file with .exe extension (detected by extension)
+        tokio::fs::write(fixture.path().join("binary.exe"), "Hello World")
             .await
             .unwrap();
 
-        let actual = ForgeFsSearch::new(Arc::new(MockInfra))
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
             .search(
                 fixture.path().to_string_lossy().to_string(),
                 Some("Hello".to_string()),
@@ -426,12 +449,72 @@ mod test {
             .await
             .unwrap();
 
-        // Should find matches in both files now (binary file converted with lossy)
+        // Should only find matches in the text file (binary file skipped)
         assert!(actual.is_some());
         let result = actual.unwrap();
-        assert_eq!(result.matches.len(), 2);
-        let paths: HashSet<_> = result.matches.iter().map(|m| &m.path).collect();
-        assert!(paths.iter().any(|p| p.ends_with("valid.txt")));
-        assert!(paths.iter().any(|p| p.ends_with("binary.bin")));
+        assert_eq!(result.matches.len(), 1);
+        assert!(result.matches[0].path.ends_with("valid.txt"));
+    }
+
+    #[tokio::test]
+    async fn test_search_all_binary_files() {
+        let fixture = TempDir::new().unwrap();
+
+        // Create a valid UTF-8 file
+        tokio::fs::write(fixture.path().join("valid.txt"), "Hello World")
+            .await
+            .unwrap();
+
+        // Create a binary file with .exe extension (detected by extension)
+        tokio::fs::write(fixture.path().join("binary.exe"), "Hello World")
+            .await
+            .unwrap();
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                None,
+                Some("*.exe".to_string()),
+            )
+            .await
+            .unwrap();
+
+        // Should only find matches in the text file (binary file skipped)
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert_eq!(result.matches.len(), 1);
+        assert!(result.matches[0].path.ends_with("binary.exe"));
+    }
+
+    #[tokio::test]
+    async fn test_search_content_in_bin() {
+        let fixture = TempDir::new().unwrap();
+
+        // Create a valid UTF-8 file
+        tokio::fs::write(fixture.path().join("valid.txt"), "Hello World")
+            .await
+            .unwrap();
+
+        // Create a binary file with .exe extension (detected by extension)
+        tokio::fs::write(fixture.path().join("binary.exe"), "Hello World")
+            .await
+            .unwrap();
+
+        // Create a binary file with .exe extension (detected by extension)
+        tokio::fs::write(fixture.path().join("binary.dll"), "Hello World")
+            .await
+            .unwrap();
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(
+                fixture.path().to_string_lossy().to_string(),
+                Some("Hello".to_string()),
+                Some("*.exe".to_string()),
+            )
+            .await
+            .unwrap();
+
+        // Should be an empty file
+        assert!(actual.is_none());
     }
 }
