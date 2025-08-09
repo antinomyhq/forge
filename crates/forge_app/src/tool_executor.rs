@@ -93,7 +93,17 @@ impl<
         operation: &forge_domain::Operation,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<()> {
-        if let Some(new_policy) = create_policy_for_operation(operation) {
+        if let Some(new_policy) = create_policy_for_operation(
+            operation,
+            Some(
+                self.services
+                    .get_environment()
+                    .cwd
+                    .to_str()
+                    .context("Failed to get working directory")?
+                    .to_string(),
+            ),
+        ) {
             let diff = self.services.modify_policy(new_policy).await?;
 
             // Notify user about the policy modification
@@ -374,6 +384,7 @@ impl<
 /// Create a policy for an operation based on its type
 fn create_policy_for_operation(
     operation: &forge_domain::Operation,
+    working_directory: Option<String>,
 ) -> Option<forge_domain::Policy> {
     fn create_file_policy(
         path: &std::path::Path,
@@ -424,12 +435,14 @@ fn create_policy_for_operation(
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
                         command_pattern: format!("{cmd}*"),
+                        working_directory,
                     }),
                 }),
                 [cmd, subcmd, ..] => Some(forge_domain::Policy::Simple {
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
                         command_pattern: format!("{cmd} {subcmd}*"),
+                        working_directory,
                     }),
                 }),
             }
@@ -453,7 +466,7 @@ mod tests {
         let path = PathBuf::from("/path/to/file.rs");
         let operation = forge_domain::Operation::Read { path };
 
-        let actual = create_policy_for_operation(&operation);
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -468,7 +481,7 @@ mod tests {
         let path = PathBuf::from("/path/to/file.json");
         let operation = forge_domain::Operation::Write { path };
 
-        let actual = create_policy_for_operation(&operation);
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -483,7 +496,7 @@ mod tests {
         let path = PathBuf::from("/path/to/file.toml");
         let operation = forge_domain::Operation::Patch { path };
 
-        let actual = create_policy_for_operation(&operation);
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -498,7 +511,7 @@ mod tests {
         let url = "https://example.com/api/data".to_string();
         let operation = forge_domain::Operation::NetFetch { url };
 
-        let actual = create_policy_for_operation(&operation);
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -513,11 +526,14 @@ mod tests {
         let command = "git push origin main".to_string();
         let operation = forge_domain::Operation::Execute { command };
 
-        let actual = create_policy_for_operation(&operation);
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule { command_pattern: "git push*".to_string() }),
+            rule: Rule::Execute(ExecuteRule {
+                command_pattern: "git push*".to_string(),
+                working_directory: None,
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -528,11 +544,14 @@ mod tests {
         let command = "ls".to_string();
         let operation = forge_domain::Operation::Execute { command };
 
-        let actual = create_policy_for_operation(&operation);
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule { command_pattern: "ls*".to_string() }),
+            rule: Rule::Execute(ExecuteRule {
+                command_pattern: "ls*".to_string(),
+                working_directory: None,
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -543,7 +562,7 @@ mod tests {
         let path = PathBuf::from("/path/to/file");
         let operation = forge_domain::Operation::Read { path };
 
-        let actual = create_policy_for_operation(&operation);
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = None;
 
@@ -555,7 +574,7 @@ mod tests {
         let url = "not-a-valid-url".to_string();
         let operation = forge_domain::Operation::NetFetch { url };
 
-        let actual = create_policy_for_operation(&operation);
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -570,9 +589,28 @@ mod tests {
         let command = "".to_string();
         let operation = forge_domain::Operation::Execute { command };
 
-        let actual = create_policy_for_operation(&operation);
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_execute_operation_with_working_directory() {
+        let command = "ls".to_string();
+        let operation = forge_domain::Operation::Execute { command };
+        let working_directory = Some("/home/user/project".to_string());
+
+        let actual = create_policy_for_operation(&operation, working_directory.clone());
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Execute(ExecuteRule {
+                command_pattern: "ls*".to_string(),
+                working_directory,
+            }),
+        });
 
         assert_eq!(actual, expected);
     }

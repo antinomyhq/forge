@@ -28,6 +28,7 @@ pub struct PatchRule {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct ExecuteRule {
     pub command_pattern: String,
+    pub working_directory: Option<String>,
 }
 
 /// Rule for network fetch operations with a URL pattern
@@ -166,7 +167,10 @@ mod tests {
 
     #[test]
     fn test_execute_command_pattern_match() {
-        let fixture = Rule::Execute(ExecuteRule { command_pattern: "cargo *".to_string() });
+        let fixture = Rule::Execute(ExecuteRule {
+            command_pattern: "cargo *".to_string(),
+            working_directory: None,
+        });
         let operation = fixture_execute_operation();
 
         let actual = fixture.matches(&operation);

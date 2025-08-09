@@ -130,7 +130,7 @@ mod tests {
             matches!(
                 p,
                 Policy::Simple {
-                    rule: Rule::Execute(ExecuteRule { command_pattern }),
+                    rule: Rule::Execute(ExecuteRule { command_pattern,.. }),
                     ..
                 } if command_pattern == "ls*"
             )

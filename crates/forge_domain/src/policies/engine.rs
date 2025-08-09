@@ -122,7 +122,10 @@ mod tests {
     fn fixture_workflow_with_execute_policy() -> Policies {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule { command_pattern: "cargo *".to_string() }),
+            rule: Rule::Execute(ExecuteRule {
+                command_pattern: "cargo *".to_string(),
+                working_directory: None,
+            }),
         });
         policies
     }
