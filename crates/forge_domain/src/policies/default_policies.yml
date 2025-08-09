@@ -38,3 +38,7 @@ policies:
   - permission: allow
     rule:
       url_pattern: '*'
+  - permission: deny
+    rule:
+      command_pattern: 'sudo*'
+      working_directory: '**/*'

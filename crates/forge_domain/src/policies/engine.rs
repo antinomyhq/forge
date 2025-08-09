@@ -106,7 +106,10 @@ mod tests {
     fn fixture_workflow_with_read_policy() -> Policies {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Read(ReadRule { read_pattern: "src/**/*.rs".to_string() }),
+            rule: Rule::Read(ReadRule {
+                read_pattern: "src/**/*.rs".to_string(),
+                working_directory: None,
+            }),
         });
         policies
     }
@@ -114,7 +117,10 @@ mod tests {
     fn fixture_workflow_with_write_policy() -> Policies {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Deny,
-            rule: Rule::Write(WriteRule { write_pattern: "**/*.rs".to_string() }),
+            rule: Rule::Write(WriteRule {
+                write_pattern: "**/*.rs".to_string(),
+                working_directory: None,
+            }),
         });
         policies
     }
@@ -133,7 +139,10 @@ mod tests {
     fn fixture_workflow_with_patch_policy() -> Policies {
         let policies = Policies::new().add_policy(Policy::Simple {
             permission: Permission::Confirm,
-            rule: Rule::Patch(PatchRule { patch_pattern: "src/**/*.rs".to_string() }),
+            rule: Rule::Patch(PatchRule {
+                patch_pattern: "src/**/*.rs".to_string(),
+                working_directory: None,
+            }),
         });
         policies
     }
@@ -143,6 +152,7 @@ mod tests {
             permission: Permission::Allow,
             rule: Rule::NetFetch(NetFetchRule {
                 url_pattern: "https://api.example.com/*".to_string(),
+                working_directory: None,
             }),
         });
         policies
@@ -152,7 +162,10 @@ mod tests {
     fn test_policy_engine_can_perform_read() {
         let fixture_workflow = fixture_workflow_with_read_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Read { path: std::path::PathBuf::from("src/main.rs") };
+        let operation = Operation::Read {
+            path: std::path::PathBuf::from("src/main.rs"),
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
 
         let actual = fixture.can_perform(&operation);
 
@@ -163,7 +176,10 @@ mod tests {
     fn test_policy_engine_can_perform_write() {
         let fixture_workflow = fixture_workflow_with_write_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Write { path: std::path::PathBuf::from("src/main.rs") };
+        let operation = Operation::Write {
+            path: std::path::PathBuf::from("src/main.rs"),
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
 
         let actual = fixture.can_perform(&operation);
 
@@ -174,7 +190,10 @@ mod tests {
     fn test_policy_engine_can_perform_patch() {
         let fixture_workflow = fixture_workflow_with_patch_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Patch { path: std::path::PathBuf::from("src/main.rs") };
+        let operation = Operation::Patch {
+            path: std::path::PathBuf::from("src/main.rs"),
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
 
         let actual = fixture.can_perform(&operation);
 
@@ -185,7 +204,10 @@ mod tests {
     fn test_policy_engine_can_perform_execute() {
         let fixture_workflow = fixture_workflow_with_execute_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Execute { command: "cargo build".to_string() };
+        let operation = Operation::Execute {
+            command: "cargo build".to_string(),
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
 
         let actual = fixture.can_perform(&operation);
 
@@ -196,7 +218,10 @@ mod tests {
     fn test_policy_engine_can_perform_net_fetch() {
         let fixture_workflow = fixture_workflow_with_net_fetch_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::NetFetch { url: "https://api.example.com/data".to_string() };
+        let operation = Operation::NetFetch {
+            url: "https://api.example.com/data".to_string(),
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
 
         let actual = fixture.can_perform(&operation);
 

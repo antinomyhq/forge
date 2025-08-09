@@ -74,7 +74,10 @@ mod tests {
     };
 
     fn fixture_write_operation() -> Operation {
-        Operation::Write { path: PathBuf::from("src/main.rs") }
+        Operation::Write {
+            path: PathBuf::from("src/main.rs"),
+            cwd: PathBuf::from("/test/cwd"),
+        }
     }
 
     #[test]
@@ -82,11 +85,17 @@ mod tests {
         let fixture = Policies::new()
             .add_policy(Policy::Simple {
                 permission: Permission::Allow,
-                rule: Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string() }),
+                rule: Rule::Write(WriteRule {
+                    write_pattern: "src/**/*.rs".to_string(),
+                    working_directory: None,
+                }),
             })
             .add_policy(Policy::Simple {
                 permission: Permission::Deny,
-                rule: Rule::Write(WriteRule { write_pattern: "**/*.py".to_string() }),
+                rule: Rule::Write(WriteRule {
+                    write_pattern: "**/*.py".to_string(),
+                    working_directory: None,
+                }),
             });
         let operation = fixture_write_operation();
         let file = Some(std::path::PathBuf::from("forge.yaml"));
@@ -118,7 +127,7 @@ mod tests {
                 && matches!(
                     p,
                     Policy::Simple {
-                        rule: Rule::Read(ReadRule { read_pattern }),
+                        rule: Rule::Read(ReadRule { read_pattern, working_directory: _ }),
                         ..
                     } if read_pattern == "**/*"
                 )
@@ -143,7 +152,7 @@ mod tests {
                 && matches!(
                     p,
                     Policy::Simple {
-                        rule: Rule::NetFetch(NetFetchRule { url_pattern }),
+                        rule: Rule::NetFetch(NetFetchRule { url_pattern, working_directory: _ }),
                         ..
                     } if url_pattern == "*"
                 )
@@ -156,7 +165,10 @@ mod tests {
     #[test]
     fn test_default_policies_allow_all_net_fetch() {
         let policies = Policies::with_defaults();
-        let operation = Operation::NetFetch { url: "https://example.com/api".to_string() };
+        let operation = Operation::NetFetch {
+            url: "https://example.com/api".to_string(),
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
 
         let traces = policies.eval(&operation, None);
 

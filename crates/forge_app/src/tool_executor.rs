@@ -194,8 +194,10 @@ impl<
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 // Check policy before performing the operation
-                let operation =
-                    forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
+                let operation = forge_domain::Operation::Read {
+                    path: std::path::PathBuf::from(&input.path),
+                    cwd: self.services.get_environment().cwd.clone(),
+                };
                 self.check_operation_permission(&operation, context).await?;
 
                 let output = self
@@ -210,8 +212,10 @@ impl<
             }
             Tools::ForgeToolFsCreate(input) => {
                 // Check policy before performing the operation
-                let operation =
-                    forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
+                let operation = forge_domain::Operation::Write {
+                    path: std::path::PathBuf::from(&input.path),
+                    cwd: self.services.get_environment().cwd.clone(),
+                };
                 self.check_operation_permission(&operation, context).await?;
 
                 let output = self
@@ -227,8 +231,10 @@ impl<
             }
             Tools::ForgeToolFsSearch(input) => {
                 // Check policy before performing the operation
-                let operation =
-                    forge_domain::Operation::Read { path: std::path::PathBuf::from(&input.path) };
+                let operation = forge_domain::Operation::Read {
+                    path: std::path::PathBuf::from(&input.path),
+                    cwd: self.services.get_environment().cwd.clone(),
+                };
                 self.check_operation_permission(&operation, context).await?;
 
                 let output = self
@@ -243,8 +249,10 @@ impl<
             }
             Tools::ForgeToolFsRemove(input) => {
                 // Check policy before performing the operation
-                let operation =
-                    forge_domain::Operation::Write { path: std::path::PathBuf::from(&input.path) };
+                let operation = forge_domain::Operation::Write {
+                    path: std::path::PathBuf::from(&input.path),
+                    cwd: self.services.get_environment().cwd.clone(),
+                };
                 self.check_operation_permission(&operation, context).await?;
 
                 let _output = self.services.remove(input.path.clone()).await?;
@@ -252,8 +260,10 @@ impl<
             }
             Tools::ForgeToolFsPatch(input) => {
                 // Check policy before performing the operation
-                let operation =
-                    forge_domain::Operation::Patch { path: std::path::PathBuf::from(&input.path) };
+                let operation = forge_domain::Operation::Patch {
+                    path: std::path::PathBuf::from(&input.path),
+                    cwd: self.services.get_environment().cwd.clone(),
+                };
                 self.check_operation_permission(&operation, context).await?;
 
                 let output = self
@@ -274,7 +284,10 @@ impl<
             }
             Tools::ForgeToolProcessShell(input) => {
                 // Check policy before performing the operation
-                let operation = forge_domain::Operation::Execute { command: input.command.clone() };
+                let operation = forge_domain::Operation::Execute {
+                    command: input.command.clone(),
+                    cwd: self.services.get_environment().cwd.clone(),
+                };
                 self.check_operation_permission(&operation, context).await?;
 
                 let output = self
@@ -285,7 +298,10 @@ impl<
             }
             Tools::ForgeToolNetFetch(input) => {
                 // Check policy before performing the operation
-                let operation = forge_domain::Operation::NetFetch { url: input.url.clone() };
+                let operation = forge_domain::Operation::NetFetch {
+                    url: input.url.clone(),
+                    cwd: self.services.get_environment().cwd.clone(),
+                };
                 self.check_operation_permission(&operation, context).await?;
 
                 let output = self.services.fetch(input.url.clone(), input.raw).await?;
@@ -399,16 +415,25 @@ fn create_policy_for_operation(
     }
 
     match operation {
-        forge_domain::Operation::Read { path } => create_file_policy(path, |pattern| {
-            forge_domain::Rule::Read(forge_domain::ReadRule { read_pattern: pattern })
+        forge_domain::Operation::Read { path, cwd: _ } => create_file_policy(path, |pattern| {
+            forge_domain::Rule::Read(forge_domain::ReadRule {
+                read_pattern: pattern,
+                working_directory: None,
+            })
         }),
-        forge_domain::Operation::Write { path } => create_file_policy(path, |pattern| {
-            forge_domain::Rule::Write(forge_domain::WriteRule { write_pattern: pattern })
+        forge_domain::Operation::Write { path, cwd: _ } => create_file_policy(path, |pattern| {
+            forge_domain::Rule::Write(forge_domain::WriteRule {
+                write_pattern: pattern,
+                working_directory: None,
+            })
         }),
-        forge_domain::Operation::Patch { path } => create_file_policy(path, |pattern| {
-            forge_domain::Rule::Patch(forge_domain::PatchRule { patch_pattern: pattern })
+        forge_domain::Operation::Patch { path, cwd: _ } => create_file_policy(path, |pattern| {
+            forge_domain::Rule::Patch(forge_domain::PatchRule {
+                patch_pattern: pattern,
+                working_directory: None,
+            })
         }),
-        forge_domain::Operation::NetFetch { url } => {
+        forge_domain::Operation::NetFetch { url, cwd: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 parsed_url
                     .host_str()
@@ -416,6 +441,7 @@ fn create_policy_for_operation(
                         permission: forge_domain::Permission::Allow,
                         rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
                             url_pattern: format!("{host}*"),
+                            working_directory: None,
                         }),
                     })
             } else {
@@ -423,11 +449,12 @@ fn create_policy_for_operation(
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
                         url_pattern: url.to_string(),
+                        working_directory: None,
                     }),
                 })
             }
         }
-        forge_domain::Operation::Execute { command } => {
+        forge_domain::Operation::Execute { command, cwd: _ } => {
             let parts: Vec<&str> = command.split_whitespace().collect();
             match parts.as_slice() {
                 [] => None,
@@ -464,13 +491,17 @@ mod tests {
     #[test]
     fn test_create_policy_for_read_operation() {
         let path = PathBuf::from("/path/to/file.rs");
-        let operation = forge_domain::Operation::Read { path };
+        let operation =
+            forge_domain::Operation::Read { path, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Read(ReadRule { read_pattern: "*.rs".to_string() }),
+            rule: Rule::Read(ReadRule {
+                read_pattern: "*.rs".to_string(),
+                working_directory: None,
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -479,13 +510,17 @@ mod tests {
     #[test]
     fn test_create_policy_for_write_operation() {
         let path = PathBuf::from("/path/to/file.json");
-        let operation = forge_domain::Operation::Write { path };
+        let operation =
+            forge_domain::Operation::Write { path, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule { write_pattern: "*.json".to_string() }),
+            rule: Rule::Write(WriteRule {
+                write_pattern: "*.json".to_string(),
+                working_directory: None,
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -494,13 +529,17 @@ mod tests {
     #[test]
     fn test_create_policy_for_patch_operation() {
         let path = PathBuf::from("/path/to/file.toml");
-        let operation = forge_domain::Operation::Patch { path };
+        let operation =
+            forge_domain::Operation::Patch { path, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Patch(PatchRule { patch_pattern: "*.toml".to_string() }),
+            rule: Rule::Patch(PatchRule {
+                patch_pattern: "*.toml".to_string(),
+                working_directory: None,
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -509,13 +548,17 @@ mod tests {
     #[test]
     fn test_create_policy_for_net_fetch_operation() {
         let url = "https://example.com/api/data".to_string();
-        let operation = forge_domain::Operation::NetFetch { url };
+        let operation =
+            forge_domain::Operation::NetFetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::NetFetch(NetFetchRule { url_pattern: "example.com*".to_string() }),
+            rule: Rule::NetFetch(NetFetchRule {
+                url_pattern: "example.com*".to_string(),
+                working_directory: None,
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -524,7 +567,10 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_subcommand() {
         let command = "git push origin main".to_string();
-        let operation = forge_domain::Operation::Execute { command };
+        let operation = forge_domain::Operation::Execute {
+            command,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -542,7 +588,10 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_single_command() {
         let command = "ls".to_string();
-        let operation = forge_domain::Operation::Execute { command };
+        let operation = forge_domain::Operation::Execute {
+            command,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -560,7 +609,8 @@ mod tests {
     #[test]
     fn test_create_policy_for_file_without_extension() {
         let path = PathBuf::from("/path/to/file");
-        let operation = forge_domain::Operation::Read { path };
+        let operation =
+            forge_domain::Operation::Read { path, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -572,13 +622,17 @@ mod tests {
     #[test]
     fn test_create_policy_for_invalid_url() {
         let url = "not-a-valid-url".to_string();
-        let operation = forge_domain::Operation::NetFetch { url };
+        let operation =
+            forge_domain::Operation::NetFetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::NetFetch(NetFetchRule { url_pattern: "not-a-valid-url".to_string() }),
+            rule: Rule::NetFetch(NetFetchRule {
+                url_pattern: "not-a-valid-url".to_string(),
+                working_directory: None,
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -587,7 +641,10 @@ mod tests {
     #[test]
     fn test_create_policy_for_empty_execute_command() {
         let command = "".to_string();
-        let operation = forge_domain::Operation::Execute { command };
+        let operation = forge_domain::Operation::Execute {
+            command,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -599,7 +656,10 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_working_directory() {
         let command = "ls".to_string();
-        let operation = forge_domain::Operation::Execute { command };
+        let operation = forge_domain::Operation::Execute {
+            command,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+        };
         let working_directory = Some("/home/user/project".to_string());
 
         let actual = create_policy_for_operation(&operation, working_directory.clone());

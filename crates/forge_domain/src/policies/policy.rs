@@ -137,13 +137,19 @@ mod tests {
     use crate::WriteRule;
 
     fn fixture_write_operation() -> Operation {
-        Operation::Write { path: PathBuf::from("src/main.rs") }
+        Operation::Write {
+            path: PathBuf::from("src/main.rs"),
+            cwd: PathBuf::from("/test/cwd"),
+        }
     }
 
     fn fixture_simple_write_policy() -> Policy {
         Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string() }),
+            rule: Rule::Write(WriteRule {
+                write_pattern: "src/**/*.rs".to_string(),
+                working_directory: None,
+            }),
         }
     }
 
@@ -161,7 +167,10 @@ mod tests {
     fn test_policy_eval_simple_not_matching() {
         let fixture = Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule { write_pattern: "docs/**/*.md".to_string() }),
+            rule: Rule::Write(WriteRule {
+                write_pattern: "docs/**/*.md".to_string(),
+                working_directory: None,
+            }),
         };
         let operation = fixture_write_operation();
 
@@ -176,11 +185,17 @@ mod tests {
             and: vec![
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule { write_pattern: "src/**/*".to_string() }),
+                    rule: Rule::Write(WriteRule {
+                        write_pattern: "src/**/*".to_string(),
+                        working_directory: None,
+                    }),
                 },
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule { write_pattern: "**/*.rs".to_string() }),
+                    rule: Rule::Write(WriteRule {
+                        write_pattern: "**/*.rs".to_string(),
+                        working_directory: None,
+                    }),
                 },
             ],
         };
@@ -197,11 +212,17 @@ mod tests {
             and: vec![
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule { write_pattern: "src/**/*".to_string() }),
+                    rule: Rule::Write(WriteRule {
+                        write_pattern: "src/**/*".to_string(),
+                        working_directory: None,
+                    }),
                 },
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule { write_pattern: "**/*.py".to_string() }),
+                    rule: Rule::Write(WriteRule {
+                        write_pattern: "**/*.py".to_string(),
+                        working_directory: None,
+                    }),
                 },
             ],
         };
@@ -218,11 +239,17 @@ mod tests {
             or: vec![
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string() }),
+                    rule: Rule::Write(WriteRule {
+                        write_pattern: "src/**/*.rs".to_string(),
+                        working_directory: None,
+                    }),
                 },
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule { write_pattern: "**/*.py".to_string() }),
+                    rule: Rule::Write(WriteRule {
+                        write_pattern: "**/*.py".to_string(),
+                        working_directory: None,
+                    }),
                 },
             ],
         };
@@ -238,7 +265,10 @@ mod tests {
         let fixture = Policy::Not {
             not: Box::new(Policy::Simple {
                 permission: Permission::Allow,
-                rule: Rule::Write(WriteRule { write_pattern: "**/*.py".to_string() }),
+                rule: Rule::Write(WriteRule {
+                    write_pattern: "**/*.py".to_string(),
+                    working_directory: None,
+                }),
             }),
         };
         let operation = fixture_write_operation();
@@ -258,14 +288,23 @@ mod tests {
         assert_eq!(actual.len(), 1);
         assert_eq!(
             actual[0],
-            &Rule::Write(WriteRule { write_pattern: "src/**/*.rs".to_string() })
+            &Rule::Write(WriteRule {
+                write_pattern: "src/**/*.rs".to_string(),
+                working_directory: None,
+            })
         );
     }
 
     #[test]
     fn test_policy_find_rules_and_multiple() {
-        let rule1 = Rule::Write(WriteRule { write_pattern: "src/**/*".to_string() });
-        let rule2 = Rule::Write(WriteRule { write_pattern: "**/*.rs".to_string() });
+        let rule1 = Rule::Write(WriteRule {
+            write_pattern: "src/**/*".to_string(),
+            working_directory: None,
+        });
+        let rule2 = Rule::Write(WriteRule {
+            write_pattern: "**/*.rs".to_string(),
+            working_directory: None,
+        });
         let fixture = Policy::And {
             and: vec![
                 Policy::Simple { permission: Permission::Allow, rule: rule1.clone() },
