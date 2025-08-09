@@ -28,11 +28,6 @@ impl<'a> From<StatusBar> for Line<'a> {
 
         // Add editor status if available
         if let Some(editor_status) = value.editor_status {
-            let bg_color = if editor_status.to_lowercase() == "insert" {
-                Color::Green
-            } else {
-                Color::White
-            };
             spans.push(Span::from(format!(" {} ", editor_status.to_uppercase())));
             spans.push(space.clone());
         }
