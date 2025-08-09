@@ -1,5 +1,5 @@
 use ratatui::layout::Alignment;
-use ratatui::style::{Color, Stylize};
+use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
 use crate::domain::Workspace;
