@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -7,9 +8,8 @@ use throbber_widgets_tui::ThrobberState;
 use tui_scrollview::ScrollViewState;
 
 use crate::domain::spotlight::SpotlightState;
-use crate::domain::{CancelId, EditorStateExt, Message, Workspace};
+use crate::domain::{CancelId, EditorStateExt, History, HistorySearchState, Message, Workspace};
 
-#[derive(Clone)]
 pub struct State {
     pub workspace: Workspace,
     pub editor: EditorState,
@@ -21,6 +21,8 @@ pub struct State {
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
+    pub history: History,
+    pub history_search: HistorySearchState,
 }
 
 impl Default for State {
@@ -38,6 +40,9 @@ impl Default for State {
             conversation: Default::default(),
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
+            // TODO: use history path from environment
+            history: History::with_file(1000, PathBuf::from(".forge_history")).unwrap(),
+            history_search: HistorySearchState::default(),
         }
     }
 }
@@ -65,6 +70,7 @@ impl State {
 
     /// Add a user message to the chat
     pub fn add_user_message(&mut self, message: String) {
+        let _ = self.history.add_command(message.clone());
         self.messages.push(Message::User(message));
         // Auto-scroll to bottom when new message is added
         self.message_scroll_state.scroll_to_bottom();
