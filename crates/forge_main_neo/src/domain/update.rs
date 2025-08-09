@@ -80,6 +80,15 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             state.chat_stream = Some(cancel_id);
             Command::Empty
         }
+        Action::ShowTools => {
+            state.tools_popup.is_visible = true;
+            Command::FetchTools
+        }
+        Action::ToolsFetched(tools) => {
+            // Store tools in the popup state temporarily for display
+            state.tools_popup.tools = tools;
+            Command::Empty
+        }
     }
 }
 
@@ -422,5 +431,34 @@ mod tests {
         assert_eq!(actual_command, expected_command);
         // Timer should be replaced with the new timer from the action
         assert_eq!(fixture_state.timer, Some(timer_2));
+    }
+
+    #[test]
+    fn test_show_tools_action_shows_popup() {
+        let mut fixture_state = State::default();
+
+        let actual_command = update(&mut fixture_state, Action::ShowTools);
+        let expected_command = Command::FetchTools;
+
+        assert_eq!(actual_command, expected_command);
+        assert!(fixture_state.tools_popup.is_visible);
+    }
+
+    #[test]
+    fn test_tools_fetched_action_stores_tools() {
+        let mut fixture_state = State::default();
+        let fixture_tools = vec![
+            forge_api::ToolDefinition::new("test_tool_1").description("First test tool"),
+            forge_api::ToolDefinition::new("test_tool_2").description("Second test tool"),
+        ];
+
+        let actual_command = update(
+            &mut fixture_state,
+            Action::ToolsFetched(fixture_tools.clone()),
+        );
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+        assert_eq!(fixture_state.tools_popup.tools, fixture_tools);
     }
 }
