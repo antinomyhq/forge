@@ -33,13 +33,13 @@ impl<'a> From<StatusBar> for Line<'a> {
             } else {
                 Color::White
             };
-            spans.push(Span::from(format!(" {} ", editor_status.to_uppercase())).bg(bg_color));
+            spans.push(Span::from(format!(" {} ", editor_status.to_uppercase())));
             spans.push(space.clone());
         }
 
         // Add agent if available
         if let Some(agent) = value.agent {
-            spans.push(Span::from(format!(" {} ", agent.to_uppercase())).bg(Color::White));
+            spans.push(Span::from(format!("󱚣 {} ", agent.to_uppercase())));
             spans.push(space.clone());
         }
 
@@ -48,7 +48,7 @@ impl<'a> From<StatusBar> for Line<'a> {
 
         // Add branch information if available
         if let Some(branch) = value.workspace.current_branch {
-            spans.push(Span::from(branch.to_string()).fg(Color::LightGreen));
+            spans.push(Span::from(format!(" {branch} ").to_string()));
         }
 
         // Add directory information if available (show only the directory name, not
@@ -62,7 +62,7 @@ impl<'a> From<StatusBar> for Line<'a> {
                 .file_name()
                 .and_then(|name| name.to_str())
                 .unwrap_or(&dir);
-            spans.push(Span::from(format!("{dir_name} ")).fg(Color::LightCyan));
+            spans.push(Span::from(format!(" {dir_name} ")));
         }
 
         Line::from(spans).alignment(Alignment::Left).bold()

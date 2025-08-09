@@ -1525,7 +1525,7 @@ dependencies = [
  "async-recursion",
  "chrono",
  "color-eyre",
- "convert_case",
+ "convert_case 0.8.0",
  "derive_more",
  "derive_setters",
  "edtui",
