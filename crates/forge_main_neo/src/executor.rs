@@ -69,8 +69,6 @@ impl<T: API + 'static> Executor<T> {
         );
 
         // Create chat request
-        // FIXME: Arc::new(|| UserResponse::Accept) must be replaced with actual user
-        // confirmation logic.
         let chat_request = ChatRequest::new(event, conversation.id);
 
         // Create cancellation token for this stream
