@@ -1,6 +1,6 @@
 use anyhow::Context;
 use forge_app::domain::ChatCompletionMessage;
-use forge_app::dto::Error;
+use forge_app::dto::openai::Error;
 use reqwest::Url;
 use reqwest_eventsource::{Event, EventSource};
 use serde::de::DeserializeOwned;

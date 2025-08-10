@@ -2,7 +2,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, TokenCount, ToolCallId,
     ToolCallPart, ToolName,
 };
-use forge_app::dto::AnthropicErrorResponse;
+use forge_app::dto::anthropic::AnthropicErrorResponse;
 use serde::Deserialize;
 
 use super::request::Role;

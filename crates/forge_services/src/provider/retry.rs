@@ -1,5 +1,5 @@
 use forge_app::domain::{Error as DomainError, RetryConfig};
-use forge_app::dto::{Error, ErrorResponse};
+use forge_app::dto::openai::{Error, ErrorResponse};
 
 const TRANSPORT_ERROR_CODES: [&str; 3] = ["ERR_STREAM_PREMATURE_CLOSE", "ECONNRESET", "ETIMEDOUT"];
 
@@ -108,7 +108,7 @@ fn is_event_transport_error(error: &anyhow::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
-    use forge_app::dto::{Error, ErrorCode, ErrorResponse};
+    use forge_app::dto::openai::{Error, ErrorCode, ErrorResponse};
 
     use super::*;
 

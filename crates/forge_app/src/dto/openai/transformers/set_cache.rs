@@ -1,6 +1,6 @@
 use forge_domain::Transformer;
 
-use crate::dto::{Request, Role};
+use crate::dto::openai::{Request, Role};
 
 /// Transformer that caches the last user/system message for supported models
 pub struct SetCache;

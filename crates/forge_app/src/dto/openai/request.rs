@@ -10,7 +10,7 @@ use crate::domain::{
     Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
     ToolResult, ToolValue,
 };
-use crate::dto::ReasoningDetail;
+use crate::dto::openai::ReasoningDetail;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ImageUrl {

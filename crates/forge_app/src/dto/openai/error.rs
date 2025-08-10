@@ -95,21 +95,7 @@ impl std::fmt::Display for ErrorResponse {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, thiserror::Error)]
-#[serde(rename_all = "snake_case", tag = "type")]
-pub enum AnthropicErrorResponse {
-    OverloadedError { message: String },
-}
 
-impl std::fmt::Display for AnthropicErrorResponse {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AnthropicErrorResponse::OverloadedError { message } => {
-                write!(f, "OverloadedError: {message}")
-            }
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

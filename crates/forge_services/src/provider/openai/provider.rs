@@ -5,7 +5,7 @@ use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream, Transformer,
 };
-use forge_app::dto::{ListModelResponse, ProviderPipeline, Request, Response};
+use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
 

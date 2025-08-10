@@ -1,6 +1,6 @@
 use derive_setters::Setters;
 use forge_app::domain::{ContextMessage, Image};
-use forge_app::dto::Error;
+use forge_app::dto::openai::Error;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Default, Setters)]

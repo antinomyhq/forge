@@ -1,6 +1,6 @@
 use forge_domain::Transformer;
 
-use crate::dto::{Request, ToolChoice};
+use crate::dto::openai::{Request, ToolChoice};
 
 pub struct SetToolChoice {
     choice: ToolChoice,
