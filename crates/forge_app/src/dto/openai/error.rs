@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::fmt::Formatter;
 
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -94,8 +93,6 @@ impl std::fmt::Display for ErrorResponse {
             .fmt(f)
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

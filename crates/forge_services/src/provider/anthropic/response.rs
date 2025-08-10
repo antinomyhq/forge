@@ -2,7 +2,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, TokenCount, ToolCallId,
     ToolCallPart, ToolName,
 };
-use forge_app::dto::anthropic::AnthropicErrorResponse;
+use forge_app::dto::anthropic::Error;
 use serde::Deserialize;
 
 use super::request::Role;
@@ -103,7 +103,7 @@ impl From<StopReason> for forge_app::domain::FinishReason {
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum Event {
     Error {
-        error: AnthropicErrorResponse,
+        error: Error,
     },
     MessageStart {
         message: MessageStart,
@@ -303,9 +303,7 @@ mod tests {
                 "error",
                 r#"{"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}}"#,
                 Event::Error {
-                    error: AnthropicErrorResponse::OverloadedError {
-                        message: "Overloaded".to_string(),
-                    },
+                    error: Error::OverloadedError { message: "Overloaded".to_string() },
                 },
             ),
             (
