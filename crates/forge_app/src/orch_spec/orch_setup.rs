@@ -14,7 +14,7 @@ use crate::orch_spec::orch_runner::Runner;
 
 #[derive(Setters)]
 #[setters(into)]
-pub struct Setup {
+pub struct TestContext {
     pub event: Event,
     pub mock_tool_call_responses: Vec<(ToolCallFull, ToolResult)>,
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
@@ -28,7 +28,7 @@ pub struct Setup {
     pub test_output: TestOutput,
 }
 
-impl Deref for Setup {
+impl Deref for TestContext {
     type Target = TestOutput;
 
     fn deref(&self) -> &Self::Target {
@@ -36,7 +36,7 @@ impl Deref for Setup {
     }
 }
 
-impl Setup {
+impl TestContext {
     pub fn init_forge_task(task: &str) -> Self {
         Self::from_event(Event::new("forge/user_task_init", Some(task)))
     }

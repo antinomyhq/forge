@@ -4,11 +4,11 @@ use forge_domain::{
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
-use crate::orch_spec::orch_runner::Setup;
+use crate::orch_spec::orch_runner::TestContext;
 
 #[tokio::test]
 async fn test_history_is_saved() {
-    let ctx = Setup::init_forge_task("This is a test")
+    let ctx = TestContext::init_forge_task("This is a test")
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Sure"))
                 .finish_reason(FinishReason::Stop),
@@ -22,7 +22,7 @@ async fn test_history_is_saved() {
 
 #[tokio::test]
 async fn test_attempt_completion_requirement() {
-    let ctx = Setup::init_forge_task("Hi")
+    let ctx = TestContext::init_forge_task("Hi")
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Hello!"))
                 .finish_reason(FinishReason::Stop),
@@ -49,7 +49,7 @@ async fn test_attempt_completion_requirement() {
 
 #[tokio::test]
 async fn test_attempt_completion_content() {
-    let ctx = Setup::init_forge_task("Hi")
+    let ctx = TestContext::init_forge_task("Hi")
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Hello!"))
                 .finish_reason(FinishReason::Stop),
@@ -82,7 +82,7 @@ async fn test_attempt_completion_with_task() {
     let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "abc.txt"}));
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Greetings")));
 
-    let ctx = Setup::init_forge_task("Read a file")
+    let ctx = TestContext::init_forge_task("Read a file")
         .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result)])
         .mock_assistant_responses(vec![
             // First message, issues a tool call
@@ -110,7 +110,7 @@ async fn test_attempt_completion_with_task() {
 
 #[tokio::test]
 async fn test_empty_responses() {
-    let mut setup = Setup::init_forge_task("Read a file").mock_assistant_responses(vec![
+    let mut ctx = TestContext::init_forge_task("Read a file").mock_assistant_responses(vec![
         // Empty response 1
         ChatCompletionMessage::assistant(""),
         // Empty response 2
@@ -121,9 +121,9 @@ async fn test_empty_responses() {
         ChatCompletionMessage::assistant(""),
     ]);
 
-    setup.env.retry_config.max_retry_attempts = 3;
+    ctx.env.retry_config.max_retry_attempts = 3;
 
-    let ctx = setup.run().await.unwrap();
+    let ctx = ctx.run().await.unwrap();
 
     let response = &ctx.chat_responses;
 

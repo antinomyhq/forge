@@ -10,7 +10,7 @@ use rust_embed::Embed;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc::Sender;
 
-pub use super::orch_setup::Setup;
+pub use super::orch_setup::TestContext;
 use crate::AgentService;
 use crate::orch::Orchestrator;
 
@@ -31,7 +31,7 @@ pub struct Runner {
 }
 
 impl Runner {
-    fn new(setup: &Setup) -> Self {
+    fn new(setup: &TestContext) -> Self {
         let mut hb = Handlebars::new();
         hb.set_strict_mode(true);
         hb.register_escape_fn(no_escape);
@@ -55,7 +55,7 @@ impl Runner {
         self.conversation_history.lock().await.clone()
     }
 
-    pub async fn run(setup: &mut Setup) -> anyhow::Result<()> {
+    pub async fn run(setup: &mut TestContext) -> anyhow::Result<()> {
         const LIMIT: usize = 1024;
         let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
 
