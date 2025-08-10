@@ -5,7 +5,7 @@ use std::time::Duration;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::RetryConfig;
 
-use crate::{AppConfigService, AuthService, Error, InitAuth};
+use crate::{dto::InitAuth, AppConfigService, AuthService, Error};
 
 pub struct Authenticator<S> {
     service: Arc<S>,

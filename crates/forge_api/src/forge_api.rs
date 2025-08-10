@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{
-    AppConfig, AppConfigService, AuthService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, InitAuth, McpConfigManager, ProviderRegistry, ProviderService,
+    dto::AppConfig, AppConfigService, AuthService, ConversationService, EnvironmentService,
+    FileDiscoveryService, ForgeApp, dto::InitAuth, McpConfigManager, ProviderRegistry, ProviderService,
     Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
