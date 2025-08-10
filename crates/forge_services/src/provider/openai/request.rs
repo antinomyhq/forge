@@ -226,7 +226,17 @@ impl From<ToolDefinition> for Tool {
             function: FunctionDescription {
                 description: Some(value.description),
                 name: value.name.to_string(),
-                parameters: serde_json::to_value(value.input_schema).unwrap(),
+                parameters: {
+                    let mut params = serde_json::to_value(value.input_schema).unwrap();
+                    // Ensure OpenAI compatibility by adding properties field if missing
+                    if let Some(obj) = params.as_object_mut() {
+                        if obj.get("type") == Some(&serde_json::Value::String("object".to_string())) 
+                            && !obj.contains_key("properties") {
+                            obj.insert("properties".to_string(), serde_json::Value::Object(serde_json::Map::new()));
+                        }
+                    }
+                    params
+                },
             },
         }
     }
