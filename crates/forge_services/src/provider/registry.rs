@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use forge_app::ProviderRegistry;
 use forge_app::domain::{Provider, ProviderUrl};
-use forge_app::{dto::AppConfig, ProviderRegistry};
+use forge_app::dto::AppConfig;
 use tokio::sync::RwLock;
 
 use crate::EnvironmentInfra;
