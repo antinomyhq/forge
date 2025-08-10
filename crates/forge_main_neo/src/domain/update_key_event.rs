@@ -373,10 +373,10 @@ mod tests {
 
         assert_eq!(actual_command, expected_command);
         // Cursor should be at the end of the current line
-        // The first line is "hello world this is a test" (25 characters, 0-indexed so
-        // position 25)
+        // The first line is "hello world this is a test" (26 characters, 0-indexed so
+        // position 26)
         assert_eq!(state.editor.cursor.row, initial_row);
-        assert_eq!(state.editor.cursor.col, 25);
+        assert_eq!(state.editor.cursor.col, 26);
     }
 
     #[test]
