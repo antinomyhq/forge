@@ -1,5 +1,6 @@
-use forge_app::domain::Transformer;
-use forge_app::dto::{Request, ToolChoice};
+use forge_domain::Transformer;
+
+use crate::dto::{Request, ToolChoice};
 
 pub struct SetToolChoice {
     choice: ToolChoice,
@@ -22,7 +23,7 @@ impl Transformer for SetToolChoice {
 
 #[cfg(test)]
 mod tests {
-    use forge_app::domain::{Context, ModelId};
+    use forge_domain::{Context, ModelId};
 
     use super::*;
 

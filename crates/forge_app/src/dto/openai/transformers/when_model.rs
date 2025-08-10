@@ -1,5 +1,6 @@
-use forge_app::dto::Request;
 use regex::Regex;
+
+use crate::dto::Request;
 
 /// Creates a condition function that matches requests when the model name
 /// matches the given regex pattern.
@@ -28,11 +29,11 @@ pub fn when_model(pattern: &str) -> impl Fn(&Request) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use forge_app::domain::{ModelId, Transformer};
-    use forge_app::dto::Request;
+    use forge_domain::{ModelId, Transformer};
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::dto::Request;
 
     // A simple test transformer that adds a prefix to the model name
     struct TestTransformer {

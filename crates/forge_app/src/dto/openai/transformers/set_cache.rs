@@ -1,5 +1,6 @@
-use forge_app::domain::Transformer;
-use forge_app::dto::{Request, Role};
+use forge_domain::Transformer;
+
+use crate::dto::{Request, Role};
 
 /// Transformer that caches the last user/system message for supported models
 pub struct SetCache;
@@ -48,7 +49,7 @@ impl Transformer for SetCache {
 mod tests {
     use std::collections::HashSet;
 
-    use forge_app::domain::{Context, ContextMessage, ModelId, Role, TextMessage};
+    use forge_domain::{Context, ContextMessage, ModelId, Role, TextMessage};
     use pretty_assertions::assert_eq;
 
     use super::*;

@@ -1,11 +1,11 @@
-use forge_app::domain::{DefaultTransformation, Provider, Transformer};
-use forge_app::dto::{Request, ToolChoice};
+use forge_domain::{DefaultTransformation, Provider, Transformer};
 
 use super::drop_tool_call::DropToolCalls;
 use super::make_openai_compat::MakeOpenAiCompat;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
+use crate::dto::{Request, ToolChoice};
 
 /// Pipeline for transforming requests based on the provider type
 pub struct ProviderPipeline<'a>(&'a Provider);

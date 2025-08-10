@@ -1,5 +1,6 @@
-use forge_app::domain::Transformer;
-use forge_app::dto::{Request, Role};
+use forge_domain::Transformer;
+
+use crate::dto::{Request, Role};
 
 /// Drops all tool call messages and converts them to user/assistant messages
 pub struct DropToolCalls;
@@ -33,7 +34,7 @@ impl Transformer for DropToolCalls {
 
 #[cfg(test)]
 mod tests {
-    use forge_app::domain::{
+    use forge_domain::{
         Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use serde_json::json;
@@ -64,9 +65,7 @@ mod tests {
                 }),
                 ContextMessage::Tool(tool_result),
             ],
-            tools: vec![
-                forge_app::domain::ToolDefinition::new("test_tool").description("A test tool"),
-            ],
+            tools: vec![forge_domain::ToolDefinition::new("test_tool").description("A test tool")],
             tool_choice: None,
             max_tokens: None,
             temperature: None,

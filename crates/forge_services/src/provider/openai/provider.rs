@@ -3,16 +3,15 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
+    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream, Transformer,
 };
-use forge_app::dto::{ListModelResponse, Request, Response};
+use forge_app::dto::{ListModelResponse, ProviderPipeline, Request, Response};
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
 
 use super::super::client::{create_headers, join_url};
 use super::super::event::into_chat_completion_message;
 use super::super::utils::{format_http_context, sanitize_headers};
-use super::transformers::{ProviderPipeline, Transformer};
 
 #[derive(Clone)]
 pub struct OpenAIProvider<H> {
