@@ -1,4 +1,4 @@
-use forge_app::domain::ModelId;
+use forge_domain::ModelId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -40,4 +40,34 @@ pub struct TopProvider {
 #[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct ListModelResponse {
     pub data: Vec<Model>,
+}
+
+impl From<Model> for forge_domain::Model {
+    fn from(value: Model) -> Self {
+        let tools_supported = value
+            .supported_parameters
+            .iter()
+            .flatten()
+            .any(|param| param == "tools");
+        let supports_parallel_tool_calls = value
+            .supported_parameters
+            .iter()
+            .flatten()
+            .any(|param| param == "supports_parallel_tool_calls");
+        let is_reasoning_supported = value
+            .supported_parameters
+            .iter()
+            .flatten()
+            .any(|param| param == "reasoning");
+
+        forge_domain::Model {
+            id: value.id,
+            name: value.name,
+            description: value.description,
+            context_length: value.context_length,
+            tools_supported: Some(tools_supported),
+            supports_parallel_tool_calls: Some(supports_parallel_tool_calls),
+            supports_reasoning: Some(is_reasoning_supported),
+        }
+    }
 }

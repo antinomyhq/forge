@@ -5,14 +5,13 @@ use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
-use forge_app::dto::{Request, Response};
+use forge_app::dto::{ListModelResponse, Request, Response};
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
 
 use super::super::client::{create_headers, join_url};
 use super::super::event::into_chat_completion_message;
 use super::super::utils::{format_http_context, sanitize_headers};
-use super::model::{ListModelResponse, Model};
 use super::transformers::{ProviderPipeline, Transformer};
 
 #[derive(Clone)]
@@ -131,36 +130,6 @@ impl<T: HttpClientService> OpenAIProvider<T> {
 
     pub async fn models(&self) -> Result<Vec<forge_app::domain::Model>> {
         self.inner_models().await
-    }
-}
-
-impl From<Model> for forge_app::domain::Model {
-    fn from(value: Model) -> Self {
-        let tools_supported = value
-            .supported_parameters
-            .iter()
-            .flatten()
-            .any(|param| param == "tools");
-        let supports_parallel_tool_calls = value
-            .supported_parameters
-            .iter()
-            .flatten()
-            .any(|param| param == "supports_parallel_tool_calls");
-        let is_reasoning_supported = value
-            .supported_parameters
-            .iter()
-            .flatten()
-            .any(|param| param == "reasoning");
-
-        forge_app::domain::Model {
-            id: value.id,
-            name: value.name,
-            description: value.description,
-            context_length: value.context_length,
-            tools_supported: Some(tools_supported),
-            supports_parallel_tool_calls: Some(supports_parallel_tool_calls),
-            supports_reasoning: Some(is_reasoning_supported),
-        }
     }
 }
 
