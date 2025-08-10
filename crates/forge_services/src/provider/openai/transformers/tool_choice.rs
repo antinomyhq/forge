@@ -1,7 +1,5 @@
 use forge_app::domain::Transformer;
-
-use super::super::request::Request;
-use super::super::tool_choice::ToolChoice;
+use forge_app::dto::{Request, ToolChoice};
 
 pub struct SetToolChoice {
     choice: ToolChoice,

@@ -2,9 +2,9 @@ use forge_app::domain::{
     ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, TokenCount, ToolCallId,
     ToolCallPart, ToolName,
 };
+use forge_app::dto::{AnthropicErrorResponse, Error};
 use serde::Deserialize;
 
-use super::super::error::{AnthropicErrorResponse, Error};
 use super::request::Role;
 
 #[derive(Deserialize)]

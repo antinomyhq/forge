@@ -1,6 +1,5 @@
 use forge_app::domain::Transformer;
-
-use super::super::request::Request;
+use forge_app::dto::Request;
 
 /// makes the Request compatible with the OpenAI API.
 pub struct MakeOpenAiCompat;
@@ -48,7 +47,7 @@ mod tests {
 
     #[test]
     fn test_parallel_tool_calls_removed_when_no_tools() {
-        use crate::provider::openai::request::Request;
+        use forge_app::dto::Request;
 
         let fixture = Request::default().parallel_tool_calls(true);
         let mut transformer = MakeOpenAiCompat;
@@ -68,8 +67,7 @@ mod tests {
 
     #[test]
     fn test_parallel_tool_calls_preserved_when_tools_present() {
-        use crate::provider::openai::request::{FunctionDescription, Request, Tool};
-        use crate::provider::openai::tool_choice::FunctionType;
+        use forge_app::dto::{FunctionDescription, FunctionType, Request, Tool};
 
         let fixture = Request::default()
             .tools(vec![Tool {

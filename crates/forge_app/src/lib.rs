@@ -4,6 +4,7 @@ mod app;
 mod app_config;
 mod authenticator;
 mod compact;
+pub mod dto;
 mod error;
 mod fmt;
 mod mcp_executor;

@@ -1,6 +1,5 @@
 pub mod anthropic;
 pub mod client;
-pub mod error;
 pub mod event;
 #[cfg(test)]
 pub mod mock_server;

@@ -1,8 +1,7 @@
 use derive_setters::Setters;
 use forge_app::domain::{ContextMessage, Image};
+use forge_app::dto::Error;
 use serde::{Deserialize, Serialize};
-
-use super::super::error::Error;
 
 #[derive(Serialize, Default, Setters)]
 #[setters(into, strip_option)]

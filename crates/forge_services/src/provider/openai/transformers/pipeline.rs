@@ -1,7 +1,6 @@
 use forge_app::domain::{DefaultTransformation, Provider, Transformer};
+use forge_app::dto::{Request, ToolChoice};
 
-use super::super::request::Request;
-use super::super::tool_choice::ToolChoice;
 use super::drop_tool_call::DropToolCalls;
 use super::make_openai_compat::MakeOpenAiCompat;
 use super::set_cache::SetCache;

@@ -5,6 +5,7 @@ use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream,
 };
+use forge_app::dto::{Request, Response};
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
 
@@ -12,8 +13,6 @@ use super::super::client::{create_headers, join_url};
 use super::super::event::into_chat_completion_message;
 use super::super::utils::{format_http_context, sanitize_headers};
 use super::model::{ListModelResponse, Model};
-use super::request::Request;
-use super::response::Response;
 use super::transformers::{ProviderPipeline, Transformer};
 
 #[derive(Clone)]

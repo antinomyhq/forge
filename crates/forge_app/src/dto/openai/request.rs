@@ -2,14 +2,15 @@ use std::vec;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
-use forge_app::domain::{
-    Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
-    ToolResult, ToolValue,
-};
 use serde::{Deserialize, Serialize};
 
 use super::response::{FunctionCall, ToolCall};
 use super::tool_choice::{FunctionType, ToolChoice};
+use crate::domain::{
+    Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
+    ToolResult, ToolValue,
+};
+use crate::dto::ReasoningDetail;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ImageUrl {
@@ -51,7 +52,6 @@ impl MessageContent {
         }
     }
 
-    #[cfg(test)]
     pub fn is_cached(&self) -> bool {
         match self {
             MessageContent::Text(_) => false,
@@ -181,7 +181,7 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream_options: Option<StreamOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<forge_app::domain::ReasoningConfig>,
+    pub reasoning: Option<forge_domain::ReasoningConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_completion_tokens: Option<u32>,
 }
@@ -299,13 +299,6 @@ impl From<ToolCallFull> for ToolCall {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ReasoningDetail {
-    pub r#type: String,
-    pub text: Option<String>,
-    pub signature: Option<String>,
-}
-
 impl From<ContextMessage> for Message {
     fn from(value: ContextMessage) -> Self {
         match value {
@@ -382,12 +375,12 @@ impl From<ToolResult> for MessageContent {
     }
 }
 
-impl From<forge_app::domain::Role> for Role {
-    fn from(role: forge_app::domain::Role) -> Self {
+impl From<forge_domain::Role> for Role {
+    fn from(role: forge_domain::Role) -> Self {
         match role {
-            forge_app::domain::Role::System => Role::System,
-            forge_app::domain::Role::User => Role::User,
-            forge_app::domain::Role::Assistant => Role::Assistant,
+            forge_domain::Role::System => Role::System,
+            forge_domain::Role::User => Role::User,
+            forge_domain::Role::Assistant => Role::Assistant,
         }
     }
 }
@@ -403,7 +396,7 @@ pub enum Role {
 
 #[cfg(test)]
 mod tests {
-    use forge_app::domain::{
+    use forge_domain::{
         ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use insta::assert_json_snapshot;

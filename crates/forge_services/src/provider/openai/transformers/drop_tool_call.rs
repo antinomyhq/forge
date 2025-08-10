@@ -1,6 +1,5 @@
 use forge_app::domain::Transformer;
-
-use super::super::request::{Request, Role};
+use forge_app::dto::{Request, Role};
 
 /// Drops all tool call messages and converts them to user/assistant messages
 pub struct DropToolCalls;

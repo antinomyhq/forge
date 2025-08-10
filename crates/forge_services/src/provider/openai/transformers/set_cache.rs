@@ -1,6 +1,5 @@
 use forge_app::domain::Transformer;
-
-use super::super::request::{Request, Role};
+use forge_app::dto::{Request, Role};
 
 /// Transformer that caches the last user/system message for supported models
 pub struct SetCache;
