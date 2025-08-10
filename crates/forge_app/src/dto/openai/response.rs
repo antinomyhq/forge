@@ -6,9 +6,9 @@ use forge_domain::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::super::error::{Error, ErrorResponse};
 use super::tool_choice::FunctionType;
 use crate::dto::ReasoningDetail;
+use crate::dto::openai::error::{Error, ErrorResponse};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
