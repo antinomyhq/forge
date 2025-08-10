@@ -60,6 +60,9 @@ pub enum Error {
     #[from(skip)]
     NoModelDefined(AgentId),
 
+    #[error("Empty completion received - no content, tool calls, or valid finish reason")]
+    EmptyCompletion,
+
     #[error(transparent)]
     Retryable(anyhow::Error),
 }
@@ -82,6 +85,13 @@ impl std::fmt::Display for ToolCallArgumentError {
             writeln!(f, "- {error}")?;
         }
         Ok(())
+    }
+}
+
+impl Error {
+    pub fn into_retryable(self) -> Self {
+        use anyhow::anyhow;
+        Self::Retryable(anyhow!(self))
     }
 }
 

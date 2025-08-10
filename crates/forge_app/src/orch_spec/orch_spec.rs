@@ -101,3 +101,23 @@ async fn test_attempt_completion_with_task() {
 
     assert_eq!(tool_call_error_count, 3, "Respond with the error thrice");
 }
+
+#[tokio::test]
+async fn test_empty_response() {
+    let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "abc.txt"}));
+
+    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Greetings")));
+
+    let ctx = Setup::init_forge_task("Read a file")
+        .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result)])
+        .mock_assistant_responses(vec![
+            // First message, issues a tool call
+            ChatCompletionMessage::assistant("Reading abc.txt").tool_calls(vec![tool_call.into()]),
+        ])
+        .run()
+        .await;
+
+    let response = ctx.chat_responses;
+
+    println!("{:#?}", response);
+}
