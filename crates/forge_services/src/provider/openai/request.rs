@@ -271,7 +271,8 @@ impl From<Context> for Request {
             min_p: Default::default(),
             top_a: Default::default(),
             prediction: Default::default(),
-            // Since compaction is support on the client we don't need middle-out transforms any more
+            // Since compaction is support on the client we don't need middle-out transforms any
+            // more
             transforms: Default::default(),
             models: Default::default(),
             route: Default::default(),
