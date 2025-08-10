@@ -487,11 +487,17 @@ impl<S: AgentService> Orchestrator<S> {
             // we increment the attempts, otherwise we remove it from the attempts map
             if let Some(allowed_max_attempts) = self.conversation.max_tool_failure_per_turn.as_ref()
             {
+                let mut failed_tool_calls = HashSet::new();
                 tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
                         let current_attempts = tool_failure_attempts
                             .entry(result.name.clone())
-                            .and_modify(|count| *count += 1)
+                            .and_modify(|count| {
+                                if !failed_tool_calls.contains(&result.name) {
+                                    *count += 1;
+                                }
+                                failed_tool_calls.insert(result.name.clone());
+                            })
                             .or_insert(1);
                         let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
 
