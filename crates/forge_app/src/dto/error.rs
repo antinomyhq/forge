@@ -10,9 +10,6 @@ pub enum Error {
     #[error("{0}")]
     Response(ErrorResponse),
 
-    #[error("{0}")]
-    Anthropic(AnthropicErrorResponse),
-
     #[error("Missing tool name")]
     ToolCallMissingName,
 
@@ -98,7 +95,7 @@ impl std::fmt::Display for ErrorResponse {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, thiserror::Error)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum AnthropicErrorResponse {
     OverloadedError { message: String },

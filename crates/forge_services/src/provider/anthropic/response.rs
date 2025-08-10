@@ -2,7 +2,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, TokenCount, ToolCallId,
     ToolCallPart, ToolName,
 };
-use forge_app::dto::{AnthropicErrorResponse, Error};
+use forge_app::dto::AnthropicErrorResponse;
 use serde::Deserialize;
 
 use super::request::Role;
@@ -200,7 +200,7 @@ impl TryFrom<Event> for ChatCompletionMessage {
                 ChatCompletionMessage::assistant(Content::part("")).finish_reason(delta.stop_reason)
             }
             Event::Error { error } => {
-                return Err(Error::Anthropic(error).into());
+                return Err(error.into());
             }
             _ => ChatCompletionMessage::assistant(Content::part("")),
         };
