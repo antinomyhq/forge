@@ -411,6 +411,7 @@ impl<S: AgentService> Orchestrator<S> {
                     usage,
                     reasoning,
                     reasoning_details,
+                    finish_reason,
                 },
                 compaction_result,
             ) = tokio::try_join!(main_request, self.check_and_compact(&agent, &context))?;
@@ -433,6 +434,7 @@ impl<S: AgentService> Orchestrator<S> {
                 total_tokens = format!("{}", usage.total_tokens),
                 cached_tokens = format!("{}", usage.cached_tokens),
                 cost = usage.cost.unwrap_or_default(),
+                finish_reason = finish_reason.map_or("", |reason| reason.into()),
                 "Processing usage information"
             );
 
