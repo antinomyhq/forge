@@ -9,9 +9,9 @@ use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Respo
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
 
-use super::super::client::{create_headers, join_url};
-use super::super::event::into_chat_completion_message;
-use super::super::utils::{format_http_context, sanitize_headers};
+use crate::provider::client::{create_headers, join_url};
+use crate::provider::event::into_chat_completion_message;
+use crate::provider::utils::{format_http_context, sanitize_headers};
 
 #[derive(Clone)]
 pub struct OpenAIProvider<H> {

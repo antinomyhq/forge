@@ -9,9 +9,9 @@ use forge_app::dto::anthropic::{EventData, ListModelResponse, ReasoningTransform
 use reqwest::Url;
 use tracing::debug;
 
-use super::super::client::{create_headers, join_url};
-use super::super::event::into_chat_completion_message;
-use super::super::utils::format_http_context;
+use crate::provider::client::{create_headers, join_url};
+use crate::provider::event::into_chat_completion_message;
+use crate::provider::utils::format_http_context;
 
 #[derive(Clone)]
 pub struct Anthropic<T> {
