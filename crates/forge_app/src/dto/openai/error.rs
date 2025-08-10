@@ -9,15 +9,6 @@ pub enum Error {
     #[error("{0}")]
     Response(ErrorResponse),
 
-    #[error("Missing tool name")]
-    ToolCallMissingName,
-
-    #[error("Missing tool call id")]
-    ToolCallMissingId,
-
-    #[error("{0} role messages are not supported in the context for anthropic provider")]
-    UnsupportedRole(String),
-
     #[error("Invalid Status Code: {0}")]
     InvalidStatusCode(u16),
 }

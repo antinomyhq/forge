@@ -30,7 +30,6 @@ fn get_api_status_code(error: &anyhow::Error) -> Option<u16> {
             .as_ref()
             .and_then(|code| code.as_number()),
         Error::InvalidStatusCode(code) => Some(*code),
-        _ => None,
     })
 }
 

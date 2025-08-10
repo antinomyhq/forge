@@ -176,7 +176,7 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                             .function
                                             .name
                                             .clone()
-                                            .ok_or(Error::ToolCallMissingName)?,
+                                            .ok_or(forge_domain::Error::ToolCallMissingName)?,
                                         arguments: serde_json::from_str(
                                             &tool_call.function.arguments,
                                         )?,

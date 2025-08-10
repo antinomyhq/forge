@@ -5,15 +5,13 @@ use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
+use forge_app::dto::anthropic::{EventData, ListModelResponse, ReasoningTransform, Request};
 use reqwest::Url;
 use tracing::debug;
 
 use super::super::client::{create_headers, join_url};
 use super::super::event::into_chat_completion_message;
 use super::super::utils::format_http_context;
-use super::request::Request;
-use super::response::{EventData, ListModelResponse};
-use super::transforms::ReasoningTransform;
 
 #[derive(Clone)]
 pub struct Anthropic<T> {

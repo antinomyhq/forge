@@ -1,11 +1,11 @@
-use forge_app::domain::{
+use forge_domain::{
     ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, TokenCount, ToolCallId,
     ToolCallPart, ToolName,
 };
-use forge_app::dto::anthropic::Error;
 use serde::Deserialize;
 
 use super::request::Role;
+use crate::dto::anthropic::Error;
 
 #[derive(Deserialize)]
 pub struct ListModelResponse {
@@ -18,7 +18,7 @@ pub struct Model {
     display_name: String,
 }
 
-impl From<Model> for forge_app::domain::Model {
+impl From<Model> for forge_domain::Model {
     fn from(value: Model) -> Self {
         Self {
             id: ModelId::new(value.id),
@@ -53,7 +53,7 @@ pub struct Usage {
     pub cache_creation_input_tokens: Option<usize>,
 }
 
-impl From<Usage> for forge_app::domain::Usage {
+impl From<Usage> for forge_domain::Usage {
     fn from(usage: Usage) -> Self {
         let prompt_tokens = usage
             .input_tokens
@@ -69,7 +69,7 @@ impl From<Usage> for forge_app::domain::Usage {
             .unwrap_or_default();
         let total_tokens = prompt_tokens.clone() + completion_tokens.clone();
 
-        forge_app::domain::Usage {
+        forge_domain::Usage {
             prompt_tokens,
             completion_tokens,
             total_tokens,
@@ -88,13 +88,13 @@ pub enum StopReason {
     ToolUse,
 }
 
-impl From<StopReason> for forge_app::domain::FinishReason {
+impl From<StopReason> for forge_domain::FinishReason {
     fn from(value: StopReason) -> Self {
         match value {
-            StopReason::EndTurn => forge_app::domain::FinishReason::Stop,
-            StopReason::MaxTokens => forge_app::domain::FinishReason::Length,
-            StopReason::StopSequence => forge_app::domain::FinishReason::Stop,
-            StopReason::ToolUse => forge_app::domain::FinishReason::ToolCalls,
+            StopReason::EndTurn => forge_domain::FinishReason::Stop,
+            StopReason::MaxTokens => forge_domain::FinishReason::Length,
+            StopReason::StopSequence => forge_domain::FinishReason::Stop,
+            StopReason::ToolUse => forge_domain::FinishReason::ToolCalls,
         }
     }
 }

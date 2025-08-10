@@ -1,6 +1,5 @@
 use derive_setters::Setters;
-use forge_app::domain::{ContextMessage, Image};
-use forge_app::dto::openai::Error;
+use forge_domain::{ContextMessage, Image};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Default, Setters)]
@@ -37,15 +36,15 @@ pub struct Thinking {
     budget_tokens: u64,
 }
 
-impl TryFrom<forge_app::domain::Context> for Request {
+impl TryFrom<forge_domain::Context> for Request {
     type Error = anyhow::Error;
-    fn try_from(request: forge_app::domain::Context) -> std::result::Result<Self, Self::Error> {
+    fn try_from(request: forge_domain::Context) -> std::result::Result<Self, Self::Error> {
         // note: Anthropic only supports 1 system message in context, so from the
         // context we pick the first system message available.
         // ref: https://docs.anthropic.com/en/api/messages#body-system
         let system = request.messages.iter().find_map(|message| {
             if let ContextMessage::Text(chat_message) = message {
-                if chat_message.role == forge_app::domain::Role::System {
+                if chat_message.role == forge_domain::Role::System {
                     Some(chat_message.content.clone())
                 } else {
                     None
@@ -62,7 +61,7 @@ impl TryFrom<forge_app::domain::Context> for Request {
                 .filter(|message| {
                     // note: Anthropic does not support system messages in message field.
                     if let ContextMessage::Text(chat_message) = message {
-                        chat_message.role != forge_app::domain::Role::System
+                        chat_message.role != forge_domain::Role::System
                     } else {
                         true
                     }
@@ -141,14 +140,14 @@ impl TryFrom<ContextMessage> for Message {
                 }
 
                 match chat_message.role {
-                    forge_app::domain::Role::User => Message { role: Role::User, content },
-                    forge_app::domain::Role::Assistant => {
-                        Message { role: Role::Assistant, content }
-                    }
-                    forge_app::domain::Role::System => {
+                    forge_domain::Role::User => Message { role: Role::User, content },
+                    forge_domain::Role::Assistant => Message { role: Role::Assistant, content },
+                    forge_domain::Role::System => {
                         // note: Anthropic doesn't support system role messages and they're already
                         // filtered out. so this state is unreachable.
-                        return Err(Error::UnsupportedRole("System".to_string()).into());
+                        return Err(
+                            forge_domain::Error::UnsupportedRole("System".to_string()).into()
+                        );
                     }
                 }
             }
@@ -222,10 +221,13 @@ enum Content {
     },
 }
 
-impl TryFrom<forge_app::domain::ToolCallFull> for Content {
+impl TryFrom<forge_domain::ToolCallFull> for Content {
     type Error = anyhow::Error;
-    fn try_from(value: forge_app::domain::ToolCallFull) -> std::result::Result<Self, Self::Error> {
-        let call_id = value.call_id.as_ref().ok_or(Error::ToolCallMissingId)?;
+    fn try_from(value: forge_domain::ToolCallFull) -> std::result::Result<Self, Self::Error> {
+        let call_id = value
+            .call_id
+            .as_ref()
+            .ok_or(forge_domain::Error::ToolCallMissingId)?;
 
         Ok(Content::ToolUse {
             id: call_id.as_str().to_string(),
@@ -236,10 +238,13 @@ impl TryFrom<forge_app::domain::ToolCallFull> for Content {
     }
 }
 
-impl TryFrom<forge_app::domain::ToolResult> for Content {
+impl TryFrom<forge_domain::ToolResult> for Content {
     type Error = anyhow::Error;
-    fn try_from(value: forge_app::domain::ToolResult) -> std::result::Result<Self, Self::Error> {
-        let call_id = value.call_id.as_ref().ok_or(Error::ToolCallMissingId)?;
+    fn try_from(value: forge_domain::ToolResult) -> std::result::Result<Self, Self::Error> {
+        let call_id = value
+            .call_id
+            .as_ref()
+            .ok_or(forge_domain::Error::ToolCallMissingId)?;
         Ok(Content::ToolResult {
             tool_use_id: call_id.as_str().to_string(),
             cache_control: None,
@@ -287,21 +292,17 @@ pub enum ToolChoice {
 }
 
 // To understand the mappings refer: https://docs.anthropic.com/en/docs/build-with-claude/tool-use#controlling-claudes-output
-impl From<forge_app::domain::ToolChoice> for ToolChoice {
-    fn from(value: forge_app::domain::ToolChoice) -> Self {
+impl From<forge_domain::ToolChoice> for ToolChoice {
+    fn from(value: forge_domain::ToolChoice) -> Self {
         match value {
-            forge_app::domain::ToolChoice::Auto => {
-                ToolChoice::Auto { disable_parallel_tool_use: None }
-            }
-            forge_app::domain::ToolChoice::Call(tool_name) => {
+            forge_domain::ToolChoice::Auto => ToolChoice::Auto { disable_parallel_tool_use: None },
+            forge_domain::ToolChoice::Call(tool_name) => {
                 ToolChoice::Tool { name: tool_name.to_string(), disable_parallel_tool_use: None }
             }
-            forge_app::domain::ToolChoice::Required => {
+            forge_domain::ToolChoice::Required => {
                 ToolChoice::Any { disable_parallel_tool_use: None }
             }
-            forge_app::domain::ToolChoice::None => {
-                ToolChoice::Auto { disable_parallel_tool_use: None }
-            }
+            forge_domain::ToolChoice::None => ToolChoice::Auto { disable_parallel_tool_use: None },
         }
     }
 }
@@ -316,11 +317,9 @@ pub struct ToolDefinition {
     input_schema: serde_json::Value,
 }
 
-impl TryFrom<forge_app::domain::ToolDefinition> for ToolDefinition {
+impl TryFrom<forge_domain::ToolDefinition> for ToolDefinition {
     type Error = anyhow::Error;
-    fn try_from(
-        value: forge_app::domain::ToolDefinition,
-    ) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: forge_domain::ToolDefinition) -> std::result::Result<Self, Self::Error> {
         Ok(ToolDefinition {
             name: value.name.to_string(),
             description: Some(value.description),
