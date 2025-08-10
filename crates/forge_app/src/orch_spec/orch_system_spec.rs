@@ -12,7 +12,7 @@ async fn test_system_prompt() {
         ))]);
 
     ctx.run().await.unwrap();
-    let system_prompt = ctx.system_prompt().unwrap();
+    let system_prompt = ctx.output.system_prompt().unwrap();
     assert_snapshot!(system_prompt);
 }
 
@@ -34,6 +34,6 @@ async fn test_system_prompt_tool_supported() {
 
     ctx.run().await.unwrap();
 
-    let system_prompt = ctx.system_prompt().unwrap();
+    let system_prompt = ctx.output.system_prompt().unwrap();
     assert_snapshot!(system_prompt);
 }

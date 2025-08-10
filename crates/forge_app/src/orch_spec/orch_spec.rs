@@ -1,5 +1,6 @@
 use forge_domain::{
-    ChatCompletionMessage, Content, FinishReason, Role, ToolCallFull, ToolOutput, ToolResult,
+    ChatCompletionMessage, ChatResponse, Content, FinishReason, Role, ToolCallFull, ToolOutput,
+    ToolResult,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -12,7 +13,7 @@ async fn test_history_is_saved() {
         ChatCompletionMessage::assistant(Content::full("Sure")).finish_reason(FinishReason::Stop),
     ]);
     ctx.run().await.unwrap();
-    let actual = &ctx.conversation_history;
+    let actual = &ctx.output.conversation_history;
     assert!(!actual.is_empty());
 }
 
@@ -24,7 +25,7 @@ async fn test_attempt_completion_requirement() {
 
     ctx.run().await.unwrap();
 
-    let messages = ctx.context_messages();
+    let messages = ctx.output.context_messages();
 
     let message_count = messages
         .iter()
@@ -48,18 +49,19 @@ async fn test_attempt_completion_content() {
     ]);
 
     ctx.run().await.unwrap();
-    let response_len = ctx.chat_responses.len();
+    let response_len = ctx.output.chat_responses.len();
 
     assert_eq!(response_len, 2, "Response length should be 2");
 
-    let first_text_response =
-        ctx.chat_responses
-            .iter()
-            .flatten()
-            .find_map(|response| match response {
-                forge_domain::ChatResponse::Text { text, .. } => Some(text.as_str()),
-                _ => None,
-            });
+    let first_text_response = ctx
+        .output
+        .chat_responses
+        .iter()
+        .flatten()
+        .find_map(|response| match response {
+            forge_domain::ChatResponse::Text { text, .. } => Some(text.as_str()),
+            _ => None,
+        });
 
     assert_eq!(
         first_text_response,
@@ -89,6 +91,7 @@ async fn test_attempt_completion_with_task() {
     ctx.run().await.unwrap();
 
     let tool_call_error_count = ctx
+        .output
         .context_messages()
         .iter()
         .filter_map(|message| message.content())
@@ -115,8 +118,11 @@ async fn test_empty_responses() {
 
     let _ = ctx.run().await;
 
-    let response = &ctx.chat_responses;
+    let retry_attempts = dbg!(ctx.output.chat_responses)
+        .into_iter()
+        .filter_map(|response| response.ok())
+        .filter(|response| matches!(response, ChatResponse::RetryAttempt { .. }))
+        .count();
 
-    // FIXME: add an actual test case
-    println!("{:?}", response);
+    assert_eq!(retry_attempts, 3, "Should retry 3 times")
 }

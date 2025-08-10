@@ -78,8 +78,8 @@ impl Runner {
         let mut chat_responses = Vec::new();
         let (result, _) = tokio::join!(orch.chat(event), rx.recv_many(&mut chat_responses, LIMIT));
 
-        setup.test_output.chat_responses = chat_responses;
-        setup.test_output.conversation_history = runner.get_history().await;
+        setup.output.chat_responses = chat_responses;
+        setup.output.conversation_history = runner.get_history().await;
 
         result
     }

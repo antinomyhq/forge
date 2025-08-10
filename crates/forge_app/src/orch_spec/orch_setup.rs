@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::path::PathBuf;
 
 use chrono::{DateTime, Local};
@@ -25,15 +24,7 @@ pub struct TestContext {
     pub current_time: DateTime<Local>,
 
     // Final output of the test is store in the context
-    pub test_output: TestOutput,
-}
-
-impl Deref for TestContext {
-    type Target = TestOutput;
-
-    fn deref(&self) -> &Self::Target {
-        &self.test_output
-    }
+    pub output: TestOutput,
 }
 
 impl TestContext {
@@ -44,7 +35,7 @@ impl TestContext {
     pub fn from_event(event: Event) -> Self {
         Self {
             event,
-            test_output: TestOutput::default(),
+            output: TestOutput::default(),
             current_time: Local::now(),
             mock_assistant_responses: Default::default(),
             mock_tool_call_responses: Default::default(),
