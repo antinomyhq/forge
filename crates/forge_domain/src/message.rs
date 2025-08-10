@@ -30,6 +30,12 @@ pub struct ChatCompletionMessage {
     pub usage: Option<Usage>,
 }
 
+impl From<FinishReason> for ChatCompletionMessage {
+    fn from(value: FinishReason) -> Self {
+        ChatCompletionMessage::default().finish_reason(value)
+    }
+}
+
 /// Represents partial or full content of a message
 #[derive(Clone, Debug, PartialEq, Eq, From)]
 pub enum Content {
