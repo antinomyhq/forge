@@ -118,7 +118,9 @@ async fn test_empty_responses() {
 
     let _ = ctx.run().await;
 
-    let retry_attempts = dbg!(ctx.output.chat_responses)
+    let retry_attempts = ctx
+        .output
+        .chat_responses
         .into_iter()
         .filter_map(|response| response.ok())
         .filter(|response| matches!(response, ChatResponse::RetryAttempt { .. }))
