@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 use crate::EnvironmentInfra;
 use crate::http::HttpClient;
 use crate::infra::HttpInfra;
-use crate::provider::{Client, ClientBuilder};
+use crate::provider::client::{Client, ClientBuilder};
 #[derive(Clone)]
 pub struct ForgeProviderService<I: HttpInfra> {
     retry_config: Arc<RetryConfig>,
