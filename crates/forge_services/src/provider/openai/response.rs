@@ -129,6 +129,17 @@ impl TryFrom<Response> for ChatCompletionMessage {
         match res {
             Response::Success { choices, usage, .. } => {
                 if let Some(choice) = choices.first() {
+                    // Check if the choice has an error first
+                    let error = match choice {
+                        Choice::NonChat { error, .. } => error,
+                        Choice::NonStreaming { error, .. } => error,
+                        Choice::Streaming { error, .. } => error,
+                    };
+
+                    if let Some(error) = error {
+                        return Err(Error::Response(error.clone()).into());
+                    }
+
                     let mut response = match choice {
                         Choice::NonChat { text, finish_reason, .. } => {
                             ChatCompletionMessage::assistant(Content::full(text)).finish_reason_opt(
@@ -291,4 +302,148 @@ mod tests {
 
         Ok(())
     }
+}
+#[test]
+fn test_choice_error_handling_non_chat() {
+    let error_response = ErrorResponse::default().message("Test error message".to_string());
+
+    let response = Response::Success {
+        id: "test-id".to_string(),
+        provider: Some("test".to_string()),
+        model: "test-model".to_string(),
+        choices: vec![Choice::NonChat {
+            text: "test content".to_string(),
+            finish_reason: None,
+            error: Some(error_response.clone()),
+        }],
+        created: 123456789,
+        object: "chat.completion".to_string(),
+        system_fingerprint: None,
+        usage: None,
+    };
+
+    let result = ChatCompletionMessage::try_from(response);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    let error_string = format!("{:?}", error);
+    assert!(error_string.contains("Test error message"));
+}
+
+#[test]
+fn test_choice_error_handling_non_streaming() {
+    let error_response = ErrorResponse::default().message("API limit exceeded".to_string());
+
+    let response = Response::Success {
+        id: "test-id".to_string(),
+        provider: Some("test".to_string()),
+        model: "test-model".to_string(),
+        choices: vec![Choice::NonStreaming {
+            logprobs: None,
+            index: 0,
+            finish_reason: None,
+            message: ResponseMessage {
+                content: Some("test content".to_string()),
+                reasoning: None,
+                role: Some("assistant".to_string()),
+                tool_calls: None,
+                refusal: None,
+                reasoning_details: None,
+            },
+            error: Some(error_response.clone()),
+        }],
+        created: 123456789,
+        object: "chat.completion".to_string(),
+        system_fingerprint: None,
+        usage: None,
+    };
+
+    let result = ChatCompletionMessage::try_from(response);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    let error_string = format!("{:?}", error);
+    assert!(error_string.contains("API limit exceeded"));
+}
+
+#[test]
+fn test_choice_error_handling_streaming() {
+    let error_response = ErrorResponse::default().message("Stream interrupted".to_string());
+
+    let response = Response::Success {
+        id: "test-id".to_string(),
+        provider: Some("test".to_string()),
+        model: "test-model".to_string(),
+        choices: vec![Choice::Streaming {
+            finish_reason: None,
+            delta: ResponseMessage {
+                content: Some("test content".to_string()),
+                reasoning: None,
+                role: Some("assistant".to_string()),
+                tool_calls: None,
+                refusal: None,
+                reasoning_details: None,
+            },
+            error: Some(error_response.clone()),
+        }],
+        created: 123456789,
+        object: "chat.completion".to_string(),
+        system_fingerprint: None,
+        usage: None,
+    };
+
+    let result = ChatCompletionMessage::try_from(response);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    let error_string = format!("{:?}", error);
+    assert!(error_string.contains("Stream interrupted"));
+}
+
+#[test]
+fn test_choice_no_error_success() {
+    let response = Response::Success {
+        id: "test-id".to_string(),
+        provider: Some("test".to_string()),
+        model: "test-model".to_string(),
+        choices: vec![Choice::NonStreaming {
+            logprobs: None,
+            index: 0,
+            finish_reason: Some("stop".to_string()),
+            message: ResponseMessage {
+                content: Some("Hello, world!".to_string()),
+                reasoning: None,
+                role: Some("assistant".to_string()),
+                tool_calls: None,
+                refusal: None,
+                reasoning_details: None,
+            },
+            error: None,
+        }],
+        created: 123456789,
+        object: "chat.completion".to_string(),
+        system_fingerprint: None,
+        usage: None,
+    };
+
+    let result = ChatCompletionMessage::try_from(response);
+    assert!(result.is_ok());
+    let message = result.unwrap();
+    assert_eq!(message.content.unwrap().as_str(), "Hello, world!");
+}
+
+#[test]
+fn test_empty_choices_no_error() {
+    let response = Response::Success {
+        id: "test-id".to_string(),
+        provider: Some("test".to_string()),
+        model: "test-model".to_string(),
+        choices: vec![],
+        created: 123456789,
+        object: "chat.completion".to_string(),
+        system_fingerprint: None,
+        usage: None,
+    };
+
+    let result = ChatCompletionMessage::try_from(response);
+    assert!(result.is_ok());
+    let message = result.unwrap();
+    assert_eq!(message.content.unwrap().as_str(), "");
 }
