@@ -8,28 +8,22 @@ use crate::orch_spec::orch_runner::TestContext;
 
 #[tokio::test]
 async fn test_history_is_saved() {
-    let ctx = TestContext::init_forge_task("This is a test")
-        .mock_assistant_responses(vec![
-            ChatCompletionMessage::assistant(Content::full("Sure"))
-                .finish_reason(FinishReason::Stop),
-        ])
-        .run()
-        .await
-        .unwrap();
+    let mut ctx = TestContext::init_forge_task("This is a test").mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant(Content::full("Sure")).finish_reason(FinishReason::Stop),
+    ]);
+    ctx.run().await.unwrap();
     let actual = &ctx.conversation_history;
     assert!(!actual.is_empty());
 }
 
 #[tokio::test]
 async fn test_attempt_completion_requirement() {
-    let ctx = TestContext::init_forge_task("Hi")
-        .mock_assistant_responses(vec![
-            ChatCompletionMessage::assistant(Content::full("Hello!"))
-                .finish_reason(FinishReason::Stop),
-        ])
-        .run()
-        .await
-        .unwrap();
+    let mut ctx = TestContext::init_forge_task("Hi").mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant(Content::full("Hello!")).finish_reason(FinishReason::Stop),
+    ]);
+
+    ctx.run().await.unwrap();
+
     let messages = ctx.context_messages();
 
     let message_count = messages
@@ -49,14 +43,11 @@ async fn test_attempt_completion_requirement() {
 
 #[tokio::test]
 async fn test_attempt_completion_content() {
-    let ctx = TestContext::init_forge_task("Hi")
-        .mock_assistant_responses(vec![
-            ChatCompletionMessage::assistant(Content::full("Hello!"))
-                .finish_reason(FinishReason::Stop),
-        ])
-        .run()
-        .await
-        .unwrap();
+    let mut ctx = TestContext::init_forge_task("Hi").mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant(Content::full("Hello!")).finish_reason(FinishReason::Stop),
+    ]);
+
+    ctx.run().await.unwrap();
     let response_len = ctx.chat_responses.len();
 
     assert_eq!(response_len, 2, "Response length should be 2");
@@ -82,7 +73,7 @@ async fn test_attempt_completion_with_task() {
     let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "abc.txt"}));
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Greetings")));
 
-    let ctx = TestContext::init_forge_task("Read a file")
+    let mut ctx = TestContext::init_forge_task("Read a file")
         .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result)])
         .mock_assistant_responses(vec![
             // First message, issues a tool call
@@ -93,10 +84,9 @@ async fn test_attempt_completion_with_task() {
             ChatCompletionMessage::assistant("Im done!"),
             // Third message without any attempt completion
             ChatCompletionMessage::assistant("Im done!"),
-        ])
-        .run()
-        .await
-        .unwrap();
+        ]);
+
+    ctx.run().await.unwrap();
 
     let tool_call_error_count = ctx
         .context_messages()
@@ -123,7 +113,7 @@ async fn test_empty_responses() {
 
     ctx.env.retry_config.max_retry_attempts = 3;
 
-    let ctx = ctx.run().await.unwrap();
+    let _ = ctx.run().await;
 
     let response = &ctx.chat_responses;
 

@@ -93,9 +93,8 @@ impl TestContext {
         }
     }
 
-    pub async fn run(mut self) -> anyhow::Result<Self> {
-        Runner::run(&mut self).await?;
-        Ok(self)
+    pub async fn run(&mut self) -> anyhow::Result<()> {
+        Runner::run(self).await
     }
 }
 

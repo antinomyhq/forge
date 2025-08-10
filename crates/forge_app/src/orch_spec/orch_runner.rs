@@ -1,14 +1,12 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use chrono::Local;
 use forge_domain::{
     ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
 use tokio::sync::Mutex;
-use tokio::sync::mpsc::Sender;
 
 pub use super::orch_setup::TestContext;
 use crate::AgentService;
