@@ -144,6 +144,17 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             .chain(Reasoning::from_parts(partial_reasoning_details))
             .collect();
 
+        // Get the finish reason from the last message that has one
+        let finish_reason = messages
+            .iter()
+            .rev()
+            .find_map(|message| message.finish_reason.clone());
+
+        // Check for empty completion - map to retryable error for retry
+        if content.trim().is_empty() && tool_calls.is_empty() && finish_reason.is_none() {
+            return Err(crate::Error::EmptyCompletion.into_retryable().into());
+        }
+
         Ok(ChatCompletionMessageFull {
             content,
             tool_calls,
@@ -151,6 +162,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             reasoning: (!reasoning.is_empty()).then_some(reasoning),
             reasoning_details: (!total_reasoning_details.is_empty())
                 .then_some(total_reasoning_details),
+            finish_reason,
         })
     }
 }
@@ -206,6 +218,7 @@ mod tests {
             },
             reasoning: None,
             reasoning_details: None,
+            finish_reason: None,
         };
 
         assert_eq!(actual, expected);
@@ -237,6 +250,7 @@ mod tests {
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: None,
+            finish_reason: None,
         };
 
         assert_eq!(actual, expected);
@@ -296,6 +310,7 @@ mod tests {
             usage: Usage::default(),
             reasoning: Some("First reasoning: thinking deeply about this...".to_string()),
             reasoning_details: None,
+            finish_reason: None,
         };
 
         assert_eq!(actual, expected);
@@ -346,6 +361,7 @@ mod tests {
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: Some(expected_reasoning_details),
+            finish_reason: None,
         };
 
         assert_eq!(actual, expected);
@@ -374,6 +390,7 @@ mod tests {
             usage: Usage::default(),
             reasoning: None, // Empty reasoning should be None
             reasoning_details: None,
+            finish_reason: None,
         };
 
         assert_eq!(actual, expected);
@@ -460,6 +477,7 @@ mod tests {
             },
             reasoning: None,
             reasoning_details: None,
+            finish_reason: None,
         };
 
         assert_eq!(actual, expected);
@@ -500,11 +518,105 @@ mod tests {
             },
             reasoning: None,
             reasoning_details: None,
+            finish_reason: None,
         };
 
         assert_eq!(actual, expected);
     }
 
+    #[tokio::test]
+    async fn test_into_full_with_finish_reason() {
+        use crate::FinishReason;
+
+        // Fixture: Create a stream with multiple messages, some with finish reasons
+        let messages = vec![
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("Processing..."))
+                .finish_reason_opt(Some(FinishReason::Length))), /* This finish reason should be
+                                                                  * overridden */
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part(" continue"))
+                .finish_reason_opt(None)), // No finish reason
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part(" done"))
+                .finish_reason_opt(Some(FinishReason::Stop))), /* This should be the final
+                                                                * finish reason */
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Should use the last finish reason from the stream
+        let expected = ChatCompletionMessageFull {
+            content: "Processing... continue done".to_string(),
+            tool_calls: vec![],
+            usage: Usage::default(),
+            reasoning: None,
+            reasoning_details: None,
+            finish_reason: Some(FinishReason::Stop), /* Should be from the last message with a
+                                                      * finish reason */
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_with_finish_reason_tool_calls() {
+        use crate::FinishReason;
+
+        // Fixture: Create a stream that ends with a tool call finish reason
+        let messages = vec![Ok(ChatCompletionMessage::default()
+            .content(Content::part("I'll call a tool"))
+            .finish_reason_opt(Some(FinishReason::ToolCalls)))];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Should have the tool_calls finish reason
+        let expected = ChatCompletionMessageFull {
+            content: "I'll call a tool".to_string(),
+            tool_calls: vec![],
+            usage: Usage::default(),
+            reasoning: None,
+            reasoning_details: None,
+            finish_reason: Some(FinishReason::ToolCalls),
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_with_no_finish_reason() {
+        // Fixture: Create a stream with no finish reasons
+        let messages = vec![
+            Ok(ChatCompletionMessage::default().content(Content::part("Hello"))),
+            Ok(ChatCompletionMessage::default().content(Content::part(" world"))),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: finish_reason should be None
+        let expected = ChatCompletionMessageFull {
+            content: "Hello world".to_string(),
+            tool_calls: vec![],
+            usage: Usage::default(),
+            reasoning: None,
+            reasoning_details: None,
+            finish_reason: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
     #[tokio::test]
     async fn test_into_full_stream_continues_after_xml_interruption_for_usage_only() {
         let xml_content = r#"<forge_tool_call>
@@ -540,5 +652,91 @@ mod tests {
         assert_eq!(actual.tool_calls[0].name.as_str(), "test_tool");
         assert_eq!(actual.usage.total_tokens, TokenCount::Actual(25));
         assert_eq!(actual.usage.completion_tokens, TokenCount::Actual(20));
+    }
+
+    #[tokio::test]
+    async fn test_into_full_empty_completion_creates_retryable_error() {
+        use crate::Error;
+
+        // Fixture: Create a stream with empty content, no tool calls, and no finish
+        // reason
+        let messages = vec![
+            Ok(ChatCompletionMessage::default()), // Completely empty message
+            Ok(ChatCompletionMessage::default().content(Content::part(""))), // Empty content
+            Ok(ChatCompletionMessage::default().content(Content::part("   "))), // Whitespace only
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await;
+
+        // Expected: Should return a retryable error for empty completion
+        assert!(actual.is_err());
+        let error = actual.unwrap_err();
+        let domain_error = error.downcast_ref::<Error>();
+        assert!(domain_error.is_some());
+        assert!(matches!(domain_error.unwrap(), Error::Retryable(_)));
+    }
+
+    #[tokio::test]
+    async fn test_into_full_empty_completion_with_finish_reason_should_not_error() {
+        use crate::FinishReason;
+
+        // Fixture: Create a stream with empty content but with finish reason
+        let messages = vec![Ok(ChatCompletionMessage::default()
+            .content(Content::part(""))
+            .finish_reason_opt(Some(FinishReason::Stop)))];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Should succeed because finish reason is present
+        let expected = ChatCompletionMessageFull {
+            content: "".to_string(),
+            tool_calls: vec![],
+            usage: Usage::default(),
+            reasoning: None,
+            reasoning_details: None,
+            finish_reason: Some(FinishReason::Stop),
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_empty_completion_with_tool_calls_should_not_error() {
+        // Fixture: Create a stream with empty content but with tool calls
+        let tool_call = ToolCallFull {
+            name: ToolName::new("test_tool"),
+            call_id: Some(ToolCallId::new("call_123")),
+            arguments: Value::String("test_arg".to_string()),
+        };
+
+        let messages = vec![Ok(ChatCompletionMessage::default()
+            .content(Content::part(""))
+            .add_tool_call(ToolCall::Full(tool_call.clone())))];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Should succeed because tool calls are present
+        let expected = ChatCompletionMessageFull {
+            content: "".to_string(),
+            tool_calls: vec![tool_call],
+            usage: Usage::default(),
+            reasoning: None,
+            reasoning_details: None,
+            finish_reason: None,
+        };
+
+        assert_eq!(actual, expected);
     }
 }
