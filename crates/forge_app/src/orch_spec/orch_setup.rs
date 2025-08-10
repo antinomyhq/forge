@@ -1,12 +1,16 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::path::PathBuf;
 
+use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation, Environment,
     Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull, ToolResult, Workflow,
 };
 use url::Url;
+
+use crate::orch_spec::orch_runner::Runner;
 
 #[derive(Setters)]
 #[setters(into)]
@@ -18,6 +22,18 @@ pub struct Setup {
     pub templates: HashMap<String, String>,
     pub files: Vec<String>,
     pub env: Environment,
+    pub current_time: DateTime<Local>,
+
+    // Final output of the test is store in the context
+    pub test_output: TestOutput,
+}
+
+impl Deref for Setup {
+    type Target = TestOutput;
+
+    fn deref(&self) -> &Self::Target {
+        &self.test_output
+    }
 }
 
 impl Setup {
@@ -28,6 +44,8 @@ impl Setup {
     pub fn from_event(event: Event) -> Self {
         Self {
             event,
+            test_output: TestOutput::default(),
+            current_time: Local::now(),
             mock_assistant_responses: Default::default(),
             mock_tool_call_responses: Default::default(),
             workflow: Workflow::new()
@@ -75,19 +93,20 @@ impl Setup {
         }
     }
 
-    pub async fn run(self) -> TestContext {
-        crate::orch_spec::orch_runner::run(self).await
+    pub async fn run(mut self) -> anyhow::Result<Self> {
+        Runner::run(&mut self).await?;
+        Ok(self)
     }
 }
 
 // The final output produced after running the orchestrator to completion
-#[derive(Debug)]
-pub struct TestContext {
+#[derive(Default, Debug)]
+pub struct TestOutput {
     pub conversation_history: Vec<Conversation>,
     pub chat_responses: Vec<anyhow::Result<ChatResponse>>,
 }
 
-impl TestContext {
+impl TestOutput {
     pub fn system_prompt(&self) -> Option<&str> {
         self.conversation_history
             .last()

@@ -11,7 +11,8 @@ async fn test_system_prompt() {
             "Sure",
         ))])
         .run()
-        .await;
+        .await
+        .unwrap();
     let system_prompt = ctx.system_prompt().unwrap();
     assert_snapshot!(system_prompt);
 }
@@ -32,7 +33,8 @@ async fn test_system_prompt_tool_supported() {
             "Sure",
         ))])
         .run()
-        .await;
+        .await
+        .unwrap();
     let system_prompt = ctx.system_prompt().unwrap();
     assert_snapshot!(system_prompt);
 }

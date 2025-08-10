@@ -1,35 +1,35 @@
-use forge_domain::{ChatCompletionMessage, Content, Role, ToolCallFull, ToolOutput, ToolResult};
+use forge_domain::{
+    ChatCompletionMessage, Content, FinishReason, Role, ToolCallFull, ToolOutput, ToolResult,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use crate::orch_spec::orch_runner::Setup;
 
 #[tokio::test]
-async fn test_orchestrator_creation() {
-    let _ = Setup::init_forge_task("This is a test").run().await;
-    assert!(true);
-}
-
-#[tokio::test]
 async fn test_history_is_saved() {
     let ctx = Setup::init_forge_task("This is a test")
-        .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
-            "Sure",
-        ))])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(Content::full("Sure"))
+                .finish_reason(FinishReason::Stop),
+        ])
         .run()
-        .await;
-    let actual = ctx.conversation_history;
+        .await
+        .unwrap();
+    let actual = &ctx.conversation_history;
     assert!(!actual.is_empty());
 }
 
 #[tokio::test]
 async fn test_attempt_completion_requirement() {
     let ctx = Setup::init_forge_task("Hi")
-        .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
-            "Hello!",
-        ))])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(Content::full("Hello!"))
+                .finish_reason(FinishReason::Stop),
+        ])
         .run()
-        .await;
+        .await
+        .unwrap();
     let messages = ctx.context_messages();
 
     let message_count = messages
@@ -50,11 +50,13 @@ async fn test_attempt_completion_requirement() {
 #[tokio::test]
 async fn test_attempt_completion_content() {
     let ctx = Setup::init_forge_task("Hi")
-        .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
-            "Hello!",
-        ))])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(Content::full("Hello!"))
+                .finish_reason(FinishReason::Stop),
+        ])
         .run()
-        .await;
+        .await
+        .unwrap();
     let response_len = ctx.chat_responses.len();
 
     assert_eq!(response_len, 2, "Response length should be 2");
@@ -78,7 +80,6 @@ async fn test_attempt_completion_content() {
 #[tokio::test]
 async fn test_attempt_completion_with_task() {
     let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "abc.txt"}));
-
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Greetings")));
 
     let ctx = Setup::init_forge_task("Read a file")
@@ -86,11 +87,16 @@ async fn test_attempt_completion_with_task() {
         .mock_assistant_responses(vec![
             // First message, issues a tool call
             ChatCompletionMessage::assistant("Reading abc.txt").tool_calls(vec![tool_call.into()]),
+            // First message without any attempt completion
+            ChatCompletionMessage::assistant("Im done!"),
             // Second message without any attempt completion
-            ChatCompletionMessage::assistant("Successfully read the file"),
+            ChatCompletionMessage::assistant("Im done!"),
+            // Third message without any attempt completion
+            ChatCompletionMessage::assistant("Im done!"),
         ])
         .run()
-        .await;
+        .await
+        .unwrap();
 
     let tool_call_error_count = ctx
         .context_messages()
@@ -103,21 +109,24 @@ async fn test_attempt_completion_with_task() {
 }
 
 #[tokio::test]
-async fn test_empty_response() {
-    let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "abc.txt"}));
+async fn test_empty_responses() {
+    let mut setup = Setup::init_forge_task("Read a file").mock_assistant_responses(vec![
+        // Empty response 1
+        ChatCompletionMessage::assistant(""),
+        // Empty response 2
+        ChatCompletionMessage::assistant(""),
+        // Empty response 3
+        ChatCompletionMessage::assistant(""),
+        // Empty response 4
+        ChatCompletionMessage::assistant(""),
+    ]);
 
-    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Greetings")));
+    setup.env.retry_config.max_retry_attempts = 3;
 
-    let ctx = Setup::init_forge_task("Read a file")
-        .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result)])
-        .mock_assistant_responses(vec![
-            // First message, issues a tool call
-            ChatCompletionMessage::assistant("Reading abc.txt").tool_calls(vec![tool_call.into()]),
-        ])
-        .run()
-        .await;
+    let ctx = setup.run().await.unwrap();
 
-    let response = ctx.chat_responses;
+    let response = &ctx.chat_responses;
 
-    println!("{:#?}", response);
+    // FIXME: add an actual test case
+    println!("{:?}", response);
 }
