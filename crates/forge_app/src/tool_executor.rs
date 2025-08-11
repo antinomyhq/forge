@@ -1,17 +1,78 @@
 use std::sync::Arc;
 
-use anyhow::Context;
-use forge_domain::{Permission, PolicyEngine, ToolCallContext, ToolCallFull, ToolOutput, Tools};
-
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
 use crate::services::ShellService;
 use crate::{
-    ConfirmationService, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
-    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
-    NetFetchService, PolicyLoaderService, UserResponse, WorkflowService,
+    AppConfigService, ConfirmationService, ConversationService, EnvironmentService,
+    FollowUpService, FsCreateService, FsPatchService, FsReadService, FsRemoveService,
+    FsSearchService, FsUndoService, NetFetchService, PolicyLoaderService, UserResponse,
+    WorkflowService,
 };
+use anyhow::Context;
+use forge_display::TitleFormat;
+use forge_domain::{
+    Permission, PolicyConfig, PolicyEngine, ToolCallContext, ToolCallFull, ToolOutput, Tools,
+};
+use strum::IntoEnumIterator;
+use strum_macros::{Display, EnumIter};
+
+/// User response for permission confirmation requests
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter)]
+pub enum PolicyPermission {
+    /// Accept the operation
+    #[strum(to_string = "Accept")]
+    Accept,
+    /// Reject the operation
+    #[strum(to_string = "Reject")]
+    Reject,
+    /// Accept the operation and remember this choice for similar operations
+    #[strum(to_string = "Accept and Remember")]
+    AcceptAndRemember,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter)]
+pub enum AddDefaultPoliciesResponse {
+    /// Accept the operation
+    #[strum(to_string = "Accept")]
+    Accept,
+    /// Reject the operation
+    #[strum(to_string = "Reject")]
+    Reject,
+
+    /// Reject and remember the operation
+    #[strum(to_string = "Reject and remember my choice")]
+    RejectAndRemember,
+}
+
+impl UserResponse for PolicyPermission {
+    fn positive() -> Self {
+        PolicyPermission::Accept
+    }
+
+    fn negative() -> Self {
+        PolicyPermission::Reject
+    }
+
+    fn varients() -> Vec<Self> {
+        PolicyPermission::iter().collect()
+    }
+}
+
+impl UserResponse for AddDefaultPoliciesResponse {
+    fn positive() -> Self {
+        AddDefaultPoliciesResponse::Accept
+    }
+
+    fn negative() -> Self {
+        AddDefaultPoliciesResponse::Reject
+    }
+
+    fn varients() -> Vec<Self> {
+        AddDefaultPoliciesResponse::iter().collect()
+    }
+}
 
 pub struct ToolExecutor<S> {
     services: Arc<S>,
@@ -31,11 +92,64 @@ impl<
         + WorkflowService
         + PolicyLoaderService
         + EnvironmentService
-        + ConfirmationService,
+        + ConfirmationService
+        + AppConfigService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
+    }
+
+    /// Get policies, creating default ones if they don't exist
+    #[async_recursion::async_recursion]
+    async fn get_or_create_policies(
+        &self,
+        context: &mut ToolCallContext,
+    ) -> anyhow::Result<PolicyConfig> {
+        if let Some(policies) = self.services.load_policies().await? {
+            Ok(policies)
+        } else {
+            let mut app_config = self.services.read_app_config().await?;
+            if !app_config.should_create_default_perms.unwrap_or(true) {
+                return Ok(PolicyConfig::new());
+            }
+
+            match self
+                .services
+                .request_user_confirmation::<AddDefaultPoliciesResponse>(
+                    TitleFormat::action(format!("No permissions policies found. Would you like to create a default policies file at {}?", self.services.policies_path().display())),
+                ) {
+                AddDefaultPoliciesResponse::Accept => {
+                    self.services.init_policies().await?;
+                    context
+                    .send(crate::fmt::content::ContentFormat::Markdown(TitleFormat::info(format!(
+                    "Default policies file created at `{}`. You can always review and modify it as needed.",
+                    self.services.policies_path().display()
+                    )).to_string()))
+                    .await?;
+                    self.get_or_create_policies(context).await
+                }
+                AddDefaultPoliciesResponse::Reject => {
+                    context.send(
+                        crate::fmt::content::ContentFormat::Markdown(TitleFormat::info(
+                            "Permissions policies not created. You will be prompted for permissions on each operation that requires them."
+                        ).to_string())
+                    ).await?;
+                    Ok(PolicyConfig::new())
+                },
+                AddDefaultPoliciesResponse::RejectAndRemember => {
+                    context.send(
+                        crate::fmt::content::ContentFormat::Markdown(TitleFormat::info(
+                            "Permissions policies not created. You will be prompted for permissions on each operation that requires them."
+                        ).to_string())
+                    ).await?;
+                    app_config.should_create_default_perms = Some(false);
+                    self.services.write_app_config(&app_config).await?;
+
+                    Ok(PolicyConfig::new())
+                }
+            }
+        }
     }
 
     /// Check if a file operation is allowed based on the workflow policies
@@ -44,8 +158,8 @@ impl<
         operation: &forge_domain::Operation,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<()> {
-        // Load extended policies
-        let policies = self.services.load_policies().await.unwrap_or_default();
+        // Get or create policies
+        let policies = self.get_or_create_policies(context).await?;
 
         let engine = PolicyEngine::new(&policies);
         let permission = engine.can_perform(operation);
@@ -59,15 +173,17 @@ impl<
             }
             Permission::Confirm => {
                 // Request user confirmation
-                match self.services.request_user_confirmation() {
-                    UserResponse::Accept => {
+                match self.services.request_user_confirmation(
+                    "This operation requires confirmation. How would you like to proceed?",
+                ) {
+                    PolicyPermission::Accept => {
                         // User accepted the operation, continue
                     }
-                    UserResponse::AcceptAndRemember => {
+                    PolicyPermission::AcceptAndRemember => {
                         // User accepted and wants to remember this choice
                         self.add_policy_for_operation(operation, context).await.ok();
                     }
-                    UserResponse::Reject => {
+                    PolicyPermission::Reject => {
                         return Err(anyhow::anyhow!(
                             "Operation rejected by user for operation: {:?}",
                             operation

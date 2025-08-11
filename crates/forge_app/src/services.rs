@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
@@ -10,26 +11,11 @@ use merge::Merge;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
-use strum_macros::{Display, EnumIter};
 use url::Url;
 
 use crate::Walker;
 use crate::dto::{AppConfig, InitAuth, LoginInfo};
 use crate::user::{User, UserUsage};
-
-/// User response for permission confirmation requests
-#[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter)]
-pub enum UserResponse {
-    /// Accept the operation
-    #[strum(to_string = "Accept")]
-    Accept,
-    /// Reject the operation
-    #[strum(to_string = "Reject")]
-    Reject,
-    /// Accept the operation and remember this choice for similar operations
-    #[strum(to_string = "Accept and Remember")]
-    AcceptAndRemember,
-}
 
 #[derive(Debug)]
 pub struct ShellOutput {
@@ -324,16 +310,31 @@ pub trait AgentLoaderService: Send + Sync {
 #[async_trait::async_trait]
 pub trait PolicyLoaderService: Send + Sync {
     /// Load all policy definitions from the forge/policies directory
-    async fn load_policies(&self) -> anyhow::Result<PolicyConfig>;
+    async fn load_policies(&self) -> anyhow::Result<Option<PolicyConfig>>;
 
     /// Add or modify a policy in the policies file and return a diff of the
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String>;
+
+    /// Returns the path to the policies file
+    fn policies_path(&self) -> PathBuf;
+
+    /// Create a default policies file if it does not exist
+    async fn init_policies(&self) -> anyhow::Result<()>;
+}
+
+pub trait UserResponse: Display + Sized + Send + Sync {
+    fn positive() -> Self;
+    fn negative() -> Self;
+    fn varients() -> Vec<Self>;
 }
 
 pub trait ConfirmationService: Send + Sync {
     /// Request user confirmation for an operation
     /// Returns the user's choice.
-    fn request_user_confirmation(&self) -> UserResponse;
+    fn request_user_confirmation<ResponseType: UserResponse>(
+        &self,
+        message: impl ToString,
+    ) -> ResponseType;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -680,17 +681,29 @@ impl<I: Services> AgentLoaderService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> PolicyLoaderService for I {
-    async fn load_policies(&self) -> anyhow::Result<PolicyConfig> {
+    async fn load_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
         self.policy_loader_service().load_policies().await
     }
 
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String> {
         self.policy_loader_service().modify_policy(policy).await
     }
+
+    fn policies_path(&self) -> PathBuf {
+        self.policy_loader_service().policies_path()
+    }
+
+    async fn init_policies(&self) -> anyhow::Result<()> {
+        self.policy_loader_service().init_policies().await
+    }
 }
 
 impl<I: Services> ConfirmationService for I {
-    fn request_user_confirmation(&self) -> UserResponse {
-        self.confirmation_service().request_user_confirmation()
+    fn request_user_confirmation<ResponseType: UserResponse>(
+        &self,
+        message: impl ToString,
+    ) -> ResponseType {
+        self.confirmation_service()
+            .request_user_confirmation(message)
     }
 }

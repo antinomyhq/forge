@@ -1,7 +1,6 @@
 use forge_app::{ConfirmationService, UserResponse};
 use inquire::ui::{RenderConfig, Styled};
 use inquire::{InquireError, Select};
-use strum::IntoEnumIterator;
 
 #[derive(Default, Debug, Clone)]
 pub struct ForgeConfirmation;
@@ -17,29 +16,24 @@ impl ForgeConfirmation {
 
     /// Handle inquire errors consistently - convert cancellation/interruption
     /// to Reject
-    fn handle_inquire_error(
-        result: std::result::Result<UserResponse, InquireError>,
-    ) -> UserResponse {
+    fn handle_inquire_error<T: UserResponse>(result: Result<T, InquireError>) -> T {
         match result {
             Ok(response) => response,
             Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                UserResponse::Reject
+                T::negative()
             }
-            Err(_) => UserResponse::Reject,
+            Err(_) => T::negative(),
         }
     }
 }
 
 impl ConfirmationService for ForgeConfirmation {
-    fn request_user_confirmation(&self) -> UserResponse {
-        let choices: Vec<UserResponse> = UserResponse::iter().collect();
-
-        let select = Select::new(
-            "This operation requires confirmation. How would you like to proceed?",
-            choices,
-        )
-        .with_render_config(Self::render_config())
-        .with_help_message("Use arrow keys to navigate, Enter to select");
+    fn request_user_confirmation<R: UserResponse>(&self, message: impl ToString) -> R {
+        let choices = R::varients();
+        let message = message.to_string();
+        let select = Select::new(&message, choices)
+            .with_render_config(Self::render_config())
+            .with_help_message("Use arrow keys to navigate, Enter to select");
 
         Self::handle_inquire_error(select.prompt())
     }

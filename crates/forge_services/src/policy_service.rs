@@ -1,7 +1,9 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
+use forge_app::PolicyLoaderService;
 use forge_app::domain::{Policy, PolicyConfig};
 use forge_display::DiffFormat;
 
@@ -23,44 +25,51 @@ impl<F> ForgePolicyLoader<F> {
 
 #[async_trait::async_trait]
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    forge_app::PolicyLoaderService for ForgePolicyLoader<F>
+    PolicyLoaderService for ForgePolicyLoader<F>
 {
     /// Load all policy definitions from the forge/policies directory
-    async fn load_policies(&self) -> anyhow::Result<PolicyConfig> {
+    async fn load_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
         self.load_policies().await
     }
 
     async fn modify_policy(&self, policy: Policy) -> Result<String> {
         self.modify_policy(policy).await
     }
+
+    fn policies_path(&self) -> PathBuf {
+        self.policies_path()
+    }
+
+    async fn init_policies(&self) -> Result<()> {
+        self.init_policies().await
+    }
 }
 
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> ForgePolicyLoader<F> {
+    fn policies_path(&self) -> PathBuf {
+        self.infra.get_environment().policies_path()
+    }
     /// Load all policy definitions from the forge/policies directory
-    async fn load_policies(&self) -> anyhow::Result<PolicyConfig> {
+    async fn load_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
         // NOTE: we must not cache policies, as they can change at runtime.
 
-        let policies_path = self.infra.get_environment().policies_path();
+        let policies_path = self.policies_path();
         if !self.infra.exists(&policies_path).await? {
-            // if the policies file does not exist, create it with default policies.
-            let default_policies = PolicyConfig::with_defaults();
-            let content = serde_yml::to_string(&default_policies)
-                .with_context(|| "Failed to serialize default policies to YAML")?;
-            self.infra
-                .write(&policies_path, Bytes::from(content), false)
-                .await?;
-            return Ok(default_policies);
+            // If the policies file does not exist, return None
+            return Ok(None);
         }
 
         let content = self.infra.read_utf8(&policies_path).await?;
 
-        parse_policy_file(&content)
-            .with_context(|| format!("Failed to parse policy {}", policies_path.display()))
+        let policies = parse_policy_file(&content)
+            .with_context(|| format!("Failed to parse policy {}", policies_path.display()))?;
+
+        Ok(Some(policies))
     }
     /// Add or modify a policy in the policies file and return a diff of the
     /// changes
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String> {
-        let policies_path = self.infra.get_environment().policies_path();
+        let policies_path = self.policies_path();
 
         // Read current content (if file exists)
         let old_content = if self.infra.exists(&policies_path).await? {
@@ -97,6 +106,28 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
         // Generate and return the diff
         let diff_result = DiffFormat::format(&old_content, &new_content);
         Ok(diff_result.diff().to_string())
+    }
+
+    async fn init_policies(&self) -> Result<()> {
+        let policies_path = self.policies_path();
+
+        // Check if the file already exists
+        if self.infra.exists(&policies_path).await? {
+            // If it exists, do nothing
+            return Ok(());
+        }
+
+        // Get the default policies content
+        let default_policies = PolicyConfig::with_defaults();
+        let content = serde_yml::to_string(&default_policies)
+            .with_context(|| "Failed to serialize default policies to YAML")?;
+
+        // Write the default policies to the file
+        self.infra
+            .write(&policies_path, Bytes::from(content), false)
+            .await?;
+
+        Ok(())
     }
 }
 
