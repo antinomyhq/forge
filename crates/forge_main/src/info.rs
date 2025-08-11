@@ -386,7 +386,7 @@ mod tests {
         let expected = "/home/user/project";
         assert_eq!(actual, expected);
     }
-  
+
     #[test]
     fn test_format_reset_time_hours_and_minutes() {
         let actual = super::format_reset_time(3661); // 1 hour, 1 minute, 1 second
