@@ -380,7 +380,7 @@ pub struct Followup {
 /// IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the
 /// user that any previous tool uses were successful. Failure to do so will
 /// result in code corruption and system failure. Before using this tool, you
-/// must ask yourself in <forge_thinking></forge_thinking> tags if you've
+/// must ask yourself in thinking tags if you've
 /// confirmed from the user that any previous tool uses were successful. If not,
 /// then DO NOT use this tool.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
