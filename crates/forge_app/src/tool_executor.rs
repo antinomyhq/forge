@@ -298,7 +298,7 @@ impl<
             }
             Tools::ForgeToolNetFetch(input) => {
                 // Check policy before performing the operation
-                let operation = forge_domain::Operation::NetFetch {
+                let operation = forge_domain::Operation::Fetch {
                     url: input.url.clone(),
                     cwd: self.services.get_environment().cwd,
                 };
@@ -428,13 +428,13 @@ fn create_policy_for_operation(
             })
         }),
 
-        forge_domain::Operation::NetFetch { url, cwd: _ } => {
+        forge_domain::Operation::Fetch { url, cwd: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 parsed_url
                     .host_str()
                     .map(|host| forge_domain::Policy::Simple {
                         permission: forge_domain::Permission::Allow,
-                        rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
+                        rule: forge_domain::Rule::Fetch(forge_domain::Fetch {
                             url: format!("{host}*"),
                             working_directory: None,
                         }),
@@ -442,7 +442,7 @@ fn create_policy_for_operation(
             } else {
                 Some(forge_domain::Policy::Simple {
                     permission: forge_domain::Permission::Allow,
-                    rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
+                    rule: forge_domain::Rule::Fetch(forge_domain::Fetch {
                         url: url.to_string(),
                         working_directory: None,
                     }),
@@ -476,7 +476,7 @@ fn create_policy_for_operation(
 mod tests {
     use std::path::PathBuf;
 
-    use forge_domain::{ExecuteRule, NetFetchRule, Permission, Policy, ReadRule, Rule, WriteRule};
+    use forge_domain::{ExecuteRule, Fetch, Permission, Policy, ReadRule, Rule, WriteRule};
     use pretty_assertions::assert_eq;
 
     use crate::tool_executor::create_policy_for_operation;
@@ -533,13 +533,13 @@ mod tests {
     fn test_create_policy_for_net_fetch_operation() {
         let url = "https://example.com/api/data".to_string();
         let operation =
-            forge_domain::Operation::NetFetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
+            forge_domain::Operation::Fetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::NetFetch(NetFetchRule {
+            rule: Rule::Fetch(Fetch {
                 url: "example.com*".to_string(),
                 working_directory: None,
             }),
@@ -607,13 +607,13 @@ mod tests {
     fn test_create_policy_for_invalid_url() {
         let url = "not-a-valid-url".to_string();
         let operation =
-            forge_domain::Operation::NetFetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
+            forge_domain::Operation::Fetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::NetFetch(NetFetchRule {
+            rule: Rule::Fetch(Fetch {
                 url: "not-a-valid-url".to_string(),
                 working_directory: None,
             }),

@@ -32,7 +32,7 @@ pub struct ExecuteRule {
 
 /// Rule for network fetch operations with a URL pattern
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-pub struct NetFetchRule {
+pub struct Fetch {
     pub url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
@@ -49,7 +49,7 @@ pub enum Rule {
     /// Rule for execute operations with a command pattern
     Execute(ExecuteRule),
     /// Rule for network fetch operations with a URL pattern
-    NetFetch(NetFetchRule),
+    Fetch(Fetch),
 }
 
 impl Rule {
@@ -84,7 +84,7 @@ impl Rule {
                 };
                 command_matches && working_directory_matches
             }
-            (Rule::NetFetch(rule), Operation::NetFetch { url, cwd }) => {
+            (Rule::Fetch(rule), Operation::Fetch { url, cwd }) => {
                 let url_matches = match_pattern(&rule.url, url);
                 let working_directory_matches = match &rule.working_directory {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
@@ -146,7 +146,7 @@ mod tests {
     }
 
     fn fixture_net_fetch_operation() -> Operation {
-        Operation::NetFetch {
+        Operation::Fetch {
             url: "https://api.example.com/data".to_string(),
             cwd: PathBuf::from("/home/user/project"),
         }
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn test_net_fetch_url_pattern_match() {
-        let fixture = Rule::NetFetch(NetFetchRule {
+        let fixture = Rule::Fetch(Fetch {
             url: "https://api.example.com/*".to_string(),
             working_directory: None,
         });

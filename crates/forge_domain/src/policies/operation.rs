@@ -10,5 +10,5 @@ pub enum Operation {
     /// Execute operation with a command string
     Execute { command: String, cwd: PathBuf },
     /// Network fetch operation with a URL
-    NetFetch { url: String, cwd: PathBuf },
+    Fetch { url: String, cwd: PathBuf },
 }

@@ -70,7 +70,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ExecuteRule, NetFetchRule, Operation, Permission, Policy, ReadRule, Rule, WriteRule,
+        ExecuteRule, Fetch, Operation, Permission, Policy, ReadRule, Rule, WriteRule,
     };
 
     fn fixture_write_operation() -> Operation {
@@ -152,7 +152,7 @@ mod tests {
                 && matches!(
                     p,
                     Policy::Simple {
-                        rule: Rule::NetFetch(NetFetchRule { url, working_directory: _ }),
+                        rule: Rule::Fetch(Fetch { url, working_directory: _ }),
                         ..
                     } if url == "*"
                 )
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn test_default_policies_allow_all_net_fetch() {
         let policies = PolicyConfig::with_defaults();
-        let operation = Operation::NetFetch {
+        let operation = Operation::Fetch {
             url: "https://example.com/api".to_string(),
             cwd: std::path::PathBuf::from("/test/cwd"),
         };

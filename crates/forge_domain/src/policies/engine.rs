@@ -99,7 +99,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ExecuteRule, NetFetchRule, Permission, Policy, PolicyConfig, ReadRule, Rule, WriteRule,
+        ExecuteRule, Fetch, Permission, Policy, PolicyConfig, ReadRule, Rule, WriteRule,
     };
 
     fn fixture_workflow_with_read_policy() -> PolicyConfig {
@@ -143,7 +143,7 @@ mod tests {
     fn fixture_workflow_with_net_fetch_policy() -> PolicyConfig {
         let policies = PolicyConfig::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::NetFetch(NetFetchRule {
+            rule: Rule::Fetch(Fetch {
                 url: "https://api.example.com/*".to_string(),
                 working_directory: None,
             }),
@@ -211,7 +211,7 @@ mod tests {
     fn test_policy_engine_can_perform_net_fetch() {
         let fixture_workflow = fixture_workflow_with_net_fetch_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::NetFetch {
+        let operation = Operation::Fetch {
             url: "https://api.example.com/data".to_string(),
             cwd: std::path::PathBuf::from("/test/cwd"),
         };
