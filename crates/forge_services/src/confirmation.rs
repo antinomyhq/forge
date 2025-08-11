@@ -1,7 +1,8 @@
-use forge_app::ConfirmationService;
-use inquire::ui::{RenderConfig, Styled};
-use inquire::Select;
 use std::fmt::Display;
+
+use forge_app::ConfirmationService;
+use inquire::Select;
+use inquire::ui::{RenderConfig, Styled};
 
 #[derive(Default, Debug, Clone)]
 pub struct ForgeConfirmation;

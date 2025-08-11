@@ -694,7 +694,11 @@ impl<I: Services> PolicyLoaderService for I {
 }
 
 impl<I: Services> ConfirmationService for I {
-    fn request_user_confirmation<T: Display>(&self, message: impl ToString, varients: Vec<T>) -> Option<T> {
+    fn request_user_confirmation<T: Display>(
+        &self,
+        message: impl ToString,
+        varients: Vec<T>,
+    ) -> Option<T> {
         self.confirmation_service()
             .request_user_confirmation(message, varients)
     }
