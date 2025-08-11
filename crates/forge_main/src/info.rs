@@ -258,9 +258,6 @@ impl From<&UserUsage> for Info {
         let usage = &user_usage.usage;
         let plan = &user_usage.plan;
 
-        // Create progress bar for usage visualization
-        let progress_bar = create_progress_bar(usage.current, usage.limit, 20);
-
         let mut info = Info::new()
             .add_title(format!("{} Quota", plan.r#type.to_uppercase()))
             .add_key_value(
@@ -269,14 +266,15 @@ impl From<&UserUsage> for Info {
                     "{} / {} [{} Remaining]",
                     usage.current, usage.limit, usage.remaining
                 ),
-            )
-            .add_key_value("Progress", progress_bar);
+            );
 
         // Add reset information if available
         if let Some(reset_in) = usage.reset_in {
             let reset_info = format_reset_time(reset_in);
             info = info.add_key_value("Resets in", reset_info);
-            info = info.add_key_value("Upgrade", "https://app.forgecode.dev/app/billing");
+            if plan.is_upgradeable() {
+                info = info.add_key_value("Upgrade", "https://app.forgecode.dev/app/billing");
+            }
         }
 
         info
