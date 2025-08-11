@@ -118,14 +118,14 @@ impl<
             match self
                 .services
                 .request_user_confirmation::<AddDefaultPoliciesResponse>(
-                    TitleFormat::info(format!("No permissions policies found. Would you like to create a default policies file at {}", self.services.policies_path().display())).to_string(),
+                    TitleFormat::info(format!("No permissions policies found. Would you like to create a default policies file at {}", self.services.permissions_path().display())).to_string(),
                 ) {
                 AddDefaultPoliciesResponse::Accept => {
                     self.services.init_policies().await?;
                     context
                     .send(crate::fmt::content::ContentFormat::Markdown(TitleFormat::info(format!(
                     "Default policies file created at `{}`. You can always review and modify it as needed.",
-                    self.services.policies_path().display()
+                    self.services.permissions_path().display()
                     )).to_string()))
                     .await?;
                     self.get_or_create_policies(context).await
@@ -219,7 +219,7 @@ impl<
             // Notify user about the policy modification
             let content_format = crate::fmt::content::ContentFormat::Markdown(format!(
                 "Policy {policy_yml} added to {}",
-                self.services.policies_path().display()
+                self.services.permissions_path().display()
             ));
             context.send(content_format).await?;
         }

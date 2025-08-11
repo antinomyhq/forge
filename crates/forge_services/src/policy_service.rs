@@ -35,8 +35,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         self.modify_policy(policy).await
     }
 
-    fn policies_path(&self) -> PathBuf {
-        self.policies_path()
+    fn permissions_path(&self) -> PathBuf {
+        self.permissions_path()
     }
 
     async fn init_policies(&self) -> Result<()> {
@@ -45,14 +45,14 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 }
 
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> ForgePolicyLoader<F> {
-    fn policies_path(&self) -> PathBuf {
-        self.infra.get_environment().policies_path()
+    fn permissions_path(&self) -> PathBuf {
+        self.infra.get_environment().permissions_path()
     }
     /// Load all policy definitions from the forge/policies directory
     async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
         // NOTE: we must not cache policies, as they can change at runtime.
 
-        let policies_path = self.policies_path();
+        let policies_path = self.permissions_path();
         if !self.infra.exists(&policies_path).await? {
             // If the policies file does not exist, return None
             return Ok(None);
@@ -68,7 +68,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
     /// Add or modify a policy in the policies file and return a diff of the
     /// changes
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<()> {
-        let policies_path = self.policies_path();
+        let policies_path = self.permissions_path();
         let mut policies = self.read_policies().await?.unwrap_or_default();
         // Add the new policy to the collection
         policies = policies.add_policy(policy);
@@ -86,7 +86,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
     }
 
     async fn init_policies(&self) -> Result<()> {
-        let policies_path = self.policies_path();
+        let policies_path = self.permissions_path();
 
         // Check if the file already exists
         if self.infra.exists(&policies_path).await? {

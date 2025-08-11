@@ -316,7 +316,7 @@ pub trait PolicyLoaderService: Send + Sync {
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<()>;
 
     /// Returns the path to the policies file
-    fn policies_path(&self) -> PathBuf;
+    fn permissions_path(&self) -> PathBuf;
 
     /// Create a default policies file if it does not exist
     async fn init_policies(&self) -> anyhow::Result<()>;
@@ -689,8 +689,8 @@ impl<I: Services> PolicyLoaderService for I {
         self.policy_loader_service().modify_policy(policy).await
     }
 
-    fn policies_path(&self) -> PathBuf {
-        self.policy_loader_service().policies_path()
+    fn permissions_path(&self) -> PathBuf {
+        self.policy_loader_service().permissions_path()
     }
 
     async fn init_policies(&self) -> anyhow::Result<()> {

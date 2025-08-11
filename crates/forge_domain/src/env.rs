@@ -77,7 +77,7 @@ impl Environment {
     pub fn agent_path(&self) -> PathBuf {
         self.base_path.join("agents")
     }
-    pub fn policies_path(&self) -> PathBuf {
+    pub fn permissions_path(&self) -> PathBuf {
         self.base_path.join("policies.yaml")
     }
 
