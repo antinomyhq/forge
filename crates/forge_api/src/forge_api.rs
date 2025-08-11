@@ -2,10 +2,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use forge_app::dto::{AppConfig, InitAuth};
 use forge_app::{
-    AppConfig, AppConfigService, AuthService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, InitAuth, McpConfigManager, ProviderRegistry, ProviderService,
-    Services, User, UserUsage, Walker, WorkflowService,
+    AppConfigService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
+    ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services, User, UserUsage,
+    Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;

@@ -15,6 +15,12 @@ pub enum Error {
     #[error("Missing tool name")]
     ToolCallMissingName,
 
+    #[error("Missing tool id")]
+    ToolCallMissingId,
+
+    #[error("Unsupported role: {0}")]
+    UnsupportedRole(String),
+
     #[error("{0}")]
     EToolCallArgument(ToolCallArgumentError),
 
