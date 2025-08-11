@@ -34,10 +34,7 @@ impl Policy {
                 }
             }
             Policy::And { and } => {
-                let permissions: Vec<_> = and
-                    .iter()
-                    .map(|policy| policy.eval(operation))
-                    .collect();
+                let permissions: Vec<_> = and.iter().map(|policy| policy.eval(operation)).collect();
                 // For AND, we need all policies to pass, return the most restrictive permission
                 permissions
                     .into_iter()
@@ -45,10 +42,7 @@ impl Policy {
                     .flatten()
             }
             Policy::Or { or } => {
-                let permissions: Vec<_> = or
-                    .iter()
-                    .map(|policy| policy.eval(operation))
-                    .collect();
+                let permissions: Vec<_> = or.iter().map(|policy| policy.eval(operation)).collect();
                 // For OR, return the first matching permission
                 permissions
                     .into_iter()

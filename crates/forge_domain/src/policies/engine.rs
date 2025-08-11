@@ -39,8 +39,7 @@ impl<'a> PolicyEngine<'a> {
         // Evaluate all policies in order: workflow policies first, then extended
         // policies
 
-        if let Some(permission) =
-            self.evaluate_policy_set(self.policies.policies.iter(), operation)
+        if let Some(permission) = self.evaluate_policy_set(self.policies.policies.iter(), operation)
         {
             match permission {
                 Permission::Deny | Permission::Confirm => {
