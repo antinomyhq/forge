@@ -539,10 +539,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Fetch(Fetch {
-                url: "example.com*".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Fetch(Fetch { url: "example.com*".to_string(), working_directory: None }),
         });
 
         assert_eq!(actual, expected);

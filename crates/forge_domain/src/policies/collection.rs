@@ -69,9 +69,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{
-        ExecuteRule, Fetch, Operation, Permission, Policy, ReadRule, Rule, WriteRule,
-    };
+    use crate::{ExecuteRule, Fetch, Operation, Permission, Policy, ReadRule, Rule, WriteRule};
 
     fn fixture_write_operation() -> Operation {
         Operation::Write {

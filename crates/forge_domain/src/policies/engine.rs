@@ -98,9 +98,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{
-        ExecuteRule, Fetch, Permission, Policy, PolicyConfig, ReadRule, Rule, WriteRule,
-    };
+    use crate::{ExecuteRule, Fetch, Permission, Policy, PolicyConfig, ReadRule, Rule, WriteRule};
 
     fn fixture_workflow_with_read_policy() -> PolicyConfig {
         let policies = PolicyConfig::new().add_policy(Policy::Simple {
