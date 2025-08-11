@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Policies, Policy, Provider,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation, Policy, PolicyConfig, Provider,
     ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
@@ -324,7 +324,7 @@ pub trait AgentLoaderService: Send + Sync {
 #[async_trait::async_trait]
 pub trait PolicyLoaderService: Send + Sync {
     /// Load all policy definitions from the forge/policies directory
-    async fn load_policies(&self) -> anyhow::Result<Policies>;
+    async fn load_policies(&self) -> anyhow::Result<PolicyConfig>;
 
     /// Add or modify a policy in the policies file and return a diff of the
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String>;
@@ -680,7 +680,7 @@ impl<I: Services> AgentLoaderService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> PolicyLoaderService for I {
-    async fn load_policies(&self) -> anyhow::Result<Policies> {
+    async fn load_policies(&self) -> anyhow::Result<PolicyConfig> {
         self.policy_loader_service().load_policies().await
     }
 

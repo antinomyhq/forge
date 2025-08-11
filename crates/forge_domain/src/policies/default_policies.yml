@@ -1,44 +1,44 @@
 policies:
   - permission: allow
     rule:
-      read_pattern: '**/*'
+      read: '**/*'
   - permission: allow
     rule:
-      command_pattern: awk*
+      command: awk*
   - permission: allow
     rule:
-      command_pattern: cat*
+      command: cat*
   - permission: allow
     rule:
-      command_pattern: find*
+      command: find*
   - permission: allow
     rule:
-      command_pattern: grep*
+      command: grep*
   - permission: allow
     rule:
-      command_pattern: head*
+      command: head*
   - permission: allow
     rule:
-      command_pattern: ls*
+      command: ls*
   - permission: allow
     rule:
-      command_pattern: sed*
+      command: sed*
   - permission: allow
     rule:
-      command_pattern: sort*
+      command: sort*
   - permission: allow
     rule:
-      command_pattern: tail*
+      command: tail*
   - permission: allow
     rule:
-      command_pattern: uniq*
+      command: uniq*
   - permission: allow
     rule:
-      command_pattern: wc*
+      command: wc*
   - permission: allow
     rule:
-      url_pattern: '*'
+      url: '*'
   - permission: deny
     rule:
-      command_pattern: 'sudo*'
+      command: 'sudo*'
       working_directory: '**/*'

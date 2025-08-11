@@ -9,7 +9,7 @@ use super::operation::Operation;
 /// Rule for write operations with a glob pattern
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct WriteRule {
-    pub write_pattern: String,
+    pub write: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
@@ -17,7 +17,7 @@ pub struct WriteRule {
 /// Rule for read operations with a glob pattern
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct ReadRule {
-    pub read_pattern: String,
+    pub read: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
@@ -25,7 +25,7 @@ pub struct ReadRule {
 /// Rule for patch operations with a glob pattern
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct PatchRule {
-    pub patch_pattern: String,
+    pub patch: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
@@ -33,7 +33,7 @@ pub struct PatchRule {
 /// Rule for execute operations with a command pattern
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct ExecuteRule {
-    pub command_pattern: String,
+    pub command: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
@@ -41,7 +41,7 @@ pub struct ExecuteRule {
 /// Rule for network fetch operations with a URL pattern
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct NetFetchRule {
-    pub url_pattern: String,
+    pub url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 }
@@ -67,7 +67,7 @@ impl Rule {
     pub fn matches(&self, operation: &Operation) -> bool {
         match (self, operation) {
             (Rule::Write(rule), Operation::Write { path, cwd }) => {
-                let pattern_matches = match_pattern(&rule.write_pattern, path);
+                let pattern_matches = match_pattern(&rule.write, path);
                 let working_directory_matches = match &rule.working_directory {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
                     None => true, /* If no working directory pattern is specified, it matches any
@@ -76,7 +76,7 @@ impl Rule {
                 pattern_matches && working_directory_matches
             }
             (Rule::Read(rule), Operation::Read { path, cwd }) => {
-                let pattern_matches = match_pattern(&rule.read_pattern, path);
+                let pattern_matches = match_pattern(&rule.read, path);
                 let working_directory_matches = match &rule.working_directory {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
                     None => true, /* If no working directory pattern is specified, it matches any
@@ -85,7 +85,7 @@ impl Rule {
                 pattern_matches && working_directory_matches
             }
             (Rule::Patch(rule), Operation::Patch { path, cwd }) => {
-                let pattern_matches = match_pattern(&rule.patch_pattern, path);
+                let pattern_matches = match_pattern(&rule.patch, path);
                 let working_directory_matches = match &rule.working_directory {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
                     None => true, /* If no working directory pattern is specified, it matches any
@@ -94,7 +94,7 @@ impl Rule {
                 pattern_matches && working_directory_matches
             }
             (Rule::Execute(rule), Operation::Execute { command: cmd, cwd }) => {
-                let command_matches = match_pattern(&rule.command_pattern, cmd);
+                let command_matches = match_pattern(&rule.command, cmd);
                 let working_directory_matches = match &rule.working_directory {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
                     None => true, /* If no working directory pattern is specified, it matches any
@@ -103,7 +103,7 @@ impl Rule {
                 command_matches && working_directory_matches
             }
             (Rule::NetFetch(rule), Operation::NetFetch { url, cwd }) => {
-                let url_matches = match_pattern(&rule.url_pattern, url);
+                let url_matches = match_pattern(&rule.url, url);
                 let working_directory_matches = match &rule.working_directory {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
                     None => true, /* If no working directory pattern is specified, it matches any
@@ -172,10 +172,8 @@ mod tests {
 
     #[test]
     fn test_rule_matches_write_operation() {
-        let fixture = Rule::Write(WriteRule {
-            write_pattern: "src/**/*.rs".to_string(),
-            working_directory: None,
-        });
+        let fixture =
+            Rule::Write(WriteRule { write: "src/**/*.rs".to_string(), working_directory: None });
         let operation = fixture_write_operation();
 
         let actual = fixture.matches(&operation);
@@ -185,10 +183,8 @@ mod tests {
 
     #[test]
     fn test_rule_matches_patch_operation() {
-        let fixture = Rule::Patch(PatchRule {
-            patch_pattern: "src/**/*.rs".to_string(),
-            working_directory: None,
-        });
+        let fixture =
+            Rule::Patch(PatchRule { patch: "src/**/*.rs".to_string(), working_directory: None });
         let operation = fixture_patch_operation();
 
         let actual = fixture.matches(&operation);
@@ -198,10 +194,8 @@ mod tests {
 
     #[test]
     fn test_rule_does_not_match_different_operation() {
-        let fixture = Rule::Read(ReadRule {
-            read_pattern: "config/*.yml".to_string(),
-            working_directory: None,
-        });
+        let fixture =
+            Rule::Read(ReadRule { read: "config/*.yml".to_string(), working_directory: None });
         let operation = fixture_write_operation();
 
         let actual = fixture.matches(&operation);
@@ -232,10 +226,8 @@ mod tests {
 
     #[test]
     fn test_execute_command_pattern_match() {
-        let fixture = Rule::Execute(ExecuteRule {
-            command_pattern: "cargo *".to_string(),
-            working_directory: None,
-        });
+        let fixture =
+            Rule::Execute(ExecuteRule { command: "cargo *".to_string(), working_directory: None });
         let operation = fixture_execute_operation();
 
         let actual = fixture.matches(&operation);
@@ -245,10 +237,8 @@ mod tests {
 
     #[test]
     fn test_read_config_pattern_match() {
-        let fixture = Rule::Read(ReadRule {
-            read_pattern: "config/*.yml".to_string(),
-            working_directory: None,
-        });
+        let fixture =
+            Rule::Read(ReadRule { read: "config/*.yml".to_string(), working_directory: None });
         let operation = fixture_read_operation();
 
         let actual = fixture.matches(&operation);
@@ -259,7 +249,7 @@ mod tests {
     #[test]
     fn test_net_fetch_url_pattern_match() {
         let fixture = Rule::NetFetch(NetFetchRule {
-            url_pattern: "https://api.example.com/*".to_string(),
+            url: "https://api.example.com/*".to_string(),
             working_directory: None,
         });
         let operation = fixture_net_fetch_operation();
@@ -272,7 +262,7 @@ mod tests {
     #[test]
     fn test_execute_working_directory_pattern_match() {
         let fixture = Rule::Execute(ExecuteRule {
-            command_pattern: "cargo *".to_string(),
+            command: "cargo *".to_string(),
             working_directory: Some("/home/user/*".to_string()),
         });
         let operation = fixture_execute_operation();
@@ -285,7 +275,7 @@ mod tests {
     #[test]
     fn test_execute_working_directory_pattern_no_match() {
         let fixture = Rule::Execute(ExecuteRule {
-            command_pattern: "cargo *".to_string(),
+            command: "cargo *".to_string(),
             working_directory: Some("/different/path/*".to_string()),
         });
         let operation = fixture_execute_operation();
@@ -297,10 +287,8 @@ mod tests {
 
     #[test]
     fn test_execute_no_working_directory_pattern_matches_any() {
-        let fixture = Rule::Execute(ExecuteRule {
-            command_pattern: "cargo *".to_string(),
-            working_directory: None,
-        });
+        let fixture =
+            Rule::Execute(ExecuteRule { command: "cargo *".to_string(), working_directory: None });
         let operation = fixture_execute_operation();
 
         let actual = fixture.matches(&operation);

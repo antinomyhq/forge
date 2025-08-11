@@ -1,10 +1,10 @@
 policies:
   - permission: allow
     rule:
-      read_pattern: "**/*.rs"
+      read: "**/*.rs"
   - permission: confirm
     rule:
-      write_pattern: "src/**/*"
+      write: "src/**/*"
   - permission: deny
     rule:
-      command_pattern: "rm -rf /*"
+      command: "rm -rf /*"

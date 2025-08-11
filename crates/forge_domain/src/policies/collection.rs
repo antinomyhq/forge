@@ -10,13 +10,13 @@ use crate::Rule;
 
 /// Collection of policies
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Policies {
+pub struct PolicyConfig {
     /// Set of policies to evaluate
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub policies: BTreeSet<Policy>,
 }
 
-impl Policies {
+impl PolicyConfig {
     /// Create a new empty policies collection
     pub fn new() -> Self {
         Self { policies: BTreeSet::new() }
@@ -82,18 +82,18 @@ mod tests {
 
     #[test]
     fn test_policies_eval() {
-        let fixture = Policies::new()
+        let fixture = PolicyConfig::new()
             .add_policy(Policy::Simple {
                 permission: Permission::Allow,
                 rule: Rule::Write(WriteRule {
-                    write_pattern: "src/**/*.rs".to_string(),
+                    write: "src/**/*.rs".to_string(),
                     working_directory: None,
                 }),
             })
             .add_policy(Policy::Simple {
                 permission: Permission::Deny,
                 rule: Rule::Write(WriteRule {
-                    write_pattern: "**/*.py".to_string(),
+                    write: "**/*.py".to_string(),
                     working_directory: None,
                 }),
             });
@@ -114,7 +114,7 @@ mod tests {
         // Arrange
 
         // Act
-        let actual = Policies::with_defaults();
+        let actual = PolicyConfig::with_defaults();
 
         // Assert
         assert!(!actual.policies.is_empty());
@@ -127,9 +127,9 @@ mod tests {
                 && matches!(
                     p,
                     Policy::Simple {
-                        rule: Rule::Read(ReadRule { read_pattern, working_directory: _ }),
+                        rule: Rule::Read(ReadRule { read, working_directory: _ }),
                         ..
-                    } if read_pattern == "**/*"
+                    } if read == "**/*"
                 )
         });
         assert!(has_read_all, "Should include read access to all files");
@@ -139,9 +139,9 @@ mod tests {
             matches!(
                 p,
                 Policy::Simple {
-                    rule: Rule::Execute(ExecuteRule { command_pattern,.. }),
+                    rule: Rule::Execute(ExecuteRule { command,.. }),
                     ..
-                } if command_pattern == "ls*"
+                } if command == "ls*"
             )
         });
         assert!(has_ls, "Should include ls command");
@@ -152,9 +152,9 @@ mod tests {
                 && matches!(
                     p,
                     Policy::Simple {
-                        rule: Rule::NetFetch(NetFetchRule { url_pattern, working_directory: _ }),
+                        rule: Rule::NetFetch(NetFetchRule { url, working_directory: _ }),
                         ..
-                    } if url_pattern == "*"
+                    } if url == "*"
                 )
         });
         assert!(
@@ -164,7 +164,7 @@ mod tests {
     }
     #[test]
     fn test_default_policies_allow_all_net_fetch() {
-        let policies = Policies::with_defaults();
+        let policies = PolicyConfig::with_defaults();
         let operation = Operation::NetFetch {
             url: "https://example.com/api".to_string(),
             cwd: std::path::PathBuf::from("/test/cwd"),
@@ -189,13 +189,13 @@ mod tests {
 
     #[cfg(test)]
     mod yaml_policies_tests {
-        use crate::policies::{Permission, Policies, Policy, Rule};
+        use crate::policies::{Permission, Policy, PolicyConfig, Rule};
 
         #[test]
         fn test_yaml_policies_roundtrip() {
             let yaml_content = include_str!("../fixtures/policies_test.yml");
 
-            let policies: Policies =
+            let policies: PolicyConfig =
                 serde_yml::from_str(yaml_content).expect("Failed to parse policies YAML");
 
             assert_eq!(policies.policies.len(), 3);
@@ -205,7 +205,7 @@ mod tests {
             if let Policy::Simple { permission, rule } = first_policy {
                 assert_eq!(permission, &Permission::Allow);
                 if let Rule::Read(rule) = rule {
-                    assert_eq!(rule.read_pattern, "**/*.rs");
+                    assert_eq!(rule.read, "**/*.rs");
                 } else {
                     panic!("Expected Read rule");
                 }
@@ -215,7 +215,7 @@ mod tests {
 
             // Test round-trip serialization
             let serialized = serde_yml::to_string(&policies).expect("Failed to serialize policies");
-            let deserialized: Policies =
+            let deserialized: PolicyConfig =
                 serde_yml::from_str(&serialized).expect("Failed to deserialize policies");
             assert_eq!(policies, deserialized);
         }

@@ -417,19 +417,19 @@ fn create_policy_for_operation(
     match operation {
         forge_domain::Operation::Read { path, cwd: _ } => create_file_policy(path, |pattern| {
             forge_domain::Rule::Read(forge_domain::ReadRule {
-                read_pattern: pattern,
+                read: pattern,
                 working_directory: None,
             })
         }),
         forge_domain::Operation::Write { path, cwd: _ } => create_file_policy(path, |pattern| {
             forge_domain::Rule::Write(forge_domain::WriteRule {
-                write_pattern: pattern,
+                write: pattern,
                 working_directory: None,
             })
         }),
         forge_domain::Operation::Patch { path, cwd: _ } => create_file_policy(path, |pattern| {
             forge_domain::Rule::Patch(forge_domain::PatchRule {
-                patch_pattern: pattern,
+                patch: pattern,
                 working_directory: None,
             })
         }),
@@ -440,7 +440,7 @@ fn create_policy_for_operation(
                     .map(|host| forge_domain::Policy::Simple {
                         permission: forge_domain::Permission::Allow,
                         rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
-                            url_pattern: format!("{host}*"),
+                            url: format!("{host}*"),
                             working_directory: None,
                         }),
                     })
@@ -448,7 +448,7 @@ fn create_policy_for_operation(
                 Some(forge_domain::Policy::Simple {
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::NetFetch(forge_domain::NetFetchRule {
-                        url_pattern: url.to_string(),
+                        url: url.to_string(),
                         working_directory: None,
                     }),
                 })
@@ -461,14 +461,14 @@ fn create_policy_for_operation(
                 [cmd] => Some(forge_domain::Policy::Simple {
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
-                        command_pattern: format!("{cmd}*"),
+                        command: format!("{cmd}*"),
                         working_directory,
                     }),
                 }),
                 [cmd, subcmd, ..] => Some(forge_domain::Policy::Simple {
                     permission: forge_domain::Permission::Allow,
                     rule: forge_domain::Rule::Execute(forge_domain::ExecuteRule {
-                        command_pattern: format!("{cmd} {subcmd}*"),
+                        command: format!("{cmd} {subcmd}*"),
                         working_directory,
                     }),
                 }),
@@ -498,10 +498,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Read(ReadRule {
-                read_pattern: "*.rs".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Read(ReadRule { read: "*.rs".to_string(), working_directory: None }),
         });
 
         assert_eq!(actual, expected);
@@ -517,10 +514,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule {
-                write_pattern: "*.json".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Write(WriteRule { write: "*.json".to_string(), working_directory: None }),
         });
 
         assert_eq!(actual, expected);
@@ -536,10 +530,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Patch(PatchRule {
-                patch_pattern: "*.toml".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Patch(PatchRule { patch: "*.toml".to_string(), working_directory: None }),
         });
 
         assert_eq!(actual, expected);
@@ -556,7 +547,7 @@ mod tests {
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::NetFetch(NetFetchRule {
-                url_pattern: "example.com*".to_string(),
+                url: "example.com*".to_string(),
                 working_directory: None,
             }),
         });
@@ -577,7 +568,7 @@ mod tests {
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::Execute(ExecuteRule {
-                command_pattern: "git push*".to_string(),
+                command: "git push*".to_string(),
                 working_directory: None,
             }),
         });
@@ -598,7 +589,7 @@ mod tests {
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::Execute(ExecuteRule {
-                command_pattern: "ls*".to_string(),
+                command: "ls*".to_string(),
                 working_directory: None,
             }),
         });
@@ -630,7 +621,7 @@ mod tests {
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::NetFetch(NetFetchRule {
-                url_pattern: "not-a-valid-url".to_string(),
+                url: "not-a-valid-url".to_string(),
                 working_directory: None,
             }),
         });
@@ -666,10 +657,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule {
-                command_pattern: "ls*".to_string(),
-                working_directory,
-            }),
+            rule: Rule::Execute(ExecuteRule { command: "ls*".to_string(), working_directory }),
         });
 
         assert_eq!(actual, expected);

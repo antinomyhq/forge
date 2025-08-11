@@ -1,6 +1,6 @@
 use super::operation::Operation;
 use super::policy::Policy;
-use crate::Policies;
+use crate::PolicyConfig;
 use crate::policies::{Permission, Trace};
 
 /// High-level policy engine that provides convenient methods for checking
@@ -10,12 +10,12 @@ use crate::policies::{Permission, Trace};
 /// check if operations are allowed without having to construct Operation enums
 /// manually.
 pub struct PolicyEngine<'a> {
-    policies: &'a Policies,
+    policies: &'a PolicyConfig,
 }
 
 impl<'a> PolicyEngine<'a> {
     /// Create a new PolicyEngine from a workflow
-    pub fn new(policies: &'a Policies) -> Self {
+    pub fn new(policies: &'a PolicyConfig) -> Self {
         Self { policies }
     }
 
@@ -99,59 +99,53 @@ mod tests {
 
     use super::*;
     use crate::{
-        ExecuteRule, NetFetchRule, PatchRule, Permission, Policies, Policy, ReadRule, Rule,
+        ExecuteRule, NetFetchRule, PatchRule, Permission, Policy, PolicyConfig, ReadRule, Rule,
         WriteRule,
     };
 
-    fn fixture_workflow_with_read_policy() -> Policies {
-        let policies = Policies::new().add_policy(Policy::Simple {
+    fn fixture_workflow_with_read_policy() -> PolicyConfig {
+        let policies = PolicyConfig::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Read(ReadRule {
-                read_pattern: "src/**/*.rs".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Read(ReadRule { read: "src/**/*.rs".to_string(), working_directory: None }),
         });
         policies
     }
 
-    fn fixture_workflow_with_write_policy() -> Policies {
-        let policies = Policies::new().add_policy(Policy::Simple {
+    fn fixture_workflow_with_write_policy() -> PolicyConfig {
+        let policies = PolicyConfig::new().add_policy(Policy::Simple {
             permission: Permission::Deny,
-            rule: Rule::Write(WriteRule {
-                write_pattern: "**/*.rs".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Write(WriteRule { write: "**/*.rs".to_string(), working_directory: None }),
         });
         policies
     }
 
-    fn fixture_workflow_with_execute_policy() -> Policies {
-        let policies = Policies::new().add_policy(Policy::Simple {
+    fn fixture_workflow_with_execute_policy() -> PolicyConfig {
+        let policies = PolicyConfig::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::Execute(ExecuteRule {
-                command_pattern: "cargo *".to_string(),
+                command: "cargo *".to_string(),
                 working_directory: None,
             }),
         });
         policies
     }
 
-    fn fixture_workflow_with_patch_policy() -> Policies {
-        let policies = Policies::new().add_policy(Policy::Simple {
+    fn fixture_workflow_with_patch_policy() -> PolicyConfig {
+        let policies = PolicyConfig::new().add_policy(Policy::Simple {
             permission: Permission::Confirm,
             rule: Rule::Patch(PatchRule {
-                patch_pattern: "src/**/*.rs".to_string(),
+                patch: "src/**/*.rs".to_string(),
                 working_directory: None,
             }),
         });
         policies
     }
 
-    fn fixture_workflow_with_net_fetch_policy() -> Policies {
-        let policies = Policies::new().add_policy(Policy::Simple {
+    fn fixture_workflow_with_net_fetch_policy() -> PolicyConfig {
+        let policies = PolicyConfig::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::NetFetch(NetFetchRule {
-                url_pattern: "https://api.example.com/*".to_string(),
+                url: "https://api.example.com/*".to_string(),
                 working_directory: None,
             }),
         });

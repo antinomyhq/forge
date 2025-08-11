@@ -1,13 +1,13 @@
 policies:
   - permission: allow
     rule:
-      read_pattern: "**/*.{rs,js,ts,py}"
+      read: "**/*.{rs,js,ts,py}"
   - permission: confirm
     rule:
-      write_pattern: "src/**/*"
+      write: "src/**/*"
   - permission: deny
     rule:
-      command_pattern: "rm -rf /*"
+      command: "rm -rf /*"
   - permission: allow
     rule:
-      command_pattern: "cargo*"
+      command: "cargo*"

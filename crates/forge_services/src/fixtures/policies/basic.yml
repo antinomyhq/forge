@@ -1,7 +1,7 @@
 policies:
   - permission: allow
     rule:
-      read_pattern: "**/*.rs"
+      read: "**/*.rs"
   - permission: deny
     rule:
-      read_pattern: "secrets/**/*"
+      read: "secrets/**/*"

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
-use forge_app::domain::{Policies, Policy};
+use forge_app::domain::{Policy, PolicyConfig};
 use forge_display::DiffFormat;
 
 use crate::{
@@ -26,7 +26,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     forge_app::PolicyLoaderService for ForgePolicyLoader<F>
 {
     /// Load all policy definitions from the forge/policies directory
-    async fn load_policies(&self) -> anyhow::Result<Policies> {
+    async fn load_policies(&self) -> anyhow::Result<PolicyConfig> {
         self.load_policies().await
     }
 
@@ -37,13 +37,13 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> ForgePolicyLoader<F> {
     /// Load all policy definitions from the forge/policies directory
-    async fn load_policies(&self) -> anyhow::Result<Policies> {
+    async fn load_policies(&self) -> anyhow::Result<PolicyConfig> {
         // NOTE: we must not cache policies, as they can change at runtime.
 
         let policies_path = self.infra.get_environment().policies_path();
         if !self.infra.exists(&policies_path).await? {
             // if the policies file does not exist, create it with default policies.
-            let default_policies = Policies::with_defaults();
+            let default_policies = PolicyConfig::with_defaults();
             let content = serde_yml::to_string(&default_policies)
                 .with_context(|| "Failed to serialize default policies to YAML")?;
             self.infra
@@ -72,7 +72,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
         // Load current policies or create empty collection
         let mut policies = if old_content.is_empty() {
             // If the file is empty or does not exist, start with default policies
-            Policies::with_defaults()
+            PolicyConfig::with_defaults()
         } else {
             parse_policy_file(&old_content).with_context(|| {
                 format!(
@@ -101,8 +101,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
 }
 
 /// Parse raw content into a Policies collection from YAML
-fn parse_policy_file(content: &str) -> Result<Policies> {
-    let policies: Policies =
+fn parse_policy_file(content: &str) -> Result<PolicyConfig> {
+    let policies: PolicyConfig =
         serde_yml::from_str(content).with_context(|| "Could not parse policies from YAML")?;
 
     Ok(policies)
@@ -127,7 +127,7 @@ mod tests {
         if let Policy::Simple { permission, rule } = first_policy {
             assert_eq!(permission, &Permission::Allow);
             if let Rule::Read(read_rule) = rule {
-                assert_eq!(read_rule.read_pattern, "**/*.rs");
+                assert_eq!(read_rule.read, "**/*.rs");
             } else {
                 panic!("Expected Read rule");
             }
@@ -170,7 +170,7 @@ mod tests {
         if let Policy::Simple { permission, rule } = read_policy {
             assert_eq!(permission, &Permission::Allow);
             if let Rule::Read(read_rule) = rule {
-                assert_eq!(read_rule.read_pattern, "**/*.{rs,js,ts,py}");
+                assert_eq!(read_rule.read, "**/*.{rs,js,ts,py}");
             } else {
                 panic!("Expected Read rule");
             }
@@ -193,7 +193,7 @@ mod tests {
         if let Policy::Simple { permission, rule } = write_policy {
             assert_eq!(permission, &Permission::Confirm);
             if let Rule::Write(write_rule) = rule {
-                assert_eq!(write_rule.write_pattern, "src/**/*");
+                assert_eq!(write_rule.write, "src/**/*");
             } else {
                 panic!("Expected Write rule");
             }
@@ -216,7 +216,7 @@ mod tests {
         if let Policy::Simple { permission, rule } = execute_policy_disallow {
             assert_eq!(permission, &Permission::Deny);
             if let Rule::Execute(execute_rule) = rule {
-                assert_eq!(execute_rule.command_pattern, "rm -rf /*");
+                assert_eq!(execute_rule.command, "rm -rf /*");
             } else {
                 panic!("Expected Execute rule");
             }
@@ -231,7 +231,7 @@ mod tests {
                 if let Policy::Simple { permission, rule } = policy {
                     permission == &Permission::Allow
                         && if let Rule::Execute(exec_rule) = rule {
-                            exec_rule.command_pattern == "cargo*"
+                            exec_rule.command == "cargo*"
                         } else {
                             false
                         }
@@ -244,7 +244,7 @@ mod tests {
         if let Policy::Simple { permission, rule } = execute_policy_allow {
             assert_eq!(permission, &Permission::Allow);
             if let Rule::Execute(execute_rule) = rule {
-                assert_eq!(execute_rule.command_pattern, "cargo*");
+                assert_eq!(execute_rule.command, "cargo*");
             } else {
                 panic!("Expected Execute rule");
             }
@@ -269,7 +269,7 @@ mod tests {
         let new_policy = Policy::Simple {
             permission: Permission::Allow,
             rule: Rule::Write(WriteRule {
-                write_pattern: "src/**/*.rs".to_string(),
+                write: "src/**/*.rs".to_string(),
                 working_directory: None,
             }),
         };
