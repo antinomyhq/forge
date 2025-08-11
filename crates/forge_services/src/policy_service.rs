@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
+use forge_app::domain::{Policies, Policy};
 use forge_display::DiffFormat;
-use forge_domain::{Policies, Policy};
-
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
@@ -110,9 +109,8 @@ fn parse_policy_file(content: &str) -> Result<Policies> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Permission, Policy, Rule};
     use pretty_assertions::assert_eq;
-
+    use forge_app::domain::{Permission, Rule, WriteRule};
     use super::*;
 
     #[tokio::test]
@@ -262,8 +260,6 @@ mod tests {
     }
     #[tokio::test]
     async fn test_modify_policy_logic() {
-        use forge_domain::{Permission, Rule, WriteRule};
-
         // Test the core logic by parsing existing policies and adding a new one
         let existing_content = "policies: []";
         let mut policies = parse_policy_file(existing_content).unwrap();

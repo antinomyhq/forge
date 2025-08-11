@@ -1564,6 +1564,7 @@ dependencies = [
  "derive_setters",
  "dissimilar",
  "forge_app",
+ "forge_display",
  "forge_fs",
  "forge_snaps",
  "forge_tool_macros",
