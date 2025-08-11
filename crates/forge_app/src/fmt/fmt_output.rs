@@ -40,7 +40,10 @@ impl FormatContent for Operation {
             | Operation::TaskListClear { _input: _, before, after } => Some(
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
-            Operation::PlanCreate { input, output } => None,
+            Operation::PlanCreate { input, output } => Some(ContentFormat::Markdown(format!(
+                "**FILE:** {}\n\n{}",
+                output.path, input.content
+            ))),
         }
     }
 }
@@ -554,6 +557,32 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_plan_create() {
+        let fixture = Operation::PlanCreate {
+            input: forge_domain::PlanCreate {
+                plan_name: "test-plan".to_string(),
+                version: "v1".to_string(),
+                content:
+                    "# Test Plan\n\n## Task 1\n- Do something\n\n## Task 2\n- Do something else"
+                        .to_string(),
+                explanation: Some("Create test plan".to_string()),
+            },
+            output: crate::PlanCreateOutput {
+                path: "plans/2024-08-11-test-plan-v1.md".to_string(),
+                before: None,
+            },
+        };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        let expected = Some(ContentFormat::Markdown(
+            "**FILE:** plans/2024-08-11-test-plan-v1.md\n\n# Test Plan\n\n## Task 1\n- Do something\n\n## Task 2\n- Do something else".to_string()
+        ));
 
         assert_eq!(actual, expected);
     }
