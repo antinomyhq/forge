@@ -523,10 +523,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule {
-                write: "*.toml".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Write(WriteRule { write: "*.toml".to_string(), working_directory: None }),
         });
 
         assert_eq!(actual, expected);

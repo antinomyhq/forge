@@ -165,10 +165,8 @@ mod tests {
 
     #[test]
     fn test_rule_matches_write_operation_with_patch_scenario() {
-        let fixture = Rule::Write(WriteRule {
-            write: "src/**/*.rs".to_string(),
-            working_directory: None,
-        });
+        let fixture =
+            Rule::Write(WriteRule { write: "src/**/*.rs".to_string(), working_directory: None });
         let operation = fixture_patch_operation();
 
         let actual = fixture.matches(&operation);
