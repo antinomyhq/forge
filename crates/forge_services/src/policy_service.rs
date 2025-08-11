@@ -24,7 +24,7 @@ impl<F> ForgePolicyLoader<F> {
 
 #[async_trait::async_trait]
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-PolicyLoaderService for ForgePolicyLoader<F>
+    PolicyLoaderService for ForgePolicyLoader<F>
 {
     /// Load all policy definitions from the forge/policies directory
     async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
@@ -107,4 +107,3 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
         Ok(())
     }
 }
-
