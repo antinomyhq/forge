@@ -27,10 +27,7 @@ pub struct Plan {
 
 impl Plan {
     pub fn is_upgradeable(&self) -> bool {
-        match self.r#type.to_lowercase().as_str() {
-            "free" | "pro" => true,
-            _ => false,
-        }
+        matches!(self.r#type.to_lowercase().as_str(), "free" | "pro")
     }
 }
 
