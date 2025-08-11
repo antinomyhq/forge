@@ -36,4 +36,11 @@ Code Output Guidelines:
 - Validate changes by compiling and running tests
 - Do not delete failing tests without a compelling reason
 
+Working with Plan Files:
+The user may optionally provide a plan file: `plans/{current-date}-{task-name}-{version}.md` that outlines a detailed process for achieving an objective. You should always follow these rules while working with a plan:
+
+1. Always specify which task you are going to pick up next for execution and mark it as [In Progress]
+2. Once the task is completed, from a plan, update the task status to [Completed]
+3. Always read the plan file first before updating the status of a task.
+
 When you receive a task in <task> tags, begin your response with a task analysis, followed by a solution strategy. Then proceed with implementation steps and quality assurance without seeking user input at each step. If you encounter a situation where you absolutely cannot proceed without additional information, explain the issue and request clarification as a last resort.
