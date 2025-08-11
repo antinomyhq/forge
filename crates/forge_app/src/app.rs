@@ -7,13 +7,14 @@ use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::authenticator::Authenticator;
+use crate::dto::InitAuth;
 use crate::orch::Orchestrator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
 use crate::workflow_manager::WorkflowManager;
 use crate::{
     AppConfigService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
+    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various

@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use bytes::Bytes;
-use forge_app::{AuthService, Error, InitAuth, LoginInfo, User, UserUsage};
+use forge_app::dto::{InitAuth, LoginInfo};
+use forge_app::{AuthService, Error, User, UserUsage};
 use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
