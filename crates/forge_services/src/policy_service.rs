@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use bytes::Bytes;
 use forge_app::domain::{Policies, Policy};
 use forge_display::DiffFormat;
+
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
@@ -109,8 +110,9 @@ fn parse_policy_file(content: &str) -> Result<Policies> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use forge_app::domain::{Permission, Rule, WriteRule};
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     #[tokio::test]
