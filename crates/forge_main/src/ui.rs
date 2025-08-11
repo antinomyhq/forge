@@ -325,7 +325,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 self.on_info().await?;
                 return Ok(());
-            },
+            }
             TopLevelCommand::Usage => {
                 self.on_new().await?;
                 self.on_usage().await?;
