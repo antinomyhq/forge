@@ -1,12 +1,4 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json
-agents:
-- id: forge
-  tools:
-  - forge_tool_task_list_append
-  - forge_tool_task_list_append_multiple
-  - forge_tool_task_list_mark_done
-  - forge_tool_task_list_list
-  - forge_tool_task_list_clear
 variables:
   operating_agent: forge
 commands:
