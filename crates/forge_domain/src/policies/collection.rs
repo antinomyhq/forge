@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::operation::Operation;
 use super::policy::Policy;
-use super::types::{Permission, Trace};
+use super::types::Permission;
 use crate::Rule;
 
 /// Collection of policies
@@ -36,20 +36,12 @@ impl PolicyConfig {
         self
     }
 
-    /// Evaluate all policies against an operation with trace information
-    /// Returns detailed trace information for debugging policy decisions
-    pub fn eval(
-        &self,
-        operation: &Operation,
-        file: Option<std::path::PathBuf>,
-    ) -> Vec<Option<Trace<Permission>>> {
+    /// Evaluate all policies against an operation
+    /// Returns permission results for debugging policy decisions
+    pub fn eval(&self, operation: &Operation) -> Vec<Option<Permission>> {
         self.policies
             .iter()
-            .enumerate()
-            .map(|(index, policy)| {
-                let line = Some((index + 1) as u64);
-                policy.eval(operation, file.clone(), line)
-            })
+            .map(|policy| policy.eval(operation))
             .collect()
     }
 
@@ -96,14 +88,11 @@ mod tests {
                 }),
             });
         let operation = fixture_write_operation();
-        let file = Some(std::path::PathBuf::from("forge.yaml"));
 
-        let actual = fixture.eval(&operation, file.clone());
+        let actual = fixture.eval(&operation);
 
         assert_eq!(actual.len(), 2);
-        assert_eq!(actual[0].as_ref().unwrap().value, Permission::Allow);
-        assert_eq!(actual[0].as_ref().unwrap().file, file);
-        assert_eq!(actual[0].as_ref().unwrap().line, Some(1));
+        assert_eq!(actual[0].as_ref().unwrap(), &Permission::Allow);
         assert_eq!(actual[1], None); // Second rule doesn't match
     }
 
@@ -168,12 +157,12 @@ mod tests {
             cwd: std::path::PathBuf::from("/test/cwd"),
         };
 
-        let traces = policies.eval(&operation, None);
+        let permissions = policies.eval(&operation);
 
         // Should find at least one Allow policy for NetFetch
-        let has_allow = traces.iter().any(|trace| {
-            if let Some(trace) = trace {
-                trace.value == Permission::Allow
+        let has_allow = permissions.iter().any(|permission| {
+            if let Some(permission) = permission {
+                *permission == Permission::Allow
             } else {
                 false
             }

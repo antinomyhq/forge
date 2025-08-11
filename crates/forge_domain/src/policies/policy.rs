@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::operation::Operation;
 use super::rule::Rule;
-use super::types::{Permission, Trace};
+use super::types::Permission;
 
 /// Policy definitions with logical operators
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
@@ -21,65 +21,51 @@ pub enum Policy {
 }
 
 impl Policy {
-    /// Evaluate a policy against an operation with trace information
-    pub fn eval(
-        &self,
-        operation: &Operation,
-        file: Option<std::path::PathBuf>,
-        line: Option<u64>,
-    ) -> Option<Trace<Permission>> {
+    /// Evaluate a policy against an operation
+    pub fn eval(&self, operation: &Operation) -> Option<Permission> {
         match self {
             Policy::Simple { permission, rule } => {
                 let rule_matches = rule.matches(operation);
                 if rule_matches {
-                    let mut trace = Trace::new(permission.clone());
-                    if let Some(f) = file {
-                        trace = trace.file(f);
-                    }
-                    if let Some(l) = line {
-                        trace = trace.line(l);
-                    }
-                    Some(trace)
+                    Some(permission.clone())
                 } else {
                     // Rule doesn't match, so this policy doesn't apply
                     None
                 }
             }
             Policy::And { and } => {
-                let traces: Vec<_> = and
+                let permissions: Vec<_> = and
                     .iter()
-                    .map(|policy| policy.eval(operation, file.clone(), line))
+                    .map(|policy| policy.eval(operation))
                     .collect();
                 // For AND, we need all policies to pass, return the most restrictive permission
-                traces.into_iter().find(|trace| trace.is_some()).flatten()
+                permissions
+                    .into_iter()
+                    .find(|permission| permission.is_some())
+                    .flatten()
             }
             Policy::Or { or } => {
-                let traces: Vec<_> = or
+                let permissions: Vec<_> = or
                     .iter()
-                    .map(|policy| policy.eval(operation, file.clone(), line))
+                    .map(|policy| policy.eval(operation))
                     .collect();
                 // For OR, return the first matching permission
-                traces.into_iter().find(|trace| trace.is_some()).flatten()
+                permissions
+                    .into_iter()
+                    .find(|permission| permission.is_some())
+                    .flatten()
             }
             Policy::Not { not } => {
-                let inner_trace = not.eval(operation, file.clone(), line);
+                let inner_permission = not.eval(operation);
                 // For NOT, invert the logic - if inner policy denies, we allow, and vice versa
-                match inner_trace {
-                    Some(trace) => {
-                        let inverted_permission = match &trace.value {
+                match inner_permission {
+                    Some(permission) => {
+                        let inverted_permission = match permission {
                             Permission::Deny => Permission::Allow,
                             Permission::Allow => Permission::Deny,
                             Permission::Confirm => Permission::Deny,
                         };
-
-                        let mut new_trace = Trace::new(inverted_permission);
-                        if let Some(f) = file {
-                            new_trace = new_trace.file(f);
-                        }
-                        if let Some(l) = line {
-                            new_trace = new_trace.line(l);
-                        }
-                        Some(new_trace)
+                        Some(inverted_permission)
                     }
                     None => None,
                 }
@@ -158,9 +144,9 @@ mod tests {
         let fixture = fixture_simple_write_policy();
         let operation = fixture_write_operation();
 
-        let actual = fixture.eval(&operation, None, None);
+        let actual = fixture.eval(&operation);
 
-        assert_eq!(actual.unwrap().value, Permission::Allow);
+        assert_eq!(actual.unwrap(), Permission::Allow);
     }
 
     #[test]
@@ -174,7 +160,7 @@ mod tests {
         };
         let operation = fixture_write_operation();
 
-        let actual = fixture.eval(&operation, None, None);
+        let actual = fixture.eval(&operation);
 
         assert_eq!(actual, None);
     }
@@ -201,9 +187,9 @@ mod tests {
         };
         let operation = fixture_write_operation();
 
-        let actual = fixture.eval(&operation, None, None);
+        let actual = fixture.eval(&operation);
 
-        assert_eq!(actual.unwrap().value, Permission::Allow);
+        assert_eq!(actual.unwrap(), Permission::Allow);
     }
 
     #[test]
@@ -228,9 +214,9 @@ mod tests {
         };
         let operation = fixture_write_operation();
 
-        let actual = fixture.eval(&operation, None, None);
+        let actual = fixture.eval(&operation);
 
-        assert_eq!(actual.unwrap().value, Permission::Allow);
+        assert_eq!(actual.unwrap(), Permission::Allow);
     }
 
     #[test]
@@ -255,9 +241,9 @@ mod tests {
         };
         let operation = fixture_write_operation();
 
-        let actual = fixture.eval(&operation, None, None);
+        let actual = fixture.eval(&operation);
 
-        assert_eq!(actual.unwrap().value, Permission::Allow);
+        assert_eq!(actual.unwrap(), Permission::Allow);
     }
 
     #[test]
@@ -273,7 +259,7 @@ mod tests {
         };
         let operation = fixture_write_operation();
 
-        let actual = fixture.eval(&operation, None, None);
+        let actual = fixture.eval(&operation);
 
         assert_eq!(actual, None); // Rule doesn't match, so NOT of None is None
     }

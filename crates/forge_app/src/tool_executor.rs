@@ -48,19 +48,11 @@ impl<
         let policies = self.services.load_policies().await.unwrap_or_default();
 
         let engine = PolicyEngine::new(&policies);
-        let permission_trace = engine.can_perform(operation);
+        let permission = engine.can_perform(operation);
 
-        match permission_trace.value {
+        match permission {
             Permission::Deny => {
-                return Err(anyhow::anyhow!(
-                    "Operation denied by policy at {}:{}.",
-                    permission_trace
-                        .file
-                        .as_ref()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    permission_trace.line.unwrap_or(0),
-                ));
+                return Err(anyhow::anyhow!("Operation denied by policy."));
             }
             Permission::Allow => {
                 // Continue with the operation

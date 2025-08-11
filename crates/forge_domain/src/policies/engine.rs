@@ -1,7 +1,7 @@
 use super::operation::Operation;
 use super::policy::Policy;
 use crate::PolicyConfig;
-use crate::policies::{Permission, Trace};
+use crate::policies::Permission;
 
 /// High-level policy engine that provides convenient methods for checking
 /// policies
@@ -20,44 +20,42 @@ impl<'a> PolicyEngine<'a> {
     }
 
     /// Check if an operation is allowed
-    /// Returns trace with permission result
-    pub fn can_perform(&self, operation: &Operation) -> Trace<Permission> {
+    /// Returns permission result
+    pub fn can_perform(&self, operation: &Operation) -> Permission {
         self.evaluate_policies(operation)
     }
 
     /// Internal helper function to evaluate policies for a given operation
-    /// Returns trace with permission result, defaults to Confirm if no policies
-    /// match
-    fn evaluate_policies(&self, operation: &Operation) -> Trace<Permission> {
+    /// Returns permission result, defaults to Confirm if no policies match
+    fn evaluate_policies(&self, operation: &Operation) -> Permission {
         let has_policies = !self.policies.policies.is_empty();
 
         if !has_policies {
-            return Trace::new(Permission::Confirm);
+            return Permission::Confirm;
         }
 
-        let mut last_allow: Option<Trace<Permission>> = None;
-        let mut policy_index = 1u64;
+        let mut last_allow: Option<Permission> = None;
 
         // Evaluate all policies in order: workflow policies first, then extended
         // policies
 
-        if let Some(trace) =
-            self.evaluate_policy_set(self.policies.policies.iter(), operation, &mut policy_index)
+        if let Some(permission) =
+            self.evaluate_policy_set(self.policies.policies.iter(), operation)
         {
-            match &trace.value {
+            match permission {
                 Permission::Deny | Permission::Confirm => {
                     // Return immediately for denials or confirmations
-                    return trace;
+                    return permission;
                 }
                 Permission::Allow => {
                     // Keep track of the last allow
-                    last_allow = Some(trace);
+                    last_allow = Some(permission);
                 }
             }
         }
 
         // Return last allow if found, otherwise default to Confirm
-        last_allow.unwrap_or(Trace::new(Permission::Confirm))
+        last_allow.unwrap_or(Permission::Confirm)
     }
 
     /// Helper function to evaluate a set of policies
@@ -67,26 +65,22 @@ impl<'a> PolicyEngine<'a> {
         &self,
         policies: I,
         operation: &Operation,
-        policy_index: &mut u64,
-    ) -> Option<Trace<Permission>> {
-        let mut last_allow: Option<Trace<Permission>> = None;
+    ) -> Option<Permission> {
+        let mut last_allow: Option<Permission> = None;
 
         for policy in policies {
-            // FIXME: The policy index logic is incorrect, it should point to the related to
-            // index of the policy in the yaml workflow file
-            if let Some(trace) = policy.eval(operation, None, Some(*policy_index)) {
-                match &trace.value {
+            if let Some(permission) = policy.eval(operation) {
+                match permission {
                     Permission::Deny | Permission::Confirm => {
                         // Return immediately for denials or confirmations
-                        return Some(trace);
+                        return Some(permission);
                     }
                     Permission::Allow => {
                         // Keep track of the last allow
-                        last_allow = Some(trace);
+                        last_allow = Some(permission);
                     }
                 }
             }
-            *policy_index += 1;
         }
 
         last_allow
@@ -160,7 +154,7 @@ mod tests {
 
         let actual = fixture.can_perform(&operation);
 
-        assert_eq!(actual.value, Permission::Allow);
+        assert_eq!(actual, Permission::Allow);
     }
 
     #[test]
@@ -174,7 +168,7 @@ mod tests {
 
         let actual = fixture.can_perform(&operation);
 
-        assert_eq!(actual.value, Permission::Deny);
+        assert_eq!(actual, Permission::Deny);
     }
 
     #[test]
@@ -188,7 +182,7 @@ mod tests {
 
         let actual = fixture.can_perform(&operation);
 
-        assert_eq!(actual.value, Permission::Confirm);
+        assert_eq!(actual, Permission::Confirm);
     }
 
     #[test]
@@ -202,7 +196,7 @@ mod tests {
 
         let actual = fixture.can_perform(&operation);
 
-        assert_eq!(actual.value, Permission::Allow);
+        assert_eq!(actual, Permission::Allow);
     }
 
     #[test]
@@ -216,6 +210,6 @@ mod tests {
 
         let actual = fixture.can_perform(&operation);
 
-        assert_eq!(actual.value, Permission::Allow);
+        assert_eq!(actual, Permission::Allow);
     }
 }
