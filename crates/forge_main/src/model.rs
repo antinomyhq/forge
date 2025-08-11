@@ -234,7 +234,7 @@ pub enum Command {
     #[strum(props(usage = "Display system information"))]
     Info,
     /// Display usage information (tokens & requests).
-    #[strum(props(usage = "Show usage information (tokens & requests)"))]
+    #[strum(props(usage = "Shows usage information (tokens & requests)"))]
     Usage,
     /// Exit the application without any further action.
     #[strum(props(usage = "Exit the application"))]
