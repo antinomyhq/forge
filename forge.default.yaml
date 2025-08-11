@@ -67,11 +67,8 @@ agents:
       <task>{{event.value}}</task>
       {{/if}}
       <system_time>{{current_time}}</system_time>
-      Only create new plans or update existing ones.
-      Do not modify, create, or delete any code files.
     tools:
       - forge_tool_fs_read
       - forge_tool_net_fetch
       - forge_tool_fs_search
-      - forge_tool_fs_create
-      - forge_tool_fs_patch
+      - forge_tool_plan_create

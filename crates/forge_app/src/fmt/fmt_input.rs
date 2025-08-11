@@ -92,6 +92,9 @@ impl FormatContent for Tools {
             }
             Tools::ForgeToolTaskListList(_) => TitleFormat::debug("Task Read".to_string()).into(),
             Tools::ForgeToolTaskListClear(_) => TitleFormat::debug("Task Clear".to_string()).into(),
+            Tools::ForgeToolPlanCreate(input) => {
+                TitleFormat::debug(format!("Plan: {}@{}", input.plan_name, input.version)).into()
+            }
         };
 
         Some(output)

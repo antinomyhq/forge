@@ -40,6 +40,7 @@ impl FormatContent for Operation {
             | Operation::TaskListClear { _input: _, before, after } => Some(
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
+            Operation::PlanCreate { input, output } => None,
         }
     }
 }
