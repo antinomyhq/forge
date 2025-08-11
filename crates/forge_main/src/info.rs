@@ -268,17 +268,38 @@ impl From<&UserUsage> for Info {
                 ),
             );
 
+        // Create progress bar for usage visualization
+        let progress_bar = create_progress_bar(usage.current, usage.limit, 20);
+
         // Add reset information if available
         if let Some(reset_in) = usage.reset_in {
-            let reset_info = format_reset_time(reset_in);
-            info = info.add_key_value("Resets in", reset_info);
             if plan.is_upgradeable() {
                 info = info.add_key_value("Upgrade", "https://app.forgecode.dev/app/billing");
             }
+            info = info.add_key_value("Resets in", format_reset_time(reset_in));
         }
 
-        info
+        info.add_key_value("Progress", progress_bar)
     }
+}
+
+pub fn create_progress_bar(current: u32, limit: u32, width: usize) -> String {
+    if limit == 0 {
+        return "N/A".to_string();
+    }
+
+    let percentage = (current as f64 / limit as f64 * 100.0).min(100.0);
+    let filled_chars = ((current as f64 / limit as f64) * width as f64).round() as usize;
+    let filled_chars = filled_chars.min(width);
+    let empty_chars = width - filled_chars;
+
+    // Option 1: Unicode block characters (most visually appealing)
+    format!(
+        "▐{}{} {:.1}%",
+        "█".repeat(filled_chars),
+        "░".repeat(empty_chars),
+        percentage
+    )
 }
 
 pub fn format_reset_time(seconds: u64) -> String {
@@ -374,6 +395,34 @@ mod tests {
 
         let actual = super::format_path_for_display(&fixture, &path);
         let expected = "\"C:/Program Files/App\"";
+        assert_eq!(actual, expected);
+    }
+    
+    #[test]
+    fn test_create_progress_bar() {
+        // Test normal case - 70% of 20 = 14 filled, 6 empty
+        let actual = super::create_progress_bar(70, 100, 20);
+        let expected = "▐██████████████░░░░░░ 70.0%";
+        assert_eq!(actual, expected);
+
+        // Test 100% case
+        let actual = super::create_progress_bar(100, 100, 20);
+        let expected = "▐████████████████████ 100.0%";
+        assert_eq!(actual, expected);
+
+        // Test 0% case
+        let actual = super::create_progress_bar(0, 100, 20);
+        let expected = "▐░░░░░░░░░░░░░░░░░░░░ 0.0%";
+        assert_eq!(actual, expected);
+
+        // Test zero limit case
+        let actual = super::create_progress_bar(50, 0, 20);
+        let expected = "N/A";
+        assert_eq!(actual, expected);
+
+        // Test over 100% case (should cap at 100%)
+        let actual = super::create_progress_bar(150, 100, 20);
+        let expected = "▐████████████████████ 100.0%";
         assert_eq!(actual, expected);
     }
 
