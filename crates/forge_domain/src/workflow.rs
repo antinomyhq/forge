@@ -200,6 +200,12 @@ impl Workflow {
         self.find_agent(id)
             .ok_or_else(|| crate::Error::AgentUndefined(id.clone()))
     }
+    /// Resolve tool aliases for all agents in this workflow
+    pub fn resolve_tool_aliases(&mut self) {
+        for agent in &mut self.agents {
+            agent.resolve_tool_aliases();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -207,6 +213,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::ToolName;
 
     #[test]
     fn test_workflow_new_creates_empty_workflow() {
@@ -316,5 +323,36 @@ mod tests {
 
         // Assert
         assert_eq!(base.compact, Some(new_compact));
+    }
+
+    #[test]
+    fn test_workflow_resolve_tool_aliases() {
+        // Fixture
+        let agent1 =
+            Agent::new("agent1").tools(vec![ToolName::new("read"), ToolName::new("write")]);
+        let agent2 = Agent::new("agent2").tools(vec![
+            ToolName::new("execute"),
+            ToolName::new("forge_tool_fs_search"), // Already fully qualified
+        ]);
+
+        let mut fixture = Workflow::new().agents(vec![agent1, agent2]);
+
+        // Act
+        fixture.resolve_tool_aliases();
+
+        // Assert
+        let agent1_tools = fixture.agents[0].tools.as_ref().unwrap();
+        let expected_agent1_tools = vec![
+            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("forge_tool_fs_create"),
+        ];
+        assert_eq!(agent1_tools, &expected_agent1_tools);
+
+        let agent2_tools = fixture.agents[1].tools.as_ref().unwrap();
+        let expected_agent2_tools = vec![
+            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("forge_tool_fs_search"),
+        ];
+        assert_eq!(agent2_tools, &expected_agent2_tools);
     }
 }

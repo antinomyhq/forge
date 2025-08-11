@@ -72,8 +72,12 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
             Ok(workflow)
         } else {
             let content = self.infra.read_utf8(path).await?;
-            let workflow: Workflow = serde_yml::from_str(&content)
+            let mut workflow: Workflow = serde_yml::from_str(&content)
                 .with_context(|| format!("Failed to parse workflow from {}", path.display()))?;
+
+            // Resolve tool aliases to fully qualified names
+            workflow.resolve_tool_aliases();
+
             Ok(workflow)
         }
     }
