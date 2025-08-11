@@ -1,5 +1,13 @@
 use std::sync::Arc;
 
+use anyhow::Context;
+use forge_display::TitleFormat;
+use forge_domain::{
+    Permission, PolicyConfig, PolicyEngine, ToolCallContext, ToolCallFull, ToolOutput, Tools,
+};
+use strum::IntoEnumIterator;
+use strum_macros::{Display, EnumIter};
+
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
@@ -10,13 +18,6 @@ use crate::{
     FsSearchService, FsUndoService, NetFetchService, PolicyLoaderService, UserResponse,
     WorkflowService,
 };
-use anyhow::Context;
-use forge_display::TitleFormat;
-use forge_domain::{
-    Permission, PolicyConfig, PolicyEngine, ToolCallContext, ToolCallFull, ToolOutput, Tools,
-};
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter};
 
 /// User response for permission confirmation requests
 #[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter)]
