@@ -15,8 +15,7 @@ use crate::services::ShellService;
 use crate::{
     AppConfigService, ConfirmationService, ConversationService, EnvironmentService,
     FollowUpService, FsCreateService, FsPatchService, FsReadService, FsRemoveService,
-    FsSearchService, FsUndoService, NetFetchService, PolicyLoaderService, UserResponse,
-    WorkflowService,
+    FsSearchService, FsUndoService, NetFetchService, PolicyLoaderService, WorkflowService,
 };
 
 /// User response for permission confirmation requests
@@ -45,34 +44,6 @@ pub enum AddDefaultPoliciesResponse {
     /// Reject and remember the operation
     #[strum(to_string = "Reject and remember my choice")]
     RejectAndRemember,
-}
-
-impl UserResponse for PolicyPermission {
-    fn positive() -> Self {
-        PolicyPermission::Accept
-    }
-
-    fn negative() -> Self {
-        PolicyPermission::Reject
-    }
-
-    fn varients() -> Vec<Self> {
-        PolicyPermission::iter().collect()
-    }
-}
-
-impl UserResponse for AddDefaultPoliciesResponse {
-    fn positive() -> Self {
-        AddDefaultPoliciesResponse::Accept
-    }
-
-    fn negative() -> Self {
-        AddDefaultPoliciesResponse::Reject
-    }
-
-    fn varients() -> Vec<Self> {
-        AddDefaultPoliciesResponse::iter().collect()
-    }
 }
 
 pub struct ToolExecutor<S> {
@@ -117,10 +88,11 @@ impl<
 
             match self
                 .services
-                .request_user_confirmation::<AddDefaultPoliciesResponse>(
+                .request_user_confirmation(
                     TitleFormat::info(format!("No permissions policies found. Would you like to create a default policies file at {}", self.services.permissions_path().display())).to_string(),
+                    AddDefaultPoliciesResponse::iter().collect(),
                 ) {
-                AddDefaultPoliciesResponse::Accept => {
+                Some(AddDefaultPoliciesResponse::Accept) => {
                     self.services.init_policies().await?;
                     context
                     .send(crate::fmt::content::ContentFormat::Markdown(TitleFormat::info(format!(
@@ -130,7 +102,7 @@ impl<
                     .await?;
                     self.get_or_create_policies(context).await
                 }
-                AddDefaultPoliciesResponse::Reject => {
+                Some(AddDefaultPoliciesResponse::Reject) | None => {
                     context.send(
                         crate::fmt::content::ContentFormat::Markdown(TitleFormat::info(
                             "Permissions policies not created. You will be prompted for permissions on each operation that requires them."
@@ -138,7 +110,7 @@ impl<
                     ).await?;
                     Ok(PolicyConfig::new())
                 },
-                AddDefaultPoliciesResponse::RejectAndRemember => {
+                Some(AddDefaultPoliciesResponse::RejectAndRemember) => {
                     context.send(
                         crate::fmt::content::ContentFormat::Markdown(TitleFormat::info(
                             "Permissions policies not created. You will be prompted for permissions on each operation that requires them."
@@ -176,15 +148,16 @@ impl<
                 // Request user confirmation
                 match self.services.request_user_confirmation(
                     "This operation requires confirmation. How would you like to proceed?",
+                    PolicyPermission::iter().collect(),
                 ) {
-                    PolicyPermission::Accept => {
+                    Some(PolicyPermission::Accept) => {
                         // User accepted the operation, continue
                     }
-                    PolicyPermission::AcceptAndRemember => {
+                    Some(PolicyPermission::AcceptAndRemember) => {
                         // User accepted and wants to remember this choice
                         self.add_policy_for_operation(operation, context).await.ok();
                     }
-                    PolicyPermission::Reject => {
+                    Some(PolicyPermission::Reject) | None => {
                         return Err(anyhow::anyhow!(
                             "Operation rejected by user for operation: {:?}",
                             operation

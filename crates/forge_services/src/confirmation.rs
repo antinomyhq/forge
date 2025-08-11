@@ -1,6 +1,7 @@
-use forge_app::{ConfirmationService, UserResponse};
+use forge_app::ConfirmationService;
 use inquire::ui::{RenderConfig, Styled};
-use inquire::{InquireError, Select};
+use inquire::Select;
+use std::fmt::Display;
 
 #[derive(Default, Debug, Clone)]
 pub struct ForgeConfirmation;
@@ -13,28 +14,19 @@ impl ForgeConfirmation {
             .with_scroll_down_prefix(Styled::new("⇣"))
             .with_highlighted_option_prefix(Styled::new("➤"))
     }
-
-    /// Handle inquire errors consistently - convert cancellation/interruption
-    /// to Reject
-    fn handle_inquire_error<T: UserResponse>(result: Result<T, InquireError>) -> T {
-        match result {
-            Ok(response) => response,
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => {
-                T::negative()
-            }
-            Err(_) => T::negative(),
-        }
-    }
 }
 
 impl ConfirmationService for ForgeConfirmation {
-    fn request_user_confirmation<R: UserResponse>(&self, message: impl ToString) -> R {
-        let choices = R::varients();
+    fn request_user_confirmation<T: Display>(
+        &self,
+        message: impl ToString,
+        choices: Vec<T>,
+    ) -> Option<T> {
         let message = message.to_string();
         let select = Select::new(&message, choices)
             .with_render_config(Self::render_config())
             .with_help_message("Use arrow keys to navigate, Enter to select");
 
-        Self::handle_inquire_error(select.prompt())
+        select.prompt().ok()
     }
 }

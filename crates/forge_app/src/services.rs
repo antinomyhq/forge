@@ -322,19 +322,14 @@ pub trait PolicyLoaderService: Send + Sync {
     async fn init_policies(&self) -> anyhow::Result<()>;
 }
 
-pub trait UserResponse: Display + Sized + Send + Sync {
-    fn positive() -> Self;
-    fn negative() -> Self;
-    fn varients() -> Vec<Self>;
-}
-
 pub trait ConfirmationService: Send + Sync {
     /// Request user confirmation for an operation
     /// Returns the user's choice.
-    fn request_user_confirmation<ResponseType: UserResponse>(
+    fn request_user_confirmation<T: Display>(
         &self,
         message: impl ToString,
-    ) -> ResponseType;
+        choices: Vec<T>,
+    ) -> Option<T>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -699,11 +694,8 @@ impl<I: Services> PolicyLoaderService for I {
 }
 
 impl<I: Services> ConfirmationService for I {
-    fn request_user_confirmation<ResponseType: UserResponse>(
-        &self,
-        message: impl ToString,
-    ) -> ResponseType {
+    fn request_user_confirmation<T: Display>(&self, message: impl ToString, varients: Vec<T>) -> Option<T> {
         self.confirmation_service()
-            .request_user_confirmation(message)
+            .request_user_confirmation(message, varients)
     }
 }
