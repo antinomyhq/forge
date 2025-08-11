@@ -22,14 +22,6 @@ pub struct ReadRule {
     pub working_directory: Option<String>,
 }
 
-/// Rule for patch operations with a glob pattern
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-pub struct PatchRule {
-    pub patch: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub working_directory: Option<String>,
-}
-
 /// Rule for execute operations with a command pattern
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 pub struct ExecuteRule {
@@ -54,8 +46,6 @@ pub enum Rule {
     Write(WriteRule),
     /// Rule for read operations with a glob pattern
     Read(ReadRule),
-    /// Rule for patch operations with a glob pattern
-    Patch(PatchRule),
     /// Rule for execute operations with a command pattern
     Execute(ExecuteRule),
     /// Rule for network fetch operations with a URL pattern
@@ -84,15 +74,7 @@ impl Rule {
                 };
                 pattern_matches && working_directory_matches
             }
-            (Rule::Patch(rule), Operation::Patch { path, cwd }) => {
-                let pattern_matches = match_pattern(&rule.patch, path);
-                let working_directory_matches = match &rule.working_directory {
-                    Some(wd_pattern) => match_pattern(wd_pattern, cwd),
-                    None => true, /* If no working directory pattern is specified, it matches any
-                                   * directory */
-                };
-                pattern_matches && working_directory_matches
-            }
+
             (Rule::Execute(rule), Operation::Execute { command: cmd, cwd }) => {
                 let command_matches = match_pattern(&rule.command, cmd);
                 let working_directory_matches = match &rule.working_directory {
@@ -143,7 +125,7 @@ mod tests {
     }
 
     fn fixture_patch_operation() -> Operation {
-        Operation::Patch {
+        Operation::Write {
             path: PathBuf::from("src/main.rs"),
             cwd: PathBuf::from("/home/user/project"),
         }
@@ -182,9 +164,11 @@ mod tests {
     }
 
     #[test]
-    fn test_rule_matches_patch_operation() {
-        let fixture =
-            Rule::Patch(PatchRule { patch: "src/**/*.rs".to_string(), working_directory: None });
+    fn test_rule_matches_write_operation_with_patch_scenario() {
+        let fixture = Rule::Write(WriteRule {
+            write: "src/**/*.rs".to_string(),
+            working_directory: None,
+        });
         let operation = fixture_patch_operation();
 
         let actual = fixture.matches(&operation);

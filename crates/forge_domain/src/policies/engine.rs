@@ -99,8 +99,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ExecuteRule, NetFetchRule, PatchRule, Permission, Policy, PolicyConfig, ReadRule, Rule,
-        WriteRule,
+        ExecuteRule, NetFetchRule, Permission, Policy, PolicyConfig, ReadRule, Rule, WriteRule,
     };
 
     fn fixture_workflow_with_read_policy() -> PolicyConfig {
@@ -130,11 +129,11 @@ mod tests {
         policies
     }
 
-    fn fixture_workflow_with_patch_policy() -> PolicyConfig {
+    fn fixture_workflow_with_write_policy_confirm() -> PolicyConfig {
         let policies = PolicyConfig::new().add_policy(Policy::Simple {
             permission: Permission::Confirm,
-            rule: Rule::Patch(PatchRule {
-                patch: "src/**/*.rs".to_string(),
+            rule: Rule::Write(WriteRule {
+                write: "src/**/*.rs".to_string(),
                 working_directory: None,
             }),
         });
@@ -181,10 +180,10 @@ mod tests {
     }
 
     #[test]
-    fn test_policy_engine_can_perform_patch() {
-        let fixture_workflow = fixture_workflow_with_patch_policy();
+    fn test_policy_engine_can_perform_write_with_confirm() {
+        let fixture_workflow = fixture_workflow_with_write_policy_confirm();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Patch {
+        let operation = Operation::Write {
             path: std::path::PathBuf::from("src/main.rs"),
             cwd: std::path::PathBuf::from("/test/cwd"),
         };

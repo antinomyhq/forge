@@ -260,7 +260,7 @@ impl<
             }
             Tools::ForgeToolFsPatch(input) => {
                 // Check policy before performing the operation
-                let operation = forge_domain::Operation::Patch {
+                let operation = forge_domain::Operation::Write {
                     path: std::path::PathBuf::from(&input.path),
                     cwd: self.services.get_environment().cwd,
                 };
@@ -427,12 +427,7 @@ fn create_policy_for_operation(
                 working_directory: None,
             })
         }),
-        forge_domain::Operation::Patch { path, cwd: _ } => create_file_policy(path, |pattern| {
-            forge_domain::Rule::Patch(forge_domain::PatchRule {
-                patch: pattern,
-                working_directory: None,
-            })
-        }),
+
         forge_domain::Operation::NetFetch { url, cwd: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 parsed_url
@@ -481,9 +476,7 @@ fn create_policy_for_operation(
 mod tests {
     use std::path::PathBuf;
 
-    use forge_domain::{
-        ExecuteRule, NetFetchRule, PatchRule, Permission, Policy, ReadRule, Rule, WriteRule,
-    };
+    use forge_domain::{ExecuteRule, NetFetchRule, Permission, Policy, ReadRule, Rule, WriteRule};
     use pretty_assertions::assert_eq;
 
     use crate::tool_executor::create_policy_for_operation;
@@ -521,16 +514,19 @@ mod tests {
     }
 
     #[test]
-    fn test_create_policy_for_patch_operation() {
+    fn test_create_policy_for_write_patch_operation() {
         let path = PathBuf::from("/path/to/file.toml");
         let operation =
-            forge_domain::Operation::Patch { path, cwd: std::path::PathBuf::from("/test/cwd") };
+            forge_domain::Operation::Write { path, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Patch(PatchRule { patch: "*.toml".to_string(), working_directory: None }),
+            rule: Rule::Write(WriteRule {
+                write: "*.toml".to_string(),
+                working_directory: None,
+            }),
         });
 
         assert_eq!(actual, expected);

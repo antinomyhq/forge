@@ -7,8 +7,6 @@ pub enum Operation {
     Write { path: PathBuf, cwd: PathBuf },
     /// Read operation from a file path
     Read { path: PathBuf, cwd: PathBuf },
-    /// Patch operation to modify a file path
-    Patch { path: PathBuf, cwd: PathBuf },
     /// Execute operation with a command string
     Execute { command: String, cwd: PathBuf },
     /// Network fetch operation with a URL
