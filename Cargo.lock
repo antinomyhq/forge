@@ -1320,6 +1320,7 @@ dependencies = [
  "reqwest 0.12.22",
  "reqwest-eventsource",
  "rust-embed",
+ "schemars",
  "serde",
  "serde_json",
  "strum 0.27.2",
