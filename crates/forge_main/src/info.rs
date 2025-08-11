@@ -397,7 +397,7 @@ mod tests {
         let expected = "\"C:/Program Files/App\"";
         assert_eq!(actual, expected);
     }
-    
+
     #[test]
     fn test_create_progress_bar() {
         // Test normal case - 70% of 20 = 14 filled, 6 empty
