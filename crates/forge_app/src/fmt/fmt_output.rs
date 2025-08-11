@@ -41,8 +41,8 @@ impl FormatContent for Operation {
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
             Operation::PlanCreate { input, output } => Some(ContentFormat::Markdown(format!(
-                "**FILE:** {}\n\n{}",
-                output.path, input.content
+                "{}\n\n---\n*FILE: {}*",
+                input.content, output.path
             ))),
         }
     }
@@ -581,7 +581,7 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         let expected = Some(ContentFormat::Markdown(
-            "**FILE:** plans/2024-08-11-test-plan-v1.md\n\n# Test Plan\n\n## Task 1\n- Do something\n\n## Task 2\n- Do something else".to_string()
+            "# Test Plan\n\n## Task 1\n- Do something\n\n## Task 2\n- Do something else\n\n---\n*FILE: plans/2024-08-11-test-plan-v1.md*".to_string()
         ));
 
         assert_eq!(actual, expected);

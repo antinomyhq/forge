@@ -37,7 +37,7 @@ impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra +
         let filename = format!("{current_date}-{plan_name}-{version}.md");
 
         // Create the plans directory path (assuming current working directory)
-        let plans_dir = Path::new(".forge/plans");
+        let plans_dir = Path::new("plans");
         let file_path = plans_dir.join(&filename);
 
         // Validate the path is reasonable (even though it won't be absolute)
