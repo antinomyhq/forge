@@ -5,7 +5,6 @@ use anyhow::{Context, Result};
 use bytes::Bytes;
 use forge_app::PolicyLoaderService;
 use forge_app::domain::{Policy, PolicyConfig};
-use forge_display::DiffFormat;
 
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
@@ -32,7 +31,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         self.read_policies().await
     }
 
-    async fn modify_policy(&self, policy: Policy) -> Result<String> {
+    async fn modify_policy(&self, policy: Policy) -> Result<()> {
         self.modify_policy(policy).await
     }
 
@@ -68,29 +67,9 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
     }
     /// Add or modify a policy in the policies file and return a diff of the
     /// changes
-    async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String> {
+    async fn modify_policy(&self, policy: Policy) -> anyhow::Result<()> {
         let policies_path = self.policies_path();
-
-        // Read current content (if file exists)
-        let old_content = if self.infra.exists(&policies_path).await? {
-            self.infra.read_utf8(&policies_path).await?
-        } else {
-            String::new()
-        };
-
-        // Load current policies or create empty collection
-        let mut policies = if old_content.is_empty() {
-            // If the file is empty or does not exist, start with default policies
-            PolicyConfig::with_defaults()
-        } else {
-            parse_policy_file(&old_content).with_context(|| {
-                format!(
-                    "Failed to parse existing policies {}",
-                    policies_path.display()
-                )
-            })?
-        };
-
+        let mut policies = self.read_policies().await?.unwrap_or_default();
         // Add the new policy to the collection
         policies = policies.add_policy(policy);
 
@@ -103,9 +82,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
             .write(&policies_path, Bytes::from(new_content.to_owned()), true)
             .await?;
 
-        // Generate and return the diff
-        let diff_result = DiffFormat::format(&old_content, &new_content);
-        Ok(diff_result.diff().to_string())
+        Ok(())
     }
 
     async fn init_policies(&self) -> Result<()> {

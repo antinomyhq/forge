@@ -118,7 +118,7 @@ impl<
             match self
                 .services
                 .request_user_confirmation::<AddDefaultPoliciesResponse>(
-                    TitleFormat::action(format!("No permissions policies found. Would you like to create a default policies file at {}?", self.services.policies_path().display())),
+                    TitleFormat::info(format!("No permissions policies found. Would you like to create a default policies file at {}", self.services.policies_path().display())).to_string(),
                 ) {
                 AddDefaultPoliciesResponse::Accept => {
                     self.services.init_policies().await?;
@@ -213,11 +213,13 @@ impl<
                     .to_string(),
             ),
         ) {
-            let diff = self.services.modify_policy(new_policy).await?;
+            let policy_yml = serde_yml::to_string(&new_policy).unwrap_or_default();
+            self.services.modify_policy(new_policy).await?;
 
             // Notify user about the policy modification
             let content_format = crate::fmt::content::ContentFormat::Markdown(format!(
-                "Policy added:\n\n```yaml\n{diff}\n```"
+                "Policy {policy_yml} added to {}",
+                self.services.policies_path().display()
             ));
             context.send(content_format).await?;
         }

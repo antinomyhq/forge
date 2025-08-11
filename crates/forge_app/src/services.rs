@@ -313,7 +313,7 @@ pub trait PolicyLoaderService: Send + Sync {
     async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>>;
 
     /// Add or modify a policy in the policies file and return a diff of the
-    async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String>;
+    async fn modify_policy(&self, policy: Policy) -> anyhow::Result<()>;
 
     /// Returns the path to the policies file
     fn policies_path(&self) -> PathBuf;
@@ -685,7 +685,7 @@ impl<I: Services> PolicyLoaderService for I {
         self.policy_loader_service().read_policies().await
     }
 
-    async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String> {
+    async fn modify_policy(&self, policy: Policy) -> anyhow::Result<()> {
         self.policy_loader_service().modify_policy(policy).await
     }
 
