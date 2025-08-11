@@ -281,25 +281,6 @@ impl From<&UserUsage> for Info {
     }
 }
 
-pub fn create_progress_bar(current: u32, limit: u32, width: usize) -> String {
-    if limit == 0 {
-        return "N/A".to_string();
-    }
-
-    let percentage = (current as f64 / limit as f64 * 100.0).min(100.0);
-    let filled_chars = ((current as f64 / limit as f64) * width as f64).round() as usize;
-    let filled_chars = filled_chars.min(width);
-    let empty_chars = width - filled_chars;
-
-    // Option 1: Unicode block characters (most visually appealing)
-    format!(
-        "▐{}{} {:.1}%",
-        "█".repeat(filled_chars),
-        "░".repeat(empty_chars),
-        percentage
-    )
-}
-
 pub fn format_reset_time(seconds: u64) -> String {
     if seconds == 0 {
         return "now".to_string();
@@ -405,33 +386,7 @@ mod tests {
         let expected = "/home/user/project";
         assert_eq!(actual, expected);
     }
-    #[test]
-    fn test_create_progress_bar() {
-        // Test normal case - 70% of 20 = 14 filled, 6 empty
-        let actual = super::create_progress_bar(70, 100, 20);
-        let expected = "▐██████████████░░░░░░ 70.0%";
-        assert_eq!(actual, expected);
-
-        // Test 100% case
-        let actual = super::create_progress_bar(100, 100, 20);
-        let expected = "▐████████████████████ 100.0%";
-        assert_eq!(actual, expected);
-
-        // Test 0% case
-        let actual = super::create_progress_bar(0, 100, 20);
-        let expected = "▐░░░░░░░░░░░░░░░░░░░░ 0.0%";
-        assert_eq!(actual, expected);
-
-        // Test zero limit case
-        let actual = super::create_progress_bar(50, 0, 20);
-        let expected = "N/A";
-        assert_eq!(actual, expected);
-
-        // Test over 100% case (should cap at 100%)
-        let actual = super::create_progress_bar(150, 100, 20);
-        let expected = "▐████████████████████ 100.0%";
-        assert_eq!(actual, expected);
-    }
+  
     #[test]
     fn test_format_reset_time_hours_and_minutes() {
         let actual = super::format_reset_time(3661); // 1 hour, 1 minute, 1 second
