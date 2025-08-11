@@ -310,7 +310,7 @@ pub trait AgentLoaderService: Send + Sync {
 #[async_trait::async_trait]
 pub trait PolicyLoaderService: Send + Sync {
     /// Load all policy definitions from the forge/policies directory
-    async fn load_policies(&self) -> anyhow::Result<Option<PolicyConfig>>;
+    async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>>;
 
     /// Add or modify a policy in the policies file and return a diff of the
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String>;
@@ -681,8 +681,8 @@ impl<I: Services> AgentLoaderService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> PolicyLoaderService for I {
-    async fn load_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
-        self.policy_loader_service().load_policies().await
+    async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
+        self.policy_loader_service().read_policies().await
     }
 
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<String> {

@@ -28,8 +28,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     PolicyLoaderService for ForgePolicyLoader<F>
 {
     /// Load all policy definitions from the forge/policies directory
-    async fn load_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
-        self.load_policies().await
+    async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
+        self.read_policies().await
     }
 
     async fn modify_policy(&self, policy: Policy) -> Result<String> {
@@ -50,7 +50,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
         self.infra.get_environment().policies_path()
     }
     /// Load all policy definitions from the forge/policies directory
-    async fn load_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
+    async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
         // NOTE: we must not cache policies, as they can change at runtime.
 
         let policies_path = self.policies_path();

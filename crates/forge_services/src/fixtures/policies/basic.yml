@@ -1,7 +1,0 @@
-policies:
-  - permission: allow
-    rule:
-      read: "**/*.rs"
-  - permission: deny
-    rule:
-      read: "secrets/**/*"

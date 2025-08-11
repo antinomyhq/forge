@@ -107,7 +107,7 @@ impl<
         &self,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<PolicyConfig> {
-        if let Some(policies) = self.services.load_policies().await? {
+        if let Some(policies) = self.services.read_policies().await? {
             Ok(policies)
         } else {
             let mut app_config = self.services.read_app_config().await?;
