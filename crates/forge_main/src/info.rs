@@ -104,17 +104,24 @@ impl From<&UIState> for Info {
 
         let usage = &value.usage;
 
-        info = info
-            .add_title("Usage".to_string())
-            .add_key_value("Prompt", &usage.prompt_tokens)
-            .add_key_value("Completion", &usage.completion_tokens)
-            .add_key_value("Total", &usage.total_tokens)
-            .add_key_value("Cached Tokens", &usage.cached_tokens);
+        info = info.extend(Info::from(usage));
+
+        info
+    }
+}
+
+impl From<&forge_domain::Usage> for Info {
+    fn from(usage: &forge_domain::Usage) -> Self {
+        let mut info = Info::new()
+            .add_title("Usage")
+            .add_key_value("Prompt", usage.prompt_tokens.to_string())
+            .add_key_value("Completion", usage.completion_tokens.to_string())
+            .add_key_value("Total", usage.total_tokens.to_string())
+            .add_key_value("Cached", usage.cached_tokens.to_string());
 
         if let Some(cost) = usage.cost {
             info = info.add_key_value("Cost", format!("${cost:.4}"));
         }
-
         info
     }
 }
@@ -262,15 +269,17 @@ impl From<&UserUsage> for Info {
                     "{} / {} [{} Remaining]",
                     usage.current, usage.limit, usage.remaining
                 ),
-            );
+            )
+            .add_key_value("Progress", progress_bar);
 
         // Add reset information if available
         if let Some(reset_in) = usage.reset_in {
             let reset_info = format_reset_time(reset_in);
             info = info.add_key_value("Resets in", reset_info);
+            info = info.add_key_value("Upgrade", "https://app.forgecode.dev/app/billing");
         }
 
-        info.add_key_value("Progress", progress_bar)
+        info
     }
 }
 
