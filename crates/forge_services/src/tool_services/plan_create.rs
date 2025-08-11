@@ -8,12 +8,10 @@ use forge_app::{PlanCreateOutput, PlanCreateService};
 
 use crate::{FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra};
 
-/// Creates a new plan file with the specified name, version, and content. The
-/// plan file will be saved in the plans directory with the format
-/// yyyy-mm-dd-<plan-name>-<version>.md where the date is automatically
-/// generated based on the current date. Use this tool to create structured
-/// project plans, task breakdowns, or implementation strategies that can be
-/// tracked and referenced throughout development sessions.
+/// Creates a new plan file with the specified name, version, and content. Use
+/// this tool to create structured project plans, task breakdowns, or
+/// implementation strategies that can be tracked and referenced throughout
+/// development sessions.
 pub struct ForgePlanCreate<F>(Arc<F>);
 
 impl<F> ForgePlanCreate<F> {
