@@ -24,7 +24,7 @@ impl<F> ForgePolicyLoader<F> {
 
 #[async_trait::async_trait]
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    PolicyLoaderService for ForgePolicyLoader<F>
+PolicyLoaderService for ForgePolicyLoader<F>
 {
     /// Load all policy definitions from the forge/policies directory
     async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
@@ -60,7 +60,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
 
         let content = self.infra.read_utf8(&policies_path).await?;
 
-        let policies = parse_policy_file(&content)
+        let policies = serde_yml::from_str(&content)
             .with_context(|| format!("Failed to parse policy {}", policies_path.display()))?;
 
         Ok(Some(policies))
@@ -108,10 +108,3 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
     }
 }
 
-/// Parse raw content into a Policies collection from YAML
-fn parse_policy_file(content: &str) -> Result<PolicyConfig> {
-    let policies: PolicyConfig =
-        serde_yml::from_str(content).with_context(|| "Could not parse policies from YAML")?;
-
-    Ok(policies)
-}
