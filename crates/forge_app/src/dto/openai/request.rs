@@ -91,14 +91,14 @@ pub enum CacheControlType {
     Ephemeral,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct FunctionDescription {
     pub description: Option<String>,
     pub name: String,
     pub parameters: serde_json::Value,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Tool {
     // TODO: should be an enum
     pub r#type: FunctionType,
@@ -226,7 +226,20 @@ impl From<ToolDefinition> for Tool {
             function: FunctionDescription {
                 description: Some(value.description),
                 name: value.name.to_string(),
-                parameters: serde_json::to_value(value.input_schema).unwrap(),
+                parameters: {
+                    let mut params = serde_json::to_value(value.input_schema).unwrap();
+                    // Ensure OpenAI compatibility by adding properties field if missing
+                    if let Some(obj) = params.as_object_mut()
+                        && obj.get("type") == Some(&serde_json::Value::String("object".to_string()))
+                        && !obj.contains_key("properties")
+                    {
+                        obj.insert(
+                            "properties".to_string(),
+                            serde_json::Value::Object(serde_json::Map::new()),
+                        );
+                    }
+                    params
+                },
             },
         }
     }
@@ -513,5 +526,47 @@ mod tests {
             serde_json::to_string(&Transform::MiddleOut).unwrap(),
             "\"middle-out\""
         );
+    }
+    #[test]
+    fn test_tool_definition_conversion_missing_properties() {
+        // Test case where input_schema is an object type but missing properties field
+        let fixture = {
+            let mut schema = schemars::schema_for!(());
+            // Create an object schema without properties field
+            schema.schema.object = Some(Box::new(schemars::schema::ObjectValidation {
+                max_properties: None,
+                min_properties: None,
+                required: Default::default(),
+                properties: Default::default(), // Empty properties map
+                pattern_properties: Default::default(),
+                additional_properties: None,
+                property_names: None,
+            }));
+            schema.schema.instance_type = Some(schemars::schema::SingleOrVec::Single(Box::new(
+                schemars::schema::InstanceType::Object,
+            )));
+
+            ToolDefinition::new("test_tool")
+                .description("Test tool")
+                .input_schema(schema)
+        };
+
+        let actual = Tool::from(fixture);
+
+        let expected = Tool {
+            r#type: FunctionType,
+            function: FunctionDescription {
+                description: Some("Test tool".to_string()),
+                name: "test_tool".to_string(),
+                parameters: serde_json::json!({
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    "properties": {},
+                    "title": "Null",
+                    "type": "object"
+                }),
+            },
+        };
+
+        assert_eq!(actual, expected);
     }
 }
