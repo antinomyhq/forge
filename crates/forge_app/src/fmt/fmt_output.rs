@@ -41,7 +41,7 @@ impl FormatContent for Operation {
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
             Operation::PlanCreate { input: _, output } => {
-                Some(TitleFormat::debug(format!("Create: {}", output.path)).into())
+                Some(TitleFormat::debug(format!("Create {}", output.path)).into())
             }
         }
     }
@@ -581,7 +581,7 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         let expected = Some(ContentFormat::Title(TitleFormat::debug(
-            "Create: plans/2024-08-11-test-plan-v1.md",
+            "Create plans/2024-08-11-test-plan-v1.md",
         )));
 
         assert_eq!(actual, expected);
