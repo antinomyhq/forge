@@ -98,7 +98,6 @@ Code Output Guidelines:
 - Do not delete failing tests without a compelling reason
 
 Plan File Execution Steps (only if user specifies a plan file):
-
 Follow `plan_execution_steps` after confirming if the user has provided a valid plan file path in the format `plans/{current-date}-{task-name}-{version}.md`; otherwise, skip `plan_execution_steps`.
 
 <plan_execution_steps>

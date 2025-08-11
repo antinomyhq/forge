@@ -467,10 +467,10 @@ expression: tools
 }
 {
   "name": "forge_tool_plan_create",
-  "description": "Creates a new plan file with the specified name, version, and content. The\n plan file will be saved in the plans directory with the format\n yyyy-mm-dd-<plan-name>-<version>.md where the date is automatically\n generated based on the current date. Use this tool to create structured\n project plans, task breakdowns, or implementation strategies that can be\n tracked and referenced throughout development sessions.",
+  "description": "Creates a new plan file with the specified name, version, and content. Use\n this tool to create structured project plans, task breakdowns, or\n implementation strategies that can be tracked and referenced throughout\n development sessions.",
   "input_schema": {
     "title": "PlanCreate",
-    "description": "Creates a new plan file with the specified name, version, and content. The plan file will be saved in the plans directory with the format yyyy-mm-dd-<plan-name>-<version>.md where the date is automatically generated based on the current date. Use this tool to create structured project plans, task breakdowns, or implementation strategies that can be tracked and referenced throughout development sessions.",
+    "description": "Creates a new plan file with the specified name, version, and content. Use this tool to create structured project plans, task breakdowns, or implementation strategies that can be tracked and referenced throughout development sessions.",
     "type": "object",
     "required": [
       "content",
