@@ -5,8 +5,9 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, NetFetch, TaskList,
-    TaskListAppend, TaskListAppendMultiple, TaskListClear, TaskListList, TaskListUpdate, ToolName,
+    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, NetFetch, PlanCreate,
+    TaskList, TaskListAppend, TaskListAppendMultiple, TaskListClear, TaskListList, TaskListUpdate,
+    ToolName,
 };
 use forge_template::Element;
 
@@ -16,8 +17,8 @@ use crate::truncation::{
 };
 use crate::utils::format_display_path;
 use crate::{
-    Content, FsCreateOutput, FsUndoOutput, HttpResponse, PatchOutput, ReadOutput, ResponseContext,
-    SearchResult, ShellOutput,
+    Content, FsCreateOutput, FsUndoOutput, HttpResponse, PatchOutput, PlanCreateOutput, ReadOutput,
+    ResponseContext, SearchResult, ShellOutput,
 };
 
 struct FileOperationStats {
@@ -98,6 +99,10 @@ pub enum Operation {
         _input: TaskListClear,
         before: TaskList,
         after: TaskList,
+    },
+    PlanCreate {
+        input: PlanCreate,
+        output: PlanCreateOutput,
     },
 }
 
@@ -483,6 +488,14 @@ impl Operation {
                             .attr("status", task.status.status_name())
                             .cdata(task.task.as_str())
                     }));
+                forge_domain::ToolOutput::text(elm)
+            }
+            Operation::PlanCreate { input, output } => {
+                let elm = Element::new("plan_created")
+                    .attr("path", output.path)
+                    .attr("plan_name", input.plan_name)
+                    .attr("version", input.version);
+
                 forge_domain::ToolOutput::text(elm)
             }
         }

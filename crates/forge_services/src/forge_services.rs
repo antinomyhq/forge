@@ -15,7 +15,7 @@ use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
-    ForgeFsSearch, ForgeFsUndo, ForgeShell,
+    ForgeFsSearch, ForgeFsUndo, ForgePlanCreate, ForgeShell,
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
@@ -43,6 +43,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     discovery_service: Arc<ForgeDiscoveryService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
     file_create_service: Arc<ForgeFsCreate<F>>,
+    plan_create_service: Arc<ForgePlanCreate<F>>,
     file_read_service: Arc<ForgeFsRead<F>>,
     file_search_service: Arc<ForgeFsSearch<F>>,
     file_remove_service: Arc<ForgeFsRemove<F>>,
@@ -82,6 +83,7 @@ impl<
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
         let chat_service = Arc::new(ForgeProviderService::<F>::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
+        let plan_create_service = Arc::new(ForgePlanCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
         let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
@@ -101,6 +103,7 @@ impl<
             discovery_service: suggestion_service,
             mcp_manager,
             file_create_service,
+            plan_create_service,
             file_read_service,
             file_search_service,
             file_remove_service,
@@ -146,6 +149,7 @@ impl<
     type FileDiscoveryService = ForgeDiscoveryService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
     type FsCreateService = ForgeFsCreate<F>;
+    type PlanCreateService = ForgePlanCreate<F>;
     type FsPatchService = ForgeFsPatch<F>;
     type FsReadService = ForgeFsRead<F>;
     type FsRemoveService = ForgeFsRemove<F>;
@@ -194,6 +198,10 @@ impl<
 
     fn fs_create_service(&self) -> &Self::FsCreateService {
         &self.file_create_service
+    }
+
+    fn plan_create_service(&self) -> &Self::PlanCreateService {
+        &self.plan_create_service
     }
 
     fn fs_patch_service(&self) -> &Self::FsPatchService {

@@ -10,6 +10,7 @@ use crate::services::ShellService;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
+    PlanCreateService,
 };
 
 pub struct ToolExecutor<S> {
@@ -27,7 +28,8 @@ impl<
         + ShellService
         + FollowUpService
         + ConversationService
-        + EnvironmentService,
+        + EnvironmentService
+        + PlanCreateService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -219,6 +221,17 @@ impl<
                 let before = tasks.clone();
                 tasks.clear();
                 Operation::TaskListClear { _input: input, before, after: tasks.clone() }
+            }
+            Tools::ForgeToolPlanCreate(input) => {
+                let output = self
+                    .services
+                    .create_plan(
+                        input.plan_name.clone(),
+                        input.version.clone(),
+                        input.content.clone(),
+                    )
+                    .await?;
+                (input, output).into()
             }
         })
     }

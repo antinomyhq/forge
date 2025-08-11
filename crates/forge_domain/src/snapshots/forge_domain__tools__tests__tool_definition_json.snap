@@ -465,3 +465,37 @@ expression: tools
     }
   }
 }
+{
+  "name": "forge_tool_plan_create",
+  "description": "Creates a new plan file with the specified name, version, and content. Use\n this tool to create structured project plans, task breakdowns, or\n implementation strategies that can be tracked and referenced throughout\n development sessions.",
+  "input_schema": {
+    "title": "PlanCreate",
+    "description": "Creates a new plan file with the specified name, version, and content. Use this tool to create structured project plans, task breakdowns, or implementation strategies that can be tracked and referenced throughout development sessions.",
+    "type": "object",
+    "required": [
+      "content",
+      "plan_name",
+      "version"
+    ],
+    "properties": {
+      "content": {
+        "description": "The content to write to the plan file. This should be the complete plan content in markdown format.",
+        "type": "string"
+      },
+      "explanation": {
+        "description": "One sentence explanation as to why this specific tool is being used, and how it contributes to the goal.",
+        "default": null,
+        "type": "string",
+        "nullable": true
+      },
+      "plan_name": {
+        "description": "The name of the plan (will be used in the filename)",
+        "type": "string"
+      },
+      "version": {
+        "description": "The version of the plan (e.g., \"v1\", \"v2\", \"1.0\")",
+        "type": "string"
+      }
+    }
+  }
+}
