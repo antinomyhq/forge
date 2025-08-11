@@ -14,8 +14,8 @@ impl<S: WorkflowService + AgentLoaderService + Sized> WorkflowManager<S> {
     pub fn new(service: Arc<S>) -> WorkflowManager<S> {
         Self { service }
     }
-    async fn extend_agents(&self, mut workflow: Workflow) -> Workflow {
-        let agents = self.service.load_agents().await.unwrap_or_default();
+    async fn extend_agents(&self, mut workflow: Workflow) -> anyhow::Result<Workflow> {
+        let agents = self.service.load_agents().await?;
         for agent_def in agents {
             // Check if an agent with this ID already exists in the workflow
             if let Some(existing_agent) = workflow.agents.iter_mut().find(|a| a.id == agent_def.id)
@@ -27,16 +27,16 @@ impl<S: WorkflowService + AgentLoaderService + Sized> WorkflowManager<S> {
                 workflow.agents.push(agent_def);
             }
         }
-        workflow
+        Ok(workflow)
     }
     pub async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         let mut workflow = self.service.read_workflow(path).await?;
-        workflow = self.extend_agents(workflow).await;
+        workflow = self.extend_agents(workflow).await?;
         Ok(workflow)
     }
     pub async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         let mut workflow = self.service.read_merged(path).await?;
-        workflow = self.extend_agents(workflow).await;
+        workflow = self.extend_agents(workflow).await?;
         Ok(workflow)
     }
     pub async fn write_workflow(

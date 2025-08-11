@@ -105,6 +105,7 @@ mod tests {
     use crate::{NamedTool, ToolDescription, ToolName, Tools};
 
     #[derive(Default)]
+    #[allow(dead_code)]
     pub struct MangoTool;
 
     #[derive(JsonSchema, Deserialize)]

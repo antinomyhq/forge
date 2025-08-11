@@ -1,12 +1,13 @@
-pub mod anthropic;
-pub mod client;
-pub mod error;
-pub mod event;
+mod anthropic;
+mod client;
+mod event;
 #[cfg(test)]
-pub mod mock_server;
-pub mod openai;
-pub mod retry;
-pub mod utils;
+mod mock_server;
+mod openai;
+mod registry;
+mod retry;
+mod service;
+mod utils;
 
-// Re-export from client.rs
-pub use client::{Client, ClientBuilder};
+pub use registry::*;
+pub use service::*;
