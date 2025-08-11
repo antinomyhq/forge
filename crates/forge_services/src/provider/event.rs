@@ -1,12 +1,12 @@
 use anyhow::Context;
 use forge_app::domain::ChatCompletionMessage;
+use forge_app::dto::openai::Error;
 use reqwest::Url;
 use reqwest_eventsource::{Event, EventSource};
 use serde::de::DeserializeOwned;
 use tokio_stream::{Stream, StreamExt};
 use tracing::debug;
 
-use super::error::Error;
 use super::utils::format_http_context;
 
 pub fn into_chat_completion_message<Response>(

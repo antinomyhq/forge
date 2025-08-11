@@ -14,7 +14,6 @@ tracing.workspace = true
 async-recursion.workspace = true
 chrono.workspace = true
 derive_setters.workspace = true
-forge_walker.workspace = true
 handlebars.workspace = true
 rust-embed.workspace = true
 serde_json.workspace = true

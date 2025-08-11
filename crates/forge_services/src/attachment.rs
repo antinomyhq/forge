@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::AttachmentService;
-use forge_app::domain::{Attachment, AttachmentContent, Image};
-use forge_domain::FileTag;
+use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image};
 
 use crate::range::resolve_range;
 use crate::{EnvironmentInfra, FileReaderInfra};
