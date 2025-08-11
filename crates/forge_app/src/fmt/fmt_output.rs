@@ -1,4 +1,4 @@
-use forge_display::{DiffFormat, GrepFormat};
+use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::Environment;
 
 use crate::fmt::content::{ContentFormat, FormatContent};
@@ -40,10 +40,9 @@ impl FormatContent for Operation {
             | Operation::TaskListClear { _input: _, before, after } => Some(
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
-            Operation::PlanCreate { input, output } => Some(ContentFormat::Markdown(format!(
-                "{}\n\n---\n*FILE: {}*",
-                input.content, output.path
-            ))),
+            Operation::PlanCreate { input: _, output } => {
+                Some(TitleFormat::debug(format!("Plan: {}", output.path)).into())
+            }
         }
     }
 }
@@ -53,6 +52,7 @@ mod tests {
     use std::path::PathBuf;
 
     use console::strip_ansi_codes;
+    use forge_display::TitleFormat;
     use forge_domain::{Environment, PatchOperation};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
@@ -580,9 +580,9 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = Some(ContentFormat::Markdown(
-            "# Test Plan\n\n## Task 1\n- Do something\n\n## Task 2\n- Do something else\n\n---\n*FILE: plans/2024-08-11-test-plan-v1.md*".to_string()
-        ));
+        let expected = Some(ContentFormat::Title(TitleFormat::debug(
+            "Plan: plans/2024-08-11-test-plan-v1.md",
+        )));
 
         assert_eq!(actual, expected);
     }
