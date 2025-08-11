@@ -85,6 +85,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.cli.conversation = None;
         banner::display()?;
         self.trace_user();
+        self.hydrate_caches();
         Ok(())
     }
 

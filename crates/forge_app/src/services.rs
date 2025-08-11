@@ -13,8 +13,9 @@ use reqwest_eventsource::EventSource;
 use strum_macros::{Display, EnumIter};
 use url::Url;
 
+use crate::Walker;
+use crate::dto::{AppConfig, InitAuth, LoginInfo};
 use crate::user::{User, UserUsage};
-use crate::{AppConfig, InitAuth, LoginInfo, Walker};
 
 /// User response for permission confirmation requests
 #[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter)]

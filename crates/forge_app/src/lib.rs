@@ -1,9 +1,9 @@
 mod agent;
 mod agent_executor;
 mod app;
-mod app_config;
 mod authenticator;
 mod compact;
+pub mod dto;
 mod error;
 mod fmt;
 mod mcp_executor;
@@ -23,7 +23,6 @@ mod workflow_manager;
 
 pub use agent::*;
 pub use app::*;
-pub use app_config::*;
 pub use error::*;
 pub use services::*;
 pub use user::*;

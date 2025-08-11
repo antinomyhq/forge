@@ -1,7 +1,7 @@
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use strum_macros::EnumString;
+use strum_macros::{EnumString, IntoStaticStr};
 
 use super::{ToolCall, ToolCallFull};
 use crate::TokenCount;
@@ -28,6 +28,12 @@ pub struct ChatCompletionMessage {
     pub tool_calls: Vec<ToolCall>,
     pub finish_reason: Option<FinishReason>,
     pub usage: Option<Usage>,
+}
+
+impl From<FinishReason> for ChatCompletionMessage {
+    fn from(value: FinishReason) -> Self {
+        ChatCompletionMessage::default().finish_reason(value)
+    }
 }
 
 /// Represents partial or full content of a message
@@ -80,7 +86,7 @@ impl<T: AsRef<str>> From<T> for Content {
 
 /// The reason why the model stopped generating output.
 /// Read more: https://platform.openai.com/docs/guides/function-calling#edge-cases
-#[derive(Clone, Debug, Deserialize, Serialize, EnumString, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, EnumString, IntoStaticStr, PartialEq, Eq)]
 pub enum FinishReason {
     /// The model stopped generating output because it reached the maximum
     /// allowed length.
@@ -149,6 +155,7 @@ pub struct ChatCompletionMessageFull {
     pub tool_calls: Vec<ToolCallFull>,
     pub reasoning_details: Option<Vec<ReasoningFull>>,
     pub usage: Usage,
+    pub finish_reason: Option<FinishReason>,
 }
 
 #[cfg(test)]

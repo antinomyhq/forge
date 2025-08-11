@@ -13,8 +13,6 @@ mod infra;
 mod mcp;
 mod policy_service;
 mod provider;
-mod provider_registry;
-mod provider_service;
 mod range;
 mod template;
 mod tool_services;
