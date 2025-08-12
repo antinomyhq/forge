@@ -15,7 +15,7 @@ async-trait = "0.1.86"
 base64 = "0.22.1"
 bytes = "1.10.0"
 chrono = { version = "0.4.39", features = ["serde"] }
-clap = { version = "4.5.42", features = ["derive"] }
+clap = { version = "4.5.44", features = ["derive"] }
 colored = "3.0.0"
 console = "0.16.0"
 inquire = "0.7.5"
@@ -27,8 +27,8 @@ dirs = "6.0.0"
 dissimilar = "1.0.9"
 dotenv = "0.15.0"
 futures = "0.3.31"
-gh-workflow-tailcall = "0.5.2"
-glob = "0.3.2"
+gh-workflow-tailcall = "0.5.3"
+glob = "0.3.3"
 globset = "0.4.15"
 grep-searcher = "0.1.14"
 grep-regex = "0.1.13"
@@ -97,7 +97,7 @@ uuid = { version = "1.11.0", features = [
     "macro-diagnostics",
     "serde",
 ] }
-whoami = "1.5.2"
+whoami = "1.6.1"
 fnv_rs = "0.4.3"
 merge = { version = "0.2", features = ["derive"] }
 rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a97917cd7584c4220815194bcb28b648147a3d8", features = [
