@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
-use futures::{FutureExt, StreamExt, TryStreamExt};
+use futures::{FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use text_splitter::{ChunkCapacity, ChunkConfig};
-use tree_sitter::Language;
 
 use crate::loaders::file_loader::FileLoader;
 

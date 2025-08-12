@@ -24,14 +24,13 @@ impl Loader for FileLoader {
             .skip_binary(true);
 
         // Get the list of files
-        let mut files = walker
-            .get()
-            .await?;
+        let mut files = walker.get().await?;
 
         // Filter by extension
         if let Some(ext) = &self.ext {
             files.retain(|node| {
-                // Build the full path relative to configured cwd so extension checks are correct
+                // Build the full path relative to configured cwd so extension checks are
+                // correct
                 let full_path = self.path.join(&node.path);
                 if let Some(file_ext) = full_path.extension() {
                     return ext.contains(&file_ext.to_string_lossy().to_string());
@@ -50,10 +49,7 @@ impl Loader for FileLoader {
                 continue;
             }
             let content = std::fs::read_to_string(&full_path)?;
-            nodes.push(super::Node {
-                path: full_path,
-                content,
-            });
+            nodes.push(super::Node { path: full_path, content });
         }
 
         Ok(nodes)
@@ -62,11 +58,13 @@ impl Loader for FileLoader {
 
 impl futures::Stream for FileLoader {
     type Item = Vec<PathBuf>;
-    fn poll_next(self: std::pin::Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Self::Item>> {
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
         todo!()
     }
 }
-
 
 // #[cfg(test)]
 // mod tests {
@@ -93,16 +91,17 @@ impl futures::Stream for FileLoader {
 //         let actual = loader.load().await.unwrap();
 
 //         // extract file names and contents for assertion
-//         let mut names: Vec<String> = actual.iter().map(|n| n.path.file_name().unwrap().to_string_lossy().to_string()).collect();
+//         let mut names: Vec<String> = actual.iter().map(|n|
+// n.path.file_name().unwrap().to_string_lossy().to_string()).collect();
 //         names.sort();
 
-//         let mut contents: Vec<String> = actual.iter().map(|n| n.content.clone()).collect();
-//         contents.sort();
+//         let mut contents: Vec<String> = actual.iter().map(|n|
+// n.content.clone()).collect();         contents.sort();
 
 //         // expected values
 //         let expected_names = vec!["a.txt".to_string(), "b.md".to_string()];
-//         let mut expected_contents = vec!["hello".to_string(), "world".to_string()];
-//         expected_contents.sort();
+//         let mut expected_contents = vec!["hello".to_string(),
+// "world".to_string()];         expected_contents.sort();
 
 //         assert_eq!(names, expected_names);
 //         assert_eq!(contents, expected_contents);
@@ -119,12 +118,14 @@ impl futures::Stream for FileLoader {
 //         write(fixture.join("c.txt"), "three").unwrap();
 
 //         // only load .txt files
-//         let loader = super::FileLoader::new(fixture.clone()).ext(Some(vec!["txt".to_string()]));
+//         let loader =
+// super::FileLoader::new(fixture.clone()).ext(Some(vec!["txt".to_string()]));
 
 //         // actual
 //         let actual = loader.load().await.unwrap();
 
-//         let mut names: Vec<String> = actual.iter().map(|n| n.path.file_name().unwrap().to_string_lossy().to_string()).collect();
+//         let mut names: Vec<String> = actual.iter().map(|n|
+// n.path.file_name().unwrap().to_string_lossy().to_string()).collect();
 //         names.sort();
 
 //         let expected = vec!["a.txt".to_string(), "c.txt".to_string()];

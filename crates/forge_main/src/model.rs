@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use forge_api::{Model, Workflow};
 use strum::{EnumProperty, IntoEnumIterator};
-use strum_macros::{EnumIter};
+use strum_macros::EnumIter;
 
 use crate::info::Info;
 use crate::ui::PartialEvent;
