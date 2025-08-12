@@ -13,6 +13,8 @@ tokio.workspace = true
 futures.workspace = true
 tokio-stream.workspace = true
 text-splitter = { version = "0.27.0", features = ["code"]}
+tree-sitter.workspace = true
+tree-sitter-rust.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

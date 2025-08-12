@@ -1470,6 +1470,8 @@ dependencies = [
  "text-splitter",
  "tokio",
  "tokio-stream",
+ "tree-sitter",
+ "tree-sitter-rust",
 ]
 
 [[package]]
