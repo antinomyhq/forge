@@ -1411,6 +1411,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_indexer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "derive_setters",
+ "forge_walker",
+]
+
+[[package]]
 name = "forge_infra"
 version = "0.1.0"
 dependencies = [

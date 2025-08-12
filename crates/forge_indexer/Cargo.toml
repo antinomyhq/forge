@@ -1,0 +1,9 @@
+[package]
+name = "forge_indexer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+derive_setters.workspace = true
+forge_walker.workspace = true
+anyhow.workspace = true
