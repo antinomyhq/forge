@@ -37,10 +37,7 @@ fn filter_base64_images_from_tool_output(output: &ToolOutput) -> ToolOutput {
             ToolValue::Image(image) => {
                 // Skip base64 images (URLs that start with "data:")
                 if image.url().starts_with("data:") {
-                    ToolValue::Text(format!(
-                        "[base64 image: {}]",
-                        image.mime_type()
-                    ))
+                    ToolValue::Text(format!("[base64 image: {}]", image.mime_type()))
                 } else {
                     value.clone()
                 }
