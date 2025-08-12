@@ -33,11 +33,7 @@ async fn test_attempt_completion_requirement() {
         .count();
     assert_eq!(message_count, 1, "Should have only one user message");
 
-    let error_count = messages
-        .iter()
-        .filter_map(|message| message.content())
-        .filter(|content| content.contains("tool_call_error"))
-        .count();
+    let error_count = ctx.count("tool_call_error");
 
     assert_eq!(error_count, 0, "Should not contain tool call errors");
 }
@@ -90,13 +86,7 @@ async fn test_attempt_completion_with_task() {
 
     ctx.run().await.unwrap();
 
-    let tool_call_error_count = ctx
-        .output
-        .context_messages()
-        .iter()
-        .filter_map(|message| message.content())
-        .filter(|content| content.contains("<tool_call_error>"))
-        .count();
+    let tool_call_error_count = ctx.count("<tool_call_error>");
 
     assert_eq!(tool_call_error_count, 3, "Respond with the error thrice");
 }
@@ -127,4 +117,184 @@ async fn test_empty_responses() {
         .count();
 
     assert_eq!(retry_attempts, 3, "Should retry 3 times")
+}
+
+#[tokio::test]
+async fn test_tool_failure_tracking_increments_once_per_turn() {
+    let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "nonexistent.txt"}));
+    let tool_result_error = ToolResult::new("fs_read").failure(anyhow::anyhow!("File not found"));
+
+    let workflow = TestContext::init_forge_task("Read a file")
+        .workflow
+        .max_tool_failure_per_turn(3usize);
+
+    let mut ctx = TestContext::init_forge_task("Read a file")
+        .mock_tool_call_responses(vec![
+            (tool_call.clone().into(), tool_result_error.clone()),
+            (tool_call.clone().into(), tool_result_error.clone()),
+            (tool_call.clone().into(), tool_result_error.clone()),
+        ])
+        .mock_assistant_responses(vec![
+            // First turn - tool call fails twice (should only count as 1 failure)
+            ChatCompletionMessage::assistant("Reading files")
+                .tool_calls(vec![tool_call.clone().into(), tool_call.clone().into()]),
+            // Second turn - tool call fails once more (should count as 2nd failure)
+            ChatCompletionMessage::assistant("Trying again").tool_calls(vec![tool_call.into()]),
+        ])
+        .workflow(workflow);
+
+    ctx.run().await.unwrap();
+
+    let retry_messages = ctx.count("You have 2 attempt(s) remaining");
+
+    assert_eq!(
+        retry_messages, 1,
+        "Should show 2 attempts remaining after first failure"
+    );
+
+    let retry_messages_second = ctx.count("You have 1 attempt(s) remaining");
+
+    assert_eq!(
+        retry_messages_second, 1,
+        "Should show 1 attempt remaining after second failure"
+    );
+}
+
+#[tokio::test]
+async fn test_tool_failure_tracking_removes_successful_calls() {
+    let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "test.txt"}));
+    let tool_result_error = ToolResult::new("fs_read").failure(anyhow::anyhow!("File not found"));
+    let tool_result_success =
+        ToolResult::new("fs_read").output(Ok(ToolOutput::text("File content")));
+
+    let workflow = TestContext::init_forge_task("Read a file")
+        .workflow
+        .max_tool_failure_per_turn(3usize);
+
+    let mut ctx = TestContext::init_forge_task("Read a file")
+        .mock_tool_call_responses(vec![
+            (tool_call.clone().into(), tool_result_error.clone()),
+            (tool_call.clone().into(), tool_result_success),
+            (tool_call.clone().into(), tool_result_error.clone()),
+        ])
+        .mock_assistant_responses(vec![
+            // First turn - tool call fails
+            ChatCompletionMessage::assistant("Reading file")
+                .tool_calls(vec![tool_call.clone().into()]),
+            // Second turn - tool call succeeds (should reset failure count)
+            ChatCompletionMessage::assistant("Trying again")
+                .tool_calls(vec![tool_call.clone().into()]),
+            // Third turn - tool call fails again (should start from 1 again)
+            ChatCompletionMessage::assistant("Reading again").tool_calls(vec![tool_call.into()]),
+        ])
+        .workflow(workflow);
+
+    ctx.run().await.unwrap();
+
+    let first_failure_messages = ctx.count("You have 2 attempt(s) remaining");
+
+    let third_turn_failure_messages = ctx.count("You have 2 attempt(s) remaining");
+
+    assert_eq!(
+        first_failure_messages, 1,
+        "Should show 2 attempts remaining after first failure"
+    );
+    assert_eq!(
+        third_turn_failure_messages, 2,
+        "Should show 2 attempts remaining again after successful reset"
+    );
+}
+
+#[tokio::test]
+async fn test_tool_failure_tracking_different_tools() {
+    let fs_call = ToolCallFull::new("fs_read").arguments(json!({"path": "test.txt"}));
+    let shell_call = ToolCallFull::new("shell").arguments(json!({"command": "invalid"}));
+
+    let fs_error = ToolResult::new("fs_read").failure(anyhow::anyhow!("File not found"));
+    let shell_error = ToolResult::new("shell").failure(anyhow::anyhow!("Command failed"));
+
+    let workflow = TestContext::init_forge_task("Run commands")
+        .workflow
+        .max_tool_failure_per_turn(3usize);
+
+    let mut ctx = TestContext::init_forge_task("Run commands")
+        .mock_tool_call_responses(vec![
+            (fs_call.clone().into(), fs_error.clone()),
+            (shell_call.clone().into(), shell_error.clone()),
+            (fs_call.clone().into(), fs_error),
+            (shell_call.clone().into(), shell_error),
+        ])
+        .mock_assistant_responses(vec![
+            // First turn - both tools fail
+            ChatCompletionMessage::assistant("Running commands")
+                .tool_calls(vec![fs_call.clone().into(), shell_call.clone().into()]),
+            // Second turn - both tools fail again
+            ChatCompletionMessage::assistant("Trying again")
+                .tool_calls(vec![fs_call.into(), shell_call.into()]),
+        ])
+        .workflow(workflow);
+
+    ctx.run().await.unwrap();
+
+    let fs_retry_messages = ctx.count("You have 1 attempt(s) remaining");
+
+    let shell_retry_messages = ctx.count("You have 1 attempt(s) remaining");
+
+    assert_eq!(
+        fs_retry_messages, 2,
+        "Should track fs_read failures separately"
+    );
+    assert_eq!(
+        shell_retry_messages, 2,
+        "Should track shell failures separately"
+    );
+}
+
+#[tokio::test]
+async fn test_tool_failure_tracking_retry_message_format() {
+    let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "test.txt"}));
+    let tool_result_error =
+        ToolResult::new("fs_read").failure(anyhow::anyhow!("Original error message"));
+
+    let workflow = TestContext::init_forge_task("Read a file")
+        .workflow
+        .max_tool_failure_per_turn(5usize);
+
+    let mut ctx = TestContext::init_forge_task("Read a file")
+        .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result_error)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Reading file").tool_calls(vec![tool_call.into()]),
+        ])
+        .workflow(workflow);
+
+    ctx.run().await.unwrap();
+
+    let has_retry_info = ctx.has_complete_retry_info("4", "5");
+
+    assert!(
+        has_retry_info,
+        "Should include complete retry information in error message"
+    );
+}
+
+#[tokio::test]
+async fn test_tool_failure_tracking_disabled_when_no_limit() {
+    let tool_call = ToolCallFull::new("fs_read").arguments(json!({"path": "test.txt"}));
+    let tool_result_error = ToolResult::new("fs_read").failure(anyhow::anyhow!("File not found"));
+
+    let mut ctx = TestContext::init_forge_task("Read a file")
+        .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result_error)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Reading file").tool_calls(vec![tool_call.into()]),
+        ]);
+    // No max_tool_failure_per_turn set (None is the default)
+
+    ctx.run().await.unwrap();
+
+    let has_retry_info = ctx.has_message_containing("attempt(s) remaining");
+
+    assert!(
+        !has_retry_info,
+        "Should not add retry information when max_tool_failure_per_turn is None"
+    );
 }
