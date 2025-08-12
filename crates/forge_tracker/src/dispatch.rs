@@ -85,16 +85,6 @@ impl Tracker {
         self.dispatch(EventKind::Login(id)).await.ok();
     }
 
-    pub async fn init_ping(&'static self, duration: Duration) {
-        let mut interval = tokio::time::interval(duration);
-        tokio::task::spawn(async move {
-            loop {
-                interval.tick().await;
-                let _ = self.dispatch(EventKind::Ping).await;
-            }
-        });
-    }
-
     pub async fn dispatch(&self, event_kind: EventKind) -> Result<()> {
         if self.can_track {
             // Create a new event
