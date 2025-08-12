@@ -28,17 +28,18 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Handle worktree creation if specified
-    let cwd = if let Some(worktree_name) = &cli.worktree {
-        Sandbox::new(worktree_name).create()?
-    } else {
-        // Resolve directory if specified (for relative path support)
-        match cli.directory {
-            Some(ref dir) => match dir.canonicalize() {
-                Ok(cwd) => cwd,
-                Err(_) => panic!("Invalid path: {}", dir.display()),
-            },
-            None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    let cwd: PathBuf = match (cli.sandbox, cli.directory) {
+        (Some(sandbox), Some(cli)) => {
+            let mut sandbox = Sandbox::new(&sandbox).create()?;
+            sandbox.push(cli);
+            sandbox
         }
+        (Some(sandbox), _) => Sandbox::new(&sandbox).create()?,
+        (_, Some(cli)) => match cli.canonicalize() {
+            Ok(cwd) => cwd,
+            Err(_) => panic!("Invalid path: {}", cli.display()),
+        },
+        (_, _) => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
     };
 
     // Initialize the ForgeAPI with the restricted mode if specified
