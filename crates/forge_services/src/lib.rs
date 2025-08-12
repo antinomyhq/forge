@@ -3,7 +3,7 @@ mod app_config;
 mod attachment;
 mod auth;
 mod clipper;
-mod confirmation;
+
 mod conversation;
 mod discovery;
 mod env;

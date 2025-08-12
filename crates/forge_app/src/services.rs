@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
@@ -324,16 +323,6 @@ pub trait PolicyService: Send + Sync {
     ) -> anyhow::Result<PolicyDecision>;
 }
 
-pub trait ConfirmationService: Send + Sync {
-    /// Request user confirmation for an operation
-    /// Returns the user's choice.
-    fn request_user_confirmation<T: Display>(
-        &self,
-        message: impl ToString,
-        choices: Vec<T>,
-    ) -> Option<T>;
-}
-
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -361,7 +350,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
     type PolicyService: PolicyService;
-    type ConfirmationService: ConfirmationService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -386,7 +374,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
-    fn confirmation_service(&self) -> &Self::ConfirmationService;
 }
 
 #[async_trait::async_trait]
@@ -686,16 +673,5 @@ impl<I: Services> PolicyService for I {
         self.policy_service()
             .check_operation_permission(operation, app_config)
             .await
-    }
-}
-
-impl<I: Services> ConfirmationService for I {
-    fn request_user_confirmation<T: Display>(
-        &self,
-        message: impl ToString,
-        varients: Vec<T>,
-    ) -> Option<T> {
-        self.confirmation_service()
-            .request_user_confirmation(message, varients)
     }
 }
