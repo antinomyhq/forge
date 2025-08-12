@@ -1,4 +1,4 @@
-use forge_display::{DiffFormat, GrepFormat};
+use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::Environment;
 
 use crate::fmt::content::{ContentFormat, FormatContent};
@@ -40,6 +40,9 @@ impl FormatContent for Operation {
             | Operation::TaskListClear { _input: _, before, after } => Some(
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
+            Operation::PlanCreate { input: _, output } => {
+                Some(TitleFormat::debug(format!("Create {}", output.path)).into())
+            }
         }
     }
 }
@@ -49,6 +52,7 @@ mod tests {
     use std::path::PathBuf;
 
     use console::strip_ansi_codes;
+    use forge_display::TitleFormat;
     use forge_domain::{Environment, PatchOperation};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
@@ -553,6 +557,32 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_plan_create() {
+        let fixture = Operation::PlanCreate {
+            input: forge_domain::PlanCreate {
+                plan_name: "test-plan".to_string(),
+                version: "v1".to_string(),
+                content:
+                    "# Test Plan\n\n## Task 1\n- Do something\n\n## Task 2\n- Do something else"
+                        .to_string(),
+                explanation: Some("Create test plan".to_string()),
+            },
+            output: crate::PlanCreateOutput {
+                path: "plans/2024-08-11-test-plan-v1.md".to_string(),
+                before: None,
+            },
+        };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        let expected = Some(ContentFormat::Title(TitleFormat::debug(
+            "Create plans/2024-08-11-test-plan-v1.md",
+        )));
 
         assert_eq!(actual, expected);
     }
