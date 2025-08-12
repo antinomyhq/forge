@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Handle worktree creation if specified
-    let cwd: PathBuf = match (&cli.sandbox, &cli.directory) {
+    let cwd: PathBuf = match (&cli.worktree, &cli.directory) {
         (Some(sandbox), Some(cli)) => {
             let mut sandbox = Sandbox::new(sandbox).create()?;
             sandbox.push(cli);
