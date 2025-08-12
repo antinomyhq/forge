@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 use std::process::Output;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use forge_domain::Conversation;
+use lazy_static::lazy_static;
 use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use sysinfo::System;
 use tokio::process::Command;
@@ -31,13 +32,27 @@ const PARAPHRASE: &str = "forge_key";
 const DEFAULT_CLIENT_ID: &str = "<anonymous>";
 
 // Cached system information that doesn't change during application lifetime
-static CACHED_CORES: OnceLock<usize> = OnceLock::new();
-static CACHED_CLIENT_ID: OnceLock<String> = OnceLock::new();
-static CACHED_OS_NAME: OnceLock<String> = OnceLock::new();
-static CACHED_USER: OnceLock<String> = OnceLock::new();
-static CACHED_CWD: OnceLock<Option<String>> = OnceLock::new();
-static CACHED_PATH: OnceLock<Option<String>> = OnceLock::new();
-static CACHED_ARGS: OnceLock<Vec<String>> = OnceLock::new();
+lazy_static! {
+    static ref CACHED_CORES: usize = System::physical_core_count().unwrap_or(0);
+    static ref CACHED_CLIENT_ID: String = {
+        let mut builder = IdBuilder::new(Encryption::SHA256);
+        builder
+            .add_component(HWIDComponent::SystemID)
+            .add_component(HWIDComponent::CPUCores);
+        builder
+            .build(PARAPHRASE)
+            .unwrap_or(DEFAULT_CLIENT_ID.to_string())
+    };
+    static ref CACHED_OS_NAME: String = System::long_os_version().unwrap_or("Unknown".to_string());
+    static ref CACHED_USER: String = whoami::username();
+    static ref CACHED_CWD: Option<String> = std::env::current_dir()
+        .ok()
+        .and_then(|path| path.to_str().map(|s| s.to_string()));
+    static ref CACHED_PATH: Option<String> = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.to_str().map(|s| s.to_string()));
+    static ref CACHED_ARGS: Vec<String> = std::env::args().skip(1).collect();
+}
 
 #[derive(Clone)]
 pub struct Tracker {
@@ -188,22 +203,12 @@ async fn email() -> HashSet<String> {
 
 // Generates a random client ID
 fn client_id() -> String {
-    CACHED_CLIENT_ID
-        .get_or_init(|| {
-            let mut builder = IdBuilder::new(Encryption::SHA256);
-            builder
-                .add_component(HWIDComponent::SystemID)
-                .add_component(HWIDComponent::CPUCores);
-            builder
-                .build(PARAPHRASE)
-                .unwrap_or(DEFAULT_CLIENT_ID.to_string())
-        })
-        .clone()
+    CACHED_CLIENT_ID.clone()
 }
 
 // Get the number of CPU cores
 fn cores() -> usize {
-    *CACHED_CORES.get_or_init(|| System::physical_core_count().unwrap_or(0))
+    *CACHED_CORES
 }
 
 // Get the uptime in minutes
@@ -217,39 +222,23 @@ fn version() -> String {
 }
 
 fn user() -> String {
-    CACHED_USER.get_or_init(whoami::username).clone()
+    CACHED_USER.clone()
 }
 
 fn cwd() -> Option<String> {
-    CACHED_CWD
-        .get_or_init(|| {
-            std::env::current_dir()
-                .ok()
-                .and_then(|path| path.to_str().map(|s| s.to_string()))
-        })
-        .clone()
+    CACHED_CWD.clone()
 }
 
 fn path() -> Option<String> {
-    CACHED_PATH
-        .get_or_init(|| {
-            std::env::current_exe()
-                .ok()
-                .and_then(|path| path.to_str().map(|s| s.to_string()))
-        })
-        .clone()
+    CACHED_PATH.clone()
 }
 
 fn args() -> Vec<String> {
-    CACHED_ARGS
-        .get_or_init(|| std::env::args().skip(1).collect())
-        .clone()
+    CACHED_ARGS.clone()
 }
 
 fn os_name() -> String {
-    CACHED_OS_NAME
-        .get_or_init(|| System::long_os_version().unwrap_or("Unknown".to_string()))
-        .clone()
+    CACHED_OS_NAME.clone()
 }
 
 // Should take arbitrary text and be able to extract email addresses
@@ -266,8 +255,6 @@ fn parse_email(text: String) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use lazy_static::lazy_static;
-
     use super::*;
 
     lazy_static! {
