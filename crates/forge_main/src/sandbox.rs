@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
+use forge_display::TitleFormat;
 
 pub struct Sandbox<'a> {
     dir: &'a str,
@@ -65,7 +66,13 @@ impl<'a> Sandbox<'a> {
                     .context("Failed to check if target directory is a git worktree")?;
 
                 if worktree_check.status.success() {
-                    println!("Using existing worktree: {}", worktree_path.display());
+                    println!(
+                        "{}",
+                        TitleFormat::info(format!(
+                            "Using existing worktree: {}",
+                            worktree_path.display()
+                        ))
+                    );
                     return worktree_path
                         .canonicalize()
                         .context("Failed to canonicalize worktree path");
@@ -116,7 +123,10 @@ impl<'a> Sandbox<'a> {
             bail!("Failed to create git worktree: {}", stderr);
         }
 
-        println!("Created git worktree: {}", worktree_path.display());
+        println!(
+            "{}",
+            TitleFormat::action(format!("Created git worktree: {}", worktree_path.display()))
+        );
 
         // Return the canonicalized path
         worktree_path
