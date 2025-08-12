@@ -8,18 +8,6 @@ use crate::loaders::file_loader::FileLoader;
 
 pub mod file_loader;
 
-#[derive(Debug, Clone)]
-pub struct Node {
-    /// File path for the chunk
-    pub path: PathBuf,
-    /// The content of the chunk
-    pub content: String,
-}
-
-pub trait Loader {
-    async fn load(&self) -> anyhow::Result<Vec<Node>>;
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Chunk {
     pub content: String,
