@@ -217,7 +217,7 @@ fn version() -> String {
 }
 
 fn user() -> String {
-    CACHED_USER.get_or_init(|| whoami::username()).clone()
+    CACHED_USER.get_or_init(whoami::username).clone()
 }
 
 fn cwd() -> Option<String> {
