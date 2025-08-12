@@ -1,4 +1,5 @@
-use std::{path::PathBuf, task::Poll};
+use std::path::PathBuf;
+use std::task::Poll;
 
 use derive_setters::Setters;
 
@@ -74,7 +75,8 @@ impl futures::Stream for FileLoader {
             // Filter by extension
             if let Some(ext) = &self.ext {
                 files.retain(|node| {
-                    // Build the full path relative to configured cwd so extension checks are correct
+                    // Build the full path relative to configured cwd so extension checks are
+                    // correct
                     let full_path = self.path.join(&node.path);
                     if let Some(file_ext) = full_path.extension() {
                         return ext.contains(&file_ext.to_string_lossy().to_string());
@@ -82,12 +84,13 @@ impl futures::Stream for FileLoader {
                     false
                 });
             }
-            
+
             // Mark as consumed
             self.as_mut().ext = None;
 
             Poll::Ready(Some(
-                files.into_iter()
+                files
+                    .into_iter()
                     .map(|f| self.path.join(f.path))
                     .filter(|path| path.is_file())
                     .collect(),

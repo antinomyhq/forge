@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use futures::{FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use text_splitter::{ChunkCapacity, ChunkConfig, ChunkSizer};
-use tree_sitter::Language;
 
 use crate::loaders::file_loader::FileLoader;
 
@@ -55,7 +54,10 @@ pub async fn indexer(path: PathBuf) -> anyhow::Result<Vec<Chunk>> {
         content: String,
     }
 
-    let config = ChunkConfig::new(ChunkCapacity::new(20).with_max(100).unwrap()).with_sizer(LineChunker).with_overlap(10).unwrap();
+    let config = ChunkConfig::new(ChunkCapacity::new(20).with_max(100).unwrap())
+        .with_sizer(LineChunker)
+        .with_overlap(10)
+        .unwrap();
     let splitter = text_splitter::CodeSplitter::new(tree_sitter_rust::LANGUAGE, config)?;
 
     // 1. Loader
