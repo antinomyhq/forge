@@ -30,11 +30,11 @@ async fn main() -> Result<()> {
     // Handle worktree creation if specified
     let cwd: PathBuf = match (&cli.sandbox, &cli.directory) {
         (Some(sandbox), Some(cli)) => {
-            let mut sandbox = Sandbox::new(&sandbox).create()?;
+            let mut sandbox = Sandbox::new(sandbox).create()?;
             sandbox.push(cli);
             sandbox
         }
-        (Some(sandbox), _) => Sandbox::new(&sandbox).create()?,
+        (Some(sandbox), _) => Sandbox::new(sandbox).create()?,
         (_, Some(cli)) => match cli.canonicalize() {
             Ok(cwd) => cwd,
             Err(_) => panic!("Invalid path: {}", cli.display()),
