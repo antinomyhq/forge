@@ -7,3 +7,14 @@ edition = "2024"
 derive_setters.workspace = true
 forge_walker.workspace = true
 anyhow.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+tokio.workspace = true
+futures.workspace = true
+tokio-stream.workspace = true
+text-splitter = { version = "0.27.0", features = ["code"]}
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
