@@ -137,6 +137,18 @@ pub trait UserInfra: Send + Sync {
         options: Vec<T>,
     ) -> anyhow::Result<Option<T>>;
 
+    /// Prompts the user to select a single option from an enum that implements
+    /// IntoEnumIterator Returns None if the user interrupts the selection
+    async fn select_one_enum<T>(&self, message: &str) -> anyhow::Result<Option<T>>
+    where
+        T: std::fmt::Display + Send + 'static + strum::IntoEnumIterator + std::str::FromStr,
+        <T as std::str::FromStr>::Err: std::fmt::Debug,
+    {
+        let options: Vec<T> = T::iter().collect();
+        let selected = self.select_one(message, options).await?;
+        Ok(selected)
+    }
+
     /// Prompts the user to select multiple options from a list
     /// Returns None if the user interrupts the selection
     async fn select_many<T: std::fmt::Display + Clone + Send + 'static>(

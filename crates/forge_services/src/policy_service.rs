@@ -1,75 +1,107 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Context;
 use bytes::Bytes;
-use forge_app::PolicyLoaderService;
-use forge_app::domain::{Policy, PolicyConfig};
+use forge_app::domain::{
+    ExecuteRule, Fetch, Operation, Permission, Policy, PolicyConfig, PolicyEngine, ReadRule, Rule,
+    WriteRule,
+};
+use forge_app::dto::AppConfig;
+use forge_app::{PolicyDecision, PolicyService};
+use strum_macros::{Display, EnumIter};
 
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    UserInfra,
 };
 
-/// A service for loading policy definitions from individual files in the
-/// forge/policies directory
-pub struct ForgePolicyLoader<F> {
-    infra: Arc<F>,
+/// User response for permission confirmation requests
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter, strum_macros::EnumString)]
+pub enum PolicyPermission {
+    /// Accept the operation
+    #[strum(to_string = "Accept")]
+    Accept,
+    /// Reject the operation
+    #[strum(to_string = "Reject")]
+    Reject,
+    /// Accept the operation and remember this choice for similar operations
+    #[strum(to_string = "Accept and Remember")]
+    AcceptAndRemember,
 }
 
-impl<F> ForgePolicyLoader<F> {
-    pub fn new(infra: Arc<F>) -> Self {
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter, strum_macros::EnumString)]
+pub enum AddDefaultPoliciesResponse {
+    /// Accept the operation
+    #[strum(to_string = "Accept")]
+    Accept,
+    /// Reject the operation
+    #[strum(to_string = "Reject")]
+    Reject,
+    /// Reject and remember the operation
+    #[strum(to_string = "Reject and remember")]
+    RejectAndRemember,
+}
+
+#[derive(Clone)]
+pub struct ForgePolicyService<I> {
+    infra: Arc<I>,
+}
+
+impl<I> ForgePolicyService<I>
+where
+    I: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra,
+{
+    pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
-}
 
-#[async_trait::async_trait]
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    PolicyLoaderService for ForgePolicyLoader<F>
-{
-    /// Load all policy definitions from the forge/policies directory
-    async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
-        self.read_policies().await
-    }
-
-    async fn modify_policy(&self, policy: Policy) -> Result<()> {
-        self.modify_policy(policy).await
-    }
-
-    fn permissions_path(&self) -> PathBuf {
-        self.permissions_path()
-    }
-
-    async fn init_policies(&self) -> Result<()> {
-        self.init_policies().await
-    }
-}
-
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> ForgePolicyLoader<F> {
     fn permissions_path(&self) -> PathBuf {
         self.infra.get_environment().permissions_path()
     }
+
+    /// Add a policy for a specific operation type
+    async fn add_policy_for_operation(
+        &self,
+        operation: &Operation,
+    ) -> anyhow::Result<Option<String>>
+    where
+        I: UserInfra,
+    {
+        if let Some(new_policy) = create_policy_for_operation(operation, None) {
+            let policy_yml = serde_yml::to_string(&new_policy).unwrap_or_default();
+            self.modify_policy(new_policy).await?;
+
+            // Return the policy modification message
+            let message = format!(
+                "Policy {policy_yml} added to {}",
+                self.permissions_path().display()
+            );
+            Ok(Some(message))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Load all policy definitions from the forge/policies directory
     async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
-        // NOTE: we must not cache policies, as they can change at runtime.
-
         let policies_path = self.permissions_path();
         if !self.infra.exists(&policies_path).await? {
-            // If the policies file does not exist, return None
             return Ok(None);
         }
 
         let content = self.infra.read_utf8(&policies_path).await?;
-
         let policies = serde_yml::from_str(&content)
             .with_context(|| format!("Failed to parse policy {}", policies_path.display()))?;
 
         Ok(Some(policies))
     }
-    /// Add or modify a policy in the policies file and return a diff of the
-    /// changes
+
+    /// Add or modify a policy in the policies file
     async fn modify_policy(&self, policy: Policy) -> anyhow::Result<()> {
         let policies_path = self.permissions_path();
         let mut policies = self.read_policies().await?.unwrap_or_default();
+
         // Add the new policy to the collection
         policies = policies.add_policy(policy);
 
@@ -85,12 +117,12 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
         Ok(())
     }
 
-    async fn init_policies(&self) -> Result<()> {
+    /// Create a default policies file if it does not exist
+    async fn init_policies(&self) -> anyhow::Result<()> {
         let policies_path = self.permissions_path();
 
         // Check if the file already exists
         if self.infra.exists(&policies_path).await? {
-            // If it exists, do nothing
             return Ok(());
         }
 
@@ -105,5 +137,333 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra> Fo
             .await?;
 
         Ok(())
+    }
+
+    /// Get or create policies, prompting user if needed
+    #[async_recursion::async_recursion]
+    async fn get_or_create_policies(
+        &self,
+        app_config: &mut AppConfig,
+    ) -> anyhow::Result<(PolicyConfig, Option<String>)>
+    where
+        I: UserInfra,
+    {
+        if let Some(policies) = self.read_policies().await? {
+            Ok((policies, None))
+        } else {
+            if !app_config.should_create_default_perms.unwrap_or(true) {
+                return Ok((PolicyConfig::new(), None));
+            }
+
+            match self
+                .infra
+                .select_one_enum::<AddDefaultPoliciesResponse>(&format!(
+                    "No permissions policy found.\n\
+                {}\n\
+                Would you like to initiate those permission policies in {}?",
+                    PolicyConfig::with_defaults(),
+                    self.permissions_path().display()
+                ))
+                .await?
+            {
+                Some(AddDefaultPoliciesResponse::Accept) => {
+                    self.init_policies().await?;
+                    let success_msg = format!(
+                        "Default policies file created at `{}`. You can always review and modify it as needed.",
+                        self.permissions_path().display()
+                    );
+                    let (policies, _) = self.get_or_create_policies(app_config).await?;
+                    Ok((policies, Some(success_msg)))
+                }
+                Some(AddDefaultPoliciesResponse::RejectAndRemember) => {
+                    app_config.should_create_default_perms = Some(false);
+                    let message = "Permissions policies not created. You will be prompted for permissions on each operation that requires them.".to_string();
+                    Ok((PolicyConfig::new(), Some(message)))
+                }
+                Some(AddDefaultPoliciesResponse::Reject) | None => {
+                    let message = "Permissions policies not created. You will be prompted for permissions on each operation that requires them.".to_string();
+                    Ok((PolicyConfig::new(), Some(message)))
+                }
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<I> PolicyService for ForgePolicyService<I>
+where
+    I: FileReaderInfra
+        + FileWriterInfra
+        + FileInfoInfra
+        + EnvironmentInfra
+        + DirectoryReaderInfra
+        + UserInfra,
+{
+    /// Check if an operation is allowed based on policies and handle user
+    /// confirmation
+    async fn check_operation_permission(
+        &self,
+        operation: &Operation,
+        app_config: &mut AppConfig,
+    ) -> anyhow::Result<PolicyDecision> {
+        let (policies, config_message) = self.get_or_create_policies(app_config).await?;
+
+        let engine = PolicyEngine::new(&policies);
+        let permission = engine.can_perform(operation);
+
+        match permission {
+            Permission::Deny => Ok(PolicyDecision { allowed: false, message: config_message }),
+            Permission::Allow => Ok(PolicyDecision { allowed: true, message: config_message }),
+            Permission::Confirm => {
+                // Request user confirmation using UserInfra
+                let confirmation_msg =
+                    "This operation requires confirmation. How would you like to proceed?";
+
+                match self
+                    .infra
+                    .select_one_enum::<PolicyPermission>(confirmation_msg)
+                    .await?
+                {
+                    Some(PolicyPermission::Accept) => {
+                        Ok(PolicyDecision { allowed: true, message: config_message })
+                    }
+                    Some(PolicyPermission::AcceptAndRemember) => {
+                        let policy_message = self.add_policy_for_operation(operation).await?;
+                        let combined_message = match (config_message, policy_message) {
+                            (Some(config), Some(policy)) => Some(format!("{config}\n{policy}")),
+                            (Some(config), None) => Some(config),
+                            (None, Some(policy)) => Some(policy),
+                            (None, None) => None,
+                        };
+                        Ok(PolicyDecision { allowed: true, message: combined_message })
+                    }
+                    Some(PolicyPermission::Reject) | None => {
+                        Ok(PolicyDecision { allowed: false, message: config_message })
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Create a policy for an operation based on its type
+fn create_policy_for_operation(
+    operation: &Operation,
+    working_directory: Option<String>,
+) -> Option<Policy> {
+    fn create_file_policy(
+        path: &std::path::Path,
+        rule_constructor: fn(String) -> Rule,
+    ) -> Option<Policy> {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|extension| Policy::Simple {
+                permission: Permission::Allow,
+                rule: rule_constructor(format!("*.{extension}")),
+            })
+    }
+
+    match operation {
+        Operation::Read { path, cwd: _ } => create_file_policy(path, |pattern| {
+            Rule::Read(ReadRule { read: pattern, working_directory: None })
+        }),
+        Operation::Write { path, cwd: _ } => create_file_policy(path, |pattern| {
+            Rule::Write(WriteRule { write: pattern, working_directory: None })
+        }),
+
+        Operation::Fetch { url, cwd: _ } => {
+            if let Ok(parsed_url) = url::Url::parse(url) {
+                parsed_url.host_str().map(|host| Policy::Simple {
+                    permission: Permission::Allow,
+                    rule: Rule::Fetch(Fetch { url: format!("{host}*"), working_directory: None }),
+                })
+            } else {
+                Some(Policy::Simple {
+                    permission: Permission::Allow,
+                    rule: Rule::Fetch(Fetch { url: url.to_string(), working_directory: None }),
+                })
+            }
+        }
+        Operation::Execute { command, cwd: _ } => {
+            let parts: Vec<&str> = command.split_whitespace().collect();
+            match parts.as_slice() {
+                [] => None,
+                [cmd] => Some(Policy::Simple {
+                    permission: Permission::Allow,
+                    rule: Rule::Execute(ExecuteRule {
+                        command: format!("{cmd}*"),
+                        working_directory,
+                    }),
+                }),
+                [cmd, subcmd, ..] => Some(Policy::Simple {
+                    permission: Permission::Allow,
+                    rule: Rule::Execute(ExecuteRule {
+                        command: format!("{cmd} {subcmd}*"),
+                        working_directory,
+                    }),
+                }),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_create_policy_for_read_operation() {
+        let path = PathBuf::from("/path/to/file.rs");
+        let operation = Operation::Read { path, cwd: std::path::PathBuf::from("/test/cwd") };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Read(ReadRule { read: "*.rs".to_string(), working_directory: None }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_write_operation() {
+        let path = PathBuf::from("/path/to/file.json");
+        let operation = Operation::Write { path, cwd: std::path::PathBuf::from("/test/cwd") };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Write(WriteRule { write: "*.json".to_string(), working_directory: None }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_write_patch_operation() {
+        let path = PathBuf::from("/path/to/file.toml");
+        let operation = Operation::Write { path, cwd: std::path::PathBuf::from("/test/cwd") };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Write(WriteRule { write: "*.toml".to_string(), working_directory: None }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_net_fetch_operation() {
+        let url = "https://example.com/api/data".to_string();
+        let operation = Operation::Fetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Fetch(Fetch { url: "example.com*".to_string(), working_directory: None }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_execute_operation_with_subcommand() {
+        let command = "git push origin main".to_string();
+        let operation = Operation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Execute(ExecuteRule {
+                command: "git push*".to_string(),
+                working_directory: None,
+            }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_execute_operation_single_command() {
+        let command = "ls".to_string();
+        let operation = Operation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Execute(ExecuteRule {
+                command: "ls*".to_string(),
+                working_directory: None,
+            }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_file_without_extension() {
+        let path = PathBuf::from("/path/to/file");
+        let operation = Operation::Read { path, cwd: std::path::PathBuf::from("/test/cwd") };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_invalid_url() {
+        let url = "not-a-valid-url".to_string();
+        let operation = Operation::Fetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Fetch(Fetch {
+                url: "not-a-valid-url".to_string(),
+                working_directory: None,
+            }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_empty_execute_command() {
+        let command = "".to_string();
+        let operation = Operation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_execute_operation_with_working_directory() {
+        let command = "ls".to_string();
+        let operation = Operation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
+        let working_directory = Some("/home/user/project".to_string());
+
+        let actual = create_policy_for_operation(&operation, working_directory.clone());
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Execute(ExecuteRule { command: "ls*".to_string(), working_directory }),
+        });
+
+        assert_eq!(actual, expected);
     }
 }

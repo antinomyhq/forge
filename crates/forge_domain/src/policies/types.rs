@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -11,4 +13,14 @@ pub enum Permission {
     Deny,
     /// Confirm with the user before allowing
     Confirm,
+}
+
+impl Display for Permission {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Permission::Allow => write!(f, "ALLOW"),
+            Permission::Deny => write!(f, "DENY"),
+            Permission::Confirm => write!(f, "CONFIRM"),
+        }
+    }
 }

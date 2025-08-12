@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Policy, PolicyConfig, Provider,
-    ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
+    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -89,6 +89,12 @@ pub struct FsRemoveOutput {}
 pub struct FsUndoOutput {
     pub before_undo: Option<String>,
     pub after_undo: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct PolicyDecision {
+    pub allowed: bool,
+    pub message: Option<String>,
 }
 
 #[async_trait::async_trait]
@@ -308,18 +314,14 @@ pub trait AgentLoaderService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait PolicyLoaderService: Send + Sync {
-    /// Load all policy definitions from the forge/policies directory
-    async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>>;
-
-    /// Add or modify a policy in the policies file and return a diff of the
-    async fn modify_policy(&self, policy: Policy) -> anyhow::Result<()>;
-
-    /// Returns the path to the policies file
-    fn permissions_path(&self) -> PathBuf;
-
-    /// Create a default policies file if it does not exist
-    async fn init_policies(&self) -> anyhow::Result<()>;
+pub trait PolicyService: Send + Sync {
+    /// Check if an operation is allowed and handle user confirmation if needed
+    /// Returns PolicyDecision with allowed flag and optional message
+    async fn check_operation_permission(
+        &self,
+        operation: &forge_domain::Operation,
+        app_config: &mut AppConfig,
+    ) -> anyhow::Result<PolicyDecision>;
 }
 
 pub trait ConfirmationService: Send + Sync {
@@ -358,7 +360,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AppConfigService: AppConfigService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
-    type PolicyLoaderService: PolicyLoaderService;
+    type PolicyService: PolicyService;
     type ConfirmationService: ConfirmationService;
 
     fn provider_service(&self) -> &Self::ProviderService;
@@ -383,7 +385,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
-    fn policy_loader_service(&self) -> &Self::PolicyLoaderService;
+    fn policy_service(&self) -> &Self::PolicyService;
     fn confirmation_service(&self) -> &Self::ConfirmationService;
 }
 
@@ -675,21 +677,15 @@ impl<I: Services> AgentLoaderService for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> PolicyLoaderService for I {
-    async fn read_policies(&self) -> anyhow::Result<Option<PolicyConfig>> {
-        self.policy_loader_service().read_policies().await
-    }
-
-    async fn modify_policy(&self, policy: Policy) -> anyhow::Result<()> {
-        self.policy_loader_service().modify_policy(policy).await
-    }
-
-    fn permissions_path(&self) -> PathBuf {
-        self.policy_loader_service().permissions_path()
-    }
-
-    async fn init_policies(&self) -> anyhow::Result<()> {
-        self.policy_loader_service().init_policies().await
+impl<I: Services> PolicyService for I {
+    async fn check_operation_permission(
+        &self,
+        operation: &forge_domain::Operation,
+        app_config: &mut AppConfig,
+    ) -> anyhow::Result<PolicyDecision> {
+        self.policy_service()
+            .check_operation_permission(operation, app_config)
+            .await
     }
 }
 

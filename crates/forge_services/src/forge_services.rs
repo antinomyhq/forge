@@ -12,7 +12,7 @@ use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::infra::HttpInfra;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
-use crate::policy_service::ForgePolicyLoader;
+use crate::policy_service::ForgePolicyService;
 use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
@@ -59,7 +59,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     auth_service: Arc<AuthService<F>>,
     provider_service: Arc<ForgeProviderRegistry<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
-    policy_loader_service: Arc<ForgePolicyLoader<F>>,
+    policy_service: ForgePolicyService<F>,
     confirmation_service: Arc<ForgeConfirmation>,
 }
 
@@ -70,7 +70,9 @@ impl<
         + FileInfoInfra
         + FileReaderInfra
         + HttpInfra
-        + WalkerInfra,
+        + WalkerInfra
+        + DirectoryReaderInfra
+        + UserInfra,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -97,7 +99,7 @@ impl<
         let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
-        let policy_loader_service = Arc::new(ForgePolicyLoader::new(infra.clone()));
+        let policy_service = ForgePolicyService::new(infra.clone());
         let confirmation_service = Arc::new(ForgeConfirmation);
         Self {
             conversation_service,
@@ -122,7 +124,7 @@ impl<
             chat_service,
             provider_service,
             agent_loader_service,
-            policy_loader_service,
+            policy_service,
             confirmation_service,
         }
     }
@@ -167,7 +169,7 @@ impl<
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
     type AgentLoaderService = ForgeAgentLoaderService<F>;
-    type PolicyLoaderService = ForgePolicyLoader<F>;
+    type PolicyService = ForgePolicyService<F>;
     type ConfirmationService = ForgeConfirmation;
 
     fn provider_service(&self) -> &Self::ProviderService {
@@ -257,8 +259,8 @@ impl<
         &self.agent_loader_service
     }
 
-    fn policy_loader_service(&self) -> &Self::PolicyLoaderService {
-        &self.policy_loader_service
+    fn policy_service(&self) -> &Self::PolicyService {
+        &self.policy_service
     }
 
     fn confirmation_service(&self) -> &Self::ConfirmationService {
