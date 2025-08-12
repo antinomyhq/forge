@@ -9,7 +9,6 @@ use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use sysinfo::System;
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use tokio::time::Duration;
 
 use super::Result;
 use crate::can_track::can_track;
