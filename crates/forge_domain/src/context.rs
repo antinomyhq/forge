@@ -3,6 +3,7 @@ use std::ops::Deref;
 
 use derive_more::derive::{Display, From};
 use derive_setters::Setters;
+use forge_template::Element;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -62,45 +63,44 @@ impl ContextMessage {
     }
 
     pub fn to_text(&self) -> String {
-        let mut lines = String::new();
         match self {
             ContextMessage::Text(message) => {
-                lines.push_str(&format!("<message role=\"{}\">", message.role));
-                lines.push_str(&format!("<content>{}</content>", message.content));
+                let mut message_element = Element::new("message").attr("role", &message.role);
+
+                message_element =
+                    message_element.append(Element::new("content").text(&message.content));
+
                 if let Some(tool_calls) = &message.tool_calls {
                     for call in tool_calls {
-                        lines.push_str(&format!(
-                            "<forge_tool_call name=\"{}\"><![CDATA[{}]]></forge_tool_call>",
-                            call.name,
-                            serde_json::to_string(&call.arguments).unwrap()
-                        ));
+                        message_element = message_element.append(
+                            Element::new("forge_tool_call")
+                                .attr("name", &call.name)
+                                .cdata(serde_json::to_string(&call.arguments).unwrap()),
+                        );
                     }
                 }
+
                 if let Some(reasoning_details) = &message.reasoning_details {
                     for reasoning_detail in reasoning_details {
                         if let Some(text) = &reasoning_detail.text {
-                            lines.push_str(&format!("<reasoning_detail>{text}</reasoning_detail>"));
+                            message_element =
+                                message_element.append(Element::new("reasoning_detail").text(text));
                         }
                     }
                 }
 
-                lines.push_str("</message>");
+                message_element.render()
             }
-            ContextMessage::Tool(result) => {
-                lines.push_str("<message role=\"tool\">");
-
-                lines.push_str(&format!(
-                    "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
-                    result.name,
-                    serde_json::to_string(&result.output).unwrap()
-                ));
-                lines.push_str("</message>");
-            }
-            ContextMessage::Image(_) => {
-                lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
-            }
+            ContextMessage::Tool(result) => Element::new("message")
+                .attr("role", "tool")
+                .append(
+                    Element::new("forge_tool_result")
+                        .attr("name", &result.name)
+                        .cdata(serde_json::to_string(&result.output).unwrap()),
+                )
+                .render(),
+            ContextMessage::Image(_) => Element::new("image").attr("path", "[base64 URL]").render(),
         }
-        lines
     }
 
     pub fn user(content: impl ToString, model: Option<ModelId>) -> Self {
