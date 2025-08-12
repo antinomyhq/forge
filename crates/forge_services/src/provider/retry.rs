@@ -1,6 +1,5 @@
 use forge_app::domain::{Error as DomainError, RetryConfig};
-
-use super::error::{Error, ErrorResponse};
+use forge_app::dto::openai::{Error, ErrorResponse};
 
 const TRANSPORT_ERROR_CODES: [&str; 3] = ["ERR_STREAM_PREMATURE_CLOSE", "ECONNRESET", "ETIMEDOUT"];
 
@@ -31,7 +30,6 @@ fn get_api_status_code(error: &anyhow::Error) -> Option<u16> {
             .as_ref()
             .and_then(|code| code.as_number()),
         Error::InvalidStatusCode(code) => Some(*code),
-        _ => None,
     })
 }
 
@@ -109,9 +107,9 @@ fn is_event_transport_error(error: &anyhow::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
+    use forge_app::dto::openai::{Error, ErrorCode, ErrorResponse};
 
     use super::*;
-    use crate::provider::error::{Error, ErrorCode, ErrorResponse};
 
     // Helper function to check if an error is retryable
     fn is_retryable(error: anyhow::Error) -> bool {

@@ -15,6 +15,12 @@ pub enum Error {
     #[error("Missing tool name")]
     ToolCallMissingName,
 
+    #[error("Missing tool id")]
+    ToolCallMissingId,
+
+    #[error("Unsupported role: {0}")]
+    UnsupportedRole(String),
+
     #[error("{0}")]
     EToolCallArgument(ToolCallArgumentError),
 
@@ -60,6 +66,9 @@ pub enum Error {
     #[from(skip)]
     NoModelDefined(AgentId),
 
+    #[error("Empty completion received - no content, tool calls, or valid finish reason")]
+    EmptyCompletion,
+
     #[error(transparent)]
     Retryable(anyhow::Error),
 }
@@ -82,6 +91,13 @@ impl std::fmt::Display for ToolCallArgumentError {
             writeln!(f, "- {error}")?;
         }
         Ok(())
+    }
+}
+
+impl Error {
+    pub fn into_retryable(self) -> Self {
+        use anyhow::anyhow;
+        Self::Retryable(anyhow!(self))
     }
 }
 

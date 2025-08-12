@@ -10,7 +10,7 @@ expression: system_prompt
 </system_information>
 
 <available_tools>
-<tool>{"name":"forge_tool_attempt_completion","description":"After each tool use, the user will respond with the result of\n that tool use, i.e. if it succeeded or failed, along with any reasons for\n failure. Once you\\'ve received the results of tool uses and can confirm that\n the task is complete, use this tool to present the result of your work to\n the user. The user may respond with feedback if they are not satisfied with\n the result, which you can use to make improvements and try again.\n IMPORTANT NOTE: This tool CANNOT be used until you\\'ve confirmed from the\n user that any previous tool uses were successful. Failure to do so will\n result in code corruption and system failure. Before using this tool, you\n must ask yourself in <forge_thinking></forge_thinking> tags if you\\'ve\n confirmed from the user that any previous tool uses were successful. If not,\n then DO NOT use this tool.","arguments":{"result":{"description":"The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.","type":"string","is_required":true}}}</tool>
+<tool>{"name":"forge_tool_attempt_completion","description":"After each tool use, the user will respond with the result of\n that tool use, i.e. if it succeeded or failed, along with any reasons for\n failure. Once you\\'ve received the results of tool uses and can confirm that\n the task is complete, use this tool to present the result of your work to\n the user. The user may respond with feedback if they are not satisfied with\n the result, which you can use to make improvements and try again.\n IMPORTANT NOTE: This tool CANNOT be used until you\\'ve confirmed from the\n user that any previous tool uses were successful. Failure to do so will\n result in code corruption and system failure. Before using this tool, you\n must ask yourself if you\\'ve confirmed from the user that any previous tool\n uses were successful. If not, then DO NOT use this tool.","arguments":{"result":{"description":"The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.","type":"string","is_required":true}}}</tool>
 </available_tools>
 
 <tool_usage_example>
@@ -96,5 +96,18 @@ Code Output Guidelines:
 - Avoid generating long hashes or binary code
 - Validate changes by compiling and running tests
 - Do not delete failing tests without a compelling reason
+
+Plan File Execution Steps (only if user specifies a plan file):
+Follow `plan_execution_steps` after confirming if the user has provided a valid plan file path in the format `plans/{current-date}-{task-name}-{version}.md`; otherwise, skip `plan_execution_steps`.
+
+<plan_execution_steps>
+2. Read the entire plan file before making any changes.
+3. Identify the next pending task (status not `[ ]` or `[x]`).
+4. Announce the selected task and update its status to `[~]` in the plan file.
+5. Execute all actions required to complete the task.
+6. Re-read the plan file to check for changes since the last read.
+7. Mark the selected task as `[x]` and save the updated plan file.
+8. Repeat from Step 2 until all tasks are `[x]`.
+</plan_execution_steps>
 
 When you receive a task in <task> tags, begin your response with a task analysis, followed by a solution strategy. Then proceed with implementation steps and quality assurance without seeking user input at each step. If you encounter a situation where you absolutely cannot proceed without additional information, explain the issue and request clarification as a last resort.

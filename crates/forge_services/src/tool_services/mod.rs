@@ -6,6 +6,7 @@ mod fs_read;
 mod fs_remove;
 mod fs_search;
 mod fs_undo;
+mod plan_create;
 mod shell;
 mod syn;
 
@@ -17,4 +18,5 @@ pub use fs_read::*;
 pub use fs_remove::*;
 pub use fs_search::*;
 pub use fs_undo::*;
+pub use plan_create::*;
 pub use shell::*;

@@ -12,8 +12,9 @@ use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use url::Url;
 
+use crate::Walker;
+use crate::dto::{AppConfig, InitAuth, LoginInfo};
 use crate::user::{User, UserUsage};
-use crate::{AppConfig, InitAuth, LoginInfo, Walker};
 
 #[derive(Debug)]
 pub struct ShellOutput {
@@ -82,6 +83,13 @@ pub struct FsCreateOutput {
 
 #[derive(Debug)]
 pub struct FsRemoveOutput {}
+
+#[derive(Debug)]
+pub struct PlanCreateOutput {
+    pub path: String,
+    // Set when the file already exists
+    pub before: Option<String>,
+}
 
 #[derive(Default, Debug, derive_more::From)]
 pub struct FsUndoOutput {
@@ -205,6 +213,17 @@ pub trait FsCreateService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait PlanCreateService: Send + Sync {
+    /// Create a plan file with the specified name and version.
+    async fn create_plan(
+        &self,
+        plan_name: String,
+        version: String,
+        content: String,
+    ) -> anyhow::Result<PlanCreateOutput>;
+}
+
+#[async_trait::async_trait]
 pub trait FsPatchService: Send + Sync {
     /// Patches a file at the specified path with the given content.
     async fn patch(
@@ -318,6 +337,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
     type FsCreateService: FsCreateService;
+    type PlanCreateService: PlanCreateService;
     type FsPatchService: FsPatchService;
     type FsReadService: FsReadService;
     type FsRemoveService: FsRemoveService;
@@ -340,6 +360,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
     fn fs_create_service(&self) -> &Self::FsCreateService;
+    fn plan_create_service(&self) -> &Self::PlanCreateService;
     fn fs_patch_service(&self) -> &Self::FsPatchService;
     fn fs_read_service(&self) -> &Self::FsReadService;
     fn fs_remove_service(&self) -> &Self::FsRemoveService;
@@ -483,6 +504,20 @@ impl<I: Services> FsCreateService for I {
     ) -> anyhow::Result<FsCreateOutput> {
         self.fs_create_service()
             .create(path, content, overwrite, capture_snapshot)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> PlanCreateService for I {
+    async fn create_plan(
+        &self,
+        plan_name: String,
+        version: String,
+        content: String,
+    ) -> anyhow::Result<PlanCreateOutput> {
+        self.plan_create_service()
+            .create_plan(plan_name, version, content)
             .await
     }
 }
