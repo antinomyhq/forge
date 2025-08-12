@@ -12,7 +12,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolValue, Usage,
+    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput,
+    ToolValue, Usage,
 };
 
 /// Represents a message being sent to the LLM provider
@@ -24,6 +25,31 @@ pub enum ContextMessage {
     Text(TextMessage),
     Tool(ToolResult),
     Image(Image),
+}
+
+/// Creates a filtered version of ToolOutput that excludes base64 images to
+/// avoid serializing large image data in the context output
+fn filter_base64_images_from_tool_output(output: &ToolOutput) -> ToolOutput {
+    let filtered_values: Vec<ToolValue> = output
+        .values
+        .iter()
+        .map(|value| match value {
+            ToolValue::Image(image) => {
+                // Skip base64 images (URLs that start with "data:")
+                if image.url().starts_with("data:") {
+                    ToolValue::Text(format!(
+                        "[base64 image: {}]",
+                        image.mime_type()
+                    ))
+                } else {
+                    value.clone()
+                }
+            }
+            _ => value.clone(),
+        })
+        .collect();
+
+    ToolOutput { is_error: output.is_error, values: filtered_values }
 }
 
 impl ContextMessage {
@@ -91,14 +117,17 @@ impl ContextMessage {
 
                 message_element.render()
             }
-            ContextMessage::Tool(result) => Element::new("message")
-                .attr("role", "tool")
-                .append(
-                    Element::new("forge_tool_result")
-                        .attr("name", &result.name)
-                        .cdata(serde_json::to_string(&result.output).unwrap()),
-                )
-                .render(),
+            ContextMessage::Tool(result) => {
+                let filtered_output = filter_base64_images_from_tool_output(&result.output);
+                Element::new("message")
+                    .attr("role", "tool")
+                    .append(
+                        Element::new("forge_tool_result")
+                            .attr("name", &result.name)
+                            .cdata(serde_json::to_string(&filtered_output).unwrap()),
+                    )
+                    .render()
+            }
             ContextMessage::Image(_) => Element::new("image").attr("path", "[base64 URL]").render(),
         }
     }
