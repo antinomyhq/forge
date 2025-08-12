@@ -68,10 +68,8 @@ impl<'a> Sandbox<'a> {
                 if worktree_check.status.success() {
                     println!(
                         "{}",
-                        TitleFormat::info(format!(
-                            "Using existing worktree: {}",
-                            worktree_path.display()
-                        ))
+                        TitleFormat::info("Worktree [Reused]")
+                            .sub_title(worktree_path.display().to_string())
                     );
                     return worktree_path
                         .canonicalize()
@@ -125,7 +123,7 @@ impl<'a> Sandbox<'a> {
 
         println!(
             "{}",
-            TitleFormat::action(format!("Created git worktree: {}", worktree_path.display()))
+            TitleFormat::info("Worktree [Created]").sub_title(worktree_path.display().to_string())
         );
 
         // Return the canonicalized path
