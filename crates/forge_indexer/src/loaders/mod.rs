@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use futures::{FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use text_splitter::{ChunkCapacity, ChunkConfig};
+use text_splitter::{ChunkCapacity, ChunkConfig, ChunkSizer};
+use tree_sitter::Language;
 
 use crate::loaders::file_loader::FileLoader;
 
@@ -34,31 +35,31 @@ pub struct Position {
     pub end: usize,
 }
 
-pub trait Chunker {
-    fn chunk(&self, node: &Node) -> anyhow::Result<Vec<Chunk>>;
-}
-
-// send chunks to BE for embedding.
-pub trait Embedder {
-    async fn embed(&self, node: &Node) -> anyhow::Result<Vec<u8>>;
-    async fn batch_embed(&self, nodes: &[Node]) -> anyhow::Result<Vec<Vec<u8>>>;
-}
-
 fn hash(content: &str) -> String {
-    todo!()
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(content.as_bytes());
+    hasher.finalize().to_hex().to_string()
 }
 
-async fn example() -> anyhow::Result<()> {
+struct LineChunker;
+
+impl ChunkSizer for LineChunker {
+    fn size(&self, chunk: &str) -> usize {
+        chunk.lines().count()
+    }
+}
+
+pub async fn indexer(path: PathBuf) -> anyhow::Result<Vec<Chunk>> {
     struct FileRead {
         path: PathBuf,
         content: String,
     }
 
-    let config = ChunkConfig::new(ChunkCapacity::new(1024));
+    let config = ChunkConfig::new(ChunkCapacity::new(20).with_max(100).unwrap()).with_sizer(LineChunker).with_overlap(10).unwrap();
     let splitter = text_splitter::CodeSplitter::new(tree_sitter_rust::LANGUAGE, config)?;
 
     // 1. Loader
-    let output = FileLoader::new("path/to/directory", vec![".rs".into()])
+    let output = FileLoader::new(path, vec!["rs".into()])
         .flat_map(|paths| tokio_stream::iter(paths.into_iter()))
         .map(|path| {
             tokio::fs::read_to_string(path.clone())
@@ -81,10 +82,8 @@ async fn example() -> anyhow::Result<()> {
                 })
                 .collect::<Vec<_>>();
             tokio_stream::iter(content)
-        });
-    // .then(|file| todo!());
-
-    // 2. create code semantic chunks
-
-    todo!()
+        })
+        .collect::<Vec<_>>()
+        .await;
+    Ok(output)
 }

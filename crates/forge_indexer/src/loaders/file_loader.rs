@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, task::Poll};
 
 use derive_setters::Setters;
 
@@ -13,7 +13,7 @@ pub struct FileLoader {
 impl FileLoader {
     // Accept any type that can be referenced as a Path (e.g. &str, &Path, PathBuf)
     pub fn new<P: AsRef<std::path::Path>>(path: P, ext: Vec<String>) -> Self {
-        Self { path: path.as_ref().to_path_buf(), ext: None }
+        Self { path: path.as_ref().to_path_buf(), ext: Some(ext) }
     }
 }
 
@@ -59,10 +59,43 @@ impl Loader for FileLoader {
 impl futures::Stream for FileLoader {
     type Item = Vec<PathBuf>;
     fn poll_next(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         _cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        todo!()
+        // Only emit once, then end the stream
+        if self.as_ref().ext.is_some() {
+            let walker = forge_walker::Walker::max_all()
+                .cwd(self.path.clone())
+                .skip_binary(true);
+
+            // Get the list of files
+            let mut files = walker.get_blocking().unwrap();
+
+            // Filter by extension
+            if let Some(ext) = &self.ext {
+                files.retain(|node| {
+                    // Build the full path relative to configured cwd so extension checks are correct
+                    let full_path = self.path.join(&node.path);
+                    if let Some(file_ext) = full_path.extension() {
+                        return ext.contains(&file_ext.to_string_lossy().to_string());
+                    }
+                    false
+                });
+            }
+            
+            // Mark as consumed
+            self.as_mut().ext = None;
+
+            Poll::Ready(Some(
+                files.into_iter()
+                    .map(|f| self.path.join(f.path))
+                    .filter(|path| path.is_file())
+                    .collect(),
+            ))
+        } else {
+            // Stream is exhausted
+            Poll::Ready(None)
+        }
     }
 }
 

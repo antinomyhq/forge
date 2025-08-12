@@ -3,6 +3,11 @@ name = "forge_indexer"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "indexer"
+path = "src/main.rs"
+
+
 [dependencies]
 derive_setters.workspace = true
 forge_walker.workspace = true
@@ -15,6 +20,7 @@ tokio-stream.workspace = true
 text-splitter = { version = "0.27.0", features = ["code"]}
 tree-sitter.workspace = true
 tree-sitter-rust.workspace = true
+blake3 = "1.8.2"
 
 [dev-dependencies]
 pretty_assertions.workspace = true
