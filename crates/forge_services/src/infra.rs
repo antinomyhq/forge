@@ -131,19 +131,19 @@ pub trait UserInfra: Send + Sync {
 
     /// Prompts the user to select a single option from a list
     /// Returns None if the user interrupts the selection
-    async fn select_one(
+    async fn select_one<T: std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<String>>;
+        options: Vec<T>,
+    ) -> anyhow::Result<Option<T>>;
 
     /// Prompts the user to select multiple options from a list
     /// Returns None if the user interrupts the selection
-    async fn select_many(
+    async fn select_many<T: std::fmt::Display + Clone + Send + 'static>(
         &self,
         message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<Vec<String>>>;
+        options: Vec<T>,
+    ) -> anyhow::Result<Option<Vec<T>>>;
 }
 
 #[async_trait::async_trait]
