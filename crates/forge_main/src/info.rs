@@ -119,7 +119,7 @@ pub fn get_usage(state: &UIState) -> Info {
         .add_key_value("Total Tokens", state.usage.total_tokens.to_string())
         .add_key_value("Cached Tokens", state.usage.cached_tokens.to_string());
 
-    let is_forge_provider = state.provider.as_ref().map_or(false, |p| p.is_forge());
+    let is_forge_provider = state.provider.as_ref().is_some_and(|p| p.is_forge());
     if let Some(cost) = state.usage.cost.as_ref()
         && !is_forge_provider
     {
