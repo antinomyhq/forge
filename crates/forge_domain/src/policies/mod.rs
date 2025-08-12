@@ -1,11 +1,11 @@
-mod collection;
+mod config;
 mod engine;
 mod operation;
 mod policy;
 mod rule;
 mod types;
 
-pub use collection::*;
+pub use config::*;
 pub use engine::*;
 pub use operation::*;
 pub use policy::*;
