@@ -68,6 +68,13 @@ pub struct Cli {
     /// If provided, the application will change to this directory before
     /// starting. This allows running forge from a different directory.
     pub directory: Option<PathBuf>,
+    /// Create a new sandbox env and start forge in that directory.
+    ///
+    /// When specified, creates a new git worktree in the parent folder
+    /// (if it doesn't already exist) and then starts forge in that directory.
+    /// The worktree name will be used as the branch name.
+    #[arg(long)]
+    pub sandbox: Option<String>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
