@@ -695,7 +695,10 @@ impl Tools {
                 message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
             }),
             Tools::ForgeToolFsSearch(input) => {
-                let base_message = format!("Search in directory/file: {}", display_path_for(&input.path));
+                let base_message = format!(
+                    "Search in directory/file: {}",
+                    display_path_for(&input.path)
+                );
                 let message = match (&input.regex, &input.file_pattern) {
                     (Some(regex), Some(pattern)) => {
                         format!("{base_message} for pattern: '{regex}' in '{pattern}' files")
