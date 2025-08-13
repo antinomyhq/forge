@@ -1398,6 +1398,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_evals"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "forge_domain",
+ "pretty_assertions",
+ "regex",
+ "serde_json",
+]
+
+[[package]]
 name = "forge_fs"
 version = "0.1.0"
 dependencies = [
