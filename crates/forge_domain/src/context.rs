@@ -408,17 +408,15 @@ impl Context {
 
         match actual {
             TokenCount::Actual(actual) if actual > 0 => TokenCount::Actual(actual),
-            _ => self.approx_token_count(),
+            _ => TokenCount::Approx(self.token_count_approx()),
         }
     }
 
-    pub fn approx_token_count(&self) -> TokenCount {
-        TokenCount::Approx(
-            self.messages
-                .iter()
-                .map(|m| m.token_count_approx())
-                .sum::<usize>(),
-        )
+    pub fn token_count_approx(&self) -> usize {
+        self.messages
+            .iter()
+            .map(|m| m.token_count_approx())
+            .sum::<usize>()
     }
 }
 
