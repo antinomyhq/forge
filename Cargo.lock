@@ -1477,6 +1477,7 @@ dependencies = [
  "serde",
  "tokio",
  "tokio-stream",
+ "walkdir",
 ]
 
 [[package]]

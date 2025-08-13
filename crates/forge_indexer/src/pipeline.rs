@@ -29,57 +29,70 @@ where
 
     pub async fn index(&self) -> anyhow::Result<Vec<SW::Output>> {
         use futures::stream::{self, StreamExt, TryStreamExt};
-        
+
+        // Maximum parallelism pipeline - data flows through stages continuously like
+        // sample.rs
         let result = self
             .loader
             .load()
-            // Stage 1: Flatten documents into individual chunks
-            .map(|document_result| {
+            // Stage 1: Process documents into chunks immediately (no await, like sample)
+            .flat_map(|document_result| {
                 let chunker = &self.chunker;
+                match document_result {
+                    Ok(document) => {
+                        let chunks = chunker.chunk(document);
+                        let chunk_results: Vec<Result<_, anyhow::Error>> =
+                            chunks.into_iter().map(Ok).collect();
+                        stream::iter(chunk_results)
+                    }
+                    Err(e) => stream::iter(vec![Err(e)]),
+                }
+            })
+            // Stage 2: Batch chunks for embedding
+            .ready_chunks(self.config.embed_batch_size)
+            .map(|chunk_batch| {
+                let embedder = self.embedder.clone();
+                // Call embed_batch directly, return the future - like sample.rs
                 async move {
-                    match document_result {
-                        Ok(document) => {
-                            let chunks = chunker.chunk(document);
-                            Ok(stream::iter(chunks.into_iter().map(Ok::<_, anyhow::Error>)))
-                        }
+                    let chunks: Result<Vec<_>, _> = chunk_batch.into_iter().collect();
+                    match chunks {
+                        Ok(chunks) => embedder.embed_batch(chunks).await,
                         Err(e) => Err(e),
                     }
                 }
             })
-            .buffer_unordered(self.config.max_concurrent_chunks)
-            .try_flatten()
-            // Stage 2: Batch chunks for embedding using ready_chunks
-            .ready_chunks(self.config.embed_batch_size)
-            .map(|chunk_batch| {
-                let embedder = self.embedder.clone();
-                async move {
-                    // Extract successful chunks from results
-                    let chunks: Result<Vec<_>, _> = chunk_batch.into_iter().collect();
-                    let chunks = chunks?;
-                    embedder.embed_batch(chunks).await
-                }
-            })
             .buffer_unordered(self.config.max_concurrent_embeds)
-            // Stage 3: Store embedded batches immediately
-            .map(|embedded_batch_result| {
+            // Stage 3: Flatten embedded batches immediately
+            .flat_map(|embedded_batch_result| match embedded_batch_result {
+                Ok(embedded_batch) => {
+                    let embedded_results: Vec<Result<_, anyhow::Error>> =
+                        embedded_batch.into_iter().map(Ok).collect();
+                    stream::iter(embedded_results)
+                }
+                Err(e) => stream::iter(vec![Err(e)]),
+            })
+            // Stage 4: Batch for storage
+            .ready_chunks(self.config.storage_batch_size)
+            .map(|storage_batch| {
                 let storage_writer = &self.storage_writer;
                 async move {
-                    let embedded_batch = embedded_batch_result?;
-                    // Process in storage batches for efficiency
-                    let mut results = Vec::new();
-                    for storage_batch in embedded_batch.chunks(self.config.storage_batch_size) {
-                        let batch_results = storage_writer.store_batch(storage_batch.to_vec()).await?;
-                        results.extend(batch_results);
-                    }
-                    Ok::<Vec<SW::Output>, anyhow::Error>(results)
+                    let embedded_chunks: Result<Vec<_>, _> = storage_batch.into_iter().collect();
+                    let embedded_chunks = embedded_chunks?;
+                    storage_writer.store_batch(embedded_chunks).await
                 }
             })
             .buffer_unordered(self.config.max_concurrent_storage)
-            .try_collect::<Vec<Vec<SW::Output>>>()
-            .await?
-            .into_iter()
-            .flatten()
-            .collect();
+            // Stage 5: Flatten storage results immediately
+            .flat_map(|storage_result| match storage_result {
+                Ok(stored_chunks) => {
+                    let storage_results: Vec<Result<_, anyhow::Error>> =
+                        stored_chunks.into_iter().map(Ok).collect();
+                    stream::iter(storage_results)
+                }
+                Err(e) => stream::iter(vec![Err(e)]),
+            })
+            .try_collect::<Vec<SW::Output>>()
+            .await?;
 
         Ok(result)
     }
