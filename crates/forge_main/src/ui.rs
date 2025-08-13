@@ -20,7 +20,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
-use crate::info::Info;
+use crate::info::{Info, get_usage};
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::select::ForgeSelect;
@@ -369,6 +369,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             Command::Info => {
                 self.on_info().await?;
+            }
+            Command::Usage => {
+                self.on_usage().await?;
             }
             Command::Message(ref content) => {
                 self.spinner.start(None)?;
@@ -861,6 +864,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         f(&mut config);
         self.api.write_mcp_config(scope, &config).await?;
 
+        Ok(())
+    }
+
+    async fn on_usage(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading Usage"))?;
+        let mut info = get_usage(&self.state);
+        if let Ok(Some(user_usage)) = self.api.user_usage().await {
+            info = info.extend(Info::from(&user_usage));
+        }
+
+        self.writeln(info)?;
+        self.spinner.stop(None)?;
         Ok(())
     }
 
