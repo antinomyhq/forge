@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::time::SystemTime;
 
 use async_stream::stream;
 use derive_setters::Setters;
@@ -8,7 +7,7 @@ use futures::Stream;
 use tokio::fs;
 use walkdir::WalkDir;
 
-use crate::{Document, DocumentMetadata, Loader};
+use crate::{Document, Loader};
 
 /// Configuration for file loading
 #[derive(Debug, Clone, Setters)]
@@ -108,26 +107,7 @@ impl FileLoader {
         let content = fs::read_to_string(&path)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to read file {}: {}", path.display(), e))?;
-
-        // Get file metadata
-        let file_metadata = fs::metadata(&path)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to get metadata for {}: {}", path.display(), e))?;
-
-        let modified = file_metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
-
-        let document_metadata = DocumentMetadata {
-            file_type: path
-                .extension()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            size: content.len(),
-            modified,
-            hash: blake3::hash(content.as_bytes()).to_hex().to_string(),
-        };
-
-        Ok(Document { path, content, metadata: document_metadata })
+        Ok(Document { path, content })
     }
 }
 

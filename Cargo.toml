@@ -6,7 +6,8 @@ resolver = "2"
 lto = true
 codegen-units = 1
 opt-level = 3
-strip = true
+strip = "none"
+debug = true      # keep debug symbols
 
 [workspace.dependencies]
 anyhow = "1.0.95"

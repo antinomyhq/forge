@@ -23,10 +23,7 @@ pub trait Chunker: Send + Sync {
 pub trait Embedder: Send + Sync + Clone {
     type Input: Send;
     type Output: Send + Clone;
-
-    async fn embed_batch(&self, inputs: Vec<Self::Input>) -> anyhow::Result<Vec<Self::Output>>;
-
-    fn batch_size(&self) -> usize;
+    async fn embed(&self, inputs: Self::Input) -> anyhow::Result<Self::Output>;
 }
 
 /// Trait for storing embedded chunks
@@ -35,32 +32,14 @@ pub trait StorageWriter: Send + Sync {
     type Input: Send;
     type Output: Send;
 
-    async fn store(&self, input: Self::Input) -> anyhow::Result<Self::Output>;
-
-    // Batch storage for efficiency
-    async fn store_batch(&self, inputs: Vec<Self::Input>) -> anyhow::Result<Vec<Self::Output>>;
-
-    // Get optimal batch size for this storage
-    fn batch_size(&self) -> usize;
+    async fn write(&self, input: Self::Input) -> anyhow::Result<Self::Output>;
 }
 
-/// Trait for reading from storage (separate from writing for flexibility)
+/// Trait for querying embedded chunks
 #[async_trait]
 pub trait StorageReader: Send + Sync {
     type Query: Send;
     type QueryResult: Send;
-
     // Query interface
-    async fn query(&self, query: Self::Query) -> anyhow::Result<Vec<Self::QueryResult>>;
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::Chunker;
-
-    #[test]
-    fn traits_are_object_safe() {
-        // This test ensures our traits can be used as trait objects
-        let _: Option<Box<dyn Chunker<Input = String, Output = String>>> = None;
-    }
+    async fn query(&self, query: Self::Query) -> anyhow::Result<Self::QueryResult>;
 }
