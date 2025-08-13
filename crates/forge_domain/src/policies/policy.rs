@@ -15,9 +15,9 @@ pub enum Policy {
     /// Simple policy with permission and rule
     Simple { permission: Permission, rule: Rule },
     /// Logical AND of two policies
-    And { and: Vec<Policy> },
+    All { all: Vec<Policy> },
     /// Logical OR of two policies
-    Or { or: Vec<Policy> },
+    Any { any: Vec<Policy> },
     /// Logical NOT of a policy
     Not { not: Box<Policy> },
 }
@@ -35,7 +35,7 @@ impl Policy {
                     None
                 }
             }
-            Policy::And { and } => {
+            Policy::All { all: and } => {
                 let permissions: Vec<_> = and.iter().map(|policy| policy.eval(operation)).collect();
                 // For AND, we need all policies to pass, return the most restrictive permission
                 permissions
@@ -43,7 +43,7 @@ impl Policy {
                     .find(|permission| permission.is_some())
                     .flatten()
             }
-            Policy::Or { or } => {
+            Policy::Any { any: or } => {
                 let permissions: Vec<_> = or.iter().map(|policy| policy.eval(operation)).collect();
                 // For OR, return the first matching permission
                 permissions
@@ -84,12 +84,12 @@ impl Policy {
                     rules.push(rule);
                 }
             }
-            Policy::And { and } => {
+            Policy::All { all: and } => {
                 for policy in and {
                     policy.collect_matching_rules(operation, rules);
                 }
             }
-            Policy::Or { or } => {
+            Policy::Any { any: or } => {
                 for policy in or {
                     policy.collect_matching_rules(operation, rules);
                 }
@@ -163,8 +163,8 @@ mod tests {
 
     #[test]
     fn test_policy_eval_and_both_true() {
-        let fixture = Policy::And {
-            and: vec![
+        let fixture = Policy::All {
+            all: vec![
                 Policy::Simple {
                     permission: Permission::Allow,
                     rule: Rule::Write(WriteRule {
@@ -190,8 +190,8 @@ mod tests {
 
     #[test]
     fn test_policy_eval_and_one_false() {
-        let fixture = Policy::And {
-            and: vec![
+        let fixture = Policy::All {
+            all: vec![
                 Policy::Simple {
                     permission: Permission::Allow,
                     rule: Rule::Write(WriteRule {
@@ -217,8 +217,8 @@ mod tests {
 
     #[test]
     fn test_policy_eval_or_one_true() {
-        let fixture = Policy::Or {
-            or: vec![
+        let fixture = Policy::Any {
+            any: vec![
                 Policy::Simple {
                     permission: Permission::Allow,
                     rule: Rule::Write(WriteRule {
@@ -280,8 +280,8 @@ mod tests {
             Rule::Write(WriteRule { write: "src/**/*".to_string(), dir: None });
         let rule2 =
             Rule::Write(WriteRule { write: "**/*.rs".to_string(), dir: None });
-        let fixture = Policy::And {
-            and: vec![
+        let fixture = Policy::All {
+            all: vec![
                 Policy::Simple { permission: Permission::Allow, rule: rule1.clone() },
                 Policy::Simple { permission: Permission::Allow, rule: rule2.clone() },
             ],
@@ -302,11 +302,11 @@ impl Display for Policy {
             Policy::Simple { permission, rule } => {
                 write!(f, "{permission} {rule}")
             }
-            Policy::And { and } => {
+            Policy::All { all: and } => {
                 let policies: Vec<String> = and.iter().map(|p| p.to_string()).collect();
                 write!(f, "({})", policies.join(" AND "))
             }
-            Policy::Or { or } => {
+            Policy::Any { any: or } => {
                 let policies: Vec<String> = or.iter().map(|p| p.to_string()).collect();
                 write!(f, "({})", policies.join(" OR "))
             }
