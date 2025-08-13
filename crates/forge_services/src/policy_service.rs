@@ -30,19 +30,6 @@ pub enum PolicyPermission {
     AcceptAndRemember,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter, strum_macros::EnumString)]
-pub enum AddDefaultPoliciesResponse {
-    /// Accept the operation
-    #[strum(to_string = "Accept")]
-    Accept,
-    /// Reject the operation
-    #[strum(to_string = "Reject")]
-    Reject,
-    /// Reject and remember the operation
-    #[strum(to_string = "Reject and remember")]
-    RejectAndRemember,
-}
-
 #[derive(Clone)]
 pub struct ForgePolicyService<I> {
     infra: Arc<I>,
@@ -155,36 +142,13 @@ where
                 return Ok((PolicyConfig::new(), None));
             }
 
-            match self
-                .infra
-                .select_one_enum::<AddDefaultPoliciesResponse>(&format!(
-                    "No permissions policy found.\n\
-                {}\n\
-                Would you like to initiate those permission policies in {}?",
-                    PolicyConfig::with_defaults(),
-                    self.permissions_path().display()
-                ))
-                .await?
-            {
-                Some(AddDefaultPoliciesResponse::Accept) => {
-                    self.init_policies().await?;
-                    let success_msg = format!(
-                        "Default policies file created at `{}`. You can always review and modify it as needed.",
-                        self.permissions_path().display()
-                    );
-                    let (policies, _) = self.get_or_create_policies(app_config).await?;
-                    Ok((policies, Some(success_msg)))
-                }
-                Some(AddDefaultPoliciesResponse::RejectAndRemember) => {
-                    app_config.should_create_default_perms = Some(false);
-                    let message = "Permissions policies not created. You will be prompted for permissions on each operation that requires them.".to_string();
-                    Ok((PolicyConfig::new(), Some(message)))
-                }
-                Some(AddDefaultPoliciesResponse::Reject) | None => {
-                    let message = "Permissions policies not created. You will be prompted for permissions on each operation that requires them.".to_string();
-                    Ok((PolicyConfig::new(), Some(message)))
-                }
-            }
+            self.init_policies().await?;
+            let success_msg = format!(
+                "Default policies file created at `{}`. You can always review and modify it as needed.",
+                self.permissions_path().display()
+            );
+            let (policies, _) = self.get_or_create_policies(app_config).await?;
+            Ok((policies, Some(success_msg)))
         }
     }
 }
