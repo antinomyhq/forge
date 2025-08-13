@@ -122,6 +122,7 @@ mod tests {
         Operation::Write {
             path: PathBuf::from("src/main.rs"),
             cwd: PathBuf::from("/test/cwd"),
+            message: "Create/overwrite file: src/main.rs".to_string(),
         }
     }
 

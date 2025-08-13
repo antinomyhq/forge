@@ -68,6 +68,7 @@ mod tests {
         Operation::Write {
             path: PathBuf::from("src/main.rs"),
             cwd: PathBuf::from("/test/cwd"),
+            message: "Create/overwrite file: src/main.rs".to_string(),
         }
     }
 
@@ -150,6 +151,7 @@ mod tests {
         let operation = Operation::Fetch {
             url: "https://example.com/api".to_string(),
             cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Fetch content from URL: https://example.com/api".to_string(),
         };
 
         let permissions = policies.eval(&operation);

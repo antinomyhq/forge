@@ -216,12 +216,24 @@ where
             Permission::Allow => Ok(PolicyDecision { allowed: true, message: config_message }),
             Permission::Confirm => {
                 // Request user confirmation using UserInfra
-                let confirmation_msg =
-                    "This operation requires confirmation. How would you like to proceed?";
+                let confirmation_msg = match operation {
+                    Operation::Read { message, .. } => {
+                        format!("{message}. How would you like to proceed?")
+                    }
+                    Operation::Write { message, .. } => {
+                        format!("{message}. How would you like to proceed?")
+                    }
+                    Operation::Execute { message, .. } => {
+                        format!("{message}. How would you like to proceed?")
+                    }
+                    Operation::Fetch { message, .. } => {
+                        format!("{message}. How would you like to proceed?")
+                    }
+                };
 
                 match self
                     .infra
-                    .select_one_enum::<PolicyPermission>(confirmation_msg)
+                    .select_one_enum::<PolicyPermission>(&confirmation_msg)
                     .await?
                 {
                     Some(PolicyPermission::Accept) => {
@@ -261,14 +273,14 @@ fn create_policy_for_operation(operation: &Operation, dir: Option<String>) -> Op
     }
 
     match operation {
-        Operation::Read { path, cwd: _ } => create_file_policy(path, |pattern| {
+        Operation::Read { path, cwd: _, message: _ } => create_file_policy(path, |pattern| {
             Rule::Read(ReadRule { read: pattern, dir: None })
         }),
-        Operation::Write { path, cwd: _ } => create_file_policy(path, |pattern| {
+        Operation::Write { path, cwd: _, message: _ } => create_file_policy(path, |pattern| {
             Rule::Write(WriteRule { write: pattern, dir: None })
         }),
 
-        Operation::Fetch { url, cwd: _ } => {
+        Operation::Fetch { url, cwd: _, message: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 parsed_url.host_str().map(|host| Policy::Simple {
                     permission: Permission::Allow,
@@ -281,7 +293,7 @@ fn create_policy_for_operation(operation: &Operation, dir: Option<String>) -> Op
                 })
             }
         }
-        Operation::Execute { command, cwd: _ } => {
+        Operation::Execute { command, cwd: _, message: _ } => {
             let parts: Vec<&str> = command.split_whitespace().collect();
             match parts.as_slice() {
                 [] => None,
@@ -307,7 +319,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_read_operation() {
         let path = PathBuf::from("/path/to/file.rs");
-        let operation = Operation::Read { path, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Read {
+            path,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Read file: /path/to/file.rs".to_string(),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -322,7 +338,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_write_operation() {
         let path = PathBuf::from("/path/to/file.json");
-        let operation = Operation::Write { path, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Write {
+            path,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Create/overwrite file: /path/to/file.json".to_string(),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -337,7 +357,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_write_patch_operation() {
         let path = PathBuf::from("/path/to/file.toml");
-        let operation = Operation::Write { path, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Write {
+            path,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Modify file: /path/to/file.toml".to_string(),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -352,7 +376,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_net_fetch_operation() {
         let url = "https://example.com/api/data".to_string();
-        let operation = Operation::Fetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Fetch {
+            url,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Fetch content from URL: https://example.com/api/data".to_string(),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -367,7 +395,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_subcommand() {
         let command = "git push origin main".to_string();
-        let operation = Operation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Execute {
+            command,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Execute shell command: git push origin main".to_string(),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -382,7 +414,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_single_command() {
         let command = "ls".to_string();
-        let operation = Operation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Execute {
+            command,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Execute shell command: ls".to_string(),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -397,7 +433,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_file_without_extension() {
         let path = PathBuf::from("/path/to/file");
-        let operation = Operation::Read { path, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Read {
+            path,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Read file: /path/to/file".to_string(),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -409,7 +449,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_invalid_url() {
         let url = "not-a-valid-url".to_string();
-        let operation = Operation::Fetch { url, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Fetch {
+            url,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Fetch content from URL: not-a-valid-url".to_string(),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -424,7 +468,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_empty_execute_command() {
         let command = "".to_string();
-        let operation = Operation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Execute {
+            command,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Execute shell command: ".to_string(),
+        };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -436,7 +484,11 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_working_directory() {
         let command = "ls".to_string();
-        let operation = Operation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
+        let operation = Operation::Execute {
+            command,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Execute shell command: ls".to_string(),
+        };
         let working_directory = Some("/home/user/project".to_string());
 
         let actual = create_policy_for_operation(&operation, working_directory.clone());

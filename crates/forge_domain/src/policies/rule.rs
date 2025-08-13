@@ -57,7 +57,7 @@ impl Rule {
     /// Check if this rule matches the given operation
     pub fn matches(&self, operation: &Operation) -> bool {
         match (self, operation) {
-            (Rule::Write(rule), Operation::Write { path, cwd }) => {
+            (Rule::Write(rule), Operation::Write { path, cwd, message: _ }) => {
                 let pattern_matches = match_pattern(&rule.write, path);
                 let dir = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
@@ -66,7 +66,7 @@ impl Rule {
                 };
                 pattern_matches && dir
             }
-            (Rule::Read(rule), Operation::Read { path, cwd }) => {
+            (Rule::Read(rule), Operation::Read { path, cwd, message: _ }) => {
                 let pattern_matches = match_pattern(&rule.read, path);
                 let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
@@ -76,7 +76,7 @@ impl Rule {
                 pattern_matches && dir_matches
             }
 
-            (Rule::Execute(rule), Operation::Execute { command: cmd, cwd }) => {
+            (Rule::Execute(rule), Operation::Execute { command: cmd, cwd, message: _ }) => {
                 let command_matches = match_pattern(&rule.command, cmd);
                 let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
@@ -85,7 +85,7 @@ impl Rule {
                 };
                 command_matches && dir_matches
             }
-            (Rule::Fetch(rule), Operation::Fetch { url, cwd }) => {
+            (Rule::Fetch(rule), Operation::Fetch { url, cwd, message: _ }) => {
                 let url_matches = match_pattern(&rule.url, url);
                 let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
@@ -122,6 +122,7 @@ mod tests {
         Operation::Write {
             path: PathBuf::from("src/main.rs"),
             cwd: PathBuf::from("/home/user/project"),
+            message: "Create/overwrite file: src/main.rs".to_string(),
         }
     }
 
@@ -129,6 +130,7 @@ mod tests {
         Operation::Write {
             path: PathBuf::from("src/main.rs"),
             cwd: PathBuf::from("/home/user/project"),
+            message: "Modify file: src/main.rs".to_string(),
         }
     }
 
@@ -136,6 +138,7 @@ mod tests {
         Operation::Read {
             path: PathBuf::from("config/dev.yml"),
             cwd: PathBuf::from("/home/user/project"),
+            message: "Read file: config/dev.yml".to_string(),
         }
     }
 
@@ -143,6 +146,7 @@ mod tests {
         Operation::Execute {
             command: "cargo build".to_string(),
             cwd: PathBuf::from("/home/user/project"),
+            message: "Execute shell command: cargo build".to_string(),
         }
     }
 
@@ -150,6 +154,7 @@ mod tests {
         Operation::Fetch {
             url: "https://api.example.com/data".to_string(),
             cwd: PathBuf::from("/home/user/project"),
+            message: "Fetch content from URL: https://api.example.com/data".to_string(),
         }
     }
 

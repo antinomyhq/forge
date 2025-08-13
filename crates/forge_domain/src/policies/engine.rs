@@ -140,6 +140,7 @@ mod tests {
         let operation = Operation::Read {
             path: std::path::PathBuf::from("src/main.rs"),
             cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Read file: src/main.rs".to_string(),
         };
 
         let actual = fixture.can_perform(&operation);
@@ -154,6 +155,7 @@ mod tests {
         let operation = Operation::Write {
             path: std::path::PathBuf::from("src/main.rs"),
             cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Create/overwrite file: src/main.rs".to_string(),
         };
 
         let actual = fixture.can_perform(&operation);
@@ -168,6 +170,7 @@ mod tests {
         let operation = Operation::Write {
             path: std::path::PathBuf::from("src/main.rs"),
             cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Create/overwrite file: src/main.rs".to_string(),
         };
 
         let actual = fixture.can_perform(&operation);
@@ -182,6 +185,7 @@ mod tests {
         let operation = Operation::Execute {
             command: "cargo build".to_string(),
             cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Execute shell command: cargo build".to_string(),
         };
 
         let actual = fixture.can_perform(&operation);
@@ -196,6 +200,7 @@ mod tests {
         let operation = Operation::Fetch {
             url: "https://api.example.com/data".to_string(),
             cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Fetch content from URL: https://api.example.com/data".to_string(),
         };
 
         let actual = fixture.can_perform(&operation);
