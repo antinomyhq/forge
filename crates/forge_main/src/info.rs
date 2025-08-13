@@ -260,25 +260,33 @@ impl From<&UserUsage> for Info {
         let usage = &user_usage.usage;
         let plan = &user_usage.plan;
 
-        let mut info = Info::new()
-            .add_title("Request Quota")
-            .add_key_value("Plan", plan.r#type.to_uppercase())
-            .add_key_value(
-                "Usage",
+        let mut info = Info::new().add_title("Request Quota");
+
+        if plan.is_upgradeable() {
+            info = info.add_key_value(
+                "Subscription",
                 format!(
-                    "{} / {} [{} Remaining]",
-                    usage.current, usage.limit, usage.remaining
+                    "{} [Upgrade https://app.forgecode.dev/app/billing]",
+                    plan.r#type.to_uppercase()
                 ),
             );
+        } else {
+            info = info.add_key_value("Subscription", plan.r#type.to_uppercase());
+        }
+
+        info = info.add_key_value(
+            "Usage",
+            format!(
+                "{} / {} [{} Remaining]",
+                usage.current, usage.limit, usage.remaining
+            ),
+        );
 
         // Create progress bar for usage visualization
         let progress_bar = create_progress_bar(usage.current, usage.limit, 20);
 
         // Add reset information if available
         if let Some(reset_in) = usage.reset_in {
-            if plan.is_upgradeable() {
-                info = info.add_key_value("Upgrade", "https://app.forgecode.dev/app/billing");
-            }
             info = info.add_key_value("Resets in", format_reset_time(reset_in));
         }
 
