@@ -226,10 +226,8 @@ mod tests {
 
     #[test]
     fn test_net_fetch_url_pattern_match() {
-        let fixture = Rule::Fetch(Fetch {
-            url: "https://api.example.com/*".to_string(),
-            dir: None,
-        });
+        let fixture =
+            Rule::Fetch(Fetch { url: "https://api.example.com/*".to_string(), dir: None });
         let operation = fixture_net_fetch_operation();
 
         let actual = fixture.matches(&operation);
