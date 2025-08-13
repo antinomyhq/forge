@@ -102,21 +102,30 @@ impl From<&UIState> for Info {
             }
         }
 
-        let usage = &value.usage;
-
-        info = info
-            .add_title("Usage".to_string())
-            .add_key_value("Prompt", &usage.prompt_tokens)
-            .add_key_value("Completion", &usage.completion_tokens)
-            .add_key_value("Total", &usage.total_tokens)
-            .add_key_value("Cached Tokens", &usage.cached_tokens);
-
-        if let Some(cost) = usage.cost {
-            info = info.add_key_value("Cost", format!("${cost:.4}"));
-        }
+        info = info.extend(get_usage(value));
 
         info
     }
+}
+
+pub fn get_usage(state: &UIState) -> Info {
+    let mut usage = Info::new()
+        .add_title("Token Usage")
+        .add_key_value("Prompt Tokens", state.usage.prompt_tokens.to_string())
+        .add_key_value(
+            "Completion Tokens",
+            state.usage.completion_tokens.to_string(),
+        )
+        .add_key_value("Total Tokens", state.usage.total_tokens.to_string())
+        .add_key_value("Cached Tokens", state.usage.cached_tokens.to_string());
+
+    let is_forge_provider = state.provider.as_ref().is_some_and(|p| p.is_forge());
+    if let Some(cost) = state.usage.cost.as_ref()
+        && !is_forge_provider
+    {
+        usage = usage.add_key_value("Cost", format!("${cost:.4}"));
+    }
+    usage
 }
 
 impl fmt::Display for Info {
@@ -251,23 +260,34 @@ impl From<&UserUsage> for Info {
         let usage = &user_usage.usage;
         let plan = &user_usage.plan;
 
+        let mut info = Info::new().add_title("Request Quota");
+
+        if plan.is_upgradeable() {
+            info = info.add_key_value(
+                "Subscription",
+                format!(
+                    "{} [Upgrade https://app.forgecode.dev/app/billing]",
+                    plan.r#type.to_uppercase()
+                ),
+            );
+        } else {
+            info = info.add_key_value("Subscription", plan.r#type.to_uppercase());
+        }
+
+        info = info.add_key_value(
+            "Usage",
+            format!(
+                "{} / {} [{} Remaining]",
+                usage.current, usage.limit, usage.remaining
+            ),
+        );
+
         // Create progress bar for usage visualization
         let progress_bar = create_progress_bar(usage.current, usage.limit, 20);
 
-        let mut info = Info::new()
-            .add_title(format!("{} Quota", plan.r#type.to_uppercase()))
-            .add_key_value(
-                "Usage",
-                format!(
-                    "{} / {} [{} Remaining]",
-                    usage.current, usage.limit, usage.remaining
-                ),
-            );
-
         // Add reset information if available
         if let Some(reset_in) = usage.reset_in {
-            let reset_info = format_reset_time(reset_in);
-            info = info.add_key_value("Resets in", reset_info);
+            info = info.add_key_value("Resets in", format_reset_time(reset_in));
         }
 
         info.add_key_value("Progress", progress_bar)
@@ -390,15 +410,6 @@ mod tests {
     }
 
     #[test]
-    fn test_format_path_for_display_no_home() {
-        let fixture = create_env("linux", None);
-        let path = PathBuf::from("/home/user/project");
-
-        let actual = super::format_path_for_display(&fixture, &path);
-        let expected = "/home/user/project";
-        assert_eq!(actual, expected);
-    }
-    #[test]
     fn test_create_progress_bar() {
         // Test normal case - 70% of 20 = 14 filled, 6 empty
         let actual = super::create_progress_bar(70, 100, 20);
@@ -425,6 +436,17 @@ mod tests {
         let expected = "▐████████████████████ 100.0%";
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn test_format_path_for_display_no_home() {
+        let fixture = create_env("linux", None);
+        let path = PathBuf::from("/home/user/project");
+
+        let actual = super::format_path_for_display(&fixture, &path);
+        let expected = "/home/user/project";
+        assert_eq!(actual, expected);
+    }
+
     #[test]
     fn test_format_reset_time_hours_and_minutes() {
         let actual = super::format_reset_time(3661); // 1 hour, 1 minute, 1 second
