@@ -76,17 +76,11 @@ mod tests {
         let fixture = PolicyConfig::new()
             .add_policy(Policy::Simple {
                 permission: Permission::Allow,
-                rule: Rule::Write(WriteRule {
-                    write: "src/**/*.rs".to_string(),
-                    dir: None,
-                }),
+                rule: Rule::Write(WriteRule { write: "src/**/*.rs".to_string(), dir: None }),
             })
             .add_policy(Policy::Simple {
                 permission: Permission::Deny,
-                rule: Rule::Write(WriteRule {
-                    write: "**/*.py".to_string(),
-                    dir: None,
-                }),
+                rule: Rule::Write(WriteRule { write: "**/*.py".to_string(), dir: None }),
             });
         let operation = fixture_write_operation();
 

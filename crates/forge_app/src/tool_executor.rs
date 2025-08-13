@@ -45,7 +45,7 @@ impl<
         tool_input: &Tools,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<()> {
-        let operation = self.tool_to_operation(tool_input);
+        let operation = tool_input.to_policy_operation(self.services.get_environment().cwd);
         if let Some(operation) = operation {
             let mut app_config = self.services.read_app_config().await.unwrap_or_default();
             let decision = self
@@ -67,51 +67,6 @@ impl<
             }
         }
         Ok(())
-    }
-
-    /// Convert a tool input to its corresponding domain operation for policy
-    /// checking
-    fn tool_to_operation(&self, tool_input: &Tools) -> Option<forge_domain::Operation> {
-        let cwd = self.services.get_environment().cwd;
-
-        match tool_input {
-            Tools::ForgeToolFsRead(input) => Some(forge_domain::Operation::Read {
-                path: std::path::PathBuf::from(&input.path),
-                cwd,
-            }),
-            Tools::ForgeToolFsCreate(input) => Some(forge_domain::Operation::Write {
-                path: std::path::PathBuf::from(&input.path),
-                cwd,
-            }),
-            Tools::ForgeToolFsSearch(input) => Some(forge_domain::Operation::Read {
-                path: std::path::PathBuf::from(&input.path),
-                cwd,
-            }),
-            Tools::ForgeToolFsRemove(input) => Some(forge_domain::Operation::Write {
-                path: std::path::PathBuf::from(&input.path),
-                cwd,
-            }),
-            Tools::ForgeToolFsPatch(input) => Some(forge_domain::Operation::Write {
-                path: std::path::PathBuf::from(&input.path),
-                cwd,
-            }),
-            Tools::ForgeToolProcessShell(input) => {
-                Some(forge_domain::Operation::Execute { command: input.command.clone(), cwd })
-            }
-            Tools::ForgeToolNetFetch(input) => {
-                Some(forge_domain::Operation::Fetch { url: input.url.clone(), cwd })
-            }
-            // Operations that don't require permission checks
-            Tools::ForgeToolFsUndo(_)
-            | Tools::ForgeToolFollowup(_)
-            | Tools::ForgeToolAttemptCompletion(_)
-            | Tools::ForgeToolTaskListAppend(_)
-            | Tools::ForgeToolTaskListAppendMultiple(_)
-            | Tools::ForgeToolTaskListUpdate(_)
-            | Tools::ForgeToolTaskListList(_)
-            | Tools::ForgeToolTaskListClear(_)
-            | Tools::ForgeToolPlanCreate(_) => None,
-        }
     }
 
     async fn dump_operation(&self, operation: &Operation) -> anyhow::Result<TempContentFiles> {

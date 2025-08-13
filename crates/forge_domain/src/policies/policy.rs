@@ -128,10 +128,7 @@ mod tests {
     fn fixture_simple_write_policy() -> Policy {
         Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule {
-                write: "src/**/*.rs".to_string(),
-                dir: None,
-            }),
+            rule: Rule::Write(WriteRule { write: "src/**/*.rs".to_string(), dir: None }),
         }
     }
 
@@ -149,10 +146,7 @@ mod tests {
     fn test_policy_eval_simple_not_matching() {
         let fixture = Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule {
-                write: "docs/**/*.md".to_string(),
-                dir: None,
-            }),
+            rule: Rule::Write(WriteRule { write: "docs/**/*.md".to_string(), dir: None }),
         };
         let operation = fixture_write_operation();
 
@@ -167,17 +161,11 @@ mod tests {
             all: vec![
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule {
-                        write: "src/**/*".to_string(),
-                        dir: None,
-                    }),
+                    rule: Rule::Write(WriteRule { write: "src/**/*".to_string(), dir: None }),
                 },
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule {
-                        write: "**/*.rs".to_string(),
-                        dir: None,
-                    }),
+                    rule: Rule::Write(WriteRule { write: "**/*.rs".to_string(), dir: None }),
                 },
             ],
         };
@@ -194,17 +182,11 @@ mod tests {
             all: vec![
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule {
-                        write: "src/**/*".to_string(),
-                        dir: None,
-                    }),
+                    rule: Rule::Write(WriteRule { write: "src/**/*".to_string(), dir: None }),
                 },
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule {
-                        write: "**/*.py".to_string(),
-                        dir: None,
-                    }),
+                    rule: Rule::Write(WriteRule { write: "**/*.py".to_string(), dir: None }),
                 },
             ],
         };
@@ -221,17 +203,11 @@ mod tests {
             any: vec![
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule {
-                        write: "src/**/*.rs".to_string(),
-                        dir: None,
-                    }),
+                    rule: Rule::Write(WriteRule { write: "src/**/*.rs".to_string(), dir: None }),
                 },
                 Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Write(WriteRule {
-                        write: "**/*.py".to_string(),
-                        dir: None,
-                    }),
+                    rule: Rule::Write(WriteRule { write: "**/*.py".to_string(), dir: None }),
                 },
             ],
         };
@@ -247,10 +223,7 @@ mod tests {
         let fixture = Policy::Not {
             not: Box::new(Policy::Simple {
                 permission: Permission::Allow,
-                rule: Rule::Write(WriteRule {
-                    write: "**/*.py".to_string(),
-                    dir: None,
-                }),
+                rule: Rule::Write(WriteRule { write: "**/*.py".to_string(), dir: None }),
             }),
         };
         let operation = fixture_write_operation();
@@ -276,10 +249,8 @@ mod tests {
 
     #[test]
     fn test_policy_find_rules_and_multiple() {
-        let rule1 =
-            Rule::Write(WriteRule { write: "src/**/*".to_string(), dir: None });
-        let rule2 =
-            Rule::Write(WriteRule { write: "**/*.rs".to_string(), dir: None });
+        let rule1 = Rule::Write(WriteRule { write: "src/**/*".to_string(), dir: None });
+        let rule2 = Rule::Write(WriteRule { write: "**/*.rs".to_string(), dir: None });
         let fixture = Policy::All {
             all: vec![
                 Policy::Simple { permission: Permission::Allow, rule: rule1.clone() },

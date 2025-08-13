@@ -670,6 +670,53 @@ impl Tools {
         .iter()
         .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
+
+    /// Convert a tool input to its corresponding domain operation for policy
+    /// checking. Returns None for tools that don't require permission
+    /// checks.
+    pub fn to_policy_operation(
+        &self,
+        cwd: std::path::PathBuf,
+    ) -> Option<crate::policies::Operation> {
+        match self {
+            Tools::ForgeToolFsRead(input) => Some(crate::policies::Operation::Read {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+            }),
+            Tools::ForgeToolFsCreate(input) => Some(crate::policies::Operation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+            }),
+            Tools::ForgeToolFsSearch(input) => Some(crate::policies::Operation::Read {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+            }),
+            Tools::ForgeToolFsRemove(input) => Some(crate::policies::Operation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+            }),
+            Tools::ForgeToolFsPatch(input) => Some(crate::policies::Operation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+            }),
+            Tools::ForgeToolProcessShell(input) => {
+                Some(crate::policies::Operation::Execute { command: input.command.clone(), cwd })
+            }
+            Tools::ForgeToolNetFetch(input) => {
+                Some(crate::policies::Operation::Fetch { url: input.url.clone(), cwd })
+            }
+            // Operations that don't require permission checks
+            Tools::ForgeToolFsUndo(_)
+            | Tools::ForgeToolFollowup(_)
+            | Tools::ForgeToolAttemptCompletion(_)
+            | Tools::ForgeToolTaskListAppend(_)
+            | Tools::ForgeToolTaskListAppendMultiple(_)
+            | Tools::ForgeToolTaskListUpdate(_)
+            | Tools::ForgeToolTaskListList(_)
+            | Tools::ForgeToolTaskListClear(_)
+            | Tools::ForgeToolPlanCreate(_) => None,
+        }
+    }
 }
 
 impl ToolsDiscriminants {
