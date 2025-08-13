@@ -60,7 +60,7 @@ impl ContextMessage {
                 } else {
                     Some(content)
                 }
-            },
+            }
             ContextMessage::Image(_) => None,
         }
     }

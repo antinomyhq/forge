@@ -143,7 +143,7 @@ async fn test_tool_failure_tracking_increments_once_per_turn() {
             ChatCompletionMessage::assistant("Trying again"),
             ChatCompletionMessage::assistant("Trying again"),
             ChatCompletionMessage::assistant("Trying again"),
-            ChatCompletionMessage::assistant("Trying again")
+            ChatCompletionMessage::assistant("Trying again"),
         ])
         .workflow(workflow);
 
