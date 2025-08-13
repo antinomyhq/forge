@@ -8,9 +8,9 @@ use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
 use crate::services::ShellService;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
-    PlanCreateService,
+    AppConfigService, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    NetFetchService, PlanCreateService, PolicyService,
 };
 
 pub struct ToolExecutor<S> {
@@ -109,7 +109,8 @@ impl<
             | Tools::ForgeToolTaskListAppendMultiple(_)
             | Tools::ForgeToolTaskListUpdate(_)
             | Tools::ForgeToolTaskListList(_)
-            | Tools::ForgeToolTaskListClear(_) => None,
+            | Tools::ForgeToolTaskListClear(_)
+            | Tools::ForgeToolPlanCreate(_) => None,
         }
     }
 
