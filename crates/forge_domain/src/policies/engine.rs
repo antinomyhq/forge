@@ -96,7 +96,7 @@ mod tests {
     fn fixture_workflow_with_read_policy() -> PolicyConfig {
         let policies = PolicyConfig::new().add_policy(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Read(ReadRule { read: "src/**/*.rs".to_string(), working_directory: None }),
+            rule: Rule::Read(ReadRule { read: "src/**/*.rs".to_string(), dir: None }),
         });
         policies
     }
@@ -104,7 +104,7 @@ mod tests {
     fn fixture_workflow_with_write_policy() -> PolicyConfig {
         let policies = PolicyConfig::new().add_policy(Policy::Simple {
             permission: Permission::Deny,
-            rule: Rule::Write(WriteRule { write: "**/*.rs".to_string(), working_directory: None }),
+            rule: Rule::Write(WriteRule { write: "**/*.rs".to_string(), dir: None }),
         });
         policies
     }
@@ -114,7 +114,7 @@ mod tests {
             permission: Permission::Allow,
             rule: Rule::Execute(ExecuteRule {
                 command: "cargo *".to_string(),
-                working_directory: None,
+                dir: None,
             }),
         });
         policies
@@ -125,7 +125,7 @@ mod tests {
             permission: Permission::Confirm,
             rule: Rule::Write(WriteRule {
                 write: "src/**/*.rs".to_string(),
-                working_directory: None,
+                dir: None,
             }),
         });
         policies
@@ -136,7 +136,7 @@ mod tests {
             permission: Permission::Allow,
             rule: Rule::Fetch(Fetch {
                 url: "https://api.example.com/*".to_string(),
-                working_directory: None,
+                dir: None,
             }),
         });
         policies

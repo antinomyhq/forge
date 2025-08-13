@@ -247,10 +247,7 @@ where
 }
 
 /// Create a policy for an operation based on its type
-fn create_policy_for_operation(
-    operation: &Operation,
-    working_directory: Option<String>,
-) -> Option<Policy> {
+fn create_policy_for_operation(operation: &Operation, dir: Option<String>) -> Option<Policy> {
     fn create_file_policy(
         path: &std::path::Path,
         rule_constructor: fn(String) -> Rule,
@@ -265,22 +262,22 @@ fn create_policy_for_operation(
 
     match operation {
         Operation::Read { path, cwd: _ } => create_file_policy(path, |pattern| {
-            Rule::Read(ReadRule { read: pattern, working_directory: None })
+            Rule::Read(ReadRule { read: pattern, dir: None })
         }),
         Operation::Write { path, cwd: _ } => create_file_policy(path, |pattern| {
-            Rule::Write(WriteRule { write: pattern, working_directory: None })
+            Rule::Write(WriteRule { write: pattern, dir: None })
         }),
 
         Operation::Fetch { url, cwd: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 parsed_url.host_str().map(|host| Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Fetch(Fetch { url: format!("{host}*"), working_directory: None }),
+                    rule: Rule::Fetch(Fetch { url: format!("{host}*"), dir: None }),
                 })
             } else {
                 Some(Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Fetch(Fetch { url: url.to_string(), working_directory: None }),
+                    rule: Rule::Fetch(Fetch { url: url.to_string(), dir: None }),
                 })
             }
         }
@@ -290,17 +287,11 @@ fn create_policy_for_operation(
                 [] => None,
                 [cmd] => Some(Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Execute(ExecuteRule {
-                        command: format!("{cmd}*"),
-                        working_directory,
-                    }),
+                    rule: Rule::Execute(ExecuteRule { command: format!("{cmd}*"), dir }),
                 }),
                 [cmd, subcmd, ..] => Some(Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Execute(ExecuteRule {
-                        command: format!("{cmd} {subcmd}*"),
-                        working_directory,
-                    }),
+                    rule: Rule::Execute(ExecuteRule { command: format!("{cmd} {subcmd}*"), dir }),
                 }),
             }
         }
@@ -322,7 +313,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Read(ReadRule { read: "*.rs".to_string(), working_directory: None }),
+            rule: Rule::Read(ReadRule { read: "*.rs".to_string(), dir: None }),
         });
 
         assert_eq!(actual, expected);
@@ -337,7 +328,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule { write: "*.json".to_string(), working_directory: None }),
+            rule: Rule::Write(WriteRule { write: "*.json".to_string(), dir: None }),
         });
 
         assert_eq!(actual, expected);
@@ -352,7 +343,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule { write: "*.toml".to_string(), working_directory: None }),
+            rule: Rule::Write(WriteRule { write: "*.toml".to_string(), dir: None }),
         });
 
         assert_eq!(actual, expected);
@@ -367,7 +358,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Fetch(Fetch { url: "example.com*".to_string(), working_directory: None }),
+            rule: Rule::Fetch(Fetch { url: "example.com*".to_string(), dir: None }),
         });
 
         assert_eq!(actual, expected);
@@ -382,10 +373,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule {
-                command: "git push*".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Execute(ExecuteRule { command: "git push*".to_string(), dir: None }),
         });
 
         assert_eq!(actual, expected);
@@ -400,10 +388,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule {
-                command: "ls*".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Execute(ExecuteRule { command: "ls*".to_string(), dir: None }),
         });
 
         assert_eq!(actual, expected);
@@ -430,10 +415,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Fetch(Fetch {
-                url: "not-a-valid-url".to_string(),
-                working_directory: None,
-            }),
+            rule: Rule::Fetch(Fetch { url: "not-a-valid-url".to_string(), dir: None }),
         });
 
         assert_eq!(actual, expected);
@@ -461,7 +443,7 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule { command: "ls*".to_string(), working_directory }),
+            rule: Rule::Execute(ExecuteRule { command: "ls*".to_string(), dir: working_directory }),
         });
 
         assert_eq!(actual, expected);

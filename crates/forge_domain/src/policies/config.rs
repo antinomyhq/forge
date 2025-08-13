@@ -78,14 +78,14 @@ mod tests {
                 permission: Permission::Allow,
                 rule: Rule::Write(WriteRule {
                     write: "src/**/*.rs".to_string(),
-                    working_directory: None,
+                    dir: None,
                 }),
             })
             .add_policy(Policy::Simple {
                 permission: Permission::Deny,
                 rule: Rule::Write(WriteRule {
                     write: "**/*.py".to_string(),
-                    working_directory: None,
+                    dir: None,
                 }),
             });
         let operation = fixture_write_operation();
@@ -115,7 +115,7 @@ mod tests {
                 && matches!(
                     p,
                     Policy::Simple {
-                        rule: Rule::Read(ReadRule { read, working_directory: _ }),
+                        rule: Rule::Read(ReadRule { read, dir: _ }),
                         ..
                     } if read == "**/*"
                 )
@@ -140,7 +140,7 @@ mod tests {
                 && matches!(
                     p,
                     Policy::Simple {
-                        rule: Rule::Fetch(Fetch { url, working_directory: _ }),
+                        rule: Rule::Fetch(Fetch { url, dir: _ }),
                         ..
                     } if url == "*"
                 )

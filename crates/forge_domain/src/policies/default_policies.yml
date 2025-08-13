@@ -41,4 +41,4 @@ policies:
   - permission: deny
     rule:
       command: 'sudo*'
-      working_directory: '**/*'
+      dir: '**/*'

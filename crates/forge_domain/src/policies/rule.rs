@@ -12,7 +12,7 @@ use super::operation::Operation;
 pub struct WriteRule {
     pub write: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub working_directory: Option<String>,
+    pub dir: Option<String>,
 }
 
 /// Rule for read operations with a glob pattern
@@ -20,7 +20,7 @@ pub struct WriteRule {
 pub struct ReadRule {
     pub read: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub working_directory: Option<String>,
+    pub dir: Option<String>,
 }
 
 /// Rule for execute operations with a command pattern
@@ -28,7 +28,7 @@ pub struct ReadRule {
 pub struct ExecuteRule {
     pub command: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub working_directory: Option<String>,
+    pub dir: Option<String>,
 }
 
 /// Rule for network fetch operations with a URL pattern
@@ -36,7 +36,7 @@ pub struct ExecuteRule {
 pub struct Fetch {
     pub url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub working_directory: Option<String>,
+    pub dir: Option<String>,
 }
 
 /// Rules that define what operations are covered by a policy
@@ -59,40 +59,40 @@ impl Rule {
         match (self, operation) {
             (Rule::Write(rule), Operation::Write { path, cwd }) => {
                 let pattern_matches = match_pattern(&rule.write, path);
-                let working_directory_matches = match &rule.working_directory {
+                let dir = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
                     None => true, /* If no working directory pattern is specified, it matches any
                                    * directory */
                 };
-                pattern_matches && working_directory_matches
+                pattern_matches && dir
             }
             (Rule::Read(rule), Operation::Read { path, cwd }) => {
                 let pattern_matches = match_pattern(&rule.read, path);
-                let working_directory_matches = match &rule.working_directory {
+                let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
                     None => true, /* If no working directory pattern is specified, it matches any
                                    * directory */
                 };
-                pattern_matches && working_directory_matches
+                pattern_matches && dir_matches
             }
 
             (Rule::Execute(rule), Operation::Execute { command: cmd, cwd }) => {
                 let command_matches = match_pattern(&rule.command, cmd);
-                let working_directory_matches = match &rule.working_directory {
+                let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
                     None => true, /* If no working directory pattern is specified, it matches any
                                    * directory */
                 };
-                command_matches && working_directory_matches
+                command_matches && dir_matches
             }
             (Rule::Fetch(rule), Operation::Fetch { url, cwd }) => {
                 let url_matches = match_pattern(&rule.url, url);
-                let working_directory_matches = match &rule.working_directory {
+                let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
                     None => true, /* If no working directory pattern is specified, it matches any
                                    * directory */
                 };
-                url_matches && working_directory_matches
+                url_matches && dir_matches
             }
             _ => false,
         }
@@ -155,8 +155,7 @@ mod tests {
 
     #[test]
     fn test_rule_matches_write_operation() {
-        let fixture =
-            Rule::Write(WriteRule { write: "src/**/*.rs".to_string(), working_directory: None });
+        let fixture = Rule::Write(WriteRule { write: "src/**/*.rs".to_string(), dir: None });
         let operation = fixture_write_operation();
 
         let actual = fixture.matches(&operation);
@@ -166,8 +165,7 @@ mod tests {
 
     #[test]
     fn test_rule_matches_write_operation_with_patch_scenario() {
-        let fixture =
-            Rule::Write(WriteRule { write: "src/**/*.rs".to_string(), working_directory: None });
+        let fixture = Rule::Write(WriteRule { write: "src/**/*.rs".to_string(), dir: None });
         let operation = fixture_patch_operation();
 
         let actual = fixture.matches(&operation);
@@ -177,8 +175,7 @@ mod tests {
 
     #[test]
     fn test_rule_does_not_match_different_operation() {
-        let fixture =
-            Rule::Read(ReadRule { read: "config/*.yml".to_string(), working_directory: None });
+        let fixture = Rule::Read(ReadRule { read: "config/*.yml".to_string(), dir: None });
         let operation = fixture_write_operation();
 
         let actual = fixture.matches(&operation);
@@ -209,8 +206,7 @@ mod tests {
 
     #[test]
     fn test_execute_command_pattern_match() {
-        let fixture =
-            Rule::Execute(ExecuteRule { command: "cargo *".to_string(), working_directory: None });
+        let fixture = Rule::Execute(ExecuteRule { command: "cargo *".to_string(), dir: None });
         let operation = fixture_execute_operation();
 
         let actual = fixture.matches(&operation);
@@ -220,8 +216,7 @@ mod tests {
 
     #[test]
     fn test_read_config_pattern_match() {
-        let fixture =
-            Rule::Read(ReadRule { read: "config/*.yml".to_string(), working_directory: None });
+        let fixture = Rule::Read(ReadRule { read: "config/*.yml".to_string(), dir: None });
         let operation = fixture_read_operation();
 
         let actual = fixture.matches(&operation);
@@ -233,7 +228,7 @@ mod tests {
     fn test_net_fetch_url_pattern_match() {
         let fixture = Rule::Fetch(Fetch {
             url: "https://api.example.com/*".to_string(),
-            working_directory: None,
+            dir: None,
         });
         let operation = fixture_net_fetch_operation();
 
@@ -246,7 +241,7 @@ mod tests {
     fn test_execute_working_directory_pattern_match() {
         let fixture = Rule::Execute(ExecuteRule {
             command: "cargo *".to_string(),
-            working_directory: Some("/home/user/*".to_string()),
+            dir: Some("/home/user/*".to_string()),
         });
         let operation = fixture_execute_operation();
 
@@ -259,7 +254,7 @@ mod tests {
     fn test_execute_working_directory_pattern_no_match() {
         let fixture = Rule::Execute(ExecuteRule {
             command: "cargo *".to_string(),
-            working_directory: Some("/different/path/*".to_string()),
+            dir: Some("/different/path/*".to_string()),
         });
         let operation = fixture_execute_operation();
 
@@ -270,8 +265,7 @@ mod tests {
 
     #[test]
     fn test_execute_no_working_directory_pattern_matches_any() {
-        let fixture =
-            Rule::Execute(ExecuteRule { command: "cargo *".to_string(), working_directory: None });
+        let fixture = Rule::Execute(ExecuteRule { command: "cargo *".to_string(), dir: None });
         let operation = fixture_execute_operation();
 
         let actual = fixture.matches(&operation);
@@ -282,7 +276,7 @@ mod tests {
 
 impl Display for WriteRule {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(wd) = &self.working_directory {
+        if let Some(wd) = &self.dir {
             write!(f, "write '{}' in '{}'", self.write, wd)
         } else {
             write!(f, "write '{}'", self.write)
@@ -292,7 +286,7 @@ impl Display for WriteRule {
 
 impl Display for ReadRule {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(wd) = &self.working_directory {
+        if let Some(wd) = &self.dir {
             write!(f, "read '{}' in '{}'", self.read, wd)
         } else {
             write!(f, "read '{}'", self.read)
@@ -302,7 +296,7 @@ impl Display for ReadRule {
 
 impl Display for ExecuteRule {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(wd) = &self.working_directory {
+        if let Some(wd) = &self.dir {
             write!(f, "execute '{}' in '{}'", self.command, wd)
         } else {
             write!(f, "execute '{}'", self.command)
@@ -312,7 +306,7 @@ impl Display for ExecuteRule {
 
 impl Display for Fetch {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(wd) = &self.working_directory {
+        if let Some(wd) = &self.dir {
             write!(f, "fetch '{}' in '{}'", self.url, wd)
         } else {
             write!(f, "fetch '{}'", self.url)
