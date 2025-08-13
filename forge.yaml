@@ -119,4 +119,9 @@ custom_rules: |-
   - Commands represent intent to perform side effects
   - Actions represent the result of those side effects
   - The executor pattern: Command -> Side Effect -> Action -> State Update -> UI Update
+
+  ## Git Operations
+  - Safely assume git is pre-installed
+  - Safely assume github cli (gh) is pre-installed
+  - Always use `Co-Authored-By: ForgeCode <noreply@forgecode.dev>` for git commits and Github comments
 tool_supported: true
