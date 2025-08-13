@@ -497,8 +497,8 @@ impl<S: AgentService> Orchestrator<S> {
                             .and_modify(|count| {
                                 if !failed_tool_calls.contains(&result.name) {
                                     *count += 1;
+                                    failed_tool_calls.insert(result.name.clone());
                                 }
-                                failed_tool_calls.insert(result.name.clone());
                             })
                             .or_insert(1);
                         let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
