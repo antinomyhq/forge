@@ -112,6 +112,14 @@ impl ToolOutput {
     pub fn as_str(&self) -> Option<&str> {
         self.values.iter().find_map(|item| item.as_str())
     }
+
+    pub fn content(&self) -> String {
+        self.values
+            .iter()
+            .filter_map(|item| item.as_str())
+            .collect::<Vec<_>>()
+            .join("")
+    }
 }
 
 impl<T> From<T> for ToolOutput

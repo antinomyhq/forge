@@ -131,7 +131,7 @@ pub struct TestOutput {
 }
 
 impl TestOutput {
-    pub fn system_prompt(&self) -> Option<&str> {
+    pub fn system_prompt(&self) -> Option<String> {
         self.conversation_history
             .last()
             .and_then(|c| c.context.as_ref())

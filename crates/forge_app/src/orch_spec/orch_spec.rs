@@ -140,6 +140,10 @@ async fn test_tool_failure_tracking_increments_once_per_turn() {
                 .tool_calls(vec![tool_call.clone().into(), tool_call.clone().into()]),
             // Second turn - tool call fails once more (should count as 2nd failure)
             ChatCompletionMessage::assistant("Trying again").tool_calls(vec![tool_call.into()]),
+            ChatCompletionMessage::assistant("Trying again"),
+            ChatCompletionMessage::assistant("Trying again"),
+            ChatCompletionMessage::assistant("Trying again"),
+            ChatCompletionMessage::assistant("Trying again")
         ])
         .workflow(workflow);
 
@@ -186,19 +190,16 @@ async fn test_tool_failure_tracking_removes_successful_calls() {
                 .tool_calls(vec![tool_call.clone().into()]),
             // Third turn - tool call fails again (should start from 1 again)
             ChatCompletionMessage::assistant("Reading again").tool_calls(vec![tool_call.into()]),
+            ChatCompletionMessage::assistant("Done"),
+            ChatCompletionMessage::assistant("Finished"),
+            ChatCompletionMessage::assistant("Complete"),
         ])
         .workflow(workflow);
 
     ctx.run().await.unwrap();
 
-    let first_failure_messages = ctx.count("You have 2 attempt(s) remaining");
-
     let third_turn_failure_messages = ctx.count("You have 2 attempt(s) remaining");
 
-    assert_eq!(
-        first_failure_messages, 1,
-        "Should show 2 attempts remaining after first failure"
-    );
     assert_eq!(
         third_turn_failure_messages, 2,
         "Should show 2 attempts remaining again after successful reset"
@@ -231,6 +232,9 @@ async fn test_tool_failure_tracking_different_tools() {
             // Second turn - both tools fail again
             ChatCompletionMessage::assistant("Trying again")
                 .tool_calls(vec![fs_call.into(), shell_call.into()]),
+            ChatCompletionMessage::assistant("Done"),
+            ChatCompletionMessage::assistant("Finished"),
+            ChatCompletionMessage::assistant("Complete"),
         ])
         .workflow(workflow);
 
@@ -264,6 +268,9 @@ async fn test_tool_failure_tracking_retry_message_format() {
         .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result_error)])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant("Reading file").tool_calls(vec![tool_call.into()]),
+            ChatCompletionMessage::assistant("Done"),
+            ChatCompletionMessage::assistant("Finished"),
+            ChatCompletionMessage::assistant("Complete"),
         ])
         .workflow(workflow);
 
@@ -286,6 +293,9 @@ async fn test_tool_failure_tracking_disabled_when_no_limit() {
         .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result_error)])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant("Reading file").tool_calls(vec![tool_call.into()]),
+            ChatCompletionMessage::assistant("Done"),
+            ChatCompletionMessage::assistant("Finished"),
+            ChatCompletionMessage::assistant("Complete"),
         ]);
     // No max_tool_failure_per_turn set (None is the default)
 

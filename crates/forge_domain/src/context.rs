@@ -50,10 +50,17 @@ fn filter_base64_images_from_tool_output(output: &ToolOutput) -> ToolOutput {
 }
 
 impl ContextMessage {
-    pub fn content(&self) -> Option<&str> {
+    pub fn content(&self) -> Option<String> {
         match self {
-            ContextMessage::Text(text_message) => Some(&text_message.content),
-            ContextMessage::Tool(_) => None,
+            ContextMessage::Text(text_message) => Some(text_message.content.clone()),
+            ContextMessage::Tool(tool_result) => {
+                let content = tool_result.output.content();
+                if content.is_empty() {
+                    None
+                } else {
+                    Some(content)
+                }
+            },
             ContextMessage::Image(_) => None,
         }
     }
@@ -303,7 +310,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn system_prompt(&self) -> Option<&str> {
+    pub fn system_prompt(&self) -> Option<String> {
         self.messages
             .iter()
             .find(|message| message.has_role(Role::System))
