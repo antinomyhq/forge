@@ -5,11 +5,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use forge_domain::Conversation;
+use lazy_static::lazy_static;
 use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use sysinfo::System;
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use tokio::time::Duration;
 
 use super::Result;
 use crate::can_track::can_track;
@@ -30,6 +30,29 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 const PARAPHRASE: &str = "forge_key";
 
 const DEFAULT_CLIENT_ID: &str = "<anonymous>";
+
+// Cached system information that doesn't change during application lifetime
+lazy_static! {
+    static ref CACHED_CORES: usize = System::physical_core_count().unwrap_or(0);
+    static ref CACHED_CLIENT_ID: String = {
+        let mut builder = IdBuilder::new(Encryption::SHA256);
+        builder
+            .add_component(HWIDComponent::SystemID)
+            .add_component(HWIDComponent::CPUCores);
+        builder
+            .build(PARAPHRASE)
+            .unwrap_or(DEFAULT_CLIENT_ID.to_string())
+    };
+    static ref CACHED_OS_NAME: String = System::long_os_version().unwrap_or("Unknown".to_string());
+    static ref CACHED_USER: String = whoami::username();
+    static ref CACHED_CWD: Option<String> = std::env::current_dir()
+        .ok()
+        .and_then(|path| path.to_str().map(|s| s.to_string()));
+    static ref CACHED_PATH: Option<String> = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.to_str().map(|s| s.to_string()));
+    static ref CACHED_ARGS: Vec<String> = std::env::args().skip(1).collect();
+}
 
 #[derive(Clone)]
 pub struct Tracker {
@@ -74,16 +97,6 @@ impl Tracker {
         let login_value = login.into();
         let id = Identity { login: login_value };
         self.dispatch(EventKind::Login(id)).await.ok();
-    }
-
-    pub async fn init_ping(&'static self, duration: Duration) {
-        let mut interval = tokio::time::interval(duration);
-        tokio::task::spawn(async move {
-            loop {
-                interval.tick().await;
-                let _ = self.dispatch(EventKind::Ping).await;
-            }
-        });
     }
 
     pub async fn dispatch(&self, event_kind: EventKind) -> Result<()> {
@@ -190,18 +203,12 @@ async fn email() -> HashSet<String> {
 
 // Generates a random client ID
 fn client_id() -> String {
-    let mut builder = IdBuilder::new(Encryption::SHA256);
-    builder
-        .add_component(HWIDComponent::SystemID)
-        .add_component(HWIDComponent::CPUCores);
-    builder
-        .build(PARAPHRASE)
-        .unwrap_or(DEFAULT_CLIENT_ID.to_string())
+    CACHED_CLIENT_ID.clone()
 }
 
 // Get the number of CPU cores
 fn cores() -> usize {
-    System::physical_core_count().unwrap_or(0)
+    *CACHED_CORES
 }
 
 // Get the uptime in minutes
@@ -215,27 +222,23 @@ fn version() -> String {
 }
 
 fn user() -> String {
-    whoami::username()
+    CACHED_USER.clone()
 }
 
 fn cwd() -> Option<String> {
-    std::env::current_dir()
-        .ok()
-        .and_then(|path| path.to_str().map(|s| s.to_string()))
+    CACHED_CWD.clone()
 }
 
 fn path() -> Option<String> {
-    std::env::current_exe()
-        .ok()
-        .and_then(|path| path.to_str().map(|s| s.to_string()))
+    CACHED_PATH.clone()
 }
 
 fn args() -> Vec<String> {
-    std::env::args().skip(1).collect()
+    CACHED_ARGS.clone()
 }
 
 fn os_name() -> String {
-    System::long_os_version().unwrap_or("Unknown".to_string())
+    CACHED_OS_NAME.clone()
 }
 
 // Should take arbitrary text and be able to extract email addresses
@@ -252,8 +255,6 @@ fn parse_email(text: String) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use lazy_static::lazy_static;
-
     use super::*;
 
     lazy_static! {
