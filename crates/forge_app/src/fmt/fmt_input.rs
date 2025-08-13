@@ -11,7 +11,7 @@ impl FormatContent for Tools {
     fn to_content(&self, env: &Environment) -> Option<ContentFormat> {
         let display_path_for = |path: &str| format_display_path(Path::new(path), env.cwd.as_path());
 
-        let output = match self {
+        match self {
             Tools::ForgeToolFsRead(input) => {
                 let display_path = display_path_for(&input.path);
                 let is_explicit_range = input.start_line.is_some() || input.end_line.is_some();
@@ -30,7 +30,7 @@ impl FormatContent for Tools {
                         (None, None) => {}
                     }
                 };
-                TitleFormat::debug("Read").sub_title(subtitle).into()
+                Some(TitleFormat::debug("Read").sub_title(subtitle).into())
             }
             Tools::ForgeToolFsCreate(input) => {
                 let display_path = display_path_for(&input.path);
@@ -39,7 +39,7 @@ impl FormatContent for Tools {
                 } else {
                     "Create"
                 };
-                TitleFormat::debug(title).sub_title(display_path).into()
+                Some(TitleFormat::debug(title).sub_title(display_path).into())
             }
             Tools::ForgeToolFsSearch(input) => {
                 let formatted_dir = display_path_for(&input.path);
@@ -51,50 +51,57 @@ impl FormatContent for Tools {
                     (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
                     (None, None) => format!("Search at {formatted_dir}"),
                 };
-                TitleFormat::debug(title).into()
+                Some(TitleFormat::debug(title).into())
             }
             Tools::ForgeToolFsRemove(input) => {
                 let display_path = display_path_for(&input.path);
-                TitleFormat::debug("Remove").sub_title(display_path).into()
+                Some(TitleFormat::debug("Remove").sub_title(display_path).into())
             }
             Tools::ForgeToolFsPatch(input) => {
                 let display_path = display_path_for(&input.path);
-                TitleFormat::debug(input.operation.as_ref())
-                    .sub_title(display_path)
-                    .into()
+                Some(
+                    TitleFormat::debug(input.operation.as_ref())
+                        .sub_title(display_path)
+                        .into(),
+                )
             }
             Tools::ForgeToolFsUndo(input) => {
                 let display_path = display_path_for(&input.path);
-                TitleFormat::debug("Undo").sub_title(display_path).into()
+                Some(TitleFormat::debug("Undo").sub_title(display_path).into())
             }
-            Tools::ForgeToolProcessShell(input) => {
+            Tools::ForgeToolProcessShell(input) => Some(
                 TitleFormat::debug(format!("Execute [{}]", env.shell))
                     .sub_title(&input.command)
-                    .into()
-            }
+                    .into(),
+            ),
             Tools::ForgeToolNetFetch(input) => {
-                TitleFormat::debug("GET").sub_title(&input.url).into()
+                Some(TitleFormat::debug("GET").sub_title(&input.url).into())
             }
-            Tools::ForgeToolFollowup(input) => TitleFormat::debug("Follow-up")
-                .sub_title(&input.question)
-                .into(),
+            Tools::ForgeToolFollowup(input) => Some(
+                TitleFormat::debug("Follow-up")
+                    .sub_title(&input.question)
+                    .into(),
+            ),
             Tools::ForgeToolAttemptCompletion(input) => {
-                ContentFormat::Markdown(input.result.clone())
+                Some(ContentFormat::Markdown(input.result.clone()))
             }
             Tools::ForgeToolTaskListAppend(_) => {
-                TitleFormat::debug("Task +1 ADD".to_string()).into()
+                Some(TitleFormat::debug("Task +1 ADD".to_string()).into())
             }
             Tools::ForgeToolTaskListAppendMultiple(input) => {
-                TitleFormat::debug(format!("Task +{} ADD", input.tasks.len())).into()
+                Some(TitleFormat::debug(format!("Task +{} ADD", input.tasks.len())).into())
             }
             Tools::ForgeToolTaskListUpdate(_) => {
-                TitleFormat::debug("Task Update".to_string()).into()
+                Some(TitleFormat::debug("Task Update".to_string()).into())
             }
-            Tools::ForgeToolTaskListList(_) => TitleFormat::debug("Task Read".to_string()).into(),
-            Tools::ForgeToolTaskListClear(_) => TitleFormat::debug("Task Clear".to_string()).into(),
-        };
-
-        Some(output)
+            Tools::ForgeToolTaskListList(_) => {
+                Some(TitleFormat::debug("Task Read".to_string()).into())
+            }
+            Tools::ForgeToolTaskListClear(_) => {
+                Some(TitleFormat::debug("Task Clear".to_string()).into())
+            }
+            Tools::ForgeToolPlanCreate(_) => None,
+        }
     }
 }
 

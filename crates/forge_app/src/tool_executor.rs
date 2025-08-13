@@ -8,9 +8,9 @@ use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
 use crate::services::ShellService;
 use crate::{
-    AppConfigService, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
-    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
-    NetFetchService, PolicyService, WorkflowService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
+    PlanCreateService,
 };
 
 pub struct ToolExecutor<S> {
@@ -28,7 +28,8 @@ impl<
         + ShellService
         + FollowUpService
         + ConversationService
-        + WorkflowService
+        + EnvironmentService
+        + PlanCreateService
         + PolicyService
         + EnvironmentService
         + AppConfigService,
@@ -307,6 +308,17 @@ impl<
                 let before = context.tasks.clone();
                 context.tasks.clear();
                 Operation::TaskListClear { _input: input, before, after: context.tasks.clone() }
+            }
+            Tools::ForgeToolPlanCreate(input) => {
+                let output = self
+                    .services
+                    .create_plan(
+                        input.plan_name.clone(),
+                        input.version.clone(),
+                        input.content.clone(),
+                    )
+                    .await?;
+                (input, output).into()
             }
         })
     }
