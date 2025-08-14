@@ -8,3 +8,6 @@ policies:
   - permission: allow
     rule:
       command: "*"
+  - permission: allow
+    rule:
+      url: "*"
