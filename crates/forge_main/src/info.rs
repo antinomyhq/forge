@@ -81,6 +81,10 @@ impl From<&Environment> for Info {
             .add_key_value(
                 "Checkpoints",
                 format_path_for_display(env, &env.snapshot_path()),
+            )
+            .add_key_value(
+                "Policies",
+                format_path_for_display(env, &env.permissions_path()),
             );
 
         info
