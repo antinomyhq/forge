@@ -906,7 +906,7 @@ mod tests {
             Operation::Read { message, .. } => {
                 assert_eq!(
                     message,
-                    "Search in directory/file: /home/user/project for pattern: fn main"
+                    "Search in directory/file: `/home/user/project` for pattern: fn main"
                 );
             }
             _ => panic!("Expected Read operation"),
@@ -935,7 +935,7 @@ mod tests {
 
         match operation {
             Operation::Read { message, .. } => {
-                assert_eq!(message, "Search in directory/file: /home/user/project");
+                assert_eq!(message, "Search in directory/file: `/home/user/project`");
             }
             _ => panic!("Expected Read operation"),
         }
@@ -965,7 +965,7 @@ mod tests {
             Operation::Read { message, .. } => {
                 assert_eq!(
                     message,
-                    "Search in directory/file: /home/user/project in '*.rs' files"
+                    "Search in directory/file: `/home/user/project` in '*.rs' files"
                 );
             }
             _ => panic!("Expected Read operation"),
@@ -996,7 +996,7 @@ mod tests {
             Operation::Read { message, .. } => {
                 assert_eq!(
                     message,
-                    "Search in directory/file: /home/user/project for pattern: 'fn main' in '*.rs' files"
+                    "Search in directory/file: `/home/user/project` for pattern: 'fn main' in '*.rs' files"
                 );
             }
             _ => panic!("Expected Read operation"),
