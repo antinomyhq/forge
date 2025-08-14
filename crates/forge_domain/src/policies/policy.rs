@@ -109,6 +109,27 @@ impl Policy {
     }
 }
 
+impl Display for Policy {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Policy::Simple { permission, rule } => {
+                write!(f, "{permission} {rule}")
+            }
+            Policy::All { all: and } => {
+                let policies: Vec<String> = and.iter().map(|p| p.to_string()).collect();
+                write!(f, "({})", policies.join(" AND "))
+            }
+            Policy::Any { any: or } => {
+                let policies: Vec<String> = or.iter().map(|p| p.to_string()).collect();
+                write!(f, "({})", policies.join(" OR "))
+            }
+            Policy::Not { not } => {
+                write!(f, "NOT ({not})")
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -265,26 +286,5 @@ mod tests {
         assert_eq!(actual.len(), 2);
         assert_eq!(actual[0], &rule1);
         assert_eq!(actual[1], &rule2);
-    }
-}
-
-impl Display for Policy {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Policy::Simple { permission, rule } => {
-                write!(f, "{permission} {rule}")
-            }
-            Policy::All { all: and } => {
-                let policies: Vec<String> = and.iter().map(|p| p.to_string()).collect();
-                write!(f, "({})", policies.join(" AND "))
-            }
-            Policy::Any { any: or } => {
-                let policies: Vec<String> = or.iter().map(|p| p.to_string()).collect();
-                write!(f, "({})", policies.join(" OR "))
-            }
-            Policy::Not { not } => {
-                write!(f, "NOT ({not})")
-            }
-        }
     }
 }
