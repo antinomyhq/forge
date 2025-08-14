@@ -8,9 +8,9 @@ use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
 use crate::services::ShellService;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService,
-    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
-    NetFetchService, PlanCreateService, PolicyService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
+    PlanCreateService, PolicyService,
 };
 
 pub struct ToolExecutor<S> {
