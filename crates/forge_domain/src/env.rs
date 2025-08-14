@@ -78,7 +78,7 @@ impl Environment {
         self.base_path.join("agents")
     }
     pub fn permissions_path(&self) -> PathBuf {
-        self.base_path.join("policies.yaml")
+        self.base_path.join("permissions.yaml")
     }
 
     pub fn mcp_local_config(&self) -> PathBuf {

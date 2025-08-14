@@ -26,7 +26,7 @@ impl PolicyConfig {
     /// Create a policies collection with sensible defaults
     /// Loads from default_policies.yml for easier debugging and maintenance
     pub fn with_defaults() -> Self {
-        let yaml_content = include_str!("./default_policies.yml");
+        let yaml_content = include_str!("./permissions.default.yaml");
         serde_yml::from_str(yaml_content)
             .expect("Failed to parse default policies YAML. This should never happen as the YAML is embedded.")
     }
