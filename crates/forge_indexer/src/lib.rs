@@ -18,4 +18,5 @@ pub mod qdrant;
 pub use domain::*;
 pub use loader::*;
 pub use pipeline::*;
+pub use qdrant::{QdrantStore, SearchResult, QueryRequest};
 pub use traits::*;

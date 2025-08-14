@@ -3,6 +3,10 @@ name = "forge_indexer"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+path="src/main.rs"
+name="indexer"
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
@@ -20,3 +24,5 @@ tree-sitter-rust.workspace = true
 async-openai = "0.29.0"
 qdrant-client = "1.15.0"
 uuid = { version = "1.0", features = ["v4"] }
+dotenv.workspace = true
+clap = { version = "4.0", features = ["derive"] }

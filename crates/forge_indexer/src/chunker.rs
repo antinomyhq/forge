@@ -20,7 +20,8 @@ impl Chunker for CodeSplitter {
     type Input = Document;
     type Output = Chunk;
     fn chunk(&self, input: Self::Input) -> Vec<Self::Output> {
-        self.0
+        let chunks = self
+            .0
             .chunk_char_indices(&input.content)
             .map(|chunk| {
                 Chunk::new(
@@ -28,6 +29,14 @@ impl Chunker for CodeSplitter {
                     Position::new(chunk.char_offset, chunk.char_offset + chunk.chunk.len()),
                 )
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+
+        println!(
+            "chunked document({}) into {} chunks",
+            input.path.display(),
+            chunks.len()
+        );
+
+        chunks
     }
 }

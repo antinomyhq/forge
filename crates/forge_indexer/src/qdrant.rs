@@ -2,10 +2,29 @@ use std::collections::HashMap;
 
 use qdrant_client::Qdrant;
 use qdrant_client::config::QdrantConfig;
-use qdrant_client::qdrant::{PointStruct, UpsertPoints, Vector, Vectors};
+use qdrant_client::qdrant::vectors_config::Config;
+use qdrant_client::qdrant::{
+    CreateCollection, Distance, PointStruct, UpsertPoints, Vector, VectorParams, Vectors,
+    VectorsConfig, SearchPoints, WithPayloadSelector,
+};
 use uuid::Uuid;
 
-use crate::{EmbeddedChunk, StorageWriter};
+use crate::{EmbeddedChunk, StorageWriter, StorageReader};
+
+#[derive(Debug, Clone)]
+pub struct SearchResult {
+    pub content: String,
+    pub score: f32,
+    pub start_char: usize,
+    pub end_char: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryRequest {
+    pub embedding: Vec<f32>,
+    pub limit: u64,
+    pub score_threshold: Option<f32>,
+}
 
 pub struct QdrantStore {
     client: Qdrant,
@@ -16,6 +35,48 @@ impl QdrantStore {
     pub fn try_new(api_key: String, url: String, collection_name: String) -> anyhow::Result<Self> {
         let client = QdrantConfig::from_url(&url).api_key(api_key).build()?;
         Ok(Self { client, collection_name })
+    }
+
+    pub async fn delete_collection(&self) -> anyhow::Result<()> {
+        self.client.delete_collection(&self.collection_name).await?;
+        Ok(())
+    }
+    async fn ensure_collection_exists(&self, dims: u64) -> anyhow::Result<()> {
+        // First check if collection exists
+        match self.client.collection_exists(&self.collection_name).await {
+            Ok(exists) if exists => Ok(()),
+            Ok(_) => {
+                // Collection doesn't exist, attempt to create it
+                let create_collection = CreateCollection {
+                    collection_name: self.collection_name.to_string(),
+                    vectors_config: Some(VectorsConfig {
+                        config: Some(Config::Params(VectorParams {
+                            size: dims,
+                            distance: Distance::Cosine.into(),
+                            ..Default::default()
+                        })),
+                    }),
+                    ..Default::default()
+                };
+
+                // Attempt to create collection - if another thread already created it,
+                // this will fail gracefully and we can continue
+                match self.client.create_collection(create_collection).await {
+                    Ok(_) => Ok(()),
+                    Err(e) => {
+                        // Check if the error is due to collection already existing
+                        // In Qdrant, creating an existing collection returns an error
+                        // but we can verify by checking if it exists again
+                        if self.client.collection_exists(&self.collection_name).await? {
+                            Ok(())
+                        } else {
+                            Err(e.into())
+                        }
+                    }
+                }
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 }
 
@@ -58,7 +119,12 @@ impl StorageWriter for QdrantStore {
     type Input = Vec<EmbeddedChunk>;
     type Output = usize;
     async fn write(&self, input: Self::Input) -> anyhow::Result<Self::Output> {
+        println!("embedding chunks: {}", input.len());
+        let dims = input[0].embedding.len() as u64;
         let points: Vec<PointStruct> = input.into_iter().map(From::from).collect();
+
+        // Ensure collection exists - safe for parallel environments
+        self.ensure_collection_exists(dims).await?;
 
         let points_count = points.len();
         let upsert_request = UpsertPoints {
@@ -71,5 +137,67 @@ impl StorageWriter for QdrantStore {
         let _response = self.client.upsert_points(upsert_request).await?;
         // Return the number of successfully upserted points
         Ok(points_count)
+    }
+}
+
+#[async_trait::async_trait]
+impl StorageReader for QdrantStore {
+    type Query = QueryRequest;
+    type QueryResult = Vec<SearchResult>;
+
+    async fn query(&self, query: Self::Query) -> anyhow::Result<Self::QueryResult> {
+        let search_request = SearchPoints {
+            collection_name: self.collection_name.clone(),
+            vector: query.embedding,
+            vector_name: None,
+            limit: query.limit,
+            score_threshold: query.score_threshold,
+            with_payload: Some(WithPayloadSelector {
+                selector_options: Some(qdrant_client::qdrant::with_payload_selector::SelectorOptions::Enable(true)),
+            }),
+            filter: None,
+            params: None,
+            offset: None,
+            with_vectors: None,
+            read_consistency: None,
+            shard_key_selector: None,
+            sparse_indices: None,
+            timeout: None,
+        };
+
+        let search_result = self.client.search_points(search_request).await?;
+        
+        let results: anyhow::Result<Vec<SearchResult>> = search_result
+            .result
+            .into_iter()
+            .map(|scored_point| {
+                let payload = scored_point.payload;
+                
+                let content = payload
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Missing content in payload"))?
+                    .to_string();
+                
+                let start_char = payload
+                    .get("start_char")
+                    .and_then(|v| v.as_integer())
+                    .ok_or_else(|| anyhow::anyhow!("Missing start_char in payload"))? as usize;
+                
+                let end_char = payload
+                    .get("end_char")
+                    .and_then(|v| v.as_integer())
+                    .ok_or_else(|| anyhow::anyhow!("Missing end_char in payload"))? as usize;
+
+                Ok(SearchResult {
+                    content,
+                    score: scored_point.score,
+                    start_char,
+                    end_char,
+                })
+            })
+            .collect();
+
+        results
     }
 }

@@ -17,33 +17,11 @@ pub struct FileConfig {
     pub root_path: PathBuf,
     /// File extensions to include (empty means all files)
     pub extensions: Vec<String>,
-    /// Patterns to ignore (directories or files containing these patterns)
-    pub ignore_patterns: Vec<String>,
-    /// Maximum file size in bytes (None means no limit)
-    pub max_file_size: Option<usize>,
 }
 
 impl FileConfig {
     pub fn new(root_path: impl Into<PathBuf>) -> Self {
-        Self {
-            root_path: root_path.into(),
-            extensions: Vec::new(),
-            ignore_patterns: Vec::new(),
-            max_file_size: None,
-        }
-    }
-
-    pub fn test() -> Self {
-        Self::new("./test")
-            .extensions(vec!["rs".to_string(), "md".to_string()])
-            .ignore_patterns(vec!["target".to_string(), ".git".to_string()])
-            .max_file_size(1024_usize * 1024) // 1MB
-    }
-}
-
-impl Default for FileConfig {
-    fn default() -> Self {
-        Self::test()
+        Self { root_path: root_path.into(), extensions: Vec::new() }
     }
 }
 
@@ -58,23 +36,11 @@ impl FileLoader {
         Self { config }
     }
 
-    pub fn test() -> Self {
-        Self::new(FileConfig::test())
-    }
-
     fn should_include_file(&self, entry: &walkdir::DirEntry) -> bool {
         let path = entry.path();
 
         // Skip directories
         if !entry.file_type().is_file() {
-            return false;
-        }
-
-        // Check file size if limit is set
-        if let Some(max_size) = self.config.max_file_size
-            && let Ok(metadata) = entry.metadata()
-            && metadata.len() > max_size as u64
-        {
             return false;
         }
 
@@ -87,17 +53,6 @@ impl FileLoader {
             } else {
                 return false;
             }
-        }
-
-        // Check ignore patterns
-        let path_str = path.to_string_lossy();
-        if self
-            .config
-            .ignore_patterns
-            .iter()
-            .any(|pattern| path_str.contains(pattern))
-        {
-            return false;
         }
 
         true
@@ -122,7 +77,10 @@ impl Loader for FileLoader {
             let walker = WalkDir::new(&loader.config.root_path)
                 .into_iter()
                 .filter_map(|e| e.ok())
-                .filter(|entry| loader.should_include_file(entry));
+                .filter(|entry| {
+                    
+                    loader.should_include_file(entry)
+                });
 
             for entry in walker {
                 let path = entry.path().to_path_buf();
