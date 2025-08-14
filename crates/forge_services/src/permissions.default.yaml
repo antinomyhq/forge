@@ -4,41 +4,7 @@ policies:
       read: "**/*"
   - permission: allow
     rule:
-      command: awk*
+      write: "**/*"
   - permission: allow
     rule:
-      command: cat*
-  - permission: allow
-    rule:
-      command: find*
-  - permission: allow
-    rule:
-      command: grep*
-  - permission: allow
-    rule:
-      command: head*
-  - permission: allow
-    rule:
-      command: ls*
-  - permission: allow
-    rule:
-      command: sed*
-  - permission: allow
-    rule:
-      command: sort*
-  - permission: allow
-    rule:
-      command: tail*
-  - permission: allow
-    rule:
-      command: uniq*
-  - permission: allow
-    rule:
-      command: wc*
-  - permission: allow
-    rule:
-      url: "*"
-  - permission: deny
-    rule:
-      command: "sudo*"
-      dir: "**/*"
+      command: "*"
