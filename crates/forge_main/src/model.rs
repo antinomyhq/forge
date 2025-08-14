@@ -168,6 +168,7 @@ impl ForgeCommandManager {
             "/compact" => Ok(Command::Compact),
             "/new" => Ok(Command::New),
             "/info" => Ok(Command::Info),
+            "/usage" => Ok(Command::Usage),
             "/exit" => Ok(Command::Exit),
             "/update" => Ok(Command::Update),
             "/dump" => {
@@ -232,6 +233,9 @@ pub enum Command {
     /// This can be triggered with the '/info' command.
     #[strum(props(usage = "Display system information"))]
     Info,
+    /// Display usage information (tokens & requests).
+    #[strum(props(usage = "Shows usage information (tokens & requests)"))]
+    Usage,
     /// Exit the application without any further action.
     #[strum(props(usage = "Exit the application"))]
     Exit,
@@ -295,6 +299,7 @@ impl Command {
             Command::Message(_) => "/message",
             Command::Update => "/update",
             Command::Info => "/info",
+            Command::Usage => "/usage",
             Command::Exit => "/exit",
             Command::Forge => "/forge",
             Command::Muse => "/muse",
