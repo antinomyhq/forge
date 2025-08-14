@@ -337,7 +337,6 @@ pub trait PolicyService: Send + Sync {
     async fn check_operation_permission(
         &self,
         operation: &forge_domain::Operation,
-        app_config: &mut AppConfig,
     ) -> anyhow::Result<PolicyDecision>;
 }
 
@@ -702,10 +701,9 @@ impl<I: Services> PolicyService for I {
     async fn check_operation_permission(
         &self,
         operation: &forge_domain::Operation,
-        app_config: &mut AppConfig,
     ) -> anyhow::Result<PolicyDecision> {
         self.policy_service()
-            .check_operation_permission(operation, app_config)
+            .check_operation_permission(operation)
             .await
     }
 }

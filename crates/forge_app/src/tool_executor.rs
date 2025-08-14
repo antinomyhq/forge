@@ -8,7 +8,7 @@ use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
 use crate::services::ShellService;
 use crate::{
-    AppConfigService, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService,
     FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
     NetFetchService, PlanCreateService, PolicyService,
 };
@@ -30,9 +30,7 @@ impl<
         + ConversationService
         + EnvironmentService
         + PlanCreateService
-        + PolicyService
-        + EnvironmentService
-        + AppConfigService,
+        + PolicyService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -47,16 +45,7 @@ impl<
     ) -> anyhow::Result<()> {
         let operation = tool_input.to_policy_operation(self.services.get_environment().cwd);
         if let Some(operation) = operation {
-            let mut app_config = self.services.read_app_config().await.unwrap_or_default();
-            let decision = self
-                .services
-                .check_operation_permission(&operation, &mut app_config)
-                .await?;
-
-            // Save app_config if it was modified
-            if let Err(e) = self.services.write_app_config(&app_config).await {
-                tracing::error!("Failed to save app config: {e}");
-            }
+            let decision = self.services.check_operation_permission(&operation).await?;
 
             // Send any policy message to the user
             if let Some(message) = decision.message {

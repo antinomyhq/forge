@@ -7,7 +7,6 @@ use forge_app::domain::{
     ExecuteRule, Fetch, Operation, Permission, Policy, PolicyConfig, PolicyEngine, ReadRule, Rule,
     WriteRule,
 };
-use forge_app::dto::AppConfig;
 use forge_app::{PolicyDecision, PolicyService};
 use strum_macros::{Display, EnumIter};
 
@@ -128,26 +127,19 @@ where
 
     /// Get or create policies, prompting user if needed
     #[async_recursion::async_recursion]
-    async fn get_or_create_policies(
-        &self,
-        app_config: &mut AppConfig,
-    ) -> anyhow::Result<(PolicyConfig, Option<String>)>
+    async fn get_or_create_policies(&self) -> anyhow::Result<(PolicyConfig, Option<String>)>
     where
         I: UserInfra,
     {
         if let Some(policies) = self.read_policies().await? {
             Ok((policies, None))
         } else {
-            if !app_config.should_create_default_perms.unwrap_or(true) {
-                return Ok((PolicyConfig::new(), None));
-            }
-
             self.init_policies().await?;
             let success_msg = format!(
                 "Default policies file created at `{}`. You can always review and modify it as needed.",
                 self.permissions_path().display()
             );
-            let (policies, _) = self.get_or_create_policies(app_config).await?;
+            let (policies, _) = self.get_or_create_policies().await?;
             Ok((policies, Some(success_msg)))
         }
     }
@@ -168,9 +160,8 @@ where
     async fn check_operation_permission(
         &self,
         operation: &Operation,
-        app_config: &mut AppConfig,
     ) -> anyhow::Result<PolicyDecision> {
-        let (policies, config_message) = self.get_or_create_policies(app_config).await?;
+        let (policies, config_message) = self.get_or_create_policies().await?;
 
         let engine = PolicyEngine::new(&policies);
         let permission = engine.can_perform(operation);
