@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use forge_display::TitleFormat;
 use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::error::Error;
@@ -47,9 +48,14 @@ impl<
         if let Some(operation) = operation {
             let decision = self.services.check_operation_permission(&operation).await?;
 
-            // Send any policy message to the user
-            if let Some(message) = decision.message {
-                context.send_text(message).await?;
+            // Send custom policy message to the user when a policy file was created
+            if let Some(policy_path) = decision.path {
+                context
+                    .send_text(
+                        TitleFormat::info("Policy Generated")
+                            .sub_title(policy_path.display().to_string()),
+                    )
+                    .await?;
             }
             if !decision.allowed {
                 return Err(anyhow::anyhow!("Operation denied by policy or user."));

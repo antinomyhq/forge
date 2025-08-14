@@ -100,7 +100,7 @@ pub struct FsUndoOutput {
 #[derive(Debug)]
 pub struct PolicyDecision {
     pub allowed: bool,
-    pub message: Option<String>,
+    pub path: Option<PathBuf>,
 }
 
 #[async_trait::async_trait]
@@ -333,7 +333,8 @@ pub trait AgentLoaderService: Send + Sync {
 #[async_trait::async_trait]
 pub trait PolicyService: Send + Sync {
     /// Check if an operation is allowed and handle user confirmation if needed
-    /// Returns PolicyDecision with allowed flag and optional message
+    /// Returns PolicyDecision with allowed flag and optional policy file path
+    /// (only when created)
     async fn check_operation_permission(
         &self,
         operation: &forge_domain::Operation,

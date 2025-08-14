@@ -50,20 +50,14 @@ where
     async fn add_policy_for_operation(
         &self,
         operation: &Operation,
-    ) -> anyhow::Result<Option<String>>
+    ) -> anyhow::Result<Option<PathBuf>>
     where
         I: UserInfra,
     {
         if let Some(new_policy) = create_policy_for_operation(operation, None) {
-            let policy_yml = serde_yml::to_string(&new_policy).unwrap_or_default();
+            // TODO: Can return a diff later
             self.modify_policy(new_policy).await?;
-
-            // Return the policy modification message
-            let message = format!(
-                "Policy {policy_yml} added to {}",
-                self.permissions_path().display()
-            );
-            Ok(Some(message))
+            Ok(Some(self.permissions_path()))
         } else {
             Ok(None)
         }
@@ -127,7 +121,7 @@ where
 
     /// Get or create policies, prompting user if needed
     #[async_recursion::async_recursion]
-    async fn get_or_create_policies(&self) -> anyhow::Result<(PolicyConfig, Option<String>)>
+    async fn get_or_create_policies(&self) -> anyhow::Result<(PolicyConfig, Option<PathBuf>)>
     where
         I: UserInfra,
     {
@@ -135,12 +129,8 @@ where
             Ok((policies, None))
         } else {
             self.init_policies().await?;
-            let success_msg = format!(
-                "Default policies file created at `{}`. You can always review and modify it as needed.",
-                self.permissions_path().display()
-            );
             let (policies, _) = self.get_or_create_policies().await?;
-            Ok((policies, Some(success_msg)))
+            Ok((policies, Some(self.permissions_path())))
         }
     }
 }
@@ -161,14 +151,14 @@ where
         &self,
         operation: &Operation,
     ) -> anyhow::Result<PolicyDecision> {
-        let (policies, config_message) = self.get_or_create_policies().await?;
+        let (policies, path) = self.get_or_create_policies().await?;
 
         let engine = PolicyEngine::new(&policies);
         let permission = engine.can_perform(operation);
 
         match permission {
-            Permission::Deny => Ok(PolicyDecision { allowed: false, message: config_message }),
-            Permission::Allow => Ok(PolicyDecision { allowed: true, message: config_message }),
+            Permission::Deny => Ok(PolicyDecision { allowed: false, path }),
+            Permission::Allow => Ok(PolicyDecision { allowed: true, path }),
             Permission::Confirm => {
                 // Request user confirmation using UserInfra
                 let confirmation_msg = match operation {
@@ -192,20 +182,14 @@ where
                     .await?
                 {
                     Some(PolicyPermission::Accept) => {
-                        Ok(PolicyDecision { allowed: true, message: config_message })
+                        Ok(PolicyDecision { allowed: true, path })
                     }
                     Some(PolicyPermission::AcceptAndRemember) => {
-                        let policy_message = self.add_policy_for_operation(operation).await?;
-                        let combined_message = match (config_message, policy_message) {
-                            (Some(config), Some(policy)) => Some(format!("{config}\n{policy}")),
-                            (Some(config), None) => Some(config),
-                            (None, Some(policy)) => Some(policy),
-                            (None, None) => None,
-                        };
-                        Ok(PolicyDecision { allowed: true, message: combined_message })
+                        let update_path = self.add_policy_for_operation(operation).await?;
+                        Ok(PolicyDecision { allowed: true, path: update_path.or(path) })
                     }
                     Some(PolicyPermission::Reject) | None => {
-                        Ok(PolicyDecision { allowed: false, message: config_message })
+                        Ok(PolicyDecision { allowed: false, path })
                     }
                 }
             }
