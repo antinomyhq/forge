@@ -505,24 +505,24 @@ pub mod tests {
         }
 
         /// Prompts the user to select a single option from a list
-        async fn select_one(
+        async fn select_one<T: std::fmt::Display + Send + 'static>(
             &self,
             _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<String>> {
+            options: Vec<T>,
+        ) -> anyhow::Result<Option<T>> {
             // For testing, we can just return the first option
             if options.is_empty() {
                 return Err(anyhow::anyhow!("No options provided"));
             }
-            Ok(Some(options[0].clone()))
+            Ok(Some(options.into_iter().next().unwrap()))
         }
 
         /// Prompts the user to select multiple options from a list
-        async fn select_many(
+        async fn select_many<T: std::fmt::Display + Clone + Send + 'static>(
             &self,
             _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<Vec<String>>> {
+            options: Vec<T>,
+        ) -> anyhow::Result<Option<Vec<T>>> {
             // For testing, we can just return all options
             if options.is_empty() {
                 return Err(anyhow::anyhow!("No options provided"));
