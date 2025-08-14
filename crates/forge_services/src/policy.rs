@@ -46,6 +46,14 @@ where
         self.infra.get_environment().permissions_path()
     }
 
+    /// Create a policies collection with sensible defaults
+    /// Loads from default_policies.yml for easier debugging and maintenance
+    fn load_default_policies() -> PolicyConfig {
+        let yaml_content = include_str!("./permissions.default.yaml");
+        serde_yml::from_str(yaml_content)
+            .expect("Failed to parse default policies YAML. This should never happen as the YAML is embedded.")
+    }
+
     /// Add a policy for a specific operation type
     async fn add_policy_for_operation(
         &self,
@@ -107,7 +115,7 @@ where
         }
 
         // Get the default policies content
-        let default_policies = PolicyConfig::with_defaults();
+        let default_policies = Self::load_default_policies();
         let content = serde_yml::to_string(&default_policies)
             .with_context(|| "Failed to serialize default policies to YAML")?;
 

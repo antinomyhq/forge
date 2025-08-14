@@ -23,14 +23,6 @@ impl PolicyConfig {
         Self { policies: BTreeSet::new() }
     }
 
-    /// Create a policies collection with sensible defaults
-    /// Loads from default_policies.yml for easier debugging and maintenance
-    pub fn with_defaults() -> Self {
-        let yaml_content = include_str!("./permissions.default.yaml");
-        serde_yml::from_str(yaml_content)
-            .expect("Failed to parse default policies YAML. This should never happen as the YAML is embedded.")
-    }
-
     /// Add a policy to the collection
     pub fn add_policy(mut self, policy: Policy) -> Self {
         self.policies.insert(policy);
@@ -90,85 +82,6 @@ mod tests {
         assert_eq!(actual.len(), 2);
         assert_eq!(actual[0].as_ref().unwrap(), &Permission::Allow);
         assert_eq!(actual[1], None); // Second rule doesn't match
-    }
-
-    #[test]
-    fn test_policies_with_defaults_creates_expected_policies() {
-        // Arrange
-
-        // Act
-        let actual = PolicyConfig::with_defaults();
-
-        // Assert
-        assert!(!actual.policies.is_empty());
-        // Should have at least the read policy and some execute policies
-        assert!(actual.policies.len() > 10);
-
-        // Check that it includes read access
-        let has_read_all = actual.policies.iter().any(|p| {
-            matches!(p.permission(), Some(Permission::Allow))
-                && matches!(
-                    p,
-                    Policy::Simple {
-                        rule: Rule::Read(ReadRule { read, dir: _ }),
-                        ..
-                    } if read == "**/*"
-                )
-        });
-        assert!(has_read_all, "Should include read access to all files");
-
-        // Check that it includes some common commands
-        let has_ls = actual.policies.iter().any(|p| {
-            matches!(
-                p,
-                Policy::Simple {
-                    rule: Rule::Execute(ExecuteRule { command,.. }),
-                    ..
-                } if command == "ls*"
-            )
-        });
-        assert!(has_ls, "Should include ls command");
-
-        // Check that it includes NetFetch access
-        let has_net_fetch_all = actual.policies.iter().any(|p| {
-            matches!(p.permission(), Some(Permission::Allow))
-                && matches!(
-                    p,
-                    Policy::Simple {
-                        rule: Rule::Fetch(Fetch { url, dir: _ }),
-                        ..
-                    } if url == "*"
-                )
-        });
-        assert!(
-            has_net_fetch_all,
-            "Should include NetFetch access to all URLs"
-        );
-    }
-    #[test]
-    fn test_default_policies_allow_all_net_fetch() {
-        let policies = PolicyConfig::with_defaults();
-        let operation = Operation::Fetch {
-            url: "https://example.com/api".to_string(),
-            cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Fetch content from URL: https://example.com/api".to_string(),
-        };
-
-        let permissions = policies.eval(&operation);
-
-        // Should find at least one Allow policy for NetFetch
-        let has_allow = permissions.iter().any(|permission| {
-            if let Some(permission) = permission {
-                *permission == Permission::Allow
-            } else {
-                false
-            }
-        });
-
-        assert!(
-            has_allow,
-            "Default policies should allow NetFetch operations"
-        );
     }
 
     #[cfg(test)]

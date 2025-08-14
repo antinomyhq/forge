@@ -1,7 +1,7 @@
 policies:
   - permission: allow
     rule:
-      read: '**/*'
+      read: "**/*"
   - permission: allow
     rule:
       command: awk*
@@ -37,8 +37,8 @@ policies:
       command: wc*
   - permission: allow
     rule:
-      url: '*'
+      url: "*"
   - permission: deny
     rule:
-      command: 'sudo*'
-      dir: '**/*'
+      command: "sudo*"
+      dir: "**/*"
