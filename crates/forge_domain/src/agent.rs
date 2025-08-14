@@ -10,6 +10,7 @@ use crate::compact::Compact;
 use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
+use crate::tool_alias::ToolAliasMapping;
 use crate::{
     Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
     ToolName, TopK, TopP,
@@ -270,6 +271,22 @@ impl Agent {
         if !subscribe_list.contains(&event_string) {
             subscribe_list.push(event_string);
         }
+    }
+    /// Resolve tool aliases to their fully qualified names
+    pub fn resolve_tool_aliases(&mut self) {
+        if let Some(tools) = &self.tools {
+            let mapping = ToolAliasMapping::new();
+            let resolved_tools = mapping.resolve_tools(tools);
+            self.tools = Some(resolved_tools);
+        }
+    }
+
+    /// Get resolved tools (with aliases expanded to full names)
+    pub fn get_resolved_tools(&self) -> Option<Vec<ToolName>> {
+        self.tools.as_ref().map(|tools| {
+            let mapping = ToolAliasMapping::new();
+            mapping.resolve_tools(tools)
+        })
     }
 }
 
@@ -638,5 +655,54 @@ mod tests {
             "string_ref".to_string(),
         ];
         assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_resolve_tool_aliases() {
+        let fixture = Agent::new("test").tools(vec![
+            ToolName::new("read"),
+            ToolName::new("write"),
+            ToolName::new("execute"),
+            ToolName::new("forge_tool_fs_search"), // Already fully qualified
+        ]);
+
+        let mut actual = fixture;
+        actual.resolve_tool_aliases();
+
+        let expected_tools = vec![
+            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("forge_tool_fs_create"),
+            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("forge_tool_fs_search"),
+        ];
+
+        assert_eq!(actual.tools, Some(expected_tools));
+    }
+
+    #[test]
+    fn test_get_resolved_tools() {
+        let fixture = Agent::new("test").tools(vec![
+            ToolName::new("read"),
+            ToolName::new("custom_tool"),
+            ToolName::new("write"),
+        ]);
+
+        let actual = fixture.get_resolved_tools().unwrap();
+        let expected = vec![
+            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("custom_tool"),
+            ToolName::new("forge_tool_fs_create"),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_tool_aliases_with_no_tools() {
+        let mut fixture = Agent::new("test");
+
+        fixture.resolve_tool_aliases();
+
+        assert_eq!(fixture.tools, None);
     }
 }
