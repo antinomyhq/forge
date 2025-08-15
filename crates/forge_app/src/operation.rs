@@ -492,7 +492,7 @@ impl Operation {
             }
             Operation::PlanCreate { input, output } => {
                 let elm = Element::new("plan_created")
-                    .attr("path", output.path)
+                    .attr("path", output.path.display().to_string())
                     .attr("plan_name", input.plan_name)
                     .attr("version", input.version);
 
