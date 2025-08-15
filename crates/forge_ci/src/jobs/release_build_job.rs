@@ -37,7 +37,7 @@ impl From<ReleaseBuilderJob> for Job {
                     .contents(Level::Write)
                     .pull_requests(Level::Write),
             )
-            .add_step(Step::uses("actions", "checkout", "v4"))
+            .add_step(Step::uses("actions", "checkout", "v5"))
             // Install Rust with cross-compilation target
             .add_step(
                 Step::uses("taiki-e", "setup-cross-toolchain-action", "v1")
