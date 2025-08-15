@@ -50,6 +50,9 @@ pub struct Environment {
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
     pub max_file_size: u64,
+    /// Maximum execution time in seconds for a single tool call.
+    /// Controls how long a tool can run before being terminated.
+    pub tool_timeout: u64,
 }
 
 impl Environment {
@@ -76,6 +79,9 @@ impl Environment {
     }
     pub fn agent_path(&self) -> PathBuf {
         self.base_path.join("agents")
+    }
+    pub fn permissions_path(&self) -> PathBuf {
+        self.base_path.join("permissions.yaml")
     }
 
     pub fn mcp_local_config(&self) -> PathBuf {

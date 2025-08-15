@@ -393,6 +393,17 @@ FORGE_API_URL=https://api.forgecode.dev  # Custom Forge API URL (default: https:
 </details>
 
 <details>
+<summary><strong>Tool Configuration</strong></summary>
+
+Configuring the tool calls settings:
+
+```bash
+# .env
+FORGE_TOOL_TIMEOUT=300         # Maximum execution time in seconds for a tool before it is terminated to prevent hanging the session. (default: 300)
+```
+</details>
+
+<details>
 <summary><strong>System Configuration</strong></summary>
 
 System-level environment variables (usually set automatically):
