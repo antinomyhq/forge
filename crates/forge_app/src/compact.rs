@@ -128,7 +128,10 @@ impl<S: AgentService> Compactor<S> {
 
         let mut context = Context::default()
             .add_message(ContextMessage::system(prompt))
-            .add_message(ContextMessage::user(context, Some(model.clone())));
+            .add_message(ContextMessage::user(
+                format!("<context>{context}</context"),
+                Some(model.clone()),
+            ));
 
         if let Some(max_token) = compact.max_tokens {
             context = context.max_tokens(max_token);
