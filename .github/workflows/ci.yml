@@ -81,7 +81,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - id: create_release
       uses: release-drafter/release-drafter@v6
       with:
@@ -146,7 +146,7 @@ jobs:
           os: windows-latest
           target: aarch64-pc-windows-msvc
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
       with:
@@ -224,7 +224,7 @@ jobs:
           os: windows-latest
           target: aarch64-pc-windows-msvc
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
       with:
