@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -73,6 +72,6 @@ impl<
             .await
             .with_context(|| format!("Failed to write plan file: {}", file_path.display()))?;
 
-        Ok(PlanCreateOutput { path: file_path.display().to_string(), before: None })
+        Ok(PlanCreateOutput { path: file_path, before: None })
     }
 }
