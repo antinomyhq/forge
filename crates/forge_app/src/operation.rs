@@ -104,6 +104,9 @@ pub enum Operation {
         input: PlanCreate,
         output: PlanCreateOutput,
     },
+    PolicyDenied {
+        reason: String,
+    },
 }
 
 /// Trait for stream elements that can be converted to XML elements
@@ -498,6 +501,10 @@ impl Operation {
 
                 forge_domain::ToolOutput::text(elm)
             }
+            Operation::PolicyDenied { reason } => {
+                let elm = Element::new("policy_denied").text(reason);
+                forge_domain::ToolOutput::text(elm)
+            }
         }
     }
 }
@@ -507,7 +514,7 @@ mod tests {
     use std::fmt::Write;
     use std::path::PathBuf;
 
-    use forge_domain::{FSRead, ToolValue};
+    use forge_domain::{FSRead, ToolOutput, ToolValue};
     use url::Url;
 
     use super::*;
@@ -1798,5 +1805,23 @@ mod tests {
         );
 
         insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_policy_denied_operation() {
+        let fixture =
+            Operation::PolicyDenied { reason: "Operation denied by policy or user.".to_string() };
+
+        let actual = fixture.into_tool_output(
+            ToolName::new("forge_tool_fs_read"),
+            TempContentFiles::default(),
+            &fixture_environment(),
+        );
+
+        let expected =
+            ToolOutput::text("<policy_denied>Operation denied by policy or user.</policy_denied>");
+
+        assert_eq!(actual, expected);
+        assert!(!actual.is_error);
     }
 }

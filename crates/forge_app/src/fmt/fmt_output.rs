@@ -43,6 +43,9 @@ impl FormatContent for Operation {
             Operation::PlanCreate { input: _, output } => {
                 Some(TitleFormat::debug(format!("Create {}", output.path)).into())
             }
+            Operation::PolicyDenied { reason } => {
+                Some(TitleFormat::debug(reason).into())
+            }
         }
     }
 }

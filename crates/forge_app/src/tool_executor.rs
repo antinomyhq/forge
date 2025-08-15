@@ -43,7 +43,7 @@ impl<
         &self,
         tool_input: &Tools,
         context: &mut ToolCallContext,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<Operation>> {
         let operation = tool_input.to_policy_operation(self.services.get_environment().cwd);
         if let Some(operation) = operation {
             let decision = self.services.check_operation_permission(&operation).await?;
@@ -58,10 +58,12 @@ impl<
                     .await?;
             }
             if !decision.allowed {
-                return Err(anyhow::anyhow!("Operation denied by policy or user."));
+                return Ok(Some(Operation::PolicyDenied {
+                    reason: "Operation denied.".to_string(),
+                }));
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     async fn dump_operation(&self, operation: &Operation) -> anyhow::Result<TempContentFiles> {
@@ -287,7 +289,14 @@ impl<
         }
 
         // Check permissions before executing the tool
-        self.check_tool_permission(&tool_input, context).await?;
+        if let Some(policy_denied) = self.check_tool_permission(&tool_input, context).await? {
+            // Send formatted output message for policy denial
+            if let Some(output) = policy_denied.to_content(&env) {
+                context.send(output).await?;
+            }
+            let truncation_path = TempContentFiles::default();
+            return Ok(policy_denied.into_tool_output(tool_name, truncation_path, &env));
+        }
 
         let execution_result = self.call_internal(tool_input.clone(), context).await;
 
