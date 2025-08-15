@@ -11,6 +11,7 @@ use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::infra::HttpInfra;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
+use crate::policy::ForgePolicyService;
 use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
@@ -58,6 +59,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     auth_service: Arc<AuthService<F>>,
     provider_service: Arc<ForgeProviderRegistry<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
+    policy_service: ForgePolicyService<F>,
 }
 
 impl<
@@ -67,7 +69,9 @@ impl<
         + FileInfoInfra
         + FileReaderInfra
         + HttpInfra
-        + WalkerInfra,
+        + WalkerInfra
+        + DirectoryReaderInfra
+        + UserInfra,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -95,6 +99,8 @@ impl<
         let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
+        let policy_service = ForgePolicyService::new(infra.clone());
+
         Self {
             conversation_service,
             attachment_service,
@@ -119,6 +125,7 @@ impl<
             chat_service,
             provider_service,
             agent_loader_service,
+            policy_service,
         }
     }
 }
@@ -163,6 +170,7 @@ impl<
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
     type AgentLoaderService = ForgeAgentLoaderService<F>;
+    type PolicyService = ForgePolicyService<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -253,5 +261,9 @@ impl<
     }
     fn agent_loader_service(&self) -> &Self::AgentLoaderService {
         &self.agent_loader_service
+    }
+
+    fn policy_service(&self) -> &Self::PolicyService {
+        &self.policy_service
     }
 }

@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_domain::{TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools};
+use forge_display::TitleFormat;
+use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
@@ -10,7 +11,7 @@ use crate::services::ShellService;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
-    PlanCreateService,
+    PlanCreateService, PolicyService,
 };
 
 pub struct ToolExecutor<S> {
@@ -29,12 +30,40 @@ impl<
         + FollowUpService
         + ConversationService
         + EnvironmentService
-        + PlanCreateService,
+        + PlanCreateService
+        + PolicyService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
+
+    /// Check if a tool operation is allowed based on the workflow policies
+    async fn check_tool_permission(
+        &self,
+        tool_input: &Tools,
+        context: &mut ToolCallContext,
+    ) -> anyhow::Result<()> {
+        let operation = tool_input.to_policy_operation(self.services.get_environment().cwd);
+        if let Some(operation) = operation {
+            let decision = self.services.check_operation_permission(&operation).await?;
+
+            // Send custom policy message to the user when a policy file was created
+            if let Some(policy_path) = decision.path {
+                context
+                    .send_text(
+                        TitleFormat::info("Policy Generated")
+                            .sub_title(policy_path.display().to_string()),
+                    )
+                    .await?;
+            }
+            if !decision.allowed {
+                return Err(anyhow::anyhow!("Operation denied by policy or user."));
+            }
+        }
+        Ok(())
+    }
+
     async fn dump_operation(&self, operation: &Operation) -> anyhow::Result<TempContentFiles> {
         match operation {
             Operation::NetFetch { input: _, output } => {
@@ -106,7 +135,11 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(&self, input: Tools, tasks: &mut TaskList) -> anyhow::Result<Operation> {
+    async fn call_internal(
+        &self,
+        input: Tools,
+        context: &mut ToolCallContext,
+    ) -> anyhow::Result<Operation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 let output = self
@@ -196,31 +229,36 @@ impl<
                 crate::operation::Operation::AttemptCompletion
             }
             Tools::ForgeToolTaskListAppend(input) => {
-                let before = tasks.clone();
-                tasks.append(&input.task);
-                Operation::TaskListAppend { _input: input, before, after: tasks.clone() }
+                let before = context.tasks.clone();
+                context.tasks.append(&input.task);
+                Operation::TaskListAppend { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolTaskListAppendMultiple(input) => {
-                let before = tasks.clone();
-                tasks.append_multiple(input.tasks.clone());
-                Operation::TaskListAppendMultiple { _input: input, before, after: tasks.clone() }
+                let before = context.tasks.clone();
+                context.tasks.append_multiple(input.tasks.clone());
+                Operation::TaskListAppendMultiple {
+                    _input: input,
+                    before,
+                    after: context.tasks.clone(),
+                }
             }
             Tools::ForgeToolTaskListUpdate(input) => {
-                let before = tasks.clone();
-                tasks
+                let before = context.tasks.clone();
+                context
+                    .tasks
                     .update_status(input.task_id, input.status.clone())
                     .context("Task not found")?;
-                Operation::TaskListUpdate { _input: input, before, after: tasks.clone() }
+                Operation::TaskListUpdate { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolTaskListList(input) => {
-                let before = tasks.clone();
+                let before = context.tasks.clone();
                 // No operation needed, just return the current state
-                Operation::TaskListList { _input: input, before, after: tasks.clone() }
+                Operation::TaskListList { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolTaskListClear(input) => {
-                let before = tasks.clone();
-                tasks.clear();
-                Operation::TaskListClear { _input: input, before, after: tasks.clone() }
+                let before = context.tasks.clone();
+                context.tasks.clear();
+                Operation::TaskListClear { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolPlanCreate(input) => {
                 let output = self
@@ -248,11 +286,11 @@ impl<
             context.send(content).await?;
         }
 
-        // Send tool call information
+        // Check permissions before executing the tool
+        self.check_tool_permission(&tool_input, context).await?;
 
-        let execution_result = self
-            .call_internal(tool_input.clone(), &mut context.tasks)
-            .await;
+        let execution_result = self.call_internal(tool_input.clone(), context).await;
+
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
         }

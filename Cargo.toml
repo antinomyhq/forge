@@ -91,7 +91,7 @@ tree-sitter-ruby = "0.23"
 url = { version = "2.5.4", features = ["serde"] }
 backon = "1.5.2"
 eserde = "0.1.7"
-uuid = { version = "1.11.0", features = [
+uuid = { version = "1.18.0", features = [
     "v4",
     "fast-rng",
     "macro-diagnostics",

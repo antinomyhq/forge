@@ -97,6 +97,12 @@ pub struct FsUndoOutput {
     pub after_undo: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct PolicyDecision {
+    pub allowed: bool,
+    pub path: Option<PathBuf>,
+}
+
 #[async_trait::async_trait]
 pub trait ProviderService: Send + Sync {
     async fn chat(
@@ -324,6 +330,17 @@ pub trait AgentLoaderService: Send + Sync {
     async fn load_agents(&self) -> anyhow::Result<Vec<Agent>>;
 }
 
+#[async_trait::async_trait]
+pub trait PolicyService: Send + Sync {
+    /// Check if an operation is allowed and handle user confirmation if needed
+    /// Returns PolicyDecision with allowed flag and optional policy file path
+    /// (only when created)
+    async fn check_operation_permission(
+        &self,
+        operation: &forge_domain::Operation,
+    ) -> anyhow::Result<PolicyDecision>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -351,6 +368,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AppConfigService: AppConfigService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
+    type PolicyService: PolicyService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -375,6 +393,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
+    fn policy_service(&self) -> &Self::PolicyService;
 }
 
 #[async_trait::async_trait]
@@ -675,5 +694,17 @@ pub trait HttpClientService: Send + Sync + 'static {
 impl<I: Services> AgentLoaderService for I {
     async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.agent_loader_service().load_agents().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> PolicyService for I {
+    async fn check_operation_permission(
+        &self,
+        operation: &forge_domain::Operation,
+    ) -> anyhow::Result<PolicyDecision> {
+        self.policy_service()
+            .check_operation_permission(operation)
+            .await
     }
 }

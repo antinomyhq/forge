@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use convert_case::{Case, Casing};
 use derive_more::From;
@@ -670,6 +670,103 @@ impl Tools {
         .iter()
         .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
+
+    /// Convert a tool input to its corresponding domain operation for policy
+    /// checking. Returns None for tools that don't require permission
+    /// checks.
+    pub fn to_policy_operation(&self, cwd: PathBuf) -> Option<crate::policies::Operation> {
+        let cwd_path = cwd.clone();
+        let display_path_for = |path: &str| {
+            format!(
+                "`{}`",
+                format_display_path(Path::new(path), cwd_path.as_path())
+            )
+        };
+
+        match self {
+            Tools::ForgeToolFsRead(input) => Some(crate::policies::Operation::Read {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Read file: {}", display_path_for(&input.path)),
+            }),
+            Tools::ForgeToolFsCreate(input) => Some(crate::policies::Operation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
+            }),
+            Tools::ForgeToolFsSearch(input) => {
+                let base_message = format!(
+                    "Search in directory/file: {}",
+                    display_path_for(&input.path)
+                );
+                let message = match (&input.regex, &input.file_pattern) {
+                    (Some(regex), Some(pattern)) => {
+                        format!("{base_message} for pattern: '{regex}' in '{pattern}' files")
+                    }
+                    (Some(regex), None) => {
+                        format!("{base_message} for pattern: {regex}")
+                    }
+                    (None, Some(pattern)) => {
+                        format!("{base_message} in '{pattern}' files")
+                    }
+                    (None, None) => base_message,
+                };
+                Some(crate::policies::Operation::Read {
+                    path: std::path::PathBuf::from(&input.path),
+                    cwd,
+                    message,
+                })
+            }
+            Tools::ForgeToolFsRemove(input) => Some(crate::policies::Operation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Remove file: {}", display_path_for(&input.path)),
+            }),
+            Tools::ForgeToolFsPatch(input) => Some(crate::policies::Operation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Modify file: {}", display_path_for(&input.path)),
+            }),
+            Tools::ForgeToolProcessShell(input) => Some(crate::policies::Operation::Execute {
+                command: input.command.clone(),
+                cwd,
+                message: format!("Execute shell command: {}", input.command),
+            }),
+            Tools::ForgeToolNetFetch(input) => Some(crate::policies::Operation::Fetch {
+                url: input.url.clone(),
+                cwd,
+                message: format!("Fetch content from URL: {}", input.url),
+            }),
+            // Operations that don't require permission checks
+            Tools::ForgeToolFsUndo(_)
+            | Tools::ForgeToolFollowup(_)
+            | Tools::ForgeToolAttemptCompletion(_)
+            | Tools::ForgeToolTaskListAppend(_)
+            | Tools::ForgeToolTaskListAppendMultiple(_)
+            | Tools::ForgeToolTaskListUpdate(_)
+            | Tools::ForgeToolTaskListList(_)
+            | Tools::ForgeToolTaskListClear(_)
+            | Tools::ForgeToolPlanCreate(_) => None,
+        }
+    }
+}
+
+fn format_display_path(path: &Path, cwd: &Path) -> String {
+    // Try to create a relative path for display if possible
+    let display_path = if path.starts_with(cwd) {
+        match path.strip_prefix(cwd) {
+            Ok(rel_path) => rel_path.display().to_string(),
+            Err(_) => path.display().to_string(),
+        }
+    } else {
+        path.display().to_string()
+    };
+
+    if display_path.is_empty() {
+        ".".to_string()
+    } else {
+        display_path
+    }
 }
 
 impl ToolsDiscriminants {
@@ -783,5 +880,126 @@ mod tests {
         assert!(
             matches!(result.unwrap(), Tools::ForgeToolFsCreate(data) if data.path == "/some/path/foo.txt" && data.content == "Hello, World!")
         );
+    }
+
+    #[test]
+    fn test_fs_search_message_with_regex() {
+        use std::path::PathBuf;
+
+        use crate::FSSearch;
+        use crate::policies::Operation;
+
+        let search_with_regex = Tools::ForgeToolFsSearch(FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: Some("fn main".to_string()),
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: None,
+            explanation: None,
+        });
+
+        let operation = search_with_regex
+            .to_policy_operation(PathBuf::from("/test/cwd"))
+            .unwrap();
+
+        match operation {
+            Operation::Read { message, .. } => {
+                assert_eq!(
+                    message,
+                    "Search in directory/file: `/home/user/project` for pattern: fn main"
+                );
+            }
+            _ => panic!("Expected Read operation"),
+        }
+    }
+
+    #[test]
+    fn test_fs_search_message_without_regex() {
+        use std::path::PathBuf;
+
+        use crate::FSSearch;
+        use crate::policies::Operation;
+
+        let search_without_regex = Tools::ForgeToolFsSearch(FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: None,
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: None,
+            explanation: None,
+        });
+
+        let operation = search_without_regex
+            .to_policy_operation(PathBuf::from("/test/cwd"))
+            .unwrap();
+
+        match operation {
+            Operation::Read { message, .. } => {
+                assert_eq!(message, "Search in directory/file: `/home/user/project`");
+            }
+            _ => panic!("Expected Read operation"),
+        }
+    }
+
+    #[test]
+    fn test_fs_search_message_with_file_pattern_only() {
+        use std::path::PathBuf;
+
+        use crate::FSSearch;
+        use crate::policies::Operation;
+
+        let search_with_pattern = Tools::ForgeToolFsSearch(FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: None,
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: Some("*.rs".to_string()),
+            explanation: None,
+        });
+
+        let operation = search_with_pattern
+            .to_policy_operation(PathBuf::from("/test/cwd"))
+            .unwrap();
+
+        match operation {
+            Operation::Read { message, .. } => {
+                assert_eq!(
+                    message,
+                    "Search in directory/file: `/home/user/project` in '*.rs' files"
+                );
+            }
+            _ => panic!("Expected Read operation"),
+        }
+    }
+
+    #[test]
+    fn test_fs_search_message_with_regex_and_file_pattern() {
+        use std::path::PathBuf;
+
+        use crate::FSSearch;
+        use crate::policies::Operation;
+
+        let search_with_both = Tools::ForgeToolFsSearch(FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: Some("fn main".to_string()),
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: Some("*.rs".to_string()),
+            explanation: None,
+        });
+
+        let operation = search_with_both
+            .to_policy_operation(PathBuf::from("/test/cwd"))
+            .unwrap();
+
+        match operation {
+            Operation::Read { message, .. } => {
+                assert_eq!(
+                    message,
+                    "Search in directory/file: `/home/user/project` for pattern: 'fn main' in '*.rs' files"
+                );
+            }
+            _ => panic!("Expected Read operation"),
+        }
     }
 }

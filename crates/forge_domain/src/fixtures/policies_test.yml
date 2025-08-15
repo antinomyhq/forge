@@ -1,0 +1,10 @@
+policies:
+  - permission: allow
+    rule:
+      read: "**/*.rs"
+  - permission: confirm
+    rule:
+      write: "src/**/*"
+  - permission: deny
+    rule:
+      command: "rm -rf /*"
