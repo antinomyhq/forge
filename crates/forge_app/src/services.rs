@@ -86,7 +86,7 @@ pub struct FsRemoveOutput {}
 
 #[derive(Debug)]
 pub struct PlanCreateOutput {
-    pub path: String,
+    pub path: PathBuf,
     // Set when the file already exists
     pub before: Option<String>,
 }

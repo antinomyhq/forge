@@ -3,7 +3,7 @@ use forge_domain::Environment;
 
 use crate::fmt::content::{ContentFormat, FormatContent};
 use crate::operation::Operation;
-use crate::utils::format_match;
+use crate::utils::{format_display_path, format_match};
 
 impl FormatContent for Operation {
     fn to_content(&self, env: &Environment) -> Option<ContentFormat> {
@@ -40,9 +40,13 @@ impl FormatContent for Operation {
             | Operation::TaskListClear { _input: _, before, after } => Some(
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
-            Operation::PlanCreate { input: _, output } => {
-                Some(TitleFormat::debug(format!("Create {}", output.path)).into())
-            }
+            Operation::PlanCreate { input: _, output } => Some(
+                TitleFormat::debug(format!(
+                    "Create {}",
+                    format_display_path(&output.path, &env.cwd)
+                ))
+                .into(),
+            ),
         }
     }
 }
@@ -574,7 +578,7 @@ mod tests {
                 explanation: Some("Create test plan".to_string()),
             },
             output: crate::PlanCreateOutput {
-                path: "plans/2024-08-11-test-plan-v1.md".to_string(),
+                path: PathBuf::from("plans/2024-08-11-test-plan-v1.md"),
                 before: None,
             },
         };
