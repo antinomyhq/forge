@@ -3,9 +3,10 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
+use forge_template::Element;
 
 use crate::error::Error;
-use crate::fmt::content::FormatContent;
+use crate::fmt::content::{ContentFormat, FormatContent};
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
@@ -44,7 +45,7 @@ impl<
         &self,
         tool_input: &Tools,
         context: &mut ToolCallContext,
-    ) -> anyhow::Result<Option<ToolOperation>> {
+    ) -> anyhow::Result<bool> {
         let cwd = self.services.get_environment().cwd;
         let operation = tool_input.to_policy_operation(cwd.clone());
         if let Some(operation) = operation {
@@ -60,12 +61,10 @@ impl<
                     .await?;
             }
             if !decision.allowed {
-                return Ok(Some(ToolOperation::PolicyDenied {
-                    reason: "Operation denied.".to_string(),
-                }));
+                return Ok(true);
             }
         }
-        Ok(None)
+        Ok(false)
     }
 
     async fn dump_operation(&self, operation: &ToolOperation) -> anyhow::Result<TempContentFiles> {
@@ -299,13 +298,19 @@ impl<
         }
 
         // Check permissions before executing the tool
-        if let Some(policy_denied) = self.check_tool_permission(&tool_input, context).await? {
+        if self.check_tool_permission(&tool_input, context).await? {
             // Send formatted output message for policy denial
-            if let Some(output) = policy_denied.to_content(&env) {
-                context.send(output).await?;
-            }
-            let truncation_path = TempContentFiles::default();
-            return Ok(policy_denied.into_tool_output(tool_name, truncation_path, &env));
+
+            context
+                .send(ContentFormat::from(TitleFormat::info(
+                    "Permission",
+                )))
+                .await?;
+
+            return Ok(ToolOutput::text(
+                Element::new("permission_denied")
+                    .cdata("User has denied the permission to execute this tool"),
+            ));
         }
 
         let execution_result = self.call_internal(tool_input.clone(), context).await;

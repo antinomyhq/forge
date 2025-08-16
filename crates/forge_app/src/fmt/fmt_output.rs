@@ -47,7 +47,6 @@ impl FormatContent for ToolOperation {
                 ))
                 .into(),
             ),
-            ToolOperation::PolicyDenied { reason } => Some(TitleFormat::debug(reason).into()),
         }
     }
 }
