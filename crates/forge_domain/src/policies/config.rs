@@ -54,7 +54,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{PermissionOperation, Permission, Policy, Rule, WriteRule};
+    use crate::{Permission, PermissionOperation, Policy, Rule, WriteRule};
 
     fn fixture_write_operation() -> PermissionOperation {
         PermissionOperation::Write {

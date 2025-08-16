@@ -674,7 +674,10 @@ impl Tools {
     /// Convert a tool input to its corresponding domain operation for policy
     /// checking. Returns None for tools that don't require permission
     /// checks.
-    pub fn to_policy_operation(&self, cwd: PathBuf) -> Option<crate::policies::PermissionOperation> {
+    pub fn to_policy_operation(
+        &self,
+        cwd: PathBuf,
+    ) -> Option<crate::policies::PermissionOperation> {
         let cwd_path = cwd.clone();
         let display_path_for = |path: &str| {
             format!(
@@ -727,11 +730,13 @@ impl Tools {
                 cwd,
                 message: format!("Modify file: {}", display_path_for(&input.path)),
             }),
-            Tools::ForgeToolProcessShell(input) => Some(crate::policies::PermissionOperation::Execute {
-                command: input.command.clone(),
-                cwd,
-                message: format!("Execute shell command: {}", input.command),
-            }),
+            Tools::ForgeToolProcessShell(input) => {
+                Some(crate::policies::PermissionOperation::Execute {
+                    command: input.command.clone(),
+                    cwd,
+                    message: format!("Execute shell command: {}", input.command),
+                })
+            }
             Tools::ForgeToolNetFetch(input) => Some(crate::policies::PermissionOperation::Fetch {
                 url: input.url.clone(),
                 cwd,

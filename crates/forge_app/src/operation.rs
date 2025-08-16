@@ -1809,8 +1809,9 @@ mod tests {
 
     #[test]
     fn test_policy_denied_operation() {
-        let fixture =
-            ToolOperation::PolicyDenied { reason: "Operation denied by policy or user.".to_string() };
+        let fixture = ToolOperation::PolicyDenied {
+            reason: "Operation denied by policy or user.".to_string(),
+        };
 
         let actual = fixture.into_tool_output(
             ToolName::new("forge_tool_fs_read"),

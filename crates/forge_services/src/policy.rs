@@ -4,8 +4,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::domain::{
-    ExecuteRule, Fetch, PermissionOperation, Permission, Policy, PolicyConfig, PolicyEngine, ReadRule, Rule,
-    WriteRule,
+    ExecuteRule, Fetch, Permission, PermissionOperation, Policy, PolicyConfig, PolicyEngine,
+    ReadRule, Rule, WriteRule,
 };
 use forge_app::{PolicyDecision, PolicyService};
 use strum_macros::{Display, EnumIter};
@@ -204,7 +204,10 @@ where
 }
 
 /// Create a policy for an operation based on its type
-fn create_policy_for_operation(operation: &PermissionOperation, dir: Option<String>) -> Option<Policy> {
+fn create_policy_for_operation(
+    operation: &PermissionOperation,
+    dir: Option<String>,
+) -> Option<Policy> {
     fn create_file_policy(
         path: &std::path::Path,
         rule_constructor: fn(String) -> Rule,
@@ -218,12 +221,16 @@ fn create_policy_for_operation(operation: &PermissionOperation, dir: Option<Stri
     }
 
     match operation {
-        PermissionOperation::Read { path, cwd: _, message: _ } => create_file_policy(path, |pattern| {
-            Rule::Read(ReadRule { read: pattern, dir: None })
-        }),
-        PermissionOperation::Write { path, cwd: _, message: _ } => create_file_policy(path, |pattern| {
-            Rule::Write(WriteRule { write: pattern, dir: None })
-        }),
+        PermissionOperation::Read { path, cwd: _, message: _ } => {
+            create_file_policy(path, |pattern| {
+                Rule::Read(ReadRule { read: pattern, dir: None })
+            })
+        }
+        PermissionOperation::Write { path, cwd: _, message: _ } => {
+            create_file_policy(path, |pattern| {
+                Rule::Write(WriteRule { write: pattern, dir: None })
+            })
+        }
 
         PermissionOperation::Fetch { url, cwd: _, message: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {

@@ -6,7 +6,7 @@ use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
-use crate::operation::{ToolOperation, TempContentFiles};
+use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
@@ -235,7 +235,11 @@ impl<
             Tools::ForgeToolTaskListAppend(input) => {
                 let before = context.tasks.clone();
                 context.tasks.append(&input.task);
-                ToolOperation::TaskListAppend { _input: input, before, after: context.tasks.clone() }
+                ToolOperation::TaskListAppend {
+                    _input: input,
+                    before,
+                    after: context.tasks.clone(),
+                }
             }
             Tools::ForgeToolTaskListAppendMultiple(input) => {
                 let before = context.tasks.clone();
@@ -252,7 +256,11 @@ impl<
                     .tasks
                     .update_status(input.task_id, input.status.clone())
                     .context("Task not found")?;
-                ToolOperation::TaskListUpdate { _input: input, before, after: context.tasks.clone() }
+                ToolOperation::TaskListUpdate {
+                    _input: input,
+                    before,
+                    after: context.tasks.clone(),
+                }
             }
             Tools::ForgeToolTaskListList(input) => {
                 let before = context.tasks.clone();

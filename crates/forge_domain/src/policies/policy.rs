@@ -77,7 +77,11 @@ impl Policy {
     }
 
     /// Recursively collect all matching rules
-    fn collect_matching_rules<'a>(&'a self, operation: &PermissionOperation, rules: &mut Vec<&'a Rule>) {
+    fn collect_matching_rules<'a>(
+        &'a self,
+        operation: &PermissionOperation,
+        rules: &mut Vec<&'a Rule>,
+    ) {
         match self {
             Policy::Simple { permission: _, rule } => {
                 if rule.matches(operation) {
