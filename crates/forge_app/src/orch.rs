@@ -446,11 +446,13 @@ impl<S: AgentService> Orchestrator<S> {
             context = context.usage(usage);
 
             let has_tool_calls = !tool_calls.is_empty();
+            has_attempted_completion = tool_calls
+                .iter()
+                .any(|call| Tools::is_attempt_completion(&call.name));
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
-            has_attempted_completion = tool_calls.iter().any(|call| Tools::is_complete(&call.name));
-
+            // Turn is completed, if tool should yield
             is_complete = tool_calls
                 .iter()
                 .any(|call| Tools::should_yield(&call.name));
