@@ -397,11 +397,7 @@ mod tests {
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 1);
 
-        let expected = FileTag {
-            path: "D:\\file.txt".to_string(),
-            loc: None,
-            symbol: None,
-        };
+        let expected = FileTag { path: "D:\\file.txt".to_string(), loc: None, symbol: None };
         let actual = paths.iter().next().unwrap();
         assert_eq!(actual, &expected);
     }
@@ -532,11 +528,7 @@ mod tests {
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 2);
 
-        let expected_unix = FileTag {
-            path: "/unix/path.txt".to_string(),
-            loc: None,
-            symbol: None,
-        };
+        let expected_unix = FileTag { path: "/unix/path.txt".to_string(), loc: None, symbol: None };
         let expected_windows = FileTag {
             path: "C:\\windows\\path.txt".to_string(),
             loc: None,
