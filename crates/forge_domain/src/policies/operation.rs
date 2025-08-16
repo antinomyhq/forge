@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 /// Operations that can be performed and need policy checking
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Operation {
+pub enum PermissionOperation {
     /// Write operation to a file path
     Write {
         path: PathBuf,

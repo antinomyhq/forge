@@ -1,4 +1,4 @@
-use super::operation::Operation;
+use super::operation::PermissionOperation;
 use super::policy::Policy;
 use crate::PolicyConfig;
 use crate::policies::Permission;
@@ -21,13 +21,13 @@ impl<'a> PolicyEngine<'a> {
 
     /// Check if an operation is allowed
     /// Returns permission result
-    pub fn can_perform(&self, operation: &Operation) -> Permission {
+    pub fn can_perform(&self, operation: &PermissionOperation) -> Permission {
         self.evaluate_policies(operation)
     }
 
     /// Internal helper function to evaluate policies for a given operation
     /// Returns permission result, defaults to Confirm if no policies match
-    fn evaluate_policies(&self, operation: &Operation) -> Permission {
+    fn evaluate_policies(&self, operation: &PermissionOperation) -> Permission {
         let has_policies = !self.policies.policies.is_empty();
 
         if !has_policies {
@@ -63,7 +63,7 @@ impl<'a> PolicyEngine<'a> {
     fn evaluate_policy_set<'p, I: IntoIterator<Item = &'p Policy>>(
         &self,
         policies: I,
-        operation: &Operation,
+        operation: &PermissionOperation,
     ) -> Option<Permission> {
         let mut last_allow: Option<Permission> = None;
 
@@ -137,7 +137,7 @@ mod tests {
     fn test_policy_engine_can_perform_read() {
         let fixture_workflow = fixture_workflow_with_read_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Read {
+        let operation = PermissionOperation::Read {
             path: std::path::PathBuf::from("src/main.rs"),
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Read file: src/main.rs".to_string(),
@@ -152,7 +152,7 @@ mod tests {
     fn test_policy_engine_can_perform_write() {
         let fixture_workflow = fixture_workflow_with_write_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Write {
+        let operation = PermissionOperation::Write {
             path: std::path::PathBuf::from("src/main.rs"),
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Create/overwrite file: src/main.rs".to_string(),
@@ -167,7 +167,7 @@ mod tests {
     fn test_policy_engine_can_perform_write_with_confirm() {
         let fixture_workflow = fixture_workflow_with_write_policy_confirm();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Write {
+        let operation = PermissionOperation::Write {
             path: std::path::PathBuf::from("src/main.rs"),
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Create/overwrite file: src/main.rs".to_string(),
@@ -182,7 +182,7 @@ mod tests {
     fn test_policy_engine_can_perform_execute() {
         let fixture_workflow = fixture_workflow_with_execute_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Execute {
+        let operation = PermissionOperation::Execute {
             command: "cargo build".to_string(),
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Execute shell command: cargo build".to_string(),
@@ -197,7 +197,7 @@ mod tests {
     fn test_policy_engine_can_perform_net_fetch() {
         let fixture_workflow = fixture_workflow_with_net_fetch_policy();
         let fixture = PolicyEngine::new(&fixture_workflow);
-        let operation = Operation::Fetch {
+        let operation = PermissionOperation::Fetch {
             url: "https://api.example.com/data".to_string(),
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Fetch content from URL: https://api.example.com/data".to_string(),
