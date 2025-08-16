@@ -124,6 +124,10 @@ impl AgentService for Runner {
         panic!("Tool call not found")
     }
 
+    async fn read_agents_md(&self) -> Vec<(String, String)> {
+        Vec::new()
+    }
+
     async fn render(
         &self,
         template: &str,

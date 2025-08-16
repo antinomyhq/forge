@@ -1,4 +1,3 @@
-// Tests for this module can be found in: tests/orch_*.rs
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -182,6 +181,31 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(reasoning_supported)
     }
 
+    async fn set_agent_md_content(
+        &mut self,
+        mut context: Context,
+        agent: &Agent,
+    ) -> anyhow::Result<Context> {
+        let agents_content = self.services.read_agents_md().await;
+
+        // If we found any agents content, add it as user messages to the context
+        if !agents_content.is_empty() {
+            for (source, content) in agents_content {
+                debug!(agent_id = %agent.id, source = %source, "Adding agents content from {}", source);
+
+                // Add as user message with proper formatting
+                let formatted_content = format!("# Agent Guidance from {}\n\n{}", source, content);
+
+                context = context.add_message(forge_domain::ContextMessage::user(
+                    formatted_content,
+                    agent.model.clone(),
+                ));
+            }
+        }
+
+        Ok(context)
+    }
+
     async fn set_system_prompt(
         &mut self,
         context: Context,
@@ -307,6 +331,9 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Render the system prompts with the variables
         context = self.set_system_prompt(context, &agent, &variables).await?;
+
+        // Attach agents content as user context if available
+        context = self.set_agent_md_content(context, &agent).await?;
 
         // Render user prompts
         context = self

@@ -7,8 +7,8 @@ use forge_domain::{
 
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AppConfigService, ConversationService, ProviderRegistry, ProviderService, Services,
-    TemplateService,
+    AppConfigService, ConversationService, EnvironmentService, FsReadService, ProviderRegistry,
+    ProviderService, Services, TemplateService,
 };
 
 /// Agent service trait that provides core chat and tool call functionality.
@@ -29,6 +29,10 @@ pub trait AgentService: Send + Sync + 'static {
         context: &mut ToolCallContext,
         call: ToolCallFull,
     ) -> ToolResult;
+
+    /// Read AGENTS.md files and return them in order (repo root first, then
+    /// current directory)
+    async fn read_agents_md(&self) -> Vec<(String, String)>;
 
     /// Render a template with the provided object
     async fn render(
@@ -62,6 +66,41 @@ impl<T: Services> AgentService for T {
     ) -> ToolResult {
         let registry = ToolRegistry::new(Arc::new(self.clone()));
         registry.call(agent, context, call).await
+    }
+
+    async fn read_agents_md(&self) -> Vec<(String, String)> {
+        let mut agents_content = Vec::new();
+        let env = self.get_environment();
+
+        // 1. Check for AGENTS.md in repo root (base_path)
+        let repo_agents_path = env.base_path.join("AGENTS.md");
+        if let Ok(output) = self
+            .read(repo_agents_path.to_string_lossy().to_string(), None, None)
+            .await
+        {
+            let crate::services::Content::File(content) = output.content;
+            agents_content.push(("Repository AGENTS.md".to_string(), content));
+        }
+
+        // 2. Check for AGENTS.md in current working directory (if different from
+        //    base_path)
+        if env.cwd != env.base_path {
+            let cwd_agents_path = env.cwd.join("AGENTS.md");
+            if let Ok(output) = self
+                .read(cwd_agents_path.to_string_lossy().to_string(), None, None)
+                .await
+            {
+                let crate::services::Content::File(content) = output.content;
+                if !agents_content
+                    .iter()
+                    .any(|(_, existing_content)| existing_content == &content)
+                {
+                    agents_content.push(("Current Directory AGENTS.md".to_string(), content));
+                }
+            }
+        }
+
+        agents_content
     }
 
     async fn render(
