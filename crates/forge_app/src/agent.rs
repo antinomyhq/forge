@@ -75,11 +75,12 @@ async fn try_read_agents_file<T: FsReadService>(
 ) {
     let path_str = path.to_string_lossy().to_string();
     if !processed_paths.contains(&path_str)
-        && let Ok(output) = service.read(path_str.clone(), None, None).await {
-            let crate::services::Content::File(content) = output.content;
-            agents_content.push((label.to_string(), content));
-            processed_paths.insert(path_str);
-        }
+        && let Ok(output) = service.read(path_str.clone(), None, None).await
+    {
+        let crate::services::Content::File(content) = output.content;
+        agents_content.push((label.to_string(), content));
+        processed_paths.insert(path_str);
+    }
 }
 
 /// Blanket implementation of AgentService for any type that implements Services
