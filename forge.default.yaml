@@ -40,7 +40,7 @@ agents:
       {{else}}
       <task>{{event.value}}</task>
       {{/if}}
-      <system_time>{{current_time}}</system_time>
+      <system_date>{{current_time}}</system_date>
     reasoning:
       enabled: true
     tools:

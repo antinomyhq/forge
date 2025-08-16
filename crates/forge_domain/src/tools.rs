@@ -680,7 +680,10 @@ impl Tools {
     /// Convert a tool input to its corresponding domain operation for policy
     /// checking. Returns None for tools that don't require permission
     /// checks.
-    pub fn to_policy_operation(&self, cwd: PathBuf) -> Option<crate::policies::Operation> {
+    pub fn to_policy_operation(
+        &self,
+        cwd: PathBuf,
+    ) -> Option<crate::policies::PermissionOperation> {
         let cwd_path = cwd.clone();
         let display_path_for = |path: &str| {
             format!(
@@ -690,12 +693,12 @@ impl Tools {
         };
 
         match self {
-            Tools::ForgeToolFsRead(input) => Some(crate::policies::Operation::Read {
+            Tools::ForgeToolFsRead(input) => Some(crate::policies::PermissionOperation::Read {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Read file: {}", display_path_for(&input.path)),
             }),
-            Tools::ForgeToolFsCreate(input) => Some(crate::policies::Operation::Write {
+            Tools::ForgeToolFsCreate(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
@@ -717,28 +720,30 @@ impl Tools {
                     }
                     (None, None) => base_message,
                 };
-                Some(crate::policies::Operation::Read {
+                Some(crate::policies::PermissionOperation::Read {
                     path: std::path::PathBuf::from(&input.path),
                     cwd,
                     message,
                 })
             }
-            Tools::ForgeToolFsRemove(input) => Some(crate::policies::Operation::Write {
+            Tools::ForgeToolFsRemove(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Remove file: {}", display_path_for(&input.path)),
             }),
-            Tools::ForgeToolFsPatch(input) => Some(crate::policies::Operation::Write {
+            Tools::ForgeToolFsPatch(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Modify file: {}", display_path_for(&input.path)),
             }),
-            Tools::ForgeToolProcessShell(input) => Some(crate::policies::Operation::Execute {
-                command: input.command.clone(),
-                cwd,
-                message: format!("Execute shell command: {}", input.command),
-            }),
-            Tools::ForgeToolNetFetch(input) => Some(crate::policies::Operation::Fetch {
+            Tools::ForgeToolProcessShell(input) => {
+                Some(crate::policies::PermissionOperation::Execute {
+                    command: input.command.clone(),
+                    cwd,
+                    message: format!("Execute shell command: {}", input.command),
+                })
+            }
+            Tools::ForgeToolNetFetch(input) => Some(crate::policies::PermissionOperation::Fetch {
                 url: input.url.clone(),
                 cwd,
                 message: format!("Fetch content from URL: {}", input.url),
@@ -893,7 +898,7 @@ mod tests {
         use std::path::PathBuf;
 
         use crate::FSSearch;
-        use crate::policies::Operation;
+        use crate::policies::PermissionOperation;
 
         let search_with_regex = Tools::ForgeToolFsSearch(FSSearch {
             path: "/home/user/project".to_string(),
@@ -909,7 +914,7 @@ mod tests {
             .unwrap();
 
         match operation {
-            Operation::Read { message, .. } => {
+            PermissionOperation::Read { message, .. } => {
                 assert_eq!(
                     message,
                     "Search in directory/file: `/home/user/project` for pattern: fn main"
@@ -924,7 +929,7 @@ mod tests {
         use std::path::PathBuf;
 
         use crate::FSSearch;
-        use crate::policies::Operation;
+        use crate::policies::PermissionOperation;
 
         let search_without_regex = Tools::ForgeToolFsSearch(FSSearch {
             path: "/home/user/project".to_string(),
@@ -940,7 +945,7 @@ mod tests {
             .unwrap();
 
         match operation {
-            Operation::Read { message, .. } => {
+            PermissionOperation::Read { message, .. } => {
                 assert_eq!(message, "Search in directory/file: `/home/user/project`");
             }
             _ => panic!("Expected Read operation"),
@@ -952,7 +957,7 @@ mod tests {
         use std::path::PathBuf;
 
         use crate::FSSearch;
-        use crate::policies::Operation;
+        use crate::policies::PermissionOperation;
 
         let search_with_pattern = Tools::ForgeToolFsSearch(FSSearch {
             path: "/home/user/project".to_string(),
@@ -968,7 +973,7 @@ mod tests {
             .unwrap();
 
         match operation {
-            Operation::Read { message, .. } => {
+            PermissionOperation::Read { message, .. } => {
                 assert_eq!(
                     message,
                     "Search in directory/file: `/home/user/project` in '*.rs' files"
@@ -983,7 +988,7 @@ mod tests {
         use std::path::PathBuf;
 
         use crate::FSSearch;
-        use crate::policies::Operation;
+        use crate::policies::PermissionOperation;
 
         let search_with_both = Tools::ForgeToolFsSearch(FSSearch {
             path: "/home/user/project".to_string(),
@@ -999,7 +1004,7 @@ mod tests {
             .unwrap();
 
         match operation {
-            Operation::Read { message, .. } => {
+            PermissionOperation::Read { message, .. } => {
                 assert_eq!(
                     message,
                     "Search in directory/file: `/home/user/project` for pattern: 'fn main' in '*.rs' files"
