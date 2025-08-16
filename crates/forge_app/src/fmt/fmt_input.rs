@@ -150,6 +150,7 @@ mod tests {
             max_read_size: 10,
             stdout_max_prefix_length: 10,
             stdout_max_suffix_length: 10,
+            tool_timeout: 300,
             stdout_max_line_length: 2000,
             http: Default::default(),
             max_file_size: 0,

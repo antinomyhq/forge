@@ -492,7 +492,7 @@ impl Operation {
             }
             Operation::PlanCreate { input, output } => {
                 let elm = Element::new("plan_created")
-                    .attr("path", output.path)
+                    .attr("path", output.path.display().to_string())
                     .attr("plan_name", input.plan_name)
                     .attr("version", input.version);
 
@@ -537,6 +537,7 @@ mod tests {
             max_read_size: 10,
             stdout_max_prefix_length: 10,
             stdout_max_suffix_length: 10,
+            tool_timeout: 300,
             stdout_max_line_length: 2000,
             http: Default::default(),
             max_file_size: 256 << 10, // 256 KiB

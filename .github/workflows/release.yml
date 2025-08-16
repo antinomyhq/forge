@@ -74,7 +74,7 @@ jobs:
           os: windows-latest
           target: aarch64-pc-windows-msvc
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
       with:
@@ -110,7 +110,7 @@ jobs:
         - antinomyhq/npm-code-forge
         - antinomyhq/npm-forgecode
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         repository: ${{ matrix.repository }}
         ref: main
@@ -126,7 +126,7 @@ jobs:
     name: homebrew_release
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         repository: antinomyhq/homebrew-code-forge
         ref: main

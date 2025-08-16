@@ -1,10 +1,9 @@
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use forge_api::Environment;
 use forge_display::TitleFormat;
 use tokio::fs;
-use tokio::sync::Mutex;
 use tokio::task::block_in_place;
 
 use crate::editor::{ForgeEditor, ReadResult};
@@ -39,8 +38,7 @@ impl Console {
         let engine = Mutex::new(ForgeEditor::new(self.env.clone(), self.command.clone()));
 
         loop {
-            let user_input =
-                block_in_place(|| async { engine.lock().await.prompt(&prompt) }).await?;
+            let user_input = block_in_place(|| engine.lock().unwrap().prompt(&prompt))?;
             match user_input {
                 ReadResult::Continue => continue,
                 ReadResult::Exit => return Ok(Command::Exit),
