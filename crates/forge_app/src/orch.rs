@@ -1,5 +1,6 @@
 // Tests for this module can be found in: tests/orch_*.rs
 use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,6 +13,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::services::FsReadService;
 
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
@@ -28,7 +30,7 @@ pub struct Orchestrator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: AgentService> Orchestrator<S> {
+impl<S: AgentService + FsReadService> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
         environment: Environment,
@@ -50,6 +52,43 @@ impl<S: AgentService> Orchestrator<S> {
     /// Get a reference to the internal conversation
     pub fn get_conversation(&self) -> &Conversation {
         &self.conversation
+    }
+
+    /// Get the git root directory from the given directory
+    async fn get_git_root(&self, from_dir: &Path) -> Option<PathBuf> {
+        let output = tokio::process::Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(from_dir)
+            .output()
+            .await
+            .ok()?;
+
+        if output.status.success() {
+            String::from_utf8(output.stdout)
+                .ok()
+                .map(|root| PathBuf::from(root.trim()))
+        } else {
+            None
+        }
+    }
+
+    /// Helper method to read AGENTS.md file if it exists and hasn't been
+    /// processed
+    async fn try_read_agents_file(
+        &self,
+        path: &Path,
+        label: &str,
+        agents_content: &mut Vec<(String, String)>,
+        processed_paths: &mut std::collections::HashSet<String>,
+    ) {
+        let path_str = path.to_string_lossy().to_string();
+        if !processed_paths.contains(&path_str)
+            && let Ok(output) = self.services.read(path_str.clone(), None, None).await
+        {
+            let crate::services::Content::File(content) = output.content;
+            agents_content.push((label.to_string(), content));
+            processed_paths.insert(path_str);
+        }
     }
 
     // Helper function to get all tool results from a vector of tool calls
@@ -182,6 +221,68 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(reasoning_supported)
     }
 
+    async fn read_agents_md(&self) -> Vec<(String, String)> {
+        let mut agents_content = Vec::new();
+        let mut processed_paths = std::collections::HashSet::new();
+        let env = self.environment.clone();
+
+        // Machine root AGENTS.md first
+        self.try_read_agents_file(
+            &env.base_path.join("AGENTS.md"),
+            "Machine root AGENTS.md",
+            &mut agents_content,
+            &mut processed_paths,
+        )
+        .await;
+
+        // Project root AGENTS.md second
+        if let Some(git_root_path) = self.get_git_root(&env.cwd).await {
+            self.try_read_agents_file(
+                &git_root_path.join("AGENTS.md"),
+                "Project Root AGENTS.md",
+                &mut agents_content,
+                &mut processed_paths,
+            )
+            .await;
+        }
+
+        // Current directory AGENTS.md last
+        self.try_read_agents_file(
+            &env.cwd.join("AGENTS.md"),
+            "Current Directory AGENTS.md",
+            &mut agents_content,
+            &mut processed_paths,
+        )
+        .await;
+
+        agents_content
+    }
+
+    async fn set_agent_md_content(
+        &mut self,
+        mut context: Context,
+        agent: &Agent,
+    ) -> anyhow::Result<Context> {
+        let agents_content = self.read_agents_md().await;
+
+        // If we found any agents content, add it as user messages to the context
+        if !agents_content.is_empty() {
+            for (source, content) in agents_content {
+                debug!(agent_id = %agent.id, source = %source, "Adding agents content from {}", source);
+
+                // Add as user message with proper formatting
+                let formatted_content = format!("# Agent Guidance from {}\n\n{}", source, content);
+
+                context = context.add_message(forge_domain::ContextMessage::user(
+                    formatted_content,
+                    agent.model.clone(),
+                ));
+            }
+        }
+
+        Ok(context)
+    }
+
     async fn set_system_prompt(
         &mut self,
         context: Context,
@@ -307,6 +408,9 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Render the system prompts with the variables
         context = self.set_system_prompt(context, &agent, &variables).await?;
+
+        // Attach agents content as user context if available
+        context = self.set_agent_md_content(context, &agent).await?;
 
         // Render user prompts
         context = self
