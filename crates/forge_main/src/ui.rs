@@ -854,12 +854,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_completion(&mut self, summary: SessionSummary) -> anyhow::Result<()> {
         self.spinner.stop(None)?;
 
-        // Show usage info
-        self.writeln(Info::from(&self.state))?;
         // Show summary
         self.writeln(Info::from(summary))?;
 
-        let should_start_new_chat = ForgeSelect::confirm("Do you want to start a new chat?")
+        let prompt_text = "Task completed. Start a new chat?";
+        let should_start_new_chat = ForgeSelect::confirm(prompt_text)
             .with_default(true)
             .prompt()?;
 

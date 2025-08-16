@@ -114,14 +114,11 @@ impl From<&UIState> for Info {
 
 impl From<SessionSummary> for Info {
     fn from(summary: SessionSummary) -> Self {
+        let lines_format = format!("-{} +{}", summary.lines_removed, summary.lines_added);
         Info::new()
-            .add_title("Session Summary")
+            .add_title("SESSION SUMMARY")
             .add_key_value("Duration", summary.duration)
-            .add_key_value("Files Changed", summary.files_changed)
-            .add_key_value("Lines Added", summary.lines_added)
-            .add_key_value("Lines Removed", summary.lines_removed)
-            .add_key_value("Operations", summary.operations)
-            .add_key_value("Net Change (lines)", summary.net_change)
+            .add_key_value("Lines", lines_format)
     }
 }
 
