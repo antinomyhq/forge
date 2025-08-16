@@ -9,7 +9,7 @@ pub fn label_sync_job() -> Job {
                 .issues(Level::Write)
         )
         .add_step(
-            Step::uses("actions", "checkout", "v4")
+            Step::uses("actions", "checkout", "v5")
                 .name("Checkout")
         )
         .add_step(

@@ -9,7 +9,7 @@ pub fn release_npm_job() -> Job {
         .strategy(Strategy { fail_fast: None, max_parallel: None, matrix: Some(matrix) })
         .runs_on("ubuntu-latest")
         .add_step(
-            Step::uses("actions", "checkout", "v4")
+            Step::uses("actions", "checkout", "v5")
                 .add_with(("repository", "${{ matrix.repository }}"))
                 .add_with(("ref", "main"))
                 .add_with(("token", "${{ secrets.NPM_ACCESS }}")),
