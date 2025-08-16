@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 pub use super::orch_setup::TestContext;
 use crate::AgentService;
 use crate::orch::Orchestrator;
+use crate::services::{Content, FsReadService, ReadOutput};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -124,10 +125,6 @@ impl AgentService for Runner {
         panic!("Tool call not found")
     }
 
-    async fn read_agents_md(&self) -> Vec<(String, String)> {
-        Vec::new()
-    }
-
     async fn render(
         &self,
         template: &str,
@@ -139,5 +136,24 @@ impl AgentService for Runner {
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
         self.conversation_history.lock().await.push(conversation);
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl FsReadService for Runner {
+    async fn read(
+        &self,
+        _path: String,
+        _start_line: Option<u64>,
+        _end_line: Option<u64>,
+    ) -> anyhow::Result<ReadOutput> {
+        // For testing purposes, return a mock ReadOutput
+        // In real tests, this should be mocked appropriately
+        Ok(ReadOutput {
+            content: Content::File("mock file content".to_string()),
+            start_line: 1,
+            end_line: 1,
+            total_lines: 1,
+        })
     }
 }

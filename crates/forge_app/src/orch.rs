@@ -1,3 +1,4 @@
+// Tests for this module can be found in: tests/orch_*.rs
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -10,7 +11,6 @@ use forge_template::Element;
 use serde_json::Value;
 use tracing::{debug, info, warn};
 
-use crate::Services;
 use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::services::FsReadService;
@@ -30,7 +30,7 @@ pub struct Orchestrator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: Services> Orchestrator<S> {
+impl<S: AgentService + FsReadService> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
         environment: Environment,
@@ -83,11 +83,12 @@ impl<S: Services> Orchestrator<S> {
     ) {
         let path_str = path.to_string_lossy().to_string();
         if !processed_paths.contains(&path_str)
-            && let Ok(output) = self.services.read(path_str.clone(), None, None).await {
-                let crate::services::Content::File(content) = output.content;
-                agents_content.push((label.to_string(), content));
-                processed_paths.insert(path_str);
-            }
+            && let Ok(output) = self.services.read(path_str.clone(), None, None).await
+        {
+            let crate::services::Content::File(content) = output.content;
+            agents_content.push((label.to_string(), content));
+            processed_paths.insert(path_str);
+        }
     }
 
     // Helper function to get all tool results from a vector of tool calls
