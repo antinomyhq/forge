@@ -115,7 +115,7 @@ impl<S: Services> ToolRegistry<S> {
         let agent_tools = self.agent_executor.tool_agents().await?;
 
         let tools = Tools::iter()
-            .map(|tool| tool.definition())
+            .flat_map(|tool| tool.all_definitions())
             .chain(mcp_tools.into_iter())
             .chain(agent_tools.into_iter())
             .collect::<Vec<_>>();
