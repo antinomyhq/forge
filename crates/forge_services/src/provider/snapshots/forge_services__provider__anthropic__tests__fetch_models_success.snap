@@ -10,7 +10,8 @@ expression: actual
     "context_length": null,
     "tools_supported": true,
     "supports_parallel_tool_calls": null,
-    "supports_reasoning": null
+    "supports_reasoning": null,
+    "desired_context_length": null
   },
   {
     "id": "claude-3-5-haiku-20241022",
@@ -19,6 +20,7 @@ expression: actual
     "context_length": null,
     "tools_supported": true,
     "supports_parallel_tool_calls": null,
-    "supports_reasoning": null
+    "supports_reasoning": null,
+    "desired_context_length": null
   }
 ]

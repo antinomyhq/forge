@@ -125,9 +125,14 @@ impl Compact {
     }
 
     /// Determines if compaction should be triggered based on the current
-    /// context
-    pub fn should_compact(&self, context: &Context, token_count: usize) -> bool {
-        self.should_compact_due_to_tokens(token_count)
+    /// context and model configuration
+    pub fn should_compact(
+        &self,
+        context: &Context,
+        token_count: usize,
+        model: Option<&crate::Model>,
+    ) -> bool {
+        self.should_compact_due_to_tokens(token_count, model)
             || self.should_compact_due_to_turns(context)
             || self.should_compact_due_to_messages(context)
             || self.should_compact_on_turn_end(context)
@@ -135,9 +140,17 @@ impl Compact {
 
     /// Checks if compaction should be triggered due to token count exceeding
     /// threshold
-    fn should_compact_due_to_tokens(&self, token_count: usize) -> bool {
-        if let Some(token_threshold) = self.token_threshold {
-            debug!(tokens = ?token_count, "Token count");
+    fn should_compact_due_to_tokens(
+        &self,
+        token_count: usize,
+        model: Option<&crate::Model>,
+    ) -> bool {
+        let effective_token_threshold = self
+            .token_threshold
+            .or_else(|| model.and_then(|m| m.desired_context_length));
+
+        if let Some(token_threshold) = effective_token_threshold {
+            debug!(tokens = ?token_count, threshold = ?token_threshold, "Token count check");
             // use provided prompt_tokens if available, otherwise estimate token count
             token_count >= token_threshold
         } else {
@@ -239,7 +252,7 @@ mod tests {
         let fixture = Compact::new()
             .model(ModelId::new("test-model"))
             .token_threshold(100_usize);
-        let actual = fixture.should_compact_due_to_tokens(150);
+        let actual = fixture.should_compact_due_to_tokens(150, None);
         let expected = true;
         assert_eq!(actual, expected);
     }
@@ -249,7 +262,7 @@ mod tests {
         let fixture = Compact::new()
             .model(ModelId::new("test-model"))
             .token_threshold(100_usize);
-        let actual = fixture.should_compact_due_to_tokens(50);
+        let actual = fixture.should_compact_due_to_tokens(50, None);
         let expected = false;
         assert_eq!(actual, expected);
     }
@@ -259,7 +272,7 @@ mod tests {
         let fixture = Compact::new()
             .model(ModelId::new("test-model"))
             .token_threshold(100_usize);
-        let actual = fixture.should_compact_due_to_tokens(100);
+        let actual = fixture.should_compact_due_to_tokens(100, None);
         let expected = true;
         assert_eq!(actual, expected);
     }
@@ -267,7 +280,7 @@ mod tests {
     #[test]
     fn test_should_compact_due_to_tokens_no_threshold() {
         let fixture = Compact::new().model(ModelId::new("test-model"));
-        let actual = fixture.should_compact_due_to_tokens(1000);
+        let actual = fixture.should_compact_due_to_tokens(1000, None);
         let expected = false;
         assert_eq!(actual, expected);
     }
@@ -372,7 +385,7 @@ mod tests {
     fn test_should_compact_no_thresholds_set() {
         let fixture = Compact::new().model(ModelId::new("test-model"));
         let context = ctx("ua");
-        let actual = fixture.should_compact(&context, 1000);
+        let actual = fixture.should_compact(&context, 1000, None);
         let expected = false;
         assert_eq!(actual, expected);
     }
@@ -383,7 +396,7 @@ mod tests {
             .model(ModelId::new("test-model"))
             .token_threshold(100_usize);
         let context = ctx("u");
-        let actual = fixture.should_compact(&context, 150);
+        let actual = fixture.should_compact(&context, 150, None);
         let expected = true;
         assert_eq!(actual, expected);
     }
@@ -394,7 +407,7 @@ mod tests {
             .model(ModelId::new("test-model"))
             .turn_threshold(1_usize);
         let context = ctx("uau");
-        let actual = fixture.should_compact(&context, 50);
+        let actual = fixture.should_compact(&context, 50, None);
         let expected = true;
         assert_eq!(actual, expected);
     }
@@ -405,7 +418,7 @@ mod tests {
             .model(ModelId::new("test-model"))
             .message_threshold(2_usize);
         let context = ctx("uau");
-        let actual = fixture.should_compact(&context, 50);
+        let actual = fixture.should_compact(&context, 50, None);
         let expected = true;
         assert_eq!(actual, expected);
     }
@@ -418,7 +431,7 @@ mod tests {
             .turn_threshold(5_usize)
             .message_threshold(10_usize);
         let context = ctx("ua");
-        let actual = fixture.should_compact(&context, 250); // Only token threshold exceeded
+        let actual = fixture.should_compact(&context, 250, None); // Only token threshold exceeded
         let expected = true;
         assert_eq!(actual, expected);
     }
@@ -431,7 +444,7 @@ mod tests {
             .turn_threshold(5_usize)
             .message_threshold(10_usize);
         let context = ctx("ua");
-        let actual = fixture.should_compact(&context, 100); // All thresholds under limit
+        let actual = fixture.should_compact(&context, 100, None); // All thresholds under limit
         let expected = false;
         assert_eq!(actual, expected);
     }
@@ -442,7 +455,7 @@ mod tests {
             .model(ModelId::new("test-model"))
             .message_threshold(1_usize);
         let context = ctx("");
-        let actual = fixture.should_compact(&context, 0);
+        let actual = fixture.should_compact(&context, 0, None);
         let expected = false;
         assert_eq!(actual, expected);
     }
@@ -517,7 +530,7 @@ mod tests {
             .model(ModelId::new("test-model"))
             .on_turn_end(true);
         let context = ctx("au");
-        let actual = fixture.should_compact(&context, 10); // Low token count, no other thresholds
+        let actual = fixture.should_compact(&context, 10, None); // Low token count, no other thresholds
         let expected = true;
         assert_eq!(actual, expected);
     }
@@ -528,7 +541,7 @@ mod tests {
             .model(ModelId::new("test-model"))
             .on_turn_end(false);
         let context = ctx("au");
-        let actual = fixture.should_compact(&context, 10); // Low token count, no other thresholds
+        let actual = fixture.should_compact(&context, 10, None); // Low token count, no other thresholds
         let expected = false;
         assert_eq!(actual, expected);
     }
@@ -540,7 +553,7 @@ mod tests {
             .token_threshold(200_usize)
             .on_turn_end(true);
         let context = ctx("au");
-        let actual = fixture.should_compact(&context, 50); // Token threshold not met, but last message is user
+        let actual = fixture.should_compact(&context, 50, None); // Token threshold not met, but last message is user
         let expected = true;
         assert_eq!(actual, expected);
     }

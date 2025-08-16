@@ -13,6 +13,7 @@ pub struct Model {
     pub top_provider: Option<TopProvider>,
     pub per_request_limits: Option<serde_json::Value>,
     pub supported_parameters: Option<Vec<String>>,
+    pub desired_context_length: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -68,6 +69,7 @@ impl From<Model> for forge_domain::Model {
             tools_supported: Some(tools_supported),
             supports_parallel_tool_calls: Some(supports_parallel_tool_calls),
             supports_reasoning: Some(is_reasoning_supported),
+            desired_context_length: value.desired_context_length,
         }
     }
 }

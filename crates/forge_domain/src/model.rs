@@ -15,6 +15,8 @@ pub struct Model {
     pub supports_parallel_tool_calls: Option<bool>,
     /// Whether the model supports reasoning
     pub supports_reasoning: Option<bool>,
+    /// Token count threshold for triggering automatic compaction
+    pub desired_context_length: Option<usize>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]

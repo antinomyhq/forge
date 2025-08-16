@@ -10,7 +10,8 @@ expression: actual
     "context_length": 4096,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
-    "supports_reasoning": false
+    "supports_reasoning": false,
+    "desired_context_length": null
   },
   {
     "id": "model-2",
@@ -19,6 +20,7 @@ expression: actual
     "context_length": 8192,
     "tools_supported": true,
     "supports_parallel_tool_calls": false,
-    "supports_reasoning": false
+    "supports_reasoning": false,
+    "desired_context_length": null
   }
 ]

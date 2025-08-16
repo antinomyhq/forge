@@ -16,6 +16,7 @@ pub struct ListModelResponse {
 pub struct Model {
     id: String,
     display_name: String,
+    desired_context_length: Option<usize>,
 }
 
 impl From<Model> for forge_domain::Model {
@@ -28,6 +29,7 @@ impl From<Model> for forge_domain::Model {
             tools_supported: Some(true),
             supports_parallel_tool_calls: None,
             supports_reasoning: None,
+            desired_context_length: value.desired_context_length,
         }
     }
 }

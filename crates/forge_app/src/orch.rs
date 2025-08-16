@@ -267,7 +267,15 @@ impl<S: AgentService> Orchestrator<S> {
     ) -> anyhow::Result<Option<Context>> {
         // Estimate token count for compaction decision
         let token_count = context.token_count();
-        if agent.should_compact(context, *token_count) {
+
+        // Find the model for this agent
+        let model = if let Some(agent_model_id) = &agent.model {
+            self.models.iter().find(|m| &m.id == agent_model_id)
+        } else {
+            None
+        };
+
+        if agent.should_compact(context, *token_count, model) {
             info!(agent_id = %agent.id, "Compaction needed");
             Compactor::new(self.services.clone())
                 .compact(agent, context.clone(), false)
