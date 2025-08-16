@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use forge_api::{Environment, LoginInfo, UserUsage};
+use forge_api::{Environment, LoginInfo, SessionSummary, UserUsage};
 use forge_tracker::VERSION;
 
 use crate::model::ForgeCommandManager;
@@ -109,6 +109,19 @@ impl From<&UIState> for Info {
         info = info.extend(get_usage(value));
 
         info
+    }
+}
+
+impl From<SessionSummary> for Info {
+    fn from(summary: SessionSummary) -> Self {
+        Info::new()
+            .add_title("Session Summary")
+            .add_key_value("Duration", summary.duration)
+            .add_key_value("Files Changed", summary.files_changed)
+            .add_key_value("Lines Added", summary.lines_added)
+            .add_key_value("Lines Removed", summary.lines_removed)
+            .add_key_value("Operations", summary.operations)
+            .add_key_value("Net Change (lines)", summary.net_change)
     }
 }
 

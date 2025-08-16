@@ -661,14 +661,20 @@ impl Tools {
     pub fn contains(tool_name: &ToolName) -> bool {
         FORGE_TOOLS.contains(tool_name)
     }
-    pub fn is_complete(tool_name: &ToolName) -> bool {
+    pub fn should_yield(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
         [
-            ToolsDiscriminants::ForgeToolFollowup,
             ToolsDiscriminants::ForgeToolAttemptCompletion,
+            ToolsDiscriminants::ForgeToolFollowup,
         ]
         .iter()
         .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+    }
+    pub fn is_complete(tool_name: &ToolName) -> bool {
+        // Tool that convey that conversation might be completed
+        [ToolsDiscriminants::ForgeToolAttemptCompletion]
+            .iter()
+            .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
 
     /// Convert a tool input to its corresponding domain operation for policy

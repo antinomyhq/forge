@@ -44,7 +44,7 @@ impl<
     async fn check_tool_permission(
         &self,
         tool_input: &Tools,
-        context: &mut ToolCallContext,
+        context: &mut ToolCallContext<'_>,
     ) -> anyhow::Result<bool> {
         let cwd = self.services.get_environment().cwd;
         let operation = tool_input.to_policy_operation(cwd.clone());
@@ -141,7 +141,7 @@ impl<
     async fn call_internal(
         &self,
         input: Tools,
-        context: &mut ToolCallContext,
+        context: &mut ToolCallContext<'_>,
     ) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
@@ -288,7 +288,7 @@ impl<
     pub async fn execute(
         &self,
         input: ToolCallFull,
-        context: &mut ToolCallContext,
+        context: &mut ToolCallContext<'_>,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
         let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
@@ -326,6 +326,6 @@ impl<
 
         let truncation_path = self.dump_operation(&operation).await?;
 
-        Ok(operation.into_tool_output(tool_name, truncation_path, &env))
+        Ok(operation.into_tool_output(tool_name, truncation_path, &env, context.metrics))
     }
 }
