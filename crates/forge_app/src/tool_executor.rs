@@ -55,7 +55,7 @@ impl<
             if let Some(policy_path) = decision.path {
                 context
                     .send_text(
-                        TitleFormat::info("Permissions Update")
+                        TitleFormat::debug("Permissions Update")
                             .sub_title(format_display_path(policy_path.as_path(), &cwd)),
                     )
                     .await?;
@@ -302,9 +302,7 @@ impl<
             // Send formatted output message for policy denial
 
             context
-                .send(ContentFormat::from(TitleFormat::info(
-                    "Permission",
-                )))
+                .send(ContentFormat::from(TitleFormat::error("Permission Denied")))
                 .await?;
 
             return Ok(ToolOutput::text(
