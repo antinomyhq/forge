@@ -35,6 +35,8 @@ reqwest.workspace = true
 bytes.workspace = true
 reqwest-eventsource.workspace = true
 schemars.workspace = true
+strum_macros.workspace = true
+serde_yml.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

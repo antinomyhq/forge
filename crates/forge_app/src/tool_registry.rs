@@ -14,14 +14,13 @@ use crate::agent_executor::AgentExecutor;
 use crate::error::Error;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::{McpService, Services};
-
-const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(300);
+use crate::{EnvironmentService, McpService, Services};
 
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
     agent_executor: AgentExecutor<S>,
     mcp_executor: McpExecutor<S>,
+    tool_timeout: Duration,
 }
 
 impl<S: Services> ToolRegistry<S> {
@@ -29,7 +28,8 @@ impl<S: Services> ToolRegistry<S> {
         Self {
             tool_executor: ToolExecutor::new(services.clone()),
             agent_executor: AgentExecutor::new(services.clone()),
-            mcp_executor: McpExecutor::new(services),
+            mcp_executor: McpExecutor::new(services.clone()),
+            tool_timeout: Duration::from_secs(services.get_environment().tool_timeout),
         }
     }
 
@@ -42,10 +42,10 @@ impl<S: Services> ToolRegistry<S> {
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = anyhow::Result<ToolOutput>>,
     {
-        timeout(TOOL_CALL_TIMEOUT, future())
+        timeout(self.tool_timeout, future())
             .await
             .context(Error::CallTimeout {
-                timeout: TOOL_CALL_TIMEOUT.as_secs() / 60,
+                timeout: self.tool_timeout.as_secs() / 60,
                 tool_name: tool_name.clone(),
             })?
     }

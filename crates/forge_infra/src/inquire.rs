@@ -51,7 +51,11 @@ impl UserInfra for ForgeInquire {
         .await
     }
 
-    async fn select_one(&self, message: &str, options: Vec<String>) -> Result<Option<String>> {
+    async fn select_one<T: std::fmt::Display + Send + 'static>(
+        &self,
+        message: &str,
+        options: Vec<T>,
+    ) -> Result<Option<T>> {
         let message = message.to_string();
         self.prompt(move || {
             Select::new(&message, options)
@@ -62,11 +66,11 @@ impl UserInfra for ForgeInquire {
         .await
     }
 
-    async fn select_many(
+    async fn select_many<T: std::fmt::Display + Clone + Send + 'static>(
         &self,
         message: &str,
-        options: Vec<String>,
-    ) -> Result<Option<Vec<String>>> {
+        options: Vec<T>,
+    ) -> Result<Option<Vec<T>>> {
         let message = message.to_string();
         self.prompt(move || {
             MultiSelect::new(&message, options)

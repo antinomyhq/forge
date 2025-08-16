@@ -1,0 +1,16 @@
+policies:
+  - permission: deny
+    rule:
+      read: ".*"
+  - permission: deny
+    rule:
+      read: "*.pem"
+  - permission: deny
+    rule:
+      read: "*.key"
+  - permission: deny
+    rule:
+      read: "*.p12"
+  - permission: deny
+    rule:
+      read: "id_*"

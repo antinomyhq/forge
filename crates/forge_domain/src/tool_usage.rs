@@ -97,39 +97,10 @@ impl Display for Schema {
 mod tests {
 
     use insta::assert_snapshot;
-    use schemars::JsonSchema;
-    use serde::Deserialize;
     use strum::IntoEnumIterator;
 
     use super::*;
-    use crate::{NamedTool, ToolDescription, ToolName, Tools};
-
-    #[derive(Default)]
-    #[allow(dead_code)]
-    pub struct MangoTool;
-
-    #[derive(JsonSchema, Deserialize)]
-    pub struct ToolInput {
-        /// This is parameter 1
-        #[allow(dead_code)]
-        param1: String,
-
-        /// This is parameter 2
-        #[allow(dead_code)]
-        param2: Option<String>,
-    }
-
-    impl ToolDescription for MangoTool {
-        fn description(&self) -> String {
-            "This is a mango tool".to_string()
-        }
-    }
-
-    impl NamedTool for MangoTool {
-        fn tool_name() -> ToolName {
-            ToolName::new("forge_tool_mango")
-        }
-    }
+    use crate::Tools;
 
     #[test]
     fn test_tool_usage() {

@@ -81,6 +81,10 @@ impl From<&Environment> for Info {
             .add_key_value(
                 "Checkpoints",
                 format_path_for_display(env, &env.snapshot_path()),
+            )
+            .add_key_value(
+                "Policies",
+                format_path_for_display(env, &env.permissions_path()),
             );
 
         info
@@ -346,6 +350,7 @@ mod tests {
             stdout_max_suffix_length: 10,
             stdout_max_line_length: 2000,
             max_read_size: 100,
+            tool_timeout: 300,
             http: Default::default(),
             max_file_size: 1000,
         }
