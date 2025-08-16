@@ -80,6 +80,23 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             state.chat_stream = Some(cancel_id);
             Command::Empty
         }
+        Action::ShellCommandResult { command, output, success } => {
+            // Format the shell command result as a system message
+            let result_message = if success {
+                format!("$ {}\n{}", command, output.trim())
+            } else {
+                format!("$ {} (failed)\n{}", command, output.trim())
+            };
+
+            // Add the result as an assistant message (system response)
+            let chat_response = forge_api::ChatResponse::Text {
+                text: result_message,
+                is_complete: true,
+                is_md: false,
+            };
+            state.add_assistant_message(chat_response);
+            Command::Empty
+        }
     }
 }
 
@@ -90,7 +107,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use super::*;
-    use crate::domain::{CancelId, EditorStateExt};
+    use crate::domain::{CancelId, EditorStateExt, Message};
 
     #[test]
     fn test_update_processes_key_press_events() {
@@ -422,5 +439,61 @@ mod tests {
         assert_eq!(actual_command, expected_command);
         // Timer should be replaced with the new timer from the action
         assert_eq!(fixture_state.timer, Some(timer_2));
+    }
+
+    #[test]
+    fn test_shell_command_result_action_success() {
+        let mut fixture_state = State::default();
+
+        let fixture_action = Action::ShellCommandResult {
+            command: "echo hello".to_string(),
+            output: "hello\n".to_string(),
+            success: true,
+        };
+
+        let actual_command = update(&mut fixture_state, fixture_action);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+
+        // Verify assistant message was added
+        assert_eq!(fixture_state.messages.len(), 1);
+        if let Message::Assistant(forge_api::ChatResponse::Text { text, is_complete, is_md }) =
+            &fixture_state.messages[0]
+        {
+            assert_eq!(text, "$ echo hello\nhello");
+            assert!(is_complete);
+            assert!(!is_md);
+        } else {
+            panic!("Expected assistant text message");
+        }
+    }
+
+    #[test]
+    fn test_shell_command_result_action_failure() {
+        let mut fixture_state = State::default();
+
+        let fixture_action = Action::ShellCommandResult {
+            command: "invalid_command".to_string(),
+            output: "command not found\n".to_string(),
+            success: false,
+        };
+
+        let actual_command = update(&mut fixture_state, fixture_action);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+
+        // Verify assistant message was added with failure indication
+        assert_eq!(fixture_state.messages.len(), 1);
+        if let Message::Assistant(forge_api::ChatResponse::Text { text, is_complete, is_md }) =
+            &fixture_state.messages[0]
+        {
+            assert_eq!(text, "$ invalid_command (failed)\ncommand not found");
+            assert!(is_complete);
+            assert!(!is_md);
+        } else {
+            panic!("Expected assistant text message");
+        }
     }
 }
