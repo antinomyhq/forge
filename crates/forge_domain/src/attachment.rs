@@ -124,7 +124,16 @@ impl FileTag {
             nom::combinator::map(parse_location_start_only, |start| (Some(start), None)),
         ));
 
-        let parse_path = take_while1(|c: char| c != ':' && c != '#' && c != ']');
+        let parse_path = nom::branch::alt((
+            // Try Windows drive path first (letter:path)
+            nom::combinator::recognize((
+                nom::character::complete::satisfy(|c| c.is_ascii_alphabetic()),
+                nom::character::complete::char(':'),
+                take_while1(|c: char| c != ':' && c != '#' && c != ']'),
+            )),
+            // Fall back to regular path parsing
+            take_while1(|c: char| c != ':' && c != '#' && c != ']'),
+        ));
         let mut parser = delimited(
             tag("@["),
             (parse_path, opt(parse_location), opt(parse_symbol)),
@@ -365,5 +374,168 @@ mod tests {
         };
         let actual = paths.iter().next().unwrap();
         assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_windows_drive_path() {
+        let text = String::from("Check @[C:\\Users\\test\\file.txt:10:20]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "C:\\Users\\test\\file.txt".to_string(),
+            loc: Some(Location { start: Some(10), end: Some(20) }),
+            symbol: None,
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_windows_drive_simple() {
+        let text = String::from("Check @[D:\\file.txt]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag { path: "D:\\file.txt".to_string(), loc: None, symbol: None };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_windows_drive_with_symbol() {
+        let text = String::from("Check @[E:\\src\\main.rs#function_name]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "E:\\src\\main.rs".to_string(),
+            loc: None,
+            symbol: Some("function_name".to_string()),
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_windows_drive_with_line_start_only() {
+        let text = String::from("Check @[F:\\project\\lib.rs:42]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "F:\\project\\lib.rs".to_string(),
+            loc: Some(Location { start: Some(42), end: None }),
+            symbol: None,
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_windows_drive_with_line_range_and_symbol() {
+        let text = String::from("Check @[G:\\code\\test.rs:5:15#test_function]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "G:\\code\\test.rs".to_string(),
+            loc: Some(Location { start: Some(5), end: Some(15) }),
+            symbol: Some("test_function".to_string()),
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_linux_path_with_line_numbers() {
+        let text = String::from("Check @[/home/user/project/file.rs:25:30]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "/home/user/project/file.rs".to_string(),
+            loc: Some(Location { start: Some(25), end: Some(30) }),
+            symbol: None,
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_linux_path_with_line_start_only() {
+        let text = String::from("Check @[/var/log/app.log:100]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "/var/log/app.log".to_string(),
+            loc: Some(Location { start: Some(100), end: None }),
+            symbol: None,
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_unix_path_simple() {
+        let text = String::from("Check @[/usr/local/bin/app]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "/usr/local/bin/app".to_string(),
+            loc: None,
+            symbol: None,
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_unix_path_with_symbol() {
+        let text = String::from("Check @[/opt/project/src/main.c#main]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "/opt/project/src/main.c".to_string(),
+            loc: None,
+            symbol: Some("main".to_string()),
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_unix_path_with_line_and_symbol() {
+        let text = String::from("Check @[/tmp/script.sh:10#setup_function]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "/tmp/script.sh".to_string(),
+            loc: Some(Location { start: Some(10), end: None }),
+            symbol: Some("setup_function".to_string()),
+        };
+        let actual = paths.iter().next().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_mixed_unix_and_windows() {
+        let text = String::from("Check @[/unix/path.txt] and @[C:\\windows\\path.txt]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 2);
+
+        let expected_unix = FileTag { path: "/unix/path.txt".to_string(), loc: None, symbol: None };
+        let expected_windows = FileTag {
+            path: "C:\\windows\\path.txt".to_string(),
+            loc: None,
+            symbol: None,
+        };
+
+        assert!(paths.contains(&expected_unix));
+        assert!(paths.contains(&expected_windows));
     }
 }
