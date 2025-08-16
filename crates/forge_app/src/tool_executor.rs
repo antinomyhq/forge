@@ -6,7 +6,7 @@ use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
-use crate::operation::{Operation, TempContentFiles};
+use crate::operation::{ToolOperation, TempContentFiles};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
@@ -44,7 +44,7 @@ impl<
         &self,
         tool_input: &Tools,
         context: &mut ToolCallContext,
-    ) -> anyhow::Result<Option<Operation>> {
+    ) -> anyhow::Result<Option<ToolOperation>> {
         let cwd = self.services.get_environment().cwd;
         let operation = tool_input.to_policy_operation(cwd.clone());
         if let Some(operation) = operation {
@@ -60,7 +60,7 @@ impl<
                     .await?;
             }
             if !decision.allowed {
-                return Ok(Some(Operation::PolicyDenied {
+                return Ok(Some(ToolOperation::PolicyDenied {
                     reason: "Operation denied.".to_string(),
                 }));
             }
@@ -68,9 +68,9 @@ impl<
         Ok(None)
     }
 
-    async fn dump_operation(&self, operation: &Operation) -> anyhow::Result<TempContentFiles> {
+    async fn dump_operation(&self, operation: &ToolOperation) -> anyhow::Result<TempContentFiles> {
         match operation {
-            Operation::NetFetch { input: _, output } => {
+            ToolOperation::NetFetch { input: _, output } => {
                 let original_length = output.content.len();
                 let is_truncated =
                     original_length > self.services.get_environment().fetch_truncation_limit;
@@ -85,7 +85,7 @@ impl<
 
                 Ok(files)
             }
-            Operation::Shell { output } => {
+            ToolOperation::Shell { output } => {
                 let env = self.services.get_environment();
                 let stdout_lines = output.output.stdout.lines().count();
                 let stderr_lines = output.output.stderr.lines().count();
@@ -143,7 +143,7 @@ impl<
         &self,
         input: Tools,
         context: &mut ToolCallContext,
-    ) -> anyhow::Result<Operation> {
+    ) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 let output = self
@@ -230,17 +230,17 @@ impl<
                 output.into()
             }
             Tools::ForgeToolAttemptCompletion(_input) => {
-                crate::operation::Operation::AttemptCompletion
+                crate::operation::ToolOperation::AttemptCompletion
             }
             Tools::ForgeToolTaskListAppend(input) => {
                 let before = context.tasks.clone();
                 context.tasks.append(&input.task);
-                Operation::TaskListAppend { _input: input, before, after: context.tasks.clone() }
+                ToolOperation::TaskListAppend { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolTaskListAppendMultiple(input) => {
                 let before = context.tasks.clone();
                 context.tasks.append_multiple(input.tasks.clone());
-                Operation::TaskListAppendMultiple {
+                ToolOperation::TaskListAppendMultiple {
                     _input: input,
                     before,
                     after: context.tasks.clone(),
@@ -252,17 +252,17 @@ impl<
                     .tasks
                     .update_status(input.task_id, input.status.clone())
                     .context("Task not found")?;
-                Operation::TaskListUpdate { _input: input, before, after: context.tasks.clone() }
+                ToolOperation::TaskListUpdate { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolTaskListList(input) => {
                 let before = context.tasks.clone();
                 // No operation needed, just return the current state
-                Operation::TaskListList { _input: input, before, after: context.tasks.clone() }
+                ToolOperation::TaskListList { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolTaskListClear(input) => {
                 let before = context.tasks.clone();
                 context.tasks.clear();
-                Operation::TaskListClear { _input: input, before, after: context.tasks.clone() }
+                ToolOperation::TaskListClear { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolPlanCreate(input) => {
                 let output = self

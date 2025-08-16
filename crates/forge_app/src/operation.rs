@@ -40,7 +40,7 @@ pub struct TempContentFiles {
 }
 
 #[derive(Debug, derive_more::From)]
-pub enum Operation {
+pub enum ToolOperation {
     FsRead {
         input: FSRead,
         output: ReadOutput,
@@ -217,7 +217,7 @@ fn create_stream_element<T: StreamElement>(
 
     Some(elem)
 }
-impl Operation {
+impl ToolOperation {
     pub fn into_tool_output(
         self,
         tool_name: ToolName,
@@ -225,7 +225,7 @@ impl Operation {
         env: &Environment,
     ) -> forge_domain::ToolOutput {
         match self {
-            Operation::FsRead { input, output } => match &output.content {
+            ToolOperation::FsRead { input, output } => match &output.content {
                 Content::File(content) => {
                     let elm = Element::new("file_content")
                         .attr("path", input.path)
@@ -239,7 +239,7 @@ impl Operation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
-            Operation::FsCreate { input, output } => {
+            ToolOperation::FsCreate { input, output } => {
                 let mut elm = if let Some(before) = output.before.as_ref() {
                     let diff_result = DiffFormat::format(before, &input.content);
                     let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
@@ -266,14 +266,14 @@ impl Operation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            Operation::FsRemove { input } => {
+            ToolOperation::FsRemove { input } => {
                 let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
                 let elem = Element::new("file_removed")
                     .attr("path", display_path)
                     .attr("status", "completed");
                 forge_domain::ToolOutput::text(elem)
             }
-            Operation::FsSearch { input, output } => match output {
+            ToolOperation::FsSearch { input, output } => match output {
                 Some(out) => {
                     let max_lines = min(
                         env.max_search_lines,
@@ -335,7 +335,7 @@ impl Operation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
-            Operation::FsPatch { input, output } => {
+            ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
                 let mut elm = Element::new("file_diff")
@@ -356,7 +356,7 @@ impl Operation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            Operation::FsUndo { input, output } => {
+            ToolOperation::FsUndo { input, output } => {
                 match (&output.before_undo, &output.after_undo) {
                     (None, None) => {
                         let elm = Element::new("file_undo")
@@ -398,7 +398,7 @@ impl Operation {
                     }
                 }
             }
-            Operation::NetFetch { input, output } => {
+            ToolOperation::NetFetch { input, output } => {
                 let content_type = match output.context {
                     ResponseContext::Parsed => "text/markdown".to_string(),
                     ResponseContext::Raw => output.content_type,
@@ -427,7 +427,7 @@ impl Operation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            Operation::Shell { output } => {
+            ToolOperation::Shell { output } => {
                 let mut parent_elem = Element::new("shell_output")
                     .attr("command", &output.output.command)
                     .attr("shell", &output.shell);
@@ -459,7 +459,7 @@ impl Operation {
 
                 forge_domain::ToolOutput::text(parent_elem)
             }
-            Operation::FollowUp { output } => match output {
+            ToolOperation::FollowUp { output } => match output {
                 None => {
                     let elm = Element::new("interrupted").text("No feedback provided");
                     forge_domain::ToolOutput::text(elm)
@@ -469,15 +469,15 @@ impl Operation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
-            Operation::AttemptCompletion => forge_domain::ToolOutput::text(
+            ToolOperation::AttemptCompletion => forge_domain::ToolOutput::text(
                 Element::new("success")
                     .text("[Task was completed successfully. Now wait for user feedback]"),
             ),
-            Operation::TaskListAppend { _input: _, before: _, after }
-            | Operation::TaskListAppendMultiple { _input: _, before: _, after }
-            | Operation::TaskListUpdate { _input: _, before: _, after }
-            | Operation::TaskListList { _input: _, before: _, after }
-            | Operation::TaskListClear { _input: _, before: _, after } => {
+            ToolOperation::TaskListAppend { _input: _, before: _, after }
+            | ToolOperation::TaskListAppendMultiple { _input: _, before: _, after }
+            | ToolOperation::TaskListUpdate { _input: _, before: _, after }
+            | ToolOperation::TaskListList { _input: _, before: _, after }
+            | ToolOperation::TaskListClear { _input: _, before: _, after } => {
                 let stats = forge_domain::TaskStats::from(&after);
                 let elm = Element::new("task_list")
                     .attr("total_tasks", stats.total_tasks)
@@ -493,7 +493,7 @@ impl Operation {
                     }));
                 forge_domain::ToolOutput::text(elm)
             }
-            Operation::PlanCreate { input, output } => {
+            ToolOperation::PlanCreate { input, output } => {
                 let elm = Element::new("plan_created")
                     .attr("path", output.path.display().to_string())
                     .attr("plan_name", input.plan_name)
@@ -501,7 +501,7 @@ impl Operation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            Operation::PolicyDenied { reason } => {
+            ToolOperation::PolicyDenied { reason } => {
                 let elm = Element::new("policy_denied").text(reason);
                 forge_domain::ToolOutput::text(elm)
             }
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_basic() {
-        let fixture = Operation::FsRead {
+        let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
                 start_line: None,
@@ -600,7 +600,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_basic_special_chars() {
-        let fixture = Operation::FsRead {
+        let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
                 start_line: None,
@@ -628,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_with_explicit_range() {
-        let fixture = Operation::FsRead {
+        let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
                 start_line: Some(2),
@@ -656,7 +656,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_with_truncation_path() {
-        let fixture = Operation::FsRead {
+        let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/large_file.txt".to_string(),
                 start_line: None,
@@ -683,7 +683,7 @@ mod tests {
 
     #[test]
     fn test_fs_create_basic() {
-        let fixture = Operation::FsCreate {
+        let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/new_file.txt".to_string(),
                 content: "Hello, world!".to_string(),
@@ -710,7 +710,7 @@ mod tests {
 
     #[test]
     fn test_fs_create_overwrite() {
-        let fixture = Operation::FsCreate {
+        let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/existing_file.txt".to_string(),
                 content: "New content for the file".to_string(),
@@ -736,7 +736,7 @@ mod tests {
 
     #[test]
     fn test_shell_output_no_truncation() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "echo hello".to_string(),
@@ -767,7 +767,7 @@ mod tests {
         }
         let stdout = stdout_lines.join("\n");
 
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "long_command".to_string(),
@@ -800,7 +800,7 @@ mod tests {
         }
         let stderr = stderr_lines.join("\n");
 
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "error_command".to_string(),
@@ -839,7 +839,7 @@ mod tests {
         }
         let stderr = stderr_lines.join("\n");
 
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "complex_command".to_string(),
@@ -873,7 +873,7 @@ mod tests {
         }
         let stdout = stdout_lines.join("\n");
 
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "boundary_command".to_string(),
@@ -897,7 +897,7 @@ mod tests {
 
     #[test]
     fn test_shell_output_single_line_each() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "simple_command".to_string(),
@@ -921,7 +921,7 @@ mod tests {
 
     #[test]
     fn test_shell_output_empty_streams() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "silent_command".to_string(),
@@ -958,7 +958,7 @@ mod tests {
         }
         let stderr = stderr_lines.join("\n");
 
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "line_test_command".to_string(),
@@ -998,7 +998,7 @@ mod tests {
             });
         }
 
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("search".to_string()),
@@ -1036,7 +1036,7 @@ mod tests {
             });
         }
 
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("search".to_string()),
@@ -1076,7 +1076,7 @@ mod tests {
             });
         }
 
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("search".to_string()),
@@ -1121,7 +1121,7 @@ mod tests {
             });
         }
 
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("search".to_string()),
@@ -1150,7 +1150,7 @@ mod tests {
 
     #[test]
     fn test_fs_search_no_matches() {
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/empty_project".to_string(),
                 regex: Some("nonexistent".to_string()),
@@ -1174,7 +1174,7 @@ mod tests {
     }
     #[test]
     fn test_task_list_empty() {
-        let fixture = Operation::TaskListList {
+        let fixture = ToolOperation::TaskListList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List empty tasks".to_string()),
             },
@@ -1198,7 +1198,7 @@ mod tests {
         let mut task_list = TaskList::new();
         task_list.append("Write documentation");
 
-        let fixture = Operation::TaskListList {
+        let fixture = ToolOperation::TaskListList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List tasks with one pending".to_string()),
             },
@@ -1230,7 +1230,7 @@ mod tests {
         // Mark first task as in progress manually
         task_list.get_task_mut(0).unwrap().mark_in_progress();
 
-        let fixture = Operation::TaskListList {
+        let fixture = ToolOperation::TaskListList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List tasks with mixed statuses".to_string()),
             },
@@ -1265,7 +1265,7 @@ mod tests {
         task_list.get_task_mut(0).unwrap().mark_in_progress(); // Mark first task as in progress
         task_list.get_task_mut(4).unwrap().mark_in_progress(); // Mark last task as in progress
 
-        let fixture = Operation::TaskListList {
+        let fixture = ToolOperation::TaskListList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List complex task scenario".to_string()),
             },
@@ -1292,7 +1292,7 @@ mod tests {
         let mut after_task_list = before_task_list.clone();
         after_task_list.append("New task from append");
 
-        let fixture = Operation::TaskListAppend {
+        let fixture = ToolOperation::TaskListAppend {
             _input: forge_domain::TaskListAppend {
                 task: "New task from append".to_string(),
                 explanation: Some("Append new task".to_string()),
@@ -1321,7 +1321,7 @@ mod tests {
         let mut after_task_list = before_task_list.clone();
         after_task_list.update_status(task1.id, forge_domain::Status::Done);
 
-        let fixture = Operation::TaskListUpdate {
+        let fixture = ToolOperation::TaskListUpdate {
             _input: forge_domain::TaskListUpdate {
                 task_id: task1.id,
                 status: forge_domain::Status::Done,
@@ -1358,7 +1358,7 @@ mod tests {
         task_list.get_task_mut(1).unwrap().mark_in_progress(); // Mark task 2 as in progress
         task_list.get_task_mut(2).unwrap().mark_in_progress(); // Mark task 3 as in progress
 
-        let fixture = Operation::TaskListList {
+        let fixture = ToolOperation::TaskListList {
             _input: forge_domain::TaskListList {
                 explanation: Some("List tasks with large numbers".to_string()),
             },
@@ -1379,7 +1379,7 @@ mod tests {
 
     #[test]
     fn test_fs_create_with_warning() {
-        let fixture = Operation::FsCreate {
+        let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 content: "Content with warning".to_string(),
@@ -1406,7 +1406,7 @@ mod tests {
 
     #[test]
     fn test_fs_remove_success() {
-        let fixture = Operation::FsRemove {
+        let fixture = ToolOperation::FsRemove {
             input: forge_domain::FSRemove {
                 path: "/home/user/file_to_delete.txt".to_string(),
                 explanation: Some("Removing unnecessary file".to_string()),
@@ -1426,7 +1426,7 @@ mod tests {
 
     #[test]
     fn test_fs_search_with_results() {
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("Hello".to_string()),
@@ -1468,7 +1468,7 @@ mod tests {
 
     #[test]
     fn test_fs_search_no_results() {
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("NonExistentPattern".to_string()),
@@ -1493,7 +1493,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_basic() {
-        let fixture = Operation::FsPatch {
+        let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/test.txt".to_string(),
                 search: Some("world".to_string()),
@@ -1521,7 +1521,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_with_warning() {
-        let fixture = Operation::FsPatch {
+        let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/large_file.txt".to_string(),
                 search: Some("line1".to_string()),
@@ -1549,7 +1549,7 @@ mod tests {
 
     #[test]
     fn test_fs_undo_no_changes() {
-        let fixture = Operation::FsUndo {
+        let fixture = ToolOperation::FsUndo {
             input: forge_domain::FSUndo {
                 path: "/home/user/unchanged_file.txt".to_string(),
                 explanation: Some("Attempting to undo file with no changes".to_string()),
@@ -1570,7 +1570,7 @@ mod tests {
 
     #[test]
     fn test_fs_undo_file_created() {
-        let fixture = Operation::FsUndo {
+        let fixture = ToolOperation::FsUndo {
             input: forge_domain::FSUndo {
                 path: "/home/user/new_file.txt".to_string(),
                 explanation: Some("Undoing operation resulted in file creation".to_string()),
@@ -1594,7 +1594,7 @@ mod tests {
 
     #[test]
     fn test_fs_undo_file_removed() {
-        let fixture = Operation::FsUndo {
+        let fixture = ToolOperation::FsUndo {
             input: forge_domain::FSUndo {
                 path: "/home/user/deleted_file.txt".to_string(),
                 explanation: Some("Undoing operation resulted in file removal".to_string()),
@@ -1620,7 +1620,7 @@ mod tests {
 
     #[test]
     fn test_fs_undo_file_restored() {
-        let fixture = Operation::FsUndo {
+        let fixture = ToolOperation::FsUndo {
             input: forge_domain::FSUndo {
                 path: "/home/user/restored_file.txt".to_string(),
                 explanation: Some("Reverting changes to restore previous state".to_string()),
@@ -1644,7 +1644,7 @@ mod tests {
 
     #[test]
     fn test_fs_undo_success() {
-        let fixture = Operation::FsUndo {
+        let fixture = ToolOperation::FsUndo {
             input: forge_domain::FSUndo {
                 path: "/home/user/test.txt".to_string(),
                 explanation: Some("Reverting changes to test file".to_string()),
@@ -1668,7 +1668,7 @@ mod tests {
 
     #[test]
     fn test_net_fetch_success() {
-        let fixture = Operation::NetFetch {
+        let fixture = ToolOperation::NetFetch {
             input: forge_domain::NetFetch {
                 url: "https://example.com".to_string(),
                 raw: Some(false),
@@ -1702,7 +1702,7 @@ mod tests {
             "A".repeat(env.fetch_truncation_limit),
             &truncated_content
         );
-        let fixture = Operation::NetFetch {
+        let fixture = ToolOperation::NetFetch {
             input: forge_domain::NetFetch {
                 url: "https://example.com/large-page".to_string(),
                 raw: Some(false),
@@ -1737,7 +1737,7 @@ mod tests {
 
     #[test]
     fn test_shell_success() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "ls -la".to_string(),
@@ -1762,7 +1762,7 @@ mod tests {
 
     #[test]
     fn test_attempt_completion() {
-        let fixture = Operation::AttemptCompletion;
+        let fixture = ToolOperation::AttemptCompletion;
 
         let env = fixture_environment();
 
@@ -1777,7 +1777,7 @@ mod tests {
 
     #[test]
     fn test_follow_up_with_question() {
-        let fixture = Operation::FollowUp {
+        let fixture = ToolOperation::FollowUp {
             output: Some("Which file would you like to edit?".to_string()),
         };
 
@@ -1794,7 +1794,7 @@ mod tests {
 
     #[test]
     fn test_follow_up_no_question() {
-        let fixture = Operation::FollowUp { output: None };
+        let fixture = ToolOperation::FollowUp { output: None };
 
         let env = fixture_environment();
 
@@ -1810,7 +1810,7 @@ mod tests {
     #[test]
     fn test_policy_denied_operation() {
         let fixture =
-            Operation::PolicyDenied { reason: "Operation denied by policy or user.".to_string() };
+            ToolOperation::PolicyDenied { reason: "Operation denied by policy or user.".to_string() };
 
         let actual = fixture.into_tool_output(
             ToolName::new("forge_tool_fs_read"),
