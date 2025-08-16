@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::operation::Operation;
+use super::operation::PermissionOperation;
 use super::rule::Rule;
 use super::types::Permission;
 
@@ -24,7 +24,7 @@ pub enum Policy {
 
 impl Policy {
     /// Evaluate a policy against an operation
-    pub fn eval(&self, operation: &Operation) -> Option<Permission> {
+    pub fn eval(&self, operation: &PermissionOperation) -> Option<Permission> {
         match self {
             Policy::Simple { permission, rule } => {
                 let rule_matches = rule.matches(operation);
@@ -70,14 +70,18 @@ impl Policy {
     }
 
     /// Find all rules that match the given operation
-    pub fn find_rules(&self, operation: &Operation) -> Vec<&Rule> {
+    pub fn find_rules(&self, operation: &PermissionOperation) -> Vec<&Rule> {
         let mut rules = Vec::new();
         self.collect_matching_rules(operation, &mut rules);
         rules
     }
 
     /// Recursively collect all matching rules
-    fn collect_matching_rules<'a>(&'a self, operation: &Operation, rules: &mut Vec<&'a Rule>) {
+    fn collect_matching_rules<'a>(
+        &'a self,
+        operation: &PermissionOperation,
+        rules: &mut Vec<&'a Rule>,
+    ) {
         match self {
             Policy::Simple { permission: _, rule } => {
                 if rule.matches(operation) {
@@ -139,8 +143,8 @@ mod tests {
     use super::*;
     use crate::WriteRule;
 
-    fn fixture_write_operation() -> Operation {
-        Operation::Write {
+    fn fixture_write_operation() -> PermissionOperation {
+        PermissionOperation::Write {
             path: PathBuf::from("src/main.rs"),
             cwd: PathBuf::from("/test/cwd"),
             message: "Create/overwrite file: src/main.rs".to_string(),
