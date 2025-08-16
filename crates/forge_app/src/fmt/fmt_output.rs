@@ -2,16 +2,16 @@ use forge_display::{DiffFormat, GrepFormat, TitleFormat};
 use forge_domain::Environment;
 
 use crate::fmt::content::{ContentFormat, FormatContent};
-use crate::operation::Operation;
+use crate::operation::ToolOperation;
 use crate::utils::{format_display_path, format_match};
 
-impl FormatContent for Operation {
+impl FormatContent for ToolOperation {
     fn to_content(&self, env: &Environment) -> Option<ContentFormat> {
         match self {
-            Operation::FsRead { input: _, output: _ } => None,
-            Operation::FsCreate { input: _, output: _ } => None,
-            Operation::FsRemove { input: _ } => None,
-            Operation::FsSearch { input: _, output } => output.as_ref().map(|result| {
+            ToolOperation::FsRead { input: _, output: _ } => None,
+            ToolOperation::FsCreate { input: _, output: _ } => None,
+            ToolOperation::FsRemove { input: _ } => None,
+            ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
                 ContentFormat::PlainText(
                     GrepFormat::new(
                         result
@@ -23,24 +23,24 @@ impl FormatContent for Operation {
                     .format(),
                 )
             }),
-            Operation::FsPatch { input: _, output } => Some(ContentFormat::PlainText(
+            ToolOperation::FsPatch { input: _, output } => Some(ContentFormat::PlainText(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
                     .to_string(),
             )),
-            Operation::FsUndo { input: _, output: _ } => None,
-            Operation::NetFetch { input: _, output: _ } => None,
-            Operation::Shell { output: _ } => None,
-            Operation::FollowUp { output: _ } => None,
-            Operation::AttemptCompletion => None,
-            Operation::TaskListAppend { _input: _, before, after }
-            | Operation::TaskListAppendMultiple { _input: _, before, after }
-            | Operation::TaskListUpdate { _input: _, before, after }
-            | Operation::TaskListList { _input: _, before, after }
-            | Operation::TaskListClear { _input: _, before, after } => Some(
+            ToolOperation::FsUndo { input: _, output: _ } => None,
+            ToolOperation::NetFetch { input: _, output: _ } => None,
+            ToolOperation::Shell { output: _ } => None,
+            ToolOperation::FollowUp { output: _ } => None,
+            ToolOperation::AttemptCompletion => None,
+            ToolOperation::TaskListAppend { _input: _, before, after }
+            | ToolOperation::TaskListAppendMultiple { _input: _, before, after }
+            | ToolOperation::TaskListUpdate { _input: _, before, after }
+            | ToolOperation::TaskListList { _input: _, before, after }
+            | ToolOperation::TaskListClear { _input: _, before, after } => Some(
                 ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
             ),
-            Operation::PlanCreate { input: _, output } => Some(
+            ToolOperation::PlanCreate { input: _, output } => Some(
                 TitleFormat::debug(format!(
                     "Create {}",
                     format_display_path(&output.path, &env.cwd)
@@ -64,7 +64,7 @@ mod tests {
 
     use super::FormatContent;
     use crate::fmt::content::ContentFormat;
-    use crate::operation::Operation;
+    use crate::operation::ToolOperation;
     use crate::{
         Content, FsCreateOutput, FsUndoOutput, HttpResponse, Match, MatchResult, PatchOutput,
         ReadOutput, ResponseContext, SearchResult, ShellOutput,
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_single_line() {
-        let fixture = Operation::FsRead {
+        let fixture = ToolOperation::FsRead {
             input: forge_domain::FSRead {
                 path: "/home/user/test.txt".to_string(),
                 start_line: None,
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_multiple_lines() {
-        let fixture = Operation::FsRead {
+        let fixture = ToolOperation::FsRead {
             input: forge_domain::FSRead {
                 path: "/home/user/test.txt".to_string(),
                 start_line: Some(2),
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_fs_create_new_file() {
-        let fixture = Operation::FsCreate {
+        let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/new_file.txt".to_string(),
                 content: "New file content".to_string(),
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_fs_create_overwrite() {
-        let fixture = Operation::FsCreate {
+        let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/existing_file.txt".to_string(),
                 content: "new content".to_string(),
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_fs_create_with_warning() {
-        let fixture = Operation::FsCreate {
+        let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/file.txt".to_string(),
                 content: "File content".to_string(),
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_fs_remove() {
-        let fixture = Operation::FsRemove {
+        let fixture = ToolOperation::FsRemove {
             input: forge_domain::FSRemove {
                 path: "/home/user/project/file.txt".to_string(),
                 explanation: Some("Remove file".to_string()),
@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn test_fs_search_with_matches() {
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("Hello".to_string()),
@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn test_fs_search_no_matches() {
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("nonexistent".to_string()),
@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     fn test_fs_search_none() {
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("search".to_string()),
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_success() {
-        let fixture = Operation::FsPatch {
+        let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/project/test.txt".to_string(),
                 search: Some("Hello world".to_string()),
@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_with_warning() {
-        let fixture = Operation::FsPatch {
+        let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/project/large_file.txt".to_string(),
                 search: Some("line2".to_string()),
@@ -405,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_fs_undo() {
-        let fixture = Operation::FsUndo {
+        let fixture = ToolOperation::FsUndo {
             input: forge_domain::FSUndo {
                 path: "/home/user/project/test.txt".to_string(),
                 explanation: Some("Undo changes".to_string()),
@@ -425,7 +425,7 @@ mod tests {
 
     #[test]
     fn test_net_fetch_success() {
-        let fixture = Operation::NetFetch {
+        let fixture = ToolOperation::NetFetch {
             input: forge_domain::NetFetch {
                 url: "https://example.com".to_string(),
                 raw: Some(false),
@@ -448,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_net_fetch_error() {
-        let fixture = Operation::NetFetch {
+        let fixture = ToolOperation::NetFetch {
             input: forge_domain::NetFetch {
                 url: "https://example.com/notfound".to_string(),
                 raw: Some(true),
@@ -471,7 +471,7 @@ mod tests {
 
     #[test]
     fn test_shell_success() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "ls -la".to_string(),
@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn test_shell_success_with_stderr() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "command_with_warnings".to_string(),
@@ -513,7 +513,7 @@ mod tests {
 
     #[test]
     fn test_shell_failure() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "failing_command".to_string(),
@@ -534,8 +534,9 @@ mod tests {
 
     #[test]
     fn test_follow_up_with_response() {
-        let fixture =
-            Operation::FollowUp { output: Some("Yes, continue with the operation".to_string()) };
+        let fixture = ToolOperation::FollowUp {
+            output: Some("Yes, continue with the operation".to_string()),
+        };
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
@@ -546,7 +547,7 @@ mod tests {
 
     #[test]
     fn test_follow_up_no_response() {
-        let fixture = Operation::FollowUp { output: None };
+        let fixture = ToolOperation::FollowUp { output: None };
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
@@ -557,7 +558,7 @@ mod tests {
 
     #[test]
     fn test_attempt_completion() {
-        let fixture = Operation::AttemptCompletion;
+        let fixture = ToolOperation::AttemptCompletion;
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
@@ -568,7 +569,7 @@ mod tests {
 
     #[test]
     fn test_plan_create() {
-        let fixture = Operation::PlanCreate {
+        let fixture = ToolOperation::PlanCreate {
             input: forge_domain::PlanCreate {
                 plan_name: "test-plan".to_string(),
                 version: "v1".to_string(),
