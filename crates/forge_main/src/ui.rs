@@ -23,6 +23,7 @@ use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::info::{Info, get_usage};
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
+use crate::pretty_errors::{unsupported_model, usage_limits};
 use crate::select::ForgeSelect;
 use crate::state::UIState;
 use crate::update::on_update;
@@ -702,7 +703,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
                     self.spinner.stop(None)?;
-                    return Err(err);
+                    if let Some(err_msg) = usage_limits(&err)? {
+                        println!("{err_msg}");
+                    } else if let Some(err_msg) = unsupported_model(&err)? {
+                        println!("{err_msg}");
+                    } else {
+                        return Err(err);
+                    }
                 }
             }
         }
