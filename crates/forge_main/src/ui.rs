@@ -107,6 +107,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
             conversation.set_variable("operating_agent".into(), Value::from(agent.id.as_str()));
+
+            // Update the model if the agent has one specified
+            if let Some(ref model) = agent.model {
+                conversation.set_model(model)?;
+                // Update the UI state with the new model
+                self.update_model(model.clone());
+            }
+
             self.api.upsert_conversation(conversation).await?;
         }
 
@@ -114,13 +122,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.state.is_first = true;
         self.state.operating_agent = agent.id.clone();
 
-        // Update the workflow with the new operating agent.
+        // Update the workflow with the new operating agent and model
         self.api
             .update_workflow(self.cli.workflow.as_deref(), |workflow| {
                 workflow.variables.insert(
                     "operating_agent".to_string(),
                     Value::from(agent.id.as_str()),
                 );
+                // Update the workflow model if the agent has one specified
+                if let Some(ref model) = agent.model {
+                    workflow.model = Some(model.clone());
+                }
             })
             .await?;
 
