@@ -2,6 +2,7 @@ use edtui::EditorEventHandler;
 use forge_api::ChatResponse;
 use ratatui::crossterm::event::KeyEventKind;
 
+use super::{ConversationState, EditorStateExt};
 use crate::domain::update_key_event::handle_key_event;
 use crate::domain::{Action, Command, State};
 
@@ -78,6 +79,21 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
         Action::StartStream(cancel_id) => {
             // Store the cancellation token for this stream
             state.chat_stream = Some(cancel_id);
+            Command::Empty
+        }
+        Action::New => {
+            state.conversation = ConversationState::default();
+            state.messages.clear();
+            state.editor.clear();
+            state.show_spinner = false;
+            if let Some(ref cancel) = state.chat_stream {
+                cancel.cancel();
+                state.chat_stream = None;
+            };
+            if let Some(ref timer) = state.timer {
+                timer.cancel.cancel();
+                state.timer = None;
+            }
             Command::Empty
         }
     }
