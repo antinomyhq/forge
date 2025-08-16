@@ -8,6 +8,7 @@ use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::operation::{Operation, TempContentFiles};
 use crate::services::ShellService;
+use crate::utils::format_display_path;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
@@ -44,7 +45,8 @@ impl<
         tool_input: &Tools,
         context: &mut ToolCallContext,
     ) -> anyhow::Result<()> {
-        let operation = tool_input.to_policy_operation(self.services.get_environment().cwd);
+        let cwd = self.services.get_environment().cwd;
+        let operation = tool_input.to_policy_operation(cwd.clone());
         if let Some(operation) = operation {
             let decision = self.services.check_operation_permission(&operation).await?;
 
@@ -52,8 +54,8 @@ impl<
             if let Some(policy_path) = decision.path {
                 context
                     .send_text(
-                        TitleFormat::info("Policy Generated")
-                            .sub_title(policy_path.display().to_string()),
+                        TitleFormat::info("Permissions Update")
+                            .sub_title(format_display_path(policy_path.as_path(), &cwd)),
                     )
                     .await?;
             }
