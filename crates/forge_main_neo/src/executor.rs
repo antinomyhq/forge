@@ -180,6 +180,15 @@ impl<T: API + 'static> Executor<T> {
         Ok(())
     }
 
+    async fn execute_compact(
+        &self,
+        conversation_id: ConversationId,
+        tx: &Sender<anyhow::Result<Action>>,
+    ) -> anyhow::Result<()> {
+        let result = self.api.compact_conversation(&conversation_id).await;
+        let _ = tx.send(Ok(Action::CompactionResult(result))).await;
+        Ok(())
+    }
     /// Execute an interval command that emits IntervalTick actions at regular
     /// intervals
     ///
@@ -254,6 +263,9 @@ impl<T: API + 'static> Executor<T> {
                 self.execute_interval(duration, &tx).await?;
             }
             Command::Spotlight(_) => todo!(),
+            Command::Compact { conversation_id } => {
+                self.execute_compact(conversation_id, &tx).await?;
+            }
             Command::InterruptStream => {
                 // Send InterruptStream action to trigger state update
                 tx.send(Ok(Action::InterruptStream)).await?;

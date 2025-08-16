@@ -90,7 +90,7 @@ impl StatefulWidget for MessageList {
     {
         let mut lines = messages_to_lines(&state.messages);
         let s = Spinner::default();
-        if state.show_spinner {
+        if state.spinner.is_some() {
             lines.push(s.to_line(state));
         }
 
