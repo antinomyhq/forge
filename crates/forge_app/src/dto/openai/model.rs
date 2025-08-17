@@ -11,16 +11,14 @@ where
 
     let value = Option::<Value>::deserialize(deserializer)?;
     match value {
-        Some(Value::Number(n)) => {
-            n.as_f64()
-                .map(|f| Some(f as f32))
-                .ok_or_else(|| Error::custom("invalid number for pricing value"))
-        },
-        Some(Value::String(s)) => {
-            s.parse::<f32>()
-                .map(Some)
-                .map_err(|_| Error::custom("invalid string format for pricing value"))
-        },
+        Some(Value::Number(n)) => n
+            .as_f64()
+            .map(|f| Some(f as f32))
+            .ok_or_else(|| Error::custom("invalid number for pricing value")),
+        Some(Value::String(s)) => s
+            .parse::<f32>()
+            .map(Some)
+            .map_err(|_| Error::custom("invalid string format for pricing value")),
         Some(Value::Null) | None => Ok(None),
         Some(_) => Err(Error::custom(
             "expected number, string, or null for pricing value",
@@ -217,7 +215,8 @@ mod tests {
     }
     #[test]
     fn test_chutes_api_response_format() {
-        // This simulates the actual Chutes API response format that was causing the issue
+        // This simulates the actual Chutes API response format that was causing the
+        // issue
         let fixture = serde_json::json!({
             "data": [
                 {
@@ -234,15 +233,15 @@ mod tests {
                 }
             ]
         });
-        
+
         let actual = serde_json::from_value::<ListModelResponse>(fixture).unwrap();
-        
+
         assert_eq!(actual.data.len(), 1);
         let model = &actual.data[0];
         assert_eq!(model.id.as_str(), "moonshotai/Kimi-K2-Instruct-75k");
         assert_eq!(model.name, Some("Kimi K2 Instruct 75k".to_string()));
         assert_eq!(model.context_length, Some(75000));
-        
+
         let pricing = model.pricing.as_ref().unwrap();
         assert_eq!(pricing.prompt, Some("0.17992692".to_string()));
         assert_eq!(pricing.completion, Some("0.17992692".to_string()));
