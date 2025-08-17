@@ -73,6 +73,8 @@ impl Rule {
                     None => true, /* If no working directory pattern is specified, it matches any
                                    * directory */
                 };
+                println!("{:?}", rule);
+                println!("{:?}", path);
                 pattern_matches && dir_matches
             }
 

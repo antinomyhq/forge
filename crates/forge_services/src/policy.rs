@@ -62,7 +62,7 @@ where
     where
         I: UserInfra,
     {
-        if let Some(new_policy) = create_policy_for_operation(operation, None) {
+        if let Some(new_policy) = create_policy_for_operation(operation)? {
             // TODO: Can return a diff later
             self.modify_policy(new_policy).await?;
             Ok(Some(self.permissions_path()))
@@ -163,6 +163,7 @@ where
 
         let engine = PolicyEngine::new(&policies);
         let permission = engine.can_perform(operation);
+        println!("{:?}", permission);
 
         match permission {
             Permission::Deny => Ok(PolicyDecision { allowed: false, path }),
@@ -190,10 +191,10 @@ where
                     .await?
                 {
                     Some(PolicyPermission::Accept) => Ok(PolicyDecision { allowed: true, path }),
-                    Some(PolicyPermission::AcceptAndRemember) => {
-                        let update_path = self.add_policy_for_operation(operation).await?;
-                        Ok(PolicyDecision { allowed: true, path: update_path.or(path) })
-                    }
+                    Some(PolicyPermission::AcceptAndRemember) => Ok(PolicyDecision {
+                        allowed: true,
+                        path: self.add_policy_for_operation(operation).await?,
+                    }),
                     Some(PolicyPermission::Reject) | None => {
                         Ok(PolicyDecision { allowed: false, path })
                     }
@@ -204,60 +205,84 @@ where
 }
 
 /// Create a policy for an operation based on its type
-fn create_policy_for_operation(
-    operation: &PermissionOperation,
-    dir: Option<String>,
-) -> Option<Policy> {
+fn create_policy_for_operation(operation: &PermissionOperation) -> anyhow::Result<Option<Policy>> {
     fn create_file_policy(
         path: &std::path::Path,
         rule_constructor: impl Fn(String) -> Rule,
-    ) -> Option<Policy> {
-        path.extension()
+    ) -> anyhow::Result<Policy> {
+        Ok(path
+            .extension()
             .and_then(|ext| ext.to_str())
             .map(|extension| Policy::Simple {
                 permission: Permission::Allow,
                 rule: rule_constructor(format!("*.{extension}")),
             })
+            .unwrap_or(Policy::Simple {
+                permission: Permission::Allow,
+                rule: rule_constructor(
+                    path.to_str()
+                        .context("Failed to convert path to string")?
+                        .to_string(),
+                ),
+            }))
     }
 
     match operation {
-        PermissionOperation::Read { path, cwd: _, message: _ } => {
+        PermissionOperation::Read { path, cwd, message: _ } => {
             create_file_policy(path, |pattern| {
-                Rule::Read(ReadRule { read: pattern, dir: dir.clone() })
+                Rule::Read(ReadRule { read: pattern, dir: cwd.to_str().map(|s| s.to_string()) })
             })
+            .map(Some)
         }
-        PermissionOperation::Write { path, cwd: _, message: _ } => {
+        PermissionOperation::Write { path, cwd, message: _ } => {
             create_file_policy(path, |pattern| {
-                Rule::Write(WriteRule { write: pattern, dir: dir.clone() })
+                Rule::Write(WriteRule { write: pattern, dir: cwd.to_str().map(|s| s.to_string()) })
             })
+            .map(Some)
         }
 
         PermissionOperation::Fetch { url, cwd: _, message: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 let scheme = parsed_url.scheme();
-                parsed_url.host_str().map(|host| Policy::Simple {
-                    permission: Permission::Allow,
-                    rule: Rule::Fetch(Fetch { url: format!("{scheme}://{host}*"), dir: None }),
-                })
+                Ok(parsed_url
+                    .host_str()
+                    .map(|host| Policy::Simple {
+                        permission: Permission::Allow,
+                        rule: Rule::Fetch(Fetch { url: format!("{scheme}://{host}*"), dir: None }),
+                    })
+                    .unwrap_or(Policy::Simple {
+                        permission: Permission::Allow,
+                        rule: Rule::Fetch(Fetch { url: url.to_string(), dir: None }),
+                    }))
+                .map(Some)
             } else {
-                Some(Policy::Simple {
+                Ok(Policy::Simple {
                     permission: Permission::Allow,
                     rule: Rule::Fetch(Fetch { url: url.to_string(), dir: None }),
                 })
+                .map(Some)
             }
         }
-        PermissionOperation::Execute { command, cwd: _, message: _ } => {
+        PermissionOperation::Execute { command, cwd, message: _ } => {
             let parts: Vec<&str> = command.split_whitespace().collect();
             match parts.as_slice() {
-                [] => None,
-                [cmd] => Some(Policy::Simple {
+                [] => Ok(None),
+                [cmd] => Ok(Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Execute(ExecuteRule { command: format!("{cmd}*"), dir }),
-                }),
-                [cmd, subcmd, ..] => Some(Policy::Simple {
+                    rule: Rule::Execute(ExecuteRule {
+                        command: format!("{cmd}*"),
+                        dir: cwd.to_str().map(|s| s.to_string()),
+                    }),
+                })
+                .map(Some),
+                [cmd, subcmd, ..] => Ok(Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Execute(ExecuteRule { command: format!("{cmd} {subcmd}*"), dir }),
-                }),
+                    rule: Rule::Execute(ExecuteRule {
+                        command: format!("{cmd} {subcmd}*"),
+                        dir: cwd.to_str().map(|s| s.to_string()),
+                    }),
+                })
+                .map(Some),
             }
         }
     }
@@ -278,7 +303,7 @@ mod tests {
             message: "Read file: /path/to/file.rs".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -300,7 +325,7 @@ mod tests {
             message: "Create/overwrite file: /path/to/file.json".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -322,7 +347,7 @@ mod tests {
             message: "Modify file: /path/to/file.toml".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -344,7 +369,7 @@ mod tests {
             message: "Fetch content from URL: https://example.com/api/data".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -363,7 +388,7 @@ mod tests {
             message: "Fetch content from URL: http://api.example.com/data".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -382,7 +407,7 @@ mod tests {
             message: "Execute shell command: git push origin main".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -404,7 +429,7 @@ mod tests {
             message: "Execute shell command: ls".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -426,7 +451,7 @@ mod tests {
             message: "Read file: /path/to/file".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = None;
 
@@ -442,7 +467,7 @@ mod tests {
             message: "Fetch content from URL: not-a-valid-url".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
@@ -461,7 +486,7 @@ mod tests {
             message: "Execute shell command: ".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = None;
 
@@ -477,7 +502,7 @@ mod tests {
             message: "Execute shell command: ls".to_string(),
         };
 
-        let actual = create_policy_for_operation(&operation, None);
+        let actual = create_policy_for_operation(&operation);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
