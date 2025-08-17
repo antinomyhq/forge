@@ -1,8 +1,8 @@
 use forge_domain::ModelId;
 use serde::{Deserialize, Deserializer, Serialize};
 
-// Custom deserializer to handle both string and numeric pricing values
-fn deserialize_price_value<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+// Custom deserializer to handle both numeric and string pricing values
+fn deserialize_price_value<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -11,11 +11,19 @@ where
 
     let value = Option::<Value>::deserialize(deserializer)?;
     match value {
-        Some(Value::String(s)) => Ok(Some(s)),
-        Some(Value::Number(n)) => Ok(Some(n.to_string())),
+        Some(Value::Number(n)) => {
+            n.as_f64()
+                .map(|f| Some(f as f32))
+                .ok_or_else(|| Error::custom("invalid number for pricing value"))
+        },
+        Some(Value::String(s)) => {
+            s.parse::<f32>()
+                .map(Some)
+                .map_err(|_| Error::custom("invalid string format for pricing value"))
+        },
         Some(Value::Null) | None => Ok(None),
         Some(_) => Err(Error::custom(
-            "expected string, number, or null for pricing value",
+            "expected number, string, or null for pricing value",
         )),
     }
 }
@@ -44,13 +52,13 @@ pub struct Architecture {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Pricing {
     #[serde(deserialize_with = "deserialize_price_value", default)]
-    pub prompt: Option<String>,
+    pub prompt: Option<f32>,
     #[serde(deserialize_with = "deserialize_price_value", default)]
-    pub completion: Option<String>,
+    pub completion: Option<f32>,
     #[serde(deserialize_with = "deserialize_price_value", default)]
-    pub image: Option<String>,
+    pub image: Option<f32>,
     #[serde(deserialize_with = "deserialize_price_value", default)]
-    pub request: Option<String>,
+    pub request: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
