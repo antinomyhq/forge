@@ -243,16 +243,21 @@ fn create_policy_for_operation(operation: &PermissionOperation) -> anyhow::Resul
         PermissionOperation::Fetch { url, cwd: _, message: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 let scheme = parsed_url.scheme();
-                Ok(Some(parsed_url
-                    .host_str()
-                    .map(|host| Policy::Simple {
-                        permission: Permission::Allow,
-                        rule: Rule::Fetch(Fetch { url: format!("{scheme}://{host}*"), dir: None }),
-                    })
-                    .unwrap_or(Policy::Simple {
-                        permission: Permission::Allow,
-                        rule: Rule::Fetch(Fetch { url: url.to_string(), dir: None }),
-                    })))
+                Ok(Some(
+                    parsed_url
+                        .host_str()
+                        .map(|host| Policy::Simple {
+                            permission: Permission::Allow,
+                            rule: Rule::Fetch(Fetch {
+                                url: format!("{scheme}://{host}*"),
+                                dir: None,
+                            }),
+                        })
+                        .unwrap_or(Policy::Simple {
+                            permission: Permission::Allow,
+                            rule: Rule::Fetch(Fetch { url: url.to_string(), dir: None }),
+                        }),
+                ))
             } else {
                 Ok(Some(Policy::Simple {
                     permission: Permission::Allow,
