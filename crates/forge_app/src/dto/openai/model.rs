@@ -124,19 +124,20 @@ mod tests {
 
     use super::*;
 
-    fn load_fixture(filename: &str) -> serde_json::Value {
+    async fn load_fixture(filename: &str) -> serde_json::Value {
         let fixture_path = format!("src/dto/openai/fixtures/{}", filename);
-        let fixture_content = std::fs::read_to_string(&fixture_path)
+        let fixture_content = tokio::fs::read_to_string(&fixture_path)
+            .await
             .unwrap_or_else(|_| panic!("Failed to read fixture file: {}", fixture_path));
         serde_json::from_str(&fixture_content)
             .unwrap_or_else(|_| panic!("Failed to parse JSON fixture: {}", fixture_path))
     }
 
-    #[test]
-    fn test_deserialize_model_with_numeric_pricing() {
+    #[tokio::test]
+    async fn test_deserialize_model_with_numeric_pricing() {
         // This reproduces the issue where Chutes API returns numeric pricing instead of
         // strings
-        let fixture = load_fixture("model_numeric_pricing.json");
+        let fixture = load_fixture("model_numeric_pricing.json").await;
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
@@ -148,9 +149,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_deserialize_model_with_string_pricing() {
-        let fixture = load_fixture("model_string_pricing.json");
+    #[tokio::test]
+    async fn test_deserialize_model_with_string_pricing() {
+        let fixture = load_fixture("model_string_pricing.json").await;
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
         let expected = Model {
@@ -183,10 +184,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_deserialize_model_with_mixed_pricing() {
+    #[tokio::test]
+    async fn test_deserialize_model_with_mixed_pricing() {
         // Test with mixed string, numeric, and null pricing values
-        let fixture = load_fixture("model_mixed_pricing.json");
+        let fixture = load_fixture("model_mixed_pricing.json").await;
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
@@ -196,10 +197,10 @@ mod tests {
         assert_eq!(actual.pricing.as_ref().unwrap().request, None);
     }
 
-    #[test]
-    fn test_deserialize_model_without_pricing() {
+    #[tokio::test]
+    async fn test_deserialize_model_without_pricing() {
         // Test that models without pricing field work correctly
-        let fixture = load_fixture("model_no_pricing.json");
+        let fixture = load_fixture("model_no_pricing.json").await;
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
@@ -208,11 +209,11 @@ mod tests {
         assert_eq!(actual.pricing, None);
     }
 
-    #[test]
-    fn test_chutes_api_response_format() {
+    #[tokio::test]
+    async fn test_chutes_api_response_format() {
         // This simulates the actual Chutes API response format that was causing the
         // issue
-        let fixture = load_fixture("chutes_api_response.json");
+        let fixture = load_fixture("chutes_api_response.json").await;
 
         let actual = serde_json::from_value::<ListModelResponse>(fixture).unwrap();
 
@@ -229,10 +230,10 @@ mod tests {
         assert_eq!(pricing.request, None);
     }
 
-    #[test]
-    fn test_deserialize_model_with_invalid_string_pricing() {
+    #[tokio::test]
+    async fn test_deserialize_model_with_invalid_string_pricing() {
         // Test that invalid string pricing formats fail gracefully
-        let fixture = load_fixture("model_invalid_pricing.json");
+        let fixture = load_fixture("model_invalid_pricing.json").await;
 
         let actual = serde_json::from_value::<Model>(fixture);
 
@@ -242,10 +243,10 @@ mod tests {
         assert!(error_message.contains("invalid string format for pricing value"));
     }
 
-    #[test]
-    fn test_deserialize_model_with_scientific_notation_string() {
+    #[tokio::test]
+    async fn test_deserialize_model_with_scientific_notation_string() {
         // Test that scientific notation in strings works
-        let fixture = load_fixture("model_scientific_notation.json");
+        let fixture = load_fixture("model_scientific_notation.json").await;
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
