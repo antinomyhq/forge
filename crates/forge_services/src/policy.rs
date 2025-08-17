@@ -234,9 +234,10 @@ fn create_policy_for_operation(
 
         PermissionOperation::Fetch { url, cwd: _, message: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
+                let scheme = parsed_url.scheme();
                 parsed_url.host_str().map(|host| Policy::Simple {
                     permission: Permission::Allow,
-                    rule: Rule::Fetch(Fetch { url: format!("{host}*"), dir: None }),
+                    rule: Rule::Fetch(Fetch { url: format!("{scheme}://{host}*"), dir: None }),
                 })
             } else {
                 Some(Policy::Simple {
@@ -281,7 +282,10 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Read(ReadRule { read: "*.rs".to_string(), dir: None }),
+            rule: Rule::Read(ReadRule {
+                read: "*.rs".to_string(),
+                dir: Some("/test/cwd".to_string()),
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -300,7 +304,10 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule { write: "*.json".to_string(), dir: None }),
+            rule: Rule::Write(WriteRule {
+                write: "*.json".to_string(),
+                dir: Some("/test/cwd".to_string()),
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -319,7 +326,10 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Write(WriteRule { write: "*.toml".to_string(), dir: None }),
+            rule: Rule::Write(WriteRule {
+                write: "*.toml".to_string(),
+                dir: Some("/test/cwd".to_string()),
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -338,7 +348,26 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Fetch(Fetch { url: "example.com*".to_string(), dir: None }),
+            rule: Rule::Fetch(Fetch { url: "https://example.com*".to_string(), dir: None }),
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_net_fetch_operation_with_http() {
+        let url = "http://api.example.com/data".to_string();
+        let operation = PermissionOperation::Fetch {
+            url,
+            cwd: std::path::PathBuf::from("/test/cwd"),
+            message: "Fetch content from URL: http://api.example.com/data".to_string(),
+        };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Fetch(Fetch { url: "http://api.example.com*".to_string(), dir: None }),
         });
 
         assert_eq!(actual, expected);
@@ -357,7 +386,10 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule { command: "git push*".to_string(), dir: None }),
+            rule: Rule::Execute(ExecuteRule {
+                command: "git push*".to_string(),
+                dir: Some("/test/cwd".to_string()),
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -376,7 +408,10 @@ mod tests {
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule { command: "ls*".to_string(), dir: None }),
+            rule: Rule::Execute(ExecuteRule {
+                command: "ls*".to_string(),
+                dir: Some("/test/cwd".to_string()),
+            }),
         });
 
         assert_eq!(actual, expected);
@@ -438,16 +473,18 @@ mod tests {
         let command = "ls".to_string();
         let operation = PermissionOperation::Execute {
             command,
-            cwd: std::path::PathBuf::from("/test/cwd"),
+            cwd: std::path::PathBuf::from("/home/user/project"),
             message: "Execute shell command: ls".to_string(),
         };
-        let working_directory = Some("/home/user/project".to_string());
 
-        let actual = create_policy_for_operation(&operation, working_directory.clone());
+        let actual = create_policy_for_operation(&operation, None);
 
         let expected = Some(Policy::Simple {
             permission: Permission::Allow,
-            rule: Rule::Execute(ExecuteRule { command: "ls*".to_string(), dir: working_directory }),
+            rule: Rule::Execute(ExecuteRule {
+                command: "ls*".to_string(),
+                dir: Some("/home/user/project".to_string()),
+            }),
         });
 
         assert_eq!(actual, expected);
