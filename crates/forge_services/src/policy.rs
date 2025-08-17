@@ -163,7 +163,6 @@ where
 
         let engine = PolicyEngine::new(&policies);
         let permission = engine.can_perform(operation);
-        println!("{:?}", permission);
 
         match permission {
             Permission::Deny => Ok(PolicyDecision { allowed: false, path }),
