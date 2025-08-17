@@ -1,28 +1,30 @@
 use forge_domain::ModelId;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
-// Custom deserializer to handle both numeric and string pricing values
-fn deserialize_price_value<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de::Error;
-    use serde_json::Value;
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(untagged)]
+enum PriceValue {
+    Number(f32),
+    String(String),
+}
 
-    let value = Option::<Value>::deserialize(deserializer)?;
-    match value {
-        Some(Value::Number(n)) => n
-            .as_f64()
-            .map(|f| Some(f as f32))
-            .ok_or_else(|| Error::custom("invalid number for pricing value")),
-        Some(Value::String(s)) => s
-            .parse::<f32>()
-            .map(Some)
-            .map_err(|_| Error::custom("invalid string format for pricing value")),
-        Some(Value::Null) | None => Ok(None),
-        Some(_) => Err(Error::custom(
-            "expected number, string, or null for pricing value",
-        )),
+impl From<PriceValue> for Option<f32> {
+    fn from(value: PriceValue) -> Self {
+        match value {
+            PriceValue::Number(n) => Some(n),
+            PriceValue::String(s) => s.parse().ok(),
+        }
+    }
+}
+
+impl TryFrom<PriceValue> for f32 {
+    type Error = std::num::ParseFloatError;
+
+    fn try_from(value: PriceValue) -> Result<Self, Self::Error> {
+        match value {
+            PriceValue::Number(n) => Ok(n),
+            PriceValue::String(s) => s.parse(),
+        }
     }
 }
 
@@ -49,14 +51,29 @@ pub struct Architecture {
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Pricing {
-    #[serde(deserialize_with = "deserialize_price_value", default)]
+    #[serde(default, deserialize_with = "deserialize_optional_price")]
     pub prompt: Option<f32>,
-    #[serde(deserialize_with = "deserialize_price_value", default)]
+    #[serde(default, deserialize_with = "deserialize_optional_price")]
     pub completion: Option<f32>,
-    #[serde(deserialize_with = "deserialize_price_value", default)]
+    #[serde(default, deserialize_with = "deserialize_optional_price")]
     pub image: Option<f32>,
-    #[serde(deserialize_with = "deserialize_price_value", default)]
+    #[serde(default, deserialize_with = "deserialize_optional_price")]
     pub request: Option<f32>,
+}
+
+fn deserialize_optional_price<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    match Option::<PriceValue>::deserialize(deserializer)? {
+        Some(price_value) => match f32::try_from(price_value) {
+            Ok(value) => Ok(Some(value)),
+            Err(_) => Err(Error::custom("invalid string format for pricing value")),
+        },
+        None => Ok(None),
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -107,18 +124,19 @@ mod tests {
 
     use super::*;
 
+    fn load_fixture(filename: &str) -> serde_json::Value {
+        let fixture_path = format!("src/dto/openai/fixtures/{}", filename);
+        let fixture_content = std::fs::read_to_string(&fixture_path)
+            .unwrap_or_else(|_| panic!("Failed to read fixture file: {}", fixture_path));
+        serde_json::from_str(&fixture_content)
+            .unwrap_or_else(|_| panic!("Failed to parse JSON fixture: {}", fixture_path))
+    }
+
     #[test]
     fn test_deserialize_model_with_numeric_pricing() {
         // This reproduces the issue where Chutes API returns numeric pricing instead of
         // strings
-        let fixture = serde_json::json!({
-            "id": "moonshotai/Kimi-K2-Instruct-75k",
-            "name": "Kimi K2 Instruct 75k",
-            "pricing": {
-                "prompt": 0.17992692,
-                "completion": 0.17992692
-            }
-        });
+        let fixture = load_fixture("model_numeric_pricing.json");
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
@@ -132,14 +150,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_model_with_string_pricing() {
-        let fixture = serde_json::json!({
-            "id": "test-model",
-            "name": "Test Model",
-            "pricing": {
-                "prompt": "0.001",
-                "completion": "0.002"
-            }
-        });
+        let fixture = load_fixture("model_string_pricing.json");
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
         let expected = Model {
@@ -171,19 +182,11 @@ mod tests {
             expected.pricing.as_ref().unwrap().completion
         );
     }
+
     #[test]
     fn test_deserialize_model_with_mixed_pricing() {
         // Test with mixed string, numeric, and null pricing values
-        let fixture = serde_json::json!({
-            "id": "mixed-model",
-            "name": "Mixed Pricing Model",
-            "pricing": {
-                "prompt": "0.001",
-                "completion": 0.002,
-                "image": null,
-                // request field is missing entirely
-            }
-        });
+        let fixture = load_fixture("model_mixed_pricing.json");
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
@@ -196,10 +199,7 @@ mod tests {
     #[test]
     fn test_deserialize_model_without_pricing() {
         // Test that models without pricing field work correctly
-        let fixture = serde_json::json!({
-            "id": "no-pricing-model",
-            "name": "No Pricing Model"
-        });
+        let fixture = load_fixture("model_no_pricing.json");
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
@@ -207,26 +207,12 @@ mod tests {
         assert_eq!(actual.name, Some("No Pricing Model".to_string()));
         assert_eq!(actual.pricing, None);
     }
+
     #[test]
     fn test_chutes_api_response_format() {
         // This simulates the actual Chutes API response format that was causing the
         // issue
-        let fixture = serde_json::json!({
-            "data": [
-                {
-                    "id": "moonshotai/Kimi-K2-Instruct-75k",
-                    "name": "Kimi K2 Instruct 75k",
-                    "created": 1234567890,
-                    "description": "Kimi K2 model with 75k context length",
-                    "context_length": 75000,
-                    "pricing": {
-                        "prompt": 0.17992692,
-                        "completion": 0.17992692
-                    },
-                    "supported_parameters": ["tools", "supports_parallel_tool_calls"]
-                }
-            ]
-        });
+        let fixture = load_fixture("chutes_api_response.json");
 
         let actual = serde_json::from_value::<ListModelResponse>(fixture).unwrap();
 
@@ -242,17 +228,11 @@ mod tests {
         assert_eq!(pricing.image, None);
         assert_eq!(pricing.request, None);
     }
+
     #[test]
     fn test_deserialize_model_with_invalid_string_pricing() {
         // Test that invalid string pricing formats fail gracefully
-        let fixture = serde_json::json!({
-            "id": "invalid-pricing-model",
-            "name": "Invalid Pricing Model",
-            "pricing": {
-                "prompt": "not-a-number",
-                "completion": 0.002
-            }
-        });
+        let fixture = load_fixture("model_invalid_pricing.json");
 
         let actual = serde_json::from_value::<Model>(fixture);
 
@@ -265,14 +245,7 @@ mod tests {
     #[test]
     fn test_deserialize_model_with_scientific_notation_string() {
         // Test that scientific notation in strings works
-        let fixture = serde_json::json!({
-            "id": "scientific-model",
-            "name": "Scientific Notation Model",
-            "pricing": {
-                "prompt": "1.5e-3",
-                "completion": "2.0E-4"
-            }
-        });
+        let fixture = load_fixture("model_scientific_notation.json");
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
