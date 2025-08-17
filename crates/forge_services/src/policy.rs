@@ -210,7 +210,7 @@ fn create_policy_for_operation(
 ) -> Option<Policy> {
     fn create_file_policy(
         path: &std::path::Path,
-        rule_constructor: fn(String) -> Rule,
+        rule_constructor: impl Fn(String) -> Rule,
     ) -> Option<Policy> {
         path.extension()
             .and_then(|ext| ext.to_str())
@@ -223,12 +223,12 @@ fn create_policy_for_operation(
     match operation {
         PermissionOperation::Read { path, cwd: _, message: _ } => {
             create_file_policy(path, |pattern| {
-                Rule::Read(ReadRule { read: pattern, dir: None })
+                Rule::Read(ReadRule { read: pattern, dir: dir.clone() })
             })
         }
         PermissionOperation::Write { path, cwd: _, message: _ } => {
             create_file_policy(path, |pattern| {
-                Rule::Write(WriteRule { write: pattern, dir: None })
+                Rule::Write(WriteRule { write: pattern, dir: dir.clone() })
             })
         }
 
