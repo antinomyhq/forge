@@ -120,13 +120,13 @@ mod tests {
             }
         });
 
-        let actual = serde_json::from_value::<Model>(fixture);
+        let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
         // This should not fail - we should be able to handle numeric pricing
-        assert!(
-            actual.is_ok(),
-            "Should be able to deserialize model with numeric pricing: {:?}",
-            actual.err()
+        assert_eq!(actual.pricing.as_ref().unwrap().prompt, Some(0.17992692));
+        assert_eq!(
+            actual.pricing.as_ref().unwrap().completion,
+            Some(0.17992692)
         );
     }
 
@@ -150,8 +150,8 @@ mod tests {
             context_length: None,
             architecture: None,
             pricing: Some(Pricing {
-                prompt: Some("0.001".to_string()),
-                completion: Some("0.002".to_string()),
+                prompt: Some(0.001),
+                completion: Some(0.002),
                 image: None,
                 request: None,
             }),
@@ -187,14 +187,8 @@ mod tests {
 
         let actual = serde_json::from_value::<Model>(fixture).unwrap();
 
-        assert_eq!(
-            actual.pricing.as_ref().unwrap().prompt,
-            Some("0.001".to_string())
-        );
-        assert_eq!(
-            actual.pricing.as_ref().unwrap().completion,
-            Some("0.002".to_string())
-        );
+        assert_eq!(actual.pricing.as_ref().unwrap().prompt, Some(0.001));
+        assert_eq!(actual.pricing.as_ref().unwrap().completion, Some(0.002));
         assert_eq!(actual.pricing.as_ref().unwrap().image, None);
         assert_eq!(actual.pricing.as_ref().unwrap().request, None);
     }
@@ -243,9 +237,46 @@ mod tests {
         assert_eq!(model.context_length, Some(75000));
 
         let pricing = model.pricing.as_ref().unwrap();
-        assert_eq!(pricing.prompt, Some("0.17992692".to_string()));
-        assert_eq!(pricing.completion, Some("0.17992692".to_string()));
+        assert_eq!(pricing.prompt, Some(0.17992692));
+        assert_eq!(pricing.completion, Some(0.17992692));
         assert_eq!(pricing.image, None);
         assert_eq!(pricing.request, None);
+    }
+    #[test]
+    fn test_deserialize_model_with_invalid_string_pricing() {
+        // Test that invalid string pricing formats fail gracefully
+        let fixture = serde_json::json!({
+            "id": "invalid-pricing-model",
+            "name": "Invalid Pricing Model",
+            "pricing": {
+                "prompt": "not-a-number",
+                "completion": 0.002
+            }
+        });
+
+        let actual = serde_json::from_value::<Model>(fixture);
+
+        // This should fail with a parsing error
+        assert!(actual.is_err());
+        let error_message = format!("{}", actual.unwrap_err());
+        assert!(error_message.contains("invalid string format for pricing value"));
+    }
+
+    #[test]
+    fn test_deserialize_model_with_scientific_notation_string() {
+        // Test that scientific notation in strings works
+        let fixture = serde_json::json!({
+            "id": "scientific-model",
+            "name": "Scientific Notation Model",
+            "pricing": {
+                "prompt": "1.5e-3",
+                "completion": "2.0E-4"
+            }
+        });
+
+        let actual = serde_json::from_value::<Model>(fixture).unwrap();
+
+        assert_eq!(actual.pricing.as_ref().unwrap().prompt, Some(0.0015));
+        assert_eq!(actual.pricing.as_ref().unwrap().completion, Some(0.0002));
     }
 }
