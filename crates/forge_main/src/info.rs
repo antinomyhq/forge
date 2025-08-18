@@ -60,12 +60,12 @@ impl From<&Environment> for Info {
         };
 
         let mut info = Info::new()
-            .add_title("Environment")
+            .add_title("ENVIRONMENT")
             .add_key_value("Version", VERSION)
             .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
             .add_key_value("Shell", &env.shell)
             .add_key_value("Git Branch", branch_info)
-            .add_title("Paths");
+            .add_title("PATHS");
 
         // Only show logs path if the directory exists
         let log_path = env.log_path();
@@ -93,7 +93,7 @@ impl From<&Environment> for Info {
 
 impl From<&UIState> for Info {
     fn from(value: &UIState) -> Self {
-        let mut info = Info::new().add_title("Model");
+        let mut info = Info::new().add_title("MODEL");
 
         if let Some(model) = &value.model {
             info = info.add_key_value("Current", model);
@@ -118,20 +118,10 @@ impl From<&Metrics> for Info {
             Some(d) => humantime::format_duration(Duration::from_secs(d.as_secs())).to_string(),
             None => "0s".to_string(),
         };
-        // Add total row
-        let total_changes = format!(
-            "+{} −{}",
-            metrics.total_lines_added, metrics.total_lines_removed
-        );
-        let mut info = Info::new()
-            .add_title("TASK SUMMARY")
-            .add_key_value("Task Duration", duration)
-            .add_key_value("Diff Generated", total_changes);
+        let mut info = Info::new().add_title(format!("TASK COMPLETED [{duration}]"));
 
         // Add file changes section inspired by the example format
         if !metrics.files_changed.is_empty() {
-            info = info.add_title("FILE CHANGES");
-
             // Add each file with its changes
             for (path, file_metrics) in &metrics.files_changed {
                 // Extract just the filename from the path
@@ -141,13 +131,11 @@ impl From<&Metrics> for Info {
                     .unwrap_or(path);
 
                 let changes = format!(
-                    "+{} −{}",
-                    file_metrics.lines_added, file_metrics.lines_removed
+                    "−{} +{}",
+                    file_metrics.lines_removed, file_metrics.lines_added
                 );
-                info = info.add_key_value(format!("✱ {filename}"), changes);
+                info = info.add_key_value(format!("✓ {filename}"), changes);
             }
-
-            info = info;
         }
 
         info
@@ -156,7 +144,7 @@ impl From<&Metrics> for Info {
 
 pub fn get_usage(state: &UIState) -> Info {
     let mut usage = Info::new()
-        .add_title("Token Usage")
+        .add_title("TOKEN USAGE")
         .add_key_value("Prompt Tokens", state.usage.prompt_tokens.to_string())
         .add_key_value(
             "Completion Tokens",
@@ -180,7 +168,7 @@ impl fmt::Display for Info {
             match section {
                 Section::Title(title) => {
                     writeln!(f)?;
-                    writeln!(f, "{}", title.to_uppercase().bold().dimmed())?
+                    writeln!(f, "{}", title.bold().dimmed())?
                 }
                 Section::Items(key, value) => {
                     if let Some(value) = value {
@@ -264,14 +252,14 @@ fn get_git_branch() -> Option<String> {
 /// Create an info instance for available commands from a ForgeCommandManager
 impl From<&ForgeCommandManager> for Info {
     fn from(command_manager: &ForgeCommandManager) -> Self {
-        let mut info = Info::new().add_title("Commands");
+        let mut info = Info::new().add_title("COMMANDS");
 
         for command in command_manager.list() {
             info = info.add_key_value(command.name, command.description);
         }
 
         info = info
-            .add_title("Keyboard Shortcuts")
+            .add_title("KEYBOARD SHORTCUTS")
             .add_key_value("<CTRL+C>", "Interrupt current operation")
             .add_key_value("<CTRL+D>", "Quit Forge interactive shell")
             .add_key_value("<OPT+ENTER>", "Insert new line (multiline input)");
@@ -281,7 +269,7 @@ impl From<&ForgeCommandManager> for Info {
 }
 impl From<&LoginInfo> for Info {
     fn from(login_info: &LoginInfo) -> Self {
-        let mut info = Info::new().add_title("Account");
+        let mut info = Info::new().add_title("ACCOUNT");
 
         if let Some(email) = &login_info.email {
             info = info.add_key_value("Login", email);
@@ -306,7 +294,7 @@ impl From<&UserUsage> for Info {
         let usage = &user_usage.usage;
         let plan = &user_usage.plan;
 
-        let mut info = Info::new().add_title("Request Quota");
+        let mut info = Info::new().add_title("REQUEST QUOTA");
 
         if plan.is_upgradeable() {
             info = info.add_key_value(
