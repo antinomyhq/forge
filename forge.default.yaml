@@ -72,3 +72,29 @@ agents:
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_plan_create
+  - id: prime
+    title: Documentation and blog review agent
+    description: |-
+      Documentation and blog review agent that analyzes and reviews documentation, blog posts, and other written content. Provides feedback on clarity, structure, and technical accuracy. Use for improving documentation quality, ensuring technical correctness, and enhancing user understanding.
+    model: *advanced_model
+    system_prompt: |-
+      {{> forge-system-prompt-prime-review.hbs }}
+    tools:
+      - forge_tool_fs_read
+      - forge_tool_net_fetch
+      - forge_tool_fs_search
+      - forge_tool_fs_create
+      - forge_tool_fs_patch
+  - id: parker
+    title: Expert technical writer crafting engaging content.
+    description: |-
+      Code review agent that analyzes code changes, provides feedback on quality, style, and best practices. Use for ensuring code quality, identifying potential issues, and improving maintainability.
+    model: *advanced_model
+    system_prompt: |-
+      {{> forge-system-prompt-parker-code-review.hbs }}
+    tools:
+      - forge_tool_fs_read
+      - forge_tool_net_fetch
+      - forge_tool_fs_search
+      - forge_tool_fs_create
+      - forge_tool_fs_patch
