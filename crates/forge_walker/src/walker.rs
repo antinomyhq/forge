@@ -168,7 +168,8 @@ impl Walker {
 
                 let metadata = match path.metadata() {
                     Ok(meta) => meta,
-                    Err(_) => return ignore::WalkState::Continue, // Skip files we can't read metadata for
+                    Err(_) => return ignore::WalkState::Continue, /* Skip files we can't read
+                                                                   * metadata for */
                 };
 
                 let file_size = metadata.len();
@@ -589,7 +590,8 @@ mod tests {
         let duration = start.elapsed();
 
         // The test should complete reasonably quickly
-        // This is not a strict performance test, just ensuring the parallel walker works
+        // This is not a strict performance test, just ensuring the parallel walker
+        // works
         assert!(
             duration.as_secs() < 5,
             "Walker took too long: {:?}",
