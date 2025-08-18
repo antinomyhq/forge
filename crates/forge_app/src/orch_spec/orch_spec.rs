@@ -120,16 +120,17 @@ async fn test_attempt_completion_triggers_session_summary() {
 
     ctx.run().await.unwrap();
 
-    let has_chat_complete = ctx
+    let chat_complete_count = ctx
         .output
         .chat_responses
         .iter()
         .flatten()
-        .any(|response| matches!(response, ChatResponse::ChatComplete(_)));
+        .filter(|response| matches!(response, ChatResponse::ChatComplete(_))).count();
 
-    assert!(
-        has_chat_complete,
-        "Should have ChatComplete response for attempt_completion"
+    assert_eq!(
+        chat_complete_count,
+        1,
+        "Should have 1 ChatComplete response for attempt_completion"
     );
 }
 

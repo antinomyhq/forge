@@ -594,7 +594,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Update context in the conversation
             context = SetModel::new(model_id.clone()).transform(context);
-            self.conversation.tasks = tool_context.tasks.clone();
+            self.conversation.tasks = tool_context.tasks;
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
