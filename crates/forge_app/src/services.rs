@@ -84,7 +84,7 @@ pub struct FsCreateOutput {
 #[derive(Debug)]
 pub struct FsRemoveOutput {
     // Content of the file
-    pub content: Option<String>,
+    pub content: String,
 }
 
 #[derive(Debug)]

@@ -23,11 +23,7 @@ impl<F: FileReaderInfra + FileRemoverInfra> FsRemoveService for ForgeFsRemove<F>
         let path = Path::new(&input_path);
         assert_absolute_path(path)?;
 
-        let content = if path.exists() {
-            (self.0.read_utf8(path).await).ok()
-        } else {
-            None
-        };
+        let content = self.0.read_utf8(path).await.unwrap_or_default();
 
         self.0.remove(path).await?;
 

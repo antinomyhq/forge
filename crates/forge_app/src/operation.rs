@@ -280,17 +280,15 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::FsRemove { input, output } => {
-                if let Some(content) = &output.content {
-                    file_change_stats(
-                        FileOperationStats {
-                            path: input.path.clone(),
-                            tool_name,
-                            lines_added: 0,
-                            lines_removed: content.lines().count() as u64,
-                        },
-                        metrics,
-                    );
-                }
+                file_change_stats(
+                    FileOperationStats {
+                        path: input.path.clone(),
+                        tool_name,
+                        lines_added: 0,
+                        lines_removed: output.content.lines().count() as u64,
+                    },
+                    metrics,
+                );
 
                 let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
                 let elem = Element::new("file_removed")
@@ -1469,7 +1467,7 @@ mod tests {
                 path: "/home/user/file_to_delete.txt".to_string(),
                 explanation: Some("Removing unnecessary file".to_string()),
             },
-            output: FsRemoveOutput { content: Some("content".to_string()) },
+            output: FsRemoveOutput { content: "content".to_string() },
         };
 
         let env = fixture_environment();

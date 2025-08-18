@@ -253,7 +253,7 @@ mod tests {
                 path: "/home/user/project/file.txt".to_string(),
                 explanation: Some("Remove file".to_string()),
             },
-            output: FsRemoveOutput { content: None },
+            output: FsRemoveOutput { content: "".to_string() },
         };
         let env = fixture_environment();
 
