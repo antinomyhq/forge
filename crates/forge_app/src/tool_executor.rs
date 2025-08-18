@@ -179,8 +179,8 @@ impl<
                 (input, output).into()
             }
             Tools::ForgeToolFsRemove(input) => {
-                let _output = self.services.remove(input.path.clone()).await?;
-                input.into()
+                let output = self.services.remove(input.path.clone()).await?;
+                (input, output).into()
             }
             Tools::ForgeToolFsPatch(input) => {
                 let output = self

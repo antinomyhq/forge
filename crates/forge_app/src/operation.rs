@@ -17,8 +17,8 @@ use crate::truncation::{
 };
 use crate::utils::format_display_path;
 use crate::{
-    Content, FsCreateOutput, FsUndoOutput, HttpResponse, PatchOutput, PlanCreateOutput, ReadOutput,
-    ResponseContext, SearchResult, ShellOutput,
+    Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput,
+    PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
 struct FileOperationStats {
@@ -58,6 +58,7 @@ pub enum ToolOperation {
     },
     FsRemove {
         input: FSRemove,
+        output: FsRemoveOutput,
     },
     FsSearch {
         input: FSSearch,
@@ -246,20 +247,23 @@ impl ToolOperation {
                 }
             },
             ToolOperation::FsCreate { input, output } => {
-                let mut elm = if let Some(before) = output.before.as_ref() {
-                    let diff_result = DiffFormat::format(before, &input.content);
-                    let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                    // Log file change stats
-                    file_change_stats(
-                        FileOperationStats {
-                            path: input.path.clone(),
-                            tool_name,
-                            lines_added: diff_result.lines_added(),
-                            lines_removed: diff_result.lines_removed(),
-                        },
-                        metrics,
-                    );
+                let diff_result = DiffFormat::format(
+                    output.before.as_ref().unwrap_or(&"".to_string()),
+                    &input.content,
+                );
+                let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
 
+                file_change_stats(
+                    FileOperationStats {
+                        path: input.path.clone(),
+                        tool_name,
+                        lines_added: diff_result.lines_added(),
+                        lines_removed: diff_result.lines_removed(),
+                    },
+                    metrics,
+                );
+
+                let mut elm = if output.before.as_ref().is_some() {
                     Element::new("file_overwritten").append(Element::new("file_diff").cdata(diff))
                 } else {
                     Element::new("file_created")
@@ -275,7 +279,19 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            ToolOperation::FsRemove { input } => {
+            ToolOperation::FsRemove { input, output } => {
+                if let Some(content) = &output.content {
+                    file_change_stats(
+                        FileOperationStats {
+                            path: input.path.clone(),
+                            tool_name,
+                            lines_added: 0,
+                            lines_removed: content.lines().count() as u64,
+                        },
+                        metrics,
+                    );
+                }
+
                 let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
                 let elem = Element::new("file_removed")
                     .attr("path", display_path)
@@ -1453,6 +1469,7 @@ mod tests {
                 path: "/home/user/file_to_delete.txt".to_string(),
                 explanation: Some("Removing unnecessary file".to_string()),
             },
+            output: FsRemoveOutput { content: Some("content".to_string()) },
         };
 
         let env = fixture_environment();
