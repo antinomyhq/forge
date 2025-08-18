@@ -626,8 +626,8 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         if has_attempted_completion {
-            let summary = SessionSummary::from(&metrics);
-            self.send(ChatResponse::ChatComplete(summary)).await?;
+            self.send(ChatResponse::ChatComplete(metrics.clone()))
+                .await?;
         }
 
         self.conversation.metrics = metrics;

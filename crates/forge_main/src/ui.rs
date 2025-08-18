@@ -10,7 +10,7 @@ use forge_api::{
     InterruptionReason, Model, ModelId, Workflow,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Provider, Scope, SessionSummary};
+use forge_domain::{McpConfig, McpServerConfig, Metrics, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -851,11 +851,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_completion(&mut self, summary: SessionSummary) -> anyhow::Result<()> {
+    async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
         self.spinner.stop(None)?;
 
         // Show summary
-        self.writeln(Info::from(summary))?;
+        self.writeln(Info::from(&metrics))?;
 
         let prompt_text = "Task completed. Start a new chat?";
         let should_start_new_chat = ForgeSelect::confirm(prompt_text)

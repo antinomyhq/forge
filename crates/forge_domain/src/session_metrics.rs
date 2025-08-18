@@ -83,39 +83,7 @@ impl Metrics {
     }
 }
 
-/// Formatted session summary for display
-#[derive(Debug, Clone)]
-pub struct SessionSummary {
-    pub duration: String,
-    pub files_changed: usize,
-    pub lines_added: u64,
-    pub lines_removed: u64,
-    pub net_change: i64,
-    pub operations: u64,
-}
-
-impl From<&Metrics> for SessionSummary {
-    fn from(metrics: &Metrics) -> Self {
-        let duration = match metrics.duration() {
-            Some(d) => {
-                let total_seconds = d.as_secs();
-                let minutes = total_seconds / 60;
-                let seconds = total_seconds % 60;
-                format!("{minutes}m {seconds}s")
-            }
-            None => "0m 0s".to_string(),
-        };
-
-        Self {
-            duration,
-            files_changed: metrics.files_changed_count(),
-            lines_added: metrics.total_lines_added,
-            lines_removed: metrics.total_lines_removed,
-            net_change: metrics.net_change(),
-            operations: metrics.operations_count,
-        }
-    }
-}
+// SessionSummary removed - Info is now implemented directly for Metrics
 
 #[cfg(test)]
 mod tests {
@@ -198,18 +166,18 @@ mod tests {
     }
 
     #[test]
-    fn test_session_summary_from_metrics() {
+    fn test_metrics_file_operations_tracking() {
         let mut fixture = Metrics::new();
         fixture.start();
         fixture.record_file_operation("file1.rs".to_string(), 247, 89);
         fixture.record_file_operation("file2.rs".to_string(), 50, 20);
 
-        let actual = SessionSummary::from(&fixture);
+        let actual = &fixture;
 
-        assert_eq!(actual.files_changed, 2);
-        assert_eq!(actual.lines_added, 297);
-        assert_eq!(actual.lines_removed, 109);
-        assert_eq!(actual.net_change, 188);
-        assert_eq!(actual.operations, 2);
+        assert_eq!(actual.files_changed_count(), 2);
+        assert_eq!(actual.total_lines_added, 297);
+        assert_eq!(actual.total_lines_removed, 109);
+        assert_eq!(actual.net_change(), 188);
+        assert_eq!(actual.operations_count, 2);
     }
 }

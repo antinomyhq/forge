@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use forge_api::{Environment, LoginInfo, SessionSummary, UserUsage};
+use forge_api::{Environment, LoginInfo, Metrics, UserUsage};
 use forge_tracker::VERSION;
 
 use crate::model::ForgeCommandManager;
@@ -112,13 +112,42 @@ impl From<&UIState> for Info {
     }
 }
 
-impl From<SessionSummary> for Info {
-    fn from(summary: SessionSummary) -> Self {
-        let lines_format = format!("-{} +{}", summary.lines_removed, summary.lines_added);
-        Info::new()
+impl From<&Metrics> for Info {
+    fn from(metrics: &Metrics) -> Self {
+        let duration = match metrics.duration() {
+            Some(d) => humantime::format_duration(d).to_string(),
+            None => "0s".to_string(),
+        };
+
+        let mut info = Info::new()
             .add_title("SESSION SUMMARY")
-            .add_key_value("Duration", summary.duration)
-            .add_key_value("Lines", lines_format)
+            .add_key_value("Duration", duration);
+
+        // Add file changes section inspired by the example format
+        if !metrics.files_changed.is_empty() {
+            info = info.add_title("FILE CHANGES");
+
+            // Add header row
+            info = info.add_key_value("Path", "+ Lines   − Lines");
+
+            // Add each file with its changes
+            for (path, file_metrics) in &metrics.files_changed {
+                let changes = format!(
+                    "+{}       −{}",
+                    file_metrics.lines_added, file_metrics.lines_removed
+                );
+                info = info.add_key_value(path, changes);
+            }
+
+            // Add total row
+            let total_changes = format!(
+                "+{}       −{}",
+                metrics.total_lines_added, metrics.total_lines_removed
+            );
+            info = info.add_key_value("Total", total_changes);
+        }
+
+        info
     }
 }
 
@@ -509,5 +538,36 @@ mod tests {
         let actual = super::format_reset_time(7265); // 2 hours, 1 minute, 5 seconds
         let expected = "2h 1m 5s";
         assert_eq!(actual, expected);
+    }
+    #[test]
+    fn test_metrics_info_display() {
+        use forge_api::Metrics;
+
+        let mut fixture = Metrics::new();
+        fixture.start();
+        fixture.record_file_operation("src/main.rs".to_string(), 12, 3);
+        fixture.record_file_operation("src/agent/mod.rs".to_string(), 8, 2);
+        fixture.record_file_operation("tests/integration/test_agent.rs".to_string(), 5, 0);
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        // Verify it contains the session summary section
+        assert!(expected_display.contains("SESSION SUMMARY"));
+
+        // Verify it contains the file changes section
+        assert!(expected_display.contains("FILE CHANGES"));
+
+        // Verify it contains the file paths and changes
+        assert!(expected_display.contains("src/main.rs"));
+        assert!(expected_display.contains("+12       −3"));
+        assert!(expected_display.contains("src/agent/mod.rs"));
+        assert!(expected_display.contains("+8       −2"));
+        assert!(expected_display.contains("tests/integration/test_agent.rs"));
+        assert!(expected_display.contains("+5       −0"));
+
+        // Verify it contains the total
+        assert!(expected_display.contains("Total"));
+        assert!(expected_display.contains("+25       −5"));
     }
 }
