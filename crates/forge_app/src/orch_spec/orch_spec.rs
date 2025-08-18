@@ -125,11 +125,11 @@ async fn test_attempt_completion_triggers_session_summary() {
         .chat_responses
         .iter()
         .flatten()
-        .filter(|response| matches!(response, ChatResponse::ChatComplete(_))).count();
+        .filter(|response| matches!(response, ChatResponse::ChatComplete(_)))
+        .count();
 
     assert_eq!(
-        chat_complete_count,
-        1,
+        chat_complete_count, 1,
         "Should have 1 ChatComplete response for attempt_completion"
     );
 }
