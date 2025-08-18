@@ -122,7 +122,21 @@ impl From<&Metrics> for Info {
 
         // Add file changes section inspired by the example format
         if !metrics.files_changed.is_empty() {
-            // Add each file with its changes
+            // First, calculate the maximum filename length for proper alignment
+            let max_filename_len = metrics
+                .files_changed
+                .keys()
+                .map(|path| {
+                    std::path::Path::new(path)
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or(path)
+                        .len()
+                })
+                .max()
+                .unwrap_or(0);
+
+            // Add each file with its changes, padded for alignment
             for (path, file_metrics) in &metrics.files_changed {
                 // Extract just the filename from the path
                 let filename = std::path::Path::new(path)
@@ -134,7 +148,10 @@ impl From<&Metrics> for Info {
                     "−{} +{}",
                     file_metrics.lines_removed, file_metrics.lines_added
                 );
-                info = info.add_key_value(format!("✓ {filename}"), changes);
+
+                // Pad filename to max length for proper alignment
+                let padded_filename = format!("✓ {filename:<max_filename_len$}");
+                info = info.add_key_value(padded_filename, changes);
             }
         }
 
@@ -543,22 +560,15 @@ mod tests {
         let actual = super::Info::from(&fixture);
         let expected_display = actual.to_string();
 
-        // Verify it contains the session summary section
-        assert!(expected_display.contains("SESSION SUMMARY"));
+        // Verify it contains the task completed section
+        assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains the file changes section
-        assert!(expected_display.contains("FILE CHANGES"));
-
-        // Verify it contains the filenames (not full paths) and changes
-        assert!(expected_display.contains("main.rs"));
-        assert!(expected_display.contains("+12       −3"));
+        // Verify it contains the files with checkmarks
+        assert!(expected_display.contains("✓ main.rs"));
+        assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
-        assert!(expected_display.contains("+8        −2"));
+        assert!(expected_display.contains("−2 +8"));
         assert!(expected_display.contains("test_agent.rs"));
-        assert!(expected_display.contains("+5        −0"));
-
-        // Verify it contains the total
-        assert!(expected_display.contains("Total"));
-        assert!(expected_display.contains("+25       −5"));
+        assert!(expected_display.contains("−0 +5"));
     }
 }
