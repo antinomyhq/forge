@@ -115,36 +115,39 @@ impl From<&UIState> for Info {
 impl From<&Metrics> for Info {
     fn from(metrics: &Metrics) -> Self {
         let duration = match metrics.duration() {
-            Some(d) => humantime::format_duration(d).to_string(),
+            Some(d) => humantime::format_duration(Duration::from_secs(d.as_secs())).to_string(),
             None => "0s".to_string(),
         };
-
+        // Add total row
+        let total_changes = format!(
+            "+{} −{}",
+            metrics.total_lines_added, metrics.total_lines_removed
+        );
         let mut info = Info::new()
-            .add_title("SESSION SUMMARY")
-            .add_key_value("Duration", duration);
+            .add_title("TASK SUMMARY")
+            .add_key_value("Task Duration", duration)
+            .add_key_value("Diff Generated", total_changes);
 
         // Add file changes section inspired by the example format
         if !metrics.files_changed.is_empty() {
             info = info.add_title("FILE CHANGES");
 
-            // Add header row
-            info = info.add_key_value("Path", "+ Lines   − Lines");
-
             // Add each file with its changes
             for (path, file_metrics) in &metrics.files_changed {
+                // Extract just the filename from the path
+                let filename = std::path::Path::new(path)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or(path);
+
                 let changes = format!(
-                    "+{}       −{}",
+                    "+{} −{}",
                     file_metrics.lines_added, file_metrics.lines_removed
                 );
-                info = info.add_key_value(path, changes);
+                info = info.add_key_value(format!("✱ {filename}"), changes);
             }
 
-            // Add total row
-            let total_changes = format!(
-                "+{}       −{}",
-                metrics.total_lines_added, metrics.total_lines_removed
-            );
-            info = info.add_key_value("Total", total_changes);
+            info = info;
         }
 
         info
@@ -558,13 +561,13 @@ mod tests {
         // Verify it contains the file changes section
         assert!(expected_display.contains("FILE CHANGES"));
 
-        // Verify it contains the file paths and changes
-        assert!(expected_display.contains("src/main.rs"));
+        // Verify it contains the filenames (not full paths) and changes
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("+12       −3"));
-        assert!(expected_display.contains("src/agent/mod.rs"));
-        assert!(expected_display.contains("+8       −2"));
-        assert!(expected_display.contains("tests/integration/test_agent.rs"));
-        assert!(expected_display.contains("+5       −0"));
+        assert!(expected_display.contains("mod.rs"));
+        assert!(expected_display.contains("+8        −2"));
+        assert!(expected_display.contains("test_agent.rs"));
+        assert!(expected_display.contains("+5        −0"));
 
         // Verify it contains the total
         assert!(expected_display.contains("Total"));
