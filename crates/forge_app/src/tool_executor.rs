@@ -3,10 +3,9 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
-use forge_template::Element;
 
 use crate::error::Error;
-use crate::fmt::content::{ContentFormat, FormatContent};
+use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
@@ -41,6 +40,7 @@ impl<
     }
 
     /// Check if a tool operation is allowed based on the workflow policies
+    #[allow(unused)]
     async fn check_tool_permission(
         &self,
         tool_input: &Tools,
@@ -298,18 +298,18 @@ impl<
         }
 
         // Check permissions before executing the tool
-        if self.check_tool_permission(&tool_input, context).await? {
-            // Send formatted output message for policy denial
+        // if self.check_tool_permission(&tool_input, context).await? {
+        //     // Send formatted output message for policy denial
 
-            context
-                .send(ContentFormat::from(TitleFormat::error("Permission Denied")))
-                .await?;
+        //     context
+        //         .send(ContentFormat::from(TitleFormat::error("Permission Denied")))
+        //         .await?;
 
-            return Ok(ToolOutput::text(
-                Element::new("permission_denied")
-                    .cdata("User has denied the permission to execute this tool"),
-            ));
-        }
+        //     return Ok(ToolOutput::text(
+        //         Element::new("permission_denied")
+        //             .cdata("User has denied the permission to execute this tool"),
+        //     ));
+        // }
 
         let execution_result = self.call_internal(tool_input.clone(), context).await;
 
