@@ -822,12 +822,12 @@ mod tests {
     use serde_json::json;
     use strum::IntoEnumIterator;
 
-    use crate::{FSRead, ToolCallFull, ToolName, Tools, ToolsDiscriminants};
+    use crate::{FSRead, ToolCallArguments, ToolCallFull, ToolName, Tools, ToolsDiscriminants};
 
     #[test]
     fn foo() {
         let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read"))
-            .arguments(r#"{"path": "/some/path/foo.txt"}"#.to_string());
+            .arguments(ToolCallArguments::from(r#"{"path": "/some/path/foo.txt"}"#));
 
         let actual = Tools::try_from(toolcall).unwrap();
         let expected = Tools::ForgeToolFsRead(FSRead {
@@ -878,8 +878,10 @@ mod tests {
 
     #[test]
     fn test_correct_deser() {
-        let tool_call = ToolCallFull::new("forge_tool_fs_create")
-            .arguments(r#"{"path": "/some/path/foo.txt", "content": "Hello, World!"}"#.to_string());
+        let tool_call =
+            ToolCallFull::new("forge_tool_fs_create").arguments(ToolCallArguments::from(
+                r#"{"path": "/some/path/foo.txt", "content": "Hello, World!"}"#,
+            ));
         let result = Tools::try_from(tool_call);
         assert!(result.is_ok());
         assert!(

@@ -1,23 +1,37 @@
-use derive_more::From;
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Default, From, PartialEq, Eq)]
-pub struct ToolCallArguments(String);
-
-impl From<&str> for ToolCallArguments {
-    fn from(value: &str) -> Self {
-        todo!()
-    }
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ToolCallArguments {
+    #[default]
+    Empty,
+    Json(String),
+    Object(BTreeMap<String, String>),
 }
 
 impl ToolCallArguments {
     pub fn as_str(&self) -> &str {
-        &self.0
+        todo!()
     }
 
     pub fn parse(&self) -> anyhow::Result<Value> {
-        Ok(serde_json::from_str(&self.0)?)
+        todo!()
+    }
+
+    pub fn from_json(str: &str) -> ToolCallArguments {
+        ToolCallArguments::Json(str.to_string())
+    }
+
+    pub fn from_object(object: BTreeMap<String, String>) -> ToolCallArguments {
+        ToolCallArguments::Object(object)
+    }
+}
+
+impl<'a> From<&'a str> for ToolCallArguments {
+    fn from(value: &'a str) -> Self {
+        ToolCallArguments::from_json(value)
     }
 }
 
@@ -26,9 +40,7 @@ impl Serialize for ToolCallArguments {
     where
         S: serde::Serializer,
     {
-        // Parse the JSON string and serialize the resulting Value
-        let value: Value = serde_json::from_str(&self.0).map_err(serde::ser::Error::custom)?;
-        value.serialize(_serializer)
+        todo!()
     }
 }
 
@@ -37,10 +49,7 @@ impl<'de> Deserialize<'de> for ToolCallArguments {
     where
         D: serde::Deserializer<'de>,
     {
-        // Deserialize as a Value first, then convert to JSON string
-        let value = Value::deserialize(_deserializer)?;
-        let json_string = serde_json::to_string(&value).map_err(serde::de::Error::custom)?;
-        Ok(ToolCallArguments(json_string))
+        todo!()
     }
 }
 

@@ -1,4 +1,3 @@
-use anyhow::Context;
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -79,7 +78,7 @@ impl ToolCallFull {
         Self {
             name: tool_name.into(),
             call_id: None,
-            arguments: "null".to_string().into(),
+            arguments: "null".into(),
         }
     }
 
@@ -103,14 +102,9 @@ impl ToolCallFull {
                     // Finalize the previous tool call
                     if let Some(tool_name) = current_tool_name.take() {
                         let arguments = if current_arguments.is_empty() {
-                            "null".to_string().into()
+                            ToolCallArguments::default()
                         } else {
-                            let args = ToolCallArguments::from(current_arguments.clone());
-                            // Validate that the JSON is parseable
-                            args.parse().with_context(|| {
-                                format!("Invalid JSON in tool call arguments: {current_arguments}")
-                            })?;
-                            args
+                            ToolCallArguments::from_json(current_arguments.as_str())
                         };
 
                         tool_calls.push(ToolCallFull {
@@ -136,14 +130,9 @@ impl ToolCallFull {
         // Finalize the last tool call
         if let Some(tool_name) = current_tool_name {
             let arguments = if current_arguments.is_empty() {
-                "null".to_string().into()
+                ToolCallArguments::default()
             } else {
-                let args = ToolCallArguments::from(current_arguments.clone());
-                // Validate that the JSON is parseable
-                args.parse().with_context(|| {
-                    format!("Invalid JSON in tool call arguments: {current_arguments}")
-                })?;
-                args
+                ToolCallArguments::from_json(current_arguments.as_str())
             };
 
             tool_calls.push(ToolCallFull { name: tool_name, call_id: current_call_id, arguments });
@@ -293,7 +282,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("screenshot"),
-            arguments: "null".to_string().into(),
+            arguments: "null".into(),
         }];
 
         assert_eq!(actual, expected);
