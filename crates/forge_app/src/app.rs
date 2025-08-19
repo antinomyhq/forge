@@ -14,7 +14,8 @@ use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
 use crate::workflow_manager::WorkflowManager;
 use crate::{
-    AppConfigService, AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, FsReadService, ProviderRegistry, ProviderService, Services, Walker
+    AppConfigService, AttachmentService, ConversationService, EnvironmentService,
+    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
