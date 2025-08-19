@@ -10,7 +10,7 @@ use forge_stream::MpscStream;
 use crate::authenticator::Authenticator;
 use crate::dto::InitAuth;
 use crate::orch::Orchestrator;
-use crate::services::TemplateService;
+use crate::services::{FsReadService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::workflow_manager::WorkflowManager;
 use crate::{
@@ -119,7 +119,7 @@ impl<S: Services> ForgeApp<S> {
         let mut custom_instructions = Vec::new();
         for path in paths {
             if path.exists() {
-                if let Ok(read_output) = self.services.read(path.to_string_lossy().to_string(), None, None).await {
+                if let Ok(read_output) = self.services.fs_read_service().read(path.to_string_lossy().to_string(), None, None).await {
                     let crate::services::Content::File(content) = read_output.content;
                     custom_instructions.push(content);
                 }
