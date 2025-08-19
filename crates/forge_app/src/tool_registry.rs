@@ -159,15 +159,17 @@ impl<S> ToolRegistry<S> {
     }
 
     /// Determines if a tool should have a timeout applied.
-    /// According to issue #1402, only search, shell, fetch, and mcp tools should timeout.
-    /// Interactive operations (like permission requests) should not timeout.
+    /// According to issue #1402, only search, shell, fetch, and mcp tools
+    /// should timeout. Interactive operations (like permission requests)
+    /// should not timeout.
     fn should_apply_timeout(tool_name: &ToolName) -> bool {
         let name = tool_name.as_str();
-        matches!(name, 
+        matches!(
+            name,
             "forge_tool_fs_search" |     // search operations
             "forge_tool_process_shell" | // shell operations  
-            "forge_tool_net_fetch"       // fetch operations
-            // MCP tools are handled separately and always have timeouts
+            "forge_tool_net_fetch" /* fetch operations
+                                    * MCP tools are handled separately and always have timeouts */
         )
     }
 }
@@ -223,42 +225,54 @@ mod tests {
     #[test]
     fn test_should_apply_timeout_for_search_tool() {
         let tool_name = ToolName::new("forge_tool_fs_search");
-        assert!(ToolRegistry::<()>::should_apply_timeout(&tool_name),
-            "Search tools should have timeout applied");
+        assert!(
+            ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Search tools should have timeout applied"
+        );
     }
 
     #[test]
     fn test_should_apply_timeout_for_shell_tool() {
         let tool_name = ToolName::new("forge_tool_process_shell");
-        assert!(ToolRegistry::<()>::should_apply_timeout(&tool_name),
-            "Shell tools should have timeout applied");
+        assert!(
+            ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Shell tools should have timeout applied"
+        );
     }
 
     #[test]
     fn test_should_apply_timeout_for_fetch_tool() {
         let tool_name = ToolName::new("forge_tool_net_fetch");
-        assert!(ToolRegistry::<()>::should_apply_timeout(&tool_name),
-            "Fetch tools should have timeout applied");
+        assert!(
+            ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Fetch tools should have timeout applied"
+        );
     }
 
     #[test]
     fn test_should_not_apply_timeout_for_read_tool() {
         let tool_name = ToolName::new("forge_tool_fs_read");
-        assert!(!ToolRegistry::<()>::should_apply_timeout(&tool_name),
-            "Read tools should not have timeout applied to allow permission prompts");
+        assert!(
+            !ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Read tools should not have timeout applied to allow permission prompts"
+        );
     }
 
     #[test]
     fn test_should_not_apply_timeout_for_create_tool() {
         let tool_name = ToolName::new("forge_tool_fs_create");
-        assert!(!ToolRegistry::<()>::should_apply_timeout(&tool_name),
-            "Create tools should not have timeout applied to allow permission prompts");
+        assert!(
+            !ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Create tools should not have timeout applied to allow permission prompts"
+        );
     }
 
     #[test]
     fn test_should_not_apply_timeout_for_interactive_tool() {
         let tool_name = ToolName::new("forge_tool_followup");
-        assert!(!ToolRegistry::<()>::should_apply_timeout(&tool_name),
-            "Interactive tools should not have timeout applied");
+        assert!(
+            !ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Interactive tools should not have timeout applied"
+        );
     }
 }
