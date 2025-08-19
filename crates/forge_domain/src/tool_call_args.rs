@@ -6,10 +6,30 @@ use serde_json::{Map, Value};
 
 use crate::Error;
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToolCallArguments {
     Unparsed(String),
     Parsed(Value),
+}
+
+impl Serialize for ToolCallArguments {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            ToolCallArguments::Unparsed(value) => value.serialize(serializer),
+            ToolCallArguments::Parsed(value) => value.serialize(serializer),
+        }
+    }
+}
+impl<'de> Deserialize<'de> for ToolCallArguments {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Value::deserialize(deserializer)?.into())
+    }
 }
 
 impl Default for ToolCallArguments {
