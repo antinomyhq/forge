@@ -13,9 +13,8 @@ pub trait API: Sync + Send {
     /// completion
     async fn discover(&self) -> Result<Vec<crate::File>>;
 
-    /// Provides information about the tools available in the current
-    /// environment
-    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    /// Provides a list of tool names available in the current environment  
+    async fn tool_names(&self) -> anyhow::Result<Vec<String>>;
 
     /// Provides a list of models available in the current environment
     async fn models(&self) -> Result<Vec<Model>>;

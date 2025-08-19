@@ -9,7 +9,6 @@ mod prompt;
 mod sandbox;
 mod select;
 mod state;
-mod tools_display;
 pub mod tracker;
 mod ui;
 mod update;

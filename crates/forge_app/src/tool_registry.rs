@@ -115,12 +115,37 @@ impl<S: Services> ToolRegistry<S> {
         let agent_tools = self.agent_executor.tool_agents().await?;
 
         let tools = Tools::iter()
-            .map(|tool| tool.definition())
+            .flat_map(|tool| tool.all_definitions())
             .chain(mcp_tools.into_iter())
             .chain(agent_tools.into_iter())
             .collect::<Vec<_>>();
 
         Ok(tools)
+    }
+    pub async fn list_tool_names(&self) -> anyhow::Result<Vec<String>> {
+        let mcp_tools = self.mcp_executor.services.list().await?;
+        let agent_tools = self.agent_executor.tool_agents().await?;
+
+        let mut tool_names = Vec::new();
+
+        for tool in Tools::iter() {
+            let definitions = tool.all_definitions();
+            let names: Vec<String> = definitions
+                .into_iter()
+                .map(|def| def.name.to_string())
+                .collect();
+            tool_names.push(names.join(", "));
+        }
+
+        for tool in mcp_tools {
+            tool_names.push(tool.name.to_string());
+        }
+
+        for tool in agent_tools {
+            tool_names.push(tool.name.to_string());
+        }
+
+        Ok(tool_names)
     }
 }
 

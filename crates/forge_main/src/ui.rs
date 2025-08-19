@@ -243,7 +243,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let api = self.api.clone();
         tokio::spawn(async move { api.models().await });
         let api = self.api.clone();
-        tokio::spawn(async move { api.tools().await });
+        tokio::spawn(async move { api.tool_names().await });
     }
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
@@ -389,10 +389,25 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             Command::Tools => {
                 self.spinner.start(Some("Loading"))?;
-                use crate::tools_display::format_tools;
-                let tools = self.api.tools().await?;
+                let tool_names = self.api.tool_names().await?;
 
-                let output = format_tools(&tools);
+                // Display tool names with numbering
+                let mut output = String::new();
+                let max_digits = tool_names.len().to_string().len();
+
+                for (i, tool_name) in tool_names.iter().enumerate() {
+                    output.push_str(&format!(
+                        "{:>width$}. {}",
+                        i + 1,
+                        tool_name,
+                        width = max_digits
+                    ));
+
+                    if i < tool_names.len() - 1 {
+                        output.push('\n');
+                    }
+                }
+
                 self.writeln(output)?;
             }
             Command::Update => {

@@ -9,8 +9,8 @@ use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use schemars::schema::RootSchema;
 use serde::Serialize;
-use strum::IntoEnumIterator;
-use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
+use strum::{EnumProperty, IntoEnumIterator};
+use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter, EnumProperty};
 
 use crate::{
     Status, ToolCallArgumentError, ToolCallFull, ToolDefinition, ToolDescription, ToolName,
@@ -32,26 +32,42 @@ use crate::{
     Display,
     PartialEq,
     EnumDiscriminants,
+    EnumProperty,
 )]
 #[strum_discriminants(derive(Display))]
 #[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum Tools {
+    #[strum(props(shorthands = "read"))]
     ForgeToolFsRead(FSRead),
+    #[strum(props(shorthands = "write"))]
     ForgeToolFsCreate(FSWrite),
+    #[strum(props(shorthands = "find"))]
     ForgeToolFsSearch(FSSearch),
+    #[strum(props(shorthands = "delete"))]
     ForgeToolFsRemove(FSRemove),
+    #[strum(props(shorthands = "edit"))]
     ForgeToolFsPatch(FSPatch),
+    #[strum(props(shorthands = "revert"))]
     ForgeToolFsUndo(FSUndo),
+    #[strum(props(shorthands = "exec"))]
     ForgeToolProcessShell(Shell),
+    #[strum(props(shorthands = "fetch"))]
     ForgeToolNetFetch(NetFetch),
+    #[strum(props(shorthands = "followup"))]
     ForgeToolFollowup(Followup),
     ForgeToolAttemptCompletion(AttemptCompletion),
+    #[strum(props(shorthands = "add_task"))]
     ForgeToolTaskListAppend(TaskListAppend),
+    #[strum(props(shorthands = "add_tasks"))]
     ForgeToolTaskListAppendMultiple(TaskListAppendMultiple),
+    #[strum(props(shorthands = "update_task"))]
     ForgeToolTaskListUpdate(TaskListUpdate),
+    #[strum(props(shorthands = "list_tasks"))]
     ForgeToolTaskListList(TaskListList),
+    #[strum(props(shorthands = "clear_tasks"))]
     ForgeToolTaskListClear(TaskListClear),
+    #[strum(props(shorthands = "create_plan"))]
     ForgeToolPlanCreate(PlanCreate),
 }
 
@@ -610,9 +626,10 @@ impl ToolDescription for Tools {
     }
 }
 lazy_static::lazy_static! {
-    // Cache of all tool names
+    // Cache of all tool names (including shorthand names)
     static ref FORGE_TOOLS: HashSet<ToolName> = Tools::iter()
-        .map(ToolName::new)
+        .flat_map(|tool| tool.all_definitions())
+        .map(|def| def.name)
         .collect();
 }
 
@@ -657,6 +674,34 @@ impl Tools {
         ToolDefinition::new(self)
             .description(self.description())
             .input_schema(self.schema())
+    }
+
+    pub fn all_definitions(&self) -> Vec<ToolDefinition> {
+        let mut definitions = Vec::new();
+
+        let shorthands_str = self.get_str("shorthands");
+
+        let shorthand_names: Vec<&str> = if let Some(shorthands_str) = shorthands_str {
+            shorthands_str
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        for shorthand_name in shorthand_names {
+            definitions.push(
+                ToolDefinition::new(shorthand_name)
+                    .description(self.description())
+                    .input_schema(self.schema()),
+            );
+        }
+
+        definitions.push(self.definition());
+
+        definitions
     }
     pub fn contains(tool_name: &ToolName) -> bool {
         FORGE_TOOLS.contains(tool_name)
