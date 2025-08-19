@@ -46,7 +46,7 @@ mod tests {
         let tool_call = ToolCallFull {
             call_id: Some(ToolCallId::new("123")),
             name: ToolName::new("test_tool"),
-            arguments: r#"{"key": "value"}"#.into(),
+            arguments: serde_json::json!({"key": "value"}).into(),
         };
 
         let tool_result = ToolResult::new(ToolName::new("test_tool"))
