@@ -33,11 +33,11 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
         }
         None
     }
-    fn get_provider(&self, forge_config: AppConfig) -> Option<Provider> {
-        if let Some(forge_key) = &forge_config.key_info {
-            let provider = Provider::forge(forge_key.api_key.as_str());
-            return Some(override_url(provider, self.provider_url()));
-        }
+    fn get_provider(&self, _forge_config: AppConfig) -> Option<Provider> {
+        // if let Some(forge_key) = &forge_config.key_info {
+        //     let provider = Provider::forge(forge_key.api_key.as_str());
+        //     return Some(override_url(provider, self.provider_url()));
+        // }
         resolve_env_provider(self.provider_url(), self.infra.as_ref())
     }
 }
@@ -51,7 +51,7 @@ impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
 
         let provider = self
             .get_provider(config)
-            .context("Failed to detect upstream provider")?;
+            .context("No valid provider configuration found. Please set one of the following environment variables: OPENROUTER_API_KEY, REQUESTY_API_KEY, XAI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY. For more details, visit: https://forgecode.dev/docs/custom-providers/")?;
         self.cache.write().await.replace(provider.clone());
         Ok(provider)
     }
@@ -61,8 +61,8 @@ fn resolve_env_provider<F: EnvironmentInfra>(
     url: Option<ProviderUrl>,
     env: &F,
 ) -> Option<Provider> {
-    let keys: [ProviderSearch; 6] = [
-        ("FORGE_KEY", Box::new(Provider::forge)),
+    let keys: [ProviderSearch; 5] = [
+        // ("FORGE_KEY", Box::new(Provider::forge)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
         ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
         ("XAI_API_KEY", Box::new(Provider::xai)),
