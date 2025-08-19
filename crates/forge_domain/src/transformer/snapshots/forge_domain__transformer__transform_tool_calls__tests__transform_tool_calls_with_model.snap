@@ -15,7 +15,7 @@ before:
           - name: test_tool
             call_id: call_123
             arguments:
-              param: value
+              Unparsed: "{\"param\": \"value\"}"
     - tool:
         name: test_tool
         call_id: call_123

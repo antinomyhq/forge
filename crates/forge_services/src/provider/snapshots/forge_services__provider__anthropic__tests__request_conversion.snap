@@ -24,7 +24,7 @@ expression: "serde_json::to_string_pretty(&request).unwrap()"
           "type": "tool_use",
           "id": "math-1",
           "input": {
-            "expression": "2 + 2"
+            "Unparsed": "{\"expression\": \"2 + 2\"}"
           },
           "name": "math"
         }
