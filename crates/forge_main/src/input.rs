@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 use forge_api::Environment;
 use forge_display::TitleFormat;
 use tokio::fs;
-use tokio::task::block_in_place;
 
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{Command, ForgeCommandManager};
@@ -38,7 +37,9 @@ impl Console {
         let engine = Mutex::new(ForgeEditor::new(self.env.clone(), self.command.clone()));
 
         loop {
-            let user_input = block_in_place(|| engine.lock().unwrap().prompt(&prompt))?;
+            let mut forge_editor = engine.lock().unwrap();
+            let user_input = forge_editor.prompt(&prompt)?;
+            drop(forge_editor);
             match user_input {
                 ReadResult::Continue => continue,
                 ReadResult::Exit => return Ok(Command::Exit),
