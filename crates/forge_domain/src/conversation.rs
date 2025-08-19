@@ -396,7 +396,10 @@ mod tests {
             .unwrap();
         assert_eq!(agent1.model, Some(ModelId::new("default-model")));
         assert_eq!(agent1.max_walker_depth, Some(5));
-        assert_eq!(agent1.custom_rules, Some("Agent1 specific rules\nDefault rules".to_string()));
+        assert_eq!(
+            agent1.custom_rules,
+            Some("Agent1 specific rules\nDefault rules".to_string())
+        );
         assert_eq!(agent1.temperature, Some(Temperature::new(0.7).unwrap()));
         assert_eq!(agent1.max_tokens, Some(MaxTokens::new(4000).unwrap()));
         assert_eq!(agent1.tool_supported, Some(true)); // Workflow setting overrides agent setting
