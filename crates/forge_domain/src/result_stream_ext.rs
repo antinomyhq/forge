@@ -230,7 +230,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: Value::String("test_arg".to_string()).into(),
+            arguments: r#""test_arg""#.into(),
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
@@ -714,7 +714,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: Value::String("test_arg".to_string()).into(),
+            arguments: r#""test_arg""#.into(),
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()

@@ -1,7 +1,7 @@
+use anyhow::Context;
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::xml::extract_tag_content;
 use crate::{Error, Result, ToolCallArguments, ToolName};
@@ -79,7 +79,7 @@ impl ToolCallFull {
         Self {
             name: tool_name.into(),
             call_id: None,
-            arguments: Value::default().into(),
+            arguments: "null".to_string().into(),
         }
     }
 
@@ -102,14 +102,21 @@ impl ToolCallFull {
                 {
                     // Finalize the previous tool call
                     if let Some(tool_name) = current_tool_name.take() {
+                        let arguments = if current_arguments.is_empty() {
+                            "null".to_string().into()
+                        } else {
+                            let args = ToolCallArguments::from(current_arguments.clone());
+                            // Validate that the JSON is parseable
+                            args.parse().with_context(|| {
+                                format!("Invalid JSON in tool call arguments: {current_arguments}")
+                            })?;
+                            args
+                        };
+
                         tool_calls.push(ToolCallFull {
                             name: tool_name,
                             call_id: Some(existing_call_id.clone()),
-                            arguments: if current_arguments.is_empty() {
-                                Value::default().into()
-                            } else {
-                                ToolCallArguments::from(current_arguments.clone())
-                            },
+                            arguments,
                         });
                     }
                     current_arguments.clear();
@@ -128,15 +135,18 @@ impl ToolCallFull {
 
         // Finalize the last tool call
         if let Some(tool_name) = current_tool_name {
-            tool_calls.push(ToolCallFull {
-                name: tool_name,
-                call_id: current_call_id,
-                arguments: if current_arguments.is_empty() {
-                    Value::default().into()
-                } else {
-                    ToolCallArguments::from(current_arguments.clone())
-                },
-            });
+            let arguments = if current_arguments.is_empty() {
+                "null".to_string().into()
+            } else {
+                let args = ToolCallArguments::from(current_arguments.clone());
+                // Validate that the JSON is parseable
+                args.parse().with_context(|| {
+                    format!("Invalid JSON in tool call arguments: {current_arguments}")
+                })?;
+                args
+            };
+
+            tool_calls.push(ToolCallFull { name: tool_name, call_id: current_call_id, arguments });
         }
 
         Ok(tool_calls)
@@ -228,21 +238,17 @@ mod tests {
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_1".to_string())),
-                arguments:
-                    serde_json::json!({"path": "crates/forge_services/src/fixtures/mascot.md"})
-                        .into(),
+                arguments: r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#.into(),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_2".to_string())),
-                arguments: serde_json::json!({"path": "docs/onboarding.md"}).into(),
+                arguments: r#"{"path": "docs/onboarding.md"}"#.into(),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_3".to_string())),
-                arguments:
-                    serde_json::json!({"path": "crates/forge_services/src/service/service.md"})
-                        .into(),
+                arguments: r#"{"path": "crates/forge_services/src/service/service.md"}"#.into(),
             },
         ];
 
@@ -261,7 +267,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("forge_tool_fs_read"),
-            arguments: serde_json::json!({"path": "docs/onboarding.md"}).into(),
+            arguments: r#"{"path": "docs/onboarding.md"}"#.into(),
         }];
 
         assert_eq!(actual, expected);
@@ -287,7 +293,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("screenshot"),
-            arguments: Value::default().into(),
+            arguments: "null".to_string().into(),
         }];
 
         assert_eq!(actual, expected);
@@ -336,7 +342,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId("0".to_string())),
-            arguments: serde_json::json!({"path": "/test/file.md"}).into(),
+            arguments: r#"{"path": "/test/file.md"}"#.into(),
         }];
 
         assert_eq!(actual, expected);

@@ -826,9 +826,8 @@ mod tests {
 
     #[test]
     fn foo() {
-        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read")).arguments(json!({
-            "path": "/some/path/foo.txt",
-        }));
+        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read"))
+            .arguments(r#"{"path": "/some/path/foo.txt"}"#.to_string());
 
         let actual = Tools::try_from(toolcall).unwrap();
         let expected = Tools::ForgeToolFsRead(FSRead {
@@ -879,10 +878,8 @@ mod tests {
 
     #[test]
     fn test_correct_deser() {
-        let tool_call = ToolCallFull::new("forge_tool_fs_create").arguments(json!({
-            "path": "/some/path/foo.txt",
-            "content": "Hello, World!",
-        }));
+        let tool_call = ToolCallFull::new("forge_tool_fs_create")
+            .arguments(r#"{"path": "/some/path/foo.txt", "content": "Hello, World!"}"#.to_string());
         let result = Tools::try_from(tool_call);
         assert!(result.is_ok());
         assert!(
