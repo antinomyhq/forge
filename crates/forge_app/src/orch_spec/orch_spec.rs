@@ -31,11 +31,7 @@ async fn test_attempt_completion_requirement() {
         .iter()
         .filter(|message| message.has_role(Role::User))
         .count();
-
-    assert_eq!(
-        message_count, 1,
-        "Should have three user messages (2 agent guidance + 1 task)"
-    );
+    assert_eq!(message_count, 1, "Should have only one user message");
 
     let error_count = messages
         .iter()
