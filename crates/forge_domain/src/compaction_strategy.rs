@@ -59,7 +59,7 @@ impl CompactionStrategy {
 
                 match range {
                     Some((i, _)) => i,
-                    None => context.messages.len() - 1,
+                    None => context.messages.len().saturating_sub(1),
                 }
             }
             CompactionStrategy::Retain(fixed) => *fixed,
@@ -448,5 +448,33 @@ mod tests {
         let actual_sequence = preserve_strategy.eviction_range(&fixture);
         let expected = Some((0, 2));
         assert_eq!(actual_sequence, expected);
+    }
+
+    #[test]
+    fn test_empty_context_no_overflow() {
+        // Test that empty context doesn't cause overflow
+        let empty_context = Context::default();
+
+        let percentage_strategy = CompactionStrategy::evict(0.4);
+        let actual = percentage_strategy.to_fixed(&empty_context);
+        let expected = 0; // Should be 0 for empty context (saturating_sub(1) on 0 = 0)
+        assert_eq!(actual, expected);
+
+        let actual_range = percentage_strategy.eviction_range(&empty_context);
+        assert_eq!(actual_range, None); // Should return None for empty context
+    }
+
+    #[test]
+    fn test_single_message_context_no_overflow() {
+        // Test that single message context doesn't cause overflow
+        let single_context = context_from_pattern("s");
+
+        let percentage_strategy = CompactionStrategy::evict(0.4);
+        let actual = percentage_strategy.to_fixed(&single_context);
+        let expected = 0; // Should be 0 (1 - 1 = 0 with saturating_sub)
+        assert_eq!(actual, expected);
+
+        let actual_range = percentage_strategy.eviction_range(&single_context);
+        assert_eq!(actual_range, None); // Should return None for single system message
     }
 }
