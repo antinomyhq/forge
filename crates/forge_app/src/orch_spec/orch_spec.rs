@@ -308,3 +308,71 @@ async fn test_tool_failure_tracking_disabled_when_no_limit() {
         "Should not add retry information when max_tool_failure_per_turn is None"
     );
 }
+
+#[tokio::test]
+async fn test_bulk_tool_failures_with_retry_progression() {
+    let tool_call_1 = ToolCallFull::new("fs_read").arguments(json!({"path": "file1.txt"}));
+    let tool_call_2 = ToolCallFull::new("fs_write").arguments(json!({"path": "file2.txt"}));
+    let tool_call_3 = ToolCallFull::new("shell").arguments(json!({"command": "ls"}));
+    
+    let tool_error_1 = ToolResult::new("fs_read").failure(anyhow::anyhow!("File 1 not found"));
+    let tool_error_2 = ToolResult::new("fs_write").failure(anyhow::anyhow!("Write failed"));
+    let tool_error_3 = ToolResult::new("shell").failure(anyhow::anyhow!("Command failed"));
+
+    let workflow = TestContext::init_forge_task("Run multiple tools")
+        .workflow
+        .max_tool_failure_per_turn(3usize);
+
+    let mut ctx = TestContext::init_forge_task("Run multiple tools")
+        .mock_tool_call_responses(vec![
+            (tool_call_1.clone().into(), tool_error_1.clone()),
+            (tool_call_2.clone().into(), tool_error_2.clone()),
+            (tool_call_3.clone().into(), tool_error_3.clone()),
+            (tool_call_1.clone().into(), tool_error_1.clone()),
+            (tool_call_2.clone().into(), tool_error_2.clone()),
+            (tool_call_3.clone().into(), tool_error_3.clone()),
+            (tool_call_1.clone().into(), tool_error_1),
+            (tool_call_2.clone().into(), tool_error_2),
+            (tool_call_3.clone().into(), tool_error_3),
+        ])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Running all tools")
+                .tool_calls(vec![
+                    tool_call_1.clone().into(),
+                    tool_call_2.clone().into(),
+                    tool_call_3.clone().into(),
+                ]),
+            ChatCompletionMessage::assistant("I see the tools failed, let me try again"),
+            ChatCompletionMessage::assistant("Trying tools again")
+                .tool_calls(vec![
+                    tool_call_1.clone().into(),
+                    tool_call_2.clone().into(),
+                    tool_call_3.clone().into(),
+                ]),
+            ChatCompletionMessage::assistant("Tools failed again, one more try"),
+            ChatCompletionMessage::assistant("Final attempt with tools")
+                .tool_calls(vec![
+                    tool_call_1.into(),
+                    tool_call_2.into(),
+                    tool_call_3.into(),
+                ]),
+            ChatCompletionMessage::assistant("All attempts exhausted"),
+            ChatCompletionMessage::assistant("All attempts exhausted"),
+            ChatCompletionMessage::assistant("All attempts exhausted"),
+        ])
+        .workflow(workflow);
+
+    ctx.run().await.unwrap();
+
+    let two_attempts_remaining = ctx.count("You have 2 attempt(s) remaining");
+    assert_eq!(
+        two_attempts_remaining, 3,
+        "Should show 2 attempts remaining for all 3 different tools after first bulk failure"
+    );
+
+    let one_attempt_remaining = ctx.count("You have 1 attempt(s) remaining");
+    assert_eq!(
+        one_attempt_remaining, 3,
+        "Should show 1 attempt remaining for all 3 different tools after second bulk failure"
+    );
+}
