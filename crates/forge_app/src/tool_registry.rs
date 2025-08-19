@@ -63,8 +63,15 @@ impl<S: Services> ToolRegistry<S> {
 
         // First, try to call a Forge tool
         if Tools::contains(&input.name) {
-            self.call_with_timeout(&tool_name, || self.tool_executor.execute(input, context))
-                .await
+            // Only apply timeout to specific tools (search, shell, fetch) to avoid
+            // timing out interactive operations like permission requests
+            if Self::should_apply_timeout(&tool_name) {
+                self.call_with_timeout(&tool_name, || self.tool_executor.execute(input, context))
+                    .await
+            } else {
+                // Execute without timeout for interactive operations
+                self.tool_executor.execute(input, context).await
+            }
         } else if self.agent_executor.contains_tool(&input.name).await? {
             // Handle agent delegation tool calls
             let agent_input = AgentInput::try_from(&input)?;
@@ -73,6 +80,7 @@ impl<S: Services> ToolRegistry<S> {
                 .execute(input.name.to_string(), agent_input.task, context)
                 .await
         } else if self.mcp_executor.contains_tool(&input.name).await? {
+            // MCP tools should always have timeouts
             let output = self
                 .call_with_timeout(&tool_name, || self.mcp_executor.execute(input, context))
                 .await?;
@@ -149,6 +157,19 @@ impl<S> ToolRegistry<S> {
         }
         Ok(())
     }
+
+    /// Determines if a tool should have a timeout applied.
+    /// According to issue #1402, only search, shell, fetch, and mcp tools should timeout.
+    /// Interactive operations (like permission requests) should not timeout.
+    fn should_apply_timeout(tool_name: &ToolName) -> bool {
+        let name = tool_name.as_str();
+        matches!(name, 
+            "forge_tool_fs_search" |     // search operations
+            "forge_tool_process_shell" | // shell operations  
+            "forge_tool_net_fetch"       // fetch operations
+            // MCP tools are handled separately and always have timeouts
+        )
+    }
 }
 
 #[cfg(test)]
@@ -197,5 +218,47 @@ mod tests {
         );
 
         assert!(result.is_ok(), "Completion tool call should be valid");
+    }
+
+    #[test]
+    fn test_should_apply_timeout_for_search_tool() {
+        let tool_name = ToolName::new("forge_tool_fs_search");
+        assert!(ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Search tools should have timeout applied");
+    }
+
+    #[test]
+    fn test_should_apply_timeout_for_shell_tool() {
+        let tool_name = ToolName::new("forge_tool_process_shell");
+        assert!(ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Shell tools should have timeout applied");
+    }
+
+    #[test]
+    fn test_should_apply_timeout_for_fetch_tool() {
+        let tool_name = ToolName::new("forge_tool_net_fetch");
+        assert!(ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Fetch tools should have timeout applied");
+    }
+
+    #[test]
+    fn test_should_not_apply_timeout_for_read_tool() {
+        let tool_name = ToolName::new("forge_tool_fs_read");
+        assert!(!ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Read tools should not have timeout applied to allow permission prompts");
+    }
+
+    #[test]
+    fn test_should_not_apply_timeout_for_create_tool() {
+        let tool_name = ToolName::new("forge_tool_fs_create");
+        assert!(!ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Create tools should not have timeout applied to allow permission prompts");
+    }
+
+    #[test]
+    fn test_should_not_apply_timeout_for_interactive_tool() {
+        let tool_name = ToolName::new("forge_tool_followup");
+        assert!(!ToolRegistry::<()>::should_apply_timeout(&tool_name),
+            "Interactive tools should not have timeout applied");
     }
 }
