@@ -73,7 +73,7 @@ async fn test_attempt_completion_content() {
 #[tokio::test]
 async fn test_attempt_completion_with_task() {
     let tool_call =
-        ToolCallFull::new("fs_read").arguments(ToolCallArguments::from(r#"{"path": "abc.txt"}"#));
+        ToolCallFull::new("fs_read").arguments(ToolCallArguments::from(json!({"path": "abc.txt"})));
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Greetings")));
 
     let mut ctx = TestContext::init_forge_task("Read a file")
