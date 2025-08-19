@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{Match, MatchResult};
 
@@ -44,5 +44,22 @@ pub fn format_match(matched: &Match, base_dir: &Path) -> String {
             )
         }
         None => format_display_path(Path::new(&matched.path), base_dir),
+    }
+}
+
+pub async fn get_git_root(from_dir: &Path) -> Option<PathBuf> {
+    let output = tokio::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .current_dir(from_dir)
+        .output()
+        .await
+        .ok()?;
+
+    if output.status.success() {
+        String::from_utf8(output.stdout)
+            .ok()
+            .map(|root| PathBuf::from(root.trim()))
+    } else {
+        None
     }
 }

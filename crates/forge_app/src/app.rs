@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use crate::utils::get_git_root;
 
 use anyhow::{Context, Result};
 use chrono::Local;
@@ -13,8 +14,7 @@ use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
 use crate::workflow_manager::WorkflowManager;
 use crate::{
-    AppConfigService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
+    AppConfigService, AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, FsReadService, ProviderRegistry, ProviderService, Services, Walker
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -99,12 +99,39 @@ impl<S: Services> ForgeApp<S> {
             chat.event = chat.event.attachments(attachments);
         }
 
+        let mut paths = Vec::new();
+        let agent_md = environment.base_path.join("AGENTS.md");
+        if !paths.contains(&agent_md) {
+            paths.push(agent_md);
+        }
+        if let Some(git_root_path) = get_git_root(&environment.cwd).await {
+            let git_agent_md = git_root_path.join("AGENTS.md");
+            if !paths.contains(&git_agent_md) {
+            paths.push(git_agent_md);
+            }
+        }
+        let cwd_agent_md = environment.cwd.join("AGENTS.md");
+        if !paths.contains(&cwd_agent_md) {
+            paths.push(cwd_agent_md);
+        }
+
+        let mut custom_instructions = Vec::new();
+        for path in paths {
+            if path.exists() {
+                if let Ok(read_output) = self.services.read(path.to_string_lossy().to_string(), None, None).await {
+                    let crate::services::Content::File(content) = read_output.content;
+                    custom_instructions.push(content);
+                }
+            }
+        }
+
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
             conversation,
             Local::now(),
+            custom_instructions.clone()
         )
         .tool_definitions(tool_definitions)
         .models(models)

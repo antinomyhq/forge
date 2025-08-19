@@ -31,13 +31,9 @@ async fn test_attempt_completion_requirement() {
         .iter()
         .filter(|message| message.has_role(Role::User))
         .count();
-    // The orchestrator reads AGENTS.md files which creates additional user messages
-    // containing agent guidance, so we expect 3 user messages:
-    // 1. Agent guidance from machine root AGENTS.md
-    // 2. Agent guidance from current directory AGENTS.md
-    // 3. The actual user task message
+
     assert_eq!(
-        message_count, 3,
+        message_count, 1,
         "Should have three user messages (2 agent guidance + 1 task)"
     );
 
