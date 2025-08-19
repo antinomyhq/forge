@@ -67,7 +67,7 @@ impl ToolCallArguments {
         }
     }
 
-    pub fn from_json(str: &str) -> ToolCallArguments {
+    pub fn from_json(str: &str) -> Self {
         ToolCallArguments::Unparsed(str.to_string())
     }
 
@@ -79,32 +79,6 @@ impl ToolCallArguments {
         }
 
         ToolCallArguments::Parsed(Value::Object(map))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_unparsed_serialization() {
-        let json_str = r#"{"param": "value"}"#;
-        let args = ToolCallArguments::Unparsed(json_str.to_string());
-
-        // Test serialization
-        let serialized = serde_json::to_string(&args).unwrap();
-        println!("Serialized: {}", serialized);
-
-        // The goal is to have serialized == {"param": "value"}
-        // Not serialized == "{\"param\": \"value\"}"
-
-        // Let's also test what we get when we parse and serialize
-        let parsed: Value = serde_json::from_str(json_str).unwrap();
-        let expected = serde_json::to_string(&parsed).unwrap();
-        println!("Expected: {}", expected);
-
-        // For now, let's just make sure it compiles and runs
-        assert!(!serialized.is_empty());
     }
 }
 
@@ -146,5 +120,238 @@ impl<'a> From<&'a str> for ToolCallArguments {
 impl From<Value> for ToolCallArguments {
     fn from(value: Value) -> Self {
         ToolCallArguments::Parsed(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn test_serialize_unparsed_valid_json() {
+        let fixture = ToolCallArguments::from_json(r#"{"param": "value", "count": 42}"#);
+        let actual = serde_json::to_string(&fixture).unwrap();
+        // The RawValue preserves the original JSON string when it's valid
+        let expected = r#"{"param": "value", "count": 42}"#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_unparsed_valid_json_array() {
+        let fixture = ToolCallArguments::from_json(r#"["item1", "item2", 123]"#);
+        let actual = serde_json::to_string(&fixture).unwrap();
+        // The RawValue preserves the original JSON string when it's valid
+        let expected = r#"["item1", "item2", 123]"#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_unparsed_valid_json_nested() {
+        let fixture = ToolCallArguments::from_json(
+            r#"{"user": {"name": "John", "settings": {"theme": "dark"}}}"#,
+        );
+        let actual = serde_json::to_string(&fixture).unwrap();
+        // The RawValue preserves the original JSON string when it's valid
+        let expected = r#"{"user": {"name": "John", "settings": {"theme": "dark"}}}"#;
+        assert_eq!(actual, expected);
+    }
+    #[test]
+    fn test_serialize_unparsed_valid_json_compact() {
+        let fixture = ToolCallArguments::from_json(r#"{"param":"value","count":42}"#);
+        let actual = serde_json::to_string(&fixture).unwrap();
+        // The RawValue preserves the original JSON string when it's valid
+        let expected = r#"{"param":"value","count":42}"#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_unparsed_invalid_json() {
+        let fixture = ToolCallArguments::from_json(r#"{"param": "value", invalid}"#);
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = r#""{\"param\": \"value\", invalid}""#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_unparsed_malformed_json() {
+        let fixture = ToolCallArguments::from_json("not json at all");
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = r#""not json at all""#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_unparsed_empty_string() {
+        let fixture = ToolCallArguments::from_json("");
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = r#""""#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parsed_object() {
+        let fixture = ToolCallArguments::Parsed(json!({
+            "name": "test",
+            "value": 42,
+            "enabled": true
+        }));
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = r#"{"enabled":true,"name":"test","value":42}"#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parsed_array() {
+        let fixture = ToolCallArguments::Parsed(json!(["a", "b", 123, true, null]));
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = r#"["a","b",123,true,null]"#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parsed_primitive_string() {
+        let fixture = ToolCallArguments::Parsed(json!("simple string"));
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = r#""simple string""#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parsed_primitive_number() {
+        let fixture = ToolCallArguments::Parsed(json!(42));
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = "42";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parsed_primitive_boolean() {
+        let fixture = ToolCallArguments::Parsed(json!(true));
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = "true";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_serialize_parsed_null() {
+        let fixture = ToolCallArguments::Parsed(json!(null));
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = "null";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_deserialize_valid_json_object() {
+        let json_str = r#"{"param": "value", "count": 42}"#;
+        let actual: ToolCallArguments = serde_json::from_str(json_str).unwrap();
+        let expected = ToolCallArguments::Parsed(json!({
+            "param": "value",
+            "count": 42
+        }));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_deserialize_valid_json_array() {
+        let json_str = r#"["item1", "item2", 123]"#;
+        let actual: ToolCallArguments = serde_json::from_str(json_str).unwrap();
+        let expected = ToolCallArguments::Parsed(json!(["item1", "item2", 123]));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_deserialize_primitive_string() {
+        let json_str = r#""simple string""#;
+        let actual: ToolCallArguments = serde_json::from_str(json_str).unwrap();
+        let expected = ToolCallArguments::Parsed(json!("simple string"));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_roundtrip_unparsed_valid_json() {
+        let original_json = r#"{"param": "value", "count": 42}"#;
+        let fixture = ToolCallArguments::from_json(original_json);
+        let serialized = serde_json::to_string(&fixture).unwrap();
+        let deserialized: ToolCallArguments = serde_json::from_str(&serialized).unwrap();
+        let expected = ToolCallArguments::Parsed(json!({
+            "param": "value",
+            "count": 42
+        }));
+        assert_eq!(deserialized, expected);
+    }
+
+    #[test]
+    fn test_roundtrip_parsed_value() {
+        let fixture = ToolCallArguments::Parsed(json!({
+            "name": "test",
+            "value": 42,
+            "enabled": true
+        }));
+        let serialized = serde_json::to_string(&fixture).unwrap();
+        let actual: ToolCallArguments = serde_json::from_str(&serialized).unwrap();
+        let expected = fixture;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_unparsed_valid_json() {
+        let fixture = ToolCallArguments::from_json(r#"{"param": "value"}"#);
+        let actual = fixture.parse().unwrap();
+        let expected = json!({"param": "value"});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_unparsed_invalid_json_with_repair() {
+        let fixture = ToolCallArguments::from_json(r#"{"param": "value", "missing_quote": true"#);
+        let actual = fixture.parse().unwrap();
+        let expected = json!({"param": "value", "missing_quote": true});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_parsed_value() {
+        let value = json!({"param": "value"});
+        let fixture = ToolCallArguments::Parsed(value.clone());
+        let actual = fixture.parse().unwrap();
+        let expected = value;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_from_parameters() {
+        let mut params = BTreeMap::new();
+        params.insert("name".to_string(), "John".to_string());
+        params.insert("age".to_string(), "30".to_string());
+        params.insert("active".to_string(), "true".to_string());
+        params.insert("score".to_string(), "95.5".to_string());
+
+        let actual = ToolCallArguments::from_parameters(params);
+        let expected = ToolCallArguments::Parsed(json!({
+            "name": "John",
+            "age": 30,
+            "active": true,
+            "score": 95.5
+        }));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_into_string_unparsed() {
+        let fixture = ToolCallArguments::from_json(r#"{"param": "value"}"#);
+        let actual = fixture.into_string();
+        let expected = r#"{"param": "value"}"#;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_into_string_parsed() {
+        let fixture = ToolCallArguments::Parsed(json!({"param": "value"}));
+        let actual = fixture.into_string();
+        let expected = r#"{"param":"value"}"#;
+        assert_eq!(actual, expected);
     }
 }
