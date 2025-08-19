@@ -171,7 +171,7 @@ where
     serde_json::from_str(json_str)
         .map_err(forge_json_repair::JsonRepairError::JsonError)
         .or_else(|_| {
-            let repaired = forge_json_repair::jsonrepair(json_str);
+            let repaired = forge_json_repair::json_repair(json_str);
             if repaired.is_ok() {
                 tracing::info!("Tool call was successfully repaired.");
             }
