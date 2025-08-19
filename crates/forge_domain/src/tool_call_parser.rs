@@ -7,7 +7,7 @@ use nom::{IResult, Parser};
 use serde_json::Value;
 
 use super::ToolCallFull;
-use crate::{Error, ToolName};
+use crate::{Error, ToolCallArguments, ToolName};
 
 #[derive(Debug, PartialEq)]
 pub struct ToolCallParsed {
@@ -79,47 +79,13 @@ fn find_next_tool_call(input: &str) -> IResult<&str, &str> {
     Ok((remaining, ""))
 }
 
-fn convert_string_to_value(value: &str) -> Value {
-    // Try to parse as boolean first
-    match value.trim().to_lowercase().as_str() {
-        "true" => return Value::Bool(true),
-        "false" => return Value::Bool(false),
-        _ => {}
-    }
-
-    // Try to parse as number
-    if let Ok(int_val) = value.parse::<i64>() {
-        return Value::Number(int_val.into());
-    }
-
-    if let Ok(float_val) = value.parse::<f64>() {
-        // Create number from float, handling special case where float is actually an
-        // integer
-        return if float_val.fract() == 0.0 {
-            Value::Number(serde_json::Number::from(float_val as i64))
-        } else if let Some(num) = serde_json::Number::from_f64(float_val) {
-            Value::Number(num)
-        } else {
-            Value::String(value.to_string())
-        };
-    }
-
-    // Default to string if no other type matches
-    Value::String(value.to_string())
-}
-
-fn tool_call_to_struct(parsed: ToolCallParsed) -> ToolCallFull {
-    ToolCallFull {
-        name: ToolName::new(parsed.name),
-        call_id: None,
-        arguments: Value::Object(parsed.args.into_iter().fold(
-            serde_json::Map::new(),
-            |mut map, (key, value)| {
-                map.insert(key, convert_string_to_value(&value));
-                map
-            },
-        ))
-        .into(),
+impl From<ToolCallParsed> for ToolCallFull {
+    fn from(value: ToolCallParsed) -> Self {
+        Self {
+            name: ToolName::new(value.name),
+            call_id: None,
+            arguments: ToolCallArguments::from_object(value.args),
+        }
     }
 }
 
@@ -134,7 +100,7 @@ pub fn parse(input: &str) -> Result<Vec<ToolCallFull>, Error> {
                 // Try to parse a tool call at the current position
                 match parse_tool_call(remaining) {
                     Ok((new_remaining, parsed)) => {
-                        tool_calls.push(tool_call_to_struct(parsed));
+                        tool_calls.push(parsed.into());
                         current_input = new_remaining;
                     }
                     Err(e) => {
@@ -200,16 +166,10 @@ mod tests {
         }
 
         fn build_expected(&self) -> ToolCallFull {
-            let mut args = Value::Object(Default::default());
-            for (key, value) in &self.args {
-                args.as_object_mut()
-                    .unwrap()
-                    .insert(key.clone(), convert_string_to_value(value));
-            }
             ToolCallFull {
                 name: ToolName::new(&self.name),
                 call_id: None,
-                arguments: args.into(),
+                arguments: ToolCallArguments::from_object(self.args.clone()),
             }
         }
     }

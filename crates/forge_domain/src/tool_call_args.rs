@@ -48,11 +48,40 @@ impl ToolCallArguments {
         let mut map = Map::new();
 
         for (key, value) in object {
-            map.insert(key, Value::from(value));
+            map.insert(key, convert_string_to_value(&value));
         }
 
         ToolCallArguments::Parsed(Value::Object(map))
     }
+}
+
+fn convert_string_to_value(value: &str) -> Value {
+    // Try to parse as boolean first
+    match value.trim().to_lowercase().as_str() {
+        "true" => return Value::Bool(true),
+        "false" => return Value::Bool(false),
+        _ => {}
+    }
+
+    // Try to parse as number
+    if let Ok(int_val) = value.parse::<i64>() {
+        return Value::Number(int_val.into());
+    }
+
+    if let Ok(float_val) = value.parse::<f64>() {
+        // Create number from float, handling special case where float is actually an
+        // integer
+        return if float_val.fract() == 0.0 {
+            Value::Number(serde_json::Number::from(float_val as i64))
+        } else if let Some(num) = serde_json::Number::from_f64(float_val) {
+            Value::Number(num)
+        } else {
+            Value::String(value.to_string())
+        };
+    }
+
+    // Default to string if no other type matches
+    Value::String(value.to_string())
 }
 
 impl<'a> From<&'a str> for ToolCallArguments {
