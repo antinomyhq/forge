@@ -781,8 +781,8 @@ impl TryFrom<ToolCallFull> for Tools {
         map.insert("name".into(), value.name.as_str().into());
         map.insert("arguments".into(), value.arguments.parse()?);
 
-        Ok(serde_json::from_value(serde_json::Value::Object(map))
-            .map_err(|error| crate::Error::AgentCallArgument { error })?)
+        serde_json::from_value(serde_json::Value::Object(map))
+            .map_err(|error| crate::Error::AgentCallArgument { error })
     }
 }
 
