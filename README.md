@@ -21,8 +21,8 @@
 - [Command-Line Options](#command-line-options)
 - [Advanced Configuration](#advanced-configuration)
   - [Provider Configuration](#provider-configuration)
-  - [Environment Variables](#environment-variables)
   - [forge.yaml Configuration Options](#forgeyaml-configuration-options)
+  - [Environment Variables](#environment-variables)
   - [MCP Configuration](#mcp-configuration)
   - [Example Use Cases](#example-use-cases)
   - [Usage in Multi-Agent Workflows](#usage-in-multi-agent-workflows)
@@ -36,14 +36,11 @@
 
 ## Quickstart
 
-Run Forge in interactive mode via npx
+To get started with Forge, set up your [provider API keys](https://forgecode.dev/docs/custom-providers/) in your `.env` file, then run Forge using the command below:
 
 ```bash
 npx forgecode@latest
 ```
-
-Connect through the Forge app and complete the OAuth process.
-This will open your browser to app.forgecode.dev where you can sign up or sign in with Google/GitHub.
 
 That's it! Forge is now ready to assist you with your development tasks.
 
@@ -171,25 +168,7 @@ Here's a quick reference of Forge's command-line options:
 
 ### Provider Configuration
 
-Forge supports multiple AI providers. Below are setup instructions for each supported provider:
-
-<details>
-<summary><strong>forgecode.dev (Recommended)</strong></summary>
-
-```bash
-# .env
-FORGE_KEY=ForgeKey
-```
-
-To use Forgecode's provider with Forge:
-
-1. Visit [https://app.forgecode.dev/](https://app.forgecode.dev/)
-2. Login with your existing credentials or create a new account
-3. Once logged in, your account will automatically enable the Forge Provider
-
-_No changes in `forge.yaml` required_
-
-</details>
+Forge supports multiple AI providers. Below are setup instructions for each supported provider
 
 <details>
 <summary><strong>OpenRouter</strong></summary>
@@ -313,7 +292,6 @@ model: deepseek-r1-distill-llama-70b
 To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedrock Access Gateway](https://github.com/aws-samples/bedrock-access-gateway):
 
 1. **Set up Bedrock Access Gateway**:
-
    - Follow the deployment steps in the [Bedrock Access Gateway repo](https://github.com/aws-samples/bedrock-access-gateway)
    - Create your own API key in Secrets Manager
    - Deploy the CloudFormation stack
@@ -348,7 +326,7 @@ Control how Forge handles retry logic for failed requests:
 ```bash
 # .env
 FORGE_RETRY_INITIAL_BACKOFF_MS=1000    # Initial backoff time in milliseconds (default: 1000)
-FORGE_RETRY_BACKOFF_FACTOR=2           # Multiplier for backoff time (default: 2)  
+FORGE_RETRY_BACKOFF_FACTOR=2           # Multiplier for backoff time (default: 2)
 FORGE_RETRY_MAX_ATTEMPTS=3             # Maximum retry attempts (default: 3)
 FORGE_SUPPRESS_RETRY_ERRORS=false      # Suppress retry error messages (default: false)
 FORGE_RETRY_STATUS_CODES=429,500,502   # HTTP status codes to retry (default: 429,500,502,503,504)
@@ -401,6 +379,7 @@ Configuring the tool calls settings:
 # .env
 FORGE_TOOL_TIMEOUT=300         # Maximum execution time in seconds for a tool before it is terminated to prevent hanging the session. (default: 300)
 ```
+
 </details>
 
 <details>
@@ -416,7 +395,6 @@ COMSPEC=cmd.exe                        # Command processor to use (Windows)
 ```
 
 </details>
-
 
 The `forge.yaml` file supports several advanced configuration options that let you customize Forge's behavior.
 
@@ -510,6 +488,7 @@ max_requests_per_turn: 50 # Allow up to 50 requests per turn
 ```
 
 When this limit is reached, Forge will:
+
 - Ask you if you wish to continue
 - If you respond with 'Yes', it will continue the conversation
 - If you respond with 'No', it will end the conversation
