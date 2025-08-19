@@ -9,6 +9,7 @@ use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use schemars::schema::RootSchema;
 use serde::Serialize;
+use serde_json::Map;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
 
@@ -769,6 +770,19 @@ fn format_display_path(path: &Path, cwd: &Path) -> String {
         ".".to_string()
     } else {
         display_path
+    }
+}
+
+impl TryFrom<ToolCallFull> for Tools {
+    type Error = crate::Error;
+
+    fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
+        let mut map = Map::new();
+        map.insert("name".into(), value.name.as_str().into());
+        map.insert("arguments".into(), value.arguments.parse()?);
+
+        Ok(serde_json::from_value(serde_json::Value::Object(map))
+            .map_err(|error| crate::Error::AgentCallArgument { error })?)
     }
 }
 

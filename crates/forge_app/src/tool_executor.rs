@@ -290,8 +290,7 @@ impl<
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
-        let value = input.arguments.parse()?;
-        let tool_input: Tools = serde_json::from_value(value)?;
+        let tool_input: Tools = Tools::try_from(input)?;
         let env = self.services.get_environment();
         if let Some(content) = tool_input.to_content(&env) {
             context.send(content).await?;
