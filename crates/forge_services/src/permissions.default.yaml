@@ -1,16 +1,13 @@
 policies:
-  - permission: deny
+  - permission: allow
     rule:
-      read: ".*"
-  - permission: deny
+      read: "**/*"
+  - permission: allow
     rule:
-      read: "*.pem"
-  - permission: deny
+      write: "**/*"
+  - permission: allow
     rule:
-      read: "*.key"
-  - permission: deny
+      command: "*"
+  - permission: allow
     rule:
-      read: "*.p12"
-  - permission: deny
-    rule:
-      read: "id_*"
+      url: "*"
