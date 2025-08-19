@@ -792,24 +792,27 @@ impl TryFrom<ToolCallFull> for Tools {
     type Error = ToolCallArgumentError;
 
     fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
-        let arg = if value.arguments.is_null() {
-            // Note: If the arguments are null, we use an empty object.
-            // This is a workaround for eserde, which doesn't provide
-            // detailed error messages when required fields are missing.
-            "{}".to_string()
-        } else {
-            value.arguments.to_string()
-        };
+        // let arg = if value.arguments.as_str().is_empty().is_null() {
+        //     // Note: If the arguments are null, we use an empty object.
+        //     // This is a workaround for eserde, which doesn't provide
+        //     // detailed error messages when required fields are missing.
+        //     "{}".to_string()
+        // } else {
+        //     value.arguments.to_string()
+        // };
 
-        let json_str = format!(r#"{{"name": "{}", "arguments": {}}}"#, value.name, arg);
-        eserde::json::from_str(&json_str).map_err(ToolCallArgumentError::from)
+        // let json_str = format!(r#"{{"name": "{}", "arguments": {}}}"#, value.name,
+        // arg); eserde::json::from_str(&json_str).
+        // map_err(ToolCallArgumentError::from)
+
+        todo!()
     }
 }
 
 impl TryFrom<&ToolCallFull> for AgentInput {
     type Error = ToolCallArgumentError;
     fn try_from(value: &ToolCallFull) -> Result<Self, Self::Error> {
-        eserde::json::from_str(&value.arguments.to_string()).map_err(ToolCallArgumentError::from)
+        eserde::json::from_str(value.arguments.as_str()).map_err(ToolCallArgumentError::from)
     }
 }
 
