@@ -78,7 +78,7 @@ impl ToolCallFull {
         Self {
             name: tool_name.into(),
             call_id: None,
-            arguments: "null".into(),
+            arguments: ToolCallArguments::default(),
         }
     }
 
@@ -227,17 +227,21 @@ mod tests {
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_1".to_string())),
-                arguments: r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#.into(),
+                arguments: ToolCallArguments::from_json(
+                    r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#,
+                ),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_2".to_string())),
-                arguments: r#"{"path": "docs/onboarding.md"}"#.into(),
+                arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_3".to_string())),
-                arguments: r#"{"path": "crates/forge_services/src/service/service.md"}"#.into(),
+                arguments: ToolCallArguments::from_json(
+                    r#"{"path": "crates/forge_services/src/service/service.md"}"#,
+                ),
             },
         ];
 
@@ -256,7 +260,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("forge_tool_fs_read"),
-            arguments: r#"{"path": "docs/onboarding.md"}"#.into(),
+            arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
         }];
 
         assert_eq!(actual, expected);
@@ -331,7 +335,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId("0".to_string())),
-            arguments: r#"{"path": "/test/file.md"}"#.into(),
+            arguments: ToolCallArguments::from_json(r#"{"path": "/test/file.md"}"#),
         }];
 
         assert_eq!(actual, expected);

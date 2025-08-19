@@ -111,12 +111,6 @@ fn convert_string_to_value(value: &str) -> Value {
     Value::String(value.to_string())
 }
 
-impl<'a> From<&'a str> for ToolCallArguments {
-    fn from(value: &'a str) -> Self {
-        ToolCallArguments::from_json(value)
-    }
-}
-
 impl From<Value> for ToolCallArguments {
     fn from(value: Value) -> Self {
         ToolCallArguments::Parsed(value)
