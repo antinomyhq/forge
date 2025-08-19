@@ -52,6 +52,30 @@ impl MessageContent {
         }
     }
 
+    pub fn uncached(self) -> Self {
+        match self {
+            MessageContent::Text(_) => self, // Already uncached
+            MessageContent::Parts(parts) => {
+                // If there's only one text part with cache control, convert back to simple text
+                if parts.len() == 1
+                    && let ContentPart::Text { text, cache_control: Some(_) } = &parts[0] {
+                        return MessageContent::Text(text.clone());
+                    }
+                // Otherwise, remove cache control from all text parts
+                let uncached_parts = parts
+                    .into_iter()
+                    .map(|part| match part {
+                        ContentPart::Text { text, cache_control: _ } => {
+                            ContentPart::Text { text, cache_control: None }
+                        }
+                        other => other,
+                    })
+                    .collect();
+                MessageContent::Parts(uncached_parts)
+            }
+        }
+    }
+
     pub fn is_cached(&self) -> bool {
         match self {
             MessageContent::Text(_) => false,
