@@ -648,7 +648,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(provider) => Ok(provider),
             Err(_) => {
                 // If no key is available, start the login flow.
-                self.login().await?;
+                // self.login().await?;
                 let config: AppConfig = self.api.app_config().await?;
                 tracker::login(
                     config
