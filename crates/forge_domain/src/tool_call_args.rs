@@ -1,31 +1,57 @@
 use std::collections::BTreeMap;
 
+use forge_json_repair::json_repair;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+use crate::Error;
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub enum ToolCallArguments {
-    #[default]
-    Empty,
-    Json(String),
-    Object(BTreeMap<String, String>),
+    Unparsed(String),
+    Parsed(Value),
+}
+
+impl Default for ToolCallArguments {
+    fn default() -> Self {
+        ToolCallArguments::Parsed(Value::default())
+    }
 }
 
 impl ToolCallArguments {
-    pub fn as_str(&self) -> &str {
-        todo!()
+    pub fn into_string(self) -> String {
+        match self {
+            ToolCallArguments::Unparsed(str) => str,
+            ToolCallArguments::Parsed(value) => value.to_string(),
+        }
     }
 
-    pub fn parse(&self) -> anyhow::Result<Value> {
-        todo!()
+    pub fn parse(&self) -> Result<Value, Error> {
+        match self {
+            ToolCallArguments::Unparsed(json) => {
+                Ok(
+                    json_repair(json).map_err(|error| crate::Error::ToolCallArgument {
+                        error,
+                        args: json.to_owned(),
+                    })?,
+                )
+            }
+            ToolCallArguments::Parsed(value) => Ok(value.to_owned()),
+        }
     }
 
     pub fn from_json(str: &str) -> ToolCallArguments {
-        ToolCallArguments::Json(str.to_string())
+        ToolCallArguments::Unparsed(str.to_string())
     }
 
     pub fn from_object(object: BTreeMap<String, String>) -> ToolCallArguments {
-        ToolCallArguments::Object(object)
+        let mut map = Map::new();
+
+        for (key, value) in object {
+            map.insert(key, Value::from(value));
+        }
+
+        ToolCallArguments::Parsed(Value::Object(map))
     }
 }
 
@@ -35,26 +61,8 @@ impl<'a> From<&'a str> for ToolCallArguments {
     }
 }
 
-impl Serialize for ToolCallArguments {
-    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        todo!()
-    }
-}
-
-impl<'de> Deserialize<'de> for ToolCallArguments {
-    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        todo!()
-    }
-}
-
 impl From<Value> for ToolCallArguments {
     fn from(value: Value) -> Self {
-        todo!()
+        ToolCallArguments::Parsed(value)
     }
 }

@@ -4,7 +4,6 @@ use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
-use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
@@ -291,7 +290,8 @@ impl<
         context: &mut ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
-        let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
+        let value = input.arguments.parse()?;
+        let tool_input: Tools = serde_json::from_value(value)?;
         let env = self.services.get_environment();
         if let Some(content) = tool_input.to_content(&env) {
             context.send(content).await?;
