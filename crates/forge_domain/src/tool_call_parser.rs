@@ -127,7 +127,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use pretty_assertions::assert_eq;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
 
     use super::*;
     use crate::ToolName;
