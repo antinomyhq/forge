@@ -44,7 +44,7 @@ impl ToolCallArguments {
         ToolCallArguments::Unparsed(str.to_string())
     }
 
-    pub fn from_object(object: BTreeMap<String, String>) -> ToolCallArguments {
+    pub fn from_parameters(object: BTreeMap<String, String>) -> ToolCallArguments {
         let mut map = Map::new();
 
         for (key, value) in object {

@@ -84,7 +84,7 @@ impl From<ToolCallParsed> for ToolCallFull {
         Self {
             name: ToolName::new(value.name),
             call_id: None,
-            arguments: ToolCallArguments::from_object(value.args),
+            arguments: ToolCallArguments::from_parameters(value.args),
         }
     }
 }
@@ -128,6 +128,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use pretty_assertions::assert_eq;
+    use serde_json::json;
 
     use super::*;
     use crate::ToolName;
@@ -169,7 +170,7 @@ mod tests {
             ToolCallFull {
                 name: ToolName::new(&self.name),
                 call_id: None,
-                arguments: ToolCallArguments::from_object(self.args.clone()),
+                arguments: ToolCallArguments::from_parameters(self.args.clone()),
             }
         }
     }
@@ -219,7 +220,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: None,
-            arguments: serde_json::from_str(r#"{"path":"/a/b/c.txt"}"#).unwrap(),
+            arguments: json!({"path":"/a/b/c.txt"}).into(),
         }];
         assert_eq!(action, expected);
     }
@@ -374,7 +375,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_search"),
             call_id: None,
-            arguments: serde_json::from_str(r#"{"path":"/test/path","regex":"test"}"#).unwrap(),
+            arguments: json!({"path":"/test/path","regex":"test"}).into(),
         }];
         assert_eq!(action, expected);
     }
@@ -392,7 +393,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("foo"),
             call_id: None,
-            arguments: serde_json::from_str(r#"{"p1":"\nabc\n"}"#).unwrap(),
+            arguments: json!({"p1":"\nabc\n"}).into(),
         }];
         assert_eq!(action, expected);
     }
