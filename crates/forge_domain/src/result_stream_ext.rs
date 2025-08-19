@@ -172,7 +172,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{BoxStream, Content, TokenCount, ToolCall, ToolCallId, ToolName};
+    use crate::{
+        BoxStream, Content, TokenCount, ToolCall, ToolCallArguments, ToolCallId, ToolName,
+    };
 
     #[tokio::test]
     async fn test_into_full_basic() {
@@ -276,12 +278,15 @@ mod tests {
         // Actual: Convert stream to full message
         let actual = result_stream.into_full(false).await;
 
-        // Expected: Should return a retryable error
-        assert!(actual.is_err());
-        let error = actual.unwrap_err();
-        let domain_error = error.downcast_ref::<Error>();
-        assert!(domain_error.is_some());
-        assert!(matches!(domain_error.unwrap(), Error::Retryable(_)));
+        // Expected: Should not fail with invalid tool calls
+        assert!(actual.is_ok());
+        let actual = actual.unwrap();
+        let expected = ToolCallFull {
+            name: ToolName::new("test_tool"),
+            call_id: Some(ToolCallId::new("call_123")),
+            arguments: ToolCallArguments::from_json("invalid json {"),
+        };
+        assert_eq!(actual.tool_calls[0], expected);
     }
 
     #[tokio::test]
@@ -654,7 +659,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_into_full_empty_completion_creates_retryable_error() {
+    async fn test_into_full_empty_completion_creates_unparsed_tool_calls() {
         use crate::Error;
 
         // Fixture: Create a stream with empty content, no tool calls, and no finish

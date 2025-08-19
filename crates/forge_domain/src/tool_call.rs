@@ -282,7 +282,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("screenshot"),
-            arguments: "null".into(),
+            arguments: ToolCallArguments::default(),
         }];
 
         assert_eq!(actual, expected);
