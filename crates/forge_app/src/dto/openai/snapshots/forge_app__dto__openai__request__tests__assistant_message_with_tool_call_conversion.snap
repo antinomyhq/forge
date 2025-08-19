@@ -11,7 +11,7 @@ expression: router_message
       "type": "function",
       "function": {
         "name": "test_tool",
-        "arguments": "\"{\\\"key\\\": \\\"value\\\"}\""
+        "arguments": "{\"key\": \"value\"}"
       }
     }
   ]
