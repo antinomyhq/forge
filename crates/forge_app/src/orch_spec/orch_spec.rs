@@ -314,7 +314,7 @@ async fn test_bulk_tool_failures_with_retry_progression() {
     let tool_call_1 = ToolCallFull::new("fs_read").arguments(json!({"path": "file1.txt"}));
     let tool_call_2 = ToolCallFull::new("fs_write").arguments(json!({"path": "file2.txt"}));
     let tool_call_3 = ToolCallFull::new("shell").arguments(json!({"command": "ls"}));
-    
+
     let tool_error_1 = ToolResult::new("fs_read").failure(anyhow::anyhow!("File 1 not found"));
     let tool_error_2 = ToolResult::new("fs_write").failure(anyhow::anyhow!("Write failed"));
     let tool_error_3 = ToolResult::new("shell").failure(anyhow::anyhow!("Command failed"));
@@ -336,26 +336,23 @@ async fn test_bulk_tool_failures_with_retry_progression() {
             (tool_call_3.clone().into(), tool_error_3),
         ])
         .mock_assistant_responses(vec![
-            ChatCompletionMessage::assistant("Running all tools")
-                .tool_calls(vec![
-                    tool_call_1.clone().into(),
-                    tool_call_2.clone().into(),
-                    tool_call_3.clone().into(),
-                ]),
+            ChatCompletionMessage::assistant("Running all tools").tool_calls(vec![
+                tool_call_1.clone().into(),
+                tool_call_2.clone().into(),
+                tool_call_3.clone().into(),
+            ]),
             ChatCompletionMessage::assistant("I see the tools failed, let me try again"),
-            ChatCompletionMessage::assistant("Trying tools again")
-                .tool_calls(vec![
-                    tool_call_1.clone().into(),
-                    tool_call_2.clone().into(),
-                    tool_call_3.clone().into(),
-                ]),
+            ChatCompletionMessage::assistant("Trying tools again").tool_calls(vec![
+                tool_call_1.clone().into(),
+                tool_call_2.clone().into(),
+                tool_call_3.clone().into(),
+            ]),
             ChatCompletionMessage::assistant("Tools failed again, one more try"),
-            ChatCompletionMessage::assistant("Final attempt with tools")
-                .tool_calls(vec![
-                    tool_call_1.into(),
-                    tool_call_2.into(),
-                    tool_call_3.into(),
-                ]),
+            ChatCompletionMessage::assistant("Final attempt with tools").tool_calls(vec![
+                tool_call_1.into(),
+                tool_call_2.into(),
+                tool_call_3.into(),
+            ]),
             ChatCompletionMessage::assistant("All attempts exhausted"),
             ChatCompletionMessage::assistant("All attempts exhausted"),
             ChatCompletionMessage::assistant("All attempts exhausted"),
