@@ -4,7 +4,6 @@ use nom::bytes::complete::{tag, take_until, take_while1};
 use nom::character::complete::multispace0;
 use nom::multi::many0;
 use nom::{IResult, Parser};
-use serde_json::Value;
 
 use super::ToolCallFull;
 use crate::{Error, ToolCallArguments, ToolName};
