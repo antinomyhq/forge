@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use derive_setters::Setters;
+use lazy_static::lazy_static;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,7 +14,7 @@ use crate::{Agent, AgentId, Compact, MaxTokens, ModelId, TopK, TopP};
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
-#[setters(strip_option)]
+#[setters(strip_option, into)]
 pub struct Workflow {
     /// Path pattern for custom template files (supports glob patterns)
     #[serde(default)]
@@ -142,9 +143,14 @@ pub struct Workflow {
     pub compact: Option<Compact>,
 }
 
+lazy_static! {
+    static ref DEFAULT_WORKFLOW: Workflow =
+        serde_yml::from_str(include_str!("../../../forge.default.yaml")).unwrap();
+}
+
 impl Default for Workflow {
     fn default() -> Self {
-        serde_yml::from_str(include_str!("../../../forge.default.yaml")).unwrap()
+        DEFAULT_WORKFLOW.clone()
     }
 }
 
@@ -278,7 +284,8 @@ mod tests {
         // Fixture
         let mut base = Workflow::new();
 
-        let compact = Compact::new(ModelId::new("test-model"))
+        let compact = Compact::new()
+            .model(ModelId::new("test-model"))
             .token_threshold(1000_usize)
             .turn_threshold(5_usize);
         let other = Workflow::new().compact(compact.clone());
@@ -293,11 +300,13 @@ mod tests {
     #[test]
     fn test_workflow_merge_compact_with_existing() {
         // Fixture
-        let existing_compact =
-            Compact::new(ModelId::new("existing-model")).token_threshold(500_usize);
+        let existing_compact = Compact::new()
+            .model(ModelId::new("existing-model"))
+            .token_threshold(500_usize);
         let mut base = Workflow::new().compact(existing_compact);
 
-        let new_compact = Compact::new(ModelId::new("new-model"))
+        let new_compact = Compact::new()
+            .model(ModelId::new("new-model"))
             .token_threshold(1000_usize)
             .turn_threshold(5_usize);
         let other = Workflow::new().compact(new_compact.clone());

@@ -83,9 +83,15 @@ expression: results
     },
     TermSpec {
         input: "@hello [@世界 test@中文",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "hello ",
+        ),
+        span_start: Some(
+            1,
+        ),
+        span_end: Some(
+            7,
+        ),
         pos: 7,
     },
     TermSpec {
@@ -129,37 +135,67 @@ expression: results
     },
     TermSpec {
         input: "@hello @世界 [test@中文",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "世界 ",
+        ),
+        span_start: Some(
+            8,
+        ),
+        span_end: Some(
+            15,
+        ),
         pos: 15,
     },
     TermSpec {
         input: "@hello @世界 t[est@中文",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "世界 t",
+        ),
+        span_start: Some(
+            8,
+        ),
+        span_end: Some(
+            16,
+        ),
         pos: 16,
     },
     TermSpec {
         input: "@hello @世界 te[st@中文",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "世界 te",
+        ),
+        span_start: Some(
+            8,
+        ),
+        span_end: Some(
+            17,
+        ),
         pos: 17,
     },
     TermSpec {
         input: "@hello @世界 tes[t@中文",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "世界 tes",
+        ),
+        span_start: Some(
+            8,
+        ),
+        span_end: Some(
+            18,
+        ),
         pos: 18,
     },
     TermSpec {
         input: "@hello @世界 test[@中文",
-        output: None,
-        span_start: None,
-        span_end: None,
+        output: Some(
+            "世界 test",
+        ),
+        span_start: Some(
+            8,
+        ),
+        span_end: Some(
+            19,
+        ),
         pos: 19,
     },
     TermSpec {

@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "id": "moonshotai/Kimi-K2-Instruct-75k",
+      "name": "Kimi K2 Instruct 75k",
+      "created": 1234567890,
+      "description": "Kimi K2 model with 75k context length",
+      "context_length": 75000,
+      "pricing": {
+        "prompt": 0.17992692,
+        "completion": 0.17992692
+      },
+      "supported_parameters": ["tools", "supports_parallel_tool_calls"]
+    }
+  ]
+}

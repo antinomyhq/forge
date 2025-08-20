@@ -1,6 +1,7 @@
 use std::pin::Pin;
 
 use derive_more::From;
+use forge_json_repair::JsonRepairError;
 use thiserror::Error;
 
 use crate::{AgentId, ConversationId};
@@ -14,13 +15,19 @@ pub enum Error {
     #[error("Missing tool name")]
     ToolCallMissingName,
 
+    #[error("Missing tool id")]
+    ToolCallMissingId,
+
+    #[error("Unsupported role: {0}")]
+    UnsupportedRole(String),
+
     #[error("{0}")]
     EToolCallArgument(ToolCallArgumentError),
 
     #[error("JSON deserialization error: {error}")]
     #[from(skip)]
     ToolCallArgument {
-        error: serde_json::Error,
+        error: JsonRepairError,
         args: String,
     },
 
@@ -59,6 +66,9 @@ pub enum Error {
     #[from(skip)]
     NoModelDefined(AgentId),
 
+    #[error("Empty completion received - no content, tool calls, or valid finish reason")]
+    EmptyCompletion,
+
     #[error(transparent)]
     Retryable(anyhow::Error),
 }
@@ -84,8 +94,16 @@ impl std::fmt::Display for ToolCallArgumentError {
     }
 }
 
+impl Error {
+    pub fn into_retryable(self) -> Self {
+        use anyhow::anyhow;
+        Self::Retryable(anyhow!(self))
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use forge_json_repair::JsonRepairError;
     use serde_json::Value;
 
     use crate::Error;
@@ -94,7 +112,10 @@ mod test {
     fn test_debug_serde_error() {
         let args = "{a: 1}";
         let serde_error = serde_json::from_str::<Value>(&args).unwrap_err();
-        let a = Error::ToolCallArgument { error: serde_error, args: args.to_string() };
+        let a = Error::ToolCallArgument {
+            error: JsonRepairError::from(serde_error),
+            args: args.to_string(),
+        };
         let a = anyhow::anyhow!(a);
         eprintln!("{:?}", a.root_cause());
     }

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -7,13 +7,14 @@ use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::authenticator::Authenticator;
+use crate::dto::InitAuth;
 use crate::orch::Orchestrator;
 use crate::services::TemplateService;
 use crate::tool_registry::ToolRegistry;
+use crate::workflow_manager::WorkflowManager;
 use crate::{
     AppConfigService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
+    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -23,6 +24,7 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
+    workflow_manager: WorkflowManager<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -31,6 +33,7 @@ impl<S: Services> ForgeApp<S> {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
+            workflow_manager: WorkflowManager::new(services.clone()),
             services,
         }
     }
@@ -60,7 +63,11 @@ impl<S: Services> ForgeApp<S> {
         let models = services.models(provider).await?;
 
         // Discover files using the discovery service
-        let workflow = services.read_merged(None).await.unwrap_or_default();
+        let workflow = self
+            .workflow_manager
+            .read_merged(None)
+            .await
+            .unwrap_or_default();
         let max_depth = workflow.max_walker_depth;
         let environment = services.get_environment();
 
@@ -158,7 +165,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Calculate original metrics
         let original_messages = context.messages.len();
-        let original_tokens = context.token_count();
+        let original_tokens_approx = context.token_count_approx();
 
         // Find the main agent (first agent in the conversation)
         // In most cases, there should be a primary agent for compaction
@@ -175,7 +182,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Calculate compacted metrics
         let compacted_messages = compacted_context.messages.len();
-        let compacted_tokens = compacted_context.token_count();
+        let compacted_tokens_approx = compacted_context.token_count_approx();
 
         // Update the conversation with the compacted context
         conversation.context = Some(compacted_context);
@@ -185,8 +192,8 @@ impl<S: Services> ForgeApp<S> {
 
         // Return the compaction metrics
         Ok(CompactionResult::new(
-            *original_tokens,
-            *compacted_tokens,
+            original_tokens_approx,
+            compacted_tokens_approx,
             original_messages,
             compacted_messages,
         ))
@@ -203,5 +210,15 @@ impl<S: Services> ForgeApp<S> {
     }
     pub async fn logout(&self) -> Result<()> {
         self.authenticator.logout().await
+    }
+    pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
+        self.workflow_manager.read_workflow(path).await
+    }
+
+    pub async fn read_workflow_merged(&self, path: Option<&Path>) -> Result<Workflow> {
+        self.workflow_manager.read_merged(path).await
+    }
+    pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
+        self.workflow_manager.write_workflow(path, workflow).await
     }
 }

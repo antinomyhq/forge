@@ -1,0 +1,8 @@
+{
+  "id": "scientific-model",
+  "name": "Scientific Notation Model",
+  "pricing": {
+    "prompt": "1.5e-3",
+    "completion": "2.0E-4"
+  }
+}

@@ -168,6 +168,7 @@ impl ForgeCommandManager {
             "/compact" => Ok(Command::Compact),
             "/new" => Ok(Command::New),
             "/info" => Ok(Command::Info),
+            "/usage" => Ok(Command::Usage),
             "/exit" => Ok(Command::Exit),
             "/update" => Ok(Command::Update),
             "/dump" => {
@@ -185,6 +186,7 @@ impl ForgeCommandManager {
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
+            "/retry" => Ok(Command::Retry),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -231,6 +233,9 @@ pub enum Command {
     /// This can be triggered with the '/info' command.
     #[strum(props(usage = "Display system information"))]
     Info,
+    /// Display usage information (tokens & requests).
+    #[strum(props(usage = "Shows usage information (tokens & requests)"))]
+    Usage,
     /// Exit the application without any further action.
     #[strum(props(usage = "Exit the application"))]
     Exit,
@@ -280,6 +285,10 @@ pub enum Command {
     /// Logs out of the current session.
     #[strum(props(usage = "Logout of the current session"))]
     Logout,
+
+    /// Retry without modifying model context
+    #[strum(props(usage = "Retry the last command"))]
+    Retry,
 }
 
 impl Command {
@@ -290,6 +299,7 @@ impl Command {
             Command::Message(_) => "/message",
             Command::Update => "/update",
             Command::Info => "/info",
+            Command::Usage => "/usage",
             Command::Exit => "/exit",
             Command::Forge => "/forge",
             Command::Muse => "/muse",
@@ -302,6 +312,7 @@ impl Command {
             Command::Agent => "/agent",
             Command::Login => "/login",
             Command::Logout => "/logout",
+            Command::Retry => "/retry",
         }
     }
 

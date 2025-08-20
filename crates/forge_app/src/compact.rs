@@ -104,8 +104,8 @@ impl<S: AgentService> Compactor<S> {
             .fold(Context::default(), |ctx, msg| ctx.add_message(msg.clone()));
 
         let summary_tag = compact.summary_tag.as_ref().cloned().unwrap_or_default();
+        let context = sequence_context.to_text();
         let ctx = serde_json::json!({
-            "context": sequence_context.to_text(),
             "summary_tag": summary_tag
         });
 
@@ -120,14 +120,24 @@ impl<S: AgentService> Compactor<S> {
             )
             .await?;
 
+        // Use compact.model if specified, otherwise fall back to the agent's model
+        let model = compact
+            .model
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No model specified for compaction"))?;
+
         let mut context = Context::default()
-            .add_message(ContextMessage::user(prompt, compact.model.clone().into()));
+            .add_message(ContextMessage::system(prompt))
+            .add_message(ContextMessage::user(
+                format!("<context>{context}</context"),
+                Some(model.clone()),
+            ));
 
         if let Some(max_token) = compact.max_tokens {
             context = context.max_tokens(max_token);
         }
 
-        let response = self.services.chat_agent(&compact.model, context).await?;
+        let response = self.services.chat_agent(model, context).await?;
 
         self.collect_completion_stream_content(compact, response)
             .await

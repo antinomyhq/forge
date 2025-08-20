@@ -1,3 +1,4 @@
+// Tests for this module can be found in: tests/orch_*.rs
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -192,11 +193,6 @@ impl<S: AgentService> Orchestrator<S> {
             let mut files = self.files.clone();
             files.sort();
 
-            let current_time = self
-                .current_time
-                .format("%Y-%m-%d %H:%M:%S %:z")
-                .to_string();
-
             let tool_supported = self.is_tool_supported(agent)?;
             let supports_parallel_tool_calls = self.is_parallel_tool_call_supported(agent);
             let tool_information = match tool_supported {
@@ -205,7 +201,6 @@ impl<S: AgentService> Orchestrator<S> {
             };
 
             let ctx = SystemContext {
-                current_time,
                 env: Some(env),
                 tool_information,
                 tool_supported,
@@ -213,14 +208,15 @@ impl<S: AgentService> Orchestrator<S> {
                 custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
                 variables: variables.clone(),
                 supports_parallel_tool_calls,
+                agent_prompt: Some(self.services.render(&system_prompt.template, &()).await?),
             };
 
-            let system_message = self
+            let rendered_prompt = self
                 .services
-                .render(system_prompt.template.as_str(), &ctx)
+                .render("{{> forge-custom-agent-template.hbs }}", &ctx)
                 .await?;
 
-            context.set_first_system_message(system_message)
+            context.set_first_system_message(rendered_prompt)
         } else {
             context
         })
@@ -377,6 +373,9 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.conversation.max_requests_per_turn;
 
+        // Store tool calls at turn level
+        let mut turn_has_tool_calls = false;
+
         while !is_complete {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
@@ -412,6 +411,7 @@ impl<S: AgentService> Orchestrator<S> {
                     usage,
                     reasoning,
                     reasoning_details,
+                    finish_reason,
                 },
                 compaction_result,
             ) = tokio::try_join!(main_request, self.check_and_compact(&agent, &context))?;
@@ -428,8 +428,13 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             info!(
+                conversation_id = %self.conversation.id,
+                conversation_length = context.messages.len(),
                 token_usage = format!("{}", usage.prompt_tokens),
                 total_tokens = format!("{}", usage.total_tokens),
+                cached_tokens = format!("{}", usage.cached_tokens),
+                cost = usage.cost.unwrap_or_default(),
+                finish_reason = finish_reason.map_or("", |reason| reason.into()),
                 "Processing usage information"
             );
 
@@ -438,13 +443,13 @@ impl<S: AgentService> Orchestrator<S> {
 
             context = context.usage(usage);
 
-            let has_no_tool_calls = tool_calls.is_empty();
+            let has_tool_calls = !tool_calls.is_empty();
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
             is_complete = tool_calls.iter().any(|call| Tools::is_complete(&call.name));
 
-            if !is_complete && !has_no_tool_calls {
+            if !is_complete && has_tool_calls {
                 // If task is completed we would have already displayed a message so we can
                 // ignore the content that's collected from the stream
                 // NOTE: Important to send the content messages before the tool call happens
@@ -506,9 +511,22 @@ impl<S: AgentService> Orchestrator<S> {
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
 
-            if has_no_tool_calls {
-                // No tool calls present, which doesn't mean task is complete so reprompt the
-                // agent to ensure the task complete.
+            if !(turn_has_tool_calls || has_tool_calls) {
+                // No tools were called in the previous turn nor were they called in this step;
+                // Means that this is conversation.
+
+                self.send(ChatResponse::Text {
+                    text: remove_tag_with_prefix(&content, "forge_")
+                        .as_str()
+                        .to_string(),
+                    is_complete: true,
+                    is_md: true,
+                })
+                .await?;
+                is_complete = true
+            } else if turn_has_tool_calls && !has_tool_calls {
+                // Since no tool calls are present, which doesn't mean task is complete so
+                // re-prompt the agent to ensure the task complete.
                 let content = self
                     .services
                     .render(
@@ -529,7 +547,8 @@ impl<S: AgentService> Orchestrator<S> {
                 );
 
                 empty_tool_call_count += 1;
-                if empty_tool_call_count > 3 {
+                // TODO: Move the hard coded limit into env
+                if empty_tool_call_count >= 3 {
                     warn!(
                         agent_id = %agent.id,
                         model_id = %model_id,
@@ -592,6 +611,9 @@ impl<S: AgentService> Orchestrator<S> {
                     is_complete = true;
                 }
             }
+
+            // Update if turn has tool calls
+            turn_has_tool_calls = turn_has_tool_calls || has_tool_calls;
         }
 
         Ok(())
@@ -624,11 +646,7 @@ impl<S: AgentService> Orchestrator<S> {
         {
             let event_context = EventContext::new(event.clone())
                 .variables(variables.clone())
-                .current_time(
-                    self.current_time
-                        .format("%Y-%m-%d %H:%M:%S %:z")
-                        .to_string(),
-                );
+                .current_time(self.current_time.format("%Y-%m-%d").to_string());
             debug!(event_context = ?event_context, "Event context");
             Some(
                 self.services
