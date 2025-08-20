@@ -58,16 +58,19 @@ impl MessageContent {
                 let mut parts = parts;
                 match cache_control {
                     Some(cc) => {
-                        let mut set = false;
-                        for part in parts.iter_mut().rev() {
-                            if let ContentPart::Text { cache_control, .. } = part {
-                                if set {
-                                    *cache_control = None;
-                                } else {
-                                    *cache_control = Some(cc.clone());
-                                    set = true;
-                                }
-                            }
+                        // Reset cache-control
+                        parts.iter_mut().rev().for_each(|part| match part {
+                            ContentPart::Text { cache_control, .. } => *cache_control = None,
+                            ContentPart::ImageUrl { .. } => {}
+                        });
+
+                        // Set cache-control on last
+                        let cache_control = parts.iter_mut().rev().find_map(|part| match part {
+                            ContentPart::Text { cache_control, .. } => Some(cache_control),
+                            ContentPart::ImageUrl { .. } => None,
+                        });
+                        if let Some(cache_control) = cache_control {
+                            *cache_control = Some(cc.clone());
                         }
                         MessageContent::Parts(parts)
                     }
@@ -83,6 +86,7 @@ impl MessageContent {
             }
         }
     }
+
     pub fn is_cached(&self) -> bool {
         match self {
             MessageContent::Text(_) => false,
