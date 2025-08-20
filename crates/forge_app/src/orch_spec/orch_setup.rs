@@ -88,6 +88,40 @@ impl TestContext {
     pub async fn run(&mut self) -> anyhow::Result<()> {
         Runner::run(self).await
     }
+
+    // Helper utility functions for message counting and checking
+    pub fn count(&self, text: &str) -> usize {
+        self.output
+            .context_messages()
+            .iter()
+            .filter_map(|message| message.content())
+            .filter(|content| content.contains(text))
+            .count()
+    }
+
+    pub fn has_message_containing(&self, text: &str) -> bool {
+        self.output
+            .context_messages()
+            .iter()
+            .filter_map(|message| message.content())
+            .any(|content| content.contains(text))
+    }
+
+    pub fn has_complete_retry_info(&self, attempts_remaining: &str, max_attempts: &str) -> bool {
+        self.output
+            .context_messages()
+            .iter()
+            .filter_map(|message| message.content())
+            .any(|content| {
+                content.contains("This tool call failed")
+                    && content.contains(&format!(
+                        "You have {} attempt(s) remaining",
+                        attempts_remaining
+                    ))
+                    && content.contains(&format!("out of a maximum of {}", max_attempts))
+                    && content.contains("Please reflect on the error")
+            })
+    }
 }
 
 // The final output produced after running the orchestrator to completion
@@ -98,7 +132,7 @@ pub struct TestOutput {
 }
 
 impl TestOutput {
-    pub fn system_prompt(&self) -> Option<&str> {
+    pub fn system_prompt(&self) -> Option<String> {
         self.conversation_history
             .last()
             .and_then(|c| c.context.as_ref())
