@@ -410,7 +410,7 @@ mod tests {
         assert_eq!(agent1.max_walker_depth, Some(5));
         assert_eq!(
             agent1.custom_rules,
-            Some("Agent1 specific rules\nDefault rules".to_string())
+            Some("Agent1 specific rules\n\nDefault rules".to_string())
         );
         assert_eq!(agent1.temperature, Some(Temperature::new(0.7).unwrap()));
         assert_eq!(agent1.max_tokens, Some(MaxTokens::new(4000).unwrap()));
