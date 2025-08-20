@@ -8,7 +8,7 @@ use crate::{Metrics, ToolCallFull, ToolResult, Usage};
 pub enum ChatResponse {
     TaskMessage { text: String, is_md: bool },
     TaskReasoning { content: String },
-    TaskComplete(Metrics),
+    TaskComplete { metrics: Metrics },
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
     Usage(Usage),

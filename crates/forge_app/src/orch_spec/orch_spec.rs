@@ -126,7 +126,7 @@ async fn test_attempt_completion_triggers_session_summary() {
         .chat_responses
         .iter()
         .flatten()
-        .filter(|response| matches!(response, ChatResponse::TaskComplete(_)))
+        .filter(|response| matches!(response, ChatResponse::TaskComplete { .. }))
         .count();
 
     assert_eq!(
@@ -156,7 +156,7 @@ async fn test_followup_does_not_trigger_session_summary() {
         .chat_responses
         .iter()
         .flatten()
-        .any(|response| matches!(response, ChatResponse::TaskComplete(_)));
+        .any(|response| matches!(response, ChatResponse::TaskComplete { .. }));
 
     assert!(
         !has_chat_complete,

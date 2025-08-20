@@ -626,7 +626,7 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         if has_attempted_completion {
-            self.send(ChatResponse::TaskComplete(metrics.clone()))
+            self.send(ChatResponse::TaskComplete { metrics: metrics.clone() })
                 .await?;
         }
 

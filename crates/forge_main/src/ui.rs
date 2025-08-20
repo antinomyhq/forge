@@ -824,7 +824,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln(content.dimmed())?;
                 }
             }
-            ChatResponse::TaskComplete(summary) => {
+            ChatResponse::TaskComplete { metrics: summary } => {
                 self.on_completion(summary).await?;
             }
         }
