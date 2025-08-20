@@ -58,7 +58,7 @@ impl<S: Services> ToolRegistry<S> {
     ) -> anyhow::Result<ToolOutput> {
         Self::validate_tool_call(agent, &input.name)?;
 
-        tracing::info!(tool_name = %input.name, arguments = %input.arguments, "Executing tool call");
+        tracing::info!(tool_name = %input.name, arguments = %input.arguments.clone().into_string(), "Executing tool call");
         let tool_name = input.name.clone();
 
         // First, try to call a Forge tool

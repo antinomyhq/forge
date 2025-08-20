@@ -1000,7 +1000,7 @@ impl JsonRepairParser {
     }
 }
 
-pub fn jsonrepair<De: for<'de> Deserialize<'de>>(text: &str) -> Result<De> {
+pub fn json_repair<De: for<'de> Deserialize<'de>>(text: &str) -> Result<De> {
     let parser = JsonRepairParser::new(text.to_string());
     parser.parse()
 }
