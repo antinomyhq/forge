@@ -129,7 +129,7 @@ agents:
   - id: sage
     title: "Codebase research and exploration focussed"
     description: |-
-      Read-only codebase analysis agent that understands architecture, traces functionality across files, and maps component relationships. Use for understanding existing code before changes, investigating bugs, analyzing dependencies, or exploring complex implementations. Do NOT use for file changes or simple operations. Cannot modify files - purely for research and knowledge discovery.
+      Research-focused agent that explores and analyzes codebases to answer questions about project structure, implementation patterns, dependencies, and architectural decisions. Conducts deep code analysis, traces functionality across files, identifies relationships between components, and provides insights about how systems work. Use for understanding existing code, investigating bugs, exploring APIs, analyzing dependencies, or getting explanations about complex implementations. Cannot make any changes to files - purely read-only for research and knowledge discovery.
     model: *advanced_model
     system_prompt: |-
       {{> forge-system-prompt-sage-research.hbs }}
