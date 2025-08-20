@@ -461,11 +461,11 @@ impl<S: AgentService> Orchestrator<S> {
                 // If task is completed we would have already displayed a message so we can
                 // ignore the content that's collected from the stream
                 // NOTE: Important to send the content messages before the tool call happens
-                self.send(ChatResponse::Text {
+                self.send(ChatResponse::TaskComplete {
                     text: remove_tag_with_prefix(&content, "forge_")
                         .as_str()
                         .to_string(),
-                    is_complete: true,
+
                     is_md: true,
                 })
                 .await?;
@@ -476,7 +476,7 @@ impl<S: AgentService> Orchestrator<S> {
                 && reasoning_supported
             {
                 // If reasoning is present, send it as a separate message
-                self.send(ChatResponse::Reasoning { content: reasoning.to_string() })
+                self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
                     .await?;
             }
 
@@ -524,11 +524,11 @@ impl<S: AgentService> Orchestrator<S> {
                 // No tools were called in the previous turn nor were they called in this step;
                 // Means that this is conversation.
 
-                self.send(ChatResponse::Text {
+                self.send(ChatResponse::TaskComplete {
                     text: remove_tag_with_prefix(&content, "forge_")
                         .as_str()
                         .to_string(),
-                    is_complete: true,
+
                     is_md: true,
                 })
                 .await?;

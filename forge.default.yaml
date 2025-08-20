@@ -52,6 +52,7 @@ agents:
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_fs_undo
+      - sage
 
   - id: muse
     title: "Analysis and planning focussed"

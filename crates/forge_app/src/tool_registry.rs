@@ -88,7 +88,7 @@ impl<S: Services> ToolRegistry<S> {
             if !text.trim().is_empty() {
                 let text = style(text).cyan().dim().to_string();
                 context
-                    .send(ChatResponse::Text { text, is_complete: true, is_md: false })
+                    .send(ChatResponse::TaskComplete { text, is_md: false })
                     .await?;
             }
             Ok(output)

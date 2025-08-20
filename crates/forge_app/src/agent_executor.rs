@@ -69,8 +69,8 @@ impl<S: Services> AgentExecutor<S> {
         while let Some(message) = response_stream.next().await {
             let message = message?;
             match &message {
-                ChatResponse::Summary { content } => {
-                    return Ok(ToolOutput::text(content));
+                ChatResponse::TaskComplete { text, .. } => {
+                    return Ok(ToolOutput::text(text));
                 }
                 _ => {
                     context.send(message).await?;

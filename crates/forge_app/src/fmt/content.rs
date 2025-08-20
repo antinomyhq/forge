@@ -12,14 +12,10 @@ impl From<ContentFormat> for ChatResponse {
     fn from(value: ContentFormat) -> Self {
         match value {
             ContentFormat::Title(title) => {
-                ChatResponse::Text { text: title.to_string(), is_complete: true, is_md: false }
+                ChatResponse::TaskComplete { text: title.to_string(), is_md: false }
             }
-            ContentFormat::PlainText(text) => {
-                ChatResponse::Text { text, is_complete: true, is_md: false }
-            }
-            ContentFormat::Markdown(text) => {
-                ChatResponse::Text { text, is_complete: true, is_md: true }
-            }
+            ContentFormat::PlainText(text) => ChatResponse::TaskComplete { text, is_md: false },
+            ContentFormat::Markdown(text) => ChatResponse::TaskComplete { text, is_md: true },
         }
     }
 }
