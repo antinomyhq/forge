@@ -191,3 +191,242 @@ async fn test_empty_responses() {
 
     assert_eq!(retry_attempts, 3, "Should retry 3 times")
 }
+
+#[tokio::test]
+async fn test_tool_call_start_end_responses_for_non_agent_tools() {
+    let tool_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "test.txt"})));
+    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("file content")));
+
+    let attempt_completion_call = ToolCallFull::new("forge_tool_attempt_completion")
+        .arguments(json!({"result": "File read successfully"}));
+    let attempt_completion_result = ToolResult::new("forge_tool_attempt_completion")
+        .output(Ok(ToolOutput::text("Task completed")));
+
+    let mut ctx = TestContext::init_forge_task("Read a file")
+        .mock_tool_call_responses(vec![
+            (tool_call.clone().into(), tool_result.clone()),
+            (
+                attempt_completion_call.clone().into(),
+                attempt_completion_result,
+            ),
+        ])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Reading file")
+                .tool_calls(vec![tool_call.clone().into()]),
+            ChatCompletionMessage::assistant("File read successfully")
+                .tool_calls(vec![attempt_completion_call.into()]),
+        ]);
+
+    ctx.run().await.unwrap();
+
+    let chat_responses: Vec<_> = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .collect();
+
+    // Should have ToolCallStart response (2: one for fs_read, one for
+    // forge_tool_attempt_completion)
+    let tool_call_start_count = chat_responses
+        .iter()
+        .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
+        .count();
+    assert_eq!(
+        tool_call_start_count, 2,
+        "Should have 2 ToolCallStart responses for non-agent tools"
+    );
+
+    // Should have ToolCallEnd response (2: one for fs_read, one for
+    // forge_tool_attempt_completion)
+    let tool_call_end_count = chat_responses
+        .iter()
+        .filter(|response| matches!(response, ChatResponse::ToolCallEnd(_)))
+        .count();
+    assert_eq!(
+        tool_call_end_count, 2,
+        "Should have 2 ToolCallEnd responses for non-agent tools"
+    );
+
+    // Verify the content of the responses
+    let tool_call_start = chat_responses.iter().find_map(|response| match response {
+        ChatResponse::ToolCallStart(call) => Some(call),
+        _ => None,
+    });
+    assert_eq!(
+        tool_call_start,
+        Some(&tool_call),
+        "ToolCallStart should contain the tool call"
+    );
+
+    let tool_call_end = chat_responses.iter().find_map(|response| match response {
+        ChatResponse::ToolCallEnd(result) => Some(result),
+        _ => None,
+    });
+    assert_eq!(
+        tool_call_end,
+        Some(&tool_result),
+        "ToolCallEnd should contain the tool result"
+    );
+}
+
+#[tokio::test]
+async fn test_no_tool_call_start_end_responses_for_agent_tools() {
+    // Call an agent tool (using "forge" which is configured as an agent in the
+    // default workflow)
+    let agent_tool_call = ToolCallFull::new("forge")
+        .arguments(ToolCallArguments::from(json!({"tasks": ["analyze code"]})));
+    let agent_tool_result =
+        ToolResult::new("forge").output(Ok(ToolOutput::text("analysis complete")));
+
+    let attempt_completion_call = ToolCallFull::new("forge_tool_attempt_completion")
+        .arguments(json!({"result": "Analysis completed"}));
+    let attempt_completion_result = ToolResult::new("forge_tool_attempt_completion")
+        .output(Ok(ToolOutput::text("Task completed")));
+
+    let mut ctx = TestContext::init_forge_task("Analyze code")
+        .mock_tool_call_responses(vec![
+            (agent_tool_call.clone().into(), agent_tool_result.clone()),
+            (
+                attempt_completion_call.clone().into(),
+                attempt_completion_result,
+            ),
+        ])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Analyzing code")
+                .tool_calls(vec![agent_tool_call.into()]),
+            ChatCompletionMessage::assistant("Analysis completed")
+                .tool_calls(vec![attempt_completion_call.into()]),
+        ]);
+
+    ctx.run().await.unwrap();
+
+    let chat_responses: Vec<_> = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .collect();
+
+    // Should have ToolCallStart response only for forge_tool_attempt_completion
+    // (not for agent "forge")
+    let tool_call_start_count = chat_responses
+        .iter()
+        .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
+        .count();
+    assert_eq!(
+        tool_call_start_count, 1,
+        "Should have 1 ToolCallStart response (only for forge_tool_attempt_completion)"
+    );
+
+    // Should have ToolCallEnd response only for forge_tool_attempt_completion (not
+    // for agent "forge")
+    let tool_call_end_count = chat_responses
+        .iter()
+        .filter(|response| matches!(response, ChatResponse::ToolCallEnd(_)))
+        .count();
+    assert_eq!(
+        tool_call_end_count, 1,
+        "Should have 1 ToolCallEnd response (only for forge_tool_attempt_completion)"
+    );
+}
+
+#[tokio::test]
+async fn test_mixed_agent_and_non_agent_tool_calls() {
+    // Mix of agent and non-agent tool calls
+    let fs_tool_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "test.txt"})));
+    let fs_tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("file content")));
+
+    let agent_tool_call =
+        ToolCallFull::new("must").arguments(ToolCallArguments::from(json!({"tasks": ["analyze"]})));
+    let agent_tool_result = ToolResult::new("must").output(Ok(ToolOutput::text("analysis done")));
+
+    let attempt_completion_call = ToolCallFull::new("forge_tool_attempt_completion")
+        .arguments(json!({"result": "Both tasks completed"}));
+    let attempt_completion_result = ToolResult::new("forge_tool_attempt_completion")
+        .output(Ok(ToolOutput::text("Task completed")));
+
+    let mut ctx = TestContext::init_forge_task("Read file and analyze")
+        .mock_tool_call_responses(vec![
+            (fs_tool_call.clone().into(), fs_tool_result.clone()),
+            (agent_tool_call.clone().into(), agent_tool_result.clone()),
+            (
+                attempt_completion_call.clone().into(),
+                attempt_completion_result,
+            ),
+        ])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Reading and analyzing")
+                .tool_calls(vec![fs_tool_call.into(), agent_tool_call.into()]),
+            ChatCompletionMessage::assistant("Both tasks completed")
+                .tool_calls(vec![attempt_completion_call.into()]),
+        ]);
+
+    ctx.run().await.unwrap();
+
+    let chat_responses: Vec<_> = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .collect();
+
+    // Should have exactly 2 ToolCallStart (for fs_read and
+    // forge_tool_attempt_completion, not for agent "must")
+    let tool_call_start_count = chat_responses
+        .iter()
+        .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
+        .count();
+    assert_eq!(
+        tool_call_start_count, 2,
+        "Should have 2 ToolCallStart responses for non-agent tools only"
+    );
+
+    // Should have exactly 2 ToolCallEnd (for fs_read and
+    // forge_tool_attempt_completion, not for agent "must")
+    let tool_call_end_count = chat_responses
+        .iter()
+        .filter(|response| matches!(response, ChatResponse::ToolCallEnd(_)))
+        .count();
+    assert_eq!(
+        tool_call_end_count, 2,
+        "Should have 2 ToolCallEnd responses for non-agent tools only"
+    );
+
+    // Verify we have ToolCallStart for both fs_read and
+    // forge_tool_attempt_completion
+    let tool_call_start_names: Vec<&str> = chat_responses
+        .iter()
+        .filter_map(|response| match response {
+            ChatResponse::ToolCallStart(call) => Some(call.name.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        tool_call_start_names.contains(&"fs_read"),
+        "Should have ToolCallStart for fs_read"
+    );
+    assert!(
+        tool_call_start_names.contains(&"forge_tool_attempt_completion"),
+        "Should have ToolCallStart for forge_tool_attempt_completion"
+    );
+
+    // Verify we have ToolCallEnd for both fs_read and forge_tool_attempt_completion
+    let tool_call_end_names: Vec<&str> = chat_responses
+        .iter()
+        .filter_map(|response| match response {
+            ChatResponse::ToolCallEnd(result) => Some(result.name.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        tool_call_end_names.contains(&"fs_read"),
+        "Should have ToolCallEnd for fs_read"
+    );
+    assert!(
+        tool_call_end_names.contains(&"forge_tool_attempt_completion"),
+        "Should have ToolCallEnd for forge_tool_attempt_completion"
+    );
+}
