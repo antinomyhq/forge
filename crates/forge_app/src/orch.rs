@@ -58,7 +58,7 @@ impl<S: AgentService> Orchestrator<S> {
         &self,
         agent: &Agent,
         tool_calls: &[ToolCallFull],
-        tool_context: &mut ToolCallContext<'a>,
+        tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
@@ -374,7 +374,7 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.conversation.max_requests_per_turn;
 
-        let mut metrics = self.conversation.metrics.clone();
+        let metrics = self.conversation.metrics.clone();
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
 
@@ -481,7 +481,7 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             let mut tool_context =
-                ToolCallContext::new(self.conversation.tasks.clone(), &mut metrics)
+                ToolCallContext::new(self.conversation.tasks.clone(), metrics.clone())
                     .sender(self.sender.clone());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
@@ -594,7 +594,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Update context in the conversation
             context = SetModel::new(model_id.clone()).transform(context);
-            self.conversation.tasks = tool_context.tasks;
+            self.conversation.tasks = tool_context.with_tasks(|tasks| tasks.clone())?;
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;

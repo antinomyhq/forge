@@ -59,10 +59,11 @@ pub enum Tools {
 /// for specific agents.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct AgentInput {
-    /// A clear and detailed description of the task to be performed by the
-    /// agent. Provide sufficient context and specific requirements to
-    /// enable the agent to understand and execute the work accurately.
-    pub task: String,
+    /// A list of clear and detailed description of the tasks to be performed by
+    /// the agent in parallel. Provide sufficient context and specific
+    /// requirements to enable the agent to understand and execute the work
+    /// accurately.
+    pub tasks: Vec<String>,
     /// One sentence explanation as to why this specific tool is being used, and
     /// how it contributes to the goal.
     #[serde(default)]

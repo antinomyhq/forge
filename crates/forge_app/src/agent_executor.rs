@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 use crate::error::Error;
 use crate::{ConversationService, Services, WorkflowService};
 
+#[derive(Clone)]
 pub struct AgentExecutor<S> {
     services: Arc<S>,
     pub tool_agents: Arc<RwLock<Option<Vec<ToolDefinition>>>>,
@@ -39,7 +40,7 @@ impl<S: Services> AgentExecutor<S> {
         &self,
         agent_id: String,
         task: String,
-        ctx: &mut ToolCallContext<'_>,
+        ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         ctx.send_text(
             TitleFormat::debug(format!(

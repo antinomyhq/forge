@@ -43,7 +43,7 @@ impl<
     async fn check_tool_permission(
         &self,
         tool_input: &Tools,
-        context: &mut ToolCallContext<'_>,
+        context: &ToolCallContext,
     ) -> anyhow::Result<bool> {
         let cwd = self.services.get_environment().cwd;
         let operation = tool_input.to_policy_operation(cwd.clone());
@@ -140,7 +140,7 @@ impl<
     async fn call_internal(
         &self,
         input: Tools,
-        context: &mut ToolCallContext<'_>,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
@@ -231,44 +231,38 @@ impl<
                 crate::operation::ToolOperation::AttemptCompletion
             }
             Tools::ForgeToolTaskListAppend(input) => {
-                let before = context.tasks.clone();
-                context.tasks.append(&input.task);
-                ToolOperation::TaskListAppend {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
+                let before = context.with_tasks(|tasks| tasks.clone())?;
+                context.with_tasks(|tasks| tasks.append(&input.task))?;
+                let after = context.with_tasks(|tasks| tasks.clone())?;
+                ToolOperation::TaskListAppend { _input: input, before, after }
             }
             Tools::ForgeToolTaskListAppendMultiple(input) => {
-                let before = context.tasks.clone();
-                context.tasks.append_multiple(input.tasks.clone());
-                ToolOperation::TaskListAppendMultiple {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
+                let before = context.with_tasks(|tasks| tasks.clone())?;
+                context.with_tasks(|tasks| tasks.append_multiple(input.tasks.clone()))?;
+                let after = context.with_tasks(|tasks| tasks.clone())?;
+                ToolOperation::TaskListAppendMultiple { _input: input, before, after }
             }
             Tools::ForgeToolTaskListUpdate(input) => {
-                let before = context.tasks.clone();
-                context
-                    .tasks
-                    .update_status(input.task_id, input.status.clone())
-                    .context("Task not found")?;
-                ToolOperation::TaskListUpdate {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
+                let before = context.with_tasks(|tasks| tasks.clone())?;
+                context.with_tasks(|tasks| {
+                    tasks
+                        .update_status(input.task_id, input.status.clone())
+                        .context("Task not found")
+                })??;
+                let after = context.with_tasks(|tasks| tasks.clone())?;
+                ToolOperation::TaskListUpdate { _input: input, before, after }
             }
             Tools::ForgeToolTaskListList(input) => {
-                let before = context.tasks.clone();
+                let before = context.with_tasks(|tasks| tasks.clone())?;
                 // No operation needed, just return the current state
-                ToolOperation::TaskListList { _input: input, before, after: context.tasks.clone() }
+                let after = context.with_tasks(|tasks| tasks.clone())?;
+                ToolOperation::TaskListList { _input: input, before, after }
             }
             Tools::ForgeToolTaskListClear(input) => {
-                let before = context.tasks.clone();
-                context.tasks.clear();
-                ToolOperation::TaskListClear { _input: input, before, after: context.tasks.clone() }
+                let before = context.with_tasks(|tasks| tasks.clone())?;
+                context.with_tasks(|tasks| tasks.clear())?;
+                let after = context.with_tasks(|tasks| tasks.clone())?;
+                ToolOperation::TaskListClear { _input: input, before, after }
             }
             Tools::ForgeToolPlanCreate(input) => {
                 let output = self
@@ -287,7 +281,7 @@ impl<
     pub async fn execute(
         &self,
         input: ToolCallFull,
-        context: &mut ToolCallContext<'_>,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
         let tool_input: Tools = Tools::try_from(input)?;
@@ -325,6 +319,8 @@ impl<
 
         let truncation_path = self.dump_operation(&operation).await?;
 
-        Ok(operation.into_tool_output(tool_name, truncation_path, &env, context.metrics))
+        context.with_metrics(|metrics| {
+            operation.into_tool_output(tool_name, truncation_path, &env, metrics)
+        })
     }
 }
