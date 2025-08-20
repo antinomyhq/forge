@@ -1,7 +1,0 @@
----
-source: crates/forge_domain/src/tools.rs
-expression: result.unwrap_err().to_string()
----
-Invalid tool call arguments:
-- arguments: missing field `path`
-- arguments: missing field `content`

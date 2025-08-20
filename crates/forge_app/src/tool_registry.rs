@@ -54,11 +54,11 @@ impl<S: Services> ToolRegistry<S> {
         &self,
         agent: &Agent,
         input: ToolCallFull,
-        context: &mut ToolCallContext,
+        context: &mut ToolCallContext<'_>,
     ) -> anyhow::Result<ToolOutput> {
         Self::validate_tool_call(agent, &input.name)?;
 
-        tracing::info!(tool_name = %input.name, arguments = %input.arguments, "Executing tool call");
+        tracing::info!(tool_name = %input.name, arguments = %input.arguments.clone().into_string(), "Executing tool call");
         let tool_name = input.name.clone();
 
         // First, try to call a Forge tool
@@ -100,7 +100,7 @@ impl<S: Services> ToolRegistry<S> {
     pub async fn call(
         &self,
         agent: &Agent,
-        context: &mut ToolCallContext,
+        context: &mut ToolCallContext<'_>,
         call: ToolCallFull,
     ) -> ToolResult {
         let call_id = call.call_id.clone();

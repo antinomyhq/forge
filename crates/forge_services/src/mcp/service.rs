@@ -130,7 +130,7 @@ where
 
         let tool = tools.get(&call.name).context("Tool not found")?;
 
-        tool.executable.call_tool(call.arguments).await
+        tool.executable.call_tool(call.arguments.parse()?).await
     }
 }
 
