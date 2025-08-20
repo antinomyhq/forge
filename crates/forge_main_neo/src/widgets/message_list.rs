@@ -24,22 +24,18 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
             ])]
             .into_iter(),
             Message::Assistant(response) => match response {
-                ChatResponse::Text { text, is_complete, is_md } => {
-                    if *is_complete {
-                        if *is_md {
-                            let rendered_text = forge_display::MarkdownFormat::new().render(text);
-                            match rendered_text.into_text() {
-                                Ok(text) => text.lines.into_iter(),
-                                Err(_) => vec![Line::raw(rendered_text)].into_iter(),
-                            }
-                        } else {
-                            match text.clone().into_text() {
-                                Ok(text) => text.lines.into_iter(),
-                                Err(_) => vec![Line::raw(text.clone())].into_iter(),
-                            }
+                ChatResponse::TaskMessage { text, is_md } => {
+                    if *is_md {
+                        let rendered_text = forge_display::MarkdownFormat::new().render(text);
+                        match rendered_text.into_text() {
+                            Ok(text) => text.lines.into_iter(),
+                            Err(_) => vec![Line::raw(rendered_text)].into_iter(),
                         }
                     } else {
-                        vec![].into_iter()
+                        match text.clone().into_text() {
+                            Ok(text) => text.lines.into_iter(),
+                            Err(_) => vec![Line::raw(text.clone())].into_iter(),
+                        }
                     }
                 }
                 ChatResponse::ToolCallStart(_) => vec![].into_iter(),
@@ -48,7 +44,7 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                 ChatResponse::Interrupt { reason: _ } => {
                     todo!()
                 }
-                ChatResponse::Reasoning { content } => {
+                ChatResponse::TaskReasoning { content } => {
                     if !content.trim().is_empty() {
                         let dimmed_content = content.dimmed().to_string();
                         match dimmed_content.into_text() {
@@ -59,21 +55,11 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                         vec![].into_iter()
                     }
                 }
-                ChatResponse::Summary { content } => {
-                    if !content.trim().is_empty() {
-                        let rendered_text = forge_display::MarkdownFormat::new().render(content);
-                        match rendered_text.into_text() {
-                            Ok(text) => text.lines.into_iter(),
-                            Err(_) => vec![Line::raw(rendered_text)].into_iter(),
-                        }
-                    } else {
-                        vec![].into_iter()
-                    }
-                }
+
                 ChatResponse::RetryAttempt { cause: _, duration: _ } => {
                     todo!()
                 }
-                ChatResponse::ChatComplete(_) => vec![].into_iter(),
+                ChatResponse::TaskComplete { .. } => vec![].into_iter(),
             },
         })
         .collect()

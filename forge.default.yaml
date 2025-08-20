@@ -52,6 +52,7 @@ agents:
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_fs_undo
+      - sage
 
   - id: muse
     title: "Analysis and planning focussed"
@@ -101,7 +102,7 @@ agents:
   - id: sage
     title: "Codebase research and exploration focussed"
     description: |-
-      Research-focused agent that explores and analyzes codebases to answer questions about project structure, implementation patterns, dependencies, and architectural decisions. Conducts deep code analysis, traces functionality across files, identifies relationships between components, and provides insights about how systems work. Use for understanding existing code, investigating bugs, exploring APIs, analyzing dependencies, or getting explanations about complex implementations. Cannot make any changes to files - purely read-only for research and knowledge discovery.
+      Research-only tool for systematic codebase exploration and analysis. Performs comprehensive, read-only investigation: maps project architecture and module relationships, traces data/logic flow across files, analyzes API usage patterns, examines test coverage and build configurations, identifies design patterns and technical debt. Accepts detailed research questions or investigation tasks as input parameters. Use when you need to understand how systems work, why architectural decisions were made, or to investigate bugs, dependencies, complex behavior patterns, or code quality issues. Do NOT use for code modifications, running commands, or file operations—choose implementation or planning agents instead. Returns structured reports with research summaries, key findings, technical details, contextual insights, and actionable follow-up suggestions. Strictly read-only with no side effects or system modifications.
     model: *advanced_model
     system_prompt: |-
       {{> forge-system-prompt-sage-research.hbs }}
