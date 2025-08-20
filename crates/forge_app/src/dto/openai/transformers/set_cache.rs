@@ -2,43 +2,20 @@ use forge_domain::Transformer;
 
 use crate::dto::openai::Request;
 
-/// Transformer that implements a simplified two-breakpoint cache strategy:
-/// - Caches the first message in the conversation
-/// - Caches the last message in the conversation
-/// - Removes cache control from the second-to-last message to handle cache
-///   migration
+/// Transformer that implements a simple two-breakpoint cache strategy:
+/// - Always caches the first message in the conversation
+/// - Always caches the last message in the conversation
+/// - Removes cache control from the second-to-last message
 pub struct SetCache;
-
-impl SetCache {
-    /// Remove cache control from a message at the given index
-    fn remove_cache_control(messages: &mut [crate::dto::openai::Message], index: usize) {
-        if let Some(message) = messages.get_mut(index)
-            && let Some(ref content) = message.content
-        {
-            // Remove cache control if it exists
-            message.content = Some(content.clone().uncached());
-        }
-    }
-
-    /// Add cache control to a message at the given index
-    fn add_cache_control(messages: &mut [crate::dto::openai::Message], index: usize) {
-        if let Some(message) = messages.get_mut(index)
-            && let Some(ref content) = message.content
-        {
-            message.content = Some(content.clone().cached());
-        }
-    }
-}
 
 impl Transformer for SetCache {
     type Value = Request;
 
-    /// Implements a two-breakpoint cache strategy:
+    /// Implements a simple two-breakpoint cache strategy:
     /// 1. Cache the first message (index 0)
-    /// 2. Cache the last message (index messages.len() - 1) if different from
-    ///    first
+    /// 2. Cache the last message (index messages.len() - 1)
     /// 3. Remove cache control from second-to-last message (index
-    ///    messages.len() - 2) if it exists
+    ///    messages.len() - 2)
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         if let Some(messages) = request.messages.as_mut() {
             let len = messages.len();
@@ -48,17 +25,24 @@ impl Transformer for SetCache {
             }
 
             // Remove cache control from second-to-last message (when there are 3+ messages)
-            if len >= 3 {
-                Self::remove_cache_control(messages, len - 2);
-            }
+            if len >= 3
+                && let Some(message) = messages.get_mut(len - 2)
+                    && let Some(ref content) = message.content {
+                        message.content = Some(content.clone().uncached());
+                    }
 
             // Add cache control to first message
-            Self::add_cache_control(messages, 0);
+            if let Some(message) = messages.get_mut(0)
+                && let Some(ref content) = message.content {
+                    message.content = Some(content.clone().cached());
+                }
 
             // Add cache control to last message (if different from first)
-            if len > 1 {
-                Self::add_cache_control(messages, len - 1);
-            }
+            if len > 1
+                && let Some(message) = messages.get_mut(len - 1)
+                    && let Some(ref content) = message.content {
+                        message.content = Some(content.clone().cached());
+                    }
         }
 
         request
