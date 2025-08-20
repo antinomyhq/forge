@@ -857,7 +857,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Show summary
         self.writeln(Info::from(&metrics))?;
 
-        let prompt_text = "Task completed. Start a new chat?";
+        let prompt_text = "Start a new chat?";
         let should_start_new_chat = ForgeSelect::confirm(prompt_text)
             .with_default(true)
             .prompt()?;

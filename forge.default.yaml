@@ -98,3 +98,23 @@ agents:
       - forge_tool_fs_search
       - forge_tool_fs_create
       - forge_tool_fs_patch
+  - id: sage
+    title: "Codebase research and exploration focussed"
+    description: |-
+      Research-focused agent that explores and analyzes codebases to answer questions about project structure, implementation patterns, dependencies, and architectural decisions. Conducts deep code analysis, traces functionality across files, identifies relationships between components, and provides insights about how systems work. Use for understanding existing code, investigating bugs, exploring APIs, analyzing dependencies, or getting explanations about complex implementations. Cannot make any changes to files - purely read-only for research and knowledge discovery.
+    model: *advanced_model
+    system_prompt: |-
+      {{> forge-system-prompt-sage-research.hbs }}
+    user_prompt: |-
+      {{#if (eq event.name 'sage/user_task_update')}}
+      <feedback>{{event.value}}</feedback>
+      {{else}}
+      <research_question>{{event.value}}</research_question>
+      {{/if}}
+      <system_date>{{current_time}}</system_date>
+    reasoning:
+      enabled: true
+    tools:
+      - forge_tool_fs_read
+      - forge_tool_net_fetch
+      - forge_tool_fs_search
