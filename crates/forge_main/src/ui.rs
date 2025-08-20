@@ -822,7 +822,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             ChatResponse::TaskReasoning { content } => {
                 if !content.trim().is_empty() {
-                    self.writeln(content.dimmed())?;
+                    let rendered_content = self.markdown.render(&content);
+                    self.writeln(rendered_content.dimmed())?;
                 }
             }
             ChatResponse::TaskComplete { metrics: summary } => {
@@ -855,6 +856,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let should_start_new_chat = ForgeSelect::confirm(prompt_text)
             // Pressing ENTER should start new
             .with_default(true)
+            .with_help_message("ESC to continue current conversation")
             .prompt()
             // Cancel or failure should continue with the session
             .unwrap_or(Some(false))
