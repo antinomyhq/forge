@@ -643,22 +643,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(workflow)
     }
     async fn init_provider(&mut self) -> Result<Provider> {
-        match self.api.provider().await {
-            // Use the forge key if available in the config.
-            Ok(provider) => Ok(provider),
-            Err(_) => {
-                // If no key is available, start the login flow.
-                // self.login().await?;
-                let config: AppConfig = self.api.app_config().await?;
-                tracker::login(
-                    config
-                        .key_info
-                        .and_then(|v| v.auth_provider_id)
-                        .unwrap_or_default(),
-                );
-                self.api.provider().await
-            }
-        }
+        self.api.provider().await
+        // match self.api.provider().await {
+        //     // Use the forge key if available in the config.
+        //     Ok(provider) => Ok(provider),
+        //     Err(_) => {
+        //         // If no key is available, start the login flow.
+        //         // self.login().await?;
+        //         let config: AppConfig = self.api.app_config().await?;
+        //         tracker::login(
+        //             config
+        //                 .key_info
+        //                 .and_then(|v| v.auth_provider_id)
+        //                 .unwrap_or_default(),
+        //         );
+        //         self.api.provider().await
+        //     }
+        // }
     }
     async fn login(&mut self) -> Result<()> {
         let auth = self.api.init_login().await?;
