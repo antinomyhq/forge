@@ -150,7 +150,7 @@ impl From<&Metrics> for Info {
                 );
 
                 // Pad filename to max length for proper alignment
-                let padded_filename = format!("✓ {filename:<max_filename_len$}");
+                let padded_filename = format!("⦿ {filename:<max_filename_len$}");
                 info = info.add_key_value(padded_filename, changes);
             }
         }
