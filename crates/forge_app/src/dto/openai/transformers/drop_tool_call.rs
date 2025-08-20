@@ -37,7 +37,6 @@ mod tests {
     use forge_domain::{
         Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
-    use serde_json::json;
 
     use super::*;
 

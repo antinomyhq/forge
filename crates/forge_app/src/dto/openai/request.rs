@@ -413,7 +413,6 @@ mod tests {
         ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use insta::assert_json_snapshot;
-    use serde_json::json;
 
     use super::*;
 
