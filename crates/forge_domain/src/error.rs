@@ -31,6 +31,10 @@ pub enum Error {
         args: String,
     },
 
+    #[error("JSON deserialization error: {error}")]
+    #[from(skip)]
+    AgentCallArgument { error: serde_json::error::Error },
+
     #[error("Invalid tool call XML: {0}")]
     #[from(skip)]
     ToolCallParse(String),

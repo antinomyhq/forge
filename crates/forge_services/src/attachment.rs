@@ -88,15 +88,13 @@ pub mod tests {
     use forge_app::domain::{
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
-    use forge_snaps::Snapshot;
     use serde_json::Value;
     use url::Url;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
         CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, SnapshotInfra,
-        UserInfra,
+        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, UserInfra,
     };
 
     #[derive(Debug)]
@@ -294,21 +292,6 @@ pub mod tests {
             self.write(&path, content.to_string().into(), false).await?;
 
             Ok(path)
-        }
-    }
-
-    #[derive(Debug)]
-    #[allow(dead_code)]
-    pub struct MockSnapService;
-
-    #[async_trait::async_trait]
-    impl SnapshotInfra for MockSnapService {
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
-            unimplemented!()
-        }
-
-        async fn undo_snapshot(&self, _: &Path) -> anyhow::Result<()> {
-            unimplemented!()
         }
     }
 

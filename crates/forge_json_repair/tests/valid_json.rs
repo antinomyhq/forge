@@ -1,11 +1,11 @@
-use forge_json_repair::jsonrepair;
+use forge_json_repair::json_repair;
 use pretty_assertions::assert_eq;
 
 #[test]
 fn test_parse_valid_json() {
     // Full JSON object
     let text = r#"{"a":2.3e100,"b":"str","c":null,"d":false,"e":[1,2,3]}"#;
-    let actual = jsonrepair::<serde_json::Value>(text).unwrap();
+    let actual = json_repair::<serde_json::Value>(text).unwrap();
     let expected = serde_json::from_str::<serde_json::Value>(text).unwrap();
     assert_eq!(actual, expected);
 
@@ -65,7 +65,7 @@ fn test_parse_valid_json() {
 
 // Helper function to assert that input is repaired to itself (valid JSON)
 fn assert_repair(text: &str) {
-    let actual = jsonrepair::<serde_json::Value>(text).unwrap();
+    let actual = json_repair::<serde_json::Value>(text).unwrap();
     let expected = serde_json::from_str::<serde_json::Value>(text).unwrap();
     assert_eq!(actual, expected);
 }
