@@ -56,15 +56,30 @@ impl MessageContent {
             }
             MessageContent::Parts(parts) => {
                 let mut parts = parts;
-                if let Some(cc) = cache_control
-                    && let Some(idx) = parts
-                        .iter_mut()
-                        .rposition(|p| matches!(p, ContentPart::Text { .. }))
-                    && let ContentPart::Text { cache_control, .. } = &mut parts[idx]
-                {
-                    *cache_control = Some(cc);
+                match cache_control {
+                    Some(cc) => {
+                        let mut set = false;
+                        for part in parts.iter_mut().rev() {
+                            if let ContentPart::Text { cache_control, .. } = part {
+                                if set {
+                                    *cache_control = None;
+                                } else {
+                                    *cache_control = Some(cc.clone());
+                                    set = true;
+                                }
+                            }
+                        }
+                        MessageContent::Parts(parts)
+                    }
+                    None => {
+                        for part in parts.iter_mut() {
+                            if let ContentPart::Text { cache_control, .. } = part {
+                                *cache_control = None;
+                            }
+                        }
+                        MessageContent::Parts(parts)
+                    }
                 }
-                MessageContent::Parts(parts)
             }
         }
     }
@@ -462,6 +477,61 @@ mod tests {
             {
                 "type": "text",
                 "text": "a",
+                "cache_control": { "type": "ephemeral" }
+            },
+            {
+                "type": "image_url",
+                "image_url": { "url": "http://example.com/a.png" }
+            }
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_multi_false() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }) },
+            ContentPart::Text { text: "b".to_string(), cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }) },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = serde_json::to_value(fixture.cached(false)).unwrap();
+        let expected = serde_json::json!([
+            {
+                "type": "text",
+                "text": "a",
+            },
+            {
+                "type": "text",
+                "text": "b",
+            },
+            {
+                "type": "image_url",
+                "image_url": { "url": "http://example.com/a.png" }
+            }
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_already_true() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }) },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = serde_json::to_value(fixture.cached(true)).unwrap();
+        let expected = serde_json::json!([
+            {
+                "type": "text",
+                "text": "a",
+            },
+            {
+                "type": "text",
+                "text": "b",
                 "cache_control": { "type": "ephemeral" }
             },
             {
