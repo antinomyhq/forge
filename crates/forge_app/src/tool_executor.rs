@@ -1,12 +1,9 @@
 use std::sync::Arc;
 
-use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
-use forge_template::Element;
 
-use crate::error::Error;
-use crate::fmt::content::{ContentFormat, FormatContent};
+use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
@@ -41,10 +38,11 @@ impl<
     }
 
     /// Check if a tool operation is allowed based on the workflow policies
+    #[allow(unused)]
     async fn check_tool_permission(
         &self,
         tool_input: &Tools,
-        context: &mut ToolCallContext,
+        context: &ToolCallContext,
     ) -> anyhow::Result<bool> {
         let cwd = self.services.get_environment().cwd;
         let operation = tool_input.to_policy_operation(cwd.clone());
@@ -138,11 +136,7 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(
-        &self,
-        input: Tools,
-        context: &mut ToolCallContext,
-    ) -> anyhow::Result<ToolOperation> {
+    async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 let output = self
@@ -179,8 +173,8 @@ impl<
                 (input, output).into()
             }
             Tools::ForgeToolFsRemove(input) => {
-                let _output = self.services.remove(input.path.clone()).await?;
-                input.into()
+                let output = self.services.remove(input.path.clone()).await?;
+                (input, output).into()
             }
             Tools::ForgeToolFsPatch(input) => {
                 let output = self
@@ -231,46 +225,6 @@ impl<
             Tools::ForgeToolAttemptCompletion(_input) => {
                 crate::operation::ToolOperation::AttemptCompletion
             }
-            Tools::ForgeToolTaskListAppend(input) => {
-                let before = context.tasks.clone();
-                context.tasks.append(&input.task);
-                ToolOperation::TaskListAppend {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
-            }
-            Tools::ForgeToolTaskListAppendMultiple(input) => {
-                let before = context.tasks.clone();
-                context.tasks.append_multiple(input.tasks.clone());
-                ToolOperation::TaskListAppendMultiple {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
-            }
-            Tools::ForgeToolTaskListUpdate(input) => {
-                let before = context.tasks.clone();
-                context
-                    .tasks
-                    .update_status(input.task_id, input.status.clone())
-                    .context("Task not found")?;
-                ToolOperation::TaskListUpdate {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
-            }
-            Tools::ForgeToolTaskListList(input) => {
-                let before = context.tasks.clone();
-                // No operation needed, just return the current state
-                ToolOperation::TaskListList { _input: input, before, after: context.tasks.clone() }
-            }
-            Tools::ForgeToolTaskListClear(input) => {
-                let before = context.tasks.clone();
-                context.tasks.clear();
-                ToolOperation::TaskListClear { _input: input, before, after: context.tasks.clone() }
-            }
             Tools::ForgeToolPlanCreate(input) => {
                 let output = self
                     .services
@@ -288,30 +242,30 @@ impl<
     pub async fn execute(
         &self,
         input: ToolCallFull,
-        context: &mut ToolCallContext,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
-        let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
+        let tool_input: Tools = Tools::try_from(input)?;
         let env = self.services.get_environment();
         if let Some(content) = tool_input.to_content(&env) {
             context.send(content).await?;
         }
 
         // Check permissions before executing the tool
-        if self.check_tool_permission(&tool_input, context).await? {
-            // Send formatted output message for policy denial
+        // if self.check_tool_permission(&tool_input, context).await? {
+        //     // Send formatted output message for policy denial
 
-            context
-                .send(ContentFormat::from(TitleFormat::error("Permission Denied")))
-                .await?;
+        //     context
+        //         .send(ContentFormat::from(TitleFormat::error("Permission Denied")))
+        //         .await?;
 
-            return Ok(ToolOutput::text(
-                Element::new("permission_denied")
-                    .cdata("User has denied the permission to execute this tool"),
-            ));
-        }
+        //     return Ok(ToolOutput::text(
+        //         Element::new("permission_denied")
+        //             .cdata("User has denied the permission to execute this tool"),
+        //     ));
+        // }
 
-        let execution_result = self.call_internal(tool_input.clone(), context).await;
+        let execution_result = self.call_internal(tool_input.clone()).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
@@ -326,6 +280,8 @@ impl<
 
         let truncation_path = self.dump_operation(&operation).await?;
 
-        Ok(operation.into_tool_output(tool_name, truncation_path, &env))
+        context.with_metrics(|metrics| {
+            operation.into_tool_output(tool_name, truncation_path, &env, metrics)
+        })
     }
 }

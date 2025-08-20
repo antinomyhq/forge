@@ -9,12 +9,11 @@ use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use schemars::schema::RootSchema;
 use serde::Serialize;
+use serde_json::Map;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
 
-use crate::{
-    Status, ToolCallArgumentError, ToolCallFull, ToolDefinition, ToolDescription, ToolName,
-};
+use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 
 /// Enum representing all possible tool input types.
 ///
@@ -47,11 +46,6 @@ pub enum Tools {
     ForgeToolNetFetch(NetFetch),
     ForgeToolFollowup(Followup),
     ForgeToolAttemptCompletion(AttemptCompletion),
-    ForgeToolTaskListAppend(TaskListAppend),
-    ForgeToolTaskListAppendMultiple(TaskListAppendMultiple),
-    ForgeToolTaskListUpdate(TaskListUpdate),
-    ForgeToolTaskListList(TaskListList),
-    ForgeToolTaskListClear(TaskListClear),
     ForgeToolPlanCreate(PlanCreate),
 }
 
@@ -60,10 +54,11 @@ pub enum Tools {
 /// for specific agents.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct AgentInput {
-    /// A clear and detailed description of the task to be performed by the
-    /// agent. Provide sufficient context and specific requirements to
-    /// enable the agent to understand and execute the work accurately.
-    pub task: String,
+    /// A list of clear and detailed descriptions of the tasks to be performed
+    /// by the agent in parallel. Provide sufficient context and specific
+    /// requirements to enable the agent to understand and execute the work
+    /// accurately.
+    pub tasks: Vec<String>,
     /// One sentence explanation as to why this specific tool is being used, and
     /// how it contributes to the goal.
     #[serde(default)]
@@ -376,85 +371,19 @@ pub struct Followup {
 /// that tool use, i.e. if it succeeded or failed, along with any reasons for
 /// failure. Once you've received the results of tool uses and can confirm that
 /// the task is complete, use this tool to present the result of your work to
-/// the user. The user may respond with feedback if they are not satisfied with
-/// the result, which you can use to make improvements and try again.
-/// IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the
-/// user that any previous tool uses were successful. Failure to do so will
-/// result in code corruption and system failure. Before using this tool, you
-/// must ask yourself if you've confirmed from the user that any previous tool
-/// uses were successful. If not, then DO NOT use this tool.
+/// the user in markdown format. The user may respond with feedback if they are
+/// not satisfied with the result, which you can use to make improvements and
+/// try again. IMPORTANT NOTE: This tool CANNOT be used until you've confirmed
+/// from the user that any previous tool uses were successful. Failure to do so
+/// will result in code corruption and system failure. Before using this tool,
+/// you must ask yourself if you've confirmed from the user that any previous
+/// tool uses were successful. If not, then DO NOT use this tool.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct AttemptCompletion {
     /// The result of the task. Formulate this result in a way that is final and
     /// does not require further input from the user. Don't end your result with
     /// questions or offers for further assistance.
     pub result: String,
-}
-
-/// Add a new task to the end of the task list. Tasks are stored in conversation
-/// state and persist across agent interactions. Use this tool to add individual
-/// work items that need to be tracked during development sessions. Task IDs are
-/// auto-generated integers starting from 1.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListAppend {
-    /// The task description to add to the list
-    pub task: String,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
-/// Add multiple new tasks to the end of the task list. Tasks are stored in
-/// conversation state and persist across agent interactions. Use this tool to
-/// add several work items at once during development sessions. Task IDs are
-/// auto-generated integers starting from 1.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListAppendMultiple {
-    /// The list of task descriptions to add
-    pub tasks: Vec<String>,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
-/// Update the status of a specific task in the task list. Use this when a
-/// task's status changes (e.g., from Pending to InProgress, InProgress to Done,
-/// etc.). The task will remain in the list but with an updated status.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListUpdate {
-    /// The ID of the task to update
-    pub task_id: i32,
-    /// The new status for the task
-    pub status: Status,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
-/// Display the current task list with statistics. Shows all tasks with their
-/// IDs, descriptions, and status (PENDING, IN_PROGRESS, DONE), along with
-/// summary statistics. Use this tool to review current work items and track
-/// progress through development sessions.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListList {
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
-/// Remove all tasks from the task list. This operation cannot be undone and
-/// will reset the task ID counter to 1. Use this tool when you want to start
-/// fresh with a clean task list.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListClear {
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Creates a new plan file with the specified name, version, and content. Use
@@ -600,11 +529,6 @@ impl ToolDescription for Tools {
             Tools::ForgeToolFsRemove(v) => v.description(),
             Tools::ForgeToolFsUndo(v) => v.description(),
             Tools::ForgeToolFsCreate(v) => v.description(),
-            Tools::ForgeToolTaskListAppend(v) => v.description(),
-            Tools::ForgeToolTaskListAppendMultiple(v) => v.description(),
-            Tools::ForgeToolTaskListUpdate(v) => v.description(),
-            Tools::ForgeToolTaskListList(v) => v.description(),
-            Tools::ForgeToolTaskListClear(v) => v.description(),
             Tools::ForgeToolPlanCreate(v) => v.description(),
         }
     }
@@ -642,13 +566,6 @@ impl Tools {
             Tools::ForgeToolFsRemove(_) => r#gen.into_root_schema_for::<FSRemove>(),
             Tools::ForgeToolFsUndo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             Tools::ForgeToolFsCreate(_) => r#gen.into_root_schema_for::<FSWrite>(),
-            Tools::ForgeToolTaskListAppend(_) => r#gen.into_root_schema_for::<TaskListAppend>(),
-            Tools::ForgeToolTaskListAppendMultiple(_) => {
-                r#gen.into_root_schema_for::<TaskListAppendMultiple>()
-            }
-            Tools::ForgeToolTaskListUpdate(_) => r#gen.into_root_schema_for::<TaskListUpdate>(),
-            Tools::ForgeToolTaskListList(_) => r#gen.into_root_schema_for::<TaskListList>(),
-            Tools::ForgeToolTaskListClear(_) => r#gen.into_root_schema_for::<TaskListClear>(),
             Tools::ForgeToolPlanCreate(_) => r#gen.into_root_schema_for::<PlanCreate>(),
         }
     }
@@ -661,7 +578,7 @@ impl Tools {
     pub fn contains(tool_name: &ToolName) -> bool {
         FORGE_TOOLS.contains(tool_name)
     }
-    pub fn is_complete(tool_name: &ToolName) -> bool {
+    pub fn should_yield(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
         [
             ToolsDiscriminants::ForgeToolFollowup,
@@ -669,6 +586,12 @@ impl Tools {
         ]
         .iter()
         .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+    }
+    pub fn is_attempt_completion(tool_name: &ToolName) -> bool {
+        // Tool that convey that conversation might be completed
+        [ToolsDiscriminants::ForgeToolAttemptCompletion]
+            .iter()
+            .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
 
     /// Convert a tool input to its corresponding domain operation for policy
@@ -746,11 +669,6 @@ impl Tools {
             Tools::ForgeToolFsUndo(_)
             | Tools::ForgeToolFollowup(_)
             | Tools::ForgeToolAttemptCompletion(_)
-            | Tools::ForgeToolTaskListAppend(_)
-            | Tools::ForgeToolTaskListAppendMultiple(_)
-            | Tools::ForgeToolTaskListUpdate(_)
-            | Tools::ForgeToolTaskListList(_)
-            | Tools::ForgeToolTaskListClear(_)
             | Tools::ForgeToolPlanCreate(_) => None,
         }
     }
@@ -774,6 +692,19 @@ fn format_display_path(path: &Path, cwd: &Path) -> String {
     }
 }
 
+impl TryFrom<ToolCallFull> for Tools {
+    type Error = crate::Error;
+
+    fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
+        let mut map = Map::new();
+        map.insert("name".into(), value.name.as_str().into());
+        map.insert("arguments".into(), value.arguments.parse()?);
+
+        serde_json::from_value(serde_json::Value::Object(map))
+            .map_err(|error| crate::Error::AgentCallArgument { error })
+    }
+}
+
 impl ToolsDiscriminants {
     pub fn name(&self) -> ToolName {
         ToolName::new(self.to_string().to_case(Case::Snake))
@@ -788,62 +719,28 @@ impl ToolsDiscriminants {
     }
 }
 
-impl TryFrom<ToolCallFull> for Tools {
-    type Error = ToolCallArgumentError;
-
-    fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
-        let arg = if value.arguments.is_null() {
-            // Note: If the arguments are null, we use an empty object.
-            // This is a workaround for eserde, which doesn't provide
-            // detailed error messages when required fields are missing.
-            "{}".to_string()
-        } else {
-            value.arguments.to_string()
-        };
-
-        let json_str = format!(r#"{{"name": "{}", "arguments": {}}}"#, value.name, arg);
-        eserde::json::from_str(&json_str).map_err(ToolCallArgumentError::from)
-    }
-}
-
 impl TryFrom<&ToolCallFull> for AgentInput {
-    type Error = ToolCallArgumentError;
+    type Error = crate::Error;
     fn try_from(value: &ToolCallFull) -> Result<Self, Self::Error> {
-        eserde::json::from_str(&value.arguments.to_string()).map_err(ToolCallArgumentError::from)
+        let value = value.arguments.parse()?;
+        serde_json::from_value(value).map_err(|error| crate::Error::AgentCallArgument { error })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use serde_json::json;
     use strum::IntoEnumIterator;
 
-    use crate::{FSRead, ToolCallFull, ToolName, Tools, ToolsDiscriminants};
+    use crate::{ToolName, Tools, ToolsDiscriminants};
 
-    #[test]
-    fn foo() {
-        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read")).arguments(json!({
-            "path": "/some/path/foo.txt",
-        }));
-
-        let actual = Tools::try_from(toolcall).unwrap();
-        let expected = Tools::ForgeToolFsRead(FSRead {
-            path: "/some/path/foo.txt".to_string(),
-            start_line: None,
-            end_line: None,
-            explanation: None,
-        });
-
-        pretty_assertions::assert_eq!(actual, expected);
-    }
     #[test]
     fn test_is_complete() {
         let complete_tool = ToolName::new("forge_tool_attempt_completion");
         let incomplete_tool = ToolName::new("forge_tool_fs_read");
 
-        assert!(Tools::is_complete(&complete_tool));
-        assert!(!Tools::is_complete(&incomplete_tool));
+        assert!(Tools::is_attempt_completion(&complete_tool));
+        assert!(!Tools::is_attempt_completion(&incomplete_tool));
     }
 
     #[test]
@@ -865,26 +762,6 @@ mod tests {
             .join("\n");
 
         insta::assert_snapshot!(tools);
-    }
-
-    #[test]
-    fn test_tool_deser_failure() {
-        let tool_call = ToolCallFull::new("forge_tool_fs_create");
-        let result = Tools::try_from(tool_call);
-        insta::assert_snapshot!(result.unwrap_err().to_string());
-    }
-
-    #[test]
-    fn test_correct_deser() {
-        let tool_call = ToolCallFull::new("forge_tool_fs_create").arguments(json!({
-            "path": "/some/path/foo.txt",
-            "content": "Hello, World!",
-        }));
-        let result = Tools::try_from(tool_call);
-        assert!(result.is_ok());
-        assert!(
-            matches!(result.unwrap(), Tools::ForgeToolFsCreate(data) if data.path == "/some/path/foo.txt" && data.content == "Hello, World!")
-        );
     }
 
     #[test]
