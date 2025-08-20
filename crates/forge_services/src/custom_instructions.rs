@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::domain::Environment;
 use forge_app::CustomInstructionsService;
+use forge_app::domain::Environment;
 
 use crate::infra::{EnvironmentInfra, FileReaderInfra};
 use crate::utils::get_git_root;
@@ -63,8 +63,12 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeCustomInstructionsService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra> CustomInstructionsService for ForgeCustomInstructionsService<F> {
+impl<F: EnvironmentInfra + FileReaderInfra> CustomInstructionsService
+    for ForgeCustomInstructionsService<F>
+{
     async fn get_custom_instructions(&self) -> Vec<String> {
-        self.get_custom_instructions_impl().await.unwrap_or_default()
+        self.get_custom_instructions_impl()
+            .await
+            .unwrap_or_default()
     }
 }

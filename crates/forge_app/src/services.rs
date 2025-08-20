@@ -167,9 +167,7 @@ pub trait EnvironmentService: Send + Sync {
 }
 #[async_trait::async_trait]
 pub trait CustomInstructionsService: Send + Sync {
-    async fn get_custom_instructions(
-        &self,
-    ) -> Vec<String>;
+    async fn get_custom_instructions(&self) -> Vec<String>;
 }
 
 #[async_trait::async_trait]
@@ -651,7 +649,9 @@ impl<I: Services> EnvironmentService for I {
 #[async_trait::async_trait]
 impl<I: Services> CustomInstructionsService for I {
     async fn get_custom_instructions(&self) -> Vec<String> {
-        self.custom_instructions_service().get_custom_instructions().await
+        self.custom_instructions_service()
+            .get_custom_instructions()
+            .await
     }
 }
 
