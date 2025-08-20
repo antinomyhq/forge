@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use anyhow::Context;
 use forge_display::TitleFormat;
 use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
@@ -140,7 +139,7 @@ impl<
     async fn call_internal(
         &self,
         input: Tools,
-        context: &mut ToolCallContext<'_>,
+        _context: &mut ToolCallContext<'_>,
     ) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
@@ -229,46 +228,6 @@ impl<
             }
             Tools::ForgeToolAttemptCompletion(_input) => {
                 crate::operation::ToolOperation::AttemptCompletion
-            }
-            Tools::ForgeToolTaskListAppend(input) => {
-                let before = context.tasks.clone();
-                context.tasks.append(&input.task);
-                ToolOperation::TaskListAppend {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
-            }
-            Tools::ForgeToolTaskListAppendMultiple(input) => {
-                let before = context.tasks.clone();
-                context.tasks.append_multiple(input.tasks.clone());
-                ToolOperation::TaskListAppendMultiple {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
-            }
-            Tools::ForgeToolTaskListUpdate(input) => {
-                let before = context.tasks.clone();
-                context
-                    .tasks
-                    .update_status(input.task_id, input.status.clone())
-                    .context("Task not found")?;
-                ToolOperation::TaskListUpdate {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
-            }
-            Tools::ForgeToolTaskListList(input) => {
-                let before = context.tasks.clone();
-                // No operation needed, just return the current state
-                ToolOperation::TaskListList { _input: input, before, after: context.tasks.clone() }
-            }
-            Tools::ForgeToolTaskListClear(input) => {
-                let before = context.tasks.clone();
-                context.tasks.clear();
-                ToolOperation::TaskListClear { _input: input, before, after: context.tasks.clone() }
             }
             Tools::ForgeToolPlanCreate(input) => {
                 let output = self
