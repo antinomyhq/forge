@@ -64,7 +64,7 @@ impl<S: AgentService> Orchestrator<S> {
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
         for tool_call in tool_calls {
-            // Send the start notification
+            // Always send the start notification for all tools
             self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                 .await?;
 
@@ -84,7 +84,7 @@ impl<S: AgentService> Orchestrator<S> {
                 );
             }
 
-            // Send the end notification
+            // Always send the end notification for all tools
             self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
                 .await?;
 
