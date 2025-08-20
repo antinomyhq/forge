@@ -82,7 +82,10 @@ pub struct FsCreateOutput {
 }
 
 #[derive(Debug)]
-pub struct FsRemoveOutput {}
+pub struct FsRemoveOutput {
+    // Content of the file
+    pub content: String,
+}
 
 #[derive(Debug)]
 pub struct PlanCreateOutput {
