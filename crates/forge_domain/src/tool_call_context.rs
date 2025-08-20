@@ -3,7 +3,7 @@ use std::sync::Arc;
 use derive_setters::Setters;
 use tokio::sync::mpsc::Sender;
 
-use crate::{ChatResponse, Metrics, TaskList};
+use crate::{ChatResponse, Metrics};
 
 /// Type alias for Arc<Sender<Result<ChatResponse>>>
 type ArcSender = Arc<Sender<anyhow::Result<ChatResponse>>>;
@@ -12,14 +12,13 @@ type ArcSender = Arc<Sender<anyhow::Result<ChatResponse>>>;
 #[derive(Debug, Setters)]
 pub struct ToolCallContext<'a> {
     sender: Option<ArcSender>,
-    pub tasks: TaskList,
     pub metrics: &'a mut Metrics,
 }
 
 impl<'a> ToolCallContext<'a> {
     /// Creates a new ToolCallContext with default values
-    pub fn new(task_list: TaskList, metrics: &'a mut Metrics) -> Self {
-        Self { sender: None, tasks: task_list, metrics }
+    pub fn new(metrics: &'a mut Metrics) -> Self {
+        Self { sender: None, metrics }
     }
 
     /// Send a message through the sender if available
@@ -43,7 +42,7 @@ mod tests {
     #[test]
     fn test_create_context() {
         let mut metrics = Metrics::new();
-        let context = ToolCallContext::new(TaskList::new(), &mut metrics);
+        let context = ToolCallContext::new(&mut metrics);
         assert!(context.sender.is_none());
     }
 
@@ -52,7 +51,7 @@ mod tests {
         // This is just a type check test - we don't actually create a sender
         // as it's complex to set up in a unit test
         let mut metrics = Metrics::new();
-        let context = ToolCallContext::new(TaskList::new(), &mut metrics);
+        let context = ToolCallContext::new(&mut metrics);
         assert!(context.sender.is_none());
     }
 }

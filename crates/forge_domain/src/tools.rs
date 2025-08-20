@@ -385,8 +385,6 @@ pub struct AttemptCompletion {
     pub result: String,
 }
 
-
-
 /// Creates a new plan file with the specified name, version, and content. Use
 /// this tool to create structured project plans, task breakdowns, or
 /// implementation strategies that can be tracked and referenced throughout
