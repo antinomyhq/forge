@@ -461,7 +461,7 @@ impl<S: AgentService> Orchestrator<S> {
                 // If task is completed we would have already displayed a message so we can
                 // ignore the content that's collected from the stream
                 // NOTE: Important to send the content messages before the tool call happens
-                self.send(ChatResponse::TaskComplete {
+                self.send(ChatResponse::TaskMessage {
                     text: remove_tag_with_prefix(&content, "forge_")
                         .as_str()
                         .to_string(),
@@ -524,7 +524,7 @@ impl<S: AgentService> Orchestrator<S> {
                 // No tools were called in the previous turn nor were they called in this step;
                 // Means that this is conversation.
 
-                self.send(ChatResponse::TaskComplete {
+                self.send(ChatResponse::TaskMessage {
                     text: remove_tag_with_prefix(&content, "forge_")
                         .as_str()
                         .to_string(),
@@ -626,7 +626,7 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         if has_attempted_completion {
-            self.send(ChatResponse::ChatComplete(metrics.clone()))
+            self.send(ChatResponse::TaskComplete(metrics.clone()))
                 .await?;
         }
 

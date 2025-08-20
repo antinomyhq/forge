@@ -6,14 +6,14 @@ use crate::{Metrics, ToolCallFull, ToolResult, Usage};
 /// events for all internal state changes.
 #[derive(Debug, Clone)]
 pub enum ChatResponse {
-    TaskComplete { text: String, is_md: bool },
+    TaskMessage { text: String, is_md: bool },
     TaskReasoning { content: String },
+    TaskComplete(Metrics),
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
     Usage(Usage),
     RetryAttempt { cause: Cause, duration: Duration },
     Interrupt { reason: InterruptionReason },
-    ChatComplete(Metrics),
 }
 
 #[derive(Debug, Clone)]

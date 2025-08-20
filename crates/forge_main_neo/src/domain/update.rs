@@ -35,7 +35,7 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             ratatui::crossterm::event::Event::Resize(_, _) => Command::Empty,
         },
         Action::ChatResponse(response) => {
-            if let ChatResponse::TaskComplete { ref text, .. } = response
+            if let ChatResponse::TaskMessage { ref text, .. } = response
                 && !text.trim().is_empty()
             {
                 state.show_spinner = false
@@ -316,7 +316,7 @@ mod tests {
         fixture_state.timer = Some(timer);
 
         let chat_response =
-            forge_api::ChatResponse::TaskComplete { text: "Hello World".to_string(), is_md: false };
+            forge_api::ChatResponse::TaskMessage { text: "Hello World".to_string(), is_md: false };
         let actual_command = update(&mut fixture_state, Action::ChatResponse(chat_response));
 
         // Check that cancellation happened automatically and command is Empty
@@ -340,7 +340,7 @@ mod tests {
         fixture_state.timer = Some(timer.clone());
 
         let chat_response =
-            forge_api::ChatResponse::TaskComplete { text: "Hello".to_string(), is_md: false };
+            forge_api::ChatResponse::TaskMessage { text: "Hello".to_string(), is_md: false };
         let actual_command = update(&mut fixture_state, Action::ChatResponse(chat_response));
         let expected_command = Command::Empty;
 

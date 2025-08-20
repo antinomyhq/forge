@@ -24,7 +24,7 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
             ])]
             .into_iter(),
             Message::Assistant(response) => match response {
-                ChatResponse::TaskComplete { text, is_md } => {
+                ChatResponse::TaskMessage { text, is_md } => {
                     if *is_md {
                         let rendered_text = forge_display::MarkdownFormat::new().render(text);
                         match rendered_text.into_text() {
@@ -59,7 +59,7 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                 ChatResponse::RetryAttempt { cause: _, duration: _ } => {
                     todo!()
                 }
-                ChatResponse::ChatComplete(_) => vec![].into_iter(),
+                ChatResponse::TaskComplete(_) => vec![].into_iter(),
             },
         })
         .collect()

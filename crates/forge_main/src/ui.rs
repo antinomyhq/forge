@@ -760,7 +760,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         match message {
-            ChatResponse::TaskComplete { mut text, is_md } => {
+            ChatResponse::TaskMessage { mut text, is_md } => {
                 if !text.trim().is_empty() {
                     if is_md {
                         tracing::info!(message = %text, "Agent Response");
@@ -824,7 +824,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln(content.dimmed())?;
                 }
             }
-            ChatResponse::ChatComplete(summary) => {
+            ChatResponse::TaskComplete(summary) => {
                 self.on_completion(summary).await?;
             }
         }
