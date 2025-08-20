@@ -13,7 +13,7 @@ use serde_json::Map;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
 
-use crate::{Status, ToolCallFull, ToolDefinition, ToolDescription, ToolName};
+use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 
 /// Enum representing all possible tool input types.
 ///
@@ -46,11 +46,6 @@ pub enum Tools {
     ForgeToolNetFetch(NetFetch),
     ForgeToolFollowup(Followup),
     ForgeToolAttemptCompletion(AttemptCompletion),
-    ForgeToolTaskListAppend(TaskListAppend),
-    ForgeToolTaskListAppendMultiple(TaskListAppendMultiple),
-    ForgeToolTaskListUpdate(TaskListUpdate),
-    ForgeToolTaskListList(TaskListList),
-    ForgeToolTaskListClear(TaskListClear),
     ForgeToolPlanCreate(PlanCreate),
 }
 
@@ -390,72 +385,6 @@ pub struct AttemptCompletion {
     pub result: String,
 }
 
-/// Add a new task to the end of the task list. Tasks are stored in conversation
-/// state and persist across agent interactions. Use this tool to add individual
-/// work items that need to be tracked during development sessions. Task IDs are
-/// auto-generated integers starting from 1.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListAppend {
-    /// The task description to add to the list
-    pub task: String,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
-/// Add multiple new tasks to the end of the task list. Tasks are stored in
-/// conversation state and persist across agent interactions. Use this tool to
-/// add several work items at once during development sessions. Task IDs are
-/// auto-generated integers starting from 1.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListAppendMultiple {
-    /// The list of task descriptions to add
-    pub tasks: Vec<String>,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
-/// Update the status of a specific task in the task list. Use this when a
-/// task's status changes (e.g., from Pending to InProgress, InProgress to Done,
-/// etc.). The task will remain in the list but with an updated status.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListUpdate {
-    /// The ID of the task to update
-    pub task_id: i32,
-    /// The new status for the task
-    pub status: Status,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
-/// Display the current task list with statistics. Shows all tasks with their
-/// IDs, descriptions, and status (PENDING, IN_PROGRESS, DONE), along with
-/// summary statistics. Use this tool to review current work items and track
-/// progress through development sessions.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListList {
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
-/// Remove all tasks from the task list. This operation cannot be undone and
-/// will reset the task ID counter to 1. Use this tool when you want to start
-/// fresh with a clean task list.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListClear {
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
 /// Creates a new plan file with the specified name, version, and content. Use
 /// this tool to create structured project plans, task breakdowns, or
 /// implementation strategies that can be tracked and referenced throughout
@@ -599,11 +528,6 @@ impl ToolDescription for Tools {
             Tools::ForgeToolFsRemove(v) => v.description(),
             Tools::ForgeToolFsUndo(v) => v.description(),
             Tools::ForgeToolFsCreate(v) => v.description(),
-            Tools::ForgeToolTaskListAppend(v) => v.description(),
-            Tools::ForgeToolTaskListAppendMultiple(v) => v.description(),
-            Tools::ForgeToolTaskListUpdate(v) => v.description(),
-            Tools::ForgeToolTaskListList(v) => v.description(),
-            Tools::ForgeToolTaskListClear(v) => v.description(),
             Tools::ForgeToolPlanCreate(v) => v.description(),
         }
     }
@@ -641,13 +565,6 @@ impl Tools {
             Tools::ForgeToolFsRemove(_) => r#gen.into_root_schema_for::<FSRemove>(),
             Tools::ForgeToolFsUndo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             Tools::ForgeToolFsCreate(_) => r#gen.into_root_schema_for::<FSWrite>(),
-            Tools::ForgeToolTaskListAppend(_) => r#gen.into_root_schema_for::<TaskListAppend>(),
-            Tools::ForgeToolTaskListAppendMultiple(_) => {
-                r#gen.into_root_schema_for::<TaskListAppendMultiple>()
-            }
-            Tools::ForgeToolTaskListUpdate(_) => r#gen.into_root_schema_for::<TaskListUpdate>(),
-            Tools::ForgeToolTaskListList(_) => r#gen.into_root_schema_for::<TaskListList>(),
-            Tools::ForgeToolTaskListClear(_) => r#gen.into_root_schema_for::<TaskListClear>(),
             Tools::ForgeToolPlanCreate(_) => r#gen.into_root_schema_for::<PlanCreate>(),
         }
     }
@@ -751,11 +668,6 @@ impl Tools {
             Tools::ForgeToolFsUndo(_)
             | Tools::ForgeToolFollowup(_)
             | Tools::ForgeToolAttemptCompletion(_)
-            | Tools::ForgeToolTaskListAppend(_)
-            | Tools::ForgeToolTaskListAppendMultiple(_)
-            | Tools::ForgeToolTaskListUpdate(_)
-            | Tools::ForgeToolTaskListList(_)
-            | Tools::ForgeToolTaskListClear(_)
             | Tools::ForgeToolPlanCreate(_) => None,
         }
     }
