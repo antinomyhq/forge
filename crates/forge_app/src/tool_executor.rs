@@ -136,11 +136,7 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(
-        &self,
-        input: Tools,
-        context: &ToolCallContext,
-    ) -> anyhow::Result<ToolOperation> {
+    async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 let output = self
@@ -269,7 +265,7 @@ impl<
         //     ));
         // }
 
-        let execution_result = self.call_internal(tool_input.clone(), context).await;
+        let execution_result = self.call_internal(tool_input.clone()).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");

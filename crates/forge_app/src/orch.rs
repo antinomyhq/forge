@@ -480,7 +480,7 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?;
             }
 
-            let mut tool_context =
+            let tool_context =
                 ToolCallContext::new(metrics.clone()).sender(self.sender.clone());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
@@ -490,7 +490,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Process tool calls and update context
             let mut tool_call_records = self
-                .execute_tool_calls(&agent, &tool_calls, &mut tool_context)
+                .execute_tool_calls(&agent, &tool_calls, &tool_context)
                 .await?;
 
             // Update the tool call attempts, if the tool call is an error
