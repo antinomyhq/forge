@@ -78,6 +78,12 @@ impl Conversation {
         Self::new_inner(id, workflow, additional_tools)
     }
 
+    pub fn reset_metric(&mut self) -> &mut Self {
+        self.metrics = Metrics::new();
+        self.metrics.start();
+        self
+    }
+
     fn new_inner(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
         let mut agents = Vec::new();
         let mut metrics = Metrics::new();
