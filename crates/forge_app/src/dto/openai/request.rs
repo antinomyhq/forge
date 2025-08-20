@@ -60,9 +60,10 @@ impl MessageContent {
                     && let Some(idx) = parts
                         .iter_mut()
                         .rposition(|p| matches!(p, ContentPart::Text { .. }))
-                        && let ContentPart::Text { cache_control, .. } = &mut parts[idx] {
-                            *cache_control = Some(cc);
-                        }
+                    && let ContentPart::Text { cache_control, .. } = &mut parts[idx]
+                {
+                    *cache_control = Some(cc);
+                }
                 MessageContent::Parts(parts)
             }
         }
