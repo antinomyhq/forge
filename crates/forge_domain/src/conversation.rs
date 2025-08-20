@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::task::TaskList;
 use crate::{
     Agent, AgentId, Compact, Context, Error, Event, Metrics, ModelId, Result, ToolName, Workflow,
 };
@@ -42,7 +41,6 @@ pub struct Conversation {
     pub variables: HashMap<String, Value>,
     pub agents: Vec<Agent>,
     pub events: Vec<Event>,
-    pub tasks: TaskList,
     pub max_tool_failure_per_turn: Option<usize>,
     pub max_requests_per_turn: Option<usize>,
     pub metrics: Metrics,
@@ -184,7 +182,6 @@ impl Conversation {
             variables: workflow.variables.clone(),
             agents,
             events: Default::default(),
-            tasks: TaskList::new(),
             max_tool_failure_per_turn: workflow.max_tool_failure_per_turn,
             max_requests_per_turn: workflow.max_requests_per_turn,
             metrics,

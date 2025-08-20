@@ -33,13 +33,6 @@ impl FormatContent for ToolOperation {
             ToolOperation::Shell { output: _ } => None,
             ToolOperation::FollowUp { output: _ } => None,
             ToolOperation::AttemptCompletion => None,
-            ToolOperation::TaskListAppend { _input: _, before, after }
-            | ToolOperation::TaskListAppendMultiple { _input: _, before, after }
-            | ToolOperation::TaskListUpdate { _input: _, before, after }
-            | ToolOperation::TaskListList { _input: _, before, after }
-            | ToolOperation::TaskListClear { _input: _, before, after } => Some(
-                ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
-            ),
             ToolOperation::PlanCreate { input: _, output } => Some(
                 TitleFormat::debug(format!(
                     "Create {}",

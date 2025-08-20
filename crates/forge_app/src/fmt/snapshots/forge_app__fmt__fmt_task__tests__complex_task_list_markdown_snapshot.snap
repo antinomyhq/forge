@@ -1,9 +1,0 @@
----
-source: crates/forge_app/src/fmt/fmt_task.rs
-expression: actual
----
-▣ __**Review pull request #123**__
-☐ Fix bug in authentication
-◼ ~~**Deploy to staging**~~
-☐ Update API documentation
-▣ __**Refactor user service**__

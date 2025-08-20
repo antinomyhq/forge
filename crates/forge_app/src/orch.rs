@@ -481,8 +481,7 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             let mut tool_context =
-                ToolCallContext::new(self.conversation.tasks.clone(), metrics.clone())
-                    .sender(self.sender.clone());
+                ToolCallContext::new(metrics.clone()).sender(self.sender.clone());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
@@ -594,7 +593,6 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Update context in the conversation
             context = SetModel::new(model_id.clone()).transform(context);
-            self.conversation.tasks = tool_context.with_tasks(|tasks| tasks.clone())?;
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
