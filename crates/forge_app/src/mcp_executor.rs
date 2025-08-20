@@ -17,7 +17,7 @@ impl<S: McpService> McpExecutor<S> {
     pub async fn execute(
         &self,
         input: ToolCallFull,
-        context: &mut ToolCallContext<'_>,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         context
             .send_text(TitleFormat::info("MCP").sub_title(input.name.as_str()))

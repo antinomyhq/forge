@@ -760,21 +760,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         match message {
-            ChatResponse::Text { mut text, is_complete, is_md } => {
-                if is_complete && !text.trim().is_empty() {
+            ChatResponse::TaskMessage { mut text, is_md } => {
+                if !text.trim().is_empty() {
                     if is_md {
                         tracing::info!(message = %text, "Agent Response");
                         text = self.markdown.render(&text);
                     }
 
                     self.writeln(text)?;
-                }
-            }
-            ChatResponse::Summary { content } => {
-                if !content.trim().is_empty() {
-                    tracing::info!(message = %content, "Agent Completion Response");
-                    let rendered = self.markdown.render(&content);
-                    self.writeln(rendered)?;
                 }
             }
             ChatResponse::ToolCallStart(_) => {
@@ -826,12 +819,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln(TitleFormat::action(title))?;
                 self.should_continue().await?;
             }
-            ChatResponse::Reasoning { content } => {
+            ChatResponse::TaskReasoning { content } => {
                 if !content.trim().is_empty() {
                     self.writeln(content.dimmed())?;
                 }
             }
-            ChatResponse::ChatComplete(summary) => {
+            ChatResponse::TaskComplete { metrics: summary } => {
                 self.on_completion(summary).await?;
             }
         }
@@ -859,11 +852,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let prompt_text = "Start a new chat?";
         let should_start_new_chat = ForgeSelect::confirm(prompt_text)
+            // Pressing ENTER should start new
             .with_default(true)
-            .prompt()?;
+            .prompt()
+            // Cancel or failure should continue with the session
+            .unwrap_or(Some(false))
+            .unwrap_or(false);
 
         // if conversation is over
-        if should_start_new_chat.unwrap_or(false) {
+        if should_start_new_chat {
             self.on_new().await?;
         }
 

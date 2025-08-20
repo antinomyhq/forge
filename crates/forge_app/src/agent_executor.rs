@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 use crate::error::Error;
 use crate::{ConversationService, Services, WorkflowService};
 
+#[derive(Clone)]
 pub struct AgentExecutor<S> {
     services: Arc<S>,
     pub tool_agents: Arc<RwLock<Option<Vec<ToolDefinition>>>>,
@@ -39,17 +40,16 @@ impl<S: Services> AgentExecutor<S> {
         &self,
         agent_id: String,
         task: String,
-        context: &mut ToolCallContext<'_>,
+        ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        context
-            .send_text(
-                TitleFormat::debug(format!(
-                    "{} (Agent)",
-                    agent_id.as_str().to_case(Case::UpperSnake)
-                ))
-                .sub_title(task.as_str()),
-            )
-            .await?;
+        ctx.send_text(
+            TitleFormat::debug(format!(
+                "{} [Agent]",
+                agent_id.as_str().to_case(Case::UpperSnake)
+            ))
+            .sub_title(task.as_str()),
+        )
+        .await?;
 
         // Create a new conversation for agent execution
         let workflow = self.services.read_merged(None).await?;
@@ -66,18 +66,29 @@ impl<S: Services> AgentExecutor<S> {
             .await?;
 
         // Collect responses from the agent
+        let mut output = None;
         while let Some(message) = response_stream.next().await {
             let message = message?;
-            match &message {
-                ChatResponse::Summary { content } => {
-                    return Ok(ToolOutput::text(content));
+            match message {
+                ChatResponse::TaskMessage { ref text, .. } => {
+                    output = Some(ToolOutput::text(text));
+                    ctx.send(message).await?;
                 }
-                _ => {
-                    context.send(message).await?;
-                }
+                ChatResponse::TaskReasoning { .. } => ctx.send(message).await?,
+                ChatResponse::TaskComplete { .. } => {}
+                ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
+                ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
+                ChatResponse::Usage(_) => ctx.send(message).await?,
+                ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
+                ChatResponse::Interrupt { .. } => ctx.send(message).await?,
             }
         }
-        Err(Error::EmptyToolResponse.into())
+
+        if let Some(output) = output {
+            Ok(output)
+        } else {
+            Err(Error::EmptyToolResponse.into())
+        }
     }
 
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {

@@ -54,10 +54,11 @@ pub enum Tools {
 /// for specific agents.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct AgentInput {
-    /// A clear and detailed description of the task to be performed by the
-    /// agent. Provide sufficient context and specific requirements to
-    /// enable the agent to understand and execute the work accurately.
-    pub task: String,
+    /// A list of clear and detailed descriptions of the tasks to be performed
+    /// by the agent in parallel. Provide sufficient context and specific
+    /// requirements to enable the agent to understand and execute the work
+    /// accurately.
+    pub tasks: Vec<String>,
     /// One sentence explanation as to why this specific tool is being used, and
     /// how it contributes to the goal.
     #[serde(default)]
@@ -370,13 +371,13 @@ pub struct Followup {
 /// that tool use, i.e. if it succeeded or failed, along with any reasons for
 /// failure. Once you've received the results of tool uses and can confirm that
 /// the task is complete, use this tool to present the result of your work to
-/// the user. The user may respond with feedback if they are not satisfied with
-/// the result, which you can use to make improvements and try again.
-/// IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the
-/// user that any previous tool uses were successful. Failure to do so will
-/// result in code corruption and system failure. Before using this tool, you
-/// must ask yourself if you've confirmed from the user that any previous tool
-/// uses were successful. If not, then DO NOT use this tool.
+/// the user in markdown format. The user may respond with feedback if they are
+/// not satisfied with the result, which you can use to make improvements and
+/// try again. IMPORTANT NOTE: This tool CANNOT be used until you've confirmed
+/// from the user that any previous tool uses were successful. Failure to do so
+/// will result in code corruption and system failure. Before using this tool,
+/// you must ask yourself if you've confirmed from the user that any previous
+/// tool uses were successful. If not, then DO NOT use this tool.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct AttemptCompletion {
     /// The result of the task. Formulate this result in a way that is final and

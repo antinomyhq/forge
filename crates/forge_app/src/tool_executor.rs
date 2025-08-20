@@ -42,7 +42,7 @@ impl<
     async fn check_tool_permission(
         &self,
         tool_input: &Tools,
-        context: &mut ToolCallContext<'_>,
+        context: &ToolCallContext,
     ) -> anyhow::Result<bool> {
         let cwd = self.services.get_environment().cwd;
         let operation = tool_input.to_policy_operation(cwd.clone());
@@ -136,11 +136,7 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(
-        &self,
-        input: Tools,
-        _context: &mut ToolCallContext<'_>,
-    ) -> anyhow::Result<ToolOperation> {
+    async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::ForgeToolFsRead(input) => {
                 let output = self
@@ -246,7 +242,7 @@ impl<
     pub async fn execute(
         &self,
         input: ToolCallFull,
-        context: &mut ToolCallContext<'_>,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
         let tool_input: Tools = Tools::try_from(input)?;
@@ -269,7 +265,7 @@ impl<
         //     ));
         // }
 
-        let execution_result = self.call_internal(tool_input.clone(), context).await;
+        let execution_result = self.call_internal(tool_input.clone()).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
@@ -284,6 +280,8 @@ impl<
 
         let truncation_path = self.dump_operation(&operation).await?;
 
-        Ok(operation.into_tool_output(tool_name, truncation_path, &env, context.metrics))
+        context.with_metrics(|metrics| {
+            operation.into_tool_output(tool_name, truncation_path, &env, metrics)
+        })
     }
 }

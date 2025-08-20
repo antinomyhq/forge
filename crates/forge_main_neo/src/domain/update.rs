@@ -35,8 +35,7 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             ratatui::crossterm::event::Event::Resize(_, _) => Command::Empty,
         },
         Action::ChatResponse(response) => {
-            if let ChatResponse::Text { ref text, is_complete, .. } = response
-                && is_complete
+            if let ChatResponse::TaskMessage { ref text, .. } = response
                 && !text.trim().is_empty()
             {
                 state.show_spinner = false
@@ -316,11 +315,8 @@ mod tests {
         };
         fixture_state.timer = Some(timer);
 
-        let chat_response = forge_api::ChatResponse::Text {
-            text: "Hello World".to_string(),
-            is_complete: true,
-            is_md: false,
-        };
+        let chat_response =
+            forge_api::ChatResponse::TaskMessage { text: "Hello World".to_string(), is_md: false };
         let actual_command = update(&mut fixture_state, Action::ChatResponse(chat_response));
 
         // Check that cancellation happened automatically and command is Empty
@@ -331,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chat_response_continues_spinner_when_streaming() {
+    fn test_chat_response_stops_spinner_with_empty_text() {
         let mut fixture_state = State::default();
         fixture_state.show_spinner = true;
         let cancel_id = crate::domain::CancelId::new(CancellationToken::new());
@@ -343,17 +339,15 @@ mod tests {
         };
         fixture_state.timer = Some(timer.clone());
 
-        let chat_response = forge_api::ChatResponse::Text {
-            text: "Hello".to_string(),
-            is_complete: false,
-            is_md: false,
-        };
+        let chat_response =
+            forge_api::ChatResponse::TaskMessage { text: "Hello".to_string(), is_md: false };
         let actual_command = update(&mut fixture_state, Action::ChatResponse(chat_response));
         let expected_command = Command::Empty;
 
         assert_eq!(actual_command, expected_command);
-        assert!(fixture_state.show_spinner);
-        assert_eq!(fixture_state.timer, Some(timer));
+        assert!(cancel_id.is_cancelled());
+        assert!(!fixture_state.show_spinner);
+        assert_eq!(fixture_state.timer, None);
     }
 
     #[test]

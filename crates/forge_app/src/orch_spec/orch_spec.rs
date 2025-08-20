@@ -59,7 +59,7 @@ async fn test_attempt_completion_content() {
         .iter()
         .flatten()
         .find_map(|response| match response {
-            forge_domain::ChatResponse::Text { text, .. } => Some(text.as_str()),
+            forge_domain::ChatResponse::TaskMessage { text, .. } => Some(text.as_str()),
             _ => None,
         });
 
@@ -126,7 +126,7 @@ async fn test_attempt_completion_triggers_session_summary() {
         .chat_responses
         .iter()
         .flatten()
-        .filter(|response| matches!(response, ChatResponse::ChatComplete(_)))
+        .filter(|response| matches!(response, ChatResponse::TaskComplete { .. }))
         .count();
 
     assert_eq!(
@@ -156,7 +156,7 @@ async fn test_followup_does_not_trigger_session_summary() {
         .chat_responses
         .iter()
         .flatten()
-        .any(|response| matches!(response, ChatResponse::ChatComplete(_)));
+        .any(|response| matches!(response, ChatResponse::TaskComplete { .. }));
 
     assert!(
         !has_chat_complete,
