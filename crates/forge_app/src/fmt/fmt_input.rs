@@ -85,21 +85,6 @@ impl FormatContent for Tools {
             Tools::ForgeToolAttemptCompletion(input) => {
                 Some(ContentFormat::Markdown(input.result.clone()))
             }
-            Tools::ForgeToolTaskListAppend(_) => {
-                Some(TitleFormat::debug("Task +1 ADD".to_string()).into())
-            }
-            Tools::ForgeToolTaskListAppendMultiple(input) => {
-                Some(TitleFormat::debug(format!("Task +{} ADD", input.tasks.len())).into())
-            }
-            Tools::ForgeToolTaskListUpdate(_) => {
-                Some(TitleFormat::debug("Task Update".to_string()).into())
-            }
-            Tools::ForgeToolTaskListList(_) => {
-                Some(TitleFormat::debug("Task Read".to_string()).into())
-            }
-            Tools::ForgeToolTaskListClear(_) => {
-                Some(TitleFormat::debug("Task Clear".to_string()).into())
-            }
             Tools::ForgeToolPlanCreate(_) => None,
         }
     }

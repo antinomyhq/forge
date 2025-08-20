@@ -1,7 +1,0 @@
----
-source: crates/forge_app/src/fmt/fmt_task.rs
-expression: actual
----
-▣ __**First task**__
-◼ ~~**Second task**~~
-☐ Third task
