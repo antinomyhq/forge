@@ -12,7 +12,7 @@ use crate::domain::{
 };
 use crate::dto::openai::ReasoningDetail;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ImageUrl {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -34,7 +34,7 @@ pub struct Message {
     pub reasoning_details: Option<Vec<ReasoningDetail>>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum MessageContent {
     Text(String),
@@ -101,7 +101,7 @@ impl MessageContent {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentPart {
     Text {
@@ -114,13 +114,13 @@ pub enum ContentPart {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CacheControl {
     #[serde(rename = "type")]
     pub type_: CacheControlType,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum CacheControlType {
     Ephemeral,
@@ -140,18 +140,18 @@ pub struct Tool {
     pub function: FunctionDescription,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ResponseFormat {
     pub r#type: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Prediction {
     pub r#type: String,
     pub content: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ProviderPreferences {
     // Define fields as necessary
 }
@@ -446,25 +446,24 @@ pub enum Role {
 mod tests {
     use pretty_assertions::assert_eq;
 
+    use super::*;
+
     #[test]
     fn test_cached_text_true() {
         let fixture = MessageContent::Text("hello".to_string());
-        let actual = serde_json::to_value(fixture.cached(true)).unwrap();
-        let expected = serde_json::json!([
-            {
-                "type": "text",
-                "text": "hello",
-                "cache_control": { "type": "ephemeral" }
-            }
-        ]);
+        let actual = fixture.cached(true);
+        let expected = MessageContent::Parts(vec![ContentPart::Text {
+            text: "hello".to_string(),
+            cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+        }]);
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cached_text_false() {
         let fixture = MessageContent::Text("hello".to_string());
-        let actual = serde_json::to_value(fixture.cached(false)).unwrap();
-        let expected = serde_json::json!("hello");
+        let actual = fixture.cached(false);
+        let expected = MessageContent::Text("hello".to_string());
         assert_eq!(actual, expected);
     }
 
@@ -476,17 +475,15 @@ mod tests {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
             },
         ]);
-        let actual = serde_json::to_value(fixture.cached(true)).unwrap();
-        let expected = serde_json::json!([
-            {
-                "type": "text",
-                "text": "a",
-                "cache_control": { "type": "ephemeral" }
+        let actual = fixture.cached(true);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text {
+                text: "a".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
-            {
-                "type": "image_url",
-                "image_url": { "url": "http://example.com/a.png" }
-            }
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
         ]);
         assert_eq!(actual, expected);
     }
@@ -506,20 +503,13 @@ mod tests {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
             },
         ]);
-        let actual = serde_json::to_value(fixture.cached(false)).unwrap();
-        let expected = serde_json::json!([
-            {
-                "type": "text",
-                "text": "a",
+        let actual = fixture.cached(false);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
             },
-            {
-                "type": "text",
-                "text": "b",
-            },
-            {
-                "type": "image_url",
-                "image_url": { "url": "http://example.com/a.png" }
-            }
         ]);
         assert_eq!(actual, expected);
     }
@@ -536,21 +526,16 @@ mod tests {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
             },
         ]);
-        let actual = serde_json::to_value(fixture.cached(true)).unwrap();
-        let expected = serde_json::json!([
-            {
-                "type": "text",
-                "text": "a",
+        let actual = fixture.cached(true);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::Text {
+                text: "b".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
-            {
-                "type": "text",
-                "text": "b",
-                "cache_control": { "type": "ephemeral" }
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
             },
-            {
-                "type": "image_url",
-                "image_url": { "url": "http://example.com/a.png" }
-            }
         ]);
         assert_eq!(actual, expected);
     }
@@ -564,21 +549,16 @@ mod tests {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
             },
         ]);
-        let actual = serde_json::to_value(fixture.cached(true)).unwrap();
-        let expected = serde_json::json!([
-            {
-                "type": "text",
-                "text": "a",
+        let actual = fixture.cached(true);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::Text {
+                text: "b".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
-            {
-                "type": "text",
-                "text": "b",
-                "cache_control": { "type": "ephemeral" }
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
             },
-            {
-                "type": "image_url",
-                "image_url": { "url": "http://example.com/a.png" }
-            }
         ]);
         assert_eq!(actual, expected);
     }
@@ -591,10 +571,12 @@ mod tests {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
             },
         ]);
-        let actual = serde_json::to_value(fixture.cached(false)).unwrap();
-        let expected = serde_json::json!([
-            { "type": "text", "text": "a" },
-            { "type": "image_url", "image_url": { "url": "http://example.com/a.png" } }
+        let actual = fixture.cached(false);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
         ]);
         assert_eq!(actual, expected);
     }
@@ -603,8 +585,6 @@ mod tests {
         ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use insta::assert_json_snapshot;
-
-    use super::*;
 
     #[test]
     fn test_user_message_conversion() {
