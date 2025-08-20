@@ -259,7 +259,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_into_full_with_tool_call_parse_failure_creates_retryable_error() {
-        use crate::{Error, ToolCallId, ToolCallPart, ToolName};
+        use crate::{ToolCallId, ToolCallPart, ToolName};
 
         // Fixture: Create a stream with invalid tool call JSON
         let invalid_tool_call_part = ToolCallPart {
