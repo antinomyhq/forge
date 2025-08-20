@@ -21,11 +21,6 @@ impl ToolCallContext {
         Self { sender: None, metrics: Arc::new(Mutex::new(metrics)) }
     }
 
-    /// Creates a new ToolCallContext with shared references
-    pub fn with_shared(metrics: Arc<Mutex<Metrics>>) -> Self {
-        Self { sender: None, metrics }
-    }
-
     /// Send a message through the sender if available
     pub async fn send(&self, agent_message: impl Into<ChatResponse>) -> anyhow::Result<()> {
         if let Some(sender) = &self.sender {
@@ -37,11 +32,6 @@ impl ToolCallContext {
     pub async fn send_text(&self, content: impl ToString) -> anyhow::Result<()> {
         self.send(ChatResponse::TaskMessage { text: content.to_string(), is_md: false })
             .await
-    }
-
-    /// Get a reference to the metrics mutex  
-    pub fn get_metrics(&self) -> &Arc<Mutex<Metrics>> {
-        &self.metrics
     }
 
     /// Execute a closure with access to the metrics
