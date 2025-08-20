@@ -859,11 +859,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let prompt_text = "Start a new chat?";
         let should_start_new_chat = ForgeSelect::confirm(prompt_text)
+            // Pressing ENTER should start new
             .with_default(true)
-            .prompt()?;
+            .prompt()
+            // Cancel or failure should continue with the session
+            .unwrap_or(Some(false))
+            .unwrap_or(false);
 
         // if conversation is over
-        if should_start_new_chat.unwrap_or(false) {
+        if should_start_new_chat {
             self.on_new().await?;
         }
 
