@@ -490,8 +490,14 @@ mod tests {
     #[test]
     fn test_cached_parts_multi_false() {
         let fixture = MessageContent::Parts(vec![
-            ContentPart::Text { text: "a".to_string(), cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }) },
-            ContentPart::Text { text: "b".to_string(), cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }) },
+            ContentPart::Text {
+                text: "a".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+            },
+            ContentPart::Text {
+                text: "b".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+            },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
             },
@@ -517,7 +523,10 @@ mod tests {
     #[test]
     fn test_cached_parts_already_true() {
         let fixture = MessageContent::Parts(vec![
-            ContentPart::Text { text: "a".to_string(), cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }) },
+            ContentPart::Text {
+                text: "a".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+            },
             ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
