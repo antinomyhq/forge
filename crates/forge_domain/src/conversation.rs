@@ -92,7 +92,7 @@ impl Conversation {
         for mut agent in workflow.agents.into_iter() {
             if let Some(custom_rules) = workflow.custom_rules.clone() {
                 if let Some(existing_rules) = &agent.custom_rules {
-                    agent.custom_rules = Some(existing_rules.clone() + "\n" + &custom_rules);
+                    agent.custom_rules = Some(existing_rules.clone() + "\n\n" + &custom_rules);
                 } else {
                     agent.custom_rules = Some(custom_rules);
                 }
