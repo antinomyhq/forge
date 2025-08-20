@@ -371,7 +371,7 @@ pub struct Followup {
 /// that tool use, i.e. if it succeeded or failed, along with any reasons for
 /// failure. Once you've received the results of tool uses and can confirm that
 /// the task is complete, use this tool to present the result of your work to
-/// the user. The user may respond with feedback if they are not satisfied with
+/// the user in markdown format. The user may respond with feedback if they are not satisfied with
 /// the result, which you can use to make improvements and try again.
 /// IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the
 /// user that any previous tool uses were successful. Failure to do so will
