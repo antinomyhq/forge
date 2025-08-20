@@ -103,6 +103,68 @@ async fn test_attempt_completion_with_task() {
 }
 
 #[tokio::test]
+async fn test_attempt_completion_triggers_session_summary() {
+    let attempt_completion_call = ToolCallFull::new("forge_tool_attempt_completion")
+        .arguments(json!({"result": "Task completed successfully"}));
+    let attempt_completion_result = ToolResult::new("forge_tool_attempt_completion")
+        .output(Ok(ToolOutput::text("Task completed successfully")));
+
+    let mut ctx = TestContext::init_forge_task("Complete the task")
+        .mock_tool_call_responses(vec![(
+            attempt_completion_call.clone().into(),
+            attempt_completion_result,
+        )])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Task is complete")
+                .tool_calls(vec![attempt_completion_call.into()]),
+        ]);
+
+    ctx.run().await.unwrap();
+
+    let chat_complete_count = ctx
+        .output
+        .chat_responses
+        .iter()
+        .flatten()
+        .filter(|response| matches!(response, ChatResponse::ChatComplete(_)))
+        .count();
+
+    assert_eq!(
+        chat_complete_count, 1,
+        "Should have 1 ChatComplete response for attempt_completion"
+    );
+}
+
+#[tokio::test]
+async fn test_followup_does_not_trigger_session_summary() {
+    let followup_call = ToolCallFull::new("forge_tool_followup")
+        .arguments(json!({"question": "Do you need more information?"}));
+    let followup_result = ToolResult::new("forge_tool_followup")
+        .output(Ok(ToolOutput::text("Follow-up question sent")));
+
+    let mut ctx = TestContext::init_forge_task("Ask a follow-up question")
+        .mock_tool_call_responses(vec![(followup_call.clone().into(), followup_result)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("I need more information")
+                .tool_calls(vec![followup_call.into()]),
+        ]);
+
+    ctx.run().await.unwrap();
+
+    let has_chat_complete = ctx
+        .output
+        .chat_responses
+        .iter()
+        .flatten()
+        .any(|response| matches!(response, ChatResponse::ChatComplete(_)));
+
+    assert!(
+        !has_chat_complete,
+        "Should NOT have ChatComplete response for followup"
+    );
+}
+
+#[tokio::test]
 async fn test_empty_responses() {
     let mut ctx = TestContext::init_forge_task("Read a file").mock_assistant_responses(vec![
         // Empty response 1

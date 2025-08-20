@@ -54,11 +54,11 @@ impl<S: AgentService> Orchestrator<S> {
 
     // Helper function to get all tool results from a vector of tool calls
     #[async_recursion]
-    async fn execute_tool_calls(
+    async fn execute_tool_calls<'a>(
         &self,
         agent: &Agent,
         tool_calls: &[ToolCallFull],
-        tool_context: &mut ToolCallContext,
+        tool_context: &mut ToolCallContext<'a>,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
@@ -366,6 +366,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Indicates whether the tool execution has been completed
         let mut is_complete = false;
+        let mut has_attempted_completion = false;
 
         let mut empty_tool_call_count = 0;
         let mut request_count = 0;
@@ -373,6 +374,7 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.conversation.max_requests_per_turn;
 
+        let mut metrics = self.conversation.metrics.clone();
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
 
@@ -444,10 +446,16 @@ impl<S: AgentService> Orchestrator<S> {
             context = context.usage(usage);
 
             let has_tool_calls = !tool_calls.is_empty();
+            has_attempted_completion = tool_calls
+                .iter()
+                .any(|call| Tools::is_attempt_completion(&call.name));
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
-            is_complete = tool_calls.iter().any(|call| Tools::is_complete(&call.name));
+            // Turn is completed, if tool should yield
+            is_complete = tool_calls
+                .iter()
+                .any(|call| Tools::should_yield(&call.name));
 
             if !is_complete && has_tool_calls {
                 // If task is completed we would have already displayed a message so we can
@@ -473,7 +481,8 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             let mut tool_context =
-                ToolCallContext::new(self.conversation.tasks.clone()).sender(self.sender.clone());
+                ToolCallContext::new(self.conversation.tasks.clone(), &mut metrics)
+                    .sender(self.sender.clone());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
@@ -615,6 +624,13 @@ impl<S: AgentService> Orchestrator<S> {
             // Update if turn has tool calls
             turn_has_tool_calls = turn_has_tool_calls || has_tool_calls;
         }
+
+        if has_attempted_completion {
+            self.send(ChatResponse::ChatComplete(metrics.clone()))
+                .await?;
+        }
+
+        self.conversation.metrics = metrics;
 
         Ok(())
     }
