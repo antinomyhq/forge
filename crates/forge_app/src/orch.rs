@@ -480,8 +480,7 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?;
             }
 
-            let tool_context =
-                ToolCallContext::new(metrics.clone()).sender(self.sender.clone());
+            let tool_context = ToolCallContext::new(metrics.clone()).sender(self.sender.clone());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
