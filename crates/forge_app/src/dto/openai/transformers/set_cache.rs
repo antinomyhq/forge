@@ -13,18 +13,20 @@ impl SetCache {
     /// Remove cache control from a message at the given index
     fn remove_cache_control(messages: &mut [crate::dto::openai::Message], index: usize) {
         if let Some(message) = messages.get_mut(index)
-            && let Some(ref content) = message.content {
-                // Remove cache control if it exists
-                message.content = Some(content.clone().uncached());
-            }
+            && let Some(ref content) = message.content
+        {
+            // Remove cache control if it exists
+            message.content = Some(content.clone().uncached());
+        }
     }
 
     /// Add cache control to a message at the given index
     fn add_cache_control(messages: &mut [crate::dto::openai::Message], index: usize) {
         if let Some(message) = messages.get_mut(index)
-            && let Some(ref content) = message.content {
-                message.content = Some(content.clone().cached());
-            }
+            && let Some(ref content) = message.content
+        {
+            message.content = Some(content.clone().cached());
+        }
     }
 }
 

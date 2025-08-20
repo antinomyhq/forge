@@ -58,9 +58,10 @@ impl MessageContent {
             MessageContent::Parts(parts) => {
                 // If there's only one text part with cache control, convert back to simple text
                 if parts.len() == 1
-                    && let ContentPart::Text { text, cache_control: Some(_) } = &parts[0] {
-                        return MessageContent::Text(text.clone());
-                    }
+                    && let ContentPart::Text { text, cache_control: Some(_) } = &parts[0]
+                {
+                    return MessageContent::Text(text.clone());
+                }
                 // Otherwise, remove cache control from all text parts
                 let uncached_parts = parts
                     .into_iter()
