@@ -12,7 +12,7 @@ use crate::domain::{
 };
 use crate::dto::openai::ReasoningDetail;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ImageUrl {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -34,7 +34,7 @@ pub struct Message {
     pub reasoning_details: Option<Vec<ReasoningDetail>>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum MessageContent {
     Text(String),
@@ -42,13 +42,48 @@ pub enum MessageContent {
 }
 
 impl MessageContent {
-    pub fn cached(self) -> Self {
+    pub fn cached(self, enable_cache: bool) -> Self {
+        let cache_control =
+            enable_cache.then_some(CacheControl { type_: CacheControlType::Ephemeral });
+
         match self {
-            MessageContent::Text(text) => MessageContent::Parts(vec![ContentPart::Text {
-                text,
-                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
-            }]),
-            _ => self,
+            MessageContent::Text(text) => {
+                if let Some(cc) = cache_control {
+                    MessageContent::Parts(vec![ContentPart::Text { text, cache_control: Some(cc) }])
+                } else {
+                    MessageContent::Text(text)
+                }
+            }
+            MessageContent::Parts(parts) => {
+                let mut parts = parts;
+                match cache_control {
+                    Some(cc) => {
+                        // Reset cache-control
+                        parts.iter_mut().rev().for_each(|part| match part {
+                            ContentPart::Text { cache_control, .. } => *cache_control = None,
+                            ContentPart::ImageUrl { .. } => {}
+                        });
+
+                        // Set cache-control on last
+                        let cache_control = parts.iter_mut().rev().find_map(|part| match part {
+                            ContentPart::Text { cache_control, .. } => Some(cache_control),
+                            ContentPart::ImageUrl { .. } => None,
+                        });
+                        if let Some(cache_control) = cache_control {
+                            *cache_control = Some(cc.clone());
+                        }
+                        MessageContent::Parts(parts)
+                    }
+                    None => {
+                        for part in parts.iter_mut() {
+                            if let ContentPart::Text { cache_control, .. } = part {
+                                *cache_control = None;
+                            }
+                        }
+                        MessageContent::Parts(parts)
+                    }
+                }
+            }
         }
     }
 
@@ -66,7 +101,7 @@ impl MessageContent {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentPart {
     Text {
@@ -79,13 +114,13 @@ pub enum ContentPart {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CacheControl {
     #[serde(rename = "type")]
     pub type_: CacheControlType,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum CacheControlType {
     Ephemeral,
@@ -105,18 +140,18 @@ pub struct Tool {
     pub function: FunctionDescription,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ResponseFormat {
     pub r#type: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Prediction {
     pub r#type: String,
     pub content: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ProviderPreferences {
     // Define fields as necessary
 }
@@ -409,12 +444,147 @@ pub enum Role {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_cached_text_true() {
+        let fixture = MessageContent::Text("hello".to_string());
+        let actual = fixture.cached(true);
+        let expected = MessageContent::Parts(vec![ContentPart::Text {
+            text: "hello".to_string(),
+            cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+        }]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_text_false() {
+        let fixture = MessageContent::Text("hello".to_string());
+        let actual = fixture.cached(false);
+        let expected = MessageContent::Text("hello".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_true() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = fixture.cached(true);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text {
+                text: "a".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+            },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_multi_false() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text {
+                text: "a".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+            },
+            ContentPart::Text {
+                text: "b".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+            },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = fixture.cached(false);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_already_true() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text {
+                text: "a".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+            },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = fixture.cached(true);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::Text {
+                text: "b".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+            },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_multi_true() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = fixture.cached(true);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::Text {
+                text: "b".to_string(),
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
+            },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_false() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = fixture.cached(false);
+        let expected = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        assert_eq!(actual, expected);
+    }
+
     use forge_domain::{
         ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use insta::assert_json_snapshot;
-
-    use super::*;
 
     #[test]
     fn test_user_message_conversion() {
