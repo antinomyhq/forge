@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use crate::utils::get_git_root;
 
 use anyhow::{Context, Result};
 use chrono::Local;
@@ -10,7 +9,7 @@ use forge_stream::MpscStream;
 use crate::authenticator::Authenticator;
 use crate::dto::InitAuth;
 use crate::orch::Orchestrator;
-use crate::services::{FsReadService, TemplateService};
+use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::workflow_manager::WorkflowManager;
 use crate::{
@@ -100,31 +99,10 @@ impl<S: Services> ForgeApp<S> {
             chat.event = chat.event.attachments(attachments);
         }
 
-        let mut paths = Vec::new();
-        let agent_md = environment.base_path.join("AGENTS.md");
-        if !paths.contains(&agent_md) {
-            paths.push(agent_md);
-        }
-        if let Some(git_root_path) = get_git_root(&environment.cwd).await {
-            let git_agent_md = git_root_path.join("AGENTS.md");
-            if !paths.contains(&git_agent_md) {
-            paths.push(git_agent_md);
-            }
-        }
-        let cwd_agent_md = environment.cwd.join("AGENTS.md");
-        if !paths.contains(&cwd_agent_md) {
-            paths.push(cwd_agent_md);
-        }
-
-        let mut custom_instructions = Vec::new();
-        for path in paths {
-            if path.exists() {
-                if let Ok(read_output) = self.services.fs_read_service().read(path.to_string_lossy().to_string(), None, None).await {
-                    let crate::services::Content::File(content) = read_output.content;
-                    custom_instructions.push(content);
-                }
-            }
-        }
+        let custom_instructions = services
+            .custom_instructions_service()
+            .get_custom_instructions()
+            .await;
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
@@ -132,7 +110,7 @@ impl<S: Services> ForgeApp<S> {
             environment.clone(),
             conversation,
             Local::now(),
-            custom_instructions.clone()
+            custom_instructions.clone(),
         )
         .tool_definitions(tool_definitions)
         .models(models)

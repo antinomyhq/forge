@@ -1,6 +1,23 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::bail;
+
+pub async fn get_git_root(from_dir: &Path) -> Option<PathBuf> {
+    let output = tokio::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .current_dir(from_dir)
+        .output()
+        .await
+        .ok()?;
+
+    if output.status.success() {
+        String::from_utf8(output.stdout)
+            .ok()
+            .map(|root| PathBuf::from(root.trim()))
+    } else {
+        None
+    }
+}
 
 /// Ensures that the given path is absolute
 ///

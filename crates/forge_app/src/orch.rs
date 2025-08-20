@@ -45,7 +45,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             current_time,
-            custom_instructions: custom_instructions,
+            custom_instructions,
         }
     }
 

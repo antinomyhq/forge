@@ -162,6 +162,12 @@ pub trait AttachmentService {
 pub trait EnvironmentService: Send + Sync {
     fn get_environment(&self) -> Environment;
 }
+#[async_trait::async_trait]
+pub trait CustomInstructionsService: Send + Sync {
+    async fn get_custom_instructions(
+        &self,
+    ) -> Vec<String>;
+}
 
 #[async_trait::async_trait]
 pub trait WorkflowService {
@@ -350,6 +356,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
     type EnvironmentService: EnvironmentService;
+    type CustomInstructionsService: CustomInstructionsService;
     type WorkflowService: WorkflowService + Sync;
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
@@ -389,6 +396,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
     fn environment_service(&self) -> &Self::EnvironmentService;
+    fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
     fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
@@ -634,6 +642,13 @@ impl<I: Services> ShellService for I {
 impl<I: Services> EnvironmentService for I {
     fn get_environment(&self) -> Environment {
         self.environment_service().get_environment()
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> CustomInstructionsService for I {
+    async fn get_custom_instructions(&self) -> Vec<String> {
+        self.custom_instructions_service().get_custom_instructions().await
     }
 }
 
