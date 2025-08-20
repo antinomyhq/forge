@@ -78,7 +78,7 @@ impl<S: AgentService> Orchestrator<S> {
                 warn!(
                     agent_id = %agent.id,
                     name = %tool_call.name,
-                    arguments = %tool_call.arguments,
+                    arguments = %tool_call.arguments.to_owned().into_string(),
                     output = ?tool_result.output,
                     "Tool call failed",
                 );

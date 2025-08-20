@@ -98,7 +98,7 @@ impl ContextMessage {
                         message_element = message_element.append(
                             Element::new("forge_tool_call")
                                 .attr("name", &call.name)
-                                .cdata(serde_json::to_string(&call.arguments).unwrap()),
+                                .cdata(call.arguments.clone().into_string()),
                         );
                     }
                 }
@@ -213,7 +213,8 @@ fn tool_call_content_char_count(text_message: &TextMessage) -> usize {
             tool_calls
                 .iter()
                 .map(|tc| {
-                    tc.arguments.to_string().chars().count() + tc.name.as_str().chars().count()
+                    tc.arguments.to_owned().into_string().chars().count()
+                        + tc.name.as_str().chars().count()
                 })
                 .sum()
         })
