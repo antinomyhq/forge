@@ -39,7 +39,7 @@ impl<S: Services> AgentExecutor<S> {
         &self,
         agent_id: String,
         task: String,
-        context: &mut ToolCallContext,
+        context: &mut ToolCallContext<'_>,
     ) -> anyhow::Result<ToolOutput> {
         context
             .send_text(

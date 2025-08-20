@@ -5,7 +5,7 @@ use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{Attachment, NamedTool, ToolCallFull, ToolDefinition, ToolName};
+use crate::{Attachment, NamedTool, ToolDefinition, ToolName};
 
 // We'll use simple strings for JSON schema compatibility
 #[derive(Debug, Deserialize, Serialize, Clone, Setters)]
@@ -64,16 +64,6 @@ impl Event {
             description: "Dispatches an event with the provided name and value".to_string(),
             input_schema: schema_for!(EventMessage),
         }
-    }
-
-    pub fn parse(tool_call: &ToolCallFull) -> Option<Self> {
-        if tool_call.name != Self::tool_definition().name {
-            return None;
-        }
-        let message: Option<EventMessage> =
-            serde_json::from_value(tool_call.arguments.clone()).ok();
-
-        message.map(|message| message.into())
     }
 
     pub fn new<V: Into<Value>>(name: impl ToString, value: Option<V>) -> Self {

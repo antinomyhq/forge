@@ -10,7 +10,7 @@ impl FormatContent for ToolOperation {
         match self {
             ToolOperation::FsRead { input: _, output: _ } => None,
             ToolOperation::FsCreate { input: _, output: _ } => None,
-            ToolOperation::FsRemove { input: _ } => None,
+            ToolOperation::FsRemove { input: _, output: _ } => None,
             ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
                 ContentFormat::PlainText(
                     GrepFormat::new(
@@ -33,13 +33,6 @@ impl FormatContent for ToolOperation {
             ToolOperation::Shell { output: _ } => None,
             ToolOperation::FollowUp { output: _ } => None,
             ToolOperation::AttemptCompletion => None,
-            ToolOperation::TaskListAppend { _input: _, before, after }
-            | ToolOperation::TaskListAppendMultiple { _input: _, before, after }
-            | ToolOperation::TaskListUpdate { _input: _, before, after }
-            | ToolOperation::TaskListList { _input: _, before, after }
-            | ToolOperation::TaskListClear { _input: _, before, after } => Some(
-                ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
-            ),
             ToolOperation::PlanCreate { input: _, output } => Some(
                 TitleFormat::debug(format!(
                     "Create {}",
@@ -66,8 +59,8 @@ mod tests {
     use crate::fmt::content::ContentFormat;
     use crate::operation::ToolOperation;
     use crate::{
-        Content, FsCreateOutput, FsUndoOutput, HttpResponse, Match, MatchResult, PatchOutput,
-        ReadOutput, ResponseContext, SearchResult, ShellOutput,
+        Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, Match, MatchResult,
+        PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
     };
 
     impl std::fmt::Display for ContentFormat {
@@ -253,6 +246,7 @@ mod tests {
                 path: "/home/user/project/file.txt".to_string(),
                 explanation: Some("Remove file".to_string()),
             },
+            output: FsRemoveOutput { content: "".to_string() },
         };
         let env = fixture_environment();
 
