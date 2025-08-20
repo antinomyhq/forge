@@ -54,17 +54,17 @@ impl MessageContent {
                     MessageContent::Text(text)
                 }
             }
-            MessageContent::Parts(parts) => MessageContent::Parts(
-                parts
-                    .into_iter()
-                    .map(|part| match part {
-                        ContentPart::Text { text, .. } => {
-                            ContentPart::Text { text, cache_control: cache_control.clone() }
+            MessageContent::Parts(parts) => {
+                let mut parts = parts;
+                if let Some(cc) = cache_control
+                    && let Some(idx) = parts
+                        .iter_mut()
+                        .rposition(|p| matches!(p, ContentPart::Text { .. }))
+                        && let ContentPart::Text { cache_control, .. } = &mut parts[idx] {
+                            *cache_control = Some(cc);
                         }
-                        other => other,
-                    })
-                    .collect(),
-            ),
+                MessageContent::Parts(parts)
+            }
         }
     }
     pub fn is_cached(&self) -> bool {
@@ -461,6 +461,34 @@ mod tests {
             {
                 "type": "text",
                 "text": "a",
+                "cache_control": { "type": "ephemeral" }
+            },
+            {
+                "type": "image_url",
+                "image_url": { "url": "http://example.com/a.png" }
+            }
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_multi_true() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = serde_json::to_value(fixture.cached(true)).unwrap();
+        let expected = serde_json::json!([
+            {
+                "type": "text",
+                "text": "a",
+            },
+            {
+                "type": "text",
+                "text": "b",
                 "cache_control": { "type": "ephemeral" }
             },
             {
