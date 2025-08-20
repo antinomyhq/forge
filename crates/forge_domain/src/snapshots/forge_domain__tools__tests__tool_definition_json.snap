@@ -1,7 +1,6 @@
 ---
 source: crates/forge_domain/src/tools.rs
 expression: tools
-snapshot_kind: text
 ---
 {
   "name": "forge_tool_fs_read",
