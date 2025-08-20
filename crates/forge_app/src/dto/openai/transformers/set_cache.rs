@@ -29,14 +29,14 @@ impl Transformer for SetCache {
                 && let Some(message) = messages.get_mut(len - 2)
                 && let Some(ref content) = message.content
             {
-                message.content = Some(content.clone().uncached());
+                message.content = Some(content.clone().cached(false));
             }
 
             // Add cache control to first message
             if let Some(message) = messages.get_mut(0)
                 && let Some(ref content) = message.content
             {
-                message.content = Some(content.clone().cached());
+                message.content = Some(content.clone().cached(true));
             }
 
             // Add cache control to last message (if different from first)
@@ -44,7 +44,7 @@ impl Transformer for SetCache {
                 && let Some(message) = messages.get_mut(len - 1)
                 && let Some(ref content) = message.content
             {
-                message.content = Some(content.clone().cached());
+                message.content = Some(content.clone().cached(true));
             }
         }
 

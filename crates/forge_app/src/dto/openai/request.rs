@@ -42,41 +42,31 @@ pub enum MessageContent {
 }
 
 impl MessageContent {
-    pub fn cached(self) -> Self {
-        match self {
-            MessageContent::Text(text) => MessageContent::Parts(vec![ContentPart::Text {
-                text,
-                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
-            }]),
-            _ => self,
-        }
-    }
+    pub fn cached(self, enable_cache: bool) -> Self {
+        let cache_control =
+            enable_cache.then_some(CacheControl { type_: CacheControlType::Ephemeral });
 
-    pub fn uncached(self) -> Self {
         match self {
-            MessageContent::Text(_) => self, // Already uncached
-            MessageContent::Parts(parts) => {
-                // If there's only one text part with cache control, convert back to simple text
-                if parts.len() == 1
-                    && let ContentPart::Text { text, cache_control: Some(_) } = &parts[0]
-                {
-                    return MessageContent::Text(text.clone());
+            MessageContent::Text(text) => {
+                if let Some(cc) = cache_control {
+                    MessageContent::Parts(vec![ContentPart::Text { text, cache_control: Some(cc) }])
+                } else {
+                    MessageContent::Text(text)
                 }
-                // Otherwise, remove cache control from all text parts
-                let uncached_parts = parts
+            }
+            MessageContent::Parts(parts) => MessageContent::Parts(
+                parts
                     .into_iter()
                     .map(|part| match part {
-                        ContentPart::Text { text, cache_control: _ } => {
-                            ContentPart::Text { text, cache_control: None }
+                        ContentPart::Text { text, .. } => {
+                            ContentPart::Text { text, cache_control: cache_control.clone() }
                         }
                         other => other,
                     })
-                    .collect();
-                MessageContent::Parts(uncached_parts)
-            }
+                    .collect(),
+            ),
         }
     }
-
     pub fn is_cached(&self) -> bool {
         match self {
             MessageContent::Text(_) => false,
@@ -434,6 +424,69 @@ pub enum Role {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_cached_text_true() {
+        let fixture = MessageContent::Text("hello".to_string());
+        let actual = serde_json::to_value(fixture.cached(true)).unwrap();
+        let expected = serde_json::json!([
+            {
+                "type": "text",
+                "text": "hello",
+                "cache_control": { "type": "ephemeral" }
+            }
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_text_false() {
+        let fixture = MessageContent::Text("hello".to_string());
+        let actual = serde_json::to_value(fixture.cached(false)).unwrap();
+        let expected = serde_json::json!("hello");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_true() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = serde_json::to_value(fixture.cached(true)).unwrap();
+        let expected = serde_json::json!([
+            {
+                "type": "text",
+                "text": "a",
+                "cache_control": { "type": "ephemeral" }
+            },
+            {
+                "type": "image_url",
+                "image_url": { "url": "http://example.com/a.png" }
+            }
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cached_parts_false() {
+        let fixture = MessageContent::Parts(vec![
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+            },
+        ]);
+        let actual = serde_json::to_value(fixture.cached(false)).unwrap();
+        let expected = serde_json::json!([
+            { "type": "text", "text": "a" },
+            { "type": "image_url", "image_url": { "url": "http://example.com/a.png" } }
+        ]);
+        assert_eq!(actual, expected);
+    }
+
     use forge_domain::{
         ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
