@@ -45,7 +45,12 @@ expression: "serde_json::to_string_pretty(&request).unwrap()"
   ],
   "model": "sonnet-3.5",
   "stream": true,
-  "system": "You're expert at math, so you should resolve all user queries.",
+  "system": [
+    {
+      "type": "text",
+      "text": "You're expert at math, so you should resolve all user queries."
+    }
+  ],
   "tool_choice": {
     "type": "tool",
     "name": "math"

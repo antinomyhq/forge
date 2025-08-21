@@ -33,15 +33,14 @@ impl Transformer for SetCache {
             }
 
             // Add cache control to first message
-            if let Some(message) = messages.get_mut(0)
+            if let Some(message) = messages.first_mut()
                 && let Some(ref content) = message.content
             {
                 message.content = Some(content.clone().cached(true));
             }
 
             // Add cache control to last message (if different from first)
-            if len > 1
-                && let Some(message) = messages.get_mut(len - 1)
+            if let Some(message) = messages.last_mut()
                 && let Some(ref content) = message.content
             {
                 message.content = Some(content.clone().cached(true));
