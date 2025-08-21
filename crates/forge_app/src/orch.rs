@@ -58,15 +58,23 @@ impl<S: AgentService> Orchestrator<S> {
         &self,
         agent: &Agent,
         tool_calls: &[ToolCallFull],
-        tool_context: &mut ToolCallContext<'a>,
+        tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
         for tool_call in tool_calls {
+            let is_agent = self
+                .conversation
+                .agents
+                .iter()
+                .any(|agent| agent.id.as_str() == tool_call.name.as_str());
+
             // Send the start notification
-            self.send(ChatResponse::ToolCallStart(tool_call.clone()))
-                .await?;
+            if !is_agent {
+                self.send(ChatResponse::ToolCallStart(tool_call.clone()))
+                    .await?;
+            }
 
             // Execute the tool
             let tool_result = self
@@ -85,9 +93,10 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Send the end notification
-            self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
-                .await?;
-
+            if !is_agent {
+                self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
+                    .await?;
+            }
             // Ensure all tool calls and results are recorded
             // Adding task completion records is critical for compaction to work correctly
             tool_call_records.push((tool_call.clone(), tool_result));
@@ -374,7 +383,7 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.conversation.max_requests_per_turn;
 
-        let mut metrics = self.conversation.metrics.clone();
+        let metrics = self.conversation.metrics.clone();
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
 
@@ -461,11 +470,11 @@ impl<S: AgentService> Orchestrator<S> {
                 // If task is completed we would have already displayed a message so we can
                 // ignore the content that's collected from the stream
                 // NOTE: Important to send the content messages before the tool call happens
-                self.send(ChatResponse::Text {
+                self.send(ChatResponse::TaskMessage {
                     text: remove_tag_with_prefix(&content, "forge_")
                         .as_str()
                         .to_string(),
-                    is_complete: true,
+
                     is_md: true,
                 })
                 .await?;
@@ -476,11 +485,11 @@ impl<S: AgentService> Orchestrator<S> {
                 && reasoning_supported
             {
                 // If reasoning is present, send it as a separate message
-                self.send(ChatResponse::Reasoning { content: reasoning.to_string() })
+                self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
                     .await?;
             }
 
-            let mut tool_context = ToolCallContext::new(&mut metrics).sender(self.sender.clone());
+            let tool_context = ToolCallContext::new(metrics.clone()).sender(self.sender.clone());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
@@ -489,7 +498,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Process tool calls and update context
             let mut tool_call_records = self
-                .execute_tool_calls(&agent, &tool_calls, &mut tool_context)
+                .execute_tool_calls(&agent, &tool_calls, &tool_context)
                 .await?;
 
             // Update the tool call attempts, if the tool call is an error
@@ -522,11 +531,11 @@ impl<S: AgentService> Orchestrator<S> {
                 // No tools were called in the previous turn nor were they called in this step;
                 // Means that this is conversation.
 
-                self.send(ChatResponse::Text {
+                self.send(ChatResponse::TaskMessage {
                     text: remove_tag_with_prefix(&content, "forge_")
                         .as_str()
                         .to_string(),
-                    is_complete: true,
+
                     is_md: true,
                 })
                 .await?;
@@ -623,7 +632,7 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         if has_attempted_completion {
-            self.send(ChatResponse::ChatComplete(metrics.clone()))
+            self.send(ChatResponse::TaskComplete { metrics: metrics.clone() })
                 .await?;
         }
 
