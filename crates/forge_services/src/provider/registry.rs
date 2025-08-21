@@ -61,13 +61,14 @@ fn resolve_env_provider<F: EnvironmentInfra>(
     url: Option<ProviderUrl>,
     env: &F,
 ) -> Option<Provider> {
-    let keys: [ProviderSearch; 5] = [
+    let keys: [ProviderSearch; 6] = [
         // ("FORGE_KEY", Box::new(Provider::forge)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
         ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
         ("XAI_API_KEY", Box::new(Provider::xai)),
         ("OPENAI_API_KEY", Box::new(Provider::openai)),
         ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
+        ("ZAI_API_KEY", Box::new(Provider::zai)),
     ];
 
     keys.into_iter().find_map(|(key, fun)| {
