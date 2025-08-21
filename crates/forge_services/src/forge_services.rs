@@ -73,6 +73,7 @@ impl<
         + HttpInfra
         + WalkerInfra
         + DirectoryReaderInfra
+        + CommandInfra
         + UserInfra,
 > ForgeServices<F>
 {

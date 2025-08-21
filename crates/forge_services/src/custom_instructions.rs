@@ -1,12 +1,10 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Result;
 use forge_app::CustomInstructionsService;
-use forge_app::domain::Environment;
 
+use crate::CommandInfra;
 use crate::infra::{EnvironmentInfra, FileReaderInfra};
-use crate::utils::get_git_root;
 
 /// This service looks for AGENTS.md files in three locations in order of
 /// priority:
@@ -16,16 +14,61 @@ use crate::utils::get_git_root;
 #[derive(Clone)]
 pub struct ForgeCustomInstructionsService<F> {
     infra: Arc<F>,
+    cache: tokio::sync::OnceCell<Vec<String>>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra> ForgeCustomInstructionsService<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + CommandInfra> ForgeCustomInstructionsService<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra }
+        Self { infra, cache: Default::default() }
     }
 
-    pub async fn get_custom_instructions_impl(&self) -> Result<Vec<String>> {
+    async fn discover_agents_files(&self) -> Vec<PathBuf> {
+        let mut paths = Vec::new();
         let environment = self.infra.get_environment();
-        let paths = self.discover_agents_files(&environment).await;
+
+        // Base custom instructions
+        let base_agent_md = environment.base_path.join("AGENTS.md");
+        if !paths.contains(&base_agent_md) {
+            paths.push(base_agent_md);
+        }
+
+        // Repo custom instructions
+        if let Some(git_root_path) = self.get_git_root().await {
+            let git_agent_md = git_root_path.join("AGENTS.md");
+            if !paths.contains(&git_agent_md) {
+                paths.push(git_agent_md);
+            }
+        }
+
+        // Working dir custom instructions
+        let cwd_agent_md = environment.cwd.join("AGENTS.md");
+        if !paths.contains(&cwd_agent_md) {
+            paths.push(cwd_agent_md);
+        }
+
+        paths
+    }
+
+    async fn get_git_root(&self) -> Option<PathBuf> {
+        let output = self
+            .infra
+            // TODO: Add another implementation that just returns output
+            .execute_command(
+                "git rev-parse --show-toplevel".to_owned(),
+                self.infra.get_environment().cwd,
+            )
+            .await
+            .ok()?;
+
+        if output.success() {
+            Some(PathBuf::from(output.stdout.trim()))
+        } else {
+            None
+        }
+    }
+
+    async fn init(&self) -> Vec<String> {
+        let paths = self.discover_agents_files().await;
 
         let mut custom_instructions = Vec::new();
 
@@ -35,40 +78,15 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeCustomInstructionsService<F> {
             }
         }
 
-        Ok(custom_instructions)
-    }
-
-    async fn discover_agents_files(&self, environment: &Environment) -> Vec<PathBuf> {
-        let mut paths = Vec::new();
-
-        let base_agent_md = environment.base_path.join("AGENTS.md");
-        if !paths.contains(&base_agent_md) {
-            paths.push(base_agent_md);
-        }
-
-        if let Some(git_root_path) = get_git_root(&environment.cwd).await {
-            let git_agent_md = git_root_path.join("AGENTS.md");
-            if !paths.contains(&git_agent_md) {
-                paths.push(git_agent_md);
-            }
-        }
-
-        let cwd_agent_md = environment.cwd.join("AGENTS.md");
-        if !paths.contains(&cwd_agent_md) {
-            paths.push(cwd_agent_md);
-        }
-
-        paths
+        custom_instructions
     }
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra> CustomInstructionsService
+impl<F: EnvironmentInfra + FileReaderInfra + CommandInfra> CustomInstructionsService
     for ForgeCustomInstructionsService<F>
 {
     async fn get_custom_instructions(&self) -> Vec<String> {
-        self.get_custom_instructions_impl()
-            .await
-            .unwrap_or_default()
+        self.cache.get_or_init(|| self.init()).await.clone()
     }
 }
