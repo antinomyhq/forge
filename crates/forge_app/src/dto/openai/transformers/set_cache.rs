@@ -143,9 +143,9 @@ mod tests {
     }
 
      #[test]
-    fn test_two_system_messages() {
-        let actual = create_test_context("ssu");
-        let expected = "[ss[u";
+    fn test_multiple_system_messages() {
+        let actual = create_test_context("sssuuu");
+        let expected = "[sssuu[u";
         assert_eq!(actual, expected);
     }
 
