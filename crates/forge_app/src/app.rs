@@ -102,10 +102,7 @@ impl<S: Services> ForgeApp<S> {
             chat.event = chat.event.attachments(attachments);
         }
 
-        let custom_instructions = services
-            .custom_instructions_service()
-            .get_custom_instructions()
-            .await;
+        let custom_instructions = services.get_custom_instructions().await;
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
@@ -113,7 +110,7 @@ impl<S: Services> ForgeApp<S> {
             environment.clone(),
             conversation,
             Local::now(),
-            custom_instructions.clone(),
+            custom_instructions,
         )
         .tool_definitions(tool_definitions)
         .models(models)
