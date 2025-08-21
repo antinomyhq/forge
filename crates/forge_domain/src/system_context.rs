@@ -37,8 +37,4 @@ pub struct SystemContext {
     /// Indicates whether the agent supports parallel tool calls.
     #[serde(default)]
     pub supports_parallel_tool_calls: bool,
-
-    /// Custom prompt to be used in the system context.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent_prompt: Option<String>,
 }
