@@ -92,6 +92,18 @@ impl TryFrom<forge_domain::Context> for Request {
     }
 }
 
+impl Request {
+    /// Get a reference to the messages
+    pub fn get_messages(&self) -> &[Message] {
+        &self.messages
+    }
+
+    /// Get a mutable reference to the messages
+    pub fn get_messages_mut(&mut self) -> &mut Vec<Message> {
+        &mut self.messages
+    }
+}
+
 #[derive(Serialize)]
 pub struct Metadata {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -161,6 +173,45 @@ impl TryFrom<ContextMessage> for Message {
     }
 }
 
+impl Message {
+    pub fn cached(mut self, enable_cache: bool) -> Self {
+        // Reset cache control on all content items first
+        for content in &mut self.content {
+            *content = std::mem::take(content).cached(false);
+        }
+
+        // If enabling cache, set cache control on the last cacheable content item
+        if enable_cache
+            && let Some(last_cacheable_idx) =
+                self.content
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(idx, content)| match content {
+                        Content::Text { .. }
+                        | Content::ToolUse { .. }
+                        | Content::ToolResult { .. } => Some(idx),
+                        _ => None,
+                    })
+            {
+                self.content[last_cacheable_idx] =
+                    std::mem::take(&mut self.content[last_cacheable_idx]).cached(true);
+            }
+
+        self
+    }
+
+    pub fn is_cached(&self) -> bool {
+        self.content.iter().any(|content| content.is_cached())
+    }
+}
+
+impl Default for Message {
+    fn default() -> Self {
+        Message { content: vec![], role: Role::User }
+    }
+}
+
 impl From<Image> for Content {
     fn from(value: Image) -> Self {
         Content::Image {
@@ -219,6 +270,41 @@ enum Content {
         #[serde(skip_serializing_if = "Option::is_none")]
         thinking: Option<String>,
     },
+}
+
+impl Default for Content {
+    fn default() -> Self {
+        Content::Thinking { signature: None, thinking: None }
+    }
+}
+
+impl Content {
+    pub fn cached(self, enable_cache: bool) -> Self {
+        let cache_control = enable_cache.then_some(CacheControl::Ephemeral);
+
+        match self {
+            Content::Text { text, .. } => Content::Text { text, cache_control },
+            Content::ToolUse { id, input, name, .. } => {
+                Content::ToolUse { id, input, name, cache_control }
+            }
+            Content::ToolResult { tool_use_id, content, is_error, .. } => {
+                Content::ToolResult { tool_use_id, content, is_error, cache_control }
+            }
+            // Image and Thinking variants don't support cache control
+            Content::Image { source } => Content::Image { source },
+            Content::Thinking { signature, thinking } => Content::Thinking { signature, thinking },
+        }
+    }
+
+    pub fn is_cached(&self) -> bool {
+        match self {
+            Content::Text { cache_control, .. } => cache_control.is_some(),
+            Content::ToolUse { cache_control, .. } => cache_control.is_some(),
+            Content::ToolResult { cache_control, .. } => cache_control.is_some(),
+            Content::Image { .. } => false,
+            Content::Thinking { .. } => false,
+        }
+    }
 }
 
 impl TryFrom<forge_domain::ToolCallFull> for Content {
