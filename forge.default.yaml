@@ -73,6 +73,7 @@ agents:
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_plan_create
+      - sage
   - id: prime
     title: Documentation and blog review agent
     description: |-
