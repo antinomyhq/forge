@@ -245,10 +245,20 @@ mod tests {
     use forge_domain::ChatCompletionMessage;
 
     use super::*;
-
+    
     struct Fixture;
 
+    async fn load_fixture(filename: &str) -> serde_json::Value {
+        let fixture_path = format!("src/dto/openai/fixtures/{}", filename);
+        let fixture_content = tokio::fs::read_to_string(&fixture_path)
+            .await
+            .unwrap_or_else(|_| panic!("Failed to read fixture file: {}", fixture_path));
+        serde_json::from_str(&fixture_content)
+            .unwrap_or_else(|_| panic!("Failed to parse JSON fixture: {}", fixture_path))
+    }
+
     impl Fixture {
+        
         // check if the response is compatible with the
         fn test_response_compatibility(message: &str) -> bool {
             let response = serde_json::from_str::<Response>(message)
@@ -297,8 +307,7 @@ mod tests {
 
         Ok(())
     }
-}
-#[test]
+    #[test]
 fn test_choice_error_handling_non_chat() {
     let error_response = ErrorResponse::default().message("Test error message".to_string());
 
@@ -467,36 +476,22 @@ fn test_z_ai_response_compatibility() {
 
     assert!(completion_result.is_ok());
 }
-#[test]
-fn test_z_ai_response_complete_with_usage() {
-    // Complete z.ai response with finish_reason and usage (like the final message)
-    let z_ai_final_response = r#"{"id":"20250822012952a2d93c459ed54892","created":1755797392,"model":"glm-4.5","choices":[{"index":0,"finish_reason":"stop","delta":{"role":"assistant","content":"","reasoning_content":""}}],"usage":{"prompt_tokens":8,"completion_tokens":14,"total_tokens":22,"prompt_tokens_details":{"cached_tokens":0}}}"#;
+    #[tokio::test]
+    async fn test_z_ai_response_complete_with_usage() {
+        // Complete z.ai response with finish_reason and usage (like the final message)
+        let z_ai_final_response = load_fixture("zai_api_response.json").await;
 
-    let result = serde_json::from_str::<Response>(z_ai_final_response);
-    match &result {
-        Ok(_) => println!("Successfully deserialized complete z.ai response"),
-        Err(e) => println!("Failed to deserialize complete z.ai response: {}", e),
+        let result = serde_json::from_value::<Response>(z_ai_final_response);
+        assert!(result.is_ok());
+
+        // Test conversion to ChatCompletionMessage
+        let response = result.unwrap();
+        let completion_result = ChatCompletionMessage::try_from(response);
+        assert!(completion_result.is_ok());
     }
-
-    assert!(result.is_ok());
-
-    // Test conversion to ChatCompletionMessage
-    let response = result.unwrap();
-    let completion_result = ChatCompletionMessage::try_from(response);
-    match &completion_result {
-        Ok(msg) => {
-            println!("Successfully converted to ChatCompletionMessage");
-            // Check that usage information is preserved
-            assert!(msg.usage.is_some());
-            if let Some(usage) = &msg.usage {
-                println!(
-                    "Usage: prompt_tokens={:?}, completion_tokens={:?}, total_tokens={:?}",
-                    usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
-                );
-            }
-        }
-        Err(e) => println!("Failed to convert to ChatCompletionMessage: {}", e),
-    }
-
-    assert!(completion_result.is_ok());
 }
+
+
+    
+
+

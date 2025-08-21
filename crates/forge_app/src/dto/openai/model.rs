@@ -124,7 +124,7 @@ mod tests {
 
     use super::*;
 
-    async fn load_fixture(filename: &str) -> serde_json::Value {
+    pub async fn load_fixture(filename: &str) -> serde_json::Value {
         let fixture_path = format!("src/dto/openai/fixtures/{}", filename);
         let fixture_content = tokio::fs::read_to_string(&fixture_path)
             .await
