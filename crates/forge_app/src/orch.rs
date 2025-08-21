@@ -193,19 +193,6 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(reasoning_supported)
     }
 
-    async fn set_custom_instruction_context(
-        &mut self,
-        mut context: Context,
-    ) -> anyhow::Result<Context> {
-        if !self.custom_instructions.is_empty() {
-            context = context.add_message(forge_domain::ContextMessage::user(
-                self.custom_instructions.join("\n"),
-                None,
-            ));
-        }
-        Ok(context)
-    }
-
     async fn set_system_prompt(
         &mut self,
         context: Context,
@@ -224,12 +211,22 @@ impl<S: AgentService> Orchestrator<S> {
                 false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)?).to_string()),
             };
 
+            let mut custom_rules = Vec::new();
+
+            agent.custom_rules.iter().for_each(|rule| {
+                custom_rules.push(rule.as_str());
+            });
+
+            self.custom_instructions.iter().for_each(|rule| {
+                custom_rules.push(rule.as_str());
+            });
+
             let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
                 tool_supported,
                 files,
-                custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
+                custom_rules: custom_rules.join("\n\n"),
                 variables: variables.clone(),
                 supports_parallel_tool_calls,
                 agent_prompt: Some(self.services.render(&system_prompt.template, &()).await?),
@@ -331,9 +328,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Render the system prompts with the variables
         context = self.set_system_prompt(context, &agent, &variables).await?;
-
-        // Attach agents content as user context if available
-        context = self.set_custom_instruction_context(context).await?;
 
         // Render user prompts
         context = self
