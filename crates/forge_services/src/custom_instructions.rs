@@ -52,7 +52,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + CommandInfra> ForgeCustomInstructio
     async fn get_git_root(&self) -> Option<PathBuf> {
         let output = self
             .infra
-            // TODO: Add another implementation that just returns output
             .execute_command(
                 "git rev-parse --show-toplevel".to_owned(),
                 self.infra.get_environment().cwd,
