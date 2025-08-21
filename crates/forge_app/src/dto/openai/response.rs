@@ -28,7 +28,6 @@ pub enum Response {
     },
 }
 
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseUsage {
     pub prompt_tokens: usize,
