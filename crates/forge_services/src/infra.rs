@@ -113,6 +113,7 @@ pub trait CommandInfra: Send + Sync {
         &self,
         command: String,
         working_dir: PathBuf,
+        silent: bool,
     ) -> anyhow::Result<CommandOutput>;
 
     /// execute the shell command on present stdio.
