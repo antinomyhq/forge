@@ -59,11 +59,9 @@ impl MessageContent {
                 match cache_control {
                     Some(_) => {
                         // Reset cache-control
-                        parts.iter_mut().rev().for_each(|part| match part {
-                            ContentPart::Text { cache_control, .. } => *cache_control = None,
-                            ContentPart::ImageUrl { cache_control, .. } => *cache_control = None,
-                        });
+                        parts.iter_mut().rev().for_each(|part| part.reset_cache());
 
+                        // cache the last part of the message
                         if let Some(last_part) = parts.last_mut() {
                             last_part.cached(enable_cache);
                         }
@@ -113,6 +111,17 @@ pub enum ContentPart {
 }
 
 impl ContentPart {
+    pub fn reset_cache(&mut self) {
+        match self {
+            ContentPart::Text { cache_control, .. } => {
+                *cache_control = None;
+            }
+            ContentPart::ImageUrl { cache_control, .. } => {
+                *cache_control = None;
+            }
+        }
+    }
+
     pub fn cached(&mut self, enable_cache: bool) {
         let src_cache_control =
             enable_cache.then_some(CacheControl { type_: CacheControlType::Ephemeral });
