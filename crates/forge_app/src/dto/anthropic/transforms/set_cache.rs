@@ -203,8 +203,8 @@ mod tests {
 
     #[test]
     fn test_with_system_message_multiple_conversation_messages() {
-        let actual = create_test_context_with_system("s", "uaua");
-        let expected = "[suau[a";
+        let actual = create_test_context_with_system("ss", "uaua");
+        let expected = "[ssuau[a";
         assert_eq!(actual, expected);
     }
 
