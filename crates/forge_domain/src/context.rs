@@ -341,19 +341,20 @@ impl Context {
     }
 
     /// Updates the set system message
-    pub fn set_first_system_message(mut self, content: impl Into<String>) -> Self {
+    pub fn set_system_messages<S: Into<String>>(mut self, content: Vec<S>) -> Self {
         if self.messages.is_empty() {
-            self.add_message(ContextMessage::system(content.into()))
-        } else {
-            if let Some(ContextMessage::Text(content_message)) = self.messages.get_mut(0) {
-                if content_message.role == Role::System {
-                    content_message.content = content.into();
-                } else {
-                    self.messages
-                        .insert(0, ContextMessage::system(content.into()));
-                }
+            for message in content {
+                self.messages.push(ContextMessage::system(message.into()));
             }
-
+            self
+        } else {
+            // drop all the system messages;
+            self.messages.retain(|m| !m.has_role(Role::System));
+            // add the system message at the beginning.
+            for message in content.into_iter().rev() {
+                self.messages
+                    .insert(0, ContextMessage::system(message.into()));
+            }
             self
         }
     }
@@ -479,7 +480,7 @@ mod tests {
     fn test_override_system_message() {
         let request = Context::default()
             .add_message(ContextMessage::system("Initial system message"))
-            .set_first_system_message("Updated system message");
+            .set_system_messages(vec!["Updated system message"]);
 
         assert_eq!(
             request.messages[0],
@@ -489,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_set_system_message() {
-        let request = Context::default().set_first_system_message("A system message");
+        let request = Context::default().set_system_messages(vec!["A system message"]);
 
         assert_eq!(
             request.messages[0],
@@ -502,7 +503,7 @@ mod tests {
         let model = ModelId::new("test-model");
         let request = Context::default()
             .add_message(ContextMessage::user("Do something", Some(model)))
-            .set_first_system_message("A system message");
+            .set_system_messages(vec!["A system message"]);
 
         assert_eq!(
             request.messages[0],
