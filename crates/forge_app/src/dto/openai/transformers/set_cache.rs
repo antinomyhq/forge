@@ -142,7 +142,7 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-     #[test]
+    #[test]
     fn test_multiple_system_messages() {
         let actual = create_test_context("sssuuu");
         let expected = "[sssuu[u";
