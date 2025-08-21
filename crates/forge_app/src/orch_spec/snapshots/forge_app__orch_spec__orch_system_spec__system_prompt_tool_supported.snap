@@ -93,5 +93,3 @@ Use the following format to update task status:
 </task_status>
 
 </plan_execution_steps>
-
-When you receive a task in <task> tags, begin your response with a task analysis, followed by a solution strategy. Then proceed with implementation steps and quality assurance without seeking user input at each step. If you encounter a situation where you absolutely cannot proceed without additional information, explain the issue and request clarification as a last resort.
