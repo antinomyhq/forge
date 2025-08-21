@@ -237,6 +237,7 @@ impl From<Image> for Content {
                 data: None,
                 url: Some(value.url().clone()),
             },
+        cache_control: None,
         }
     }
 }
@@ -258,6 +259,8 @@ struct ImageSource {
 enum Content {
     Image {
         source: ImageSource,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
     },
     Text {
         text: String,
@@ -303,11 +306,11 @@ impl Content {
             Content::ToolUse { id, input, name, .. } => {
                 Content::ToolUse { id, input, name, cache_control }
             }
-            Content::ToolResult { tool_use_id, content, is_error, .. } => {
+            Content::ToolResult { tool_use_id, content, is_error, cache_control } => {
                 Content::ToolResult { tool_use_id, content, is_error, cache_control }
             }
-            // Image and Thinking variants don't support cache control
-            Content::Image { source } => Content::Image { source },
+            Content::Image { source, cache_control } => Content::Image { source, cache_control },
+            // TODO: verify this fact: Thinking variants don't support cache control
             Content::Thinking { signature, thinking } => Content::Thinking { signature, thinking },
         }
     }
