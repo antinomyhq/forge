@@ -142,6 +142,13 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+     #[test]
+    fn test_two_system_messages() {
+        let actual = create_test_context("ssu");
+        let expected = "[ss[u";
+        assert_eq!(actual, expected);
+    }
+
     #[test]
     fn test_three_messages_first_and_last_cached() {
         let actual = create_test_context("sua");
