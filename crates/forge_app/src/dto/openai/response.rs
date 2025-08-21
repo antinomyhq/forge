@@ -245,7 +245,7 @@ mod tests {
     use forge_domain::ChatCompletionMessage;
 
     use super::*;
-    
+
     struct Fixture;
 
     async fn load_fixture(filename: &str) -> serde_json::Value {
@@ -258,7 +258,6 @@ mod tests {
     }
 
     impl Fixture {
-        
         // check if the response is compatible with the
         fn test_response_compatibility(message: &str) -> bool {
             let response = serde_json::from_str::<Response>(message)
@@ -308,174 +307,174 @@ mod tests {
         Ok(())
     }
     #[test]
-fn test_choice_error_handling_non_chat() {
-    let error_response = ErrorResponse::default().message("Test error message".to_string());
+    fn test_choice_error_handling_non_chat() {
+        let error_response = ErrorResponse::default().message("Test error message".to_string());
 
-    let response = Response::Success {
-        id: "test-id".to_string(),
-        provider: Some("test".to_string()),
-        model: "test-model".to_string(),
-        choices: vec![Choice::NonChat {
-            text: "test content".to_string(),
-            finish_reason: None,
-            error: Some(error_response.clone()),
-        }],
-        created: 123456789,
-        object: Some("chat.completion".to_string()),
-        system_fingerprint: None,
-        usage: None,
-    };
+        let response = Response::Success {
+            id: "test-id".to_string(),
+            provider: Some("test".to_string()),
+            model: "test-model".to_string(),
+            choices: vec![Choice::NonChat {
+                text: "test content".to_string(),
+                finish_reason: None,
+                error: Some(error_response.clone()),
+            }],
+            created: 123456789,
+            object: Some("chat.completion".to_string()),
+            system_fingerprint: None,
+            usage: None,
+        };
 
-    let result = ChatCompletionMessage::try_from(response);
-    assert!(result.is_err());
-    let error = result.unwrap_err();
-    let error_string = format!("{:?}", error);
-    assert!(error_string.contains("Test error message"));
-}
-
-#[test]
-fn test_choice_error_handling_non_streaming() {
-    let error_response = ErrorResponse::default().message("API limit exceeded".to_string());
-
-    let response = Response::Success {
-        id: "test-id".to_string(),
-        provider: Some("test".to_string()),
-        model: "test-model".to_string(),
-        choices: vec![Choice::NonStreaming {
-            logprobs: None,
-            index: 0,
-            finish_reason: None,
-            message: ResponseMessage {
-                content: Some("test content".to_string()),
-                reasoning: None,
-                role: Some("assistant".to_string()),
-                tool_calls: None,
-                refusal: None,
-                reasoning_details: None,
-            },
-            error: Some(error_response.clone()),
-        }],
-        created: 123456789,
-        object: Some("chat.completion".to_string()),
-        system_fingerprint: None,
-        usage: None,
-    };
-
-    let result = ChatCompletionMessage::try_from(response);
-    assert!(result.is_err());
-    let error = result.unwrap_err();
-    let error_string = format!("{:?}", error);
-    assert!(error_string.contains("API limit exceeded"));
-}
-
-#[test]
-fn test_choice_error_handling_streaming() {
-    let error_response = ErrorResponse::default().message("Stream interrupted".to_string());
-
-    let response = Response::Success {
-        id: "test-id".to_string(),
-        provider: Some("test".to_string()),
-        model: "test-model".to_string(),
-        choices: vec![Choice::Streaming {
-            finish_reason: None,
-            delta: ResponseMessage {
-                content: Some("test content".to_string()),
-                reasoning: None,
-                role: Some("assistant".to_string()),
-                tool_calls: None,
-                refusal: None,
-                reasoning_details: None,
-            },
-            error: Some(error_response.clone()),
-        }],
-        created: 123456789,
-        object: Some("chat.completion".to_string()),
-        system_fingerprint: None,
-        usage: None,
-    };
-
-    let result = ChatCompletionMessage::try_from(response);
-    assert!(result.is_err());
-    let error = result.unwrap_err();
-    let error_string = format!("{:?}", error);
-    assert!(error_string.contains("Stream interrupted"));
-}
-
-#[test]
-fn test_choice_no_error_success() {
-    let response = Response::Success {
-        id: "test-id".to_string(),
-        provider: Some("test".to_string()),
-        model: "test-model".to_string(),
-        choices: vec![Choice::NonStreaming {
-            logprobs: None,
-            index: 0,
-            finish_reason: Some("stop".to_string()),
-            message: ResponseMessage {
-                content: Some("Hello, world!".to_string()),
-                reasoning: None,
-                role: Some("assistant".to_string()),
-                tool_calls: None,
-                refusal: None,
-                reasoning_details: None,
-            },
-            error: None,
-        }],
-        created: 123456789,
-        object: Some("chat.completion".to_string()),
-        system_fingerprint: None,
-        usage: None,
-    };
-
-    let result = ChatCompletionMessage::try_from(response);
-    assert!(result.is_ok());
-    let message = result.unwrap();
-    assert_eq!(message.content.unwrap().as_str(), "Hello, world!");
-}
-
-#[test]
-fn test_empty_choices_no_error() {
-    let response = Response::Success {
-        id: "test-id".to_string(),
-        provider: Some("test".to_string()),
-        model: "test-model".to_string(),
-        choices: vec![],
-        created: 123456789,
-        object: Some("chat.completion".to_string()),
-        system_fingerprint: None,
-        usage: None,
-    };
-
-    let result = ChatCompletionMessage::try_from(response);
-    assert!(result.is_ok());
-    let message = result.unwrap();
-    assert_eq!(message.content.unwrap().as_str(), "");
-}
-
-#[test]
-fn test_z_ai_response_compatibility() {
-    // This is an actual response from z.ai API that was failing to deserialize
-    let z_ai_response = r#"{"id":"20250822012952a2d93c459ed54892","created":1755797392,"model":"glm-4.5","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi","reasoning_content":""}}]}"#;
-
-    let result = serde_json::from_str::<Response>(z_ai_response);
-    match &result {
-        Ok(_) => println!("Successfully deserialized z.ai response"),
-        Err(e) => println!("Failed to deserialize z.ai response: {}", e),
+        let result = ChatCompletionMessage::try_from(response);
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let error_string = format!("{:?}", error);
+        assert!(error_string.contains("Test error message"));
     }
 
-    // This should now succeed with our fixes
-    assert!(result.is_ok());
+    #[test]
+    fn test_choice_error_handling_non_streaming() {
+        let error_response = ErrorResponse::default().message("API limit exceeded".to_string());
 
-    // Test conversion to ChatCompletionMessage
-    let response = result.unwrap();
-    let completion_result = ChatCompletionMessage::try_from(response);
-    match &completion_result {
-        Ok(_) => println!("Successfully converted to ChatCompletionMessage"),
-        Err(e) => println!("Failed to convert to ChatCompletionMessage: {}", e),
+        let response = Response::Success {
+            id: "test-id".to_string(),
+            provider: Some("test".to_string()),
+            model: "test-model".to_string(),
+            choices: vec![Choice::NonStreaming {
+                logprobs: None,
+                index: 0,
+                finish_reason: None,
+                message: ResponseMessage {
+                    content: Some("test content".to_string()),
+                    reasoning: None,
+                    role: Some("assistant".to_string()),
+                    tool_calls: None,
+                    refusal: None,
+                    reasoning_details: None,
+                },
+                error: Some(error_response.clone()),
+            }],
+            created: 123456789,
+            object: Some("chat.completion".to_string()),
+            system_fingerprint: None,
+            usage: None,
+        };
+
+        let result = ChatCompletionMessage::try_from(response);
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let error_string = format!("{:?}", error);
+        assert!(error_string.contains("API limit exceeded"));
     }
 
-    assert!(completion_result.is_ok());
-}
+    #[test]
+    fn test_choice_error_handling_streaming() {
+        let error_response = ErrorResponse::default().message("Stream interrupted".to_string());
+
+        let response = Response::Success {
+            id: "test-id".to_string(),
+            provider: Some("test".to_string()),
+            model: "test-model".to_string(),
+            choices: vec![Choice::Streaming {
+                finish_reason: None,
+                delta: ResponseMessage {
+                    content: Some("test content".to_string()),
+                    reasoning: None,
+                    role: Some("assistant".to_string()),
+                    tool_calls: None,
+                    refusal: None,
+                    reasoning_details: None,
+                },
+                error: Some(error_response.clone()),
+            }],
+            created: 123456789,
+            object: Some("chat.completion".to_string()),
+            system_fingerprint: None,
+            usage: None,
+        };
+
+        let result = ChatCompletionMessage::try_from(response);
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let error_string = format!("{:?}", error);
+        assert!(error_string.contains("Stream interrupted"));
+    }
+
+    #[test]
+    fn test_choice_no_error_success() {
+        let response = Response::Success {
+            id: "test-id".to_string(),
+            provider: Some("test".to_string()),
+            model: "test-model".to_string(),
+            choices: vec![Choice::NonStreaming {
+                logprobs: None,
+                index: 0,
+                finish_reason: Some("stop".to_string()),
+                message: ResponseMessage {
+                    content: Some("Hello, world!".to_string()),
+                    reasoning: None,
+                    role: Some("assistant".to_string()),
+                    tool_calls: None,
+                    refusal: None,
+                    reasoning_details: None,
+                },
+                error: None,
+            }],
+            created: 123456789,
+            object: Some("chat.completion".to_string()),
+            system_fingerprint: None,
+            usage: None,
+        };
+
+        let result = ChatCompletionMessage::try_from(response);
+        assert!(result.is_ok());
+        let message = result.unwrap();
+        assert_eq!(message.content.unwrap().as_str(), "Hello, world!");
+    }
+
+    #[test]
+    fn test_empty_choices_no_error() {
+        let response = Response::Success {
+            id: "test-id".to_string(),
+            provider: Some("test".to_string()),
+            model: "test-model".to_string(),
+            choices: vec![],
+            created: 123456789,
+            object: Some("chat.completion".to_string()),
+            system_fingerprint: None,
+            usage: None,
+        };
+
+        let result = ChatCompletionMessage::try_from(response);
+        assert!(result.is_ok());
+        let message = result.unwrap();
+        assert_eq!(message.content.unwrap().as_str(), "");
+    }
+
+    #[test]
+    fn test_z_ai_response_compatibility() {
+        // This is an actual response from z.ai API that was failing to deserialize
+        let z_ai_response = r#"{"id":"20250822012952a2d93c459ed54892","created":1755797392,"model":"glm-4.5","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi","reasoning_content":""}}]}"#;
+
+        let result = serde_json::from_str::<Response>(z_ai_response);
+        match &result {
+            Ok(_) => println!("Successfully deserialized z.ai response"),
+            Err(e) => println!("Failed to deserialize z.ai response: {}", e),
+        }
+
+        // This should now succeed with our fixes
+        assert!(result.is_ok());
+
+        // Test conversion to ChatCompletionMessage
+        let response = result.unwrap();
+        let completion_result = ChatCompletionMessage::try_from(response);
+        match &completion_result {
+            Ok(_) => println!("Successfully converted to ChatCompletionMessage"),
+            Err(e) => println!("Failed to convert to ChatCompletionMessage: {}", e),
+        }
+
+        assert!(completion_result.is_ok());
+    }
     #[tokio::test]
     async fn test_z_ai_response_complete_with_usage() {
         // Complete z.ai response with finish_reason and usage (like the final message)
@@ -490,8 +489,3 @@ fn test_z_ai_response_compatibility() {
         assert!(completion_result.is_ok());
     }
 }
-
-
-    
-
-
