@@ -5,67 +5,83 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Default, Setters)]
 #[setters(into, strip_option)]
 pub struct Request {
-    max_tokens: u64,
-    messages: Vec<Message>,
-    model: String,
+    pub max_tokens: u64,
+    pub messages: Vec<Message>,
+    pub model: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    metadata: Option<Metadata>,
+    pub metadata: Option<Metadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stop_sequence: Option<String>,
+    pub stop_sequence: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stream: Option<bool>,
+    pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    system: Option<String>,
+    pub system: Option<Vec<SystemMessage>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    temperature: Option<f32>,
+    pub temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    tool_choice: Option<ToolChoice>,
+    pub tool_choice: Option<ToolChoice>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    tools: Vec<ToolDefinition>,
+    pub tools: Vec<ToolDefinition>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_k: Option<u64>,
+    pub top_k: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_p: Option<f32>,
+    pub top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    thinking: Option<Thinking>,
+    pub thinking: Option<Thinking>,
+}
+
+#[derive(Serialize, Default)]
+pub struct SystemMessage {
+    pub r#type: String,
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+}
+
+impl SystemMessage {
+    pub fn cached(mut self, cached: bool) -> Self {
+        self.cache_control = if cached {
+            Some(CacheControl::Ephemeral)
+        } else {
+            None
+        };
+        self
+    }
+
+    pub fn is_cached(&self) -> bool {
+        self.cache_control.is_some()
+    }
 }
 
 #[derive(Serialize, Default)]
 pub struct Thinking {
-    r#type: String,
-    budget_tokens: u64,
+    pub r#type: String,
+    pub budget_tokens: u64,
 }
 
 impl TryFrom<forge_domain::Context> for Request {
     type Error = anyhow::Error;
     fn try_from(request: forge_domain::Context) -> std::result::Result<Self, Self::Error> {
-        // note: Anthropic only supports 1 system message in context, so from the
-        // context we pick the first system message available.
-        // ref: https://docs.anthropic.com/en/api/messages#body-system
-        let system = request.messages.iter().find_map(|message| {
-            if let ContextMessage::Text(chat_message) = message {
-                if chat_message.role == forge_domain::Role::System {
-                    Some(chat_message.content.clone())
-                } else {
-                    None
+        let system_messages = request
+            .messages
+            .iter()
+            .filter_map(|msg| match msg {
+                ContextMessage::Text(msg) if msg.has_role(forge_domain::Role::System) => {
+                    Some(SystemMessage {
+                        r#type: "text".to_string(),
+                        text: msg.content.clone(),
+                        cache_control: None,
+                    })
                 }
-            } else {
-                None
-            }
-        });
+                _ => None,
+            })
+            .collect::<Vec<_>>();
 
         Ok(Self {
             messages: request
                 .messages
                 .into_iter()
-                .filter(|message| {
-                    // note: Anthropic does not support system messages in message field.
-                    if let ContextMessage::Text(chat_message) = message {
-                        chat_message.role != forge_domain::Role::System
-                    } else {
-                        true
-                    }
-                })
+                .filter(|message| !message.has_role(forge_domain::Role::System))
                 .map(Message::try_from)
                 .collect::<std::result::Result<Vec<_>, _>>()?,
             tools: request
@@ -73,7 +89,7 @@ impl TryFrom<forge_domain::Context> for Request {
                 .into_iter()
                 .map(ToolDefinition::try_from)
                 .collect::<std::result::Result<Vec<_>, _>>()?,
-            system,
+            system: Some(system_messages),
             temperature: request.temperature.map(|t| t.value()),
             top_p: request.top_p.map(|t| t.value()),
             top_k: request.top_k.map(|t| t.value() as u64),
@@ -92,16 +108,28 @@ impl TryFrom<forge_domain::Context> for Request {
     }
 }
 
+impl Request {
+    /// Get a reference to the messages
+    pub fn get_messages(&self) -> &[Message] {
+        &self.messages
+    }
+
+    /// Get a mutable reference to the messages
+    pub fn get_messages_mut(&mut self) -> &mut Vec<Message> {
+        &mut self.messages
+    }
+}
+
 #[derive(Serialize)]
 pub struct Metadata {
     #[serde(skip_serializing_if = "Option::is_none")]
-    user_id: Option<String>,
+    pub user_id: Option<String>,
 }
 
 #[derive(Serialize)]
 pub struct Message {
-    content: Vec<Content>,
-    role: Role,
+    pub content: Vec<Content>,
+    pub role: Role,
 }
 
 impl TryFrom<ContextMessage> for Message {
@@ -161,6 +189,45 @@ impl TryFrom<ContextMessage> for Message {
     }
 }
 
+impl Message {
+    pub fn cached(mut self, enable_cache: bool) -> Self {
+        // Reset cache control on all content items first
+        for content in &mut self.content {
+            *content = std::mem::take(content).cached(false);
+        }
+
+        // If enabling cache, set cache control on the last cacheable content item
+        if enable_cache
+            && let Some(last_cacheable_idx) =
+                self.content
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(idx, content)| match content {
+                        Content::Text { .. }
+                        | Content::ToolUse { .. }
+                        | Content::ToolResult { .. } => Some(idx),
+                        _ => None,
+                    })
+        {
+            self.content[last_cacheable_idx] =
+                std::mem::take(&mut self.content[last_cacheable_idx]).cached(true);
+        }
+
+        self
+    }
+
+    pub fn is_cached(&self) -> bool {
+        self.content.iter().any(|content| content.is_cached())
+    }
+}
+
+impl Default for Message {
+    fn default() -> Self {
+        Message { content: vec![], role: Role::User }
+    }
+}
+
 impl From<Image> for Content {
     fn from(value: Image) -> Self {
         Content::Image {
@@ -175,20 +242,20 @@ impl From<Image> for Content {
 }
 
 #[derive(Serialize)]
-struct ImageSource {
+pub struct ImageSource {
     #[serde(rename = "type")]
-    type_: String,
+    pub type_: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    media_type: Option<String>,
+    pub media_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<String>,
+    pub data: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
+    pub url: Option<String>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
-enum Content {
+pub enum Content {
     Image {
         source: ImageSource,
     },
@@ -219,6 +286,41 @@ enum Content {
         #[serde(skip_serializing_if = "Option::is_none")]
         thinking: Option<String>,
     },
+}
+
+impl Default for Content {
+    fn default() -> Self {
+        Content::Thinking { signature: None, thinking: None }
+    }
+}
+
+impl Content {
+    pub fn cached(self, enable_cache: bool) -> Self {
+        let cache_control = enable_cache.then_some(CacheControl::Ephemeral);
+
+        match self {
+            Content::Text { text, .. } => Content::Text { text, cache_control },
+            Content::ToolUse { id, input, name, .. } => {
+                Content::ToolUse { id, input, name, cache_control }
+            }
+            Content::ToolResult { tool_use_id, content, is_error, .. } => {
+                Content::ToolResult { tool_use_id, content, is_error, cache_control }
+            }
+            // Image and Thinking variants don't support cache control
+            Content::Image { source } => Content::Image { source },
+            Content::Thinking { signature, thinking } => Content::Thinking { signature, thinking },
+        }
+    }
+
+    pub fn is_cached(&self) -> bool {
+        match self {
+            Content::Text { cache_control, .. } => cache_control.is_some(),
+            Content::ToolUse { cache_control, .. } => cache_control.is_some(),
+            Content::ToolResult { cache_control, .. } => cache_control.is_some(),
+            Content::Image { .. } => false,
+            Content::Thinking { .. } => false,
+        }
+    }
 }
 
 impl TryFrom<forge_domain::ToolCallFull> for Content {
@@ -260,8 +362,7 @@ impl TryFrom<forge_domain::ToolResult> for Content {
 }
 
 #[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum CacheControl {
     Ephemeral,
 }
@@ -309,12 +410,12 @@ impl From<forge_domain::ToolChoice> for ToolChoice {
 
 #[derive(Serialize)]
 pub struct ToolDefinition {
-    name: String,
+    pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
+    pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    cache_control: Option<CacheControl>,
-    input_schema: serde_json::Value,
+    pub cache_control: Option<CacheControl>,
+    pub input_schema: serde_json::Value,
 }
 
 impl TryFrom<forge_domain::ToolDefinition> for ToolDefinition {
