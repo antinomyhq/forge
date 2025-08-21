@@ -12,33 +12,27 @@ impl Transformer for SetCache {
     type Value = Request;
 
     /// Implements a simple two-breakpoint cache strategy:
-    /// 1. Cache the first message (index 0)
+    /// 1. Cache the first system message as it should be static.
     /// 2. Cache the last message (index messages.len() - 1)
     /// 3. Remove cache control from second-to-last message (index
     ///    messages.len() - 2)
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         let len = request.get_messages().len();
+        let sys_len = request.system.as_ref().map_or(0, |msgs| msgs.len());
 
-        if len == 0 {
+        if len == 0 && sys_len == 0 {
             return request;
         }
 
-        // Remove cache control from second-to-last message (when there are 3+ messages)
-        if len >= 3
-            && let Some(message) = request.get_messages_mut().get_mut(len - 2)
-        {
-            *message = std::mem::take(message).cached(false);
-        }
-
-        // Add cache control to first message
-        if let Some(message) = request.get_messages_mut().get_mut(0) {
-            *message = std::mem::take(message).cached(true);
+        // Cache the very first system message, ideally you should keep static content in it.
+        if let Some(system_messages) = request.system.as_mut() {
+            if let Some(first_message) = system_messages.first_mut() {
+                *first_message = std::mem::take(first_message).cached(true);
+            }
         }
 
         // Add cache control to last message (if different from first)
-        if len > 1
-            && let Some(message) = request.get_messages_mut().get_mut(len - 1)
-        {
+        if let Some(message) = request.get_messages_mut().last_mut() {
             *message = std::mem::take(message).cached(true);
         }
 
