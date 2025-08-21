@@ -24,12 +24,12 @@ impl Transformer for SetCache {
             return request;
         }
 
-        // Cache the very first system message, ideally you should keep static content in it.
-        if let Some(system_messages) = request.system.as_mut() {
-            if let Some(first_message) = system_messages.first_mut() {
+        // Cache the very first system message, ideally you should keep static content
+        // in it.
+        if let Some(system_messages) = request.system.as_mut()
+            && let Some(first_message) = system_messages.first_mut() {
                 *first_message = std::mem::take(first_message).cached(true);
             }
-        }
 
         // Add cache control to last message (if different from first)
         if let Some(message) = request.get_messages_mut().last_mut() {
