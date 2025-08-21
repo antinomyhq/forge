@@ -19,7 +19,7 @@ pub enum Response {
         model: String,
         choices: Vec<Choice>,
         created: u64,
-        object: String,
+        object: Option<String>,
         system_fingerprint: Option<String>,
         usage: Option<ResponseUsage>,
     },
@@ -27,6 +27,7 @@ pub enum Response {
         error: ErrorResponse,
     },
 }
+
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseUsage {
@@ -67,6 +68,7 @@ pub enum Choice {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseMessage {
     pub content: Option<String>,
+    #[serde(alias = "reasoning_content")]
     pub reasoning: Option<String>,
     pub role: Option<String>,
     pub tool_calls: Option<Vec<ToolCall>>,
@@ -311,7 +313,7 @@ fn test_choice_error_handling_non_chat() {
             error: Some(error_response.clone()),
         }],
         created: 123456789,
-        object: "chat.completion".to_string(),
+        object: Some("chat.completion".to_string()),
         system_fingerprint: None,
         usage: None,
     };
@@ -346,7 +348,7 @@ fn test_choice_error_handling_non_streaming() {
             error: Some(error_response.clone()),
         }],
         created: 123456789,
-        object: "chat.completion".to_string(),
+        object: Some("chat.completion".to_string()),
         system_fingerprint: None,
         usage: None,
     };
@@ -379,7 +381,7 @@ fn test_choice_error_handling_streaming() {
             error: Some(error_response.clone()),
         }],
         created: 123456789,
-        object: "chat.completion".to_string(),
+        object: Some("chat.completion".to_string()),
         system_fingerprint: None,
         usage: None,
     };
@@ -412,7 +414,7 @@ fn test_choice_no_error_success() {
             error: None,
         }],
         created: 123456789,
-        object: "chat.completion".to_string(),
+        object: Some("chat.completion".to_string()),
         system_fingerprint: None,
         usage: None,
     };
@@ -431,7 +433,7 @@ fn test_empty_choices_no_error() {
         model: "test-model".to_string(),
         choices: vec![],
         created: 123456789,
-        object: "chat.completion".to_string(),
+        object: Some("chat.completion".to_string()),
         system_fingerprint: None,
         usage: None,
     };
@@ -440,4 +442,62 @@ fn test_empty_choices_no_error() {
     assert!(result.is_ok());
     let message = result.unwrap();
     assert_eq!(message.content.unwrap().as_str(), "");
+}
+
+#[test]
+fn test_z_ai_response_compatibility() {
+    // This is an actual response from z.ai API that was failing to deserialize
+    let z_ai_response = r#"{"id":"20250822012952a2d93c459ed54892","created":1755797392,"model":"glm-4.5","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi","reasoning_content":""}}]}"#;
+
+    let result = serde_json::from_str::<Response>(z_ai_response);
+    match &result {
+        Ok(_) => println!("Successfully deserialized z.ai response"),
+        Err(e) => println!("Failed to deserialize z.ai response: {}", e),
+    }
+
+    // This should now succeed with our fixes
+    assert!(result.is_ok());
+
+    // Test conversion to ChatCompletionMessage
+    let response = result.unwrap();
+    let completion_result = ChatCompletionMessage::try_from(response);
+    match &completion_result {
+        Ok(_) => println!("Successfully converted to ChatCompletionMessage"),
+        Err(e) => println!("Failed to convert to ChatCompletionMessage: {}", e),
+    }
+
+    assert!(completion_result.is_ok());
+}
+#[test]
+fn test_z_ai_response_complete_with_usage() {
+    // Complete z.ai response with finish_reason and usage (like the final message)
+    let z_ai_final_response = r#"{"id":"20250822012952a2d93c459ed54892","created":1755797392,"model":"glm-4.5","choices":[{"index":0,"finish_reason":"stop","delta":{"role":"assistant","content":"","reasoning_content":""}}],"usage":{"prompt_tokens":8,"completion_tokens":14,"total_tokens":22,"prompt_tokens_details":{"cached_tokens":0}}}"#;
+
+    let result = serde_json::from_str::<Response>(z_ai_final_response);
+    match &result {
+        Ok(_) => println!("Successfully deserialized complete z.ai response"),
+        Err(e) => println!("Failed to deserialize complete z.ai response: {}", e),
+    }
+
+    assert!(result.is_ok());
+
+    // Test conversion to ChatCompletionMessage
+    let response = result.unwrap();
+    let completion_result = ChatCompletionMessage::try_from(response);
+    match &completion_result {
+        Ok(msg) => {
+            println!("Successfully converted to ChatCompletionMessage");
+            // Check that usage information is preserved
+            assert!(msg.usage.is_some());
+            if let Some(usage) = &msg.usage {
+                println!(
+                    "Usage: prompt_tokens={:?}, completion_tokens={:?}, total_tokens={:?}",
+                    usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
+                );
+            }
+        }
+        Err(e) => println!("Failed to convert to ChatCompletionMessage: {}", e),
+    }
+
+    assert!(completion_result.is_ok());
 }
