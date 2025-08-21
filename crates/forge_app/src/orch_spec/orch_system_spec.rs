@@ -1,5 +1,5 @@
 use forge_domain::{ChatCompletionMessage, Content, Workflow};
-use insta::assert_debug_snapshot;
+use insta::assert_snapshot;
 
 use crate::orch_spec::orch_runner::TestContext;
 
@@ -12,8 +12,8 @@ async fn test_system_prompt() {
         ))]);
 
     ctx.run().await.unwrap();
-    let system_messages = ctx.output.system_messages().unwrap();
-    assert_debug_snapshot!(system_messages);
+    let system_messages = ctx.output.system_messages().unwrap().join("\n\n");
+    assert_snapshot!(system_messages);
 }
 
 #[tokio::test]
@@ -34,6 +34,6 @@ async fn test_system_prompt_tool_supported() {
 
     ctx.run().await.unwrap();
 
-    let system_messages = ctx.output.system_messages().unwrap();
-    assert_debug_snapshot!(system_messages);
+    let system_messages = ctx.output.system_messages().unwrap().join("\n\n");
+    assert_snapshot!(system_messages);
 }
