@@ -57,21 +57,17 @@ impl MessageContent {
             MessageContent::Parts(parts) => {
                 let mut parts = parts;
                 match cache_control {
-                    Some(cc) => {
+                    Some(_) => {
                         // Reset cache-control
                         parts.iter_mut().rev().for_each(|part| match part {
                             ContentPart::Text { cache_control, .. } => *cache_control = None,
-                            ContentPart::ImageUrl { .. } => {}
+                            ContentPart::ImageUrl { cache_control, .. } => *cache_control = None,
                         });
 
-                        // Set cache-control on last
-                        let cache_control = parts.iter_mut().rev().find_map(|part| match part {
-                            ContentPart::Text { cache_control, .. } => Some(cache_control),
-                            ContentPart::ImageUrl { .. } => None,
-                        });
-                        if let Some(cache_control) = cache_control {
-                            *cache_control = Some(cc.clone());
+                        if let Some(last_part) = parts.last_mut() {
+                            last_part.cached(enable_cache);
                         }
+
                         MessageContent::Parts(parts)
                     }
                     None => {
@@ -111,7 +107,24 @@ pub enum ContentPart {
     },
     ImageUrl {
         image_url: ImageUrl,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
     },
+}
+
+impl ContentPart {
+    pub fn cached(&mut self, enable_cache: bool) {
+        let src_cache_control =
+            enable_cache.then_some(CacheControl { type_: CacheControlType::Ephemeral });
+        match self {
+            ContentPart::Text { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+            ContentPart::ImageUrl { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -380,6 +393,7 @@ impl From<ContextMessage> for Message {
             ContextMessage::Image(img) => {
                 let content = vec![ContentPart::ImageUrl {
                     image_url: ImageUrl { url: img.url().clone(), detail: None },
+                    cache_control: None,
                 }];
                 Message {
                     role: Role::User,
@@ -410,6 +424,7 @@ impl From<ToolResult> for MessageContent {
                 ToolValue::Image(img) => {
                     let content = ContentPart::ImageUrl {
                         image_url: ImageUrl { url: img.url().clone(), detail: None },
+                        cache_control: None,
                     };
                     parts.push(content);
                 }
