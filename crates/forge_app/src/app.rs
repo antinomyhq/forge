@@ -9,7 +9,7 @@ use forge_stream::MpscStream;
 use crate::authenticator::Authenticator;
 use crate::dto::InitAuth;
 use crate::orch::Orchestrator;
-use crate::services::TemplateService;
+use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::workflow_manager::WorkflowManager;
 use crate::{
@@ -102,12 +102,15 @@ impl<S: Services> ForgeApp<S> {
             chat.event = chat.event.attachments(attachments);
         }
 
+        let custom_instructions = services.get_custom_instructions().await;
+
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
             conversation,
             Local::now(),
+            custom_instructions,
         )
         .tool_definitions(tool_definitions)
         .models(models)

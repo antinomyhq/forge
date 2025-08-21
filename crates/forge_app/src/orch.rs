@@ -12,7 +12,6 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
-
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
 #[derive(Clone, Setters)]
@@ -26,6 +25,7 @@ pub struct Orchestrator<S> {
     models: Vec<Model>,
     files: Vec<String>,
     current_time: chrono::DateTime<chrono::Local>,
+    custom_instructions: Vec<String>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -34,6 +34,7 @@ impl<S: AgentService> Orchestrator<S> {
         environment: Environment,
         conversation: Conversation,
         current_time: chrono::DateTime<chrono::Local>,
+        custom_instructions: Vec<String>,
     ) -> Self {
         Self {
             conversation,
@@ -44,6 +45,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             current_time,
+            custom_instructions,
         }
     }
 
@@ -209,12 +211,22 @@ impl<S: AgentService> Orchestrator<S> {
                 false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)?).to_string()),
             };
 
+            let mut custom_rules = Vec::new();
+
+            agent.custom_rules.iter().for_each(|rule| {
+                custom_rules.push(rule.as_str());
+            });
+
+            self.custom_instructions.iter().for_each(|rule| {
+                custom_rules.push(rule.as_str());
+            });
+
             let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
                 tool_supported,
                 files,
-                custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
+                custom_rules: custom_rules.join("\n\n"),
                 variables: variables.clone(),
                 supports_parallel_tool_calls,
                 agent_prompt: Some(self.services.render(&system_prompt.template, &()).await?),
