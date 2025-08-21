@@ -2,7 +2,6 @@ use std::path::Path;
 
 use anyhow::bail;
 
-
 /// Ensures that the given path is absolute
 ///
 /// # Arguments
