@@ -10,6 +10,12 @@ use crate::{Error, Result, ToolCallArguments, ToolName};
 #[serde(transparent)]
 pub struct ToolCallId(pub(crate) String);
 
+impl From<&str> for ToolCallId {
+    fn from(value: &str) -> Self {
+        ToolCallId(value.to_string())
+    }
+}
+
 impl ToolCallId {
     pub fn new(value: impl ToString) -> Self {
         ToolCallId(value.to_string())

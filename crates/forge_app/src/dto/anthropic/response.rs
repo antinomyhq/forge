@@ -196,8 +196,10 @@ impl TryFrom<Event> for ChatCompletionMessage {
             | Event::ContentBlockDelta { delta: content_block, .. } => {
                 ChatCompletionMessage::try_from(content_block)?
             }
-            Event::MessageDelta { delta, .. } => {
-                ChatCompletionMessage::assistant(Content::part("")).finish_reason(delta.stop_reason)
+            Event::MessageDelta { delta, usage } => {
+                ChatCompletionMessage::assistant(Content::part(""))
+                    .finish_reason(delta.stop_reason)
+                    .usage(usage)
             }
             Event::Error { error } => {
                 return Err(error.into());
