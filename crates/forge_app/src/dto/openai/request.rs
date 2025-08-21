@@ -59,7 +59,7 @@ impl MessageContent {
                 match cache_control {
                     Some(_) => {
                         // Reset cache-control
-                        parts.iter_mut().rev().for_each(|part| part.reset_cache());
+                        parts.iter_mut().for_each(|part| part.reset_cache());
 
                         // cache the last part of the message
                         if let Some(last_part) = parts.last_mut() {
@@ -69,11 +69,7 @@ impl MessageContent {
                         MessageContent::Parts(parts)
                     }
                     None => {
-                        for part in parts.iter_mut() {
-                            if let ContentPart::Text { cache_control, .. } = part {
-                                *cache_control = None;
-                            }
-                        }
+                        parts.iter_mut().for_each(|part| part.reset_cache());
                         MessageContent::Parts(parts)
                     }
                 }
@@ -497,16 +493,15 @@ mod tests {
             ContentPart::Text { text: "a".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         let actual = fixture.cached(true);
         let expected = MessageContent::Parts(vec![
-            ContentPart::Text {
-                text: "a".to_string(),
-                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
-            },
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         assert_eq!(actual, expected);
@@ -525,6 +520,7 @@ mod tests {
             },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         let actual = fixture.cached(false);
@@ -533,6 +529,7 @@ mod tests {
             ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         assert_eq!(actual, expected);
@@ -548,17 +545,16 @@ mod tests {
             ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         let actual = fixture.cached(true);
         let expected = MessageContent::Parts(vec![
             ContentPart::Text { text: "a".to_string(), cache_control: None },
-            ContentPart::Text {
-                text: "b".to_string(),
-                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
-            },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         assert_eq!(actual, expected);
@@ -571,17 +567,16 @@ mod tests {
             ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         let actual = fixture.cached(true);
         let expected = MessageContent::Parts(vec![
             ContentPart::Text { text: "a".to_string(), cache_control: None },
-            ContentPart::Text {
-                text: "b".to_string(),
-                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
-            },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         assert_eq!(actual, expected);
@@ -593,6 +588,7 @@ mod tests {
             ContentPart::Text { text: "a".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         let actual = fixture.cached(false);
@@ -600,6 +596,7 @@ mod tests {
             ContentPart::Text { text: "a".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         assert_eq!(actual, expected);
