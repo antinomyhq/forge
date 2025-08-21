@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -60,7 +59,6 @@ impl<T: HttpClientService> Anthropic<T> {
             .max_tokens(max_tokens as u64);
 
         let request = SetCache.transform(request);
-
 
         let path = "/messages";
         let url = self.url(path)?;
