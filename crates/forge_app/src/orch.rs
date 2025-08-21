@@ -12,7 +12,6 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
-
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
 #[derive(Clone, Setters)]
@@ -26,6 +25,7 @@ pub struct Orchestrator<S> {
     models: Vec<Model>,
     files: Vec<String>,
     current_time: chrono::DateTime<chrono::Local>,
+    custom_instructions: Vec<String>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -34,6 +34,7 @@ impl<S: AgentService> Orchestrator<S> {
         environment: Environment,
         conversation: Conversation,
         current_time: chrono::DateTime<chrono::Local>,
+        custom_instructions: Vec<String>,
     ) -> Self {
         Self {
             conversation,
@@ -44,6 +45,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             current_time,
+            custom_instructions,
         }
     }
 
@@ -58,15 +60,23 @@ impl<S: AgentService> Orchestrator<S> {
         &self,
         agent: &Agent,
         tool_calls: &[ToolCallFull],
-        tool_context: &mut ToolCallContext<'a>,
+        tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
         for tool_call in tool_calls {
+            let is_agent = self
+                .conversation
+                .agents
+                .iter()
+                .any(|agent| agent.id.as_str() == tool_call.name.as_str());
+
             // Send the start notification
-            self.send(ChatResponse::ToolCallStart(tool_call.clone()))
-                .await?;
+            if !is_agent {
+                self.send(ChatResponse::ToolCallStart(tool_call.clone()))
+                    .await?;
+            }
 
             // Execute the tool
             let tool_result = self
@@ -85,9 +95,10 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Send the end notification
-            self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
-                .await?;
-
+            if !is_agent {
+                self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
+                    .await?;
+            }
             // Ensure all tool calls and results are recorded
             // Adding task completion records is critical for compaction to work correctly
             tool_call_records.push((tool_call.clone(), tool_result));
@@ -200,23 +211,33 @@ impl<S: AgentService> Orchestrator<S> {
                 false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)?).to_string()),
             };
 
+            let mut custom_rules = Vec::new();
+
+            agent.custom_rules.iter().for_each(|rule| {
+                custom_rules.push(rule.as_str());
+            });
+
+            self.custom_instructions.iter().for_each(|rule| {
+                custom_rules.push(rule.as_str());
+            });
+
             let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
                 tool_supported,
                 files,
-                custom_rules: agent.custom_rules.as_ref().cloned().unwrap_or_default(),
+                custom_rules: custom_rules.join("\n\n"),
                 variables: variables.clone(),
                 supports_parallel_tool_calls,
-                agent_prompt: Some(self.services.render(&system_prompt.template, &()).await?),
             };
 
-            let rendered_prompt = self
+            let static_block = self.services.render(&system_prompt.template, &()).await?;
+            let non_static_block = self
                 .services
                 .render("{{> forge-custom-agent-template.hbs }}", &ctx)
                 .await?;
 
-            context.set_first_system_message(rendered_prompt)
+            context.set_system_messages(vec![static_block, non_static_block])
         } else {
             context
         })
@@ -374,7 +395,7 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.conversation.max_requests_per_turn;
 
-        let mut metrics = self.conversation.metrics.clone();
+        let metrics = self.conversation.metrics.clone();
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
 
@@ -461,11 +482,11 @@ impl<S: AgentService> Orchestrator<S> {
                 // If task is completed we would have already displayed a message so we can
                 // ignore the content that's collected from the stream
                 // NOTE: Important to send the content messages before the tool call happens
-                self.send(ChatResponse::Text {
+                self.send(ChatResponse::TaskMessage {
                     text: remove_tag_with_prefix(&content, "forge_")
                         .as_str()
                         .to_string(),
-                    is_complete: true,
+
                     is_md: true,
                 })
                 .await?;
@@ -476,13 +497,11 @@ impl<S: AgentService> Orchestrator<S> {
                 && reasoning_supported
             {
                 // If reasoning is present, send it as a separate message
-                self.send(ChatResponse::Reasoning { content: reasoning.to_string() })
+                self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
                     .await?;
             }
 
-            let mut tool_context =
-                ToolCallContext::new(self.conversation.tasks.clone(), &mut metrics)
-                    .sender(self.sender.clone());
+            let tool_context = ToolCallContext::new(metrics.clone()).sender(self.sender.clone());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
@@ -491,7 +510,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Process tool calls and update context
             let mut tool_call_records = self
-                .execute_tool_calls(&agent, &tool_calls, &mut tool_context)
+                .execute_tool_calls(&agent, &tool_calls, &tool_context)
                 .await?;
 
             // Update the tool call attempts, if the tool call is an error
@@ -524,11 +543,11 @@ impl<S: AgentService> Orchestrator<S> {
                 // No tools were called in the previous turn nor were they called in this step;
                 // Means that this is conversation.
 
-                self.send(ChatResponse::Text {
+                self.send(ChatResponse::TaskMessage {
                     text: remove_tag_with_prefix(&content, "forge_")
                         .as_str()
                         .to_string(),
-                    is_complete: true,
+
                     is_md: true,
                 })
                 .await?;
@@ -594,7 +613,6 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Update context in the conversation
             context = SetModel::new(model_id.clone()).transform(context);
-            self.conversation.tasks = tool_context.tasks;
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
@@ -626,7 +644,7 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         if has_attempted_completion {
-            self.send(ChatResponse::ChatComplete(metrics.clone()))
+            self.send(ChatResponse::TaskComplete { metrics: metrics.clone() })
                 .await?;
         }
 

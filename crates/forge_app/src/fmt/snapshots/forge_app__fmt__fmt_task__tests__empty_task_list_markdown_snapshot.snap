@@ -1,5 +1,0 @@
----
-source: crates/forge_app/src/fmt/fmt_task.rs
-expression: actual
----
-No tasks in the list.

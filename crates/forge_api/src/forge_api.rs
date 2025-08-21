@@ -121,7 +121,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         working_dir: PathBuf,
     ) -> anyhow::Result<CommandOutput> {
         self.infra
-            .execute_command(command.to_string(), working_dir)
+            .execute_command(command.to_string(), working_dir, false)
             .await
     }
     async fn read_mcp_config(&self) -> Result<McpConfig> {

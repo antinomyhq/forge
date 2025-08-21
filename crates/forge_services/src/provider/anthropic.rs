@@ -5,7 +5,9 @@ use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
-use forge_app::dto::anthropic::{EventData, ListModelResponse, ReasoningTransform, Request};
+use forge_app::dto::anthropic::{
+    EventData, ListModelResponse, ReasoningTransform, Request, SetCache,
+};
 use reqwest::Url;
 use tracing::debug;
 
@@ -55,6 +57,8 @@ impl<T: HttpClientService> Anthropic<T> {
             .model(model.as_str().to_string())
             .stream(true)
             .max_tokens(max_tokens as u64);
+
+        let request = SetCache.transform(request);
 
         let path = "/messages";
         let url = self.url(path)?;

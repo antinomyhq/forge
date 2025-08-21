@@ -3,7 +3,7 @@ use forge_domain::Transformer;
 use crate::dto::openai::{Request, ToolChoice};
 
 pub struct SetToolChoice {
-    choice: ToolChoice,
+    pub choice: ToolChoice,
 }
 
 impl SetToolChoice {

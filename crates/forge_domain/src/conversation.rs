@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::task::TaskList;
 use crate::{
     Agent, AgentId, Compact, Context, Error, Event, Metrics, ModelId, Result, ToolName, Workflow,
 };
@@ -42,7 +41,6 @@ pub struct Conversation {
     pub variables: HashMap<String, Value>,
     pub agents: Vec<Agent>,
     pub events: Vec<Event>,
-    pub tasks: TaskList,
     pub max_tool_failure_per_turn: Option<usize>,
     pub max_requests_per_turn: Option<usize>,
     pub metrics: Metrics,
@@ -91,7 +89,11 @@ impl Conversation {
 
         for mut agent in workflow.agents.into_iter() {
             if let Some(custom_rules) = workflow.custom_rules.clone() {
-                agent.custom_rules = Some(custom_rules);
+                if let Some(existing_rules) = &agent.custom_rules {
+                    agent.custom_rules = Some(existing_rules.clone() + "\n\n" + &custom_rules);
+                } else {
+                    agent.custom_rules = Some(custom_rules);
+                }
             }
 
             if let Some(max_walker_depth) = workflow.max_walker_depth {
@@ -184,7 +186,6 @@ impl Conversation {
             variables: workflow.variables.clone(),
             agents,
             events: Default::default(),
-            tasks: TaskList::new(),
             max_tool_failure_per_turn: workflow.max_tool_failure_per_turn,
             max_requests_per_turn: workflow.max_requests_per_turn,
             metrics,
@@ -404,7 +405,10 @@ mod tests {
             .unwrap();
         assert_eq!(agent1.model, Some(ModelId::new("default-model")));
         assert_eq!(agent1.max_walker_depth, Some(5));
-        assert_eq!(agent1.custom_rules, Some("Default rules".to_string()));
+        assert_eq!(
+            agent1.custom_rules,
+            Some("Agent1 specific rules\n\nDefault rules".to_string())
+        );
         assert_eq!(agent1.temperature, Some(Temperature::new(0.7).unwrap()));
         assert_eq!(agent1.max_tokens, Some(MaxTokens::new(4000).unwrap()));
         assert_eq!(agent1.tool_supported, Some(true)); // Workflow setting overrides agent setting
