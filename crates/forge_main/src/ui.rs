@@ -10,7 +10,7 @@ use forge_api::{
     InterruptionReason, Model, ModelId, Workflow,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Metrics, Provider, Scope};
+use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Metrics, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -761,9 +761,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         match message {
-            ChatResponse::TaskMessage { mut text, is_md } => {
+            ChatResponse::TaskMessage { content } => {
+                let mut text = match &content {
+                    ChatResponseContent::Title(t)
+                    | ChatResponseContent::PlainText(t)
+                    | ChatResponseContent::Markdown(t) => t.clone(),
+                };
                 if !text.trim().is_empty() {
-                    if is_md {
+                    if matches!(content, ChatResponseContent::Markdown(_)) {
                         tracing::info!(message = %text, "Agent Response");
                         text = self.markdown.render(&text);
                     }

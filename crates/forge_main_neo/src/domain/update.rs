@@ -1,9 +1,18 @@
 use edtui::EditorEventHandler;
-use forge_api::ChatResponse;
+use forge_api::{ChatResponse, ChatResponseContent};
 use ratatui::crossterm::event::KeyEventKind;
 
 use crate::domain::update_key_event::handle_key_event;
+
 use crate::domain::{Action, Command, State};
+
+fn content_to_text(content: &ChatResponseContent) -> &str {
+    match content {
+        ChatResponseContent::Title(text)
+        | ChatResponseContent::PlainText(text)
+        | ChatResponseContent::Markdown(text) => text,
+    }
+}
 
 pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
     let action = action.into();
@@ -35,8 +44,8 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             ratatui::crossterm::event::Event::Resize(_, _) => Command::Empty,
         },
         Action::ChatResponse(response) => {
-            if let ChatResponse::TaskMessage { ref text, .. } = response
-                && !text.trim().is_empty()
+            if let ChatResponse::TaskMessage { ref content, .. } = response
+                && !content_to_text(content).trim().is_empty()
             {
                 state.show_spinner = false
             }
@@ -315,8 +324,9 @@ mod tests {
         };
         fixture_state.timer = Some(timer);
 
-        let chat_response =
-            forge_api::ChatResponse::TaskMessage { text: "Hello World".to_string(), is_md: false };
+        let chat_response = forge_api::ChatResponse::TaskMessage {
+            content: ChatResponseContent::PlainText("Hello World".to_string()),
+        };
         let actual_command = update(&mut fixture_state, Action::ChatResponse(chat_response));
 
         // Check that cancellation happened automatically and command is Empty
@@ -339,8 +349,9 @@ mod tests {
         };
         fixture_state.timer = Some(timer.clone());
 
-        let chat_response =
-            forge_api::ChatResponse::TaskMessage { text: "Hello".to_string(), is_md: false };
+        let chat_response = forge_api::ChatResponse::TaskMessage {
+            content: ChatResponseContent::PlainText("Hello".to_string()),
+        };
         let actual_command = update(&mut fixture_state, Action::ChatResponse(chat_response));
         let expected_command = Command::Empty;
 

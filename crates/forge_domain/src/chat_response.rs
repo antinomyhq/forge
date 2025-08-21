@@ -2,11 +2,24 @@ use std::time::Duration;
 
 use crate::{Metrics, ToolCallFull, ToolResult, Usage};
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ChatResponseContent {
+    Title(String),
+    PlainText(String),
+    Markdown(String),
+}
+
+impl From<ChatResponseContent> for ChatResponse {
+    fn from(content: ChatResponseContent) -> Self {
+        ChatResponse::TaskMessage { content }
+    }
+}
+
 /// Events that are emitted by the agent for external consumption. This includes
 /// events for all internal state changes.
 #[derive(Debug, Clone)]
 pub enum ChatResponse {
-    TaskMessage { text: String, is_md: bool },
+    TaskMessage { content: ChatResponseContent },
     TaskReasoning { content: String },
     TaskComplete { metrics: Metrics },
     ToolCallStart(ToolCallFull),

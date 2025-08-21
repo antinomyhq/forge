@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use derive_setters::Setters;
 use tokio::sync::mpsc::Sender;
 
-use crate::{ChatResponse, Metrics};
+use crate::{ChatResponse, ChatResponseContent, Metrics};
 
 /// Type alias for Arc<Sender<Result<ChatResponse>>>
 type ArcSender = Arc<Sender<anyhow::Result<ChatResponse>>>;
@@ -30,8 +30,10 @@ impl ToolCallContext {
     }
 
     pub async fn send_text(&self, content: impl ToString) -> anyhow::Result<()> {
-        self.send(ChatResponse::TaskMessage { text: content.to_string(), is_md: false })
-            .await
+        self.send(ChatResponse::TaskMessage {
+            content: ChatResponseContent::PlainText(content.to_string()),
+        })
+        .await
     }
 
     /// Execute a closure with access to the metrics

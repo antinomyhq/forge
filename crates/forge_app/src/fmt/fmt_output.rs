@@ -1,18 +1,18 @@
 use forge_display::{DiffFormat, GrepFormat, TitleFormat};
-use forge_domain::Environment;
+use forge_domain::{ChatResponseContent, Environment};
 
-use crate::fmt::content::{ContentFormat, FormatContent};
+use crate::fmt::content::{FormatContent, title_to_content_format};
 use crate::operation::ToolOperation;
 use crate::utils::{format_display_path, format_match};
 
 impl FormatContent for ToolOperation {
-    fn to_content(&self, env: &Environment) -> Option<ContentFormat> {
+    fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
             ToolOperation::FsRead { input: _, output: _ } => None,
             ToolOperation::FsCreate { input: _, output: _ } => None,
             ToolOperation::FsRemove { input: _, output: _ } => None,
             ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
-                ContentFormat::PlainText(
+                ChatResponseContent::PlainText(
                     GrepFormat::new(
                         result
                             .matches
@@ -23,7 +23,7 @@ impl FormatContent for ToolOperation {
                     .format(),
                 )
             }),
-            ToolOperation::FsPatch { input: _, output } => Some(ContentFormat::PlainText(
+            ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::PlainText(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
                     .to_string(),
@@ -33,13 +33,12 @@ impl FormatContent for ToolOperation {
             ToolOperation::Shell { output: _ } => None,
             ToolOperation::FollowUp { output: _ } => None,
             ToolOperation::AttemptCompletion => None,
-            ToolOperation::PlanCreate { input: _, output } => Some(
-                TitleFormat::debug(format!(
+            ToolOperation::PlanCreate { input: _, output } => {
+                Some(title_to_content_format(TitleFormat::debug(format!(
                     "Create {}",
                     format_display_path(&output.path, &env.cwd)
-                ))
-                .into(),
-            ),
+                ))))
+            }
         }
     }
 }

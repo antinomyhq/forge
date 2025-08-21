@@ -1,14 +1,13 @@
-use std::convert::AsRef;
 use std::path::Path;
 
 use forge_display::TitleFormat;
-use forge_domain::{Environment, Tools};
+use forge_domain::{ChatResponseContent, Environment, Tools};
 
-use crate::fmt::content::{ContentFormat, FormatContent};
+use crate::fmt::content::{FormatContent, title_to_content_format};
 use crate::utils::format_display_path;
 
 impl FormatContent for Tools {
-    fn to_content(&self, env: &Environment) -> Option<ContentFormat> {
+    fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         let display_path_for = |path: &str| format_display_path(Path::new(path), env.cwd.as_path());
 
         match self {
@@ -30,7 +29,9 @@ impl FormatContent for Tools {
                         (None, None) => {}
                     }
                 };
-                Some(TitleFormat::debug("Read").sub_title(subtitle).into())
+                Some(title_to_content_format(
+                    TitleFormat::debug("Read").sub_title(subtitle),
+                ))
             }
             Tools::ForgeToolFsCreate(input) => {
                 let display_path = display_path_for(&input.path);
@@ -39,7 +40,9 @@ impl FormatContent for Tools {
                 } else {
                     "Create"
                 };
-                Some(TitleFormat::debug(title).sub_title(display_path).into())
+                Some(title_to_content_format(
+                    TitleFormat::debug(title).sub_title(display_path),
+                ))
             }
             Tools::ForgeToolFsSearch(input) => {
                 let formatted_dir = display_path_for(&input.path);
@@ -51,39 +54,37 @@ impl FormatContent for Tools {
                     (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
                     (None, None) => format!("Search at {formatted_dir}"),
                 };
-                Some(TitleFormat::debug(title).into())
+                Some(title_to_content_format(TitleFormat::debug(title)))
             }
             Tools::ForgeToolFsRemove(input) => {
                 let display_path = display_path_for(&input.path);
-                Some(TitleFormat::debug("Remove").sub_title(display_path).into())
+                Some(title_to_content_format(
+                    TitleFormat::debug("Remove").sub_title(display_path),
+                ))
             }
             Tools::ForgeToolFsPatch(input) => {
                 let display_path = display_path_for(&input.path);
-                Some(
-                    TitleFormat::debug(input.operation.as_ref())
-                        .sub_title(display_path)
-                        .into(),
-                )
+                Some(title_to_content_format(
+                    TitleFormat::debug(input.operation.as_ref()).sub_title(display_path),
+                ))
             }
             Tools::ForgeToolFsUndo(input) => {
                 let display_path = display_path_for(&input.path);
-                Some(TitleFormat::debug("Undo").sub_title(display_path).into())
+                Some(title_to_content_format(
+                    TitleFormat::debug("Undo").sub_title(display_path),
+                ))
             }
-            Tools::ForgeToolProcessShell(input) => Some(
-                TitleFormat::debug(format!("Execute [{}]", env.shell))
-                    .sub_title(&input.command)
-                    .into(),
-            ),
-            Tools::ForgeToolNetFetch(input) => {
-                Some(TitleFormat::debug("GET").sub_title(&input.url).into())
-            }
-            Tools::ForgeToolFollowup(input) => Some(
-                TitleFormat::debug("Follow-up")
-                    .sub_title(&input.question)
-                    .into(),
-            ),
+            Tools::ForgeToolProcessShell(input) => Some(title_to_content_format(
+                TitleFormat::debug(format!("Execute [{}]", env.shell)).sub_title(&input.command),
+            )),
+            Tools::ForgeToolNetFetch(input) => Some(title_to_content_format(
+                TitleFormat::debug("GET").sub_title(&input.url),
+            )),
+            Tools::ForgeToolFollowup(input) => Some(title_to_content_format(
+                TitleFormat::debug("Follow-up").sub_title(&input.question),
+            )),
             Tools::ForgeToolAttemptCompletion(input) => {
-                Some(ContentFormat::Markdown(input.result.clone()))
+                Some(ChatResponseContent::Markdown(input.result.clone()))
             }
             Tools::ForgeToolPlanCreate(_) => None,
         }
@@ -99,14 +100,14 @@ mod tests {
     use pretty_assertions::assert_eq;
     use url::Url;
 
-    use super::{ContentFormat, FormatContent};
+    use super::{ChatResponseContent, FormatContent};
 
-    impl ContentFormat {
+    impl ChatResponseContent {
         pub fn render(&self, with_timestamp: bool) -> String {
             match self {
-                ContentFormat::Title(title) => title.render(with_timestamp),
-                ContentFormat::PlainText(summary) => summary.clone(),
-                ContentFormat::Markdown(summary) => summary.clone(),
+                ChatResponseContent::Title(title) => title.clone(),
+                ChatResponseContent::PlainText(summary) => summary.clone(),
+                ChatResponseContent::Markdown(summary) => summary.clone(),
             }
         }
     }

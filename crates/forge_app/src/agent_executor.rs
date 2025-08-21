@@ -3,7 +3,8 @@ use std::sync::Arc;
 use convert_case::{Case, Casing};
 use forge_display::TitleFormat;
 use forge_domain::{
-    ChatRequest, ChatResponse, Event, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
+    ChatRequest, ChatResponse, ChatResponseContent, Event, ToolCallContext, ToolDefinition,
+    ToolName, ToolOutput,
 };
 use futures::StreamExt;
 use tokio::sync::RwLock;
@@ -70,9 +71,17 @@ impl<S: Services> AgentExecutor<S> {
         while let Some(message) = response_stream.next().await {
             let message = message?;
             match message {
-                ChatResponse::TaskMessage { ref text, .. } => {
+                ChatResponse::TaskMessage { ref content } => {
+                    let text = match content {
+                        ChatResponseContent::Title(s)
+                        | ChatResponseContent::PlainText(s)
+                        | ChatResponseContent::Markdown(s) => s,
+                    };
                     output = Some(ToolOutput::text(text));
-                    ctx.send(message).await?;
+                    // If its MD then its final summary
+                    if !matches!(content, ChatResponseContent::Markdown(_)) {
+                        ctx.send(message).await?;
+                    }
                 }
                 ChatResponse::TaskReasoning { .. } => ctx.send(message).await?,
                 ChatResponse::TaskComplete { .. } => {}
