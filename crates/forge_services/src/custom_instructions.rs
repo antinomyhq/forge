@@ -56,6 +56,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + CommandInfra> ForgeCustomInstructio
             .execute_command(
                 "git rev-parse --show-toplevel".to_owned(),
                 self.infra.get_environment().cwd,
+                true, // silent mode - don't print git output
             )
             .await
             .ok()?;

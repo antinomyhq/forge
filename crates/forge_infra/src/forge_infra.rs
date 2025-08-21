@@ -179,9 +179,10 @@ impl CommandInfra for ForgeInfra {
         &self,
         command: String,
         working_dir: PathBuf,
+        silent: bool,
     ) -> anyhow::Result<CommandOutput> {
         self.command_executor_service
-            .execute_command(command, working_dir)
+            .execute_command(command, working_dir, silent)
             .await
     }
 
