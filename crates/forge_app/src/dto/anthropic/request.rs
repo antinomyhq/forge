@@ -5,37 +5,37 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Default, Setters)]
 #[setters(into, strip_option)]
 pub struct Request {
-    max_tokens: u64,
-    messages: Vec<Message>,
-    model: String,
+    pub max_tokens: u64,
+    pub messages: Vec<Message>,
+    pub model: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    metadata: Option<Metadata>,
+    pub metadata: Option<Metadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stop_sequence: Option<String>,
+    pub stop_sequence: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stream: Option<bool>,
+    pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) system: Option<Vec<SystemMessage>>,
+    pub system: Option<Vec<SystemMessage>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    temperature: Option<f32>,
+    pub temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    tool_choice: Option<ToolChoice>,
+    pub tool_choice: Option<ToolChoice>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    tools: Vec<ToolDefinition>,
+    pub tools: Vec<ToolDefinition>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_k: Option<u64>,
+    pub top_k: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_p: Option<f32>,
+    pub top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    thinking: Option<Thinking>,
+    pub thinking: Option<Thinking>,
 }
 
 #[derive(Serialize, Default)]
 pub struct SystemMessage {
-    pub(crate) r#type: String,
-    pub(crate) text: String,
+    pub r#type: String,
+    pub text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) cache_control: Option<CacheControl>,
+    pub cache_control: Option<CacheControl>,
 }
 
 impl SystemMessage {
@@ -55,8 +55,8 @@ impl SystemMessage {
 
 #[derive(Serialize, Default)]
 pub struct Thinking {
-    r#type: String,
-    budget_tokens: u64,
+    pub r#type: String,
+    pub budget_tokens: u64,
 }
 
 impl TryFrom<forge_domain::Context> for Request {
@@ -123,13 +123,13 @@ impl Request {
 #[derive(Serialize)]
 pub struct Metadata {
     #[serde(skip_serializing_if = "Option::is_none")]
-    user_id: Option<String>,
+    pub user_id: Option<String>,
 }
 
 #[derive(Serialize)]
 pub struct Message {
-    content: Vec<Content>,
-    role: Role,
+    pub content: Vec<Content>,
+    pub role: Role,
 }
 
 impl TryFrom<ContextMessage> for Message {
@@ -242,20 +242,20 @@ impl From<Image> for Content {
 }
 
 #[derive(Serialize)]
-struct ImageSource {
+pub struct ImageSource {
     #[serde(rename = "type")]
-    type_: String,
+    pub type_: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    media_type: Option<String>,
+    pub media_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<String>,
+    pub data: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
+    pub url: Option<String>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
-enum Content {
+pub enum Content {
     Image {
         source: ImageSource,
     },
@@ -410,12 +410,12 @@ impl From<forge_domain::ToolChoice> for ToolChoice {
 
 #[derive(Serialize)]
 pub struct ToolDefinition {
-    name: String,
+    pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
+    pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    cache_control: Option<CacheControl>,
-    input_schema: serde_json::Value,
+    pub cache_control: Option<CacheControl>,
+    pub input_schema: serde_json::Value,
 }
 
 impl TryFrom<forge_domain::ToolDefinition> for ToolDefinition {
