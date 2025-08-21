@@ -15,7 +15,7 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    system: Option<String>,
+    pub(crate) system: Option<Vec<SystemMessage>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -31,6 +31,29 @@ pub struct Request {
 }
 
 #[derive(Serialize, Default)]
+pub struct SystemMessage {
+    pub(crate) r#type: String,
+    pub(crate) text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) cache_control: Option<CacheControl>,
+}
+
+impl SystemMessage {
+    pub fn cached(mut self, cached: bool) -> Self {
+        self.cache_control = if cached {
+            Some(CacheControl::Ephemeral)
+        } else {
+            None
+        };
+        self
+    }
+
+    pub fn is_cached(&self) -> bool {
+        self.cache_control.is_some()
+    }
+}
+
+#[derive(Serialize, Default)]
 pub struct Thinking {
     r#type: String,
     budget_tokens: u64,
@@ -39,33 +62,26 @@ pub struct Thinking {
 impl TryFrom<forge_domain::Context> for Request {
     type Error = anyhow::Error;
     fn try_from(request: forge_domain::Context) -> std::result::Result<Self, Self::Error> {
-        // note: Anthropic only supports 1 system message in context, so from the
-        // context we pick the first system message available.
-        // ref: https://docs.anthropic.com/en/api/messages#body-system
-        let system = request.messages.iter().find_map(|message| {
-            if let ContextMessage::Text(chat_message) = message {
-                if chat_message.role == forge_domain::Role::System {
-                    Some(chat_message.content.clone())
-                } else {
-                    None
+        let system_messages = request
+            .messages
+            .iter()
+            .filter_map(|msg| match msg {
+                ContextMessage::Text(msg) if msg.has_role(forge_domain::Role::System) => {
+                    Some(SystemMessage {
+                        r#type: "text".to_string(),
+                        text: msg.content.clone(),
+                        cache_control: None,
+                    })
                 }
-            } else {
-                None
-            }
-        });
+                _ => None,
+            })
+            .collect::<Vec<_>>();
 
         Ok(Self {
             messages: request
                 .messages
                 .into_iter()
-                .filter(|message| {
-                    // note: Anthropic does not support system messages in message field.
-                    if let ContextMessage::Text(chat_message) = message {
-                        chat_message.role != forge_domain::Role::System
-                    } else {
-                        true
-                    }
-                })
+                .filter(|message| !message.has_role(forge_domain::Role::System))
                 .map(Message::try_from)
                 .collect::<std::result::Result<Vec<_>, _>>()?,
             tools: request
@@ -73,7 +89,7 @@ impl TryFrom<forge_domain::Context> for Request {
                 .into_iter()
                 .map(ToolDefinition::try_from)
                 .collect::<std::result::Result<Vec<_>, _>>()?,
-            system,
+            system: Some(system_messages),
             temperature: request.temperature.map(|t| t.value()),
             top_p: request.top_p.map(|t| t.value()),
             top_k: request.top_k.map(|t| t.value() as u64),
@@ -193,10 +209,10 @@ impl Message {
                         | Content::ToolResult { .. } => Some(idx),
                         _ => None,
                     })
-            {
-                self.content[last_cacheable_idx] =
-                    std::mem::take(&mut self.content[last_cacheable_idx]).cached(true);
-            }
+        {
+            self.content[last_cacheable_idx] =
+                std::mem::take(&mut self.content[last_cacheable_idx]).cached(true);
+        }
 
         self
     }
@@ -346,8 +362,7 @@ impl TryFrom<forge_domain::ToolResult> for Content {
 }
 
 #[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum CacheControl {
     Ephemeral,
 }
