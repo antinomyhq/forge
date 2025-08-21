@@ -358,6 +358,7 @@ pub mod tests {
             &self,
             command: String,
             working_dir: PathBuf,
+            _silent: bool,
         ) -> anyhow::Result<CommandOutput> {
             // For test purposes, we'll create outputs that match what the shell tests
             // expect Check for common command patterns

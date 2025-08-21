@@ -98,12 +98,17 @@ pub struct TestOutput {
 }
 
 impl TestOutput {
-    pub fn system_prompt(&self) -> Option<&str> {
+    pub fn system_messages(&self) -> Option<Vec<&str>> {
         self.conversation_history
             .last()
             .and_then(|c| c.context.as_ref())
-            .and_then(|c| c.messages.iter().find(|c| c.has_role(Role::System)))
-            .and_then(|c| c.content())
+            .and_then(|c| {
+                c.messages
+                    .iter()
+                    .filter(|c| c.has_role(Role::System))
+                    .map(|m| m.content())
+                    .collect()
+            })
     }
 
     pub fn context_messages(&self) -> Vec<ContextMessage> {
