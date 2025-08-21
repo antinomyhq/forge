@@ -12,8 +12,8 @@ async fn test_system_prompt() {
         ))]);
 
     ctx.run().await.unwrap();
-    let system_prompt = ctx.output.system_prompt().unwrap();
-    assert_snapshot!(system_prompt);
+    let system_messages = ctx.output.system_messages().unwrap().join("\n\n");
+    assert_snapshot!(system_messages);
 }
 
 #[tokio::test]
@@ -34,6 +34,6 @@ async fn test_system_prompt_tool_supported() {
 
     ctx.run().await.unwrap();
 
-    let system_prompt = ctx.output.system_prompt().unwrap();
-    assert_snapshot!(system_prompt);
+    let system_messages = ctx.output.system_messages().unwrap().join("\n\n");
+    assert_snapshot!(system_messages);
 }

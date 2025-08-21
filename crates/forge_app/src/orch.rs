@@ -229,15 +229,15 @@ impl<S: AgentService> Orchestrator<S> {
                 custom_rules: custom_rules.join("\n\n"),
                 variables: variables.clone(),
                 supports_parallel_tool_calls,
-                agent_prompt: Some(self.services.render(&system_prompt.template, &()).await?),
             };
 
-            let rendered_prompt = self
+            let static_block = self.services.render(&system_prompt.template, &()).await?;
+            let non_static_block = self
                 .services
                 .render("{{> forge-custom-agent-template.hbs }}", &ctx)
                 .await?;
 
-            context.set_first_system_message(rendered_prompt)
+            context.set_system_messages(vec![static_block, non_static_block])
         } else {
             context
         })
