@@ -480,7 +480,7 @@ mod tests {
     fn test_override_system_message() {
         let request = Context::default()
             .add_message(ContextMessage::system("Initial system message"))
-            .set_system_messages("Updated system message");
+            .set_system_messages(vec!["Updated system message"]);
 
         assert_eq!(
             request.messages[0],
@@ -490,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_set_system_message() {
-        let request = Context::default().set_system_messages("A system message");
+        let request = Context::default().set_system_messages(vec!["A system message"]);
 
         assert_eq!(
             request.messages[0],
@@ -503,7 +503,7 @@ mod tests {
         let model = ModelId::new("test-model");
         let request = Context::default()
             .add_message(ContextMessage::user("Do something", Some(model)))
-            .set_system_messages("A system message");
+            .set_system_messages(vec!["A system message"]);
 
         assert_eq!(
             request.messages[0],
