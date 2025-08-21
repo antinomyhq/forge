@@ -142,7 +142,6 @@ async fn stream<A: AsyncReadExt + Unpin, W: Write>(
     Ok(output)
 }
 
-
 /// The implementation for CommandExecutorService
 #[async_trait::async_trait]
 impl CommandInfra for ForgeCommandExecutorService {
