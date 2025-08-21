@@ -451,40 +451,26 @@ mod tests {
         assert_eq!(message.content.unwrap().as_str(), "");
     }
 
-    #[test]
-    fn test_z_ai_response_compatibility() {
-        // This is an actual response from z.ai API that was failing to deserialize
-        let z_ai_response = r#"{"id":"20250822012952a2d93c459ed54892","created":1755797392,"model":"glm-4.5","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi","reasoning_content":""}}]}"#;
+    #[tokio::test]
+    async fn test_z_ai_response_compatibility() {
+        let fixture = load_fixture("zai_api_delta_response.json").await;
+        let actual = serde_json::from_value::<Response>(fixture);
 
-        let result = serde_json::from_str::<Response>(z_ai_response);
-        match &result {
-            Ok(_) => println!("Successfully deserialized z.ai response"),
-            Err(e) => println!("Failed to deserialize z.ai response: {}", e),
-        }
+        assert!(actual.is_ok());
 
-        // This should now succeed with our fixes
-        assert!(result.is_ok());
-
-        // Test conversion to ChatCompletionMessage
-        let response = result.unwrap();
+        let response = actual.unwrap();
         let completion_result = ChatCompletionMessage::try_from(response);
-        match &completion_result {
-            Ok(_) => println!("Successfully converted to ChatCompletionMessage"),
-            Err(e) => println!("Failed to convert to ChatCompletionMessage: {}", e),
-        }
-
         assert!(completion_result.is_ok());
     }
+
     #[tokio::test]
     async fn test_z_ai_response_complete_with_usage() {
-        // Complete z.ai response with finish_reason and usage (like the final message)
-        let z_ai_final_response = load_fixture("zai_api_response.json").await;
+        let fixture = load_fixture("zai_api_response.json").await;
+        let actual = serde_json::from_value::<Response>(fixture);
 
-        let result = serde_json::from_value::<Response>(z_ai_final_response);
-        assert!(result.is_ok());
+        assert!(actual.is_ok());
 
-        // Test conversion to ChatCompletionMessage
-        let response = result.unwrap();
+        let response = actual.unwrap();
         let completion_result = ChatCompletionMessage::try_from(response);
         assert!(completion_result.is_ok());
     }
