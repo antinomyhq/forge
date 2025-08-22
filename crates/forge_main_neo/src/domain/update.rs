@@ -35,8 +35,8 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
             ratatui::crossterm::event::Event::Resize(_, _) => Command::Empty,
         },
         Action::ChatResponse(response) => {
-            if let ChatResponse::TaskMessage { ref text, .. } = response
-                && !text.trim().is_empty()
+            if let ChatResponse::TaskMessage { ref content, .. } = response
+                && !content.as_str().trim().is_empty()
             {
                 state.show_spinner = false
             }
@@ -84,6 +84,7 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
 
 #[cfg(test)]
 mod tests {
+    use forge_api::ChatResponseContent;
     use pretty_assertions::assert_eq;
     use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use tokio_util::sync::CancellationToken;
@@ -315,8 +316,9 @@ mod tests {
         };
         fixture_state.timer = Some(timer);
 
-        let chat_response =
-            forge_api::ChatResponse::TaskMessage { text: "Hello World".to_string(), is_md: false };
+        let chat_response = forge_api::ChatResponse::TaskMessage {
+            content: ChatResponseContent::PlainText("Hello World".to_string()),
+        };
         let actual_command = update(&mut fixture_state, Action::ChatResponse(chat_response));
 
         // Check that cancellation happened automatically and command is Empty
@@ -339,8 +341,9 @@ mod tests {
         };
         fixture_state.timer = Some(timer.clone());
 
-        let chat_response =
-            forge_api::ChatResponse::TaskMessage { text: "Hello".to_string(), is_md: false };
+        let chat_response = forge_api::ChatResponse::TaskMessage {
+            content: ChatResponseContent::PlainText("Hello".to_string()),
+        };
         let actual_command = update(&mut fixture_state, Action::ChatResponse(chat_response));
         let expected_command = Command::Empty;
 

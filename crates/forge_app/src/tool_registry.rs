@@ -4,8 +4,8 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentInput, ChatResponse, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
-    ToolOutput, ToolResult, Tools, ToolsDiscriminants,
+    Agent, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
+    ToolDefinition, ToolName, ToolOutput, ToolResult, Tools, ToolsDiscriminants,
 };
 use futures::future::join_all;
 use strum::IntoEnumIterator;
@@ -97,7 +97,9 @@ impl<S: Services> ToolRegistry<S> {
             if !text.trim().is_empty() {
                 let text = style(text).cyan().dim().to_string();
                 context
-                    .send(ChatResponse::TaskMessage { text, is_md: false })
+                    .send(ChatResponse::TaskMessage {
+                        content: ChatResponseContent::PlainText(text),
+                    })
                     .await?;
             }
             Ok(output)

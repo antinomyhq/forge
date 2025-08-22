@@ -219,6 +219,18 @@ switch the model using `/model` command in the Forge CLI.
 </details>
 
 <details>
+<summary><strong>Cerebras</strong></summary>
+
+```bash
+# .env
+CEREBRAS_API_KEY=<your_cerebras_api_key>
+```
+
+switch the model using `/model` command in the Forge CLI.
+
+</details>
+
+<details>
 <summary><strong>OpenAI</strong></summary>
 
 ```bash
