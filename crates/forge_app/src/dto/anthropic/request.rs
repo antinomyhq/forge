@@ -54,29 +54,6 @@ impl SystemMessage {
 }
 
 #[derive(Serialize, Default)]
-pub struct SystemMessage {
-    pub(crate) r#type: String,
-    pub(crate) text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) cache_control: Option<CacheControl>,
-}
-
-impl SystemMessage {
-    pub fn cached(mut self, cached: bool) -> Self {
-        self.cache_control = if cached {
-            Some(CacheControl::Ephemeral)
-        } else {
-            None
-        };
-        self
-    }
-
-    pub fn is_cached(&self) -> bool {
-        self.cache_control.is_some()
-    }
-}
-
-#[derive(Serialize, Default)]
 pub struct Thinking {
     pub r#type: String,
     pub budget_tokens: u64,
