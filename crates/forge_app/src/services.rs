@@ -82,11 +82,14 @@ pub struct FsCreateOutput {
 }
 
 #[derive(Debug)]
-pub struct FsRemoveOutput {}
+pub struct FsRemoveOutput {
+    // Content of the file
+    pub content: String,
+}
 
 #[derive(Debug)]
 pub struct PlanCreateOutput {
-    pub path: String,
+    pub path: PathBuf,
     // Set when the file already exists
     pub before: Option<String>,
 }
@@ -161,6 +164,10 @@ pub trait AttachmentService {
 
 pub trait EnvironmentService: Send + Sync {
     fn get_environment(&self) -> Environment;
+}
+#[async_trait::async_trait]
+pub trait CustomInstructionsService: Send + Sync {
+    async fn get_custom_instructions(&self) -> Vec<String>;
 }
 
 #[async_trait::async_trait]
@@ -337,7 +344,7 @@ pub trait PolicyService: Send + Sync {
     /// (only when created)
     async fn check_operation_permission(
         &self,
-        operation: &forge_domain::Operation,
+        operation: &forge_domain::PermissionOperation,
     ) -> anyhow::Result<PolicyDecision>;
 }
 
@@ -350,6 +357,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
     type EnvironmentService: EnvironmentService;
+    type CustomInstructionsService: CustomInstructionsService;
     type WorkflowService: WorkflowService + Sync;
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
@@ -389,6 +397,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
     fn environment_service(&self) -> &Self::EnvironmentService;
+    fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
     fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
@@ -638,6 +647,15 @@ impl<I: Services> EnvironmentService for I {
 }
 
 #[async_trait::async_trait]
+impl<I: Services> CustomInstructionsService for I {
+    async fn get_custom_instructions(&self) -> Vec<String> {
+        self.custom_instructions_service()
+            .get_custom_instructions()
+            .await
+    }
+}
+
+#[async_trait::async_trait]
 impl<I: Services> ProviderRegistry for I {
     async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
         self.provider_registry().get_provider(config).await
@@ -701,7 +719,7 @@ impl<I: Services> AgentLoaderService for I {
 impl<I: Services> PolicyService for I {
     async fn check_operation_permission(
         &self,
-        operation: &forge_domain::Operation,
+        operation: &forge_domain::PermissionOperation,
     ) -> anyhow::Result<PolicyDecision> {
         self.policy_service()
             .check_operation_permission(operation)

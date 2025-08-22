@@ -10,7 +10,7 @@ use forge_api::{
     InterruptionReason, Model, ModelId, Workflow,
 };
 use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
+use forge_domain::{McpConfig, McpServerConfig, Metrics, Provider, Scope};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -655,22 +655,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(workflow)
     }
     async fn init_provider(&mut self) -> Result<Provider> {
-        match self.api.provider().await {
-            // Use the forge key if available in the config.
-            Ok(provider) => Ok(provider),
-            Err(_) => {
-                // If no key is available, start the login flow.
-                self.login().await?;
-                let config: AppConfig = self.api.app_config().await?;
-                tracker::login(
-                    config
-                        .key_info
-                        .and_then(|v| v.auth_provider_id)
-                        .unwrap_or_default(),
-                );
-                self.api.provider().await
-            }
-        }
+        self.api.provider().await
+        // match self.api.provider().await {
+        //     // Use the forge key if available in the config.
+        //     Ok(provider) => Ok(provider),
+        //     Err(_) => {
+        //         // If no key is available, start the login flow.
+        //         // self.login().await?;
+        //         let config: AppConfig = self.api.app_config().await?;
+        //         tracker::login(
+        //             config
+        //                 .key_info
+        //                 .and_then(|v| v.auth_provider_id)
+        //                 .unwrap_or_default(),
+        //         );
+        //         self.api.provider().await
+        //     }
+        // }
     }
     async fn login(&mut self) -> Result<()> {
         let auth = self.api.init_login().await?;
@@ -772,21 +773,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         match message {
-            ChatResponse::Text { mut text, is_complete, is_md } => {
-                if is_complete && !text.trim().is_empty() {
+            ChatResponse::TaskMessage { mut text, is_md } => {
+                if !text.trim().is_empty() {
                     if is_md {
                         tracing::info!(message = %text, "Agent Response");
                         text = self.markdown.render(&text);
                     }
 
                     self.writeln(text)?;
-                }
-            }
-            ChatResponse::Summary { content } => {
-                if !content.trim().is_empty() {
-                    tracing::info!(message = %content, "Agent Completion Response");
-                    let rendered = self.markdown.render(&content);
-                    self.writeln(rendered)?;
                 }
             }
             ChatResponse::ToolCallStart(_) => {
@@ -838,10 +832,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln(TitleFormat::action(title))?;
                 self.should_continue().await?;
             }
-            ChatResponse::Reasoning { content } => {
+            ChatResponse::TaskReasoning { content } => {
                 if !content.trim().is_empty() {
-                    self.writeln(content.dimmed())?;
+                    let rendered_content = self.markdown.render(&content);
+                    self.writeln(rendered_content.dimmed())?;
                 }
+            }
+            ChatResponse::TaskComplete { metrics: summary } => {
+                self.on_completion(summary).await?;
             }
         }
         Ok(())
@@ -855,6 +853,30 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
             Box::pin(self.on_message(None)).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
+        self.spinner.stop(None)?;
+
+        // Show summary
+        self.writeln(Info::from(&metrics))?;
+
+        let prompt_text = "Start a new conversation?";
+        let should_start_new_chat = ForgeSelect::confirm(prompt_text)
+            // Pressing ENTER should start new
+            .with_default(true)
+            .with_help_message("ESC = No, continue current conversation")
+            .prompt()
+            // Cancel or failure should continue with the session
+            .unwrap_or(Some(false))
+            .unwrap_or(false);
+
+        // if conversation is over
+        if should_start_new_chat {
+            self.on_new().await?;
         }
 
         Ok(())

@@ -79,6 +79,7 @@ impl ForgeCommandExecutorService {
         &self,
         command: String,
         working_dir: &Path,
+        silent: bool,
     ) -> anyhow::Result<CommandOutput> {
         let ready = self.ready.lock().await;
 
@@ -91,11 +92,19 @@ impl ForgeCommandExecutorService {
         let mut stderr_pipe = child.stderr.take();
 
         // Stream the output of the command to stdout and stderr concurrently
-        let (status, stdout_buffer, stderr_buffer) = tokio::try_join!(
-            child.wait(),
-            stream(&mut stdout_pipe, io::stdout()),
-            stream(&mut stderr_pipe, io::stderr())
-        )?;
+        let (status, stdout_buffer, stderr_buffer) = if silent {
+            tokio::try_join!(
+                child.wait(),
+                stream(&mut stdout_pipe, io::sink()),
+                stream(&mut stderr_pipe, io::sink())
+            )?
+        } else {
+            tokio::try_join!(
+                child.wait(),
+                stream(&mut stdout_pipe, io::stdout()),
+                stream(&mut stderr_pipe, io::stderr())
+            )?
+        };
 
         // Drop happens after `try_join` due to <https://github.com/tokio-rs/tokio/issues/4309>
         drop(stdout_pipe);
@@ -140,8 +149,10 @@ impl CommandInfra for ForgeCommandExecutorService {
         &self,
         command: String,
         working_dir: PathBuf,
+        silent: bool,
     ) -> anyhow::Result<CommandOutput> {
-        self.execute_command_internal(command, &working_dir).await
+        self.execute_command_internal(command, &working_dir, silent)
+            .await
     }
 
     async fn execute_command_raw(
@@ -205,7 +216,7 @@ mod tests {
         let dir = ".";
 
         let actual = fixture
-            .execute_command(cmd.to_string(), PathBuf::new().join(dir))
+            .execute_command(cmd.to_string(), PathBuf::new().join(dir), false)
             .await
             .unwrap();
 
@@ -220,6 +231,34 @@ mod tests {
             expected.stdout = format!("'{}'", expected.stdout);
         }
 
+        assert_eq!(actual.stdout.trim(), expected.stdout.trim());
+        assert_eq!(actual.stderr, expected.stderr);
+        assert_eq!(actual.success(), expected.success());
+    }
+
+    #[tokio::test]
+    async fn test_command_executor_silent() {
+        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let cmd = "echo 'silent test'";
+        let dir = ".";
+
+        let actual = fixture
+            .execute_command(cmd.to_string(), PathBuf::new().join(dir), true)
+            .await
+            .unwrap();
+
+        let mut expected = CommandOutput {
+            stdout: "silent test\n".to_string(),
+            stderr: "".to_string(),
+            command: "echo \"silent test\"".into(),
+            exit_code: Some(0),
+        };
+
+        if cfg!(target_os = "windows") {
+            expected.stdout = format!("'{}'", expected.stdout);
+        }
+
+        // The output should still be captured in the CommandOutput
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
         assert_eq!(actual.stderr, expected.stderr);
         assert_eq!(actual.success(), expected.success());

@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::operation::Operation;
+use super::operation::PermissionOperation;
 use super::policy::Policy;
 use super::types::Permission;
 use crate::Rule;
@@ -31,7 +31,7 @@ impl PolicyConfig {
 
     /// Evaluate all policies against an operation
     /// Returns permission results for debugging policy decisions
-    pub fn eval(&self, operation: &Operation) -> Vec<Option<Permission>> {
+    pub fn eval(&self, operation: &PermissionOperation) -> Vec<Option<Permission>> {
         self.policies
             .iter()
             .map(|policy| policy.eval(operation))
@@ -39,7 +39,7 @@ impl PolicyConfig {
     }
 
     /// Find all matching rules across all policies
-    pub fn find_rules(&self, operation: &Operation) -> Vec<&Rule> {
+    pub fn find_rules(&self, operation: &PermissionOperation) -> Vec<&Rule> {
         self.policies
             .iter()
             .flat_map(|policy| policy.find_rules(operation))
@@ -54,10 +54,10 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{Operation, Permission, Policy, Rule, WriteRule};
+    use crate::{Permission, PermissionOperation, Policy, Rule, WriteRule};
 
-    fn fixture_write_operation() -> Operation {
-        Operation::Write {
+    fn fixture_write_operation() -> PermissionOperation {
+        PermissionOperation::Write {
             path: PathBuf::from("src/main.rs"),
             cwd: PathBuf::from("/test/cwd"),
             message: "Create/overwrite file: src/main.rs".to_string(),

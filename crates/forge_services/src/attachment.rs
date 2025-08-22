@@ -88,15 +88,13 @@ pub mod tests {
     use forge_app::domain::{
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
-    use forge_snaps::Snapshot;
     use serde_json::Value;
     use url::Url;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
         CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, SnapshotInfra,
-        UserInfra,
+        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, UserInfra,
     };
 
     #[derive(Debug)]
@@ -297,21 +295,6 @@ pub mod tests {
         }
     }
 
-    #[derive(Debug)]
-    #[allow(dead_code)]
-    pub struct MockSnapService;
-
-    #[async_trait::async_trait]
-    impl SnapshotInfra for MockSnapService {
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
-            unimplemented!()
-        }
-
-        async fn undo_snapshot(&self, _: &Path) -> anyhow::Result<()> {
-            unimplemented!()
-        }
-    }
-
     #[async_trait::async_trait]
     impl FileInfoInfra for MockFileService {
         async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
@@ -375,6 +358,7 @@ pub mod tests {
             &self,
             command: String,
             working_dir: PathBuf,
+            _silent: bool,
         ) -> anyhow::Result<CommandOutput> {
             // For test purposes, we'll create outputs that match what the shell tests
             // expect Check for common command patterns

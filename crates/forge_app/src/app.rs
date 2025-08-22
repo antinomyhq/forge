@@ -9,7 +9,7 @@ use forge_stream::MpscStream;
 use crate::authenticator::Authenticator;
 use crate::dto::InitAuth;
 use crate::orch::Orchestrator;
-use crate::services::TemplateService;
+use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::workflow_manager::WorkflowManager;
 use crate::{
@@ -47,11 +47,14 @@ impl<S: Services> ForgeApp<S> {
         let services = self.services.clone();
 
         // Get the conversation for the chat request
-        let conversation = services
+        let mut conversation = services
             .find(&chat.conversation_id)
             .await
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
+
+        // Always reset metrics internal conversation metrics
+        conversation.reset_metric();
 
         // Get tool definitions and models
         let tool_definitions = self.tool_registry.list().await?;
@@ -99,12 +102,15 @@ impl<S: Services> ForgeApp<S> {
             chat.event = chat.event.attachments(attachments);
         }
 
+        let custom_instructions = services.get_custom_instructions().await;
+
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
             conversation,
             Local::now(),
+            custom_instructions,
         )
         .tool_definitions(tool_definitions)
         .models(models)

@@ -69,6 +69,7 @@ impl Runner {
             setup.env.clone(),
             conversation,
             setup.current_time,
+            vec![], // empty custom_instructions
         )
         .sender(Arc::new(tx))
         .files(setup.files.clone());
@@ -109,8 +110,8 @@ impl AgentService for Runner {
 
     async fn call(
         &self,
-        _agent: &forge_domain::Agent,
-        _context: &mut forge_domain::ToolCallContext,
+        _: &forge_domain::Agent,
+        _: &forge_domain::ToolCallContext,
         test_call: forge_domain::ToolCallFull,
     ) -> forge_domain::ToolResult {
         let mut guard = self.test_tool_calls.lock().await;

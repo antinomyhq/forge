@@ -97,28 +97,10 @@ impl Display for Schema {
 mod tests {
 
     use insta::assert_snapshot;
-    use schemars::JsonSchema;
-    use serde::Deserialize;
     use strum::IntoEnumIterator;
 
     use super::*;
     use crate::Tools;
-
-    #[allow(dead_code)]
-    #[derive(Default)]
-    #[allow(dead_code)]
-    pub struct MangoTool;
-
-    #[derive(JsonSchema, Deserialize)]
-    pub struct ToolInput {
-        /// This is parameter 1
-        #[allow(dead_code)]
-        param1: String,
-
-        /// This is parameter 2
-        #[allow(dead_code)]
-        param2: Option<String>,
-    }
 
     #[test]
     fn test_tool_usage() {
