@@ -24,9 +24,16 @@ impl Transformer for SetCache {
             return request;
         }
 
-        // Cache the very first system message, ideally you should keep static content in it.
-        if let Some(system_messages) = request.system.as_mut() {
-            if let Some(first_message) = system_messages.first_mut() {
+        // Cache the very first system message, ideally you should keep static content
+        // in it.
+        if let Some(system_messages) = request.system.as_mut()
+            && let Some(first_message) = system_messages.first_mut()
+        {
+            *first_message = std::mem::take(first_message).cached(true);
+        } else {
+            // If no system messages, we can still cache the first message in the
+            // conversation.
+            if let Some(first_message) = request.get_messages_mut().first_mut() {
                 *first_message = std::mem::take(first_message).cached(true);
             }
         }
@@ -49,39 +56,50 @@ mod tests {
 
     use super::*;
 
-    fn create_test_context(message: impl ToString) -> String {
+    fn create_test_context_with_system(
+        system_messages: &str,
+        conversation_messages: &str,
+    ) -> String {
+        let mut messages = Vec::new();
+
+        // Add system messages to the regular messages array for Anthropic format
+        for c in system_messages.chars() {
+            match c {
+                's' => messages.push(ContextMessage::Text(TextMessage {
+                    role: Role::System,
+                    content: c.to_string(),
+                    tool_calls: None,
+                    model: None,
+                    reasoning_details: None,
+                })),
+                _ => panic!("Invalid character in system message: {}", c),
+            }
+        }
+
+        // Add conversation messages
+        for c in conversation_messages.chars() {
+            match c {
+                'u' => messages.push(ContextMessage::Text(TextMessage {
+                    role: Role::User,
+                    content: c.to_string(),
+                    tool_calls: None,
+                    model: ModelId::new("claude-3-5-sonnet-20241022").into(),
+                    reasoning_details: None,
+                })),
+                'a' => messages.push(ContextMessage::Text(TextMessage {
+                    role: Role::Assistant,
+                    content: c.to_string(),
+                    tool_calls: None,
+                    model: None,
+                    reasoning_details: None,
+                })),
+                _ => panic!("Invalid character in conversation message: {}", c),
+            }
+        }
+
         let context = Context {
             conversation_id: None,
-            messages: message
-                .to_string()
-                .chars()
-                .map(|c| match c {
-                    's' => ContextMessage::Text(TextMessage {
-                        role: Role::System,
-                        content: c.to_string(),
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
-                    'u' => ContextMessage::Text(TextMessage {
-                        role: Role::User,
-                        content: c.to_string(),
-                        tool_calls: None,
-                        model: ModelId::new("claude-3-5-sonnet-20241022").into(),
-                        reasoning_details: None,
-                    }),
-                    'a' => ContextMessage::Text(TextMessage {
-                        role: Role::Assistant,
-                        content: c.to_string(),
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
-                    _ => {
-                        panic!("Invalid character in test message");
-                    }
-                })
-                .collect(),
+            messages,
             tools: vec![],
             tool_choice: None,
             max_tokens: None,
@@ -95,8 +113,24 @@ mod tests {
         let request = Request::try_from(context).expect("Failed to convert context to request");
         let mut transformer = SetCache;
         let request = transformer.transform(request);
+
         let mut output = String::new();
-        let sequences = request
+
+        // Check if first system message is cached
+        let system_cached = request
+            .system
+            .as_ref()
+            .and_then(|sys| sys.first())
+            .map(|msg| msg.is_cached())
+            .unwrap_or(false);
+
+        if system_cached {
+            output.push('[');
+        }
+        output.push_str(system_messages);
+
+        // Check which regular messages are cached
+        let cached_indices = request
             .get_messages()
             .iter()
             .enumerate()
@@ -104,14 +138,18 @@ mod tests {
             .map(|(i, _)| i)
             .collect::<HashSet<usize>>();
 
-        for (i, c) in message.to_string().chars().enumerate() {
-            if sequences.contains(&i) {
+        for (i, c) in conversation_messages.chars().enumerate() {
+            if cached_indices.contains(&i) {
                 output.push('[');
             }
-            output.push_str(c.to_string().as_str())
+            output.push(c);
         }
 
         output
+    }
+
+    fn create_test_context(message: impl ToString) -> String {
+        create_test_context_with_system("", &message.to_string())
     }
 
     #[test]
@@ -129,21 +167,21 @@ mod tests {
     }
 
     #[test]
-    fn test_three_messages_first_and_last_cached() {
+    fn test_three_messages_only_last_cached() {
         let actual = create_test_context("uau");
         let expected = "[ua[u";
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_four_messages_first_and_last_cached() {
+    fn test_four_messages_only_last_cached() {
         let actual = create_test_context("uaua");
         let expected = "[uau[a";
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_five_messages_first_and_last_cached() {
+    fn test_five_messages_only_last_cached() {
         let actual = create_test_context("uauau");
         let expected = "[uaua[u";
         assert_eq!(actual, expected);
@@ -157,11 +195,82 @@ mod tests {
     }
 
     #[test]
-    fn test_cache_removal_from_second_to_last() {
-        // Test that second-to-last message doesn't have cache when there are 3+
-        // messages
-        let actual = create_test_context("uauauauauauaua");
-        let expected = "[uauauauauauau[a";
+    fn test_with_system_message_single_conversation_message() {
+        let actual = create_test_context_with_system("s", "u");
+        let expected = "[s[u";
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_with_system_message_multiple_conversation_messages() {
+        let actual = create_test_context_with_system("ss", "uaua");
+        let expected = "[ssuau[a";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_with_system_message_long_conversation() {
+        let actual = create_test_context_with_system("s", "uauauauaua");
+        let expected = "[suauauauau[a";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_only_system_message() {
+        let actual = create_test_context_with_system("s", "");
+        let expected = "[s";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_multiple_system_messages_only_first_cached() {
+        // This test assumes multiple system messages are possible, but only first is
+        // cached
+        let context = Context {
+            conversation_id: None,
+            messages: vec![
+                ContextMessage::Text(TextMessage {
+                    role: Role::System,
+                    content: "first".to_string(),
+                    tool_calls: None,
+                    model: None,
+                    reasoning_details: None,
+                }),
+                ContextMessage::Text(TextMessage {
+                    role: Role::System,
+                    content: "second".to_string(),
+                    tool_calls: None,
+                    model: None,
+                    reasoning_details: None,
+                }),
+                ContextMessage::Text(TextMessage {
+                    role: Role::User,
+                    content: "user".to_string(),
+                    tool_calls: None,
+                    model: ModelId::new("claude-3-5-sonnet-20241022").into(),
+                    reasoning_details: None,
+                }),
+            ],
+            tools: vec![],
+            tool_choice: None,
+            max_tokens: None,
+            temperature: None,
+            top_p: None,
+            top_k: None,
+            reasoning: None,
+            usage: None,
+        };
+
+        let request = Request::try_from(context).expect("Failed to convert context to request");
+        let mut transformer = SetCache;
+        let request = transformer.transform(request);
+
+        // Check that only first system message is cached
+        let system_messages = request.system.as_ref().unwrap();
+        assert_eq!(system_messages[0].is_cached(), true);
+        assert_eq!(system_messages[1].is_cached(), false);
+
+        // Check that last conversation message is cached
+        assert_eq!(request.get_messages().last().unwrap().is_cached(), true);
     }
 }

@@ -3,6 +3,7 @@ mod app_config;
 mod attachment;
 mod auth;
 mod clipper;
+mod custom_instructions;
 
 mod conversation;
 mod discovery;
@@ -21,6 +22,7 @@ mod workflow;
 
 pub use agent_loader::*;
 pub use clipper::*;
+pub use custom_instructions::*;
 pub use discovery::*;
 pub use forge_services::*;
 pub use infra::*;

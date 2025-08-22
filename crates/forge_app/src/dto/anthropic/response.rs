@@ -14,8 +14,8 @@ pub struct ListModelResponse {
 
 #[derive(Deserialize)]
 pub struct Model {
-    id: String,
-    display_name: String,
+    pub id: String,
+    pub display_name: String,
 }
 
 impl From<Model> for forge_domain::Model {

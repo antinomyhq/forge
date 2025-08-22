@@ -50,7 +50,7 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
     ) -> anyhow::Result<ShellOutput> {
         Self::validate_command(&command)?;
 
-        let mut output = self.infra.execute_command(command, cwd).await?;
+        let mut output = self.infra.execute_command(command, cwd, false).await?;
 
         if !keep_ansi {
             output.stdout = strip_ansi(output.stdout);

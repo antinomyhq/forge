@@ -69,6 +69,7 @@ impl Runner {
             setup.env.clone(),
             conversation,
             setup.current_time,
+            vec![], // empty custom_instructions
         )
         .sender(Arc::new(tx))
         .files(setup.files.clone());
