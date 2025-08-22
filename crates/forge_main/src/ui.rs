@@ -64,6 +64,7 @@ pub struct UI<A, F: Fn() -> A> {
     spinner: SpinnerManager,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
+    models_cache: Option<Vec<Model>>,
 }
 
 impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
@@ -78,11 +79,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.write_ln(title.display())
     }
 
-    /// Retrieve available models
+    /// Retrieve available models with caching
     async fn get_models(&mut self) -> Result<Vec<Model>> {
+        if let Some(ref cached_models) = self.models_cache {
+            return Ok(cached_models.clone());
+        }
+
         self.spinner.start(Some("Loading"))?;
         let models = self.api.models().await?;
         self.spinner.stop(None)?;
+
+        // Cache the models
+        self.models_cache = Some(models.clone());
         Ok(models)
     }
 
@@ -173,6 +181,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
+            models_cache: None,
         })
     }
 
