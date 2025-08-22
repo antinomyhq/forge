@@ -204,7 +204,8 @@ impl Message {
                     .enumerate()
                     .rev()
                     .find_map(|(idx, content)| match content {
-                        Content::Text { .. }
+                        Content::Text { .. } 
+                        | Content::Image { .. }
                         | Content::ToolUse { .. }
                         | Content::ToolResult { .. } => Some(idx),
                         _ => None,
@@ -310,7 +311,7 @@ impl Content {
                 Content::ToolResult { tool_use_id, content, is_error, cache_control }
             }
             Content::Image { source, .. } => Content::Image { source, cache_control },
-            // Thinking variants don't support cache control
+            // TODO: verify this Thinking variants don't support cache control
             Content::Thinking { signature, thinking } => Content::Thinking { signature, thinking },
         }
     }
