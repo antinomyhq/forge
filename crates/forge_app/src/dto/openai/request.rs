@@ -54,24 +54,17 @@ impl MessageContent {
                     MessageContent::Text(text)
                 }
             }
-            MessageContent::Parts(parts) => {
-                let mut parts = parts;
+            MessageContent::Parts(mut parts) => {
+                parts.iter_mut().for_each(ContentPart::reset_cache);
                 match cache_control {
                     Some(_) => {
-                        // Reset cache-control
-                        parts.iter_mut().for_each(|part| part.reset_cache());
-
                         // cache the last part of the message
                         if let Some(last_part) = parts.last_mut() {
                             last_part.cached(enable_cache);
                         }
-
                         MessageContent::Parts(parts)
                     }
-                    None => {
-                        parts.iter_mut().for_each(|part| part.reset_cache());
-                        MessageContent::Parts(parts)
-                    }
+                    None => MessageContent::Parts(parts),
                 }
             }
         }

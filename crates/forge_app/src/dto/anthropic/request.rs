@@ -321,7 +321,7 @@ impl Content {
             Content::Text { cache_control, .. } => cache_control.is_some(),
             Content::ToolUse { cache_control, .. } => cache_control.is_some(),
             Content::ToolResult { cache_control, .. } => cache_control.is_some(),
-            Content::Image { .. } => false,
+            Content::Image { cache_control, .. } => cache_control.is_some(),
             Content::Thinking { .. } => false,
         }
     }
