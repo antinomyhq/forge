@@ -232,10 +232,10 @@ impl From<Image> for Content {
     fn from(value: Image) -> Self {
         Content::Image {
             source: ImageSource {
-                type_: "url".to_string(),
-                media_type: None,
-                data: None,
-                url: Some(value.url().clone()),
+                type_: "base64".to_string(),
+                media_type: Some(value.mime_type().to_string()),
+                data: Some(value.data()),
+                url: None,
             },
             cache_control: None,
         }
