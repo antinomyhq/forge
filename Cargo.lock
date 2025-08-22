@@ -1629,15 +1629,16 @@ dependencies = [
  "derive_setters",
  "dotenv",
  "futures",
+ "ignore",
  "pretty_assertions",
  "qdrant-client",
  "serde",
+ "tempfile",
  "text-splitter",
  "tokio",
  "tokio-stream",
  "tree-sitter-rust",
  "uuid",
- "walkdir",
 ]
 
 [[package]]

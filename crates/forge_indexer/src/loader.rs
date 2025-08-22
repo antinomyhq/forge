@@ -4,8 +4,8 @@ use std::pin::Pin;
 use async_stream::stream;
 use derive_setters::Setters;
 use futures::Stream;
+use ignore::WalkBuilder;
 use tokio::fs;
-use walkdir::WalkDir;
 
 use crate::{Document, Loader};
 
@@ -17,11 +17,18 @@ pub struct FileConfig {
     pub root_path: PathBuf,
     /// File extensions to include (empty means all files)
     pub extensions: Vec<String>,
+    /// Whether to use standard ignore filters (like .gitignore, node_modules,
+    /// target, etc.)
+    pub use_standard_filters: bool,
 }
 
 impl FileConfig {
     pub fn new(root_path: impl Into<PathBuf>) -> Self {
-        Self { root_path: root_path.into(), extensions: Vec::new() }
+        Self {
+            root_path: root_path.into(),
+            extensions: Vec::new(),
+            use_standard_filters: true,
+        }
     }
 }
 
@@ -36,11 +43,9 @@ impl FileLoader {
         Self { config }
     }
 
-    fn should_include_file(&self, entry: &walkdir::DirEntry) -> bool {
-        let path = entry.path();
-
+    fn should_include_file(&self, path: &std::path::Path) -> bool {
         // Skip directories
-        if !entry.file_type().is_file() {
+        if path.is_dir() {
             return false;
         }
 
@@ -74,21 +79,55 @@ impl Loader for FileLoader {
         let loader = self.clone();
 
         Box::pin(stream! {
-            let walker = WalkDir::new(&loader.config.root_path)
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|entry| {
-                    
-                    loader.should_include_file(entry)
-                });
+            let walk = WalkBuilder::new(&loader.config.root_path)
+                .standard_filters(loader.config.use_standard_filters)
+                .build();
 
-            for entry in walker {
-                let path = entry.path().to_path_buf();
-                match loader.load_file(path).await {
-                    Ok(document) => yield Ok(document),
-                    Err(e) => yield Err(e),
+            for entry in walk.flatten() {
+                let path = entry.path();
+
+                if loader.should_include_file(path) {
+                    match loader.load_file(path.to_path_buf()).await {
+                        Ok(document) => yield Ok(document),
+                        Err(e) => yield Err(e),
+                    }
                 }
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_file_loading_with_extensions() {
+        let temp_dir = tempdir().unwrap();
+        let temp_path = temp_dir.path();
+
+        // Create test files
+        fs::write(temp_path.join("test.rs"), "fn main() {}").unwrap();
+        fs::write(temp_path.join("test.txt"), "hello world").unwrap();
+        fs::write(temp_path.join("test.md"), "# Title").unwrap();
+
+        let config = FileConfig::new(temp_path).extensions(vec!["rs".to_string()]);
+        let loader = FileLoader::new(config);
+
+        let mut documents = Vec::new();
+        let mut stream = loader.load();
+
+        use futures::StreamExt;
+        while let Some(result) = stream.next().await {
+            documents.push(result.unwrap());
+        }
+
+        // Should only include .rs file
+        assert_eq!(documents.len(), 1);
+        assert!(documents[0].path.to_string_lossy().ends_with("test.rs"));
     }
 }

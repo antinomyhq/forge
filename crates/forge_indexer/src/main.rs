@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
             println!("Points added to store: {}", data.into_iter().sum::<usize>());
         }
         Commands::Query { query } => {
-            println!("Querying for: {}", query);
+            println!("Querying for: {query}");
 
             // Create an embedder for the query
             let embedder = QueryEmbedder::new("text-embedding-3-small".into());
@@ -55,8 +55,8 @@ async fn main() -> anyhow::Result<()> {
             // Perform similarity search
             let query_request = QueryRequest {
                 embedding: query_embedding,
-                limit: 20,                  // Return top 20 results
-                score_threshold: None
+                limit: 20, // Return top 20 results
+                score_threshold: None,
             };
 
             let search_results = storage.query(query_request).await?;

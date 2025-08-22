@@ -18,7 +18,7 @@ blake3 = "1.5"
 derive_setters = "0.1"
 async-stream = "0.3"
 pretty_assertions = "1.4"
-walkdir = "2.0"
+ignore = "0.4"
 text-splitter = {version="0.27.0", features=["code"]}
 tree-sitter-rust.workspace = true
 async-openai = "0.29.0"
@@ -26,3 +26,6 @@ qdrant-client = "1.15.0"
 uuid = { version = "1.0", features = ["v4"] }
 dotenv.workspace = true
 clap = { version = "4.0", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3.0"

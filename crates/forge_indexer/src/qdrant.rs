@@ -4,12 +4,12 @@ use qdrant_client::Qdrant;
 use qdrant_client::config::QdrantConfig;
 use qdrant_client::qdrant::vectors_config::Config;
 use qdrant_client::qdrant::{
-    CreateCollection, Distance, PointStruct, UpsertPoints, Vector, VectorParams, Vectors,
-    VectorsConfig, SearchPoints, WithPayloadSelector,
+    CreateCollection, Distance, PointStruct, SearchPoints, UpsertPoints, Vector, VectorParams,
+    Vectors, VectorsConfig, WithPayloadSelector,
 };
 use uuid::Uuid;
 
-use crate::{EmbeddedChunk, StorageWriter, StorageReader};
+use crate::{EmbeddedChunk, StorageReader, StorageWriter};
 
 #[derive(Debug, Clone)]
 pub struct SearchResult {
@@ -153,7 +153,9 @@ impl StorageReader for QdrantStore {
             limit: query.limit,
             score_threshold: query.score_threshold,
             with_payload: Some(WithPayloadSelector {
-                selector_options: Some(qdrant_client::qdrant::with_payload_selector::SelectorOptions::Enable(true)),
+                selector_options: Some(
+                    qdrant_client::qdrant::with_payload_selector::SelectorOptions::Enable(true),
+                ),
             }),
             filter: None,
             params: None,
@@ -166,35 +168,32 @@ impl StorageReader for QdrantStore {
         };
 
         let search_result = self.client.search_points(search_request).await?;
-        
+
         let results: anyhow::Result<Vec<SearchResult>> = search_result
             .result
             .into_iter()
             .map(|scored_point| {
                 let payload = scored_point.payload;
-                
+
                 let content = payload
                     .get("content")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| anyhow::anyhow!("Missing content in payload"))?
                     .to_string();
-                
+
                 let start_char = payload
                     .get("start_char")
                     .and_then(|v| v.as_integer())
-                    .ok_or_else(|| anyhow::anyhow!("Missing start_char in payload"))? as usize;
-                
+                    .ok_or_else(|| anyhow::anyhow!("Missing start_char in payload"))?
+                    as usize;
+
                 let end_char = payload
                     .get("end_char")
                     .and_then(|v| v.as_integer())
-                    .ok_or_else(|| anyhow::anyhow!("Missing end_char in payload"))? as usize;
+                    .ok_or_else(|| anyhow::anyhow!("Missing end_char in payload"))?
+                    as usize;
 
-                Ok(SearchResult {
-                    content,
-                    score: scored_point.score,
-                    start_char,
-                    end_char,
-                })
+                Ok(SearchResult { content, score: scored_point.score, start_char, end_char })
             })
             .collect();
 
