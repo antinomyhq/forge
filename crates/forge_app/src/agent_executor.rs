@@ -74,7 +74,7 @@ impl<S: Services> AgentExecutor<S> {
                     output = Some(ToolOutput::text(text));
                     ctx.send(message).await?;
                 }
-                ChatResponse::TaskReasoning { .. } => ctx.send(message).await?,
+                ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete { .. } => {}
                 ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
