@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use convert_case::{Case, Casing};
-use forge_display::TitleFormat;
 use forge_domain::{
-    ChatRequest, ChatResponse, Event, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
+    ChatRequest, ChatResponse, ChatResponseContent, Event, TitleFormat, ToolCallContext,
+    ToolDefinition, ToolName, ToolOutput,
 };
 use futures::StreamExt;
 use tokio::sync::RwLock;
@@ -42,7 +42,7 @@ impl<S: Services> AgentExecutor<S> {
         task: String,
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        ctx.send_text(
+        ctx.send_title(
             TitleFormat::debug(format!(
                 "{} [Agent]",
                 agent_id.as_str().to_case(Case::UpperSnake)
@@ -70,11 +70,12 @@ impl<S: Services> AgentExecutor<S> {
         while let Some(message) = response_stream.next().await {
             let message = message?;
             match message {
-                ChatResponse::TaskMessage { ref text, .. } => {
-                    output = Some(ToolOutput::text(text));
-                    ctx.send(message).await?;
-                }
-                ChatResponse::TaskReasoning { .. } => ctx.send(message).await?,
+                ChatResponse::TaskMessage { ref content } => match content {
+                    ChatResponseContent::Title(_) => ctx.send(message).await?,
+                    ChatResponseContent::PlainText(text) => output = Some(ToolOutput::text(text)),
+                    ChatResponseContent::Markdown(text) => output = Some(ToolOutput::text(text)),
+                },
+                ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete { .. } => {}
                 ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,

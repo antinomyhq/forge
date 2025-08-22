@@ -59,7 +59,7 @@ async fn test_attempt_completion_content() {
         .iter()
         .flatten()
         .find_map(|response| match response {
-            forge_domain::ChatResponse::TaskMessage { text, .. } => Some(text.as_str()),
+            forge_domain::ChatResponse::TaskMessage { content, .. } => Some(content.as_str()),
             _ => None,
         });
 

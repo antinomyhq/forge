@@ -9,8 +9,10 @@ use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Workflow,
 };
-use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Metrics, Provider, Scope};
+use forge_display::MarkdownFormat;
+use forge_domain::{
+    ChatResponseContent, McpConfig, McpServerConfig, Metrics, Provider, Scope, TitleFormat,
+};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -25,6 +27,7 @@ use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::select::ForgeSelect;
 use crate::state::UIState;
+use crate::title_display::TitleDisplayExt;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
@@ -68,6 +71,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
         self.spinner.write_ln(content)
+    }
+
+    /// Writes a TitleFormat to the console output with proper formatting
+    fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
+        self.spinner.write_ln(title.display())
     }
 
     /// Retrieve available models
@@ -124,7 +132,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             })
             .await?;
 
-        self.writeln(TitleFormat::action(format!(
+        self.writeln_title(TitleFormat::action(format!(
             "Switched to agent {}",
             agent.id.as_str().to_case(Case::UpperSnake).bold()
         )))?;
@@ -172,7 +180,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                eprintln!("{}", TitleFormat::error(format!("{error:?}")));
+                eprintln!("{}", TitleFormat::error(format!("{error:?}")).display());
             }
         }
     }
@@ -225,7 +233,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                             tracker::error(&error);
                             tracing::error!(error = ?error);
                             self.spinner.stop(None)?;
-                            eprintln!("{}", TitleFormat::error(format!("{error:?}")));
+                            eprintln!("{}", TitleFormat::error(format!("{error:?}")).display());
                         },
                     }
                 }
@@ -268,12 +276,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))?;
+                    self.writeln_title(TitleFormat::info(format!("Added MCP server '{name}'")))?;
                 }
                 McpCommand::List => {
                     let mcp_servers = self.api.read_mcp_config().await?;
                     if mcp_servers.is_empty() {
-                        self.writeln(TitleFormat::error("No MCP servers found"))?;
+                        self.writeln_title(TitleFormat::error("No MCP servers found"))?;
                     }
 
                     let mut output = String::new();
@@ -291,7 +299,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
+                    self.writeln_title(TitleFormat::info(format!("Removed server: {name}")))?;
                 }
                 McpCommand::Get(val) => {
                     let name = val.name.clone();
@@ -303,7 +311,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                     let mut output = String::new();
                     output.push_str(&format!("{name}: {server}"));
-                    self.writeln(TitleFormat::info(output))?;
+                    self.writeln_title(TitleFormat::info(output))?;
                 }
                 McpCommand::AddJson(add_json) => {
                     let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
@@ -315,7 +323,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!(
+                    self.writeln_title(TitleFormat::info(format!(
                         "Added server: {}",
                         add_json.name
                     )))?;
@@ -477,7 +485,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(Some("Logging out"))?;
                 self.api.logout().await?;
                 self.spinner.stop(None)?;
-                self.writeln(TitleFormat::info("Logged out"))?;
+                self.writeln_title(TitleFormat::info("Logged out"))?;
                 // Exit the UI after logout
                 return Ok(true);
             }
@@ -497,7 +505,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let content = TitleFormat::action(format!(
             "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
         ));
-        self.writeln(content)?;
+        self.writeln_title(content)?;
         Ok(())
     }
 
@@ -565,7 +573,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Update the UI state with the new model
             self.update_model(model.clone());
 
-            self.writeln(TitleFormat::action(format!("Switched to model: {model}")))?;
+            self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
         }
 
         Ok(())
@@ -664,7 +672,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn login(&mut self) -> Result<()> {
         let auth = self.api.init_login().await?;
         open::that(auth.auth_url.as_str()).ok();
-        self.writeln(TitleFormat::info(
+        self.writeln_title(TitleFormat::info(
             format!("Login here: {}", auth.auth_url).as_str(),
         ))?;
         self.spinner.start(Some("Waiting for login to complete"))?;
@@ -673,7 +681,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        self.writeln(TitleFormat::info("Login completed".to_string().as_str()))?;
+        self.writeln_title(TitleFormat::info("Login completed".to_string().as_str()))?;
 
         Ok(())
     }
@@ -726,7 +734,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         let path = format!("{timestamp}-dump.html");
                         tokio::fs::write(path.as_str(), html_content).await?;
 
-                        self.writeln(
+                        self.writeln_title(
                             TitleFormat::action("Conversation HTML dump created".to_string())
                                 .sub_title(path.to_string()),
                         )?;
@@ -741,7 +749,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let content = serde_json::to_string_pretty(&conversation)?;
                     tokio::fs::write(path.as_str(), content).await?;
 
-                    self.writeln(
+                    self.writeln_title(
                         TitleFormat::action("Conversation JSON dump created".to_string())
                             .sub_title(path.to_string()),
                     )?;
@@ -761,16 +769,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         match message {
-            ChatResponse::TaskMessage { mut text, is_md } => {
-                if !text.trim().is_empty() {
-                    if is_md {
-                        tracing::info!(message = %text, "Agent Response");
-                        text = self.markdown.render(&text);
-                    }
-
-                    self.writeln(text)?;
+            ChatResponse::TaskMessage { content } => match content {
+                ChatResponseContent::Title(title) => self.writeln(title.display())?,
+                ChatResponseContent::PlainText(text) => self.writeln(text)?,
+                ChatResponseContent::Markdown(text) => {
+                    tracing::info!(message = %text, "Agent Response");
+                    self.writeln(self.markdown.render(&text))?;
                 }
-            }
+            },
             ChatResponse::ToolCallStart(_) => {
                 self.spinner.stop(None)?;
             }
@@ -802,7 +808,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
-                    self.writeln(TitleFormat::error(cause.as_str()))?;
+                    self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
@@ -817,7 +823,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                 };
 
-                self.writeln(TitleFormat::action(title))?;
+                self.writeln_title(TitleFormat::action(title))?;
                 self.should_continue().await?;
             }
             ChatResponse::TaskReasoning { content } => {

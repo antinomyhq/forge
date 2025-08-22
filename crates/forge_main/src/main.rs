@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
-use forge_display::TitleFormat;
-use forge_main::{Cli, Sandbox, UI, tracker};
+use forge_domain::TitleFormat;
+use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
             "Unexpected error occurred".to_string()
         };
 
-        eprintln!("{}", TitleFormat::error(message.to_string()));
+        eprintln!("{}", TitleFormat::error(message.to_string()).display());
         tracker::error_blocking(message);
         std::process::exit(1);
     }));
