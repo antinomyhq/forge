@@ -54,34 +54,17 @@ impl MessageContent {
                     MessageContent::Text(text)
                 }
             }
-            MessageContent::Parts(parts) => {
-                let mut parts = parts;
+            MessageContent::Parts(mut parts) => {
+                parts.iter_mut().for_each(ContentPart::reset_cache);
                 match cache_control {
-                    Some(cc) => {
-                        // Reset cache-control
-                        parts.iter_mut().rev().for_each(|part| match part {
-                            ContentPart::Text { cache_control, .. } => *cache_control = None,
-                            ContentPart::ImageUrl { .. } => {}
-                        });
-
-                        // Set cache-control on last
-                        let cache_control = parts.iter_mut().rev().find_map(|part| match part {
-                            ContentPart::Text { cache_control, .. } => Some(cache_control),
-                            ContentPart::ImageUrl { .. } => None,
-                        });
-                        if let Some(cache_control) = cache_control {
-                            *cache_control = Some(cc.clone());
+                    Some(_) => {
+                        // cache the last part of the message
+                        if let Some(part) = parts.last_mut() {
+                            part.cached(enable_cache)
                         }
                         MessageContent::Parts(parts)
                     }
-                    None => {
-                        for part in parts.iter_mut() {
-                            if let ContentPart::Text { cache_control, .. } = part {
-                                *cache_control = None;
-                            }
-                        }
-                        MessageContent::Parts(parts)
-                    }
+                    None => MessageContent::Parts(parts),
                 }
             }
         }
@@ -111,7 +94,35 @@ pub enum ContentPart {
     },
     ImageUrl {
         image_url: ImageUrl,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
     },
+}
+
+impl ContentPart {
+    pub fn reset_cache(&mut self) {
+        match self {
+            ContentPart::Text { cache_control, .. } => {
+                *cache_control = None;
+            }
+            ContentPart::ImageUrl { cache_control, .. } => {
+                *cache_control = None;
+            }
+        }
+    }
+
+    pub fn cached(&mut self, enable_cache: bool) {
+        let src_cache_control =
+            enable_cache.then_some(CacheControl { type_: CacheControlType::Ephemeral });
+        match self {
+            ContentPart::Text { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+            ContentPart::ImageUrl { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -380,6 +391,7 @@ impl From<ContextMessage> for Message {
             ContextMessage::Image(img) => {
                 let content = vec![ContentPart::ImageUrl {
                     image_url: ImageUrl { url: img.url().clone(), detail: None },
+                    cache_control: None,
                 }];
                 Message {
                     role: Role::User,
@@ -410,6 +422,7 @@ impl From<ToolResult> for MessageContent {
                 ToolValue::Image(img) => {
                     let content = ContentPart::ImageUrl {
                         image_url: ImageUrl { url: img.url().clone(), detail: None },
+                        cache_control: None,
                     };
                     parts.push(content);
                 }
@@ -473,16 +486,15 @@ mod tests {
             ContentPart::Text { text: "a".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         let actual = fixture.cached(true);
         let expected = MessageContent::Parts(vec![
-            ContentPart::Text {
-                text: "a".to_string(),
-                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
-            },
+            ContentPart::Text { text: "a".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         assert_eq!(actual, expected);
@@ -501,6 +513,7 @@ mod tests {
             },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         let actual = fixture.cached(false);
@@ -509,6 +522,7 @@ mod tests {
             ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         assert_eq!(actual, expected);
@@ -524,17 +538,16 @@ mod tests {
             ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         let actual = fixture.cached(true);
         let expected = MessageContent::Parts(vec![
             ContentPart::Text { text: "a".to_string(), cache_control: None },
-            ContentPart::Text {
-                text: "b".to_string(),
-                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
-            },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         assert_eq!(actual, expected);
@@ -547,17 +560,16 @@ mod tests {
             ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         let actual = fixture.cached(true);
         let expected = MessageContent::Parts(vec![
             ContentPart::Text { text: "a".to_string(), cache_control: None },
-            ContentPart::Text {
-                text: "b".to_string(),
-                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
-            },
+            ContentPart::Text { text: "b".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: Some(CacheControl { type_: CacheControlType::Ephemeral }),
             },
         ]);
         assert_eq!(actual, expected);
@@ -569,6 +581,7 @@ mod tests {
             ContentPart::Text { text: "a".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         let actual = fixture.cached(false);
@@ -576,6 +589,7 @@ mod tests {
             ContentPart::Text { text: "a".to_string(), cache_control: None },
             ContentPart::ImageUrl {
                 image_url: ImageUrl { url: "http://example.com/a.png".to_string(), detail: None },
+                cache_control: None,
             },
         ]);
         assert_eq!(actual, expected);
