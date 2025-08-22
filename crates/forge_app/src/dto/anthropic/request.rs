@@ -237,7 +237,7 @@ impl From<Image> for Content {
                 data: None,
                 url: Some(value.url().clone()),
             },
-        cache_control: None,
+            cache_control: None,
         }
     }
 }
