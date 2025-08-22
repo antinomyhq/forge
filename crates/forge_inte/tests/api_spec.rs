@@ -70,7 +70,7 @@ impl Fixture {
             .with_context(|| "Failed to initialize chat")
             .unwrap()
             .filter_map(|message| match message.unwrap() {
-                ChatResponse::TaskMessage { text, .. } => Some(text),
+                ChatResponse::TaskMessage { content, .. } => Some(content.as_str().to_owned()),
                 _ => None,
             })
             .collect::<Vec<_>>()

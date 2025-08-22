@@ -1,17 +1,9 @@
 use edtui::EditorEventHandler;
-use forge_api::{ChatResponse, ChatResponseContent};
+use forge_api::ChatResponse;
 use ratatui::crossterm::event::KeyEventKind;
 
 use crate::domain::update_key_event::handle_key_event;
 use crate::domain::{Action, Command, State};
-
-fn content_to_text(content: &ChatResponseContent) -> &str {
-    match content {
-        ChatResponseContent::Title(text)
-        | ChatResponseContent::PlainText(text)
-        | ChatResponseContent::Markdown(text) => text,
-    }
-}
 
 pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
     let action = action.into();
@@ -44,7 +36,7 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
         },
         Action::ChatResponse(response) => {
             if let ChatResponse::TaskMessage { ref content, .. } = response
-                && !content_to_text(content).trim().is_empty()
+                && !content.as_str().trim().is_empty()
             {
                 state.show_spinner = false
             }

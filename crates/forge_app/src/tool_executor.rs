@@ -51,7 +51,7 @@ impl<
             // Send custom policy message to the user when a policy file was created
             if let Some(policy_path) = decision.path {
                 context
-                    .send_text(
+                    .send_title(
                         TitleFormat::debug("Permissions Update")
                             .sub_title(format_display_path(policy_path.as_path(), &cwd)),
                     )

@@ -42,7 +42,7 @@ impl<S: Services> AgentExecutor<S> {
         task: String,
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        ctx.send_text(
+        ctx.send_title(
             TitleFormat::debug(format!(
                 "{} [Agent]",
                 agent_id.as_str().to_case(Case::UpperSnake)
@@ -70,18 +70,11 @@ impl<S: Services> AgentExecutor<S> {
         while let Some(message) = response_stream.next().await {
             let message = message?;
             match message {
-                ChatResponse::TaskMessage { ref content } => {
-                    let text = match content {
-                        ChatResponseContent::Title(s)
-                        | ChatResponseContent::PlainText(s)
-                        | ChatResponseContent::Markdown(s) => s,
-                    };
-                    output = Some(ToolOutput::text(text));
-                    // If its MD then its final summary
-                    if !matches!(content, ChatResponseContent::Markdown(_)) {
-                        ctx.send(message).await?;
-                    }
-                }
+                ChatResponse::TaskMessage { ref content } => match content {
+                    ChatResponseContent::Title(_) => ctx.send(message).await?,
+                    ChatResponseContent::PlainText(text) => output = Some(ToolOutput::text(text)),
+                    ChatResponseContent::Markdown(text) => output = Some(ToolOutput::text(text)),
+                },
                 ChatResponse::TaskReasoning { .. } => ctx.send(message).await?,
                 ChatResponse::TaskComplete { .. } => {}
                 ChatResponse::ToolCallStart(_) => ctx.send(message).await?,

@@ -32,11 +32,13 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                             Err(_) => vec![Line::raw(rendered_text)].into_iter(),
                         }
                     }
-                    ChatResponseContent::Title(text) | ChatResponseContent::PlainText(text) => {
-                        match text.clone().into_text() {
-                            Ok(text) => text.lines.into_iter(),
-                            Err(_) => vec![Line::raw(text.clone())].into_iter(),
-                        }
+                    ChatResponseContent::Title(_) | ChatResponseContent::PlainText(_) => {
+                        // match text.clone() {
+                        //     Ok(text) => text.lines.into_iter(),
+                        //     Err(_) => vec![Line::raw(text.clone())].into_iter(),
+                        // }
+
+                        todo!()
                     }
                 },
                 ChatResponse::ToolCallStart(_) => vec![].into_iter(),

@@ -1,7 +1,7 @@
 use forge_display::{DiffFormat, GrepFormat};
 use forge_domain::{ChatResponseContent, Environment, TitleFormat};
 
-use crate::fmt::content::{FormatContent, title_to_content_format};
+use crate::fmt::content::FormatContent;
 use crate::operation::ToolOperation;
 use crate::utils::{format_display_path, format_match};
 
@@ -33,12 +33,13 @@ impl FormatContent for ToolOperation {
             ToolOperation::Shell { output: _ } => None,
             ToolOperation::FollowUp { output: _ } => None,
             ToolOperation::AttemptCompletion => None,
-            ToolOperation::PlanCreate { input: _, output } => {
-                Some(title_to_content_format(TitleFormat::debug(format!(
+            ToolOperation::PlanCreate { input: _, output } => Some({
+                let title = TitleFormat::debug(format!(
                     "Create {}",
                     format_display_path(&output.path, &env.cwd)
-                ))))
-            }
+                ));
+                title.into()
+            }),
         }
     }
 }
@@ -553,9 +554,9 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = Some(ChatResponseContent::Title(
-            TitleFormat::debug("Create plans/2024-08-11-test-plan-v1.md").to_string(),
-        ));
+        let expected = Some(ChatResponseContent::Title(TitleFormat::debug(
+            "Create plans/2024-08-11-test-plan-v1.md",
+        )));
 
         assert_eq!(actual, expected);
     }

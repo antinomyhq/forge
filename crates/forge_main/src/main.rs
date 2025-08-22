@@ -5,6 +5,7 @@ use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
+use forge_main::title_display::TitleDisplayExt;
 use forge_main::{Cli, Sandbox, UI, tracker};
 
 #[tokio::main]
@@ -19,7 +20,7 @@ async fn main() -> Result<()> {
             "Unexpected error occurred".to_string()
         };
 
-        eprintln!("{}", TitleFormat::error(message.to_string()));
+        eprintln!("{}", TitleFormat::error(message.to_string()).display());
         tracker::error_blocking(message);
         std::process::exit(1);
     }));
