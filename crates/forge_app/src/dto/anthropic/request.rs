@@ -204,7 +204,7 @@ impl Message {
                     .enumerate()
                     .rev()
                     .find_map(|(idx, content)| match content {
-                        Content::Text { .. } 
+                        Content::Text { .. }
                         | Content::Image { .. }
                         | Content::ToolUse { .. }
                         | Content::ToolResult { .. } => Some(idx),
