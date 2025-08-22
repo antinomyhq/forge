@@ -59,7 +59,7 @@ impl MessageContent {
                 match cache_control {
                     Some(_) => {
                         // cache the last part of the message
-                        parts.last_mut().map(|part| part.cached(enable_cache));
+                        if let Some(part) = parts.last_mut() { part.cached(enable_cache) }
                         MessageContent::Parts(parts)
                     }
                     None => MessageContent::Parts(parts),
