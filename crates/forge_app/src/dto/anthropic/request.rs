@@ -235,7 +235,7 @@ impl From<Image> for Content {
             source: ImageSource {
                 type_: "base64".to_string(),
                 media_type: Some(value.mime_type().to_string()),
-                data: Some(value.data()),
+                data: Some(value.data().into()),
                 url: None,
             },
             cache_control: None,
