@@ -483,11 +483,11 @@ impl<S: AgentService> Orchestrator<S> {
                 // ignore the content that's collected from the stream
                 // NOTE: Important to send the content messages before the tool call happens
                 self.send(ChatResponse::TaskMessage {
-                    text: remove_tag_with_prefix(&content, "forge_")
-                        .as_str()
-                        .to_string(),
-
-                    is_md: true,
+                    content: ChatResponseContent::Markdown(
+                        remove_tag_with_prefix(&content, "forge_")
+                            .as_str()
+                            .to_string(),
+                    ),
                 })
                 .await?;
             }
@@ -544,11 +544,11 @@ impl<S: AgentService> Orchestrator<S> {
                 // Means that this is conversation.
 
                 self.send(ChatResponse::TaskMessage {
-                    text: remove_tag_with_prefix(&content, "forge_")
-                        .as_str()
-                        .to_string(),
-
-                    is_md: true,
+                    content: ChatResponseContent::Markdown(
+                        remove_tag_with_prefix(&content, "forge_")
+                            .as_str()
+                            .to_string(),
+                    ),
                 })
                 .await?;
                 is_complete = true

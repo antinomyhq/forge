@@ -1,18 +1,18 @@
-use forge_display::{DiffFormat, GrepFormat, TitleFormat};
-use forge_domain::Environment;
+use forge_display::{DiffFormat, GrepFormat};
+use forge_domain::{ChatResponseContent, Environment, TitleFormat};
 
-use crate::fmt::content::{ContentFormat, FormatContent};
+use crate::fmt::content::FormatContent;
 use crate::operation::ToolOperation;
 use crate::utils::{format_display_path, format_match};
 
 impl FormatContent for ToolOperation {
-    fn to_content(&self, env: &Environment) -> Option<ContentFormat> {
+    fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
             ToolOperation::FsRead { input: _, output: _ } => None,
             ToolOperation::FsCreate { input: _, output: _ } => None,
             ToolOperation::FsRemove { input: _, output: _ } => None,
             ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
-                ContentFormat::PlainText(
+                ChatResponseContent::PlainText(
                     GrepFormat::new(
                         result
                             .matches
@@ -23,7 +23,7 @@ impl FormatContent for ToolOperation {
                     .format(),
                 )
             }),
-            ToolOperation::FsPatch { input: _, output } => Some(ContentFormat::PlainText(
+            ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::PlainText(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
                     .to_string(),
@@ -33,13 +33,13 @@ impl FormatContent for ToolOperation {
             ToolOperation::Shell { output: _ } => None,
             ToolOperation::FollowUp { output: _ } => None,
             ToolOperation::AttemptCompletion => None,
-            ToolOperation::PlanCreate { input: _, output } => Some(
-                TitleFormat::debug(format!(
+            ToolOperation::PlanCreate { input: _, output } => Some({
+                let title = TitleFormat::debug(format!(
                     "Create {}",
                     format_display_path(&output.path, &env.cwd)
-                ))
-                .into(),
-            ),
+                ));
+                title.into()
+            }),
         }
     }
 }
@@ -49,46 +49,20 @@ mod tests {
     use std::path::PathBuf;
 
     use console::strip_ansi_codes;
-    use forge_display::TitleFormat;
-    use forge_domain::{Environment, PatchOperation};
+    use forge_domain::{ChatResponseContent, Environment, PatchOperation, TitleFormat};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
     use url::Url;
 
     use super::FormatContent;
-    use crate::fmt::content::ContentFormat;
+    // ContentFormat is now ChatResponseContent
     use crate::operation::ToolOperation;
     use crate::{
         Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, Match, MatchResult,
         PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
     };
 
-    impl std::fmt::Display for ContentFormat {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                ContentFormat::Title(title) => write!(f, "{title}"),
-                ContentFormat::PlainText(text) => write!(f, "{text}"),
-                ContentFormat::Markdown(text) => write!(f, "{text}"),
-            }
-        }
-    }
-
-    impl ContentFormat {
-        pub fn contains(&self, needle: &str) -> bool {
-            self.to_string().contains(needle)
-        }
-
-        pub fn as_str(&self) -> &str {
-            match self {
-                ContentFormat::PlainText(text) | ContentFormat::Markdown(text) => text,
-                ContentFormat::Title(_) => {
-                    // For titles, we can't return a reference to the formatted string
-                    // since it's computed on demand. Tests should use to_string() instead.
-                    panic!("as_str() not supported for Title format, use to_string() instead")
-                }
-            }
-        }
-    }
+    // ContentFormat methods are now implemented in ChatResponseContent
 
     fn fixture_environment() -> Environment {
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
@@ -580,7 +554,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = Some(ContentFormat::Title(TitleFormat::debug(
+        let expected = Some(ChatResponseContent::Title(TitleFormat::debug(
             "Create plans/2024-08-11-test-plan-v1.md",
         )));
 

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use forge_display::TitleFormat;
-use forge_domain::{ToolCallContext, ToolCallFull, ToolName, ToolOutput};
+use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolName, ToolOutput};
 
 use crate::McpService;
 
@@ -20,7 +19,7 @@ impl<S: McpService> McpExecutor<S> {
         context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         context
-            .send_text(TitleFormat::info("MCP").sub_title(input.name.as_str()))
+            .send_title(TitleFormat::info("MCP").sub_title(input.name.as_str()))
             .await?;
 
         self.services.call(input).await
