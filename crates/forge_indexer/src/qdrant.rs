@@ -13,6 +13,7 @@ use crate::{EmbeddedChunk, StorageReader, StorageWriter};
 
 #[derive(Debug, Clone)]
 pub struct SearchResult {
+    pub path: String,
     pub content: String,
     pub score: f32,
     pub start_char: usize,
@@ -86,7 +87,7 @@ impl From<EmbeddedChunk> for PointStruct {
         let point_id = Uuid::new_v4().to_string();
 
         // Create payload with chunk metadata
-        let mut payload = HashMap::with_capacity(3);
+        let mut payload = HashMap::with_capacity(4);
         payload.insert("content".to_string(), chunk.chunk.content.into());
         payload.insert(
             "start_char".to_string(),
@@ -96,6 +97,7 @@ impl From<EmbeddedChunk> for PointStruct {
             "end_char".to_string(),
             (chunk.chunk.position.end_char as i64).into(),
         );
+        payload.insert("path".to_string(), chunk.chunk.path.display().to_string().into());  
 
         PointStruct {
             id: Some(point_id.into()),
@@ -193,7 +195,13 @@ impl StorageReader for QdrantStore {
                     .ok_or_else(|| anyhow::anyhow!("Missing end_char in payload"))?
                     as usize;
 
-                Ok(SearchResult { content, score: scored_point.score, start_char, end_char })
+                let path = payload
+                    .get("path")
+                    .and_then(|v| v.as_integer())
+                    .ok_or_else(|| anyhow::anyhow!("Missing path in payload"))?
+                    as usize;
+
+                Ok(SearchResult { content, score: scored_point.score, start_char, end_char, path })
             })
             .collect();
 

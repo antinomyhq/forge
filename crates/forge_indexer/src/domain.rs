@@ -25,14 +25,15 @@ impl Document {
 #[derive(Debug, Clone, Serialize, Deserialize, Setters)]
 #[setters(strip_option, into)]
 pub struct Chunk {
+    pub path: PathBuf,
     pub content: String,
     pub position: Position,
 }
 
 impl Chunk {
-    pub fn new(content: impl Into<String>, position: Position) -> Self {
+    pub fn new(path: PathBuf, content: impl Into<String>, position: Position) -> Self {
         let content = content.into();
-        Self { content, position }
+        Self { path, content, position }
     }
 }
 

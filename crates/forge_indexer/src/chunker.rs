@@ -25,6 +25,7 @@ impl Chunker for CodeSplitter {
             .chunk_char_indices(&input.content)
             .map(|chunk| {
                 Chunk::new(
+                    input.path.clone(),
                     chunk.chunk,
                     Position::new(chunk.char_offset, chunk.char_offset + chunk.chunk.len()),
                 )
