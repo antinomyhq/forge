@@ -84,6 +84,7 @@ pub fn update(state: &mut State, action: impl Into<Action>) -> Command {
 
 #[cfg(test)]
 mod tests {
+    use forge_api::ChatResponseContent;
     use pretty_assertions::assert_eq;
     use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use tokio_util::sync::CancellationToken;

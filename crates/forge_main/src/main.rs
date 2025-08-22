@@ -5,8 +5,7 @@ use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
-use forge_main::title_display::TitleDisplayExt;
-use forge_main::{Cli, Sandbox, UI, tracker};
+use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
