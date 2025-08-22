@@ -1370,6 +1370,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "chrono",
+ "colored",
  "convert_case 0.8.0",
  "derive-getters",
  "derive_more",

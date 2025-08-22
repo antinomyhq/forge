@@ -1,7 +1,6 @@
 use std::path::Path;
 
-use forge_display::TitleFormat;
-use forge_domain::{ChatResponseContent, Environment, Tools};
+use forge_domain::{ChatResponseContent, Environment, TitleFormat, Tools};
 
 use crate::fmt::content::{FormatContent, title_to_content_format};
 use crate::utils::format_display_path;
@@ -100,17 +99,9 @@ mod tests {
     use pretty_assertions::assert_eq;
     use url::Url;
 
-    use super::{ChatResponseContent, FormatContent};
+    use super::FormatContent;
 
-    impl ChatResponseContent {
-        pub fn render(&self, with_timestamp: bool) -> String {
-            match self {
-                ChatResponseContent::Title(title) => title.clone(),
-                ChatResponseContent::PlainText(summary) => summary.clone(),
-                ChatResponseContent::Markdown(summary) => summary.clone(),
-            }
-        }
-    }
+    // render method is now implemented in the domain
 
     fn fixture_environment() -> Environment {
         let max_bytes: f64 = 250.0 * 1024.0; // 250kb

@@ -9,8 +9,10 @@ use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Workflow,
 };
-use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Metrics, Provider, Scope};
+use forge_display::MarkdownFormat;
+use forge_domain::{
+    ChatResponseContent, McpConfig, McpServerConfig, Metrics, Provider, Scope, TitleFormat,
+};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
-use forge_display::TitleFormat;
+use forge_domain::TitleFormat;
 use forge_main::{Cli, Sandbox, UI, tracker};
 
 #[tokio::main]

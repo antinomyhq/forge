@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use forge_display::TitleFormat;
-use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
+use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};

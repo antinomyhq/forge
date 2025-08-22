@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use forge_api::Environment;
-use forge_display::TitleFormat;
+use forge_domain::TitleFormat;
 use tokio::fs;
 
 use crate::editor::{ForgeEditor, ReadResult};

@@ -1,5 +1,5 @@
-use forge_display::{DiffFormat, GrepFormat, TitleFormat};
-use forge_domain::{ChatResponseContent, Environment};
+use forge_display::{DiffFormat, GrepFormat};
+use forge_domain::{ChatResponseContent, Environment, TitleFormat};
 
 use crate::fmt::content::{FormatContent, title_to_content_format};
 use crate::operation::ToolOperation;
@@ -48,46 +48,20 @@ mod tests {
     use std::path::PathBuf;
 
     use console::strip_ansi_codes;
-    use forge_display::TitleFormat;
-    use forge_domain::{Environment, PatchOperation};
+    use forge_domain::{ChatResponseContent, Environment, PatchOperation, TitleFormat};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
     use url::Url;
 
     use super::FormatContent;
-    use crate::fmt::content::ContentFormat;
+    // ContentFormat is now ChatResponseContent
     use crate::operation::ToolOperation;
     use crate::{
         Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, Match, MatchResult,
         PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
     };
 
-    impl std::fmt::Display for ContentFormat {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                ContentFormat::Title(title) => write!(f, "{title}"),
-                ContentFormat::PlainText(text) => write!(f, "{text}"),
-                ContentFormat::Markdown(text) => write!(f, "{text}"),
-            }
-        }
-    }
-
-    impl ContentFormat {
-        pub fn contains(&self, needle: &str) -> bool {
-            self.to_string().contains(needle)
-        }
-
-        pub fn as_str(&self) -> &str {
-            match self {
-                ContentFormat::PlainText(text) | ContentFormat::Markdown(text) => text,
-                ContentFormat::Title(_) => {
-                    // For titles, we can't return a reference to the formatted string
-                    // since it's computed on demand. Tests should use to_string() instead.
-                    panic!("as_str() not supported for Title format, use to_string() instead")
-                }
-            }
-        }
-    }
+    // ContentFormat methods are now implemented in ChatResponseContent
 
     fn fixture_environment() -> Environment {
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
@@ -579,9 +553,9 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = Some(ContentFormat::Title(TitleFormat::debug(
-            "Create plans/2024-08-11-test-plan-v1.md",
-        )));
+        let expected = Some(ChatResponseContent::Title(
+            TitleFormat::debug("Create plans/2024-08-11-test-plan-v1.md").to_string(),
+        ));
 
         assert_eq!(actual, expected);
     }

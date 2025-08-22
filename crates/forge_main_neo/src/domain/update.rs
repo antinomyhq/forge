@@ -3,7 +3,6 @@ use forge_api::{ChatResponse, ChatResponseContent};
 use ratatui::crossterm::event::KeyEventKind;
 
 use crate::domain::update_key_event::handle_key_event;
-
 use crate::domain::{Action, Command, State};
 
 fn content_to_text(content: &ChatResponseContent) -> &str {

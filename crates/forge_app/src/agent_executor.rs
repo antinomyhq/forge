@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use convert_case::{Case, Casing};
-use forge_display::TitleFormat;
 use forge_domain::{
-    ChatRequest, ChatResponse, ChatResponseContent, Event, ToolCallContext, ToolDefinition,
-    ToolName, ToolOutput,
+    ChatRequest, ChatResponse, ChatResponseContent, Event, TitleFormat, ToolCallContext,
+    ToolDefinition, ToolName, ToolOutput,
 };
 use futures::StreamExt;
 use tokio::sync::RwLock;

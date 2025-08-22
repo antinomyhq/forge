@@ -1,5 +1,4 @@
-use forge_display::TitleFormat;
-use forge_domain::{ChatResponseContent, Environment};
+use forge_domain::{ChatResponseContent, Environment, TitleFormat};
 
 pub fn title_to_content_format(title: TitleFormat) -> ChatResponseContent {
     ChatResponseContent::Title(title.to_string())

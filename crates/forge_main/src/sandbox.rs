@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
-use forge_display::TitleFormat;
+use forge_domain::TitleFormat;
 
 pub struct Sandbox<'a> {
     dir: &'a str,
