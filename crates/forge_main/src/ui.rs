@@ -78,6 +78,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
+    /// Check if a model is available in the provider's model list
+    async fn is_model_available(&mut self, model_id: &ModelId) -> Result<bool> {
+        let available_models = self.get_models().await?;
+        Ok(available_models.iter().any(|model| &model.id == model_id))
+    }
+
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
@@ -620,7 +626,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         let provider = self.init_provider().await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-        if workflow.model.is_none() {
+        let model_available = match workflow.model.as_ref() {
+            Some(m) => self.is_model_available(m).await.unwrap_or(false),
+            None => false,
+        };
+
+        if !model_available {
             workflow.model = Some(
                 self.select_model()
                     .await?
