@@ -2,6 +2,7 @@ mod domain;
 mod entrypoint;
 mod event_reader;
 mod executor;
+mod history;
 mod run;
 mod widgets;
 

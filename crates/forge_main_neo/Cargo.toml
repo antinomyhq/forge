@@ -13,7 +13,8 @@ derive_more.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
-tokio-util.workspace = true
+# FIXME: add to workspace dependency
+tokio-util = "0.7"
 forge_display.workspace = true
 chrono.workspace = true
 derive_setters.workspace = true
@@ -28,6 +29,8 @@ lazy_static.workspace = true
 tracing.workspace = true
 futures.workspace = true
 ansi-to-tui.workspace = true
+fd-lock = "4.0.4"
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+tempfile = "3.0"
