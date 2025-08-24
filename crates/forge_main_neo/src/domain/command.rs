@@ -13,6 +13,7 @@ use forge_api::{AgentId, ConversationId, ModelId};
 pub enum Command {
     // Application-level commands
     ReadWorkspace,
+    ReadWorkflow,
     #[default]
     Empty,
     Exit,
@@ -25,6 +26,8 @@ pub enum Command {
     InterruptStream,
     #[allow(unused)]
     Spotlight(SpotlightCommand),
+    SelectModel(ModelId),
+    UpdateModel(ModelId),
     Interval {
         duration: Duration,
     },
