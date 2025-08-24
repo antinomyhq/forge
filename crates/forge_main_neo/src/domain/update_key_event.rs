@@ -6,7 +6,6 @@ use edtui::actions::{
 use edtui::{EditorEventHandler, EditorMode};
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
-use crate::domain::spotlight::SpotlightState;
 use crate::domain::{Command, EditorStateExt, State};
 
 fn handle_spotlight_input_change(state: &mut State) {
@@ -50,7 +49,7 @@ fn handle_spotlight_navigation(
         KeyCode::Tab => {
             // Auto-complete with the first matching command
             if !filtered_commands.is_empty() {
-                let first_match = filtered_commands[0].to_string();
+                let first_match = filtered_commands[0].name();
                 // Clear current input and set to the first match
                 state.spotlight.editor.set_text_insert_mode(first_match);
                 state.spotlight.selected_index = 0;
@@ -60,25 +59,31 @@ fn handle_spotlight_navigation(
         KeyCode::Enter => {
             // Execute the selected command
             if let Some(selected_cmd) = state.spotlight.selected_command() {
-                // Convert SlashCommand to appropriate Command
+                // Convert SpotlightCommand to appropriate Command
                 let command = match selected_cmd {
-                    crate::domain::slash_command::SlashCommand::Exit => Command::Exit,
-                    crate::domain::slash_command::SlashCommand::Agent => {
-                        // For now, just hide spotlight - proper agent selection would need more UI
-                        Command::Empty
-                    }
-                    crate::domain::slash_command::SlashCommand::Model => {
-                        // For now, just hide spotlight - proper model selection would need more UI
-                        Command::Empty
-                    }
-                    _ => {
-                        // For other commands, just hide spotlight for now
-                        Command::Empty
+                    crate::domain::spotlight::SpotlightCommand::Slash(slash_cmd) => match slash_cmd
+                    {
+                        crate::domain::slash_command::SlashCommand::Exit => Command::Exit,
+                        crate::domain::slash_command::SlashCommand::Agent => Command::Empty,
+                        crate::domain::slash_command::SlashCommand::Model => Command::Empty,
+                        _ => Command::Empty,
+                    },
+                    crate::domain::spotlight::SpotlightCommand::Custom(custom_cmd) => {
+                        // For custom commands, show the command name first, then execute the prompt
+                        state.add_user_message(format!("/{}", custom_cmd.name));
+                        state.add_user_message(custom_cmd.prompt.clone());
+                        state.show_spinner = true;
+                        let chat_command = Command::ChatMessage {
+                            message: custom_cmd.prompt,
+                            conversation_id: state.conversation.conversation_id,
+                            is_first: state.conversation.is_first,
+                        };
+                        Command::Interval { duration: Duration::from_millis(100) }.and(chat_command)
                     }
                 };
 
                 // Hide spotlight and return the command
-                state.spotlight = SpotlightState::default();
+                state.spotlight.reset();
                 return Some(command);
             }
             Some(Command::Empty)
@@ -185,7 +190,7 @@ fn handle_spotlight_toggle(
             state.spotlight.is_visible = true;
         } else {
             // Hide spotlight in all other cases
-            state.spotlight = SpotlightState::default();
+            state.spotlight.reset();
         }
         Command::Empty
     } else {
@@ -641,11 +646,19 @@ mod tests {
             .set_text_insert_mode("ex".to_string());
         let filtered_commands = state.spotlight.filtered_commands();
         assert_eq!(filtered_commands.len(), 1); // Only "exit" command
-        assert_eq!(filtered_commands[0], SlashCommand::Exit);
+        assert_eq!(
+            filtered_commands[0],
+            crate::domain::spotlight::SpotlightCommand::Slash(SlashCommand::Exit)
+        );
 
         // Test selected command
         let selected = state.spotlight.selected_command();
-        assert_eq!(selected, Some(SlashCommand::Exit));
+        assert_eq!(
+            selected,
+            Some(crate::domain::spotlight::SpotlightCommand::Slash(
+                SlashCommand::Exit
+            ))
+        );
     }
 
     #[test]
@@ -684,5 +697,66 @@ mod tests {
         assert_eq!(actual, expected);
         assert_eq!(fixture.messages.len(), 0);
         assert!(!fixture.show_spinner);
+    }
+
+    #[test]
+    fn test_custom_command_execution_triggers_spinner() {
+        use crate::domain::forge_config::CustomCommand;
+        use crate::domain::spotlight::SpotlightState;
+
+        let mut fixture_state = State::default();
+
+        // Set up custom command
+        let custom_command = CustomCommand::new("test_cmd", "Test Command", "Please test this");
+        let mut spotlight_state = SpotlightState::default();
+        spotlight_state.set_custom_commands(vec![custom_command.clone()]);
+        fixture_state.spotlight = spotlight_state;
+
+        // Make spotlight visible and set up selection
+        fixture_state.spotlight.is_visible = true;
+        fixture_state.spotlight.selected_index = 12; // Assuming custom commands come after 12 slash commands
+        fixture_state.conversation.conversation_id = Some(forge_api::ConversationId::generate());
+        fixture_state.conversation.is_first = false;
+
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+
+        let actual_command = handle_key_event(&mut fixture_state, key_event);
+
+        // Verify spinner is triggered
+        assert!(fixture_state.show_spinner);
+
+        // Verify correct command structure
+        match actual_command {
+            Command::And(commands) => {
+                assert_eq!(commands.len(), 2);
+                // First should be interval, second should be chat message
+                match (&commands[0], &commands[1]) {
+                    (Command::Interval { duration }, Command::ChatMessage { message, .. }) => {
+                        assert_eq!(*duration, Duration::from_millis(100));
+                        assert_eq!(message, "Please test this");
+                    }
+                    _ => panic!("Expected Interval and ChatMessage commands"),
+                }
+            }
+            _ => panic!("Expected And command with interval and chat message"),
+        }
+
+        // Verify user message was added
+        assert_eq!(fixture_state.messages.len(), 2);
+        match &fixture_state.messages[0] {
+            crate::domain::Message::User(msg) => {
+                assert_eq!(msg, "/test_cmd");
+            }
+            _ => panic!("Expected user message with command name"),
+        }
+        match &fixture_state.messages[1] {
+            crate::domain::Message::User(msg) => {
+                assert_eq!(msg, "Please test this");
+            }
+            _ => panic!("Expected user message with prompt"),
+        }
+
+        // Verify spotlight is hidden
+        assert!(!fixture_state.spotlight.is_visible);
     }
 }
