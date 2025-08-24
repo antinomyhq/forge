@@ -6,8 +6,7 @@ use forge_api::{ChatResponse, ConversationId};
 use throbber_widgets_tui::ThrobberState;
 use tui_scrollview::ScrollViewState;
 
-use crate::domain::spotlight::SpotlightState;
-use crate::domain::{CancelId, EditorStateExt, Message, Workspace};
+use crate::domain::{CancelId, EditorStateExt, MenuState, Message, SlashCommand, Workspace};
 
 #[derive(Clone)]
 pub struct State {
@@ -17,10 +16,11 @@ pub struct State {
     pub spinner: ThrobberState,
     pub timer: Option<Timer>,
     pub show_spinner: bool,
-    pub spotlight: SpotlightState,
     pub conversation: ConversationState,
     pub chat_stream: Option<CancelId>,
     pub message_scroll_state: ScrollViewState,
+    pub menu: MenuState,
+    pub menu_visible: bool,
 }
 
 impl Default for State {
@@ -34,10 +34,11 @@ impl Default for State {
             spinner: Default::default(),
             timer: Default::default(),
             show_spinner: Default::default(),
-            spotlight: Default::default(),
             conversation: Default::default(),
             chat_stream: None,
             message_scroll_state: ScrollViewState::default(),
+            menu: MenuState::default(),
+            menu_visible: false,
         }
     }
 }
@@ -51,6 +52,31 @@ pub struct Timer {
 }
 
 impl State {
+    /// Determine if the slash menu should be visible based on editor content
+    pub fn slash_menu_visible(&self) -> bool {
+        self.editor.get_text().starts_with('/')
+    }
+
+    /// Update menu visibility based on current state
+    pub fn update_menu_visibility(&mut self) {
+        use edtui::EditorMode;
+
+        // Menu is visible when:
+        // 1. Editor is in normal mode, OR
+        // 2. Text starts with "/" (slash command mode) AND there are matching commands
+        if self.editor.mode == EditorMode::Normal {
+            self.menu_visible = true;
+        } else if self.slash_menu_visible() {
+            // Check if there are any matching commands for the current search term
+            let text = self.editor.get_text();
+            let search_term = text.strip_prefix('/').unwrap_or("");
+            let filtered_commands = SlashCommand::fuzzy_filter(search_term);
+            self.menu_visible = !filtered_commands.is_empty();
+        } else {
+            self.menu_visible = false;
+        }
+    }
+
     /// Get editor lines as strings
     pub fn editor_lines(&self) -> Vec<String> {
         self.editor.get_lines()
@@ -88,5 +114,67 @@ impl ConversationState {
     pub fn init_conversation(&mut self, conversation_id: ConversationId) {
         self.conversation_id = Some(conversation_id);
         self.is_first = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use edtui::EditorMode;
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_menu_visibility_normal_mode() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Normal;
+
+        state.update_menu_visibility();
+
+        assert_eq!(state.menu_visible, true);
+    }
+
+    #[test]
+    fn test_menu_visibility_insert_mode_no_slash() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("hello".to_string());
+
+        state.update_menu_visibility();
+
+        assert_eq!(state.menu_visible, false);
+    }
+
+    #[test]
+    fn test_menu_visibility_insert_mode_with_slash() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/exit".to_string());
+
+        state.update_menu_visibility();
+
+        assert_eq!(state.menu_visible, true);
+    }
+
+    #[test]
+    fn test_menu_visibility_insert_mode_just_slash() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/".to_string());
+
+        state.update_menu_visibility();
+
+        assert_eq!(state.menu_visible, true);
+    }
+
+    #[test]
+    fn test_menu_visibility_insert_mode_no_matching_commands() {
+        let mut state = State::default();
+        state.editor.mode = EditorMode::Insert;
+        state.editor.set_text_insert_mode("/xyz".to_string());
+
+        state.update_menu_visibility();
+
+        assert_eq!(state.menu_visible, false);
     }
 }
