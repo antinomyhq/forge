@@ -395,10 +395,11 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.conversation.max_requests_per_turn;
 
-        let metrics = self.conversation.metrics.clone();
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
 
+        let tool_context =
+            ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
         while !is_complete {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
@@ -500,8 +501,6 @@ impl<S: AgentService> Orchestrator<S> {
                 self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
                     .await?;
             }
-
-            let tool_context = ToolCallContext::new(metrics.clone()).sender(self.sender.clone());
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
@@ -643,12 +642,14 @@ impl<S: AgentService> Orchestrator<S> {
             turn_has_tool_calls = turn_has_tool_calls || has_tool_calls;
         }
 
+        // Update metrics in conversation
+        tool_context.with_metrics(|metrics| {
+            self.conversation.metrics = metrics.clone();
+        })?;
+        // Signal Task Completion
         if has_attempted_completion {
-            self.send(ChatResponse::TaskComplete { metrics: metrics.clone() })
-                .await?;
+            self.send(ChatResponse::TaskComplete).await?;
         }
-
-        self.conversation.metrics = metrics;
 
         Ok(())
     }

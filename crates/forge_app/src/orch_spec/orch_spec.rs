@@ -126,7 +126,7 @@ async fn test_attempt_completion_triggers_session_summary() {
         .chat_responses
         .iter()
         .flatten()
-        .filter(|response| matches!(response, ChatResponse::TaskComplete { .. }))
+        .filter(|response| matches!(response, ChatResponse::TaskComplete))
         .count();
 
     assert_eq!(

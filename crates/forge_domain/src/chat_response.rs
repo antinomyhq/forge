@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::{Metrics, ToolCallFull, ToolResult, Usage};
+use crate::{ToolCallFull, ToolResult, Usage};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
@@ -45,7 +45,7 @@ impl ChatResponseContent {
 pub enum ChatResponse {
     TaskMessage { content: ChatResponseContent },
     TaskReasoning { content: String },
-    TaskComplete { metrics: Metrics },
+    TaskComplete,
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
     Usage(Usage),
