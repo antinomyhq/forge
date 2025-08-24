@@ -7,6 +7,8 @@ edition = "2024"
 ratatui = "0.29.0"
 tui-scrollview = "0.5.1"
 forge_api.workspace = true
+forge_domain.workspace = true
+convert_case.workspace = true
 color-eyre = "0.6.5"
 edtui = { version = "0.9.6", features = ["mouse-support"] }
 derive_more.workspace = true
