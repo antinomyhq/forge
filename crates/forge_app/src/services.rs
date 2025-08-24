@@ -16,6 +16,14 @@ use crate::Walker;
 use crate::dto::{AppConfig, InitAuth, LoginInfo};
 use crate::user::{User, UserUsage};
 
+#[derive(Debug, Clone)]
+pub struct Profile {
+    pub name: String,
+    pub provider: String,
+    pub is_active: bool,
+    pub model_name: Option<String>,
+}
+
 #[derive(Debug)]
 pub struct ShellOutput {
     pub output: CommandOutput,
@@ -115,6 +123,7 @@ pub trait ProviderService: Send + Sync {
         provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
     async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>>;
+    async fn clear_model_cache(&self);
 }
 
 #[async_trait::async_trait]
@@ -329,6 +338,8 @@ pub trait AuthService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
     async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider>;
+    async fn list_profiles(&self, config: AppConfig) -> anyhow::Result<Vec<Profile>>;
+    async fn clear_provider_cache(&self);
 }
 
 #[async_trait::async_trait]
@@ -441,6 +452,9 @@ impl<I: Services> ProviderService for I {
 
     async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>> {
         self.provider_service().models(provider).await
+    }
+    async fn clear_model_cache(&self) {
+        self.provider_service().clear_model_cache().await
     }
 }
 
@@ -659,6 +673,12 @@ impl<I: Services> CustomInstructionsService for I {
 impl<I: Services> ProviderRegistry for I {
     async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
         self.provider_registry().get_provider(config).await
+    }
+    async fn list_profiles(&self, config: AppConfig) -> anyhow::Result<Vec<Profile>> {
+        self.provider_registry().list_profiles(config).await
+    }
+    async fn clear_provider_cache(&self) {
+        self.provider_registry().clear_provider_cache().await
     }
 }
 

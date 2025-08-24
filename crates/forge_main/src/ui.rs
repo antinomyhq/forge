@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Workflow,
+    InterruptionReason, Model, ModelId, Profile, Workflow,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{
@@ -94,6 +94,59 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         banner::display()?;
         self.trace_user();
         self.hydrate_caches();
+        Ok(())
+    }
+
+    async fn select_profile(&mut self) -> Result<Option<String>> {
+        let providers = self.api.list_profiles().await?;
+
+        if providers.is_empty() {
+            self.writeln(
+                "No profiles configured. Create a profiles.yaml file to configure profiles.",
+            )?;
+            return Ok(None);
+        }
+
+        let cli_profiles: Vec<CliProfile> = providers.into_iter().map(CliProfile).collect();
+
+        // Find the currently active provider for cursor positioning
+        let starting_cursor = cli_profiles.iter().position(|p| p.0.is_active).unwrap_or(0);
+
+        match ForgeSelect::select("Select a profile:", cli_profiles)
+            .with_starting_cursor(starting_cursor)
+            .prompt()?
+        {
+            Some(selected_provider) => Ok(Some(selected_provider.0.name.clone())),
+            None => Ok(None),
+        }
+    }
+
+    async fn on_profile_selection(&mut self) -> Result<()> {
+        let provider_option = self.select_profile().await?;
+
+        let provider_id = match provider_option {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+
+        let profiles = self.api.list_profiles().await?;
+        let selected_profile = profiles.iter().find(|p| p.name == provider_id);
+
+        // Set the active provider
+        self.api.set_active_profile(provider_id.clone()).await?;
+
+        // Refresh the provider state to reflect the change
+        let provider = self.api.provider().await?;
+        self.state.provider = Some(provider);
+
+        // Load the default model from the profile if specified
+
+        if let Some(model_name) = selected_profile.and_then(|p| p.model_name.as_ref()) {
+            self.update_model_state(ModelId::new(model_name.clone()))
+                .await?;
+        }
+        self.writeln(format!("✓ Selected profile: {provider_id}"))?;
+
         Ok(())
     }
 
@@ -403,6 +456,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let output = format_tools(&tools);
                 self.writeln(output)?;
             }
+            Command::Profile => {
+                self.on_profile_selection().await?;
+            }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
             }
@@ -553,7 +609,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(model) => model,
             None => return Ok(()),
         };
+        self.writeln(format!("Switched to model: {model}"))?;
+        self.update_model_state(model.clone()).await
+    }
 
+    // Helper method to update model in workflow, conversation, and UI state
+    async fn update_model_state(&mut self, model: ModelId) -> Result<()> {
+        // Update the workflow with the new model
         self.api
             .update_workflow(self.cli.workflow.as_deref(), |workflow| {
                 workflow.model = Some(model.clone());
@@ -930,6 +992,21 @@ fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
             }
         })
         .collect()
+}
+
+struct CliProfile(Profile);
+
+impl Display for CliProfile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let profile = &self.0;
+        write!(f, "{}", profile.name)?;
+
+        if let Some(model_name) = &profile.model_name {
+            write!(f, " {}", model_name.dimmed())?;
+        }
+
+        Ok(())
+    }
 }
 
 struct CliModel(Model);

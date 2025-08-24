@@ -5,8 +5,8 @@ use anyhow::{Context, Result};
 use forge_app::dto::{AppConfig, InitAuth};
 use forge_app::{
     AppConfigService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services, User, UserUsage,
-    Walker, WorkflowService,
+    ForgeApp, McpConfigManager, Profile, ProviderRegistry, ProviderService, Services, User,
+    UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -185,5 +185,21 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             return Ok(Some(user_usage));
         }
         Ok(None)
+    }
+    async fn list_profiles(&self) -> anyhow::Result<Vec<Profile>> {
+        let config = self.services.read_app_config().await.unwrap_or_default();
+        self.services.list_profiles(config).await
+    }
+
+    async fn set_active_profile(&self, profile_name: String) -> anyhow::Result<()> {
+        let mut config = self.services.read_app_config().await.unwrap_or_default();
+        config.active_provider = Some(profile_name);
+        // Update config file
+        self.services.write_app_config(&config).await?;
+
+        // Clear model and provider cache
+        self.services.clear_provider_cache().await;
+        self.services.clear_model_cache().await;
+        Ok(())
     }
 }

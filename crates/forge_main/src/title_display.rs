@@ -79,7 +79,7 @@ impl TitleDisplay {
         buf.push_str(&self.inner.title);
 
         if let Some(ref sub_title) = self.inner.sub_title {
-            buf.push_str(&format!(" {}", sub_title));
+            buf.push_str(&format!(" {sub_title}"));
         }
 
         buf
