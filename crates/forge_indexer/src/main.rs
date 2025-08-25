@@ -1,13 +1,15 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
-use forge_indexer::chunker::CodeSplitter;
-use forge_indexer::embedder::{ChunkEmbedder, QueryEmbedder};
-use forge_indexer::qdrant::{QdrantStore, QueryRequest};
-use forge_indexer::traits::{Embedder, StorageReader};
-use forge_indexer::{FileConfig, FileLoader, IndexingPipeline};
+use forge_indexer::qdrant::RetrivalRequest;
+use forge_indexer::{
+    ChunkEmbedder, CodeSplitter, FileLoader, QdrantRetriever, QdrantStore, QueryEmbedder,
+    RerankerRequest, Transform, TransformOps, VoyageReRanker,
+};
 
 #[derive(Parser)]
 #[command(name = "forge_indexer")]
-#[command(about = "A CLI tool for indexing and querying code")]
+#[command(about = "A CLI tool for indexing and querying code using composable transforms")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -15,12 +17,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Index code files from a given path
+    /// Index code files from a given path using the transform pipeline
     Index {
         /// Path to the directory containing code files to index
-        path: String,
+        path: PathBuf,
     },
-    /// Query the indexed code
+    /// Query the indexed code using the transform pipeline
     Query {
         /// Query string to search for
         query: String,
@@ -32,46 +34,67 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     dotenv::dotenv().ok();
 
-    let storage = QdrantStore::try_new("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.QqRXnnsehjaj2jG7TS3cS5F6A25uj_F0OiyEMuVxg_Q".into(), "https://23254d39-13e8-432c-83d9-87c3d366452d.eu-west-1-0.aws.cloud.qdrant.io:6334".into(), "forge_chunks".into())?;
+    // Configure storage
+    let storage = QdrantStore::try_new(
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.QqRXnnsehjaj2jG7TS3cS5F6A25uj_F0OiyEMuVxg_Q".into(),
+        "https://23254d39-13e8-432c-83d9-87c3d366452d.eu-west-1-0.aws.cloud.qdrant.io:6334".into(),
+        "forge_chunks".into(),
+    )?;
+    let retriver = QdrantRetriever::try_new("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.QqRXnnsehjaj2jG7TS3cS5F6A25uj_F0OiyEMuVxg_Q".into(),
+        "https://23254d39-13e8-432c-83d9-87c3d366452d.eu-west-1-0.aws.cloud.qdrant.io:6334".into(),
+        "forge_chunks".into())?;
+    let embedding_model = "text-embedding-3-small";
+    let rerank_model = "rerank-2.5";
+
     match cli.command {
         Commands::Index { path } => {
-            let file_config = FileConfig::new(&path).extensions(vec!["rs".into()]);
-            let indexer = IndexingPipeline::new(
-                FileLoader::new(file_config),
-                CodeSplitter::new(1024),
-                ChunkEmbedder::new("text-embedding-3-small".into()),
-                storage,
-            );
-            let data = indexer.index().await?;
-            println!("Points added to store: {}", data.into_iter().sum::<usize>());
+            println!("Indexing files from: {}", path.display());
+            // indexing pipeline
+            let output = FileLoader::default()
+                .extensions(vec!["rs".into()])
+                .pipe(CodeSplitter::new(500))
+                .pipe(ChunkEmbedder::new(embedding_model.to_string(), 10))
+                .pipe(storage)
+                .transform(path)
+                .await?;
+            println!("Total points written to storge: {output}");
         }
         Commands::Query { query } => {
             println!("Querying for: {query}");
+            let search_results = QueryEmbedder::new(embedding_model.to_string())
+                .map(|result| RetrivalRequest::new(result, 15))
+                .pipe(retriver)
+                .map(|result| {
+                    RerankerRequest::new(
+                        query.clone(),
+                        result.into_iter().map(|res| res.content).collect(),
+                        rerank_model.to_string(),
+                    )
+                    .return_documents(true)
+                    .top_k(10)
+                })
+                .pipe(VoyageReRanker::new(
+                    "pa-G7eKFHv7CHC9EXn9TbZJ0KDceoU2_qSoC0QW1mQBSl0".to_string(),
+                ))
+                .transform(query.clone())
+                .await?;
 
-            // Create an embedder for the query
-            let embedder = QueryEmbedder::new("text-embedding-3-small".into());
-            let query_embedding = embedder.embed(query).await?;
+            println!("Result: {:#?}", search_results);
 
-            // Perform similarity search
-            let query_request = QueryRequest {
-                embedding: query_embedding,
-                limit: 20, // Return top 20 results
-                score_threshold: None,
-            };
-
-            let search_results = storage.query(query_request).await?;
-            if search_results.is_empty() {
+            if search_results.data.is_empty() {
                 println!("No relevant code chunks found for your query.");
             } else {
-                println!("\nFound {} relevant code chunks:\n", search_results.len());
-                for (i, result) in search_results.iter().enumerate() {
-                    println!("Result {} (Score: {:.3}):", i + 1, result.score);
-                    println!("{}", result.content);
+                println!(
+                    "\nFound {} relevant code chunks:\n",
+                    search_results.data.len()
+                );
+                for (i, result) in search_results.data.iter().enumerate() {
+                    println!("Result {} (Score: {:.3}):", i + 1, result.relevance_score);
+                    println!("Content: {:#?}", result.document);
                     println!("{}", "-".repeat(80));
                 }
             }
         }
     }
-
     Ok(())
 }

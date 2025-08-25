@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use derive_setters::Setters;
 use qdrant_client::Qdrant;
 use qdrant_client::config::QdrantConfig;
 use qdrant_client::qdrant::vectors_config::Config;
@@ -9,7 +10,8 @@ use qdrant_client::qdrant::{
 };
 use uuid::Uuid;
 
-use crate::{EmbeddedChunk, StorageReader, StorageWriter};
+use crate::EmbeddedChunk;
+use crate::transform::Transform;
 
 #[derive(Debug, Clone)]
 pub struct SearchResult {
@@ -97,7 +99,10 @@ impl From<EmbeddedChunk> for PointStruct {
             "end_char".to_string(),
             (chunk.chunk.position.end_char as i64).into(),
         );
-        payload.insert("path".to_string(), chunk.chunk.path.display().to_string().into());  
+        payload.insert(
+            "path".to_string(),
+            chunk.chunk.path.display().to_string().into(),
+        );
 
         PointStruct {
             id: Some(point_id.into()),
@@ -116,12 +121,11 @@ impl From<EmbeddedChunk> for PointStruct {
     }
 }
 
-#[async_trait::async_trait]
-impl StorageWriter for QdrantStore {
-    type Input = Vec<EmbeddedChunk>;
-    type Output = usize;
-    async fn write(&self, input: Self::Input) -> anyhow::Result<Self::Output> {
-        println!("embedding chunks: {}", input.len());
+impl Transform for QdrantStore {
+    type In = Vec<EmbeddedChunk>;
+    type Out = usize;
+
+    async fn transform(self, input: Self::In) -> anyhow::Result<Self::Out> {
         let dims = input[0].embedding.len() as u64;
         let points: Vec<PointStruct> = input.into_iter().map(From::from).collect();
 
@@ -142,18 +146,44 @@ impl StorageWriter for QdrantStore {
     }
 }
 
-#[async_trait::async_trait]
-impl StorageReader for QdrantStore {
-    type Query = QueryRequest;
-    type QueryResult = Vec<SearchResult>;
+#[derive(Setters)]
+pub struct QdrantRetriever {
+    client: Qdrant,
+    collection_name: String,
+}
 
-    async fn query(&self, query: Self::Query) -> anyhow::Result<Self::QueryResult> {
+impl QdrantRetriever {
+    pub fn try_new(api_key: String, url: String, collection_name: String) -> anyhow::Result<Self> {
+        let client = QdrantConfig::from_url(&url).api_key(api_key).build()?;
+        Ok(Self { client, collection_name })
+    }
+}
+
+#[derive(Setters)]
+#[setters(strip_option)]
+pub struct RetrivalRequest {
+    pub limit: u64,
+    pub score_threshold: Option<f32>,
+    pub embedding: Vec<f32>,
+}
+
+impl RetrivalRequest {
+    pub fn new(embedding: Vec<f32>, limit: u64) -> Self {
+        Self { limit, score_threshold: None, embedding }
+    }
+}
+
+impl Transform for QdrantRetriever {
+    type In = RetrivalRequest;
+    type Out = Vec<SearchResult>;
+
+    async fn transform(self, input: Self::In) -> anyhow::Result<Self::Out> {
         let search_request = SearchPoints {
             collection_name: self.collection_name.clone(),
-            vector: query.embedding,
+            vector: input.embedding,
             vector_name: None,
-            limit: query.limit,
-            score_threshold: query.score_threshold,
+            limit: input.limit,
+            score_threshold: input.score_threshold,
             with_payload: Some(WithPayloadSelector {
                 selector_options: Some(
                     qdrant_client::qdrant::with_payload_selector::SelectorOptions::Enable(true),
@@ -197,11 +227,17 @@ impl StorageReader for QdrantStore {
 
                 let path = payload
                     .get("path")
-                    .and_then(|v| v.as_integer())
+                    .and_then(|v| v.as_str())
                     .ok_or_else(|| anyhow::anyhow!("Missing path in payload"))?
-                    as usize;
+                    .to_string();
 
-                Ok(SearchResult { content, score: scored_point.score, start_char, end_char, path })
+                Ok(SearchResult {
+                    content,
+                    score: scored_point.score,
+                    start_char,
+                    end_char,
+                    path,
+                })
             })
             .collect();
 

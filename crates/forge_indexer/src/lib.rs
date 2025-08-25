@@ -14,9 +14,17 @@ pub mod loader;
 /// Generic pipeline for orchestrating the indexing workflow
 pub mod pipeline;
 pub mod qdrant;
+pub mod reranker;
 
+/// Transform trait and composable pipeline implementations
+pub mod transform;
+
+pub use chunker::*;
 pub use domain::*;
+pub use embedder::*;
 pub use loader::*;
 pub use pipeline::*;
-pub use qdrant::{QdrantStore, QueryRequest, SearchResult};
+pub use qdrant::{QdrantRetriever, QdrantStore, QueryRequest, SearchResult};
+pub use reranker::{Request as RerankerRequest, Response as RerankerResponse, VoyageReRanker};
 pub use traits::*;
+pub use transform::{Transform, TransformOps};
