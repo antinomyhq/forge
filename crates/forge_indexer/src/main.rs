@@ -45,6 +45,9 @@ async fn main() -> anyhow::Result<()> {
         "forge_chunks".into())?;
     let embedding_model = "text-embedding-3-small";
     let rerank_model = "rerank-2.5";
+    // chunk size thresholds.
+    let max_chunk_size = 500;
+    let min_chunk_size = 100;
 
     match cli.command {
         Commands::Index { path } => {
@@ -52,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
             // indexing pipeline
             let output = FileLoader::default()
                 .extensions(vec!["rs".into()])
-                .pipe(CodeSplitter::new(500))
+                .pipe(CodeSplitter::new(max_chunk_size, min_chunk_size))
                 .pipe(ChunkEmbedder::new(embedding_model.to_string(), 10))
                 .pipe(storage)
                 .transform(path)

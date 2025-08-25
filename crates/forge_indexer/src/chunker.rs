@@ -1,21 +1,26 @@
 use text_splitter::ChunkConfig;
+use tiktoken_rs::CoreBPE;
 
 use crate::transform::Transform;
 use crate::{Chunk, Document, Position};
 
-pub struct CodeSplitter(text_splitter::CodeSplitter<tiktoken_rs::CoreBPE>);
+pub struct CodeSplitter {
+    tokenizer: CoreBPE,
+    splitter: text_splitter::CodeSplitter<CoreBPE>,
+    min_size: usize,
+}
 
 impl CodeSplitter {
-    pub fn new(max_size: usize) -> Self {
+    pub fn new(max_size: usize, min_size: usize) -> Self {
         use tiktoken_rs::o200k_base;
         let tokenizer = o200k_base().unwrap();
         let splitter = text_splitter::CodeSplitter::new(
             tree_sitter_rust::LANGUAGE,
-            ChunkConfig::new(max_size).with_sizer(tokenizer),
+            ChunkConfig::new(max_size).with_sizer(tokenizer.clone()),
         )
         .unwrap();
 
-        Self(splitter)
+        Self { tokenizer, splitter, min_size }
     }
 }
 
@@ -26,8 +31,12 @@ impl Transform for CodeSplitter {
         let out = input
             .into_iter()
             .flat_map(|document| {
-                self.0
+                self.splitter
                     .chunk_char_indices(&document.content)
+                    .filter(|chunk| {
+                        // filter out small chunks that don't contribute anything.
+                        self.tokenizer.encode_ordinary(chunk.chunk).len() > self.min_size
+                    })
                     .map(|chunk| {
                         Chunk::new(
                             document.path.clone(),
