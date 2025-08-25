@@ -149,7 +149,7 @@ impl<S> ToolRegistry<S> {
             .collect();
 
         if !agent_tools.contains(&tool_name.as_str())
-            && *tool_name != ToolsDiscriminants::ForgeToolAttemptCompletion.name()
+            && *tool_name != ToolsDiscriminants::AttemptCompletion.name()
         {
             tracing::error!(tool_name = %tool_name, "No tool with name");
 
@@ -181,7 +181,7 @@ mod tests {
     async fn test_restricted_tool_call() {
         let result = ToolRegistry::<()>::validate_tool_call(
             &agent(),
-            &ToolName::new(Tools::ForgeToolFsRead(Default::default())),
+            &ToolName::new(Tools::Read(Default::default())),
         );
         assert!(result.is_ok(), "Tool call should be valid");
     }
@@ -204,7 +204,7 @@ mod tests {
     async fn test_completion_tool_call() {
         let result = ToolRegistry::<()>::validate_tool_call(
             &agent(),
-            &ToolsDiscriminants::ForgeToolAttemptCompletion.name(),
+            &ToolsDiscriminants::AttemptCompletion.name(),
         );
 
         assert!(result.is_ok(), "Completion tool call should be valid");
