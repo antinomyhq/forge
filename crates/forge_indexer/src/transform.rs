@@ -1,7 +1,7 @@
 pub trait Transform {
     type In;
     type Out;
-    async fn transform(self, input: Self::In) -> anyhow::Result<Self::Out>;
+    fn transform(self, input: Self::In) -> impl Future<Output = anyhow::Result<Self::Out>>;
 }
 
 pub trait TransformOps: Sized {

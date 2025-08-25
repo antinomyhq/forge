@@ -42,15 +42,7 @@ impl Request {
 
 #[derive(Debug, Deserialize)]
 pub struct Response {
-    object: String,
     pub data: Vec<Document>,
-    model: String,
-    usage: Usage,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Usage {
-    total_tokens: usize,
 }
 
 #[derive(Debug, Deserialize)]
