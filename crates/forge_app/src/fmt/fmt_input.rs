@@ -72,9 +72,7 @@ impl FormatContent for Tools {
                     .sub_title(&input.command)
                     .into(),
             ),
-            Tools::Fetch(input) => {
-                Some(TitleFormat::debug("GET").sub_title(&input.url).into())
-            }
+            Tools::Fetch(input) => Some(TitleFormat::debug("GET").sub_title(&input.url).into()),
             Tools::Followup(input) => Some(
                 TitleFormat::debug("Follow-up")
                     .sub_title(&input.question)
