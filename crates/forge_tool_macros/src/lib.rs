@@ -69,8 +69,9 @@ pub fn derive_description(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-/// Procedural macro to automatically generate alias mappings from Tools enum
-#[proc_macro]
-pub fn generate_alias_map(input: TokenStream) -> TokenStream {
-    alias_map::generate_alias_map(input)
+/// Attribute macro to automatically generate alias mappings from Tools enum
+/// definition
+#[proc_macro_attribute]
+pub fn tool_alias_map(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    alias_map::generate_tool_alias_map_attribute(item)
 }

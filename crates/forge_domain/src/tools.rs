@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use convert_case::{Case, Casing};
 use derive_more::From;
 use eserde::Deserialize;
-use forge_tool_macros::{ToolDescription, generate_alias_map};
+use forge_tool_macros::{ToolDescription, tool_alias_map};
 use schemars::JsonSchema;
 use schemars::schema::RootSchema;
 use serde::Serialize;
@@ -20,6 +20,7 @@ use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 /// This enum contains variants for each type of input that can be passed to
 /// tools in the application. Each variant corresponds to the input type for a
 /// specific tool.
+#[tool_alias_map]
 #[derive(
     Debug,
     Clone,
@@ -58,34 +59,6 @@ pub enum Tools {
     ForgeToolAttemptCompletion(AttemptCompletion),
     #[serde(alias = "create_plan")]
     ForgeToolPlanCreate(PlanCreate),
-}
-
-// Generate the alias mapping automatically from the Tools enum above
-generate_alias_map! {
-    enum Tools {
-        #[serde(alias = "read")]
-        ForgeToolFsRead(FSRead),
-        #[serde(alias = "write")]
-        ForgeToolFsCreate(FSWrite),
-        #[serde(alias = "search")]
-        ForgeToolFsSearch(FSSearch),
-        #[serde(alias = "remove")]
-        ForgeToolFsRemove(FSRemove),
-        #[serde(alias = "patch")]
-        ForgeToolFsPatch(FSPatch),
-        #[serde(alias = "undo")]
-        ForgeToolFsUndo(FSUndo),
-        #[serde(alias = "exec")]
-        ForgeToolProcessShell(Shell),
-        #[serde(alias = "http")]
-        ForgeToolNetFetch(NetFetch),
-        #[serde(alias = "ask")]
-        ForgeToolFollowup(Followup),
-        #[serde(alias = "complete")]
-        ForgeToolAttemptCompletion(AttemptCompletion),
-        #[serde(alias = "create_plan")]
-        ForgeToolPlanCreate(PlanCreate),
-    }
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
