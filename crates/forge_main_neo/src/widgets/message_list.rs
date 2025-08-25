@@ -1,6 +1,6 @@
 use ansi_to_tui::IntoText;
 use color_eyre::owo_colors::OwoColorize;
-use forge_api::ChatResponse;
+use forge_api::{ChatResponse, ChatResponseContent};
 use ratatui::layout::Size;
 use ratatui::prelude::Widget;
 use ratatui::style::{Style, Stylize};
@@ -24,20 +24,23 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
             ])]
             .into_iter(),
             Message::Assistant(response) => match response {
-                ChatResponse::TaskMessage { text, is_md } => {
-                    if *is_md {
+                ChatResponse::TaskMessage { content } => match content {
+                    ChatResponseContent::Markdown(text) => {
                         let rendered_text = forge_display::MarkdownFormat::new().render(text);
                         match rendered_text.into_text() {
                             Ok(text) => text.lines.into_iter(),
                             Err(_) => vec![Line::raw(rendered_text)].into_iter(),
                         }
-                    } else {
-                        match text.clone().into_text() {
-                            Ok(text) => text.lines.into_iter(),
-                            Err(_) => vec![Line::raw(text.clone())].into_iter(),
-                        }
                     }
-                }
+                    ChatResponseContent::Title(_) | ChatResponseContent::PlainText(_) => {
+                        // match text.clone() {
+                        //     Ok(text) => text.lines.into_iter(),
+                        //     Err(_) => vec![Line::raw(text.clone())].into_iter(),
+                        // }
+
+                        todo!()
+                    }
+                },
                 ChatResponse::ToolCallStart(_) => vec![].into_iter(),
                 ChatResponse::ToolCallEnd(_) => vec![].into_iter(),
                 ChatResponse::Usage(_) => vec![].into_iter(),

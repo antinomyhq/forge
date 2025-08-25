@@ -97,7 +97,7 @@ custom_rules: |-
   ## Verification:
   1. Run crate specific tests to ensure they pass.
      ```
-     cargo insta test --accept --unreferenced=delete -p <crate name>
+     cargo insta test --accept --unreferenced=delete
      ```
 
   2. Lint and format the codebase.
