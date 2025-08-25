@@ -21,20 +21,23 @@ pub fn generate_alias_map(input: TokenStream) -> TokenStream {
         // Extract serde aliases from the variant attributes
         for attr in &variant.attrs {
             if attr.path().is_ident("serde")
-                && attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("alias") {
-                        let value: Lit = meta.value()?.parse()?;
-                        if let Lit::Str(alias_str) = value {
-                            let alias = alias_str.value();
-                            alias_entries.push(quote! {
-                                (#alias, #full_tool_name)
-                            });
+                && attr
+                    .parse_nested_meta(|meta| {
+                        if meta.path.is_ident("alias") {
+                            let value: Lit = meta.value()?.parse()?;
+                            if let Lit::Str(alias_str) = value {
+                                let alias = alias_str.value();
+                                alias_entries.push(quote! {
+                                    (#alias, #full_tool_name)
+                                });
+                            }
                         }
-                    }
-                    Ok(())
-                }).is_ok() {
-                    // Successfully parsed
-                }
+                        Ok(())
+                    })
+                    .is_ok()
+            {
+                // Successfully parsed
+            }
         }
     }
 
