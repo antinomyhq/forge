@@ -171,10 +171,8 @@ mod tests {
 
     fn agent() -> Agent {
         // only allow read and search tools for this agent
-        Agent::new(AgentId::new("test_agent")).tools(vec![
-            ToolName::new("read"),
-            ToolName::new("search"),
-        ])
+        Agent::new(AgentId::new("test_agent"))
+            .tools(vec![ToolName::new("read"), ToolName::new("search")])
     }
 
     #[tokio::test]
@@ -188,12 +186,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_restricted_tool_call_err() {
-        let error = ToolRegistry::<()>::validate_tool_call(
-            &agent(),
-            &ToolName::new("write"),
-        )
-        .unwrap_err()
-        .to_string();
+        let error = ToolRegistry::<()>::validate_tool_call(&agent(), &ToolName::new("write"))
+            .unwrap_err()
+            .to_string();
         assert_eq!(
             error,
             "Tool 'write' is not available. Please try again with one of these tools: [read, search]"
