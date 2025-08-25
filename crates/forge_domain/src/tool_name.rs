@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use std::collections::HashMap;
+use std::fmt::Display;
 
 use regex::Regex;
 use schemars::JsonSchema;
@@ -74,7 +74,8 @@ impl Display for ToolName {
 }
 
 impl ToolName {
-    /// Resolves a tool name or alias to the full tool name using the generated alias map
+    /// Resolves a tool name or alias to the full tool name using the generated
+    /// alias map
     pub fn resolve_alias(input: &str) -> String {
         lazy_static::lazy_static! {
             static ref ALIAS_MAP: HashMap<&'static str, &'static str> = {
@@ -84,7 +85,7 @@ impl ToolName {
                     .collect()
             };
         }
-        
+
         ALIAS_MAP
             .get(input)
             .map(|&s| s.to_string())
