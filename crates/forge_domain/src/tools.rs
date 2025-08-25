@@ -731,7 +731,7 @@ mod tests {
 
     #[test]
     fn test_is_complete() {
-        let complete_tool = ToolName::new("forge_tool_attempt_completion");
+        let complete_tool = ToolName::new("attempt_completion");
         let incomplete_tool = ToolName::new("forge_tool_fs_read");
 
         assert!(Tools::is_attempt_completion(&complete_tool));
@@ -741,7 +741,7 @@ mod tests {
     #[test]
     fn test_tool_definition() {
         let actual = ToolsDiscriminants::Remove.name();
-        let expected = ToolName::new("forge_tool_fs_remove");
+        let expected = ToolName::new("remove");
         assert_eq!(actual, expected);
     }
 
