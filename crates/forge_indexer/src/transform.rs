@@ -5,7 +5,11 @@ pub trait Transform {
 }
 
 pub trait TransformOps: Sized {
-    fn pipe<Other>(self, other: Other) -> Pipe<Self, Other> {
+    fn pipe<Other>(self, other: Other) -> Pipe<Self, Other>
+    where
+        Self: Transform,
+        Other: Transform<In = Self::Out>,
+    {
         Pipe(self, other)
     }
 
