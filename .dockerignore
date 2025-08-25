@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+
+# Rust build artifacts
+target/
+Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test files
+tests/
+**/tests/
+**/snapshots/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Node modules (if any)
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Cache directories
+.cache/
+.rustc_info.json
