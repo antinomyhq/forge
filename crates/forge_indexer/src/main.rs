@@ -67,7 +67,10 @@ async fn main() -> anyhow::Result<()> {
                 .map(|result| {
                     RerankerRequest::new(
                         query.clone(),
-                        result.into_iter().map(|res| res.content).collect(),
+                        result
+                            .into_iter()
+                            .map(|res| format!("{}\n{}", res.path, res.content))
+                            .collect(),
                         rerank_model.to_string(),
                     )
                     .return_documents(true)
