@@ -170,10 +170,10 @@ mod tests {
     use crate::tool_registry::ToolRegistry;
 
     fn agent() -> Agent {
-        // only allow FsRead tool for this agent
+        // only allow read and search tools for this agent
         Agent::new(AgentId::new("test_agent")).tools(vec![
-            ToolName::new("forge_tool_fs_read"),
-            ToolName::new("forge_tool_fs_find"),
+            ToolName::new("read"),
+            ToolName::new("search"),
         ])
     }
 
@@ -190,13 +190,13 @@ mod tests {
     async fn test_restricted_tool_call_err() {
         let error = ToolRegistry::<()>::validate_tool_call(
             &agent(),
-            &ToolName::new("forge_tool_fs_create"),
+            &ToolName::new("write"),
         )
         .unwrap_err()
         .to_string();
         assert_eq!(
             error,
-            "Tool 'forge_tool_fs_create' is not available. Please try again with one of these tools: [forge_tool_fs_read, forge_tool_fs_find]"
+            "Tool 'write' is not available. Please try again with one of these tools: [read, search]"
         );
     }
 

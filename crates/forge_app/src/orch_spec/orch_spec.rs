@@ -137,9 +137,9 @@ async fn test_attempt_completion_triggers_session_summary() {
 
 #[tokio::test]
 async fn test_followup_does_not_trigger_session_summary() {
-    let followup_call = ToolCallFull::new("forge_tool_followup")
+    let followup_call = ToolCallFull::new("followup")
         .arguments(json!({"question": "Do you need more information?"}));
-    let followup_result = ToolResult::new("forge_tool_followup")
+    let followup_result = ToolResult::new("followup")
         .output(Ok(ToolOutput::text("Follow-up question sent")));
 
     let mut ctx = TestContext::init_forge_task("Ask a follow-up question")
