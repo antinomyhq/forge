@@ -1,4 +1,6 @@
 use proc_macro::TokenStream;
+
+mod alias_map;
 use proc_macro2::TokenTree;
 use quote::{ToTokens, quote};
 use syn::{DeriveInput, parse_macro_input};
@@ -65,4 +67,10 @@ pub fn derive_description(input: TokenStream) -> TokenStream {
     };
 
     expanded.into()
+}
+
+/// Procedural macro to automatically generate alias mappings from Tools enum
+#[proc_macro]
+pub fn generate_alias_map(input: TokenStream) -> TokenStream {
+    alias_map::generate_alias_map(input)
 }

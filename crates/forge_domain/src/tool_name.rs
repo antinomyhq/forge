@@ -1,10 +1,11 @@
 use std::fmt::Display;
+use std::collections::HashMap;
 
 use regex::Regex;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct ToolName(String);
 
@@ -72,9 +73,40 @@ impl Display for ToolName {
     }
 }
 
+impl ToolName {
+    /// Resolves a tool name or alias to the full tool name using the generated alias map
+    pub fn resolve_alias(input: &str) -> String {
+        lazy_static::lazy_static! {
+            static ref ALIAS_MAP: HashMap<&'static str, &'static str> = {
+                crate::get_tool_aliases()
+                    .iter()
+                    .map(|(alias, full_name)| (*alias, *full_name))
+                    .collect()
+            };
+        }
+        
+        ALIAS_MAP
+            .get(input)
+            .map(|&s| s.to_string())
+            .unwrap_or_else(|| input.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for ToolName {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let input = String::deserialize(deserializer)?;
+        let resolved = Self::resolve_alias(&input);
+        Ok(ToolName(resolved))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use serde_json;
 
     use super::*;
 
@@ -227,6 +259,29 @@ mod tests {
         let tool_name = ToolName::new("Test123Case");
         let actual = tool_name.into_sanitized();
         let expected = ToolName::new("test123case");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_alias_resolution() {
+        // Test that aliases are resolved to full tool names during deserialization
+        let actual: ToolName = serde_json::from_str("\"read\"").unwrap();
+        let expected = ToolName::new("forge_tool_fs_read");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_alias_resolution_write() {
+        let actual: ToolName = serde_json::from_str("\"write\"").unwrap();
+        let expected = ToolName::new("forge_tool_fs_create");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_non_alias_passthrough() {
+        // Test that non-aliases are passed through unchanged
+        let actual: ToolName = serde_json::from_str("\"some_custom_tool\"").unwrap();
+        let expected = ToolName::new("some_custom_tool");
         assert_eq!(actual, expected);
     }
 }
