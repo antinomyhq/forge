@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 use forge_app::domain::{Agent, Template};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
-use tokio::sync::Mutex;
 
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
@@ -18,12 +17,12 @@ pub struct AgentLoaderService<F> {
     // Cache is used to maintain the loaded agents
     // for this service instance.
     // So that they could live till user starts a new session.
-    cache: Arc<Mutex<Option<Vec<Agent>>>>,
+    cache: tokio::sync::OnceCell<Vec<Agent>>,
 }
 
 impl<F> AgentLoaderService<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Arc::new(Default::default()) }
+        Self { infra, cache: Default::default() }
     }
 }
 
@@ -42,9 +41,10 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 {
     /// Load all agent definitions from the forge/agent directory
     async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        if let Some(agents) = self.cache.lock().await.as_ref() {
-            return Ok(agents.clone());
-        }
+        self.cache.get_or_try_init(|| self.init()).await.cloned()
+    }
+
+    async fn init(&self) -> anyhow::Result<Vec<Agent>> {
         let agent_dir = self.infra.get_environment().agent_path();
         if !self.infra.exists(&agent_dir).await? {
             return Ok(vec![]);
@@ -65,8 +65,6 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
                     .with_context(|| format!("Failed to parse agent: {}", path.display()))?,
             )
         }
-
-        *self.cache.lock().await = Some(agents.clone());
 
         Ok(agents)
     }

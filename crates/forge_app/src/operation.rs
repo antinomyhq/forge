@@ -1583,7 +1583,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_attempt_completion"),
+            ToolName::new("attempt_completion"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),

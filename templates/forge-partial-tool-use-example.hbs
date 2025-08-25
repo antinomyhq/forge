@@ -8,12 +8,12 @@ Here's a correct example structure:
 
 Example 1:
 <forge_tool_call>
-{"name": "forge_tool_fs_read", "arguments": {"path": "/a/b/c.txt"}}
+{"name": "read", "arguments": {"path": "/a/b/c.txt"}}
 </forge_tool_call>
 
 Example 2:
 <forge_tool_call>
-{"name": "forge_tool_fs_write", "arguments": {"path": "/a/b/c.txt", "content": "Hello World!"}}
+{"name": "write", "arguments": {"path": "/a/b/c.txt", "content": "Hello World!"}}
 </forge_tool_call>
 
 Important:

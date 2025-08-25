@@ -8,6 +8,7 @@ use forge_app::domain::{
     ReadRule, Rule, WriteRule,
 };
 use forge_app::{PolicyDecision, PolicyService};
+use lazy_static::lazy_static;
 use strum_macros::{Display, EnumIter};
 
 use crate::{
@@ -33,6 +34,14 @@ pub enum PolicyPermission {
 pub struct ForgePolicyService<I> {
     infra: Arc<I>,
 }
+lazy_static! {
+    /// Default policies loaded once at startup from the embedded YAML file
+    static ref DEFAULT_POLICIES: PolicyConfig = {
+        let yaml_content = include_str!("./permissions.default.yaml");
+        serde_yml::from_str(yaml_content)
+            .expect("Failed to parse default policies YAML. This should never happen as the YAML is embedded.")
+    };
+}
 
 impl<I> ForgePolicyService<I>
 where
@@ -47,11 +56,9 @@ where
     }
 
     /// Create a policies collection with sensible defaults
-    /// Loads from default_policies.yml for easier debugging and maintenance
+    /// Returns a clone of the preloaded default policies
     fn load_default_policies() -> PolicyConfig {
-        let yaml_content = include_str!("./permissions.default.yaml");
-        serde_yml::from_str(yaml_content)
-            .expect("Failed to parse default policies YAML. This should never happen as the YAML is embedded.")
+        DEFAULT_POLICIES.clone()
     }
 
     /// Add a policy for a specific operation type
