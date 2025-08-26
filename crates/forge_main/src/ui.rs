@@ -856,10 +856,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
-        self.spinner.stop(None)?;
+        self.spinner.start(Some("Loading Summary"))?;
+
+        let mut info = Info::default();
 
         // Show summary
-        self.writeln(Info::from(&metrics))?;
+        info = info.extend(Info::from(&metrics));
+
+        // Fetch Usage
+        info = info.extend(get_usage(&self.state));
+
+        if let Ok(Some(usage)) = self.api.user_usage().await {
+            info = info.extend(Info::from(&usage));
+        }
+
+        self.writeln(info)?;
+
+        self.spinner.stop(None)?;
 
         let prompt_text = "Start a new conversation?";
         let should_start_new_chat = ForgeSelect::confirm(prompt_text)
