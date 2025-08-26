@@ -176,6 +176,13 @@
             "null"
           ]
         },
+        "enable_mcp": {
+          "description": "Flag to enable/disable tool support for this agent.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "id": {
           "type": "string"
         },

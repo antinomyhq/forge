@@ -56,6 +56,12 @@ pub struct Agent {
     #[merge(strategy = crate::merge::option)]
     pub tool_supported: Option<bool>,
 
+    /// Flag to enable/disable tool support for this agent.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub enable_mcp: Option<bool>,
+
     // Unique identifier for the agent
     #[merge(strategy = crate::merge::std::overwrite)]
     pub id: AgentId,
@@ -227,6 +233,7 @@ impl Agent {
             id: id.into(),
             title: Default::default(),
             tool_supported: Default::default(),
+            enable_mcp: Default::default(),
             model: Default::default(),
             description: Default::default(),
             system_prompt: Default::default(),
@@ -343,6 +350,20 @@ mod tests {
         let other = Agent::new("Other").tool_supported(true);
         base.merge(other);
         assert_eq!(base.tool_supported, Some(true));
+    }
+    #[test]
+    fn test_merge_enable_mcp() {
+        // Base has no value, should use other's value
+        let mut base = Agent::new("Base"); // No tool_supported set
+        let other = Agent::new("Other").enable_mcp(true);
+        base.merge(other);
+        assert_eq!(base.enable_mcp, Some(true));
+
+        // Base has a value, should not be overwritten
+        let mut base = Agent::new("Base").enable_mcp(false);
+        let other = Agent::new("Other").enable_mcp(true);
+        base.merge(other);
+        assert_eq!(base.enable_mcp, Some(true));
     }
 
     #[test]

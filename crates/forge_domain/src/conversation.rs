@@ -190,7 +190,7 @@ impl Conversation {
                 }
             }
 
-            if !additional_tools.is_empty() {
+            if !additional_tools.is_empty() && agent.enable_mcp.unwrap_or(true) {
                 agent.tools = Some(
                     agent
                         .tools
@@ -320,7 +320,8 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        Agent, AgentId, Command, Compact, Error, MaxTokens, ModelId, Temperature, Workflow,
+        Agent, AgentId, Command, Compact, Error, MaxTokens, ModelId, Temperature, ToolName,
+        Workflow,
     };
 
     #[test]
@@ -1165,5 +1166,47 @@ mod tests {
                 assert_eq!(compact.model, Some(model_id.clone()));
             }
         }
+    }
+
+    #[test]
+    fn test_enable_mcp_false_prevents_additional_tools() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let agent1 = Agent::new("agent1").enable_mcp(false);
+        let agent2 = Agent::new("agent2").enable_mcp(true);
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2]);
+
+        let additional_tools = vec![ToolName::new("test_tool1"), ToolName::new("test_tool2")];
+
+        let conversation =
+            super::Conversation::new_inner(id.clone(), workflow, additional_tools.clone());
+
+        // Assert
+        assert_eq!(conversation.agents.len(), 2);
+
+        // Agent1 (enable_mcp: false) should not have additional tools
+        let agent1 = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "agent1")
+            .unwrap();
+        match &agent1.tools {
+            Some(tools) => {
+                assert!(!tools.contains(&ToolName::new("test_tool1")));
+                assert!(!tools.contains(&ToolName::new("test_tool2")));
+            }
+            None => {} // No tools is also acceptable
+        }
+
+        // Agent2 (enable_mcp: true) should have additional tools
+        let agent2 = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "agent2")
+            .unwrap();
+        let tools = agent2.tools.as_ref().expect("Agent2 should have tools");
+        assert!(tools.contains(&ToolName::new("test_tool1")));
+        assert!(tools.contains(&ToolName::new("test_tool2")));
     }
 }
