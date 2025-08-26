@@ -61,7 +61,7 @@ impl<S: Services> AgentExecutor<S> {
         let app = crate::ForgeApp::new(self.services.clone());
         let mut response_stream = app
             .chat(ChatRequest::new(
-                Event::new(format!("{agent_id}/user_task_init"), Some(task)),
+                Event::new(format!("{agent_id}/user_task_init"), Some(task.clone())),
                 conversation.id,
             ))
             .await?;
@@ -73,8 +73,8 @@ impl<S: Services> AgentExecutor<S> {
             match message {
                 ChatResponse::TaskMessage { ref content } => match content {
                     ChatResponseContent::Title(_) => ctx.send(message).await?,
-                    ChatResponseContent::PlainText(text) => output = Some(text),
-                    ChatResponseContent::Markdown(text) => output = Some(text),
+                    ChatResponseContent::PlainText(text) => output = Some(text.to_owned()),
+                    ChatResponseContent::Markdown(text) => output = Some(text.to_owned()),
                 },
                 ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete => {}
