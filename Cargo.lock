@@ -1584,6 +1584,7 @@ dependencies = [
  "handlebars",
  "html2md",
  "insta",
+ "lazy_static",
  "merge 0.2.0",
  "mockito",
  "moka2",
