@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use convert_case::{Case, Casing};
 use derive_more::From;
@@ -9,12 +9,11 @@ use forge_tool_macros::ToolDescription;
 use schemars::JsonSchema;
 use schemars::schema::RootSchema;
 use serde::Serialize;
+use serde_json::Map;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
 
-use crate::{
-    Status, ToolCallArgumentError, ToolCallFull, ToolDefinition, ToolDescription, ToolName,
-};
+use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 
 /// Enum representing all possible tool input types.
 ///
@@ -37,21 +36,17 @@ use crate::{
 #[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum Tools {
-    ForgeToolFsRead(FSRead),
-    ForgeToolFsCreate(FSWrite),
-    ForgeToolFsSearch(FSSearch),
-    ForgeToolFsRemove(FSRemove),
-    ForgeToolFsPatch(FSPatch),
-    ForgeToolFsUndo(FSUndo),
-    ForgeToolProcessShell(Shell),
-    ForgeToolNetFetch(NetFetch),
-    ForgeToolFollowup(Followup),
-    ForgeToolAttemptCompletion(AttemptCompletion),
-    ForgeToolTaskListAppend(TaskListAppend),
-    ForgeToolTaskListAppendMultiple(TaskListAppendMultiple),
-    ForgeToolTaskListUpdate(TaskListUpdate),
-    ForgeToolTaskListList(TaskListList),
-    ForgeToolTaskListClear(TaskListClear),
+    Read(FSRead),
+    Write(FSWrite),
+    Search(FSSearch),
+    Remove(FSRemove),
+    Patch(FSPatch),
+    Undo(FSUndo),
+    Shell(Shell),
+    Fetch(NetFetch),
+    Followup(Followup),
+    AttemptCompletion(AttemptCompletion),
+    Plan(PlanCreate),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -59,10 +54,11 @@ pub enum Tools {
 /// for specific agents.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct AgentInput {
-    /// A clear and detailed description of the task to be performed by the
-    /// agent. Provide sufficient context and specific requirements to
-    /// enable the agent to understand and execute the work accurately.
-    pub task: String,
+    /// A list of clear and detailed descriptions of the tasks to be performed
+    /// by the agent in parallel. Provide sufficient context and specific
+    /// requirements to enable the agent to understand and execute the work
+    /// accurately.
+    pub tasks: Vec<String>,
     /// One sentence explanation as to why this specific tool is being used, and
     /// how it contributes to the goal.
     #[serde(default)]
@@ -375,14 +371,13 @@ pub struct Followup {
 /// that tool use, i.e. if it succeeded or failed, along with any reasons for
 /// failure. Once you've received the results of tool uses and can confirm that
 /// the task is complete, use this tool to present the result of your work to
-/// the user. The user may respond with feedback if they are not satisfied with
-/// the result, which you can use to make improvements and try again.
-/// IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the
-/// user that any previous tool uses were successful. Failure to do so will
-/// result in code corruption and system failure. Before using this tool, you
-/// must ask yourself in <forge_thinking></forge_thinking> tags if you've
-/// confirmed from the user that any previous tool uses were successful. If not,
-/// then DO NOT use this tool.
+/// the user in markdown format. The user may respond with feedback if they are
+/// not satisfied with the result, which you can use to make improvements and
+/// try again. IMPORTANT NOTE: This tool CANNOT be used until you've confirmed
+/// from the user that any previous tool uses were successful. Failure to do so
+/// will result in code corruption and system failure. Before using this tool,
+/// you must ask yourself if you've confirmed from the user that any previous
+/// tool uses were successful. If not, then DO NOT use this tool.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct AttemptCompletion {
     /// The result of the task. Formulate this result in a way that is final and
@@ -391,66 +386,22 @@ pub struct AttemptCompletion {
     pub result: String,
 }
 
-/// Add a new task to the end of the task list. Tasks are stored in conversation
-/// state and persist across agent interactions. Use this tool to add individual
-/// work items that need to be tracked during development sessions. Task IDs are
-/// auto-generated integers starting from 1.
+/// Creates a new plan file with the specified name, version, and content. Use
+/// this tool to create structured project plans, task breakdowns, or
+/// implementation strategies that can be tracked and referenced throughout
+/// development sessions.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListAppend {
-    /// The task description to add to the list
-    pub task: String,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
+pub struct PlanCreate {
+    /// The name of the plan (will be used in the filename)
+    pub plan_name: String,
 
-/// Add multiple new tasks to the end of the task list. Tasks are stored in
-/// conversation state and persist across agent interactions. Use this tool to
-/// add several work items at once during development sessions. Task IDs are
-/// auto-generated integers starting from 1.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListAppendMultiple {
-    /// The list of task descriptions to add
-    pub tasks: Vec<String>,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
+    /// The version of the plan (e.g., "v1", "v2", "1.0")
+    pub version: String,
 
-/// Update the status of a specific task in the task list. Use this when a
-/// task's status changes (e.g., from Pending to InProgress, InProgress to Done,
-/// etc.). The task will remain in the list but with an updated status.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListUpdate {
-    /// The ID of the task to update
-    pub task_id: i32,
-    /// The new status for the task
-    pub status: Status,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
+    /// The content to write to the plan file. This should be the complete
+    /// plan content in markdown format.
+    pub content: String,
 
-/// Display the current task list with statistics. Shows all tasks with their
-/// IDs, descriptions, and status (PENDING, IN_PROGRESS, DONE), along with
-/// summary statistics. Use this tool to review current work items and track
-/// progress through development sessions.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListList {
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
-}
-
-/// Remove all tasks from the task list. This operation cannot be undone and
-/// will reset the task ID counter to 1. Use this tool when you want to start
-/// fresh with a clean task list.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct TaskListClear {
     /// One sentence explanation as to why this specific tool is being used, and
     /// how it contributes to the goal.
     #[serde(default)]
@@ -568,21 +519,17 @@ fn is_default<T: Default + PartialEq>(t: &T) -> bool {
 impl ToolDescription for Tools {
     fn description(&self) -> String {
         match self {
-            Tools::ForgeToolFsPatch(v) => v.description(),
-            Tools::ForgeToolProcessShell(v) => v.description(),
-            Tools::ForgeToolFollowup(v) => v.description(),
-            Tools::ForgeToolNetFetch(v) => v.description(),
-            Tools::ForgeToolAttemptCompletion(v) => v.description(),
-            Tools::ForgeToolFsSearch(v) => v.description(),
-            Tools::ForgeToolFsRead(v) => v.description(),
-            Tools::ForgeToolFsRemove(v) => v.description(),
-            Tools::ForgeToolFsUndo(v) => v.description(),
-            Tools::ForgeToolFsCreate(v) => v.description(),
-            Tools::ForgeToolTaskListAppend(v) => v.description(),
-            Tools::ForgeToolTaskListAppendMultiple(v) => v.description(),
-            Tools::ForgeToolTaskListUpdate(v) => v.description(),
-            Tools::ForgeToolTaskListList(v) => v.description(),
-            Tools::ForgeToolTaskListClear(v) => v.description(),
+            Tools::Patch(v) => v.description(),
+            Tools::Shell(v) => v.description(),
+            Tools::Followup(v) => v.description(),
+            Tools::Fetch(v) => v.description(),
+            Tools::AttemptCompletion(v) => v.description(),
+            Tools::Search(v) => v.description(),
+            Tools::Read(v) => v.description(),
+            Tools::Remove(v) => v.description(),
+            Tools::Undo(v) => v.description(),
+            Tools::Write(v) => v.description(),
+            Tools::Plan(v) => v.description(),
         }
     }
 }
@@ -607,25 +554,17 @@ impl Tools {
             })
             .into_generator();
         match self {
-            Tools::ForgeToolFsPatch(_) => r#gen.into_root_schema_for::<FSPatch>(),
-            Tools::ForgeToolProcessShell(_) => r#gen.into_root_schema_for::<Shell>(),
-            Tools::ForgeToolFollowup(_) => r#gen.into_root_schema_for::<Followup>(),
-            Tools::ForgeToolNetFetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
-            Tools::ForgeToolAttemptCompletion(_) => {
-                r#gen.into_root_schema_for::<AttemptCompletion>()
-            }
-            Tools::ForgeToolFsSearch(_) => r#gen.into_root_schema_for::<FSSearch>(),
-            Tools::ForgeToolFsRead(_) => r#gen.into_root_schema_for::<FSRead>(),
-            Tools::ForgeToolFsRemove(_) => r#gen.into_root_schema_for::<FSRemove>(),
-            Tools::ForgeToolFsUndo(_) => r#gen.into_root_schema_for::<FSUndo>(),
-            Tools::ForgeToolFsCreate(_) => r#gen.into_root_schema_for::<FSWrite>(),
-            Tools::ForgeToolTaskListAppend(_) => r#gen.into_root_schema_for::<TaskListAppend>(),
-            Tools::ForgeToolTaskListAppendMultiple(_) => {
-                r#gen.into_root_schema_for::<TaskListAppendMultiple>()
-            }
-            Tools::ForgeToolTaskListUpdate(_) => r#gen.into_root_schema_for::<TaskListUpdate>(),
-            Tools::ForgeToolTaskListList(_) => r#gen.into_root_schema_for::<TaskListList>(),
-            Tools::ForgeToolTaskListClear(_) => r#gen.into_root_schema_for::<TaskListClear>(),
+            Tools::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
+            Tools::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
+            Tools::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
+            Tools::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
+            Tools::AttemptCompletion(_) => r#gen.into_root_schema_for::<AttemptCompletion>(),
+            Tools::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
+            Tools::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
+            Tools::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
+            Tools::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
+            Tools::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
+            Tools::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
         }
     }
 
@@ -637,14 +576,127 @@ impl Tools {
     pub fn contains(tool_name: &ToolName) -> bool {
         FORGE_TOOLS.contains(tool_name)
     }
-    pub fn is_complete(tool_name: &ToolName) -> bool {
+    pub fn should_yield(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
         [
-            ToolsDiscriminants::ForgeToolFollowup,
-            ToolsDiscriminants::ForgeToolAttemptCompletion,
+            ToolsDiscriminants::Followup,
+            ToolsDiscriminants::AttemptCompletion,
         ]
         .iter()
         .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+    }
+    pub fn is_attempt_completion(tool_name: &ToolName) -> bool {
+        // Tool that convey that conversation might be completed
+        [ToolsDiscriminants::AttemptCompletion]
+            .iter()
+            .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+    }
+
+    /// Convert a tool input to its corresponding domain operation for policy
+    /// checking. Returns None for tools that don't require permission
+    /// checks.
+    pub fn to_policy_operation(
+        &self,
+        cwd: PathBuf,
+    ) -> Option<crate::policies::PermissionOperation> {
+        let cwd_path = cwd.clone();
+        let display_path_for = |path: &str| {
+            format!(
+                "`{}`",
+                format_display_path(Path::new(path), cwd_path.as_path())
+            )
+        };
+
+        match self {
+            Tools::Read(input) => Some(crate::policies::PermissionOperation::Read {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Read file: {}", display_path_for(&input.path)),
+            }),
+            Tools::Write(input) => Some(crate::policies::PermissionOperation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
+            }),
+            Tools::Search(input) => {
+                let base_message = format!(
+                    "Search in directory/file: {}",
+                    display_path_for(&input.path)
+                );
+                let message = match (&input.regex, &input.file_pattern) {
+                    (Some(regex), Some(pattern)) => {
+                        format!("{base_message} for pattern: '{regex}' in '{pattern}' files")
+                    }
+                    (Some(regex), None) => {
+                        format!("{base_message} for pattern: {regex}")
+                    }
+                    (None, Some(pattern)) => {
+                        format!("{base_message} in '{pattern}' files")
+                    }
+                    (None, None) => base_message,
+                };
+                Some(crate::policies::PermissionOperation::Read {
+                    path: std::path::PathBuf::from(&input.path),
+                    cwd,
+                    message,
+                })
+            }
+            Tools::Remove(input) => Some(crate::policies::PermissionOperation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Remove file: {}", display_path_for(&input.path)),
+            }),
+            Tools::Patch(input) => Some(crate::policies::PermissionOperation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Modify file: {}", display_path_for(&input.path)),
+            }),
+            Tools::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
+                command: input.command.clone(),
+                cwd,
+                message: format!("Execute shell command: {}", input.command),
+            }),
+            Tools::Fetch(input) => Some(crate::policies::PermissionOperation::Fetch {
+                url: input.url.clone(),
+                cwd,
+                message: format!("Fetch content from URL: {}", input.url),
+            }),
+            // Operations that don't require permission checks
+            Tools::Undo(_) | Tools::Followup(_) | Tools::AttemptCompletion(_) | Tools::Plan(_) => {
+                None
+            }
+        }
+    }
+}
+
+fn format_display_path(path: &Path, cwd: &Path) -> String {
+    // Try to create a relative path for display if possible
+    let display_path = if path.starts_with(cwd) {
+        match path.strip_prefix(cwd) {
+            Ok(rel_path) => rel_path.display().to_string(),
+            Err(_) => path.display().to_string(),
+        }
+    } else {
+        path.display().to_string()
+    };
+
+    if display_path.is_empty() {
+        ".".to_string()
+    } else {
+        display_path
+    }
+}
+
+impl TryFrom<ToolCallFull> for Tools {
+    type Error = crate::Error;
+
+    fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
+        let mut map = Map::new();
+        map.insert("name".into(), value.name.as_str().into());
+        map.insert("arguments".into(), value.arguments.parse()?);
+
+        serde_json::from_value(serde_json::Value::Object(map))
+            .map_err(|error| crate::Error::AgentCallArgument { error })
     }
 }
 
@@ -662,68 +714,34 @@ impl ToolsDiscriminants {
     }
 }
 
-impl TryFrom<ToolCallFull> for Tools {
-    type Error = ToolCallArgumentError;
-
-    fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
-        let arg = if value.arguments.is_null() {
-            // Note: If the arguments are null, we use an empty object.
-            // This is a workaround for eserde, which doesn't provide
-            // detailed error messages when required fields are missing.
-            "{}".to_string()
-        } else {
-            value.arguments.to_string()
-        };
-
-        let json_str = format!(r#"{{"name": "{}", "arguments": {}}}"#, value.name, arg);
-        eserde::json::from_str(&json_str).map_err(ToolCallArgumentError::from)
-    }
-}
-
 impl TryFrom<&ToolCallFull> for AgentInput {
-    type Error = ToolCallArgumentError;
+    type Error = crate::Error;
     fn try_from(value: &ToolCallFull) -> Result<Self, Self::Error> {
-        eserde::json::from_str(&value.arguments.to_string()).map_err(ToolCallArgumentError::from)
+        let value = value.arguments.parse()?;
+        serde_json::from_value(value).map_err(|error| crate::Error::AgentCallArgument { error })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use serde_json::json;
     use strum::IntoEnumIterator;
 
-    use crate::{FSRead, ToolCallFull, ToolName, Tools, ToolsDiscriminants};
+    use crate::{ToolName, Tools, ToolsDiscriminants};
 
-    #[test]
-    fn foo() {
-        let toolcall = ToolCallFull::new(ToolName::new("forge_tool_fs_read")).arguments(json!({
-            "path": "/some/path/foo.txt",
-        }));
-
-        let actual = Tools::try_from(toolcall).unwrap();
-        let expected = Tools::ForgeToolFsRead(FSRead {
-            path: "/some/path/foo.txt".to_string(),
-            start_line: None,
-            end_line: None,
-            explanation: None,
-        });
-
-        pretty_assertions::assert_eq!(actual, expected);
-    }
     #[test]
     fn test_is_complete() {
-        let complete_tool = ToolName::new("forge_tool_attempt_completion");
+        let complete_tool = ToolName::new("attempt_completion");
         let incomplete_tool = ToolName::new("forge_tool_fs_read");
 
-        assert!(Tools::is_complete(&complete_tool));
-        assert!(!Tools::is_complete(&incomplete_tool));
+        assert!(Tools::is_attempt_completion(&complete_tool));
+        assert!(!Tools::is_attempt_completion(&incomplete_tool));
     }
 
     #[test]
     fn test_tool_definition() {
-        let actual = ToolsDiscriminants::ForgeToolFsRemove.name();
-        let expected = ToolName::new("forge_tool_fs_remove");
+        let actual = ToolsDiscriminants::Remove.name();
+        let expected = ToolName::new("remove");
         assert_eq!(actual, expected);
     }
 
@@ -742,22 +760,123 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_deser_failure() {
-        let tool_call = ToolCallFull::new("forge_tool_fs_create".into());
-        let result = Tools::try_from(tool_call);
-        insta::assert_snapshot!(result.unwrap_err().to_string());
+    fn test_fs_search_message_with_regex() {
+        use std::path::PathBuf;
+
+        use crate::FSSearch;
+        use crate::policies::PermissionOperation;
+
+        let search_with_regex = Tools::Search(FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: Some("fn main".to_string()),
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: None,
+            explanation: None,
+        });
+
+        let operation = search_with_regex
+            .to_policy_operation(PathBuf::from("/test/cwd"))
+            .unwrap();
+
+        match operation {
+            PermissionOperation::Read { message, .. } => {
+                assert_eq!(
+                    message,
+                    "Search in directory/file: `/home/user/project` for pattern: fn main"
+                );
+            }
+            _ => panic!("Expected Read operation"),
+        }
     }
 
     #[test]
-    fn test_correct_deser() {
-        let tool_call = ToolCallFull::new("forge_tool_fs_create".into()).arguments(json!({
-            "path": "/some/path/foo.txt",
-            "content": "Hello, World!",
-        }));
-        let result = Tools::try_from(tool_call);
-        assert!(result.is_ok());
-        assert!(
-            matches!(result.unwrap(), Tools::ForgeToolFsCreate(data) if data.path == "/some/path/foo.txt" && data.content == "Hello, World!")
-        );
+    fn test_fs_search_message_without_regex() {
+        use std::path::PathBuf;
+
+        use crate::FSSearch;
+        use crate::policies::PermissionOperation;
+
+        let search_without_regex = Tools::Search(FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: None,
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: None,
+            explanation: None,
+        });
+
+        let operation = search_without_regex
+            .to_policy_operation(PathBuf::from("/test/cwd"))
+            .unwrap();
+
+        match operation {
+            PermissionOperation::Read { message, .. } => {
+                assert_eq!(message, "Search in directory/file: `/home/user/project`");
+            }
+            _ => panic!("Expected Read operation"),
+        }
+    }
+
+    #[test]
+    fn test_fs_search_message_with_file_pattern_only() {
+        use std::path::PathBuf;
+
+        use crate::FSSearch;
+        use crate::policies::PermissionOperation;
+
+        let search_with_pattern = Tools::Search(FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: None,
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: Some("*.rs".to_string()),
+            explanation: None,
+        });
+
+        let operation = search_with_pattern
+            .to_policy_operation(PathBuf::from("/test/cwd"))
+            .unwrap();
+
+        match operation {
+            PermissionOperation::Read { message, .. } => {
+                assert_eq!(
+                    message,
+                    "Search in directory/file: `/home/user/project` in '*.rs' files"
+                );
+            }
+            _ => panic!("Expected Read operation"),
+        }
+    }
+
+    #[test]
+    fn test_fs_search_message_with_regex_and_file_pattern() {
+        use std::path::PathBuf;
+
+        use crate::FSSearch;
+        use crate::policies::PermissionOperation;
+
+        let search_with_both = Tools::Search(FSSearch {
+            path: "/home/user/project".to_string(),
+            regex: Some("fn main".to_string()),
+            start_index: None,
+            max_search_lines: None,
+            file_pattern: Some("*.rs".to_string()),
+            explanation: None,
+        });
+
+        let operation = search_with_both
+            .to_policy_operation(PathBuf::from("/test/cwd"))
+            .unwrap();
+
+        match operation {
+            PermissionOperation::Read { message, .. } => {
+                assert_eq!(
+                    message,
+                    "Search in directory/file: `/home/user/project` for pattern: 'fn main' in '*.rs' files"
+                );
+            }
+            _ => panic!("Expected Read operation"),
+        }
     }
 }

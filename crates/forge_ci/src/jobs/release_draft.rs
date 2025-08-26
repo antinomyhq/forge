@@ -16,7 +16,7 @@ pub fn create_draft_release_job(build_job: &Job) -> Job {
                 .contents(Level::Write)
                 .pull_requests(Level::Write),
         )
-        .add_step(Step::uses("actions", "checkout", "v4"))
+        .add_step(Step::uses("actions", "checkout", "v5"))
         .add_step(
             Step::uses("release-drafter", "release-drafter", "v6")
                 .id("create_release")

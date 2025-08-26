@@ -3,6 +3,7 @@ use std::ops::Deref;
 
 use derive_more::derive::{Display, From};
 use derive_setters::Setters;
+use forge_template::Element;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -11,7 +12,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolValue, Usage,
+    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput,
+    ToolValue, Usage,
 };
 
 /// Represents a message being sent to the LLM provider
@@ -25,7 +27,37 @@ pub enum ContextMessage {
     Image(Image),
 }
 
+/// Creates a filtered version of ToolOutput that excludes base64 images to
+/// avoid serializing large image data in the context output
+fn filter_base64_images_from_tool_output(output: &ToolOutput) -> ToolOutput {
+    let filtered_values: Vec<ToolValue> = output
+        .values
+        .iter()
+        .map(|value| match value {
+            ToolValue::Image(image) => {
+                // Skip base64 images (URLs that start with "data:")
+                if image.url().starts_with("data:") {
+                    ToolValue::Text(format!("[base64 image: {}]", image.mime_type()))
+                } else {
+                    value.clone()
+                }
+            }
+            _ => value.clone(),
+        })
+        .collect();
+
+    ToolOutput { is_error: output.is_error, values: filtered_values }
+}
+
 impl ContextMessage {
+    pub fn content(&self) -> Option<&str> {
+        match self {
+            ContextMessage::Text(text_message) => Some(&text_message.content),
+            ContextMessage::Tool(_) => None,
+            ContextMessage::Image(_) => None,
+        }
+    }
+
     /// Estimates the number of tokens in a message using character-based
     /// approximation.
     /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
@@ -54,45 +86,47 @@ impl ContextMessage {
     }
 
     pub fn to_text(&self) -> String {
-        let mut lines = String::new();
         match self {
             ContextMessage::Text(message) => {
-                lines.push_str(&format!("<message role=\"{}\">", message.role));
-                lines.push_str(&format!("<content>{}</content>", message.content));
+                let mut message_element = Element::new("message").attr("role", &message.role);
+
+                message_element =
+                    message_element.append(Element::new("content").text(&message.content));
+
                 if let Some(tool_calls) = &message.tool_calls {
                     for call in tool_calls {
-                        lines.push_str(&format!(
-                            "<forge_tool_call name=\"{}\"><![CDATA[{}]]></forge_tool_call>",
-                            call.name,
-                            serde_json::to_string(&call.arguments).unwrap()
-                        ));
+                        message_element = message_element.append(
+                            Element::new("forge_tool_call")
+                                .attr("name", &call.name)
+                                .cdata(call.arguments.clone().into_string()),
+                        );
                     }
                 }
+
                 if let Some(reasoning_details) = &message.reasoning_details {
                     for reasoning_detail in reasoning_details {
                         if let Some(text) = &reasoning_detail.text {
-                            lines.push_str(&format!("<reasoning_detail>{text}</reasoning_detail>"));
+                            message_element =
+                                message_element.append(Element::new("reasoning_detail").text(text));
                         }
                     }
                 }
 
-                lines.push_str("</message>");
+                message_element.render()
             }
             ContextMessage::Tool(result) => {
-                lines.push_str("<message role=\"tool\">");
-
-                lines.push_str(&format!(
-                    "<forge_tool_result name=\"{}\"><![CDATA[{}]]></forge_tool_result>",
-                    result.name,
-                    serde_json::to_string(&result.output).unwrap()
-                ));
-                lines.push_str("</message>");
+                let filtered_output = filter_base64_images_from_tool_output(&result.output);
+                Element::new("message")
+                    .attr("role", "tool")
+                    .append(
+                        Element::new("forge_tool_result")
+                            .attr("name", &result.name)
+                            .cdata(serde_json::to_string(&filtered_output).unwrap()),
+                    )
+                    .render()
             }
-            ContextMessage::Image(_) => {
-                lines.push_str("<image path=\"[base64 URL]\">".to_string().as_str());
-            }
+            ContextMessage::Image(_) => Element::new("image").attr("path", "[base64 URL]").render(),
         }
-        lines
     }
 
     pub fn user(content: impl ToString, model: Option<ModelId>) -> Self {
@@ -179,7 +213,8 @@ fn tool_call_content_char_count(text_message: &TextMessage) -> usize {
             tool_calls
                 .iter()
                 .map(|tc| {
-                    tc.arguments.to_string().chars().count() + tc.name.as_str().chars().count()
+                    tc.arguments.to_owned().into_string().chars().count()
+                        + tc.name.as_str().chars().count()
                 })
                 .sum()
         })
@@ -205,13 +240,20 @@ fn reasoning_content_char_count(text_message: &TextMessage) -> usize {
 pub struct TextMessage {
     pub role: Role,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
     // note: this used to track model used for this message.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_details: Option<Vec<ReasoningFull>>,
 }
 
 impl TextMessage {
+    pub fn has_role(&self, role: Role) -> bool {
+        self.role == role
+    }
+
     pub fn assistant(
         content: impl ToString,
         reasoning_details: Option<Vec<ReasoningFull>>,
@@ -262,6 +304,13 @@ pub struct Context {
 }
 
 impl Context {
+    pub fn system_prompt(&self) -> Option<&str> {
+        self.messages
+            .iter()
+            .find(|message| message.has_role(Role::System))
+            .and_then(|msg| msg.content())
+    }
+
     pub fn add_base64_url(mut self, image: Image) -> Self {
         self.messages.push(ContextMessage::Image(image));
         self
@@ -292,19 +341,20 @@ impl Context {
     }
 
     /// Updates the set system message
-    pub fn set_first_system_message(mut self, content: impl Into<String>) -> Self {
+    pub fn set_system_messages<S: Into<String>>(mut self, content: Vec<S>) -> Self {
         if self.messages.is_empty() {
-            self.add_message(ContextMessage::system(content.into()))
-        } else {
-            if let Some(ContextMessage::Text(content_message)) = self.messages.get_mut(0) {
-                if content_message.role == Role::System {
-                    content_message.content = content.into();
-                } else {
-                    self.messages
-                        .insert(0, ContextMessage::system(content.into()));
-                }
+            for message in content {
+                self.messages.push(ContextMessage::system(message.into()));
             }
-
+            self
+        } else {
+            // drop all the system messages;
+            self.messages.retain(|m| !m.has_role(Role::System));
+            // add the system message at the beginning.
+            for message in content.into_iter().rev() {
+                self.messages
+                    .insert(0, ContextMessage::system(message.into()));
+            }
             self
         }
     }
@@ -360,13 +410,15 @@ impl Context {
 
         match actual {
             TokenCount::Actual(actual) if actual > 0 => TokenCount::Actual(actual),
-            _ => TokenCount::Approx(
-                self.messages
-                    .iter()
-                    .map(|m| m.token_count_approx())
-                    .sum::<usize>(),
-            ),
+            _ => TokenCount::Approx(self.token_count_approx()),
         }
+    }
+
+    pub fn token_count_approx(&self) -> usize {
+        self.messages
+            .iter()
+            .map(|m| m.token_count_approx())
+            .sum::<usize>()
     }
 }
 
@@ -428,7 +480,7 @@ mod tests {
     fn test_override_system_message() {
         let request = Context::default()
             .add_message(ContextMessage::system("Initial system message"))
-            .set_first_system_message("Updated system message");
+            .set_system_messages(vec!["Updated system message"]);
 
         assert_eq!(
             request.messages[0],
@@ -438,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_set_system_message() {
-        let request = Context::default().set_first_system_message("A system message");
+        let request = Context::default().set_system_messages(vec!["A system message"]);
 
         assert_eq!(
             request.messages[0],
@@ -451,7 +503,7 @@ mod tests {
         let model = ModelId::new("test-model");
         let request = Context::default()
             .add_message(ContextMessage::user("Do something", Some(model)))
-            .set_first_system_message("A system message");
+            .set_system_messages(vec!["A system message"]);
 
         assert_eq!(
             request.messages[0],

@@ -2,10 +2,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use forge_app::dto::{AppConfig, InitAuth};
 use forge_app::{
-    AppConfig, AppConfigService, AuthService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, InitAuth, McpConfigManager, ProviderRegistry, ProviderService,
-    Services, User, UserUsage, Walker, WorkflowService,
+    AppConfigService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
+    ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services, User, UserUsage,
+    Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -86,15 +87,18 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.services.read_workflow(path).await
+        let app = ForgeApp::new(self.services.clone());
+        app.read_workflow(path).await
     }
 
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.services.read_merged(path).await
+        let app = ForgeApp::new(self.services.clone());
+        app.read_workflow_merged(path).await
     }
 
     async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        self.services.write_workflow(path, workflow).await
+        let app = ForgeApp::new(self.services.clone());
+        app.write_workflow(path, workflow).await
     }
 
     async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>
@@ -117,7 +121,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         working_dir: PathBuf,
     ) -> anyhow::Result<CommandOutput> {
         self.infra
-            .execute_command(command.to_string(), working_dir)
+            .execute_command(command.to_string(), working_dir, false)
             .await
     }
     async fn read_mcp_config(&self) -> Result<McpConfig> {

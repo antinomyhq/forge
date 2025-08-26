@@ -22,6 +22,7 @@
 - [Advanced Configuration](#advanced-configuration)
   - [Provider Configuration](#provider-configuration)
   - [forge.yaml Configuration Options](#forgeyaml-configuration-options)
+  - [Environment Variables](#environment-variables)
   - [MCP Configuration](#mcp-configuration)
   - [Example Use Cases](#example-use-cases)
   - [Usage in Multi-Agent Workflows](#usage-in-multi-agent-workflows)
@@ -35,14 +36,11 @@
 
 ## Quickstart
 
-Run Forge in interactive mode via npx
+To get started with Forge, set up your [provider API keys](https://forgecode.dev/docs/custom-providers/) in your `.env` file, then run Forge using the command below:
 
 ```bash
 npx forgecode@latest
 ```
-
-Connect through the Forge app and complete the OAuth process.
-This will open your browser to app.forgecode.dev where you can sign up or sign in with Google/GitHub.
 
 That's it! Forge is now ready to assist you with your development tasks.
 
@@ -170,25 +168,7 @@ Here's a quick reference of Forge's command-line options:
 
 ### Provider Configuration
 
-Forge supports multiple AI providers. Below are setup instructions for each supported provider:
-
-<details>
-<summary><strong>forgecode.dev (Recommended)</strong></summary>
-
-```bash
-# .env
-FORGE_KEY=ForgeKey
-```
-
-To use Forgecode's provider with Forge:
-
-1. Visit [https://app.forgecode.dev/](https://app.forgecode.dev/)
-2. Login with your existing credentials or create a new account
-3. Once logged in, your account will automatically enable the Forge Provider
-
-_No changes in `forge.yaml` required_
-
-</details>
+Forge supports multiple AI providers. Below are setup instructions for each supported provider
 
 <details>
 <summary><strong>OpenRouter</strong></summary>
@@ -220,6 +200,30 @@ _No changes in `forge.yaml` required_
 ```bash
 # .env
 XAI_API_KEY=<your_xai_api_key>
+```
+
+switch the model using `/model` command in the Forge CLI.
+
+</details>
+
+<details>
+<summary><strong>z.ai</strong></summary>
+
+```bash
+# .env
+ZAI_API_KEY=<your_zai_api_key>
+```
+
+switch the model using `/model` command in the Forge CLI.
+
+</details>
+
+<details>
+<summary><strong>Cerebras</strong></summary>
+
+```bash
+# .env
+CEREBRAS_API_KEY=<your_cerebras_api_key>
 ```
 
 switch the model using `/model` command in the Forge CLI.
@@ -312,7 +316,6 @@ model: deepseek-r1-distill-llama-70b
 To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedrock Access Gateway](https://github.com/aws-samples/bedrock-access-gateway):
 
 1. **Set up Bedrock Access Gateway**:
-
    - Follow the deployment steps in the [Bedrock Access Gateway repo](https://github.com/aws-samples/bedrock-access-gateway)
    - Create your own API key in Secrets Manager
    - Deploy the CloudFormation stack
@@ -334,6 +337,88 @@ To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedroc
    </details>
 
 ### forge.yaml Configuration Options
+
+### Environment Variables
+
+Forge supports several environment variables for advanced configuration and fine-tuning. These can be set in your `.env` file or system environment.
+
+<details>
+<summary><strong>Retry Configuration</strong></summary>
+
+Control how Forge handles retry logic for failed requests:
+
+```bash
+# .env
+FORGE_RETRY_INITIAL_BACKOFF_MS=1000    # Initial backoff time in milliseconds (default: 1000)
+FORGE_RETRY_BACKOFF_FACTOR=2           # Multiplier for backoff time (default: 2)
+FORGE_RETRY_MAX_ATTEMPTS=3             # Maximum retry attempts (default: 3)
+FORGE_SUPPRESS_RETRY_ERRORS=false      # Suppress retry error messages (default: false)
+FORGE_RETRY_STATUS_CODES=429,500,502   # HTTP status codes to retry (default: 429,500,502,503,504)
+```
+
+</details>
+
+<details>
+<summary><strong>HTTP Configuration</strong></summary>
+
+Fine-tune HTTP client behavior for API requests:
+
+```bash
+# .env
+FORGE_HTTP_CONNECT_TIMEOUT=30              # Connection timeout in seconds (default: 30)
+FORGE_HTTP_READ_TIMEOUT=900                # Read timeout in seconds (default: 900)
+FORGE_HTTP_POOL_IDLE_TIMEOUT=90            # Pool idle timeout in seconds (default: 90)
+FORGE_HTTP_POOL_MAX_IDLE_PER_HOST=5        # Max idle connections per host (default: 5)
+FORGE_HTTP_MAX_REDIRECTS=10                # Maximum redirects to follow (default: 10)
+FORGE_HTTP_USE_HICKORY=false               # Use Hickory DNS resolver (default: false)
+FORGE_HTTP_TLS_BACKEND=default             # TLS backend: "default" or "rustls" (default: "default")
+FORGE_HTTP_MIN_TLS_VERSION=1.2             # Minimum TLS version: "1.0", "1.1", "1.2", "1.3"
+FORGE_HTTP_MAX_TLS_VERSION=1.3             # Maximum TLS version: "1.0", "1.1", "1.2", "1.3"
+FORGE_HTTP_ADAPTIVE_WINDOW=true            # Enable HTTP/2 adaptive window (default: true)
+FORGE_HTTP_KEEP_ALIVE_INTERVAL=60          # Keep-alive interval in seconds (default: 60, use "none"/"disabled" to disable)
+FORGE_HTTP_KEEP_ALIVE_TIMEOUT=10           # Keep-alive timeout in seconds (default: 10)
+FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE=true      # Keep-alive while idle (default: true)
+```
+
+</details>
+
+<details>
+<summary><strong>API Configuration</strong></summary>
+
+Override default API endpoints:
+
+```bash
+# .env
+FORGE_API_URL=https://api.forgecode.dev  # Custom Forge API URL (default: https://api.forgecode.dev)
+```
+
+</details>
+
+<details>
+<summary><strong>Tool Configuration</strong></summary>
+
+Configuring the tool calls settings:
+
+```bash
+# .env
+FORGE_TOOL_TIMEOUT=300         # Maximum execution time in seconds for a tool before it is terminated to prevent hanging the session. (default: 300)
+```
+
+</details>
+
+<details>
+<summary><strong>System Configuration</strong></summary>
+
+System-level environment variables (usually set automatically):
+
+```bash
+# .env
+FORGE_MAX_SEARCH_RESULT_BYTES=101024   # Maximum bytes for search results (default: 101024 - 10 KB)
+SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
+COMSPEC=cmd.exe                        # Command processor to use (Windows)
+```
+
+</details>
 
 The `forge.yaml` file supports several advanced configuration options that let you customize Forge's behavior.
 
@@ -427,6 +512,7 @@ max_requests_per_turn: 50 # Allow up to 50 requests per turn
 ```
 
 When this limit is reached, Forge will:
+
 - Ask you if you wish to continue
 - If you respond with 'Yes', it will continue the conversation
 - If you respond with 'No', it will end the conversation

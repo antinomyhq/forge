@@ -11,9 +11,7 @@ derive_more.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
 async-recursion.workspace = true
-forge_provider.workspace = true
 forge_tool_macros.workspace = true
-forge_display.workspace = true
 forge_snaps.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -52,11 +50,16 @@ strum.workspace = true
 bytes.workspace = true
 console.workspace = true
 serde_yml.workspace = true
+gray_matter.workspace = true
 merge.workspace = true
 strip-ansi-escapes.workspace = true
 rmcp.workspace = true
 forge_app.workspace = true
+forge_walker.workspace = true
 url.workspace = true
+reqwest-eventsource.workspace = true
+derive_builder.workspace = true
+lazy_static = "1.5.0"
 
 [dev-dependencies]
 insta.workspace = true

@@ -25,6 +25,12 @@ pub struct Plan {
     pub r#type: String,
 }
 
+impl Plan {
+    pub fn is_upgradeable(&self) -> bool {
+        matches!(self.r#type.to_lowercase().as_str(), "free" | "pro")
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageInfo {
@@ -32,7 +38,7 @@ pub struct UsageInfo {
     pub limit: u32,
     pub remaining: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reset_in: Option<u32>,
+    pub reset_in: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

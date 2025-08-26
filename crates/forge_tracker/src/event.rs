@@ -72,7 +72,6 @@ impl ToolCallPayload {
 #[derive(Debug, Clone)]
 pub enum EventKind {
     Start,
-    Ping,
     ToolCall(ToolCallPayload),
     Prompt(String),
     Error(String),
@@ -84,7 +83,6 @@ impl EventKind {
     pub fn name(&self) -> Name {
         match self {
             Self::Start => Name::from("start".to_string()),
-            Self::Ping => Name::from("ping".to_string()),
             Self::Prompt(_) => Name::from("prompt".to_string()),
             Self::Error(_) => Name::from("error".to_string()),
             Self::ToolCall(_) => Name::from("tool_call".to_string()),
@@ -95,7 +93,6 @@ impl EventKind {
     pub fn value(&self) -> String {
         match self {
             Self::Start => "".to_string(),
-            Self::Ping => "".to_string(),
             Self::Prompt(content) => content.to_string(),
             Self::Error(content) => content.to_string(),
             Self::ToolCall(payload) => serde_json::to_string(&payload).unwrap_or_default(),

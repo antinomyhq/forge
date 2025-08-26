@@ -8,37 +8,24 @@ before:
     - text:
         role: User
         content: User question
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: First assistant response with reasoning
-        tool_calls: ~
-        model: ~
         reasoning_details:
           - text: I need to think about this carefully
             signature: ~
     - text:
         role: User
         content: Follow-up question
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: Second assistant response with reasoning
-        tool_calls: ~
-        model: ~
         reasoning_details:
           - text: I need to think about this carefully
             signature: ~
     - text:
         role: Assistant
         content: Third assistant without reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
   reasoning:
     enabled: true
 after:
@@ -46,36 +33,23 @@ after:
     - text:
         role: User
         content: User question
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: First assistant response with reasoning
-        tool_calls: ~
-        model: ~
         reasoning_details:
           - text: I need to think about this carefully
             signature: ~
     - text:
         role: User
         content: Follow-up question
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
     - text:
         role: Assistant
         content: Second assistant response with reasoning
-        tool_calls: ~
-        model: ~
         reasoning_details:
           - text: I need to think about this carefully
             signature: ~
     - text:
         role: Assistant
         content: Third assistant without reasoning
-        tool_calls: ~
-        model: ~
-        reasoning_details: ~
   reasoning:
     enabled: true

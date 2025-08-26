@@ -1,16 +1,18 @@
 use std::sync::Arc;
 
 use convert_case::{Case, Casing};
-use forge_display::TitleFormat;
 use forge_domain::{
-    ChatRequest, ChatResponse, Event, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
+    ChatRequest, ChatResponse, ChatResponseContent, Event, TitleFormat, ToolCallContext,
+    ToolDefinition, ToolName, ToolOutput,
 };
+use forge_template::Element;
 use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
 use crate::{ConversationService, Services, WorkflowService};
 
+#[derive(Clone)]
 pub struct AgentExecutor<S> {
     services: Arc<S>,
     pub tool_agents: Arc<RwLock<Option<Vec<ToolDefinition>>>>,
@@ -39,17 +41,16 @@ impl<S: Services> AgentExecutor<S> {
         &self,
         agent_id: String,
         task: String,
-        context: &mut ToolCallContext,
+        ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        context
-            .send_text(
-                TitleFormat::debug(format!(
-                    "{} (Agent)",
-                    agent_id.as_str().to_case(Case::UpperSnake)
-                ))
-                .sub_title(task.as_str()),
-            )
-            .await?;
+        ctx.send_title(
+            TitleFormat::debug(format!(
+                "{} [Agent]",
+                agent_id.as_str().to_case(Case::UpperSnake)
+            ))
+            .sub_title(task.as_str()),
+        )
+        .await?;
 
         // Create a new conversation for agent execution
         let workflow = self.services.read_merged(None).await?;
@@ -60,24 +61,41 @@ impl<S: Services> AgentExecutor<S> {
         let app = crate::ForgeApp::new(self.services.clone());
         let mut response_stream = app
             .chat(ChatRequest::new(
-                Event::new(format!("{agent_id}/user_task_init"), Some(task)),
+                Event::new(format!("{agent_id}/user_task_init"), Some(task.clone())),
                 conversation.id,
             ))
             .await?;
 
         // Collect responses from the agent
+        let mut output = None;
         while let Some(message) = response_stream.next().await {
             let message = message?;
-            match &message {
-                ChatResponse::Summary { content } => {
-                    return Ok(ToolOutput::text(content));
-                }
-                _ => {
-                    context.send(message).await?;
-                }
+            match message {
+                ChatResponse::TaskMessage { ref content } => match content {
+                    ChatResponseContent::Title(_) => ctx.send(message).await?,
+                    ChatResponseContent::PlainText(text) => output = Some(text.to_owned()),
+                    ChatResponseContent::Markdown(text) => output = Some(text.to_owned()),
+                },
+                ChatResponse::TaskReasoning { .. } => {}
+                ChatResponse::TaskComplete => {}
+                ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
+                ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
+                ChatResponse::Usage(_) => ctx.send(message).await?,
+                ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
+                ChatResponse::Interrupt { .. } => ctx.send(message).await?,
             }
         }
-        Err(Error::EmptyToolResponse.into())
+
+        if let Some(output) = output {
+            // Create tool output
+            Ok(ToolOutput::text(
+                Element::new("task_completed")
+                    .attr("task", &task)
+                    .append(Element::new("output").text(output)),
+            ))
+        } else {
+            Err(Error::EmptyToolResponse.into())
+        }
     }
 
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {

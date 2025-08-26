@@ -10,8 +10,6 @@ use crate::Environment;
 #[setters(strip_option)]
 #[derive(Default)]
 pub struct SystemContext {
-    // Current date and time at the time of context creation
-    pub current_time: String,
     // Environment information to be included in the system context
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env: Option<Environment>,

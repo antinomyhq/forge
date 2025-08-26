@@ -4,7 +4,7 @@ variables:
   # Define model anchors with simpler, purpose-based names
   advanced_model: &advanced_model anthropic/claude-sonnet-4
 
-max_requests_per_turn: 50
+max_requests_per_turn: 100
 max_tool_failure_per_turn: 3
 top_p: 0.8
 top_k: 30
@@ -40,6 +40,7 @@ agents:
       {{else}}
       <task>{{event.value}}</task>
       {{/if}}
+      <system_date>{{current_time}}</system_date>
     reasoning:
       enabled: true
     tools:
@@ -51,6 +52,7 @@ agents:
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_fs_undo
+      - sage
 
   - id: muse
     title: "Analysis and planning focussed"
@@ -65,11 +67,56 @@ agents:
       {{else}}
       <task>{{event.value}}</task>
       {{/if}}
-      Only create new plans or update existing ones.
-      Do not modify, create, or delete any code files.
+      <system_time>{{current_time}}</system_time>
+    tools:
+      - forge_tool_fs_read
+      - forge_tool_net_fetch
+      - forge_tool_fs_search
+      - forge_tool_plan_create
+      - sage
+  - id: prime
+    title: Documentation and blog review agent
+    description: |-
+      Documentation and blog review agent that analyzes and reviews documentation, blog posts, and other written content. Provides feedback on clarity, structure, and technical accuracy. Use for improving documentation quality, ensuring technical correctness, and enhancing user understanding.
+    model: *advanced_model
+    system_prompt: |-
+      {{> forge-system-prompt-prime-review.hbs }}
     tools:
       - forge_tool_fs_read
       - forge_tool_net_fetch
       - forge_tool_fs_search
       - forge_tool_fs_create
       - forge_tool_fs_patch
+  - id: parker
+    title: Expert technical writer crafting engaging content.
+    description: |-
+      Code review agent that analyzes code changes, provides feedback on quality, style, and best practices. Use for ensuring code quality, identifying potential issues, and improving maintainability.
+    model: *advanced_model
+    system_prompt: |-
+      {{> forge-system-prompt-parker-code-review.hbs }}
+    tools:
+      - forge_tool_fs_read
+      - forge_tool_net_fetch
+      - forge_tool_fs_search
+      - forge_tool_fs_create
+      - forge_tool_fs_patch
+  - id: sage
+    title: "Codebase research and exploration focussed"
+    description: |-
+      Research-only tool for systematic codebase exploration and analysis. Performs comprehensive, read-only investigation: maps project architecture and module relationships, traces data/logic flow across files, analyzes API usage patterns, examines test coverage and build configurations, identifies design patterns and technical debt. Accepts detailed research questions or investigation tasks as input parameters. Use when you need to understand how systems work, why architectural decisions were made, or to investigate bugs, dependencies, complex behavior patterns, or code quality issues. Do NOT use for code modifications, running commands, or file operations—choose implementation or planning agents instead. Returns structured reports with research summaries, key findings, technical details, contextual insights, and actionable follow-up suggestions. Strictly read-only with no side effects or system modifications.
+    model: *advanced_model
+    system_prompt: |-
+      {{> forge-system-prompt-sage-research.hbs }}
+    user_prompt: |-
+      {{#if (eq event.name 'sage/user_task_update')}}
+      <feedback>{{event.value}}</feedback>
+      {{else}}
+      <research_question>{{event.value}}</research_question>
+      {{/if}}
+      <system_date>{{current_time}}</system_date>
+    reasoning:
+      enabled: true
+    tools:
+      - forge_tool_fs_read
+      - forge_tool_net_fetch
+      - forge_tool_fs_search

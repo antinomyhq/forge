@@ -19,6 +19,13 @@ use crate::{
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct AgentId(Cow<'static, str>);
+
+impl From<&str> for AgentId {
+    fn from(value: &str) -> Self {
+        AgentId(Cow::Owned(value.to_string()))
+    }
+}
+
 impl AgentId {
     // Creates a new agent ID from a string-like value
     pub fn new(id: impl ToString) -> Self {
@@ -78,18 +85,18 @@ pub struct Agent {
     #[merge(strategy = crate::merge::option)]
     pub user_prompt: Option<Template<EventContext>>,
 
-    /// Tools that the agent can use    
+    /// Tools that the agent can use
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = merge_opt_vec)]
     pub tools: Option<Vec<ToolName>>,
 
     // The transforms feature has been removed
-    /// Used to specify the events the agent is interested in    
+    /// Used to specify the events the agent is interested in
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = merge_opt_vec)]
     pub subscribe: Option<Vec<String>>,
 
-    /// Maximum number of turns the agent can take    
+    /// Maximum number of turns the agent can take
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub max_turns: Option<u64>,
@@ -172,6 +179,7 @@ pub struct Agent {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema, PartialEq)]
 #[setters(strip_option)]
+#[merge(strategy = merge::option::overwrite_none)]
 pub struct ReasoningConfig {
     /// Controls the effort level of the agent's reasoning
     /// supported by openrouter and forge provider
@@ -306,12 +314,6 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-
-    impl Into<AgentId> for &str {
-        fn into(self) -> AgentId {
-            AgentId::new(self)
-        }
-    }
 
     #[test]
     fn test_merge_model() {

@@ -13,7 +13,7 @@ nom.workspace = true
 schemars.workspace = true
 serde.workspace = true
 eserde = {version= "0.1.7", features=["json"]}
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
 strum.workspace = true
 strum_macros.workspace = true
 thiserror.workspace = true
@@ -31,6 +31,8 @@ regex.workspace = true
 forge_tool_macros.workspace = true
 lazy_static = "1.5.0"
 convert_case.workspace = true
+forge_json_repair.workspace = true
+glob.workspace = true
 
 [dev-dependencies]
 insta = { workspace = true, features = ["yaml"] }

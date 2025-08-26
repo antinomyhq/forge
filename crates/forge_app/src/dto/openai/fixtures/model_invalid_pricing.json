@@ -1,0 +1,8 @@
+{
+  "id": "invalid-pricing-model",
+  "name": "Invalid Pricing Model",
+  "pricing": {
+    "prompt": "not-a-number",
+    "completion": 0.002
+  }
+}

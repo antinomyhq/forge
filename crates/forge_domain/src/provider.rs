@@ -85,6 +85,20 @@ impl Provider {
         }
     }
 
+    pub fn zai(key: &str) -> Provider {
+        Provider::OpenAI {
+            url: Url::parse(Provider::ZAI_URL).unwrap(),
+            key: Some(key.into()),
+        }
+    }
+
+    pub fn cerebras(key: &str) -> Provider {
+        Provider::OpenAI {
+            url: Url::parse(Provider::CEREBRAS_URL).unwrap(),
+            key: Some(key.into()),
+        }
+    }
+
     pub fn xai(key: &str) -> Provider {
         Provider::OpenAI {
             url: Url::parse(Provider::XAI_URL).unwrap(),
@@ -113,7 +127,9 @@ impl Provider {
     pub const XAI_URL: &str = "https://api.x.ai/v1/";
     pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
     pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
-    pub const FORGE_URL: &str = "https://api.forgecode.dev/api/v1/";
+    pub const FORGE_URL: &str = "https://antinomy.ai/api/v1/";
+    pub const ZAI_URL: &str = "https://api.z.ai/api/paas/v4/";
+    pub const CEREBRAS_URL: &str = "https://api.cerebras.ai/v1/";
 
     /// Converts the provider to it's base URL
     pub fn to_base_url(&self) -> Url {
@@ -140,6 +156,20 @@ impl Provider {
     pub fn is_requesty(&self) -> bool {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::REQUESTY_URL),
+            Provider::Anthropic { .. } => false,
+        }
+    }
+
+    pub fn is_zai(&self) -> bool {
+        match self {
+            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::ZAI_URL),
+            Provider::Anthropic { .. } => false,
+        }
+    }
+
+    pub fn is_cerebras(&self) -> bool {
+        match self {
+            Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::CEREBRAS_URL),
             Provider::Anthropic { .. } => false,
         }
     }

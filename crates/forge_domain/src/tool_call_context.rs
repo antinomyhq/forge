@@ -1,24 +1,24 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
 use tokio::sync::mpsc::Sender;
 
-use crate::{ChatResponse, TaskList};
+use crate::{ChatResponse, ChatResponseContent, Metrics, TitleFormat};
 
 /// Type alias for Arc<Sender<Result<ChatResponse>>>
 type ArcSender = Arc<Sender<anyhow::Result<ChatResponse>>>;
 
 /// Provides additional context for tool calls.
-#[derive(Debug, Setters)]
+#[derive(Debug, Clone, Setters)]
 pub struct ToolCallContext {
     sender: Option<ArcSender>,
-    pub tasks: TaskList,
+    metrics: Arc<Mutex<Metrics>>,
 }
 
 impl ToolCallContext {
     /// Creates a new ToolCallContext with default values
-    pub fn new(task_list: TaskList) -> Self {
-        Self { sender: None, tasks: task_list }
+    pub fn new(metrics: Metrics) -> Self {
+        Self { sender: None, metrics: Arc::new(Mutex::new(metrics)) }
     }
 
     /// Send a message through the sender if available
@@ -30,8 +30,26 @@ impl ToolCallContext {
     }
 
     pub async fn send_text(&self, content: impl ToString) -> anyhow::Result<()> {
-        self.send(ChatResponse::Text { text: content.to_string(), is_complete: true, is_md: false })
-            .await
+        self.send(ChatResponse::TaskMessage {
+            content: ChatResponseContent::PlainText(content.to_string()),
+        })
+        .await
+    }
+
+    pub async fn send_title(&self, title: impl Into<TitleFormat>) -> anyhow::Result<()> {
+        self.send(title.into()).await
+    }
+
+    /// Execute a closure with access to the metrics
+    pub fn with_metrics<F, R>(&self, f: F) -> anyhow::Result<R>
+    where
+        F: FnOnce(&mut Metrics) -> R,
+    {
+        let mut metrics = self
+            .metrics
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire metrics lock"))?;
+        Ok(f(&mut metrics))
     }
 }
 
@@ -41,7 +59,8 @@ mod tests {
 
     #[test]
     fn test_create_context() {
-        let context = ToolCallContext::new(TaskList::new());
+        let metrics = Metrics::new();
+        let context = ToolCallContext::new(metrics);
         assert!(context.sender.is_none());
     }
 
@@ -49,7 +68,8 @@ mod tests {
     fn test_with_sender() {
         // This is just a type check test - we don't actually create a sender
         // as it's complex to set up in a unit test
-        let context = ToolCallContext::new(TaskList::new());
+        let metrics = Metrics::new();
+        let context = ToolCallContext::new(metrics);
         assert!(context.sender.is_none());
     }
 }
