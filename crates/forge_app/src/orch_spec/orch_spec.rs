@@ -104,9 +104,9 @@ async fn test_attempt_completion_with_task() {
 
 #[tokio::test]
 async fn test_attempt_completion_triggers_session_summary() {
-    let attempt_completion_call = ToolCallFull::new("forge_tool_attempt_completion")
+    let attempt_completion_call = ToolCallFull::new("attempt_completion")
         .arguments(json!({"result": "Task completed successfully"}));
-    let attempt_completion_result = ToolResult::new("forge_tool_attempt_completion")
+    let attempt_completion_result = ToolResult::new("attempt_completion")
         .output(Ok(ToolOutput::text("Task completed successfully")));
 
     let mut ctx = TestContext::init_forge_task("Complete the task")
@@ -126,7 +126,7 @@ async fn test_attempt_completion_triggers_session_summary() {
         .chat_responses
         .iter()
         .flatten()
-        .filter(|response| matches!(response, ChatResponse::TaskComplete { .. }))
+        .filter(|response| matches!(response, ChatResponse::TaskComplete))
         .count();
 
     assert_eq!(
@@ -137,10 +137,10 @@ async fn test_attempt_completion_triggers_session_summary() {
 
 #[tokio::test]
 async fn test_followup_does_not_trigger_session_summary() {
-    let followup_call = ToolCallFull::new("forge_tool_followup")
+    let followup_call = ToolCallFull::new("followup")
         .arguments(json!({"question": "Do you need more information?"}));
-    let followup_result = ToolResult::new("forge_tool_followup")
-        .output(Ok(ToolOutput::text("Follow-up question sent")));
+    let followup_result =
+        ToolResult::new("followup").output(Ok(ToolOutput::text("Follow-up question sent")));
 
     let mut ctx = TestContext::init_forge_task("Ask a follow-up question")
         .mock_tool_call_responses(vec![(followup_call.clone().into(), followup_result)])
@@ -198,10 +198,10 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
         .arguments(ToolCallArguments::from(json!({"path": "test.txt"})));
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("file content")));
 
-    let attempt_completion_call = ToolCallFull::new("forge_tool_attempt_completion")
+    let attempt_completion_call = ToolCallFull::new("attempt_completion")
         .arguments(json!({"result": "File read successfully"}));
-    let attempt_completion_result = ToolResult::new("forge_tool_attempt_completion")
-        .output(Ok(ToolOutput::text("Task completed")));
+    let attempt_completion_result =
+        ToolResult::new("attempt_completion").output(Ok(ToolOutput::text("Task completed")));
 
     let mut ctx = TestContext::init_forge_task("Read a file")
         .mock_tool_call_responses(vec![
@@ -228,7 +228,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
         .collect();
 
     // Should have ToolCallStart response (2: one for fs_read, one for
-    // forge_tool_attempt_completion)
+    // attempt_completion)
     let tool_call_start_count = chat_responses
         .iter()
         .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
@@ -239,7 +239,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
     );
 
     // Should have ToolCallEnd response (2: one for fs_read, one for
-    // forge_tool_attempt_completion)
+    // attempt_completion)
     let tool_call_end_count = chat_responses
         .iter()
         .filter(|response| matches!(response, ChatResponse::ToolCallEnd(_)))
@@ -280,10 +280,10 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
     let agent_tool_result =
         ToolResult::new("forge").output(Ok(ToolOutput::text("analysis complete")));
 
-    let attempt_completion_call = ToolCallFull::new("forge_tool_attempt_completion")
-        .arguments(json!({"result": "Analysis completed"}));
-    let attempt_completion_result = ToolResult::new("forge_tool_attempt_completion")
-        .output(Ok(ToolOutput::text("Task completed")));
+    let attempt_completion_call =
+        ToolCallFull::new("attempt_completion").arguments(json!({"result": "Analysis completed"}));
+    let attempt_completion_result =
+        ToolResult::new("attempt_completion").output(Ok(ToolOutput::text("Task completed")));
 
     let mut ctx = TestContext::init_forge_task("Analyze code")
         .mock_tool_call_responses(vec![
@@ -309,7 +309,7 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
         .filter_map(|r| r.as_ref().ok())
         .collect();
 
-    // Should have ToolCallStart response only for forge_tool_attempt_completion
+    // Should have ToolCallStart response only for attempt_completion
     // (not for agent "forge")
     let tool_call_start_count = chat_responses
         .iter()
@@ -317,10 +317,10 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
         .count();
     assert_eq!(
         tool_call_start_count, 1,
-        "Should have 1 ToolCallStart response (only for forge_tool_attempt_completion)"
+        "Should have 1 ToolCallStart response (only for attempt_completion)"
     );
 
-    // Should have ToolCallEnd response only for forge_tool_attempt_completion (not
+    // Should have ToolCallEnd response only for attempt_completion (not
     // for agent "forge")
     let tool_call_end_count = chat_responses
         .iter()
@@ -328,7 +328,7 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
         .count();
     assert_eq!(
         tool_call_end_count, 1,
-        "Should have 1 ToolCallEnd response (only for forge_tool_attempt_completion)"
+        "Should have 1 ToolCallEnd response (only for attempt_completion)"
     );
 }
 
@@ -343,10 +343,10 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
         ToolCallFull::new("must").arguments(ToolCallArguments::from(json!({"tasks": ["analyze"]})));
     let agent_tool_result = ToolResult::new("must").output(Ok(ToolOutput::text("analysis done")));
 
-    let attempt_completion_call = ToolCallFull::new("forge_tool_attempt_completion")
+    let attempt_completion_call = ToolCallFull::new("attempt_completion")
         .arguments(json!({"result": "Both tasks completed"}));
-    let attempt_completion_result = ToolResult::new("forge_tool_attempt_completion")
-        .output(Ok(ToolOutput::text("Task completed")));
+    let attempt_completion_result =
+        ToolResult::new("attempt_completion").output(Ok(ToolOutput::text("Task completed")));
 
     let mut ctx = TestContext::init_forge_task("Read file and analyze")
         .mock_tool_call_responses(vec![
@@ -374,7 +374,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
         .collect();
 
     // Should have exactly 2 ToolCallStart (for fs_read and
-    // forge_tool_attempt_completion, not for agent "must")
+    // attempt_completion, not for agent "must")
     let tool_call_start_count = chat_responses
         .iter()
         .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
@@ -385,7 +385,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
     );
 
     // Should have exactly 2 ToolCallEnd (for fs_read and
-    // forge_tool_attempt_completion, not for agent "must")
+    // attempt_completion, not for agent "must")
     let tool_call_end_count = chat_responses
         .iter()
         .filter(|response| matches!(response, ChatResponse::ToolCallEnd(_)))
@@ -396,7 +396,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
     );
 
     // Verify we have ToolCallStart for both fs_read and
-    // forge_tool_attempt_completion
+    // attempt_completion
     let tool_call_start_names: Vec<&str> = chat_responses
         .iter()
         .filter_map(|response| match response {
@@ -409,11 +409,11 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
         "Should have ToolCallStart for fs_read"
     );
     assert!(
-        tool_call_start_names.contains(&"forge_tool_attempt_completion"),
-        "Should have ToolCallStart for forge_tool_attempt_completion"
+        tool_call_start_names.contains(&"attempt_completion"),
+        "Should have ToolCallStart for attempt_completion"
     );
 
-    // Verify we have ToolCallEnd for both fs_read and forge_tool_attempt_completion
+    // Verify we have ToolCallEnd for both fs_read and attempt_completion
     let tool_call_end_names: Vec<&str> = chat_responses
         .iter()
         .filter_map(|response| match response {
@@ -426,7 +426,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
         "Should have ToolCallEnd for fs_read"
     );
     assert!(
-        tool_call_end_names.contains(&"forge_tool_attempt_completion"),
-        "Should have ToolCallEnd for forge_tool_attempt_completion"
+        tool_call_end_names.contains(&"attempt_completion"),
+        "Should have ToolCallEnd for attempt_completion"
     );
 }
