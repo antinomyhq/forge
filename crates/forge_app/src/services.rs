@@ -517,17 +517,21 @@ impl<I: Services> WorkflowService for I {
         let workflow = self.read_workflow(path).await?;
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow);
-        
+
         // Load and merge custom agents
         let custom_agents = self.agent_loader_service().load_agents().await?;
         for agent_def in custom_agents {
-            if let Some(existing_agent) = base_workflow.agents.iter_mut().find(|a| a.id == agent_def.id) {
+            if let Some(existing_agent) = base_workflow
+                .agents
+                .iter_mut()
+                .find(|a| a.id == agent_def.id)
+            {
                 existing_agent.merge(agent_def);
             } else {
                 base_workflow.agents.push(agent_def);
             }
         }
-        
+
         Ok(base_workflow)
     }
 }
