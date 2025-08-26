@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
+use lazy_static::lazy_static;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -46,6 +47,26 @@ pub struct Conversation {
     pub metrics: Metrics,
 }
 
+lazy_static! {
+    static ref DEPRECATED_TOOL_NAMES: HashMap<ToolName, ToolName> = {
+        [
+            ("forge_tool_fs_read".into(), "read".into()),
+            ("forge_tool_fs_create".into(), "write".into()),
+            ("forge_tool_fs_search".into(), "search".into()),
+            ("forge_tool_fs_remove".into(), "remove".into()),
+            ("forge_tool_fs_patch".into(), "patch".into()),
+            ("forge_tool_fs_undo".into(), "undo".into()),
+            ("forge_tool_process_shell".into(), "shell".into()),
+            ("forge_tool_net_fetch".into(), "fetch".into()),
+            ("forge_tool_followup".into(), "followup".into()),
+            ("attempt_completion".into(), "attempt_completion".into()),
+            ("forge_tool_plan_create".into(), "plan".into()),
+        ]
+        .into_iter()
+        .collect()
+    };
+}
+
 impl Conversation {
     /// Returns the model of the main agent
     ///
@@ -88,6 +109,13 @@ impl Conversation {
         metrics.start();
 
         for mut agent in workflow.agents.into_iter() {
+            // Handle deprecated tool names
+            for tool in agent.tools.iter_mut().flatten() {
+                if let Some(new_tool_name) = DEPRECATED_TOOL_NAMES.get(tool) {
+                    *tool = new_tool_name.clone();
+                }
+            }
+
             if let Some(custom_rules) = workflow.custom_rules.clone() {
                 if let Some(existing_rules) = &agent.custom_rules {
                     agent.custom_rules = Some(existing_rules.clone() + "\n\n" + &custom_rules);

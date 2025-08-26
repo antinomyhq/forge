@@ -137,7 +137,7 @@ impl<
 
     async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
-            Tools::ForgeToolFsRead(input) => {
+            Tools::Read(input) => {
                 let output = self
                     .services
                     .read(
@@ -148,7 +148,7 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsCreate(input) => {
+            Tools::Write(input) => {
                 let output = self
                     .services
                     .create(
@@ -160,7 +160,7 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsSearch(input) => {
+            Tools::Search(input) => {
                 let output = self
                     .services
                     .search(
@@ -171,11 +171,11 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsRemove(input) => {
+            Tools::Remove(input) => {
                 let output = self.services.remove(input.path.clone()).await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsPatch(input) => {
+            Tools::Patch(input) => {
                 let output = self
                     .services
                     .patch(
@@ -187,22 +187,22 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsUndo(input) => {
+            Tools::Undo(input) => {
                 let output = self.services.undo(input.path.clone()).await?;
                 (input, output).into()
             }
-            Tools::ForgeToolProcessShell(input) => {
+            Tools::Shell(input) => {
                 let output = self
                     .services
                     .execute(input.command.clone(), input.cwd.clone(), input.keep_ansi)
                     .await?;
                 output.into()
             }
-            Tools::ForgeToolNetFetch(input) => {
+            Tools::Fetch(input) => {
                 let output = self.services.fetch(input.url.clone(), input.raw).await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFollowup(input) => {
+            Tools::Followup(input) => {
                 let output = self
                     .services
                     .follow_up(
@@ -221,10 +221,8 @@ impl<
                     .await?;
                 output.into()
             }
-            Tools::ForgeToolAttemptCompletion(_input) => {
-                crate::operation::ToolOperation::AttemptCompletion
-            }
-            Tools::ForgeToolPlanCreate(input) => {
+            Tools::AttemptCompletion(_input) => crate::operation::ToolOperation::AttemptCompletion,
+            Tools::Plan(input) => {
                 let output = self
                     .services
                     .create_plan(

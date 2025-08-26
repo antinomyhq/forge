@@ -3,7 +3,7 @@ source: crates/forge_domain/src/tools.rs
 expression: tools
 ---
 {
-  "name": "forge_tool_fs_read",
+  "name": "read",
   "description": "Reads file contents from the specified absolute path. Ideal for analyzing\n code, configuration files, documentation, or textual data. Automatically\n extracts text from PDF and DOCX files, preserving the original formatting.\n Returns the content as a string. For files larger than 2,000 lines,\n the tool automatically returns only the first 2,000 lines. You should\n always rely on this default behavior and avoid specifying custom ranges\n unless absolutely necessary. If needed, specify a range with the start_line\n and end_line parameters, ensuring the total range does not exceed 2,000\n lines. Specifying a range exceeding this limit will result in an error.\n Binary files are automatically detected and rejected.",
   "input_schema": {
     "title": "FSRead",
@@ -39,7 +39,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_fs_create",
+  "name": "write",
   "description": "Use it to create a new file at a specified path with the provided content.\n Always provide absolute paths for file locations. The tool\n automatically handles the creation of any missing intermediary directories\n in the specified path.\n IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the\n shell tool instead.",
   "input_schema": {
     "title": "FSWrite",
@@ -72,7 +72,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_fs_search",
+  "name": "search",
   "description": "Recursively searches directories for files by content (regex) and/or name\n (glob pattern). Provides context-rich results with line numbers for content\n matches. Two modes: content search (when regex provided) or file finder\n (when regex omitted). Uses case-insensitive Rust regex syntax. Requires\n absolute paths. Avoids binary files and excluded directories. Best for code\n exploration, API usage discovery, configuration settings, or finding\n patterns across projects. For large pages, returns the first 200\n lines and stores the complete content in a temporary file for\n subsequent access.",
   "input_schema": {
     "title": "FSSearch",
@@ -118,7 +118,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_fs_remove",
+  "name": "remove",
   "description": "Request to remove a file at the specified path. Use this when you need to\n delete an existing file. The path must be absolute. This operation cannot\n be undone, so use it carefully.",
   "input_schema": {
     "title": "FSRemove",
@@ -142,7 +142,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_fs_patch",
+  "name": "patch",
   "description": "Modifies files with targeted line operations on matched patterns. Supports\n prepend, append, replace, replace_all, swap, delete\n operations. Ideal for precise changes to configs, code, or docs while\n preserving context. Not suitable for complex refactoring or modifying all\n pattern occurrences - use `forge_tool_fs_create` instead for complete\n rewrites and `forge_tool_fs_undo` for undoing the last operation. Fails if\n search pattern isn\\'t found.",
   "input_schema": {
     "title": "FSPatch",
@@ -188,7 +188,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_fs_undo",
+  "name": "undo",
   "description": "Reverts the most recent file operation (create/modify/delete) on a specific\n file. Use this tool when you need to recover from incorrect file changes or\n if a revert is requested by the user.",
   "input_schema": {
     "title": "FSUndo",
@@ -212,7 +212,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_process_shell",
+  "name": "shell",
   "description": "Executes shell commands with safety measures using restricted bash (rbash).\n Prevents potentially harmful operations like absolute path execution and\n directory changes. Use for file system interaction, running utilities,\n installing packages, or executing build commands. For operations requiring\n unrestricted access, advise users to run forge CLI with \\'-u\\' flag. Returns\n complete output including stdout, stderr, and exit code for diagnostic\n purposes.",
   "input_schema": {
     "title": "Shell",
@@ -245,7 +245,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_net_fetch",
+  "name": "fetch",
   "description": "Input type for the net fetch tool",
   "input_schema": {
     "title": "NetFetch",
@@ -274,7 +274,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_followup",
+  "name": "followup",
   "description": "Use this tool when you encounter ambiguities, need clarification, or require\n more details to proceed effectively. Use this tool judiciously to maintain a\n balance between gathering necessary information and avoiding excessive\n back-and-forth.",
   "input_schema": {
     "title": "Followup",
@@ -328,7 +328,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_attempt_completion",
+  "name": "attempt_completion",
   "description": "After each tool use, the user will respond with the result of\n that tool use, i.e. if it succeeded or failed, along with any reasons for\n failure. Once you\\'ve received the results of tool uses and can confirm that\n the task is complete, use this tool to present the result of your work to\n the user in markdown format. The user may respond with feedback if they are\n not satisfied with the result, which you can use to make improvements and\n try again. IMPORTANT NOTE: This tool CANNOT be used until you\\'ve confirmed\n from the user that any previous tool uses were successful. Failure to do so\n will result in code corruption and system failure. Before using this tool,\n you must ask yourself if you\\'ve confirmed from the user that any previous\n tool uses were successful. If not, then DO NOT use this tool.",
   "input_schema": {
     "title": "AttemptCompletion",
@@ -346,7 +346,7 @@ expression: tools
   }
 }
 {
-  "name": "forge_tool_plan_create",
+  "name": "plan",
   "description": "Creates a new plan file with the specified name, version, and content. Use\n this tool to create structured project plans, task breakdowns, or\n implementation strategies that can be tracked and referenced throughout\n development sessions.",
   "input_schema": {
     "title": "PlanCreate",

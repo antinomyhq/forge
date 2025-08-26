@@ -10,7 +10,7 @@ impl FormatContent for Tools {
         let display_path_for = |path: &str| format_display_path(Path::new(path), env.cwd.as_path());
 
         match self {
-            Tools::ForgeToolFsRead(input) => {
+            Tools::Read(input) => {
                 let display_path = display_path_for(&input.path);
                 let is_explicit_range = input.start_line.is_some() || input.end_line.is_some();
                 let mut subtitle = display_path;
@@ -30,7 +30,7 @@ impl FormatContent for Tools {
                 };
                 Some(TitleFormat::debug("Read").sub_title(subtitle).into())
             }
-            Tools::ForgeToolFsCreate(input) => {
+            Tools::Write(input) => {
                 let display_path = display_path_for(&input.path);
                 let title = if input.overwrite {
                     "Overwrite"
@@ -39,7 +39,7 @@ impl FormatContent for Tools {
                 };
                 Some(TitleFormat::debug(title).sub_title(display_path).into())
             }
-            Tools::ForgeToolFsSearch(input) => {
+            Tools::Search(input) => {
                 let formatted_dir = display_path_for(&input.path);
                 let title = match (&input.regex, &input.file_pattern) {
                     (Some(regex), Some(pattern)) => {
@@ -51,11 +51,11 @@ impl FormatContent for Tools {
                 };
                 Some(TitleFormat::debug(title).into())
             }
-            Tools::ForgeToolFsRemove(input) => {
+            Tools::Remove(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Remove").sub_title(display_path).into())
             }
-            Tools::ForgeToolFsPatch(input) => {
+            Tools::Patch(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(
                     TitleFormat::debug(input.operation.as_ref())
@@ -63,27 +63,25 @@ impl FormatContent for Tools {
                         .into(),
                 )
             }
-            Tools::ForgeToolFsUndo(input) => {
+            Tools::Undo(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Undo").sub_title(display_path).into())
             }
-            Tools::ForgeToolProcessShell(input) => Some(
+            Tools::Shell(input) => Some(
                 TitleFormat::debug(format!("Execute [{}]", env.shell))
                     .sub_title(&input.command)
                     .into(),
             ),
-            Tools::ForgeToolNetFetch(input) => {
-                Some(TitleFormat::debug("GET").sub_title(&input.url).into())
-            }
-            Tools::ForgeToolFollowup(input) => Some(
+            Tools::Fetch(input) => Some(TitleFormat::debug("GET").sub_title(&input.url).into()),
+            Tools::Followup(input) => Some(
                 TitleFormat::debug("Follow-up")
                     .sub_title(&input.question)
                     .into(),
             ),
-            Tools::ForgeToolAttemptCompletion(input) => {
+            Tools::AttemptCompletion(input) => {
                 Some(ChatResponseContent::Markdown(input.result.clone()))
             }
-            Tools::ForgeToolPlanCreate(_) => None,
+            Tools::Plan(_) => None,
         }
     }
 }
