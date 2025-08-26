@@ -1,6 +1,6 @@
 use ansi_to_tui::IntoText;
 use color_eyre::owo_colors::OwoColorize;
-use forge_api::ChatResponse;
+use forge_api::{ChatResponse, ChatResponseContent};
 use ratatui::layout::Size;
 use ratatui::prelude::Widget;
 use ratatui::style::{Style, Stylize};
@@ -24,31 +24,30 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
             ])]
             .into_iter(),
             Message::Assistant(response) => match response {
-                ChatResponse::Text { text, is_complete, is_md } => {
-                    if *is_complete {
-                        if *is_md {
-                            let rendered_text = forge_display::MarkdownFormat::new().render(text);
-                            match rendered_text.into_text() {
-                                Ok(text) => text.lines.into_iter(),
-                                Err(_) => vec![Line::raw(rendered_text)].into_iter(),
-                            }
-                        } else {
-                            match text.clone().into_text() {
-                                Ok(text) => text.lines.into_iter(),
-                                Err(_) => vec![Line::raw(text.clone())].into_iter(),
-                            }
+                ChatResponse::TaskMessage { content } => match content {
+                    ChatResponseContent::Markdown(text) => {
+                        let rendered_text = forge_display::MarkdownFormat::new().render(text);
+                        match rendered_text.into_text() {
+                            Ok(text) => text.lines.into_iter(),
+                            Err(_) => vec![Line::raw(rendered_text)].into_iter(),
                         }
-                    } else {
-                        vec![].into_iter()
                     }
-                }
+                    ChatResponseContent::Title(_) | ChatResponseContent::PlainText(_) => {
+                        // match text.clone() {
+                        //     Ok(text) => text.lines.into_iter(),
+                        //     Err(_) => vec![Line::raw(text.clone())].into_iter(),
+                        // }
+
+                        todo!()
+                    }
+                },
                 ChatResponse::ToolCallStart(_) => vec![].into_iter(),
                 ChatResponse::ToolCallEnd(_) => vec![].into_iter(),
                 ChatResponse::Usage(_) => vec![].into_iter(),
                 ChatResponse::Interrupt { reason: _ } => {
                     todo!()
                 }
-                ChatResponse::Reasoning { content } => {
+                ChatResponse::TaskReasoning { content } => {
                     if !content.trim().is_empty() {
                         let dimmed_content = content.dimmed().to_string();
                         match dimmed_content.into_text() {
@@ -59,20 +58,11 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                         vec![].into_iter()
                     }
                 }
-                ChatResponse::Summary { content } => {
-                    if !content.trim().is_empty() {
-                        let rendered_text = forge_display::MarkdownFormat::new().render(content);
-                        match rendered_text.into_text() {
-                            Ok(text) => text.lines.into_iter(),
-                            Err(_) => vec![Line::raw(rendered_text)].into_iter(),
-                        }
-                    } else {
-                        vec![].into_iter()
-                    }
-                }
+
                 ChatResponse::RetryAttempt { cause: _, duration: _ } => {
                     todo!()
                 }
+                ChatResponse::TaskComplete { .. } => vec![].into_iter(),
             },
         })
         .collect()

@@ -13,7 +13,7 @@ machineid-rs.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 sysinfo.workspace = true
-posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81419031e4889d9c3882d7458d2efa588a8" }
+posthog-rs = "0.3.7"
 async-trait.workspace = true
 chrono.workspace = true
 whoami.workspace = true

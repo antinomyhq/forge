@@ -4,9 +4,10 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentInput, ChatResponse, ToolCallContext, ToolCallFull, ToolDefinition, ToolName,
-    ToolOutput, ToolResult, Tools, ToolsDiscriminants,
+    Agent, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
+    ToolDefinition, ToolName, ToolOutput, ToolResult, Tools, ToolsDiscriminants,
 };
+use futures::future::join_all;
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
@@ -54,11 +55,11 @@ impl<S: Services> ToolRegistry<S> {
         &self,
         agent: &Agent,
         input: ToolCallFull,
-        context: &mut ToolCallContext,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         Self::validate_tool_call(agent, &input.name)?;
 
-        tracing::info!(tool_name = %input.name, arguments = %input.arguments, "Executing tool call");
+        tracing::info!(tool_name = %input.name, arguments = %input.arguments.clone().into_string(), "Executing tool call");
         let tool_name = input.name.clone();
 
         // First, try to call a Forge tool
@@ -68,10 +69,18 @@ impl<S: Services> ToolRegistry<S> {
         } else if self.agent_executor.contains_tool(&input.name).await? {
             // Handle agent delegation tool calls
             let agent_input = AgentInput::try_from(&input)?;
+            let executor = self.agent_executor.clone();
             // NOTE: Agents should not timeout
-            self.agent_executor
-                .execute(input.name.to_string(), agent_input.task, context)
-                .await
+            let outputs = join_all(
+                agent_input
+                    .tasks
+                    .into_iter()
+                    .map(|task| executor.execute(input.name.to_string(), task, context)),
+            )
+            .await
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()?;
+            Ok(ToolOutput::from(outputs.into_iter()))
         } else if self.mcp_executor.contains_tool(&input.name).await? {
             let output = self
                 .call_with_timeout(&tool_name, || self.mcp_executor.execute(input, context))
@@ -88,7 +97,9 @@ impl<S: Services> ToolRegistry<S> {
             if !text.trim().is_empty() {
                 let text = style(text).cyan().dim().to_string();
                 context
-                    .send(ChatResponse::Text { text, is_complete: true, is_md: false })
+                    .send(ChatResponse::TaskMessage {
+                        content: ChatResponseContent::PlainText(text),
+                    })
                     .await?;
             }
             Ok(output)
@@ -100,7 +111,7 @@ impl<S: Services> ToolRegistry<S> {
     pub async fn call(
         &self,
         agent: &Agent,
-        context: &mut ToolCallContext,
+        context: &ToolCallContext,
         call: ToolCallFull,
     ) -> ToolResult {
         let call_id = call.call_id.clone();

@@ -9,8 +9,10 @@ use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Workflow,
 };
-use forge_display::{MarkdownFormat, TitleFormat};
-use forge_domain::{McpConfig, McpServerConfig, Provider, Scope};
+use forge_display::MarkdownFormat;
+use forge_domain::{
+    ChatResponseContent, McpConfig, McpServerConfig, Metrics, Provider, Scope, TitleFormat,
+};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -25,6 +27,7 @@ use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::select::ForgeSelect;
 use crate::state::UIState;
+use crate::title_display::TitleDisplayExt;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
@@ -68,6 +71,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
         self.spinner.write_ln(content)
+    }
+
+    /// Writes a TitleFormat to the console output with proper formatting
+    fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
+        self.spinner.write_ln(title.display())
     }
 
     /// Retrieve available models
@@ -124,7 +132,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             })
             .await?;
 
-        self.writeln(TitleFormat::action(format!(
+        self.writeln_title(TitleFormat::action(format!(
             "Switched to agent {}",
             agent.id.as_str().to_case(Case::UpperSnake).bold()
         )))?;
@@ -172,7 +180,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                eprintln!("{}", TitleFormat::error(format!("{error:?}")));
+                eprintln!("{}", TitleFormat::error(format!("{error:?}")).display());
             }
         }
     }
@@ -225,7 +233,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                             tracker::error(&error);
                             tracing::error!(error = ?error);
                             self.spinner.stop(None)?;
-                            eprintln!("{}", TitleFormat::error(format!("{error:?}")));
+                            eprintln!("{}", TitleFormat::error(format!("{error:?}")).display());
                         },
                     }
                 }
@@ -268,12 +276,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Added MCP server '{name}'")))?;
+                    self.writeln_title(TitleFormat::info(format!("Added MCP server '{name}'")))?;
                 }
                 McpCommand::List => {
                     let mcp_servers = self.api.read_mcp_config().await?;
                     if mcp_servers.is_empty() {
-                        self.writeln(TitleFormat::error("No MCP servers found"))?;
+                        self.writeln_title(TitleFormat::error("No MCP servers found"))?;
                     }
 
                     let mut output = String::new();
@@ -291,7 +299,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!("Removed server: {name}")))?;
+                    self.writeln_title(TitleFormat::info(format!("Removed server: {name}")))?;
                 }
                 McpCommand::Get(val) => {
                     let name = val.name.clone();
@@ -303,7 +311,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                     let mut output = String::new();
                     output.push_str(&format!("{name}: {server}"));
-                    self.writeln(TitleFormat::info(output))?;
+                    self.writeln_title(TitleFormat::info(output))?;
                 }
                 McpCommand::AddJson(add_json) => {
                     let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
@@ -315,7 +323,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     })
                     .await?;
 
-                    self.writeln(TitleFormat::info(format!(
+                    self.writeln_title(TitleFormat::info(format!(
                         "Added server: {}",
                         add_json.name
                     )))?;
@@ -477,7 +485,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(Some("Logging out"))?;
                 self.api.logout().await?;
                 self.spinner.stop(None)?;
-                self.writeln(TitleFormat::info("Logged out"))?;
+                self.writeln_title(TitleFormat::info("Logged out"))?;
                 // Exit the UI after logout
                 return Ok(true);
             }
@@ -497,7 +505,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let content = TitleFormat::action(format!(
             "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
         ));
-        self.writeln(content)?;
+        self.writeln_title(content)?;
         Ok(())
     }
 
@@ -565,7 +573,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Update the UI state with the new model
             self.update_model(model.clone());
 
-            self.writeln(TitleFormat::action(format!("Switched to model: {model}")))?;
+            self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
         }
 
         Ok(())
@@ -643,27 +651,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(workflow)
     }
     async fn init_provider(&mut self) -> Result<Provider> {
-        match self.api.provider().await {
-            // Use the forge key if available in the config.
-            Ok(provider) => Ok(provider),
-            Err(_) => {
-                // If no key is available, start the login flow.
-                self.login().await?;
-                let config: AppConfig = self.api.app_config().await?;
-                tracker::login(
-                    config
-                        .key_info
-                        .and_then(|v| v.auth_provider_id)
-                        .unwrap_or_default(),
-                );
-                self.api.provider().await
-            }
-        }
+        self.api.provider().await
+        // match self.api.provider().await {
+        //     // Use the forge key if available in the config.
+        //     Ok(provider) => Ok(provider),
+        //     Err(_) => {
+        //         // If no key is available, start the login flow.
+        //         // self.login().await?;
+        //         let config: AppConfig = self.api.app_config().await?;
+        //         tracker::login(
+        //             config
+        //                 .key_info
+        //                 .and_then(|v| v.auth_provider_id)
+        //                 .unwrap_or_default(),
+        //         );
+        //         self.api.provider().await
+        //     }
+        // }
     }
     async fn login(&mut self) -> Result<()> {
         let auth = self.api.init_login().await?;
         open::that(auth.auth_url.as_str()).ok();
-        self.writeln(TitleFormat::info(
+        self.writeln_title(TitleFormat::info(
             format!("Login here: {}", auth.auth_url).as_str(),
         ))?;
         self.spinner.start(Some("Waiting for login to complete"))?;
@@ -672,7 +681,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        self.writeln(TitleFormat::info("Login completed".to_string().as_str()))?;
+        self.writeln_title(TitleFormat::info("Login completed".to_string().as_str()))?;
 
         Ok(())
     }
@@ -725,7 +734,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         let path = format!("{timestamp}-dump.html");
                         tokio::fs::write(path.as_str(), html_content).await?;
 
-                        self.writeln(
+                        self.writeln_title(
                             TitleFormat::action("Conversation HTML dump created".to_string())
                                 .sub_title(path.to_string()),
                         )?;
@@ -740,7 +749,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let content = serde_json::to_string_pretty(&conversation)?;
                     tokio::fs::write(path.as_str(), content).await?;
 
-                    self.writeln(
+                    self.writeln_title(
                         TitleFormat::action("Conversation JSON dump created".to_string())
                             .sub_title(path.to_string()),
                     )?;
@@ -760,23 +769,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         match message {
-            ChatResponse::Text { mut text, is_complete, is_md } => {
-                if is_complete && !text.trim().is_empty() {
-                    if is_md {
-                        tracing::info!(message = %text, "Agent Response");
-                        text = self.markdown.render(&text);
-                    }
-
-                    self.writeln(text)?;
+            ChatResponse::TaskMessage { content } => match content {
+                ChatResponseContent::Title(title) => self.writeln(title.display())?,
+                ChatResponseContent::PlainText(text) => self.writeln(text)?,
+                ChatResponseContent::Markdown(text) => {
+                    tracing::info!(message = %text, "Agent Response");
+                    self.writeln(self.markdown.render(&text))?;
                 }
-            }
-            ChatResponse::Summary { content } => {
-                if !content.trim().is_empty() {
-                    tracing::info!(message = %content, "Agent Completion Response");
-                    let rendered = self.markdown.render(&content);
-                    self.writeln(rendered)?;
-                }
-            }
+            },
             ChatResponse::ToolCallStart(_) => {
                 self.spinner.stop(None)?;
             }
@@ -808,7 +808,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
-                    self.writeln(TitleFormat::error(cause.as_str()))?;
+                    self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
@@ -823,13 +823,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                 };
 
-                self.writeln(TitleFormat::action(title))?;
+                self.writeln_title(TitleFormat::action(title))?;
                 self.should_continue().await?;
             }
-            ChatResponse::Reasoning { content } => {
+            ChatResponse::TaskReasoning { content } => {
                 if !content.trim().is_empty() {
-                    self.writeln(content.dimmed())?;
+                    let rendered_content = self.markdown.render(&content);
+                    self.writeln(rendered_content.dimmed())?;
                 }
+            }
+            ChatResponse::TaskComplete { metrics: summary } => {
+                self.on_completion(summary).await?;
             }
         }
         Ok(())
@@ -843,6 +847,30 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
             Box::pin(self.on_message(None)).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
+        self.spinner.stop(None)?;
+
+        // Show summary
+        self.writeln(Info::from(&metrics))?;
+
+        let prompt_text = "Start a new conversation?";
+        let should_start_new_chat = ForgeSelect::confirm(prompt_text)
+            // Pressing ENTER should start new
+            .with_default(true)
+            .with_help_message("ESC = No, continue current conversation")
+            .prompt()
+            // Cancel or failure should continue with the session
+            .unwrap_or(Some(false))
+            .unwrap_or(false);
+
+        // if conversation is over
+        if should_start_new_chat {
+            self.on_new().await?;
         }
 
         Ok(())

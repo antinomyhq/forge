@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use tracing::debug;
 use tracing_appender::non_blocking::{self, WorkerGuard};
-use tracing_subscriber::{self};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{self, Layer, filter};
 
 use crate::Tracker;
 use crate::can_track::can_track;
@@ -14,15 +15,22 @@ pub fn init_tracing(log_path: PathBuf, tracker: Tracker) -> anyhow::Result<Guard
     // file appender.
     let (writer, guard, level) = prepare_writer(log_path, tracker);
 
-    tracing_subscriber::fmt()
+    // Create a filter that only allows logs from forge_ modules
+    let filter = filter::filter_fn(|metadata| metadata.target().starts_with("forge_"));
+
+    let fmt_layer = tracing_subscriber::fmt::layer()
         .json()
-        .with_env_filter(tracing_subscriber::EnvFilter::try_from_env("FORGE_LOG").unwrap_or(level))
         .with_timer(tracing_subscriber::fmt::time::uptime())
         .with_thread_ids(false)
         .with_target(false)
         .with_file(true)
         .with_line_number(true)
         .with_writer(writer)
+        .with_filter(filter);
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::try_from_env("FORGE_LOG").unwrap_or(level))
+        .with(fmt_layer)
         .init();
 
     debug!("JSON logging system initialized successfully");
@@ -64,6 +72,7 @@ impl PostHogWriter {
     pub fn new(tracker: Tracker) -> Self {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
+            .worker_threads(1)
             .build()
             .expect("Failed to create Tokio runtime");
         Self { tracker, runtime }

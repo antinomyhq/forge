@@ -7,6 +7,7 @@ use crate::app_config::ForgeConfigService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
 use crate::conversation::ForgeConversationService;
+use crate::custom_instructions::ForgeCustomInstructionsService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::infra::HttpInfra;
@@ -55,6 +56,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     followup_service: Arc<ForgeFollowup<F>>,
     mcp_service: Arc<McpService<F>>,
     env_service: Arc<ForgeEnvironmentService<F>>,
+    custom_instructions_service: Arc<ForgeCustomInstructionsService<F>>,
     config_service: Arc<ForgeConfigService<F>>,
     auth_service: Arc<AuthService<F>>,
     provider_service: Arc<ForgeProviderRegistry<F>>,
@@ -71,6 +73,7 @@ impl<
         + HttpInfra
         + WalkerInfra
         + DirectoryReaderInfra
+        + CommandInfra
         + UserInfra,
 > ForgeServices<F>
 {
@@ -98,6 +101,8 @@ impl<
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
+        let custom_instructions_service =
+            Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
 
@@ -120,6 +125,7 @@ impl<
             followup_service,
             mcp_service,
             env_service,
+            custom_instructions_service,
             config_service,
             auth_service,
             chat_service,
@@ -152,6 +158,7 @@ impl<
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = ForgeEnvironmentService<F>;
+    type CustomInstructionsService = ForgeCustomInstructionsService<F>;
     type WorkflowService = ForgeWorkflowService<F>;
     type FileDiscoveryService = ForgeDiscoveryService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
@@ -190,6 +197,9 @@ impl<
 
     fn environment_service(&self) -> &Self::EnvironmentService {
         &self.env_service
+    }
+    fn custom_instructions_service(&self) -> &Self::CustomInstructionsService {
+        &self.custom_instructions_service
     }
 
     fn workflow_service(&self) -> &Self::WorkflowService {

@@ -1,15 +1,20 @@
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::xml::extract_tag_content;
-use crate::{Error, Result, ToolName};
+use crate::{Error, Result, ToolCallArguments, ToolName};
 
 /// Unique identifier for a using a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct ToolCallId(pub(crate) String);
+
+impl From<&str> for ToolCallId {
+    fn from(value: &str) -> Self {
+        ToolCallId(value.to_string())
+    }
+}
 
 impl ToolCallId {
     pub fn new(value: impl ToString) -> Self {
@@ -71,7 +76,7 @@ impl ToolCall {
 pub struct ToolCallFull {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
-    pub arguments: Value,
+    pub arguments: ToolCallArguments,
 }
 
 impl ToolCallFull {
@@ -79,7 +84,7 @@ impl ToolCallFull {
         Self {
             name: tool_name.into(),
             call_id: None,
-            arguments: Value::default(),
+            arguments: ToolCallArguments::default(),
         }
     }
 
@@ -102,19 +107,16 @@ impl ToolCallFull {
                 {
                     // Finalize the previous tool call
                     if let Some(tool_name) = current_tool_name.take() {
+                        let arguments = if current_arguments.is_empty() {
+                            ToolCallArguments::default()
+                        } else {
+                            ToolCallArguments::from_json(current_arguments.as_str())
+                        };
+
                         tool_calls.push(ToolCallFull {
                             name: tool_name,
                             call_id: Some(existing_call_id.clone()),
-                            arguments: if current_arguments.is_empty() {
-                                Value::default()
-                            } else {
-                                json_repair_parse(&current_arguments).map_err(|repair_error| {
-                                    Error::ToolCallArgument {
-                                        error: repair_error,
-                                        args: current_arguments.clone(),
-                                    }
-                                })?
-                            },
+                            arguments,
                         });
                     }
                     current_arguments.clear();
@@ -133,20 +135,13 @@ impl ToolCallFull {
 
         // Finalize the last tool call
         if let Some(tool_name) = current_tool_name {
-            tool_calls.push(ToolCallFull {
-                name: tool_name,
-                call_id: current_call_id,
-                arguments: if current_arguments.is_empty() {
-                    Value::default()
-                } else {
-                    json_repair_parse(&current_arguments).map_err(|repair_error| {
-                        Error::ToolCallArgument {
-                            error: repair_error,
-                            args: current_arguments.clone(),
-                        }
-                    })?
-                },
-            });
+            let arguments = if current_arguments.is_empty() {
+                ToolCallArguments::default()
+            } else {
+                ToolCallArguments::from_json(current_arguments.as_str())
+            };
+
+            tool_calls.push(ToolCallFull { name: tool_name, call_id: current_call_id, arguments });
         }
 
         Ok(tool_calls)
@@ -182,7 +177,7 @@ where
     serde_json::from_str(json_str)
         .map_err(forge_json_repair::JsonRepairError::JsonError)
         .or_else(|_| {
-            let repaired = forge_json_repair::jsonrepair(json_str);
+            let repaired = forge_json_repair::json_repair(json_str);
             if repaired.is_ok() {
                 tracing::info!("Tool call was successfully repaired.");
             }
@@ -238,17 +233,21 @@ mod tests {
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_1".to_string())),
-                arguments: serde_json::json!({"path": "crates/forge_services/src/fixtures/mascot.md"}),
+                arguments: ToolCallArguments::from_json(
+                    r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#,
+                ),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_2".to_string())),
-                arguments: serde_json::json!({"path": "docs/onboarding.md"}),
+                arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
             },
             ToolCallFull {
                 name: ToolName::new("forge_tool_fs_read"),
                 call_id: Some(ToolCallId("call_3".to_string())),
-                arguments: serde_json::json!({"path": "crates/forge_services/src/service/service.md"}),
+                arguments: ToolCallArguments::from_json(
+                    r#"{"path": "crates/forge_services/src/service/service.md"}"#,
+                ),
             },
         ];
 
@@ -267,7 +266,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("forge_tool_fs_read"),
-            arguments: serde_json::json!({"path": "docs/onboarding.md"}),
+            arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
         }];
 
         assert_eq!(actual, expected);
@@ -293,7 +292,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("screenshot"),
-            arguments: Value::default(),
+            arguments: ToolCallArguments::default(),
         }];
 
         assert_eq!(actual, expected);
@@ -342,7 +341,7 @@ mod tests {
         let expected = vec![ToolCallFull {
             name: ToolName::new("forge_tool_fs_read"),
             call_id: Some(ToolCallId("0".to_string())),
-            arguments: serde_json::json!({"path": "/test/file.md"}),
+            arguments: ToolCallArguments::from_json(r#"{"path": "/test/file.md"}"#),
         }];
 
         assert_eq!(actual, expected);

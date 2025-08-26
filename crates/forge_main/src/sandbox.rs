@@ -2,7 +2,9 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
-use forge_display::TitleFormat;
+use forge_domain::TitleFormat;
+
+use crate::title_display::TitleDisplayExt;
 
 pub struct Sandbox<'a> {
     dir: &'a str,
@@ -70,6 +72,7 @@ impl<'a> Sandbox<'a> {
                         "{}",
                         TitleFormat::info("Worktree [Reused]")
                             .sub_title(worktree_path.display().to_string())
+                            .display()
                     );
                     return worktree_path
                         .canonicalize()
@@ -123,7 +126,9 @@ impl<'a> Sandbox<'a> {
 
         println!(
             "{}",
-            TitleFormat::info("Worktree [Created]").sub_title(worktree_path.display().to_string())
+            TitleFormat::info("Worktree [Created]")
+                .sub_title(worktree_path.display().to_string())
+                .display()
         );
 
         // Return the canonicalized path

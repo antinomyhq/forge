@@ -4,8 +4,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::domain::{
-    ExecuteRule, Fetch, Operation, Permission, Policy, PolicyConfig, PolicyEngine, ReadRule, Rule,
-    WriteRule,
+    ExecuteRule, Fetch, Permission, PermissionOperation, Policy, PolicyConfig, PolicyEngine,
+    ReadRule, Rule, WriteRule,
 };
 use forge_app::{PolicyDecision, PolicyService};
 use strum_macros::{Display, EnumIter};
@@ -57,7 +57,7 @@ where
     /// Add a policy for a specific operation type
     async fn add_policy_for_operation(
         &self,
-        operation: &Operation,
+        operation: &PermissionOperation,
     ) -> anyhow::Result<Option<PathBuf>>
     where
         I: UserInfra,
@@ -157,7 +157,7 @@ where
     /// confirmation
     async fn check_operation_permission(
         &self,
-        operation: &Operation,
+        operation: &PermissionOperation,
     ) -> anyhow::Result<PolicyDecision> {
         let (policies, path) = self.get_or_create_policies().await?;
 
@@ -170,16 +170,16 @@ where
             Permission::Confirm => {
                 // Request user confirmation using UserInfra
                 let confirmation_msg = match operation {
-                    Operation::Read { message, .. } => {
+                    PermissionOperation::Read { message, .. } => {
                         format!("{message}. How would you like to proceed?")
                     }
-                    Operation::Write { message, .. } => {
+                    PermissionOperation::Write { message, .. } => {
                         format!("{message}. How would you like to proceed?")
                     }
-                    Operation::Execute { message, .. } => {
+                    PermissionOperation::Execute { message, .. } => {
                         format!("{message}. How would you like to proceed?")
                     }
-                    Operation::Fetch { message, .. } => {
+                    PermissionOperation::Fetch { message, .. } => {
                         format!("{message}. How would you like to proceed?")
                     }
                 };
@@ -204,7 +204,10 @@ where
 }
 
 /// Create a policy for an operation based on its type
-fn create_policy_for_operation(operation: &Operation, dir: Option<String>) -> Option<Policy> {
+fn create_policy_for_operation(
+    operation: &PermissionOperation,
+    dir: Option<String>,
+) -> Option<Policy> {
     fn create_file_policy(
         path: &std::path::Path,
         rule_constructor: fn(String) -> Rule,
@@ -218,14 +221,18 @@ fn create_policy_for_operation(operation: &Operation, dir: Option<String>) -> Op
     }
 
     match operation {
-        Operation::Read { path, cwd: _, message: _ } => create_file_policy(path, |pattern| {
-            Rule::Read(ReadRule { read: pattern, dir: None })
-        }),
-        Operation::Write { path, cwd: _, message: _ } => create_file_policy(path, |pattern| {
-            Rule::Write(WriteRule { write: pattern, dir: None })
-        }),
+        PermissionOperation::Read { path, cwd: _, message: _ } => {
+            create_file_policy(path, |pattern| {
+                Rule::Read(ReadRule { read: pattern, dir: None })
+            })
+        }
+        PermissionOperation::Write { path, cwd: _, message: _ } => {
+            create_file_policy(path, |pattern| {
+                Rule::Write(WriteRule { write: pattern, dir: None })
+            })
+        }
 
-        Operation::Fetch { url, cwd: _, message: _ } => {
+        PermissionOperation::Fetch { url, cwd: _, message: _ } => {
             if let Ok(parsed_url) = url::Url::parse(url) {
                 parsed_url.host_str().map(|host| Policy::Simple {
                     permission: Permission::Allow,
@@ -238,7 +245,7 @@ fn create_policy_for_operation(operation: &Operation, dir: Option<String>) -> Op
                 })
             }
         }
-        Operation::Execute { command, cwd: _, message: _ } => {
+        PermissionOperation::Execute { command, cwd: _, message: _ } => {
             let parts: Vec<&str> = command.split_whitespace().collect();
             match parts.as_slice() {
                 [] => None,
@@ -264,7 +271,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_read_operation() {
         let path = PathBuf::from("/path/to/file.rs");
-        let operation = Operation::Read {
+        let operation = PermissionOperation::Read {
             path,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Read file: /path/to/file.rs".to_string(),
@@ -283,7 +290,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_write_operation() {
         let path = PathBuf::from("/path/to/file.json");
-        let operation = Operation::Write {
+        let operation = PermissionOperation::Write {
             path,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Create/overwrite file: /path/to/file.json".to_string(),
@@ -302,7 +309,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_write_patch_operation() {
         let path = PathBuf::from("/path/to/file.toml");
-        let operation = Operation::Write {
+        let operation = PermissionOperation::Write {
             path,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Modify file: /path/to/file.toml".to_string(),
@@ -321,7 +328,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_net_fetch_operation() {
         let url = "https://example.com/api/data".to_string();
-        let operation = Operation::Fetch {
+        let operation = PermissionOperation::Fetch {
             url,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Fetch content from URL: https://example.com/api/data".to_string(),
@@ -340,7 +347,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_subcommand() {
         let command = "git push origin main".to_string();
-        let operation = Operation::Execute {
+        let operation = PermissionOperation::Execute {
             command,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Execute shell command: git push origin main".to_string(),
@@ -359,7 +366,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_single_command() {
         let command = "ls".to_string();
-        let operation = Operation::Execute {
+        let operation = PermissionOperation::Execute {
             command,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Execute shell command: ls".to_string(),
@@ -378,7 +385,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_file_without_extension() {
         let path = PathBuf::from("/path/to/file");
-        let operation = Operation::Read {
+        let operation = PermissionOperation::Read {
             path,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Read file: /path/to/file".to_string(),
@@ -394,7 +401,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_invalid_url() {
         let url = "not-a-valid-url".to_string();
-        let operation = Operation::Fetch {
+        let operation = PermissionOperation::Fetch {
             url,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Fetch content from URL: not-a-valid-url".to_string(),
@@ -413,7 +420,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_empty_execute_command() {
         let command = "".to_string();
-        let operation = Operation::Execute {
+        let operation = PermissionOperation::Execute {
             command,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Execute shell command: ".to_string(),
@@ -429,7 +436,7 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_working_directory() {
         let command = "ls".to_string();
-        let operation = Operation::Execute {
+        let operation = PermissionOperation::Execute {
             command,
             cwd: std::path::PathBuf::from("/test/cwd"),
             message: "Execute shell command: ls".to_string(),

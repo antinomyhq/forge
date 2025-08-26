@@ -5,7 +5,7 @@ use glob::Pattern;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::operation::Operation;
+use super::operation::PermissionOperation;
 
 /// Rule for write operations with a glob pattern
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
@@ -55,9 +55,9 @@ pub enum Rule {
 
 impl Rule {
     /// Check if this rule matches the given operation
-    pub fn matches(&self, operation: &Operation) -> bool {
+    pub fn matches(&self, operation: &PermissionOperation) -> bool {
         match (self, operation) {
-            (Rule::Write(rule), Operation::Write { path, cwd, message: _ }) => {
+            (Rule::Write(rule), PermissionOperation::Write { path, cwd, message: _ }) => {
                 let pattern_matches = match_pattern(&rule.write, path);
                 let dir = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
@@ -66,7 +66,7 @@ impl Rule {
                 };
                 pattern_matches && dir
             }
-            (Rule::Read(rule), Operation::Read { path, cwd, message: _ }) => {
+            (Rule::Read(rule), PermissionOperation::Read { path, cwd, message: _ }) => {
                 let pattern_matches = match_pattern(&rule.read, path);
                 let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
@@ -76,7 +76,10 @@ impl Rule {
                 pattern_matches && dir_matches
             }
 
-            (Rule::Execute(rule), Operation::Execute { command: cmd, cwd, message: _ }) => {
+            (
+                Rule::Execute(rule),
+                PermissionOperation::Execute { command: cmd, cwd, message: _ },
+            ) => {
                 let command_matches = match_pattern(&rule.command, cmd);
                 let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
@@ -85,7 +88,7 @@ impl Rule {
                 };
                 command_matches && dir_matches
             }
-            (Rule::Fetch(rule), Operation::Fetch { url, cwd, message: _ }) => {
+            (Rule::Fetch(rule), PermissionOperation::Fetch { url, cwd, message: _ }) => {
                 let url_matches = match_pattern(&rule.url, url);
                 let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),
@@ -118,40 +121,40 @@ mod tests {
 
     use super::*;
 
-    fn fixture_write_operation() -> Operation {
-        Operation::Write {
+    fn fixture_write_operation() -> PermissionOperation {
+        PermissionOperation::Write {
             path: PathBuf::from("src/main.rs"),
             cwd: PathBuf::from("/home/user/project"),
             message: "Create/overwrite file: src/main.rs".to_string(),
         }
     }
 
-    fn fixture_patch_operation() -> Operation {
-        Operation::Write {
+    fn fixture_patch_operation() -> PermissionOperation {
+        PermissionOperation::Write {
             path: PathBuf::from("src/main.rs"),
             cwd: PathBuf::from("/home/user/project"),
             message: "Modify file: src/main.rs".to_string(),
         }
     }
 
-    fn fixture_read_operation() -> Operation {
-        Operation::Read {
+    fn fixture_read_operation() -> PermissionOperation {
+        PermissionOperation::Read {
             path: PathBuf::from("config/dev.yml"),
             cwd: PathBuf::from("/home/user/project"),
             message: "Read file: config/dev.yml".to_string(),
         }
     }
 
-    fn fixture_execute_operation() -> Operation {
-        Operation::Execute {
+    fn fixture_execute_operation() -> PermissionOperation {
+        PermissionOperation::Execute {
             command: "cargo build".to_string(),
             cwd: PathBuf::from("/home/user/project"),
             message: "Execute shell command: cargo build".to_string(),
         }
     }
 
-    fn fixture_net_fetch_operation() -> Operation {
-        Operation::Fetch {
+    fn fixture_net_fetch_operation() -> PermissionOperation {
+        PermissionOperation::Fetch {
             url: "https://api.example.com/data".to_string(),
             cwd: PathBuf::from("/home/user/project"),
             message: "Fetch content from URL: https://api.example.com/data".to_string(),

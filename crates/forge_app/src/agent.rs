@@ -26,7 +26,7 @@ pub trait AgentService: Send + Sync + 'static {
     async fn call(
         &self,
         agent: &Agent,
-        context: &mut ToolCallContext,
+        context: &ToolCallContext,
         call: ToolCallFull,
     ) -> ToolResult;
 
@@ -57,7 +57,7 @@ impl<T: Services> AgentService for T {
     async fn call(
         &self,
         agent: &Agent,
-        context: &mut ToolCallContext,
+        context: &ToolCallContext,
         call: ToolCallFull,
     ) -> ToolResult {
         let registry = ToolRegistry::new(Arc::new(self.clone()));
