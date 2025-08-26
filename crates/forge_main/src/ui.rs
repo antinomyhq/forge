@@ -832,8 +832,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln(rendered_content.dimmed())?;
                 }
             }
-            ChatResponse::TaskComplete { metrics: summary } => {
-                self.on_completion(summary).await?;
+            ChatResponse::TaskComplete => {
+                if let Some(conversation_id) = self.state.conversation_id.as_ref() {
+                    let conversation = self.api.conversation(conversation_id).await?;
+                    self.on_completion(conversation.unwrap().metrics).await?;
+                }
             }
         }
         Ok(())
