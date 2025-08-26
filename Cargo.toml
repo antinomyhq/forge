@@ -9,13 +9,13 @@ opt-level = 3
 strip = true
 
 [workspace.dependencies]
-anyhow = "1.0.95"
+anyhow = "1.0.99"
 async-recursion = "1.1.1"
-async-trait = "0.1.86"
+async-trait = "0.1.89"
 base64 = "0.22.1"
 bytes = "1.10.0"
 chrono = { version = "0.4.39", features = ["serde"] }
-clap = { version = "4.5.42", features = ["derive"] }
+clap = { version = "4.5.45", features = ["derive"] }
 colored = "3.0.0"
 console = "0.16.0"
 inquire = "0.7.5"
@@ -27,8 +27,8 @@ dirs = "6.0.0"
 dissimilar = "1.0.9"
 dotenv = "0.15.0"
 futures = "0.3.31"
-gh-workflow-tailcall = "0.5.2"
-glob = "0.3.2"
+gh-workflow-tailcall = "0.5.3"
+glob = "0.3.3"
 globset = "0.4.15"
 grep-searcher = "0.1.14"
 grep-regex = "0.1.13"
@@ -50,8 +50,8 @@ pretty_assertions = "1.4.1"
 proc-macro2 = "1.0"
 quote = "1.0"
 reedline = "0.41.0"
-regex = "1.11.1"
-reqwest = { version = "0.12.22", features = [
+regex = "1.11.2"
+reqwest = { version = "0.12.23", features = [
     "json",
     "rustls-tls",
     "hickory-dns",
@@ -61,17 +61,17 @@ reqwest-eventsource = "0.6.0"
 rust-embed = "8.5.0"
 schemars = "0.8.21"
 serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.142"
+serde_json = "1.0.143"
 serde_yml = "0.0.12"
 similar = { version = "2.4", features = ["inline"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.27.1"
 strum_macros = "0.27.1"
-syn = { version = "2.0.98", features = ["full"] }
+syn = { version = "2.0.106", features = ["full"] }
 sysinfo = "0.36.1"
 tempfile = "3.21.0"
 termimad = "0.33.0"
-thiserror = "2.0.11"
+thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full", "test-util"] }
 tokio-stream = "0.1.17"
 tokio-util = "0.7"
@@ -97,7 +97,7 @@ uuid = { version = "1.18.0", features = [
     "macro-diagnostics",
     "serde",
 ] }
-whoami = "1.5.2"
+whoami = "1.6.1"
 fnv_rs = "0.4.3"
 merge = { version = "0.2", features = ["derive"] }
 rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a97917cd7584c4220815194bcb28b648147a3d8", features = [
