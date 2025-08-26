@@ -5,6 +5,7 @@ use forge_domain::{
     ChatRequest, ChatResponse, ChatResponseContent, Event, TitleFormat, ToolCallContext,
     ToolDefinition, ToolName, ToolOutput,
 };
+use forge_template::Element;
 use futures::StreamExt;
 use tokio::sync::RwLock;
 
@@ -72,8 +73,8 @@ impl<S: Services> AgentExecutor<S> {
             match message {
                 ChatResponse::TaskMessage { ref content } => match content {
                     ChatResponseContent::Title(_) => ctx.send(message).await?,
-                    ChatResponseContent::PlainText(text) => output = Some(ToolOutput::text(text)),
-                    ChatResponseContent::Markdown(text) => output = Some(ToolOutput::text(text)),
+                    ChatResponseContent::PlainText(text) => output = Some(text),
+                    ChatResponseContent::Markdown(text) => output = Some(text),
                 },
                 ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete => {}
@@ -86,7 +87,12 @@ impl<S: Services> AgentExecutor<S> {
         }
 
         if let Some(output) = output {
-            Ok(output)
+            // Create tool output
+            Ok(ToolOutput::text(
+                Element::new("task_completed")
+                    .attr("task", &task)
+                    .append(Element::new("output").text(output)),
+            ))
         } else {
             Err(Error::EmptyToolResponse.into())
         }
