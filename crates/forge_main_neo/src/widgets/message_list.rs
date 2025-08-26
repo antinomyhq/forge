@@ -62,7 +62,7 @@ fn messages_to_lines(messages: &[Message]) -> Vec<Line<'_>> {
                 ChatResponse::RetryAttempt { cause: _, duration: _ } => {
                     todo!()
                 }
-                ChatResponse::TaskComplete { .. } => vec![].into_iter(),
+                ChatResponse::TaskComplete => vec![].into_iter(),
             },
         })
         .collect()
