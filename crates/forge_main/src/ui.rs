@@ -855,15 +855,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
 
-        // Fetch Usage
-        let mut info = get_usage(&self.state);
-        if let Ok(Some(user_usage)) = self.api.user_usage().await {
-            info = info.extend(Info::from(&user_usage));
-        }
+        let mut info = Info::default();
 
         // Show summary
+        info = info.extend(Info::from(&metrics));
+
+        // Fetch Usage
+        info = info.extend(get_usage(&self.state));
+
+        if let Ok(Some(usage)) = self.api.user_usage().await {
+            info = info.extend(Info::from(&usage));
+        }
+
         self.writeln(info)?;
-        self.writeln(Info::from(&metrics))?;
+
         self.spinner.stop(None)?;
 
         let prompt_text = "Start a new conversation?";
