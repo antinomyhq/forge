@@ -512,6 +512,24 @@ impl<I: Services> WorkflowService for I {
     {
         self.workflow_service().update_workflow(path, f).await
     }
+
+    async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
+        let workflow = self.read_workflow(path).await?;
+        let mut base_workflow = Workflow::default();
+        base_workflow.merge(workflow);
+        
+        // Load and merge custom agents
+        let custom_agents = self.agent_loader_service().load_agents().await?;
+        for agent_def in custom_agents {
+            if let Some(existing_agent) = base_workflow.agents.iter_mut().find(|a| a.id == agent_def.id) {
+                existing_agent.merge(agent_def);
+            } else {
+                base_workflow.agents.push(agent_def);
+            }
+        }
+        
+        Ok(base_workflow)
+    }
 }
 
 #[async_trait::async_trait]
