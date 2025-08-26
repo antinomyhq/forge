@@ -37,7 +37,7 @@ html2md = "0.2.15"
 http = "1.2.0"
 ignore = "0.4.23"
 is_ci = "1.2.0"
-indexmap = "2.7.1"
+indexmap = "2.11.0"
 insta = { version = "1.42.0", features = ["json"] }
 lazy_static = "1.4.0"
 machineid-rs = "1.2.4"
@@ -69,7 +69,7 @@ strum = "0.27.1"
 strum_macros = "0.27.1"
 syn = { version = "2.0.98", features = ["full"] }
 sysinfo = "0.36.1"
-tempfile = "3.10.1"
+tempfile = "3.21.0"
 termimad = "0.33.0"
 thiserror = "2.0.11"
 tokio = { version = "1.47.1", features = ["full", "test-util"] }
