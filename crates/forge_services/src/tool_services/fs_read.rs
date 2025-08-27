@@ -37,7 +37,8 @@ async fn assert_file_size<F: FileInfoInfra>(
 /// Reads file contents from the specified absolute path. Ideal for analyzing
 /// code, configuration files, documentation, or textual data. Automatically
 /// extracts text from PDF and DOCX files, preserving the original formatting.
-/// Returns the content as a string. For files larger than 2,000 lines,
+/// Returns the content as a string with line numbers prefixed to each line in
+/// the format "   1: content". For files larger than 2,000 lines,
 /// the tool automatically returns only the first 2,000 lines. You should
 /// always rely on this default behavior and avoid specifying custom ranges
 /// unless absolutely necessary. If needed, specify a range with the start_line

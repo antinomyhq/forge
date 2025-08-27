@@ -72,12 +72,39 @@ impl crate::ForgeFS {
 
         let info = FileInfo::new(start_line, end_line, total_lines);
 
-        // Extract requested lines
-        let result_content = if start_pos == 0 && end_pos == total_lines - 1 {
-            content // Return full content if requesting entire file
+        // Calculate padding based on the maximum line number that will be displayed
+        let max_line_number = if start_pos == 0 && end_pos == total_lines - 1 {
+            total_lines
         } else {
-            lines[start_pos as usize..=end_pos as usize].join("\n")
+            end_line
         };
+        let padding = max_line_number.to_string().len();
+
+        // Extract requested lines and add line numbers
+        let result_lines: Vec<String> = if start_pos == 0 && end_pos == total_lines - 1 {
+            // Full file requested - add line numbers to all lines
+            lines
+                .iter()
+                .enumerate()
+                .map(|(idx, line)| format!("{:>width$}: {}", idx + 1, line, width = padding))
+                .collect()
+        } else {
+            // Range requested - add line numbers to the selected lines
+            lines[start_pos as usize..=end_pos as usize]
+                .iter()
+                .enumerate()
+                .map(|(idx, line)| {
+                    format!(
+                        "{:>width$}: {}",
+                        start_pos + 1 + idx as u64,
+                        line,
+                        width = padding
+                    )
+                })
+                .collect()
+        };
+
+        let result_content = result_lines.join("\n");
 
         Ok((result_content, info))
     }
@@ -104,38 +131,41 @@ mod test {
 
         // Test reading a range of lines
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 2, 5).await?;
-        assert_eq!(result, "Line 2\nLine 3\nLine 4\nLine 5");
+        assert_eq!(result, "2: Line 2\n3: Line 3\n4: Line 4\n5: Line 5");
         assert_eq!(info.start_line, 2);
         assert_eq!(info.end_line, 5);
         assert_eq!(info.total_lines, 10);
 
         // Test reading from start
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 3).await?;
-        assert_eq!(result, "Line 1\nLine 2\nLine 3");
+        assert_eq!(result, "1: Line 1\n2: Line 2\n3: Line 3");
         assert_eq!(info.start_line, 1);
         assert_eq!(info.end_line, 3);
 
         // Test reading to end
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 8, 10).await?;
-        assert_eq!(result, "Line 8\nLine 9\nLine 10");
+        assert_eq!(result, " 8: Line 8\n 9: Line 9\n10: Line 10");
         assert_eq!(info.start_line, 8);
         assert_eq!(info.end_line, 10);
 
         // Test reading entire file
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 10).await?;
-        assert_eq!(result, content);
+        assert_eq!(
+            result,
+            " 1: Line 1\n 2: Line 2\n 3: Line 3\n 4: Line 4\n 5: Line 5\n 6: Line 6\n 7: Line 7\n 8: Line 8\n 9: Line 9\n10: Line 10"
+        );
         assert_eq!(info.start_line, 1);
         assert_eq!(info.end_line, 10);
 
         // Test single line
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 5, 5).await?;
-        assert_eq!(result, "Line 5");
+        assert_eq!(result, "5: Line 5");
         assert_eq!(info.start_line, 5);
         assert_eq!(info.end_line, 5);
 
         // Test first line specifically
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 1).await?;
-        assert_eq!(result, "Line 1");
+        assert_eq!(result, "1: Line 1");
         assert_eq!(info.start_line, 1);
         assert_eq!(info.end_line, 1);
         assert_eq!(info.total_lines, 10);
@@ -167,9 +197,48 @@ mod test {
 
         // Test reading a range that includes multi-byte characters
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 2, 3).await?;
-        assert_eq!(result, "こんにちは 世界!\nПривет мир!");
+        assert_eq!(result, "2: こんにちは 世界!\n3: Привет мир!");
         assert_eq!(info.start_line, 2);
         assert_eq!(info.end_line, 3);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dynamic_padding() -> Result<()> {
+        // Create a file with 1000 lines to test different padding scenarios
+        let lines: Vec<String> = (1..=1000).map(|i| format!("Line {}", i)).collect();
+        let content = lines.join("\n");
+        let file = create_test_file(&content).await?;
+
+        // Test reading lines 1-9 (single digit): padding = 1
+        let (result, _) = crate::ForgeFS::read_range_utf8(file.path(), 1, 9).await?;
+        let first_line = result.lines().next().unwrap();
+        assert_eq!(first_line, "1: Line 1");
+
+        // Test reading lines 1-99 (double digit): padding = 2
+        let (result, _) = crate::ForgeFS::read_range_utf8(file.path(), 1, 99).await?;
+        let first_line = result.lines().next().unwrap();
+        assert_eq!(first_line, " 1: Line 1");
+
+        // Test reading lines 1-999 (triple digit): padding = 3
+        let (result, _) = crate::ForgeFS::read_range_utf8(file.path(), 1, 999).await?;
+        let first_line = result.lines().next().unwrap();
+        assert_eq!(first_line, "  1: Line 1");
+
+        // Test reading lines 1-1000 (quadruple digit): padding = 4
+        let (result, _) = crate::ForgeFS::read_range_utf8(file.path(), 1, 1000).await?;
+        let first_line = result.lines().next().unwrap();
+        let last_line = result.lines().last().unwrap();
+        assert_eq!(first_line, "   1: Line 1");
+        assert_eq!(last_line, "1000: Line 1000");
+
+        // Test reading a range in the middle with large numbers: lines 990-1000
+        let (result, _) = crate::ForgeFS::read_range_utf8(file.path(), 990, 1000).await?;
+        let first_line = result.lines().next().unwrap();
+        let last_line = result.lines().last().unwrap();
+        assert_eq!(first_line, " 990: Line 990");
+        assert_eq!(last_line, "1000: Line 1000");
 
         Ok(())
     }
