@@ -122,6 +122,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.state.is_first = true;
         self.state.operating_agent = agent.id.clone();
 
+        // Update the model to reflect the new agent's model (with fallback to workflow
+        // model)
+        self.state.model = agent.model.clone().or(workflow.model.clone());
+
         // Update the workflow with the new operating agent.
         self.api
             .update_workflow(self.cli.workflow.as_deref(), |workflow| {
@@ -542,9 +546,55 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => Ok(None),
         }
     }
+    /// Select model scope (global or per-agent)
+    /// Returns true for global scope, false for per-agent scope, None if
+    /// cancelled
+    async fn select_model_scope(&mut self) -> Result<Option<bool>> {
+        let workflow = self.active_workflow().await?;
+        let current_agent = workflow.get_agent(&self.state.operating_agent)?;
+        let current_agent_name = current_agent.id.as_str();
+
+        #[derive(Clone)]
+        struct ScopeOption {
+            display: String,
+            is_global: bool,
+        }
+
+        impl Display for ScopeOption {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.display)
+            }
+        }
+
+        let options = vec![
+            ScopeOption { display: "All agents".to_string(), is_global: true },
+            ScopeOption {
+                display: format!("Current agent ({})", current_agent_name),
+                is_global: false,
+            },
+        ];
+
+        let selected = ForgeSelect::select("Choose model scope:", options)
+            .with_help_message(
+                "Select whether to change the model for all agents or just the current agent",
+            )
+            .prompt()?;
+
+        match selected {
+            Some(scope) => Ok(Some(scope.is_global)),
+            None => Ok(None),
+        }
+    }
 
     // Helper method to handle model selection and update the conversation
     async fn on_model_selection(&mut self) -> Result<()> {
+        // Select model scope first
+        let scope_option = self.select_model_scope().await?;
+        let is_global = match scope_option {
+            Some(scope) => scope,
+            None => return Ok(()), // User cancelled
+        };
+
         // Select a model
         let model_option = self.select_model().await?;
 
@@ -554,26 +604,63 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        self.api
-            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow.model = Some(model.clone());
-            })
-            .await?;
-
         // Get the conversation to update
         let conversation_id = self.init_conversation().await?;
 
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
-            // Update the model in the conversation
-            conversation.set_model(&model)?;
+            if is_global {
+                // Global scope: update all agents and workflow
+                conversation.set_model(&model)?;
+
+                self.api
+                    .update_workflow(self.cli.workflow.as_deref(), |workflow| {
+                        // Update both workflow-level model and each individual agent's model
+                        workflow.model = Some(model.clone());
+                        for agent in workflow.agents.iter_mut() {
+                            agent.model = Some(model.clone());
+                        }
+                    })
+                    .await?;
+
+                self.writeln_title(TitleFormat::action(format!(
+                    "Switched to model: {model} (all agents)"
+                )))?;
+            } else {
+                // Per-agent scope: update only current agent
+                conversation.set_agent_model(&self.state.operating_agent, &model)?;
+
+                // Update the specific agent in the workflow
+                let current_agent_id = self.state.operating_agent.clone();
+                self.api
+                    .update_workflow(self.cli.workflow.as_deref(), |workflow| {
+                        // Find the agent in the workflow
+                        if let Some(agent) = workflow
+                            .agents
+                            .iter_mut()
+                            .find(|a| a.id == current_agent_id)
+                        {
+                            // Agent exists in workflow, update its model
+                            agent.model = Some(model.clone());
+                        } else {
+                            // Agent doesn't exist in workflow, create it
+                            let new_agent =
+                                forge_domain::Agent::new(current_agent_id).model(model.clone());
+                            workflow.agents.push(new_agent);
+                        }
+                    })
+                    .await?;
+
+                let agent_name = self.state.operating_agent.as_str();
+                self.writeln_title(TitleFormat::action(format!(
+                    "Switched to model: {model} (agent: {agent_name})"
+                )))?;
+            }
 
             // Upsert the updated conversation
             self.api.upsert_conversation(conversation).await?;
 
             // Update the UI state with the new model
             self.update_model(model.clone());
-
-            self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
         }
 
         Ok(())

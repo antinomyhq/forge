@@ -92,6 +92,23 @@ impl Conversation {
 
         Ok(())
     }
+    /// Sets the model for a specific agent in the conversation
+    pub fn set_agent_model(&mut self, agent_id: &AgentId, model: &ModelId) -> Result<()> {
+        let agent = self.find_agent_mut(agent_id)?;
+        agent.model = Some(model.clone());
+        if let Some(ref mut compact) = agent.compact {
+            compact.model = Some(model.clone());
+        }
+        Ok(())
+    }
+
+    /// Finds a mutable reference to an agent by ID
+    pub fn find_agent_mut(&mut self, agent_id: &AgentId) -> Result<&mut Agent> {
+        self.agents
+            .iter_mut()
+            .find(|a| a.id == *agent_id)
+            .ok_or(Error::AgentUndefined(agent_id.clone()))
+    }
 
     pub fn new(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
         Self::new_inner(id, workflow, additional_tools)
@@ -144,14 +161,24 @@ impl Conversation {
                 agent.max_tokens = Some(max_tokens);
             }
 
-            if let Some(model) = workflow.model.clone() {
-                agent.model = Some(model.clone());
+            // Apply workflow model only if agent doesn't have one (agent model takes
+            // precedence)
+            let effective_model = agent.model.clone().or_else(|| workflow.model.clone());
+            if let Some(model) = effective_model {
+                // Only set agent model if it doesn't already have one
+                if agent.model.is_none() {
+                    agent.model = Some(model.clone());
+                }
 
-                // If a workflow model is specified, ensure all agents have a compact model
+                // If a model is effective, ensure all agents have a compact model
                 // initialized with that model, creating the compact configuration if needed
                 if agent.compact.is_some() {
                     if let Some(ref mut compact) = agent.compact {
-                        compact.model = Some(model);
+                        // Only set compact model if not already set (agent compact takes
+                        // precedence)
+                        if compact.model.is_none() {
+                            compact.model = Some(model);
+                        }
                     }
                 } else {
                     agent.compact = Some(Compact::new().model(model));
@@ -431,7 +458,7 @@ mod tests {
             .iter()
             .find(|a| a.id.as_str() == "agent1")
             .unwrap();
-        assert_eq!(agent1.model, Some(ModelId::new("default-model")));
+        assert_eq!(agent1.model, Some(ModelId::new("agent1-model")));
         assert_eq!(agent1.max_walker_depth, Some(5));
         assert_eq!(
             agent1.custom_rules,
@@ -817,7 +844,7 @@ mod tests {
     }
 
     #[test]
-    fn test_workflow_model_overrides_compact_model() {
+    fn test_agent_compact_model_preserved_with_workflow_model() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -836,15 +863,16 @@ mod tests {
         // Act
         let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
 
-        // Check that agent1's compact.model was updated to the workflow model
+        // Check that agent1's compact.model was preserved (agent compact model takes
+        // precedence)
         let agent1 = conversation.get_agent(&AgentId::new("agent1")).unwrap();
         let compact = agent1.compact.as_ref().unwrap();
-        assert_eq!(compact.model, Some(ModelId::new("workflow-model")));
+        assert_eq!(compact.model, Some(ModelId::new("old-compaction-model")));
 
         // Regular agent model should also be updated
         assert_eq!(agent1.model, Some(ModelId::new("workflow-model")));
 
-        // Check that agent2 still has no compaction
+        // Check that agent2 gets compact configuration with workflow model
         let agent2 = conversation.get_agent(&AgentId::new("agent2")).unwrap();
         let compact = agent2.compact.as_ref().unwrap();
         assert_eq!(compact.model, Some(ModelId::new("workflow-model")));
@@ -1165,5 +1193,170 @@ mod tests {
                 assert_eq!(compact.model, Some(model_id.clone()));
             }
         }
+    }
+    #[test]
+    fn test_set_agent_model_success() {
+        let workflow = Workflow::new().agents(vec![
+            Agent::new("agent-1")
+                .model(ModelId::new("sonnet-4"))
+                .compact(Compact::new().model(ModelId::new("gemini-1.5"))),
+            Agent::new("agent-2").model(ModelId::new("sonnet-3.5")),
+        ]);
+
+        let id = super::ConversationId::generate();
+        let mut conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+
+        let new_model = ModelId::new("qwen-2");
+        let agent_id = AgentId::new("agent-1");
+
+        // Act
+        let result = conversation.set_agent_model(&agent_id, &new_model);
+
+        // Assert
+        assert!(result.is_ok());
+
+        let agent1 = conversation.get_agent(&agent_id).unwrap();
+        assert_eq!(agent1.model, Some(new_model.clone()));
+        assert_eq!(
+            agent1.compact.as_ref().unwrap().model,
+            Some(new_model.clone())
+        );
+
+        // Check that other agent wasn't affected
+        let agent2 = conversation.get_agent(&AgentId::new("agent-2")).unwrap();
+        assert_eq!(agent2.model, Some(ModelId::new("sonnet-3.5")));
+        // agent2 now has a compact config created during initialization with its model
+        assert_eq!(
+            agent2.compact.as_ref().unwrap().model,
+            Some(ModelId::new("sonnet-3.5"))
+        );
+    }
+
+    #[test]
+    fn test_set_agent_model_agent_not_found() {
+        let workflow = Workflow::new().agents(vec![Agent::new("agent-1")]);
+
+        let id = super::ConversationId::generate();
+        let mut conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+
+        let new_model = ModelId::new("qwen-2");
+        let nonexistent_agent_id = AgentId::new("nonexistent");
+
+        // Act
+        let result = conversation.set_agent_model(&nonexistent_agent_id, &new_model);
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::AgentUndefined(_))));
+    }
+
+    #[test]
+    fn test_find_agent_mut_success() {
+        let workflow = Workflow::new().agents(vec![
+            Agent::new("agent-1").model(ModelId::new("sonnet-4")),
+            Agent::new("agent-2").model(ModelId::new("sonnet-3.5")),
+        ]);
+
+        let id = super::ConversationId::generate();
+        let mut conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+
+        let agent_id = AgentId::new("agent-1");
+
+        // Act
+        let result = conversation.find_agent_mut(&agent_id);
+
+        // Assert
+        assert!(result.is_ok());
+        let agent = result.unwrap();
+        assert_eq!(agent.id, agent_id);
+        assert_eq!(agent.model, Some(ModelId::new("sonnet-4")));
+    }
+
+    #[test]
+    fn test_find_agent_mut_agent_not_found() {
+        let workflow = Workflow::new().agents(vec![Agent::new("agent-1")]);
+
+        let id = super::ConversationId::generate();
+        let mut conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+
+        let nonexistent_agent_id = AgentId::new("nonexistent");
+
+        // Act
+        let result = conversation.find_agent_mut(&nonexistent_agent_id);
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::AgentUndefined(_))));
+    }
+    #[test]
+    fn test_agent_model_takes_precedence_over_workflow_model() {
+        let id = super::ConversationId::generate();
+
+        // Create agents with different model scenarios
+        let agent_with_model =
+            Agent::new("agent-with-model").model(ModelId::new("agent-specific-model"));
+        let agent_without_model = Agent::new("agent-without-model");
+
+        // Create workflow with global model
+        let workflow = Workflow::new()
+            .agents(vec![agent_with_model, agent_without_model])
+            .model(ModelId::new("workflow-global-model"));
+
+        // Act
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Assert
+        let agent_with_model_result = conversation
+            .get_agent(&AgentId::new("agent-with-model"))
+            .unwrap();
+        let agent_without_model_result = conversation
+            .get_agent(&AgentId::new("agent-without-model"))
+            .unwrap();
+
+        // Agent with specific model should keep its model, not use workflow model
+        assert_eq!(
+            agent_with_model_result.model,
+            Some(ModelId::new("agent-specific-model"))
+        );
+
+        // Agent without specific model should use workflow model
+        assert_eq!(
+            agent_without_model_result.model,
+            Some(ModelId::new("workflow-global-model"))
+        );
+    }
+
+    #[test]
+    fn test_agent_compact_model_takes_precedence_over_workflow_model() {
+        let id = super::ConversationId::generate();
+
+        // Create agent with specific compact model
+        let agent_with_compact = Agent::new("agent-with-compact")
+            .compact(Compact::new().model(ModelId::new("agent-compact-model")));
+
+        // Create workflow with global model
+        let workflow = Workflow::new()
+            .agents(vec![agent_with_compact])
+            .model(ModelId::new("workflow-global-model"));
+
+        // Act
+        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+
+        // Assert
+        let agent_result = conversation
+            .get_agent(&AgentId::new("agent-with-compact"))
+            .unwrap();
+
+        // Agent should use workflow model for main model (since it wasn't set)
+        assert_eq!(
+            agent_result.model,
+            Some(ModelId::new("workflow-global-model"))
+        );
+
+        // But agent's compact model should remain unchanged
+        assert_eq!(
+            agent_result.compact.as_ref().unwrap().model,
+            Some(ModelId::new("agent-compact-model"))
+        );
     }
 }
