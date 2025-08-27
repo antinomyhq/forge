@@ -91,6 +91,12 @@ impl Provider {
             key: Some(key.into()),
         }
     }
+    pub fn ionet(key: &str) -> Provider {
+        Provider::OpenAI {
+            url: Url::parse(Provider::IONET_URL).unwrap(),
+            key: Some(key.into()),
+        }
+    }
 
     pub fn cerebras(key: &str) -> Provider {
         Provider::OpenAI {
@@ -130,6 +136,7 @@ impl Provider {
     pub const FORGE_URL: &str = "https://antinomy.ai/api/v1/";
     pub const ZAI_URL: &str = "https://api.z.ai/api/paas/v4/";
     pub const CEREBRAS_URL: &str = "https://api.cerebras.ai/v1/";
+    pub const IONET_URL: &str = "https://api.intelligence.io.solutions/api/v1/";
 
     /// Converts the provider to it's base URL
     pub fn to_base_url(&self) -> Url {
