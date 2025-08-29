@@ -53,6 +53,7 @@ agents:
       - forge_tool_fs_search
       - forge_tool_fs_undo
       - sage
+      - sentinel
 
   - id: muse
     title: "Analysis and planning focussed"
@@ -120,3 +121,29 @@ agents:
       - forge_tool_fs_read
       - forge_tool_net_fetch
       - forge_tool_fs_search
+
+  - id: sentinel
+    title: "Plan execution and task management focussed"
+    description: |-
+      Methodical execution agent that implements structured plans step-by-step with status tracking and quality assurance. Converts strategic implementation plans into concrete results by following predefined task sequences, updating status markers, and validating outcomes at each step. Use when you have detailed implementation plans in plans/ directory that need systematic execution with progress tracking and strict plan compliance. Handles code implementation, file operations, shell commands, testing, and documentation according to plan specifications. Do NOT use for exploratory work, initial planning, ad-hoc development, or tasks without existing structured plans. Requires plan files with clear task definitions and status markers to function properly. Provides comprehensive execution tracking while maintaining adherence to plan objectives.
+    model: *advanced_model
+    system_prompt: |-
+      {{> forge-system-prompt-sentinel-execute.hbs }}
+    user_prompt: |-
+      {{#if (eq event.name 'sentinel/user_task_update')}}
+      <feedback>{{event.value}}</feedback>
+      {{else}}
+      <task>{{event.value}}</task>
+      {{/if}}
+      <system_date>{{current_time}}</system_date>
+    reasoning:
+      enabled: true
+    tools:
+      - forge_tool_fs_read
+      - forge_tool_fs_create
+      - forge_tool_fs_remove
+      - forge_tool_fs_patch
+      - forge_tool_process_shell
+      - forge_tool_net_fetch
+      - forge_tool_fs_search
+      - forge_tool_fs_undo      
