@@ -5,6 +5,7 @@ use ratatui::widgets::{Block, Padding, StatefulWidget, Widget};
 
 use crate::domain::State;
 use crate::widgets::message_list::MessageList;
+use crate::widgets::model_selection::ModelSelectionWidget;
 use crate::widgets::spotlight::SpotlightWidget;
 use crate::widgets::status_bar::StatusBar;
 use crate::widgets::welcome::WelcomeWidget;
@@ -44,6 +45,10 @@ impl StatefulWidget for ChatWidget {
             SpotlightWidget.render(messages_area, buf, state)
         }
 
+        if state.model_selection.is_visible {
+            ModelSelectionWidget.render(messages_area, buf, state)
+        }
+
         // User input area block with status bar (now at bottom)
         let user_block = Block::bordered()
             .padding(Padding::new(0, 0, 0, 1))
@@ -52,6 +57,7 @@ impl StatefulWidget for ChatWidget {
                 "FORGE",
                 state.editor.mode.name(),
                 state.workspace.clone(),
+                state.current_model.clone(),
             ));
 
         EditorView::new(&mut state.editor)
