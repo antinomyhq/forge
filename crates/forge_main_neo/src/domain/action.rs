@@ -1,4 +1,4 @@
-use forge_api::{ChatResponse, ConversationId};
+use forge_api::{Agent, AgentId, ChatResponse, ConversationId};
 use ratatui::crossterm::event::Event;
 
 use crate::domain::{CancelId, Timer};
@@ -17,4 +17,6 @@ pub enum Action {
     IntervalTick(Timer),
     InterruptStream,
     StartStream(CancelId),
+    AgentSelected(AgentId),
+    ShowAgentSelection(Vec<Agent>),
 }
