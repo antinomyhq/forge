@@ -1,7 +1,7 @@
 use forge_api::{ChatResponse, ConversationId};
 use ratatui::crossterm::event::Event;
 
-use crate::domain::{CancelId, Timer};
+use crate::domain::{CancelId, ForgeConfig, Timer};
 
 /// Top-level application actions that wrap route-specific actions
 #[derive(Clone, Debug)]
@@ -17,4 +17,5 @@ pub enum Action {
     IntervalTick(Timer),
     InterruptStream,
     StartStream(CancelId),
+    ForgeConfigLoaded(ForgeConfig),
 }
