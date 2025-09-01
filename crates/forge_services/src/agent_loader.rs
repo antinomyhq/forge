@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::{
-    AgentService,
-    domain::{Agent, Template},
-};
+use forge_app::AgentService;
+use forge_app::domain::{Agent, Template};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 

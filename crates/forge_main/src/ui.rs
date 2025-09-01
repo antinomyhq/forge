@@ -112,7 +112,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let agent = agents
             .iter()
             .find(|a| a.id == agent_id)
-            .expect(&format!("Agent not found: {}", &agent_id));
+            .unwrap_or_else(|| panic!("Agent not found: {}", &agent_id));
 
         let conversation_id = self.init_conversation().await?;
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {

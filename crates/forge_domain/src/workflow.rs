@@ -200,7 +200,7 @@ mod tests {
         // Act
         let actual = Workflow::new();
 
-        // Assert        
+        // Assert
         assert!(actual.variables.is_empty());
         assert!(actual.commands.is_empty());
         assert_eq!(actual.model, None);
