@@ -41,14 +41,15 @@ impl TestContext {
             mock_tool_call_responses: Default::default(),
             workflow: Workflow::new()
                 .model(ModelId::new("openai/gpt-1"))
-                .agents(vec![
-                    Agent::new(AgentId::new("forge"))
-                        .system_prompt(Template::new("You are Forge"))
-                        .tools(vec![("fs_read").into(), ("fs_write").into()]),
-                    Agent::new(AgentId::new("must"))
-                        .system_prompt(Template::new("You are Muse"))
-                        .tools(vec![("fs_read").into()]),
-                ])
+                // FIXME: agents need to provided from outside
+                // .agents(vec![
+                //     Agent::new(AgentId::new("forge"))
+                //         .system_prompt(Template::new("You are Forge"))
+                //         .tools(vec![("fs_read").into(), ("fs_write").into()]),
+                //     Agent::new(AgentId::new("must"))
+                //         .system_prompt(Template::new("You are Muse"))
+                //         .tools(vec![("fs_read").into()]),
+                // ])
                 .tool_supported(true),
             templates: Default::default(),
             files: Default::default(),

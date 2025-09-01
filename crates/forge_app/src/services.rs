@@ -332,9 +332,9 @@ pub trait ProviderRegistry: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait AgentLoaderService: Send + Sync {
+pub trait AgentService: Send + Sync {
     /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>>;
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
 }
 
 #[async_trait::async_trait]
@@ -375,7 +375,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AuthService: AuthService;
     type AppConfigService: AppConfigService;
     type ProviderRegistry: ProviderRegistry;
-    type AgentLoaderService: AgentLoaderService;
+    type AgentService: AgentService;
     type PolicyService: PolicyService;
 
     fn provider_service(&self) -> &Self::ProviderService;
@@ -401,7 +401,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn auth_service(&self) -> &Self::AuthService;
     fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
-    fn agent_loader_service(&self) -> &Self::AgentLoaderService;
+    fn agent_service(&self) -> &Self::AgentService;
     fn policy_service(&self) -> &Self::PolicyService;
 }
 
@@ -709,9 +709,9 @@ pub trait HttpClientService: Send + Sync + 'static {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> AgentLoaderService for I {
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.agent_loader_service().load_agents().await
+impl<I: Services> AgentService for I {
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        self.agent_service().get_agents().await
     }
 }
 

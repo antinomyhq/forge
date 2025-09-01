@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use derive_setters::Setters;
-use forge_api::{AgentId, ConversationId, Environment, ModelId, Provider, Usage, Workflow};
+use forge_api::{Agent, AgentId, ConversationId, Environment, ModelId, Provider, Usage, Workflow};
 
 use crate::prompt::ForgePrompt;
 
@@ -20,7 +20,7 @@ pub struct UIState {
 }
 
 impl UIState {
-    pub fn new(env: Environment, workflow: Workflow) -> Self {
+    pub fn new(env: Environment, workflow: Workflow, agents: Vec<Agent>) -> Self {
         let operating_agent = workflow
             .variables
             .get("operating_agent")
@@ -28,13 +28,13 @@ impl UIState {
             .and_then(|agent_id_str| {
                 // Validate that the agent exists in the workflow before creating AgentId
                 let agent_id = AgentId::new(agent_id_str);
-                if workflow.agents.iter().any(|agent| agent.id == agent_id) {
+                if agents.iter().any(|agent| agent.id == agent_id) {
                     Some(agent_id)
                 } else {
                     None
                 }
             })
-            .or_else(|| workflow.agents.first().map(|agent| agent.id.clone()))
+            .or_else(|| agents.first().map(|agent| agent.id.clone()))
             .unwrap_or_default();
 
         Self {

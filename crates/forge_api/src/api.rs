@@ -100,4 +100,5 @@ pub trait API: Sync + Send {
     async fn app_config(&self) -> anyhow::Result<AppConfig>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
 }

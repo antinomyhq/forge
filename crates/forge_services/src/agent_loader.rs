@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{Agent, Template};
+use forge_app::{
+    AgentService,
+    domain::{Agent, Template},
+};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
@@ -11,7 +14,7 @@ use crate::{
 
 /// A service for loading agent definitions from individual files in the
 /// forge/agent directory
-pub struct AgentLoaderService<F> {
+pub struct ForgeAgentService<F> {
     infra: Arc<F>,
 
     // Cache is used to maintain the loaded agents
@@ -20,7 +23,7 @@ pub struct AgentLoaderService<F> {
     cache: tokio::sync::OnceCell<Vec<Agent>>,
 }
 
-impl<F> AgentLoaderService<F> {
+impl<F> ForgeAgentService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra, cache: Default::default() }
     }
@@ -28,16 +31,16 @@ impl<F> AgentLoaderService<F> {
 
 #[async_trait::async_trait]
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    forge_app::AgentLoaderService for AgentLoaderService<F>
+    AgentService for ForgeAgentService<F>
 {
     /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.load_agents().await
     }
 }
 
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    AgentLoaderService<F>
+    ForgeAgentService<F>
 {
     /// Load all agent definitions from the forge/agent directory
     async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {

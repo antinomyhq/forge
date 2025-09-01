@@ -10,6 +10,7 @@ use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
+use crate::services::AgentService;
 use crate::{ConversationService, Services, WorkflowService};
 
 #[derive(Clone)]
@@ -28,9 +29,9 @@ impl<S: Services> AgentExecutor<S> {
         if let Some(tool_agents) = self.tool_agents.read().await.clone() {
             return Ok(tool_agents);
         }
-        let workflow = self.services.read_merged(None).await?;
+        let agents = self.services.get_agents().await?;
 
-        let agents: Vec<ToolDefinition> = workflow.agents.into_iter().map(Into::into).collect();
+        let agents: Vec<ToolDefinition> = agents.into_iter().map(Into::into).collect();
         *self.tool_agents.write().await = Some(agents.clone());
         Ok(agents)
     }

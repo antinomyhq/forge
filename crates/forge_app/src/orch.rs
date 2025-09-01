@@ -10,7 +10,7 @@ use forge_template::Element;
 use serde_json::Value;
 use tracing::{debug, info, warn};
 
-use crate::agent::AgentService;
+use crate::agent::AgentOrchestrator;
 use crate::compact::Compactor;
 pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
@@ -28,7 +28,7 @@ pub struct Orchestrator<S> {
     custom_instructions: Vec<String>,
 }
 
-impl<S: AgentService> Orchestrator<S> {
+impl<S: AgentOrchestrator> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
         environment: Environment,

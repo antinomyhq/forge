@@ -11,10 +11,9 @@ use crate::dto::InitAuth;
 use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
-use crate::workflow_manager::WorkflowManager;
 use crate::{
     AppConfigService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
+    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -24,7 +23,6 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
-    workflow_manager: WorkflowManager<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -33,7 +31,6 @@ impl<S: Services> ForgeApp<S> {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
-            workflow_manager: WorkflowManager::new(services.clone()),
             services,
         }
     }
@@ -64,7 +61,8 @@ impl<S: Services> ForgeApp<S> {
 
         // Discover files using the discovery service
         let workflow = self
-            .workflow_manager
+            .services
+            .workflow_service()
             .read_merged(None)
             .await
             .unwrap_or_default();
@@ -215,13 +213,13 @@ impl<S: Services> ForgeApp<S> {
         self.authenticator.logout().await
     }
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
-        self.workflow_manager.read_workflow(path).await
+        self.services.read_workflow(path).await
     }
 
     pub async fn read_workflow_merged(&self, path: Option<&Path>) -> Result<Workflow> {
-        self.workflow_manager.read_merged(path).await
+        self.services.read_merged(path).await
     }
     pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
-        self.workflow_manager.write_workflow(path, workflow).await
+        self.services.write_workflow(path, workflow).await
     }
 }

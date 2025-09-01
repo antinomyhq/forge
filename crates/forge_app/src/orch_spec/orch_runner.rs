@@ -9,7 +9,7 @@ use rust_embed::Embed;
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
-use crate::AgentService;
+use crate::AgentOrchestrator;
 use crate::orch::Orchestrator;
 
 #[derive(Embed)]
@@ -90,7 +90,7 @@ impl Runner {
 }
 
 #[async_trait::async_trait]
-impl AgentService for Runner {
+impl AgentOrchestrator for Runner {
     async fn chat_agent(
         &self,
         _id: &forge_domain::ModelId,

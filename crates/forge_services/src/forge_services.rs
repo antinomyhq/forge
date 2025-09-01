@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_app::Services;
 
-use crate::agent_loader::AgentLoaderService as ForgeAgentLoaderService;
+use crate::agent_loader::ForgeAgentService;
 use crate::app_config::ForgeConfigService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
@@ -60,7 +60,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     config_service: Arc<ForgeConfigService<F>>,
     auth_service: Arc<AuthService<F>>,
     provider_service: Arc<ForgeProviderRegistry<F>>,
-    agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
+    agent_service: Arc<ForgeAgentService<F>>,
     policy_service: ForgePolicyService<F>,
 }
 
@@ -103,7 +103,7 @@ impl<
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
-        let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
+        let agent_service = Arc::new(ForgeAgentService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
 
         Self {
@@ -130,7 +130,7 @@ impl<
             auth_service,
             chat_service,
             provider_service,
-            agent_loader_service,
+            agent_service,
             policy_service,
         }
     }
@@ -176,7 +176,7 @@ impl<
     type AppConfigService = ForgeConfigService<F>;
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
-    type AgentLoaderService = ForgeAgentLoaderService<F>;
+    type AgentService = ForgeAgentService<F>;
     type PolicyService = ForgePolicyService<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
@@ -269,8 +269,8 @@ impl<
     fn provider_registry(&self) -> &Self::ProviderRegistry {
         &self.provider_service
     }
-    fn agent_loader_service(&self) -> &Self::AgentLoaderService {
-        &self.agent_loader_service
+    fn agent_service(&self) -> &Self::AgentService {
+        &self.agent_service
     }
 
     fn policy_service(&self) -> &Self::PolicyService {

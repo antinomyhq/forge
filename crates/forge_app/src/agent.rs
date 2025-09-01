@@ -14,7 +14,7 @@ use crate::{
 /// Agent service trait that provides core chat and tool call functionality.
 /// This trait abstracts the essential operations needed by the Orchestrator.
 #[async_trait::async_trait]
-pub trait AgentService: Send + Sync + 'static {
+pub trait AgentOrchestrator: Send + Sync + 'static {
     /// Execute a chat completion request
     async fn chat_agent(
         &self,
@@ -43,7 +43,7 @@ pub trait AgentService: Send + Sync + 'static {
 
 /// Blanket implementation of AgentService for any type that implements Services
 #[async_trait::async_trait]
-impl<T: Services> AgentService for T {
+impl<T: Services> AgentOrchestrator for T {
     async fn chat_agent(
         &self,
         id: &ModelId,

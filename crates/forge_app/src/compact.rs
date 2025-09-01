@@ -7,14 +7,14 @@ use forge_domain::{
 use futures::Stream;
 use tracing::{debug, info};
 
-use crate::agent::AgentService;
+use crate::agent::AgentOrchestrator;
 
 /// A service dedicated to handling context compaction.
 pub struct Compactor<S> {
     services: Arc<S>,
 }
 
-impl<S: AgentService> Compactor<S> {
+impl<S: AgentOrchestrator> Compactor<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
