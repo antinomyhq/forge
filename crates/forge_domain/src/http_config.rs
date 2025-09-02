@@ -114,8 +114,10 @@ impl std::fmt::Display for TlsBackend {
 /// - `FORGE_HTTP_KEEP_ALIVE_TIMEOUT`: Keep-alive timeout in seconds (default:
 ///   10)
 /// - `FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE`: Keep-alive while idle (default: true)
-/// - `FORGE_HTTP_ACCEPT_INVALID_CERTS`: Accept invalid certificates (default: false) - USE WITH CAUTION
-/// - `FORGE_HTTP_ROOT_CERT_PATHS`: Paths to root certificate files (PEM, CRT, CER format), multiple paths separated by commas
+/// - `FORGE_HTTP_ACCEPT_INVALID_CERTS`: Accept invalid certificates (default:
+///   false) - USE WITH CAUTION
+/// - `FORGE_HTTP_ROOT_CERT_PATHS`: Paths to root certificate files (PEM, CRT,
+///   CER format), multiple paths separated by commas
 ///
 /// # Example
 /// ```
@@ -158,7 +160,8 @@ pub struct HttpConfig {
     pub keep_alive_while_idle: bool,
     /// Accept invalid certificates. This should be used with caution.
     pub accept_invalid_certs: bool,
-    /// Paths to root certificate files (PEM, CRT, CER format). Multiple paths can be separated by commas.
+    /// Paths to root certificate files (PEM, CRT, CER format). Multiple paths
+    /// can be separated by commas.
     pub root_cert_paths: Option<Vec<String>>,
 }
 
@@ -262,16 +265,16 @@ mod tests {
 
     #[test]
     fn test_http_config_accept_invalid_certs_custom() {
-        let config = HttpConfig {
-            accept_invalid_certs: true,
-            ..HttpConfig::default()
-        };
+        let config = HttpConfig { accept_invalid_certs: true, ..HttpConfig::default() };
         assert_eq!(config.accept_invalid_certs, true);
     }
 
     #[test]
     fn test_http_config_root_cert_paths_custom() {
-        let cert_paths = vec!["/path/to/cert1.pem".to_string(), "/path/to/cert2.crt".to_string()];
+        let cert_paths = vec![
+            "/path/to/cert1.pem".to_string(),
+            "/path/to/cert2.crt".to_string(),
+        ];
         let config = HttpConfig {
             root_cert_paths: Some(cert_paths.clone()),
             ..HttpConfig::default()

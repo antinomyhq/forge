@@ -384,7 +384,10 @@ mod tests {
             env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "1.2");
             env::set_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL", "30");
             env::set_var("FORGE_HTTP_ACCEPT_INVALID_CERTS", "true");
-            env::set_var("FORGE_HTTP_ROOT_CERT_PATHS", "/path/to/cert1.pem,/path/to/cert2.crt");
+            env::set_var(
+                "FORGE_HTTP_ROOT_CERT_PATHS",
+                "/path/to/cert1.pem,/path/to/cert2.crt",
+            );
         }
 
         let actual = resolve_http_config();
@@ -394,7 +397,13 @@ mod tests {
         assert_eq!(actual.min_tls_version, Some(TlsVersion::V1_2));
         assert_eq!(actual.keep_alive_interval, Some(30));
         assert_eq!(actual.accept_invalid_certs, true);
-        assert_eq!(actual.root_cert_paths, Some(vec!["/path/to/cert1.pem".to_string(), "/path/to/cert2.crt".to_string()]));
+        assert_eq!(
+            actual.root_cert_paths,
+            Some(vec![
+                "/path/to/cert1.pem".to_string(),
+                "/path/to/cert2.crt".to_string()
+            ])
+        );
 
         clean_http_env_vars();
     }

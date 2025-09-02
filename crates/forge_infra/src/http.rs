@@ -1,5 +1,5 @@
-use std::time::Duration;
 use std::fs;
+use std::time::Duration;
 
 use anyhow::Context;
 use bytes::Bytes;
@@ -56,11 +56,17 @@ impl ForgeHttpInfra {
                         } else if let Ok(cert) = Certificate::from_der(&buf) {
                             client = client.add_root_certificate(cert);
                         } else {
-                            warn!("Failed to parse certificate as PEM or DER format, cert = {}", cert_path);
+                            warn!(
+                                "Failed to parse certificate as PEM or DER format, cert = {}",
+                                cert_path
+                            );
                         }
                     }
                     Err(error) => {
-                        warn!("Failed to read certificate file, path = {}, error = {}", cert_path, error);
+                        warn!(
+                            "Failed to read certificate file, path = {}, error = {}",
+                            cert_path, error
+                        );
                     }
                 }
             }
