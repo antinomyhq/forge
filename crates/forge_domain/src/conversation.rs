@@ -190,15 +190,27 @@ impl Conversation {
                 }
             }
 
-            if !additional_tools.is_empty() && agent.enable_mcp.unwrap_or(true) {
-                agent.tools = Some(
-                    agent
-                        .tools
-                        .unwrap_or_default()
-                        .into_iter()
-                        .chain(additional_tools.iter().cloned())
-                        .collect::<Vec<_>>(),
-                );
+            // Filter and add MCP tools based on the agent's enable_mcp configuration
+            if !additional_tools.is_empty() {
+                let filter = agent
+                    .enable_mcp
+                    .as_ref()
+                    .unwrap_or(&crate::McpToolFilter::Boolean(true));
+
+                // Filter tools based on the configuration for this specific agent
+                let filtered_tools: Vec<crate::ToolName> =
+                    filter.filter_tools(&additional_tools).unwrap_or_default();
+
+                if !filtered_tools.is_empty() {
+                    agent.tools = Some(
+                        agent
+                            .tools
+                            .unwrap_or_default()
+                            .into_iter()
+                            .chain(filtered_tools.into_iter())
+                            .collect::<Vec<_>>(),
+                    );
+                }
             }
 
             let id = agent.id.clone();
@@ -1172,8 +1184,8 @@ mod tests {
     fn test_enable_mcp_false_prevents_additional_tools() {
         // Arrange
         let id = super::ConversationId::generate();
-        let agent1 = Agent::new("agent1").enable_mcp(false);
-        let agent2 = Agent::new("agent2").enable_mcp(true);
+        let agent1 = Agent::new("agent1").enable_mcp(crate::McpToolFilter::Boolean(false));
+        let agent2 = Agent::new("agent2").enable_mcp(crate::McpToolFilter::Boolean(true));
 
         let workflow = Workflow::new().agents(vec![agent1, agent2]);
 
@@ -1208,5 +1220,160 @@ mod tests {
         let tools = agent2.tools.as_ref().expect("Agent2 should have tools");
         assert!(tools.contains(&ToolName::new("test_tool1")));
         assert!(tools.contains(&ToolName::new("test_tool2")));
+    }
+
+    #[test]
+    fn test_enable_mcp_glob_filtering() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let agent1 = Agent::new("agent1").enable_mcp(crate::McpToolFilter::Glob(vec![
+            "mcp_context7_*".to_string(),
+        ]));
+        let agent2 = Agent::new("agent2").enable_mcp(crate::McpToolFilter::Glob(vec![
+            "mcp_deepwiki_*".to_string(),
+        ]));
+
+        let workflow = Workflow::new().agents(vec![agent1, agent2]);
+
+        let additional_tools = vec![
+            ToolName::new("mcp_context7_tool_get_docs"),
+            ToolName::new("mcp_deepwiki_tool_ask_question"),
+            ToolName::new("mcp_other_tool_something"),
+        ];
+
+        let conversation = super::Conversation::new_inner(id, workflow, additional_tools);
+
+        // Assert
+        assert_eq!(conversation.agents.len(), 2);
+
+        // Agent1 should only have mcp_context7_* tools
+        let agent1 = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "agent1")
+            .unwrap();
+        let tools = agent1.tools.as_ref().expect("Agent1 should have tools");
+        assert!(tools.contains(&ToolName::new("mcp_context7_tool_get_docs")));
+        assert!(!tools.contains(&ToolName::new("mcp_deepwiki_tool_ask_question")));
+        assert!(!tools.contains(&ToolName::new("mcp_other_tool_something")));
+
+        // Agent2 should only have mcp_deepwiki_* tools
+        let agent2 = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "agent2")
+            .unwrap();
+        let tools = agent2.tools.as_ref().expect("Agent2 should have tools");
+        assert!(!tools.contains(&ToolName::new("mcp_context7_tool_get_docs")));
+        assert!(tools.contains(&ToolName::new("mcp_deepwiki_tool_ask_question")));
+        assert!(!tools.contains(&ToolName::new("mcp_other_tool_something")));
+    }
+
+    #[test]
+    fn test_enable_mcp_list_filtering() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let agent1 =
+            Agent::new("agent1").enable_mcp(crate::McpToolFilter::List(vec![ToolName::new(
+                "mcp_context7_tool_get_docs",
+            )]));
+
+        let workflow = Workflow::new().agents(vec![agent1]);
+
+        let additional_tools = vec![
+            ToolName::new("mcp_context7_tool_get_docs"),
+            ToolName::new("mcp_context7_tool_resolve_library_id"),
+            ToolName::new("mcp_deepwiki_tool_ask_question"),
+        ];
+
+        let conversation = super::Conversation::new_inner(id, workflow, additional_tools);
+
+        // Assert
+        let agent1 = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "agent1")
+            .unwrap();
+        let tools = agent1.tools.as_ref().expect("Agent1 should have tools");
+        assert!(tools.contains(&ToolName::new("mcp_context7_tool_get_docs")));
+        assert!(!tools.contains(&ToolName::new("mcp_context7_tool_resolve_library_id")));
+        assert!(!tools.contains(&ToolName::new("mcp_deepwiki_tool_ask_question")));
+    }
+
+    #[test]
+    fn test_enable_mcp_mixed_filtering_scenarios() {
+        // Arrange
+        let id = super::ConversationId::generate();
+        let boolean_agent =
+            Agent::new("boolean_agent").enable_mcp(crate::McpToolFilter::Boolean(true));
+        let glob_agent = Agent::new("glob_agent").enable_mcp(crate::McpToolFilter::Glob(vec![
+            "mcp_context7_*".to_string(),
+        ]));
+        let list_agent =
+            Agent::new("list_agent").enable_mcp(crate::McpToolFilter::List(vec![ToolName::new(
+                "mcp_deepwiki_tool_ask_question",
+            )]));
+        let disabled_agent =
+            Agent::new("disabled_agent").enable_mcp(crate::McpToolFilter::Boolean(false));
+
+        let workflow =
+            Workflow::new().agents(vec![boolean_agent, glob_agent, list_agent, disabled_agent]);
+
+        let additional_tools = vec![
+            ToolName::new("mcp_context7_tool_get_docs"),
+            ToolName::new("mcp_deepwiki_tool_ask_question"),
+            ToolName::new("mcp_other_tool_something"),
+        ];
+
+        let conversation = super::Conversation::new_inner(id, workflow, additional_tools);
+
+        // Boolean agent should have all tools
+        let boolean_agent = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "boolean_agent")
+            .unwrap();
+        let tools = boolean_agent
+            .tools
+            .as_ref()
+            .expect("Boolean agent should have tools");
+        assert_eq!(tools.len(), 3);
+
+        // Glob agent should have only mcp_context7_* tools
+        let glob_agent = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "glob_agent")
+            .unwrap();
+        let tools = glob_agent
+            .tools
+            .as_ref()
+            .expect("Glob agent should have tools");
+        assert_eq!(tools.len(), 1);
+        assert!(tools.contains(&ToolName::new("mcp_context7_tool_get_docs")));
+
+        // List agent should have only the specified tool
+        let list_agent = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "list_agent")
+            .unwrap();
+        let tools = list_agent
+            .tools
+            .as_ref()
+            .expect("List agent should have tools");
+        assert_eq!(tools.len(), 1);
+        assert!(tools.contains(&ToolName::new("mcp_deepwiki_tool_ask_question")));
+
+        // Disabled agent should have no tools
+        let disabled_agent = conversation
+            .agents
+            .iter()
+            .find(|a| a.id.as_str() == "disabled_agent")
+            .unwrap();
+        match &disabled_agent.tools {
+            Some(tools) => assert_eq!(tools.len(), 0),
+            None => {} // No tools is acceptable
+        }
     }
 }

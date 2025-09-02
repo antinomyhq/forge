@@ -1,6 +1,5 @@
 use std::pin::Pin;
 
-use derive_more::From;
 use forge_json_repair::JsonRepairError;
 use thiserror::Error;
 
@@ -10,7 +9,7 @@ use crate::{AgentId, ConversationId};
 // up converting errors incorrectly without much context. For eg: You don't want
 // all serde error to be treated as the same. Instead we want to know exactly
 // where that serde failure happened and for what kind of value.
-#[derive(Debug, Error, From)]
+#[derive(Debug, Error)]
 pub enum Error {
     #[error("Missing tool name")]
     ToolCallMissingName,
@@ -72,6 +71,8 @@ pub enum Error {
 
     #[error("Empty completion received - no content, tool calls, or valid finish reason")]
     EmptyCompletion,
+    #[error("MCP tool filter error: {0}")]
+    McpToolFilter(String),
 
     #[error(transparent)]
     Retryable(anyhow::Error),

@@ -56,11 +56,13 @@ pub struct Agent {
     #[merge(strategy = crate::merge::option)]
     pub tool_supported: Option<bool>,
 
-    /// Flag to enable/disable tool support for this agent.
+    /// Configuration for filtering MCP tools available to this agent.
+    /// Supports boolean (enable/disable all), glob patterns, or explicit tool
+    /// lists.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
-    pub enable_mcp: Option<bool>,
+    pub enable_mcp: Option<crate::McpToolFilter>,
 
     // Unique identifier for the agent
     #[merge(strategy = crate::merge::std::overwrite)]
@@ -354,16 +356,16 @@ mod tests {
     #[test]
     fn test_merge_enable_mcp() {
         // Base has no value, should use other's value
-        let mut base = Agent::new("Base"); // No tool_supported set
+        let mut base = Agent::new("Base"); // No enable_mcp set
         let other = Agent::new("Other").enable_mcp(true);
         base.merge(other);
-        assert_eq!(base.enable_mcp, Some(true));
+        assert_eq!(base.enable_mcp, Some(crate::McpToolFilter::Boolean(true)));
 
-        // Base has a value, should not be overwritten
+        // Base has a value, should be overwritten by other's value
         let mut base = Agent::new("Base").enable_mcp(false);
         let other = Agent::new("Other").enable_mcp(true);
         base.merge(other);
-        assert_eq!(base.enable_mcp, Some(true));
+        assert_eq!(base.enable_mcp, Some(crate::McpToolFilter::Boolean(true)));
     }
 
     #[test]

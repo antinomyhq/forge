@@ -177,10 +177,14 @@
           ]
         },
         "enable_mcp": {
-          "description": "Flag to enable/disable tool support for this agent.",
-          "type": [
-            "boolean",
-            "null"
+          "description": "Configuration for filtering MCP tools available to this agent. Supports boolean (enable/disable all), glob patterns, or explicit tool lists.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/McpToolFilter"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "id": {
@@ -438,6 +442,29 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
+    },
+    "McpToolFilter": {
+      "description": "Configuration for filtering MCP tools available to an agent\n\nSupports three modes: - Boolean: Enable/disable all MCP tools (backward compatible) - Glob: Use glob patterns to match tool names - List: Specify exact tool names to enable",
+      "anyOf": [
+        {
+          "description": "Enable (true) or disable (false) all MCP tools",
+          "type": "boolean"
+        },
+        {
+          "description": "Array of glob patterns to match tool names",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "Array of exact tool names to enable",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
     },
     "ReasoningConfig": {
       "type": "object",
