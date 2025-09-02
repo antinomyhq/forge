@@ -1390,6 +1390,7 @@ dependencies = [
  "lazy_static",
  "merge 0.2.0",
  "nom 8.0.0",
+ "once_cell",
  "pretty_assertions",
  "regex",
  "schemars",

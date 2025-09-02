@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::Mutex;
 
 use glob::Pattern;
 use merge::Merge;
+use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -60,9 +61,9 @@ impl McpToolFilter {
 
     /// Compile a glob pattern with caching
     fn compile_glob(pattern: &str) -> Result<Pattern> {
-        static GLOB_CACHE: OnceLock<std::sync::Mutex<HashMap<String, Pattern>>> = OnceLock::new();
+        static GLOB_CACHE: OnceCell<Mutex<HashMap<String, Pattern>>> = OnceCell::new();
 
-        let cache = GLOB_CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()));
+        let cache = GLOB_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
         let mut cache = cache
             .lock()
             .map_err(|e| Error::McpToolFilter(format!("Failed to lock glob cache: {}", e)))?;
