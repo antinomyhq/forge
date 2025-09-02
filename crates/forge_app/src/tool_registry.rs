@@ -149,7 +149,7 @@ impl<S> ToolRegistry<S> {
             .collect();
 
         if !agent_tools.contains(&tool_name.as_str())
-            && *tool_name != ToolsDiscriminants::ForgeToolAttemptCompletion.name()
+            && *tool_name != ToolsDiscriminants::AttemptCompletion.name()
         {
             tracing::error!(tool_name = %tool_name, "No tool with name");
 
@@ -170,33 +170,28 @@ mod tests {
     use crate::tool_registry::ToolRegistry;
 
     fn agent() -> Agent {
-        // only allow FsRead tool for this agent
-        Agent::new(AgentId::new("test_agent")).tools(vec![
-            ToolName::new("forge_tool_fs_read"),
-            ToolName::new("forge_tool_fs_find"),
-        ])
+        // only allow read and search tools for this agent
+        Agent::new(AgentId::new("test_agent"))
+            .tools(vec![ToolName::new("read"), ToolName::new("search")])
     }
 
     #[tokio::test]
     async fn test_restricted_tool_call() {
         let result = ToolRegistry::<()>::validate_tool_call(
             &agent(),
-            &ToolName::new(Tools::ForgeToolFsRead(Default::default())),
+            &ToolName::new(Tools::Read(Default::default())),
         );
         assert!(result.is_ok(), "Tool call should be valid");
     }
 
     #[tokio::test]
     async fn test_restricted_tool_call_err() {
-        let error = ToolRegistry::<()>::validate_tool_call(
-            &agent(),
-            &ToolName::new("forge_tool_fs_create"),
-        )
-        .unwrap_err()
-        .to_string();
+        let error = ToolRegistry::<()>::validate_tool_call(&agent(), &ToolName::new("write"))
+            .unwrap_err()
+            .to_string();
         assert_eq!(
             error,
-            "Tool 'forge_tool_fs_create' is not available. Please try again with one of these tools: [forge_tool_fs_read, forge_tool_fs_find]"
+            "Tool 'write' is not available. Please try again with one of these tools: [read, search]"
         );
     }
 
@@ -204,7 +199,7 @@ mod tests {
     async fn test_completion_tool_call() {
         let result = ToolRegistry::<()>::validate_tool_call(
             &agent(),
-            &ToolsDiscriminants::ForgeToolAttemptCompletion.name(),
+            &ToolsDiscriminants::AttemptCompletion.name(),
         );
 
         assert!(result.is_ok(), "Completion tool call should be valid");

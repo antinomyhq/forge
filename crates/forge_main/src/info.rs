@@ -15,6 +15,7 @@ pub enum Section {
     Items(String, Option<String>),
 }
 
+#[derive(Default)]
 pub struct Info {
     sections: Vec<Section>,
 }
@@ -118,10 +119,12 @@ impl From<&Metrics> for Info {
             Some(d) => humantime::format_duration(Duration::from_secs(d.as_secs())).to_string(),
             None => "0s".to_string(),
         };
-        let mut info = Info::new().add_title(format!("TASK COMPLETED [{duration}]"));
+        let mut info = Info::new().add_title(format!("TASK COMPLETED [in {duration}]"));
 
         // Add file changes section inspired by the example format
-        if !metrics.files_changed.is_empty() {
+        if metrics.files_changed.is_empty() {
+            info = info.add_key("[No Changes Produced]");
+        } else {
             // First, calculate the maximum filename length for proper alignment
             let max_filename_len = metrics
                 .files_changed
