@@ -5,6 +5,7 @@ use std::time::Duration;
 use colored::Colorize;
 use forge_api::{Environment, LoginInfo, Metrics, Usage, UserUsage};
 use forge_tracker::VERSION;
+use num_format::{Locale, ToFormattedString};
 
 use crate::model::ForgeCommandManager;
 use crate::state::UIState;
@@ -167,23 +168,23 @@ pub fn get_usage(state: &UIState) -> Info {
     let cached_display = if cache_percentage > 0 {
         format!(
             "{} [{}%]",
-            format_with_commas(*state.usage.cached_tokens),
+            state.usage.cached_tokens.to_formatted_string(&Locale::en),
             cache_percentage
         )
     } else {
-        format_with_commas(*state.usage.cached_tokens)
+        state.usage.cached_tokens.to_formatted_string(&Locale::en)
     };
 
     let mut usage = Info::new()
         .add_title("TOKEN USAGE")
         .add_key_value(
             "Input Tokens",
-            format_with_commas(*state.usage.prompt_tokens),
+            state.usage.prompt_tokens.to_formatted_string(&Locale::en),
         )
         .add_key_value("Cached Tokens", cached_display)
         .add_key_value(
             "Output Tokens",
-            format_with_commas(*state.usage.completion_tokens),
+            state.usage.completion_tokens.to_formatted_string(&Locale::en),
         );
 
     let is_forge_provider = state.provider.as_ref().is_some_and(|p| p.is_forge());
@@ -205,10 +206,7 @@ fn calculate_cache_percentage(usage: &Usage) -> u8 {
     }
 }
 
-fn format_with_commas(num: usize) -> String {
-    use num_format::{Locale, ToFormattedString};
-    num.to_formatted_string(&Locale::en)
-}
+
 
 impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
