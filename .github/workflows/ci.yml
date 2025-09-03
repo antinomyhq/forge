@@ -46,7 +46,9 @@ jobs:
       with:
         toolchain: stable
     - name: Install nextest
-      run: cargo install cargo-nextest --locked
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2
       with:
