@@ -322,10 +322,10 @@ mod tests {
         let actual = fixture_usage_1.accumulate(&fixture_usage_2);
 
         let expected = Usage {
-            prompt_tokens: TokenCount::Approx(200),
-            completion_tokens: TokenCount::Approx(75),
-            total_tokens: TokenCount::Approx(275),
-            cached_tokens: TokenCount::Approx(30),
+            prompt_tokens: TokenCount::Actual(200),
+            completion_tokens: TokenCount::Actual(75),
+            total_tokens: TokenCount::Actual(275),
+            cached_tokens: TokenCount::Actual(30),
             cost: Some(0.05),
         };
 
