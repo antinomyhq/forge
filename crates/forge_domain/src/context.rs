@@ -452,7 +452,7 @@ impl std::ops::Add for TokenCount {
 
 impl Default for TokenCount {
     fn default() -> Self {
-        TokenCount::Approx(0)
+        TokenCount::Actual(0)
     }
 }
 

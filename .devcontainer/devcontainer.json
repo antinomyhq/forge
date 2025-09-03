@@ -2,6 +2,9 @@
   "image": "mcr.microsoft.com/devcontainers/universal:2",
   "features": {
     "ghcr.io/devcontainers/features/rust:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/git:1": {
       "ppa": true,
