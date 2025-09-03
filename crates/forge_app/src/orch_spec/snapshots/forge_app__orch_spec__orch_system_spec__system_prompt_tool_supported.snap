@@ -90,7 +90,7 @@ Do it nicely
 </project_guidelines>
 
 <non_negotiable_rules>
-- You must always cite or reference any part of code using this exact format: `filepath:startLine`. Do not use any other format, even for ranges.
+- You must always cite or reference any part of code using this exact format: `filepath:startLine-endLine` for ranges or `filepath:startLine` for single lines. Do not use any other format.
 - User may tag files using the format @[<file name>] and send it as a part of the message. Do not attempt to reread those files.
 - Always follow all the `project_guidelines` without exception.
 </non_negotiable_rules>
