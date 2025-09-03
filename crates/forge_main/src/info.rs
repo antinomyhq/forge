@@ -184,7 +184,10 @@ pub fn get_usage(state: &UIState) -> Info {
         .add_key_value("Cached Tokens", cached_display)
         .add_key_value(
             "Output Tokens",
-            state.usage.completion_tokens.to_formatted_string(&Locale::en),
+            state
+                .usage
+                .completion_tokens
+                .to_formatted_string(&Locale::en),
         );
 
     let is_forge_provider = state.provider.as_ref().is_some_and(|p| p.is_forge());
@@ -205,8 +208,6 @@ fn calculate_cache_percentage(usage: &Usage) -> u8 {
         ((cached * 100) / total) as u8
     }
 }
-
-
 
 impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
