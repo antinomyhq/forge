@@ -25,16 +25,7 @@ impl UIState {
             .variables
             .get("operating_agent")
             .and_then(|value| value.as_str())
-            .and_then(|agent_id_str| {
-                // Validate that the agent exists in the workflow before creating AgentId
-                let agent_id = AgentId::new(agent_id_str);
-                if workflow.agents.iter().any(|agent| agent.id == agent_id) {
-                    Some(agent_id)
-                } else {
-                    None
-                }
-            })
-            .or_else(|| workflow.agents.first().map(|agent| agent.id.clone()))
+            .map(AgentId::new)
             .unwrap_or_default();
 
         Self {

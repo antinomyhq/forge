@@ -4,10 +4,30 @@ use anyhow::{Context, Result};
 use forge_app::domain::{Agent, Template};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
+use lazy_static::lazy_static;
+use serde::Deserialize;
 
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
+
+#[derive(Deserialize)]
+struct DefaultWorkflow {
+    agents: Vec<Agent>,
+}
+
+lazy_static! {
+    /// Default agents loaded from the embedded forge.default.yaml
+    static ref DEFAULT_AGENTS: Vec<Agent> = {
+        let default_workflow: DefaultWorkflow =
+            serde_yml::from_str(include_str!("../../../forge.default.yaml"))
+                .expect("Failed to parse forge.default.yaml");
+
+
+        // This extracts the 5 default agents: forge, muse, prime, parker, sage
+        default_workflow.agents
+    };
+}
 
 /// A service for loading agent definitions from individual files in the
 /// forge/agent directory
@@ -45,14 +65,15 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     }
 
     async fn init(&self) -> anyhow::Result<Vec<Agent>> {
+        // Start with default agents from forge.default.yaml
+        let mut agents = DEFAULT_AGENTS.clone();
+
         let agent_dir = self.infra.get_environment().agent_path();
         if !self.infra.exists(&agent_dir).await? {
-            return Ok(vec![]);
+            return Ok(agents);
         }
 
-        let mut agents = vec![];
-
-        // Use DirectoryReaderInfra to read all .md files in parallel
+        // Load external agents from forge/agent directory
         let files = self
             .infra
             .read_directory_files(&agent_dir, Some("*.md"))
@@ -60,10 +81,18 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             .with_context(|| "Failed to read agent directory")?;
 
         for (path, content) in files {
-            agents.push(
-                parse_agent_file(&content)
-                    .with_context(|| format!("Failed to parse agent: {}", path.display()))?,
-            )
+            let external_agent = parse_agent_file(&content)
+                .with_context(|| format!("Failed to parse agent: {}", path.display()))?;
+
+            // Check if an agent with this ID already exists in default agents
+            if let Some(existing_agent) = agents.iter_mut().find(|a| a.id == external_agent.id) {
+                // Merge the external agent into the existing default agent
+                use merge::Merge;
+                existing_agent.merge(external_agent);
+            } else {
+                // Add the new external agent
+                agents.push(external_agent);
+            }
         }
 
         Ok(agents)

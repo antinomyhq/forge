@@ -22,11 +22,6 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::option)]
     pub templates: Option<String>,
 
-    /// Agents that are part of this workflow
-    #[merge(strategy = crate::merge::vec::unify_by_key)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub agents: Vec<Agent>,
-
     /// Variables that can be used in templates
     #[merge(strategy = crate::merge::hashmap)]
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -173,7 +168,6 @@ impl Workflow {
     /// scratch.
     pub fn new() -> Self {
         Self {
-            agents: Vec::new(),
             variables: HashMap::new(),
             commands: Vec::new(),
             model: None,
@@ -192,13 +186,12 @@ impl Workflow {
         }
     }
 
-    fn find_agent(&self, id: &AgentId) -> Option<&Agent> {
-        self.agents.iter().find(|a| a.id == *id)
+    fn find_agent(&self, _id: &AgentId) -> Option<&Agent> {
+        None
     }
 
     pub fn get_agent(&self, id: &AgentId) -> crate::Result<&Agent> {
-        self.find_agent(id)
-            .ok_or_else(|| crate::Error::AgentUndefined(id.clone()))
+        Err(crate::Error::AgentUndefined(id.clone()))
     }
 }
 
@@ -216,7 +209,6 @@ mod tests {
         let actual = Workflow::new();
 
         // Assert
-        assert!(actual.agents.is_empty());
         assert!(actual.variables.is_empty());
         assert!(actual.commands.is_empty());
         assert_eq!(actual.model, None);
@@ -235,13 +227,7 @@ mod tests {
         // Arrange
         let fixture = r#"
         {
-            "tool_supported": true,
-            "agents": [
-                {
-                    "id": "test-agent",
-                    "description": "Test agent"
-                }
-            ]
+            "tool_supported": true
         }
         "#;
 

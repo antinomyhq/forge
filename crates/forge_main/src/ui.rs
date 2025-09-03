@@ -107,10 +107,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     // Set the current mode and update conversation variable
     async fn on_agent_change(&mut self, agent_id: AgentId) -> Result<()> {
-        let workflow = self.active_workflow().await?;
+        let _workflow = self.active_workflow().await?;
 
-        // Convert string to AgentId for validation
-        let agent = workflow.get_agent(&AgentId::new(agent_id))?;
+        let agent_id = AgentId::new(agent_id);
+        let agent = forge_domain::Agent::new(agent_id);
 
         let conversation_id = self.init_conversation().await?;
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
@@ -421,8 +421,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.execute_shell_command_raw(command).await?;
             }
             Command::Agent => {
-                // Read the current workflow to validate the agent
-                let workflow = self.active_workflow().await?;
+                let _workflow = self.active_workflow().await?;
 
                 #[derive(Clone)]
                 struct Agent {
@@ -435,14 +434,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         write!(f, "{}", self.label)
                     }
                 }
-                let n = workflow
-                    .agents
+
+                let workflow_agents: Vec<forge_domain::Agent> = vec![];
+
+                let n = workflow_agents
                     .iter()
                     .map(|a| a.id.as_str().len())
                     .max()
                     .unwrap_or_default();
-                let display_agents = workflow
-                    .agents
+                let display_agents = workflow_agents
                     .into_iter()
                     .map(|agent| {
                         let title = &agent.title.unwrap_or("<Missing agent.title>".to_string());

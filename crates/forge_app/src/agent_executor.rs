@@ -10,7 +10,7 @@ use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
-use crate::{ConversationService, Services, WorkflowService};
+use crate::{AgentLoaderService, ConversationService, Services, WorkflowService};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -28,11 +28,12 @@ impl<S: Services> AgentExecutor<S> {
         if let Some(tool_agents) = self.tool_agents.read().await.clone() {
             return Ok(tool_agents);
         }
-        let workflow = self.services.read_merged(None).await?;
 
-        let agents: Vec<ToolDefinition> = workflow.agents.into_iter().map(Into::into).collect();
-        *self.tool_agents.write().await = Some(agents.clone());
-        Ok(agents)
+        let agents = self.services.load_agents().await?;
+        let tool_definitions: Vec<ToolDefinition> = agents.into_iter().map(Into::into).collect();
+
+        *self.tool_agents.write().await = Some(tool_definitions.clone());
+        Ok(tool_definitions)
     }
 
     /// Executes an agent tool call by creating a new chat request for the

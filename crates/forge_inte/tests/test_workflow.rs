@@ -33,6 +33,6 @@ pub fn create_test_workflow() -> Workflow {
         .system_prompt(Template::<SystemContext>::new(SYSTEM_PROMPT.trim()))
         .user_prompt(Template::<EventContext>::new(USER_PROMPT.trim()));
 
-    // Using the new Workflow::new() function instead of default()
-    Workflow::new().agents(vec![developer])
+    // workflow Using the new Workflow::new() function instead of default()
+    Workflow::new()
 }
