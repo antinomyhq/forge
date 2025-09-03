@@ -180,6 +180,7 @@ impl ForgeCommandManager {
             }
             "/act" | "/forge" => Ok(Command::Forge),
             "/plan" | "/muse" => Ok(Command::Muse),
+            "/sage" => Ok(Command::Sage),
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
@@ -250,6 +251,12 @@ pub enum Command {
     /// This can be triggered with the '/must' command.
     #[strum(props(usage = "Enable planning mode without code changes"))]
     Muse,
+    /// Switch to "sage" agent.
+    /// This can be triggered with the '/sage' command.
+    #[strum(props(
+        usage = "Enable research mode for systematic codebase exploration and analysis"
+    ))]
+    Sage,
     /// Switch to "help" mode.
     /// This can be triggered with the '/help' command.
     #[strum(props(usage = "Enable help mode for tool questions"))]
@@ -303,6 +310,7 @@ impl Command {
             Command::Exit => "/exit",
             Command::Forge => "/forge",
             Command::Muse => "/muse",
+            Command::Sage => "/sage",
             Command::Help => "/help",
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
