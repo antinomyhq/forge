@@ -4,11 +4,11 @@ use edtui::actions::{
     Execute, MoveToEndOfLine, MoveToStartOfLine, MoveWordBackward, MoveWordForward,
 };
 use edtui::{EditorEventHandler, EditorMode};
+use forge_api::AgentId;
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::domain::spotlight::SpotlightState;
-use crate::domain::{Command, SpotlightCommand, EditorStateExt, State};
-use forge_api::AgentId;
+use crate::domain::{Command, EditorStateExt, SpotlightCommand, State};
 
 fn handle_spotlight_input_change(state: &mut State) {
     // Reset selection index when input changes to ensure it's within bounds
@@ -642,7 +642,7 @@ mod tests {
 
         // Test that spotlight shows all slash commands
         let filtered_commands = state.spotlight.filtered_commands();
-        assert_eq!(filtered_commands.len(), 12); // All 12 slash commands
+        assert_eq!(filtered_commands.len(), 13); // All 13 slash commands
 
         // Test that filtering works
         state

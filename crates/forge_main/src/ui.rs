@@ -391,6 +391,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Command::Muse => {
                 self.on_agent_change(AgentId::MUSE).await?;
             }
+            Command::Sage => {
+                self.on_agent_change(AgentId::SAGE).await?;
+            }
             Command::Help => {
                 let info = Info::from(self.command.as_ref());
                 self.writeln(info)?;
