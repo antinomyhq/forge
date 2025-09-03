@@ -14,6 +14,29 @@ pub fn generate_ci_workflow() {
         })
         .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"));
 
+    // Replace the default build job to install nextest via taiki-e/install-action
+    let custom_build = Job::new("Build and Test")
+        .permissions(Permissions::default().contents(Level::Read))
+        .add_step(Step::checkout())
+        .add_step(Toolchain::default().add_stable())
+        .add_step(
+            Step::uses("taiki-e", "install-action", "v2")
+                .name("Install nextest")
+                .add_with(("tool", "cargo-nextest")),
+        )
+        .add_step(
+            Step::uses("Swatinem", "rust-cache", "v2")
+                .name("Cache Rust dependencies")
+                .add_with(("cache-all-crates", "true")),
+        )
+        .add_step(
+            Cargo::new("nextest")
+                .args("run --all-features --workspace")
+                .name("Cargo Nextest"),
+        );
+
+    let workflow = workflow.add_job("build", custom_build);
+
     // Get the jobs
     let build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();
     let draft_release_job = jobs::create_draft_release_job(&build_job);
