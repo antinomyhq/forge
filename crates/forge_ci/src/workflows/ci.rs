@@ -54,9 +54,9 @@ pub fn generate_ci_workflow() {
                     "~/.cargo/registry\n~/.cargo/git\ntarget",
                 )),
         )
-        .add_step(Step::run("cargo +nightly fmt --all --check").name("Cargo Fmt"))
+        .add_step(Step::run("cargo +nightly-2025-09-02 fmt --all --check").name("Cargo Fmt"))
         .add_step(
-            Step::run("cargo +nightly clippy --all-features --workspace -- -D warnings")
+            Step::run("cargo +nightly-2025-09-02 clippy --all-features --workspace -- -D warnings")
                 .name("Cargo Clippy"),
         );
 
