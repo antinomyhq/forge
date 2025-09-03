@@ -66,9 +66,9 @@ jobs:
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: nightly
+        toolchain: nightly-2025-09-02
         components: clippy, rustfmt
-        cache: true
+        cache: 'true'
         cache-directories: |-
           ~/.cargo/registry
           ~/.cargo/git
