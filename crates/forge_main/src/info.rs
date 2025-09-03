@@ -167,18 +167,24 @@ pub fn get_usage(state: &UIState) -> Info {
     let cached_display = if cache_percentage > 0 {
         format!(
             "{} [{}%]",
-            state.usage.cached_tokens,
+            format_with_commas(*state.usage.cached_tokens),
             cache_percentage
         )
     } else {
-        state.usage.cached_tokens.to_string()
+        format_with_commas(*state.usage.cached_tokens)
     };
 
     let mut usage = Info::new()
         .add_title("TOKEN USAGE")
-        .add_key_value("Input Tokens", state.usage.prompt_tokens.to_string())
+        .add_key_value(
+            "Input Tokens",
+            format_with_commas(*state.usage.prompt_tokens),
+        )
         .add_key_value("Cached Tokens", cached_display)
-        .add_key_value("Output Tokens", state.usage.completion_tokens.to_string());
+        .add_key_value(
+            "Output Tokens",
+            format_with_commas(*state.usage.completion_tokens),
+        );
 
     let is_forge_provider = state.provider.as_ref().is_some_and(|p| p.is_forge());
     if let Some(cost) = state.usage.cost.as_ref()
@@ -197,6 +203,11 @@ fn calculate_cache_percentage(usage: &Usage) -> u8 {
     } else {
         ((cached * 100) / total) as u8
     }
+}
+
+fn format_with_commas(num: usize) -> String {
+    use num_format::{Locale, ToFormattedString};
+    num.to_formatted_string(&Locale::en)
 }
 
 impl fmt::Display for Info {
