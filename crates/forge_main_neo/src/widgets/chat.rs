@@ -7,6 +7,7 @@ use crate::domain::State;
 use crate::widgets::message_list::MessageList;
 use crate::widgets::spotlight::SpotlightWidget;
 use crate::widgets::status_bar::StatusBar;
+use crate::widgets::tools_popup::ToolsPopupWidget;
 use crate::widgets::welcome::WelcomeWidget;
 
 /// Chat widget that handles the chat interface with editor and message list
@@ -42,6 +43,10 @@ impl StatefulWidget for ChatWidget {
 
         if state.spotlight.is_visible {
             SpotlightWidget.render(messages_area, buf, state)
+        }
+
+        if state.tools_popup.is_visible {
+            ToolsPopupWidget.render(messages_area, buf, state)
         }
 
         // User input area block with status bar (now at bottom)
