@@ -338,7 +338,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
 
         // Add user information if available
-        if let Ok(config) = self.api.app_config().await
+        if let Some(config) = self.api.app_config().await
             && let Some(login_info) = &config.key_info
         {
             info = info.extend(Info::from(login_info));
@@ -467,7 +467,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
-                let config: AppConfig = self.api.app_config().await?;
+                let config: AppConfig = self.api.app_config().await.unwrap_or_default();
                 tracker::login(
                     config
                         .key_info
@@ -642,7 +642,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        let operating_agent = self.api.get_operating_agent().await.unwrap_or(None);
+        let operating_agent = self.api.get_operating_agent().await;
         self.state =
             UIState::new(self.api.environment(), base_workflow, operating_agent).provider(provider);
 
