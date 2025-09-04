@@ -234,7 +234,7 @@ impl<S: AgentService> Orchestrator<S> {
             let static_block = self.services.render(&system_prompt.template, &()).await?;
             let non_static_block = self
                 .services
-                .render("{{> forge-custom-agent-template.hbs }}", &ctx)
+                .render("{{> forge-custom-agent-template.md }}", &ctx)
                 .await?;
 
             context.set_system_messages(vec![static_block, non_static_block])
@@ -557,7 +557,7 @@ impl<S: AgentService> Orchestrator<S> {
                 let content = self
                     .services
                     .render(
-                        "{{> forge-partial-tool-required.hbs}}",
+                        "{{> forge-partial-tool-required.md}}",
                         &serde_json::json!({
                             "tool_supported": tool_supported
                         }),
