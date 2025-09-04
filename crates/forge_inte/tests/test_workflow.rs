@@ -7,7 +7,7 @@ Use the tools at your disposal and solve the user given task.
 
 First, let's establish the current system information:
 
-{{> forge-partial-system-info.hbs}}
+{{> forge-partial-system-info.md}}
 
 "#;
 
